@@ -514,6 +514,8 @@ final class PdfTextExtractor
                 'object_stream_xref_entry_type' => $objectStreamXrefEntry['type'] ?? null,
                 'object_stream_xref_generation' => $objectStreamXrefEntry['generation'] ?? null,
                 'object_stream_xref_offset' => $objectStreamXrefEntry['offset'] ?? null,
+                'object_stream_entry_inherited_from_prev' => ($objectStreamXrefEntry['inheritedFromPrev'] ?? false) === true,
+                'object_stream_inherited_xref_offset' => $objectStreamXrefEntry['inheritedXrefOffset'] ?? null,
                 'object_stream_owner_policy' => $this->objectStreamCarrierOwnerPolicy($objectStreamXrefEntry, $objectStreamOwner),
                 'index_is_explicit' => $indexIsExplicit,
                 'index_field_is_zero_width' => !$indexIsExplicit,
@@ -15194,7 +15196,7 @@ final class PdfTextExtractor
                         continue;
                     }
 
-                    $entries[$objectNumber] = $entry;
+                    $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
                 }
             }
 
@@ -15210,7 +15212,7 @@ final class PdfTextExtractor
                             $previousEntries,
                             $definitions
                         )) {
-                            $entries[$objectNumber] = $entry;
+                            $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
                         }
 
                         continue;
@@ -15255,7 +15257,7 @@ final class PdfTextExtractor
                         $previousEntries,
                         $definitions
                     )) {
-                        $entries[$objectNumber] = $entry;
+                        $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
                     }
 
                     continue;
@@ -15269,11 +15271,23 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $entries[$objectNumber] = $entry;
+                $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
             }
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool, inheritedFromPrev?: bool, inheritedXrefOffset?: int} $entry
+     * @return array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool, inheritedFromPrev: bool, inheritedXrefOffset?: int}
+     */
+    private function xrefEntryInheritedFromPreviousSection(array $entry, int $previousOffset): array
+    {
+        $entry['inheritedFromPrev'] = true;
+        $entry['inheritedXrefOffset'] ??= $previousOffset;
+
+        return $entry;
     }
 
     /**
