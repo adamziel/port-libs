@@ -13702,10 +13702,22 @@ final class PdfTextExtractor
     private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
     {
         $length = strlen($stream);
-        for ($index = $offset; $index < $length; $index++) {
-            if (!$this->isPdfWhitespace($stream[$index])) {
-                return false;
+        for ($index = $offset; $index < $length;) {
+            if ($this->isPdfWhitespace($stream[$index])) {
+                $index++;
+                continue;
             }
+
+            if ($stream[$index] === '%') {
+                $lineLength = strcspn($stream, "\r\n", $index);
+                if ($index + $lineLength >= $length) {
+                    return false;
+                }
+                $index += $lineLength;
+                continue;
+            }
+
+            return false;
         }
 
         return true;
@@ -31165,7 +31177,12 @@ final class PdfTextExtractor
 
             return $expectedLength !== null
                 && (
-                    $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength)
+                    $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod(
+                        $filters,
+                        $candidate,
+                        $expectedLength,
+                        $rawCandidate
+                    )
                     || $this->inlineAscii85CandidateReachesSampleFloorBeforePostEodSurplus(
                         $filters,
                         $candidate,
@@ -31316,7 +31333,8 @@ final class PdfTextExtractor
     private function inlineAsciiHexCandidateReachesSampleFloorBeforeEod(
         array $filters,
         string $candidate,
-        int $expectedLength
+        int $expectedLength,
+        ?string $rawCandidate = null
     ): bool {
         $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         if ($expectedLength < 1 || $nonNullFilters !== ['ASCIIHexDecode']) {
@@ -31325,6 +31343,10 @@ final class PdfTextExtractor
 
         $eodOffset = strpos($candidate, '>');
         if ($eodOffset === false) {
+            return false;
+        }
+
+        if (!$this->inlineAsciiHexPostEodCommentIsBounded($candidate, $rawCandidate ?? $candidate, $eodOffset + 1)) {
             return false;
         }
 
@@ -31347,6 +31369,32 @@ final class PdfTextExtractor
         }
 
         return intdiv($hexDigitCount + 1, 2) >= $expectedLength;
+    }
+
+    private function inlineAsciiHexPostEodCommentIsBounded(string $candidate, string $rawCandidate, int $postEodOffset): bool
+    {
+        $index = $postEodOffset;
+        $length = strlen($candidate);
+        while ($index < $length && $this->isPdfWhitespace($candidate[$index])) {
+            $index++;
+        }
+
+        if ($index >= $length || $candidate[$index] !== '%') {
+            return true;
+        }
+
+        $rawIndex = $postEodOffset;
+        $rawLength = strlen($rawCandidate);
+        while ($rawIndex < $rawLength && $this->isPdfWhitespace($rawCandidate[$rawIndex])) {
+            $rawIndex++;
+        }
+
+        if ($rawIndex >= $rawLength || $rawCandidate[$rawIndex] !== '%') {
+            return true;
+        }
+
+        $lineLength = strcspn($rawCandidate, "\r\n", $rawIndex);
+        return $rawIndex + $lineLength < $rawLength;
     }
 
     /**

@@ -176,6 +176,8 @@ $ascii85NulEodPayload = "z~>\0";
 $asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
 $asciiHexNulWhitespaceDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]';
 $asciiHexNulWhitespacePayload = "41\0>";
+$asciiHexCommentEodDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /AHx /D [1 0]';
+$asciiHexCommentEodPayload = "414243>% fake EI BT /F1 12 Tf 72 642 Td (ASCIIHex Comment EOD Inline Noise) Tj ET\n";
 $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
 $runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
 $runLengthPostEodSurplusPayload = $runLengthLiteralEncode('Z', true)
@@ -242,6 +244,9 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 648 Td (Between NUL Filter Boundary) Tj ET\n"
     . "BI {$asciiHexNulWhitespaceDictionary} ID {$asciiHexNulWhitespacePayload}\nEI\n"
     . "BT /F1 12 Tf 72 646 Td (After NUL Filter Boundary) Tj ET\n"
+    . "BT /F1 12 Tf 72 642 Td (Before AHx Comment EOD Inline) Tj ET\n"
+    . "BI {$asciiHexCommentEodDictionary} ID {$asciiHexCommentEodPayload}EI\n"
+    . "BT /F1 12 Tf 72 640 Td (After AHx Comment EOD Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 640 Td (Before Oversized Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
     . $oversizedCompressedImage . "\nEI\n"
@@ -352,6 +357,12 @@ $asciiHexNulWhitespacePreview = $renderer->inlineImageColorSpaceMaskOutputPrevie
     $asciiHexNulWhitespacePayload,
     [],
     1
+);
+$asciiHexCommentEodPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $asciiHexCommentEodDictionary,
+    $asciiHexCommentEodPayload,
+    [],
+    3
 );
 $indirectInlineObjects = [
     91 => '<000000FF000000FF000000FF>',
@@ -705,6 +716,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_short_flate_post_stream_surplus_payload' => str_contains($shortFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_ascii85_post_eod_surplus_payload' => str_contains($ascii85PostEodSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
+    'fake_ei_inside_asciihex_eod_comment' => str_contains($asciiHexCommentEodPayload, '% fake EI BT'),
     'fake_ei_inside_wrapped_jpx_prefix_surplus_payload' => str_contains($wrappedJpxPrefixSurplusPayload, ' EI '),
     'fake_ei_inside_jpx_post_eoc_surplus_payload' => str_contains($jpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_flate_wrapped_jpx_surplus_payload' => str_contains($flateWrappedJpxSurplusPayload, ' EI '),
@@ -727,6 +739,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'Before NUL Filter Boundary',
         'Between NUL Filter Boundary',
         'After NUL Filter Boundary',
+        'Before AHx Comment EOD Inline',
+        'After AHx Comment EOD Inline',
         'Before Oversized Inline Image',
         'After Oversized Inline Image',
         'Before Predictor Short Row Inline',
@@ -786,6 +800,13 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'asciihex_nul_whitespace_preview_decoded' => ($asciiHexNulWhitespacePreview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($asciiHexNulWhitespacePreview['image_stream']['decoded_preview_hex'] ?? null) === '41'
         && (($asciiHexNulWhitespacePreview['image_sample_boundary']['surplus_byte_count'] ?? null) === 0),
+    'asciihex_comment_eod_payload_excluded_until_real_ei' => in_array('After AHx Comment EOD Inline', $lines, true)
+        && !str_contains($plainText, 'ASCIIHex Comment EOD Inline Noise')
+        && !str_contains($plainText, 'fake EI'),
+    'asciihex_comment_eod_preview_decoded' => ($asciiHexCommentEodPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($asciiHexCommentEodPreview['image_stream']['decoded_preview_hex'] ?? null) === '414243'
+        && array_column($asciiHexCommentEodPreview['pixels'] ?? [], 'decoded_gray') === [190 / 255, 189 / 255, 188 / 255]
+        && (($asciiHexCommentEodPreview['image_sample_boundary']['surplus_byte_count'] ?? null) === 0),
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
     'accepts_asciihex_sample_floor_only_after_eod_marker' => in_array('After AHx Surplus Inline Image', $lines, true),
     'asciihex_surplus_preview_decode_rejected' => $asciiHexSurplusPreviewRejected,
@@ -947,6 +968,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Flate Short Sample Inline Noise')
         && !str_contains($plainText, 'ASCIIHex Surplus Inline Noise')
         && !str_contains($plainText, '414243 EI')
+        && !str_contains($plainText, 'ASCIIHex Comment EOD Inline Noise')
         && !str_contains($plainText, 'DeviceN Array Inline Noise')
         && !str_contains($plainText, 'CalRGB Array Inline Noise')
         && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes')

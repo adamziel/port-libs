@@ -319,6 +319,45 @@ return [
         $t->same([65.0], $asciiHexPreview['pixels'][0]['raw_sample']);
         $t->same(0, $asciiHexPreview['image_sample_boundary']['surplus_byte_count']);
     },
+    'treats PDF comments after inline native filter EOD as whitespace before real EI boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $dictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /AHx /D [1 0]';
+        $payload = "414243>% fake EI BT /F1 12 Tf 72 690 Td (Inline EOD Comment Noise) Tj ET\n";
+        $content = "BT /F1 12 Tf 72 720 Td (Before EOD Comment Inline) Tj ET\n"
+            . "BI {$dictionary} ID {$payload}EI\n"
+            . "BT /F1 12 Tf 72 704 Td (After EOD Comment Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            $dictionary,
+            $payload,
+            [],
+            3
+        );
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before EOD Comment Inline',
+            'After EOD Comment Inline',
+        ];
+        $t->true(str_contains($payload, '% fake EI BT'));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Inline EOD Comment Noise'));
+        $t->true(!str_contains($plainText, 'fake EI'));
+        $t->same(['ASCIIHexDecode'], $preview['image_stream']['filters']);
+        $t->same(strlen($payload), $preview['image_stream']['raw_length']);
+        $t->same(3, $preview['image_stream']['decoded_length']);
+        $t->same('414243', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same([[65.0], [66.0], [67.0]], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([190 / 255, 189 / 255, 188 / 255], array_column($preview['pixels'], 'decoded_gray'));
+        $t->same(0, $preview['image_sample_boundary']['surplus_byte_count']);
+        $t->contains('image_decode_inverts_components_before_rgb', implode(',', $preview['notes']));
+    },
     'decodes Flate DecodeParms inline image payload before accepting EI boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payloadText = 'raw EI BT /F1 12 Tf 72 690 Td (Inline DP Image Noise) Tj ET';

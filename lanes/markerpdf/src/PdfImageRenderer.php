@@ -6620,10 +6620,22 @@ final class PdfImageRenderer
     private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
     {
         $length = strlen($stream);
-        for ($index = $offset; $index < $length; $index++) {
-            if (!$this->isPdfWhitespace($stream[$index])) {
-                return false;
+        for ($index = $offset; $index < $length;) {
+            if ($this->isPdfWhitespace($stream[$index])) {
+                $index++;
+                continue;
             }
+
+            if ($stream[$index] === '%') {
+                $lineLength = strcspn($stream, "\r\n", $index);
+                if ($index + $lineLength >= $length) {
+                    return false;
+                }
+                $index += $lineLength;
+                continue;
+            }
+
+            return false;
         }
 
         return true;
