@@ -1355,6 +1355,7 @@ final class PdfPagePropertyExtractor
                 'resolved' => true,
                 'resource_owner_object' => $objectNumber,
                 'resource_object' => $resources['object'],
+                'resource_generation' => $resources['generation'],
                 'inherited' => $objectNumber !== $pageObjectNumber,
                 'categories' => array_keys($this->dictionaryEntries($resourceBody)),
             ];
@@ -2459,7 +2460,7 @@ final class PdfPagePropertyExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null}|null
+     * @return array{body: string, object: int|null, generation: int|null}|null
      */
     private function resolveDictionaryFromValue(?string $value, array $objects): ?array
     {
@@ -2479,7 +2480,9 @@ final class PdfPagePropertyExtractor
             }
 
             $body = $this->dictionaryObjectBody($objects[$objectNumber]);
-            return $body === null ? null : ['body' => $body, 'object' => $objectNumber];
+            return $body === null
+                ? null
+                : ['body' => $body, 'object' => $objectNumber, 'generation' => $reference['generation']];
         }
 
         $resolved = $this->resolveRawValue($value, $objects);
@@ -2488,7 +2491,7 @@ final class PdfPagePropertyExtractor
         }
 
         $dictionary = $this->readPdfDictionaryAt(trim($resolved), 0);
-        return $dictionary === null ? null : ['body' => $dictionary['body'], 'object' => null];
+        return $dictionary === null ? null : ['body' => $dictionary['body'], 'object' => null, 'generation' => null];
     }
 
     /**
