@@ -495,6 +495,14 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidPax));
     },
 
+    'rejects invalid utf8 gnu long name metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $invalidGnuLongName = $rawTarHeader('././@LongLink', 'L', "packet/invalid-\xC3\x28.xml\0", 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidGnuLongName));
+    },
+
     'reads gzip wrapped tar streams for package handoff fixtures' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

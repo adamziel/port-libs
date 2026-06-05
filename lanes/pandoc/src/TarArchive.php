@@ -632,6 +632,7 @@ final class TarArchive
     private static function parseGnuLongName(string $bytes): string
     {
         $name = rtrim($bytes, "\0");
+        self::assertUtf8($name, 'TAR GNU long name metadata');
         self::assertSafePath($name, 'TAR GNU long name');
 
         return $name;
