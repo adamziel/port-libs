@@ -121,6 +121,35 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'accepts filtered inline image EI after decoded sample floor is reached' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $payloadText = "X EI BT /F1 12 Tf 72 690 Td (Oversized Flate Inline Noise) Tj ET";
+        $compressedImage = gzcompress($payloadText, 0);
+        if (!is_string($compressedImage) || !str_contains($compressedImage, ' EI ')) {
+            throw new RuntimeException('Unable to build oversized filtered inline image fixture.');
+        }
+
+        $content = "BT /F1 12 Tf 72 720 Td (Before Oversized Inline Image) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
+            . $compressedImage . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Oversized Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before Oversized Inline Image',
+            'After Oversized Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Oversized Flate Inline Noise'));
+        $t->true(!str_contains($plainText, 'X EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'resolves current indirect inline image decode operands before Indexed RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $imageBytes = "\x1c";

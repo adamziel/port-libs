@@ -17875,7 +17875,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        return $expectedLength === null || strlen($decoded) === $expectedLength;
+        return $expectedLength === null || strlen($decoded) >= $expectedLength;
     }
 
     private function inlineImageCandidateIsIncompletePreviewOnly(string $dictionary, string $candidate): bool

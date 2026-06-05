@@ -35,6 +35,11 @@ $compressedImage = gzcompress("\0" . $imageRow, 0);
 if (!is_string($compressedImage)) {
     throw new RuntimeException('Unable to build inline image fixture.');
 }
+$oversizedImageRow = 'X EI BT /F1 12 Tf 72 646 Td (Oversized Flate Inline Noise) Tj ET';
+$oversizedCompressedImage = gzcompress($oversizedImageRow, 0);
+if (!is_string($oversizedCompressedImage)) {
+    throw new RuntimeException('Unable to build oversized inline image fixture.');
+}
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -44,7 +49,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 688 Td (Before A85 Inline Image) Tj ET\n"
     . "BI /F /A85 ID\n"
     . "87cURDc^jtCh* EI BT /F1 12 Tf 72 672 Td (ASCII85 Inline Noise) Tj ET ~>\nEI\n"
-    . "BT /F1 12 Tf 72 656 Td (After A85 Inline Image) Tj ET";
+    . "BT /F1 12 Tf 72 656 Td (After A85 Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 640 Td (Before Oversized Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
+    . $oversizedCompressedImage . "\nEI\n"
+    . "BT /F1 12 Tf 72 624 Td (After Oversized Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -110,13 +119,17 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'uses_inline_image_abbreviations' => true,
     'fake_ei_inside_compressed_payload' => str_contains($compressedImage, ' EI '),
     'fake_ei_inside_ascii85_payload' => true,
+    'fake_ei_inside_oversized_filtered_payload' => str_contains($oversizedCompressedImage, ' EI '),
     'visible_text_imported' => $lines === [
         'Before DP Inline Image',
         'After DP Inline Image',
         'Before A85 Inline Image',
         'After A85 Inline Image',
+        'Before Oversized Inline Image',
+        'After Oversized Inline Image',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
+    'accepts_filtered_inline_sample_floor_before_real_ei' => true,
     'complete_ascii85_review_decoded' => ($completeInlineReview['image_stream']['decoded_with_current_filters'] ?? false) === true,
     'complete_ascii85_review_preview_pixels' => $completeInlineReview['preview_pixel_count'] ?? null,
     'incomplete_ascii85_review_decode_failed' => $incompleteAscii85ReviewDecodeFailed,
@@ -134,7 +147,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'excluded_inline_image_text' => !str_contains($plainText, 'Inline DP Image Noise')
         && !str_contains($plainText, 'raw EI')
         && !str_contains($plainText, 'ASCII85 Inline Noise')
-        && !str_contains($plainText, '87cURDc'),
+        && !str_contains($plainText, '87cURDc')
+        && !str_contains($plainText, 'Oversized Flate Inline Noise')
+        && !str_contains($plainText, 'X EI'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {
