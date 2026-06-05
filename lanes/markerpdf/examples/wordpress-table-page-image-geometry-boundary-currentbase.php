@@ -69,11 +69,11 @@ try {
                     ['col_id' => 2, 'bbox' => [342.0, 150.0, 362.0, 230.0]],
                 ],
                 'cells' => [
-                    ['bbox' => [82.0, 155.0, 162.0, 170.0], 'text' => 'Feature'],
-                    ['bbox' => [202.0, 155.0, 302.0, 170.0], 'text' => 'Status'],
-                    ['bbox' => [82.0, 195.0, 162.0, 215.0], 'text' => 'Images'],
-                    ['bbox' => [202.0, 195.0, 302.0, 215.0], 'text' => 'Ready'],
-                    ['bbox' => [360.0, 195.0, 382.0, 215.0], 'text' => 'Stale page edge'],
+                    ['bbox' => [82.0, 155.0, 162.0, 170.0], 'text' => 'Feature', 'row_ids' => [0], 'col_ids' => [0]],
+                    ['bbox' => [202.0, 155.0, 302.0, 170.0], 'text' => 'Status', 'row_ids' => [0], 'col_ids' => [1]],
+                    ['bbox' => [82.0, 195.0, 162.0, 215.0], 'text' => 'Images', 'row_ids' => [1], 'col_ids' => [0]],
+                    ['bbox' => [202.0, 195.0, 302.0, 215.0], 'text' => 'Ready', 'row_ids' => [1], 'col_ids' => [1]],
+                    ['bbox' => [360.0, 195.0, 382.0, 215.0], 'text' => 'Stale page edge', 'row_ids' => [1], 'col_ids' => [2]],
                 ],
             ]],
             'table_text_lines' => [['blocks' => []]],
@@ -90,6 +90,14 @@ $coordinateReview = $metadata['table_coordinate_space_reviews'][0] ?? [];
 $gridReview = $metadata['table_spanning_grid_review'][0] ?? [];
 $boundary = $gridReview['geometry_boundary_review'] ?? [];
 $assignedTexts = array_column($metadata['table_assigned_cells'][0] ?? [], 'text');
+$assignedByText = [];
+foreach (($metadata['table_assigned_cells'][0] ?? []) as $cell) {
+    $assignedByText[$cell['text']] = $cell;
+}
+$renderByText = [];
+foreach (($gridReview['render_cells'] ?? []) as $renderCell) {
+    $renderByText[$renderCell['text']] = $renderCell;
+}
 
 if (($coordinateReview['status'] ?? null) !== 'translated_to_table_crop') {
     throw new RuntimeException('Expected page-image table geometry to be translated to crop-local coordinates.');
@@ -99,6 +107,12 @@ if (in_array('Stale page edge', $assignedTexts, true) || str_contains($result['t
 }
 if (str_contains($result['text'], 'Stale page-space table line should be replaced.')) {
     throw new RuntimeException('Expected supplied table Markdown to replace stale pdftext table line.');
+}
+if (($assignedByText['Feature']['source_bbox'] ?? null) !== [82.0, 155.0, 162.0, 170.0]) {
+    throw new RuntimeException('Expected assigned WordPress table metadata to preserve the page-image Feature source bbox.');
+}
+if (($renderByText['Feature']['source_cell_bbox'] ?? null) !== [82.0, 155.0, 162.0, 170.0]) {
+    throw new RuntimeException('Expected span-grid review metadata to preserve the Feature source bbox.');
 }
 
 echo json_encode([
@@ -122,7 +136,13 @@ echo json_encode([
     'active_col_band_count' => $boundary['active_col_band_count'] ?? null,
     'excluded_band_count' => $boundary['excluded_band_count'] ?? null,
     'assigned_table_texts' => $assignedTexts,
+    'feature_crop_bbox' => $assignedByText['Feature']['bbox'] ?? null,
+    'feature_source_bbox' => $assignedByText['Feature']['source_bbox'] ?? null,
+    'feature_source_coordinate_space' => $assignedByText['Feature']['source_coordinate_space'] ?? null,
+    'feature_render_source_bbox' => $renderByText['Feature']['source_cell_bbox'] ?? null,
     'page_image_geometry_translated' => ($coordinateReview['status'] ?? null) === 'translated_to_table_crop',
+    'page_image_source_geometry_preserved' => ($assignedByText['Feature']['source_bbox'] ?? null) === [82.0, 155.0, 162.0, 170.0]
+        && ($renderByText['Feature']['source_cell_bbox'] ?? null) === [82.0, 155.0, 162.0, 170.0],
     'offcrop_page_image_cells_filtered_from_assignment' => !in_array('Stale page edge', $assignedTexts, true),
     'excluded_stale_pdftext_table_line' => !str_contains($result['text'], 'Stale page-space table line should be replaced.'),
     'executes_python_or_models' => false,

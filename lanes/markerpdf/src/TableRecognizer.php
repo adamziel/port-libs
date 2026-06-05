@@ -617,7 +617,18 @@ final class TableRecognizer
                             $cell[$field] = $renderCell[$field];
                         }
                     }
-                    foreach (['cell_boundary_status', 'cell_boundary_active_count', 'cell_boundary_clipped_count', 'cell_boundary_excluded_count', 'bounded_cell_bbox', 'clipped_cell_bbox'] as $field) {
+                    foreach ([
+                        'cell_boundary_status',
+                        'cell_boundary_active_count',
+                        'cell_boundary_clipped_count',
+                        'cell_boundary_excluded_count',
+                        'bounded_cell_bbox',
+                        'clipped_cell_bbox',
+                        'source_cell_bbox',
+                        'source_cell_bboxes',
+                        'source_coordinate_space',
+                        'source_coordinate_spaces',
+                    ] as $field) {
                         if (array_key_exists($field, $renderCell)) {
                             $cell[$field] = $renderCell[$field];
                         }
@@ -921,6 +932,10 @@ final class TableRecognizer
             'column_header_physical_axis',
             'row_header_physical_axis',
             'covered_by',
+            'source_cell_bbox',
+            'source_cell_bboxes',
+            'source_coordinate_space',
+            'source_coordinate_spaces',
         ] as $field) {
             if (array_key_exists($field, $gridCell)) {
                 $summary[$field] = $gridCell[$field];
@@ -995,6 +1010,10 @@ final class TableRecognizer
             'header_text',
             'column_header_physical_axis',
             'row_header_physical_axis',
+            'source_cell_bbox',
+            'source_cell_bboxes',
+            'source_coordinate_space',
+            'source_coordinate_spaces',
         ] as $field) {
             if (array_key_exists($field, $renderCell)) {
                 $summary[$field] = $renderCell[$field];
@@ -1130,6 +1149,11 @@ final class TableRecognizer
                 'active' => $active,
                 'upstream_assignment_retained' => $active && $status === 'within_active_bands',
             ];
+            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
+                if (array_key_exists($field, $cell)) {
+                    $reviewRow[$field] = $cell[$field];
+                }
+            }
             if ($active && $status === 'trimmed_to_active_bands') {
                 $reviewRow['upstream_assignment_trimmed'] = true;
             }
@@ -2555,6 +2579,13 @@ final class TableRecognizer
             if (isset($cell['order'])) {
                 $entry['order'] = (int) $cell['order'];
             }
+            $sourceBbox = $this->bboxFromValue($cell['source_bbox'] ?? null);
+            if ($sourceBbox !== null) {
+                $entry['source_bbox'] = $sourceBbox;
+            }
+            if (isset($cell['source_coordinate_space']) && is_scalar($cell['source_coordinate_space'])) {
+                $entry['source_coordinate_space'] = $this->normalizeCoordinateSpace((string) $cell['source_coordinate_space']);
+            }
             foreach (['row_geometry_orders', 'col_geometry_orders'] as $field) {
                 if (isset($cell[$field]) && is_array($cell[$field])) {
                     $entry[$field] = array_map(
@@ -3105,6 +3136,11 @@ final class TableRecognizer
                 'active' => $active,
                 'upstream_cell_bbox_retained' => true,
             ];
+            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
+                if (array_key_exists($field, $cell)) {
+                    $reviewRow[$field] = $cell[$field];
+                }
+            }
             if ($rowIds !== [] && $colIds !== []) {
                 $reviewRow['anchor'] = [
                     'row_id' => $rowIds[0],
@@ -3192,6 +3228,8 @@ final class TableRecognizer
         $statuses = [];
         $boundedBboxes = [];
         $clippedBboxes = [];
+        $sourceBboxes = [];
+        $sourceCoordinateSpaces = [];
         $activeCount = 0;
         $clippedCount = 0;
         $excludedCount = 0;
@@ -3212,6 +3250,12 @@ final class TableRecognizer
             }
             if (isset($cell['clipped_cell_bbox']) && is_array($cell['clipped_cell_bbox'])) {
                 $clippedBboxes[] = $cell['clipped_cell_bbox'];
+            }
+            if (isset($cell['source_bbox']) && is_array($cell['source_bbox'])) {
+                $sourceBboxes[] = $cell['source_bbox'];
+            }
+            if (isset($cell['source_coordinate_space']) && is_scalar($cell['source_coordinate_space'])) {
+                $sourceCoordinateSpaces[] = (string) $cell['source_coordinate_space'];
             }
             if ($status === 'clipped_to_table_image') {
                 $clippedCount++;
@@ -3252,6 +3296,20 @@ final class TableRecognizer
         $clippedBbox = $this->mergedBboxList($clippedBboxes);
         if ($clippedBbox !== null) {
             $summary['clipped_cell_bbox'] = $clippedBbox;
+        }
+        if ($sourceBboxes !== []) {
+            $summary['source_cell_bboxes'] = $sourceBboxes;
+            $sourceBbox = $this->mergedBboxList($sourceBboxes);
+            if ($sourceBbox !== null) {
+                $summary['source_cell_bbox'] = $sourceBbox;
+            }
+        }
+        $sourceCoordinateSpaces = array_values(array_unique($sourceCoordinateSpaces));
+        if ($sourceCoordinateSpaces !== []) {
+            $summary['source_coordinate_spaces'] = $sourceCoordinateSpaces;
+            if (count($sourceCoordinateSpaces) === 1) {
+                $summary['source_coordinate_space'] = $sourceCoordinateSpaces[0];
+            }
         }
 
         return $summary;
@@ -3645,7 +3703,14 @@ final class TableRecognizer
                 'col_ids' => $this->nonNullOrderedIds($cell['col_ids'], $colOrder),
                 'bbox' => $cell['bbox'],
             ];
-            foreach (['cell_boundary_status', 'cell_boundary_active', 'bounded_cell_bbox', 'clipped_cell_bbox'] as $field) {
+            foreach ([
+                'cell_boundary_status',
+                'cell_boundary_active',
+                'bounded_cell_bbox',
+                'clipped_cell_bbox',
+                'source_bbox',
+                'source_coordinate_space',
+            ] as $field) {
                 if (array_key_exists($field, $cell)) {
                     $entry[$field] = $cell[$field];
                 }
