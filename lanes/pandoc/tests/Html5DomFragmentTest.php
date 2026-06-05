@@ -513,6 +513,55 @@ return [
         $t->true(!str_contains($fragment->serialize(), '</caption><p data-review="loose">'), 'Expected paragraph to move outside table');
         $t->true(!str_contains($fragment->serialize(), '</tr>orphan text<tr>'), 'Expected loose text to move outside table rows');
     },
+    'resolves safe relative URLs from trusted HTML base metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://example.test/import/posts/source.html?draft=1">'
+            . '<article><a href="../media/doc.html#section">doc</a>'
+            . '<img src="./cover.png" srcset="./cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover">'
+            . '<a href="#note">note</a><blockquote cite="?review=1">quoted</blockquote>'
+            . '<a href="mailto:review@example.test">mail</a></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $ast = $fragment->toRawHtmlAst(['part' => '/migration/base-url-review.html']);
+        $html = $fragment->serialize();
+
+        $t->same('https://example.test/import/posts/source.html?draft=1', $fragment->baseUrl());
+        $t->same('https://example.test/import/posts/source.html?draft=1', $summary['baseUrl']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['srcset'], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['blocked-tag', 'unsafe-url'], $policyDiagnostics);
+        $t->contains('<a href="https://example.test/import/media/doc.html#section">doc</a>', $html);
+        $t->contains('<img src="https://example.test/import/posts/cover.png" srcset="https://example.test/import/posts/cover.png 1x, https://example.test/import/media/cover@2x.png 2x" alt="Cover">', $html);
+        $t->contains('<a href="https://example.test/import/posts/source.html?draft=1#note">note</a>', $html);
+        $t->contains('<blockquote cite="https://example.test/import/posts/source.html?review=1">quoted</blockquote>', $html);
+        $t->contains('<a href="mailto:review@example.test">mail</a>', $html);
+        $t->same('https://example.test/import/media/doc.html#section', $nodes[0]['children'][0]['attrs']['href']);
+        $t->same('https://example.test/import/posts/cover.png', $nodes[0]['children'][1]['attrs']['src']);
+        $t->same('https://example.test/import/posts/cover.png 1x, https://example.test/import/media/cover@2x.png 2x', $nodes[0]['children'][1]['attrs']['srcset']);
+        $t->same('https://example.test/import/posts/source.html?draft=1#note', $nodes[0]['children'][2]['attrs']['href']);
+        $t->same('https://example.test/import/posts/source.html?review=1', $nodes[0]['children'][3]['attrs']['cite']);
+        $t->same('mailto:review@example.test', $nodes[0]['children'][4]['attrs']['href']);
+        $t->same('/migration/base-url-review.html', $ast->attr('part'));
+        $t->same('https://example.test/import/posts/source.html?draft=1', $ast->attr('baseUrl'));
+        $t->true(!str_contains($html, '<base'), 'Expected base element to be dropped from sanitized output');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe srcset candidate to be dropped');
+
+        $relativeBase = Html5DomFragment::fromHtml(
+            '<base href="../assets/"><img src="cover.png" srcset="cover.png 1x, ./cover@2x.png 2x" alt="Cover">',
+            'https://example.test/import/posts/source.html'
+        );
+        $relativeHtml = $relativeBase->serialize();
+
+        $t->same('https://example.test/import/assets/', $relativeBase->baseUrl());
+        $t->same(['blocked-tag'], $relativeBase->diagnosticCodes());
+        $t->same('<img src="https://example.test/import/assets/cover.png" srcset="https://example.test/import/assets/cover.png 1x, https://example.test/import/assets/cover@2x.png 2x" alt="Cover">', $relativeHtml);
+        $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<a href="/review">review</a>', 'file:///tmp/source.html'));
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

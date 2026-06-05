@@ -89,12 +89,13 @@ final class Html5DomFragment
         private readonly string $mode,
         array $nodes,
         array $diagnostics,
+        private readonly ?string $baseUrl = null,
     ) {
         $this->nodes = $nodes;
         $this->diagnostics = $diagnostics;
     }
 
-    public static function fromHtml(string $html): self
+    public static function fromHtml(string $html, ?string $baseUrl = null): self
     {
         self::assertSafeHtmlSource($html, 'HTML fragment');
 
@@ -105,7 +106,14 @@ final class Html5DomFragment
             throw new \InvalidArgumentException('Unable to parse HTML fragment wrapper');
         }
 
-        return new self('html', self::normalizeChildren($wrapper, 'html', $diagnostics), $diagnostics);
+        $resolvedBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
+
+        return new self(
+            'html',
+            self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $resolvedBaseUrl),
+            $diagnostics,
+            $resolvedBaseUrl
+        );
     }
 
     public static function fromXml(string $xml): self
@@ -129,11 +137,16 @@ final class Html5DomFragment
 
     public function toRawHtmlAst(array $attrs = []): AstNode
     {
-        return new AstNode('raw_html', array_merge($attrs, [
+        $rawAttrs = array_merge($attrs, [
             'format' => $this->mode === 'xml' ? 'xml' : 'html',
             'html' => $this->serialize(),
             'diagnostics' => $this->diagnostics,
-        ]));
+        ]);
+        if ($this->baseUrl !== null) {
+            $rawAttrs['baseUrl'] = $this->baseUrl;
+        }
+
+        return new AstNode('raw_html', $rawAttrs);
     }
 
     public function textContent(): string
@@ -157,6 +170,11 @@ final class Html5DomFragment
         return $this->diagnostics;
     }
 
+    public function baseUrl(): ?string
+    {
+        return $this->baseUrl;
+    }
+
     /**
      * @return list<string>
      */
@@ -176,6 +194,7 @@ final class Html5DomFragment
      *     textNodes:int,
      *     comments:int,
      *     diagnostics:int,
+     *     baseUrl:string|null,
      *     elementNames:list<string>,
      *     blockedTags:list<string>,
      *     filteredAttributes:list<string>
@@ -216,6 +235,7 @@ final class Html5DomFragment
             'textNodes' => $counts['textNodes'],
             'comments' => $counts['comments'],
             'diagnostics' => count($this->diagnostics),
+            'baseUrl' => $this->baseUrl,
             'elementNames' => $elementNames,
             'blockedTags' => $blockedTags,
             'filteredAttributes' => $filteredAttributes,
@@ -310,11 +330,16 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>
      */
-    private static function normalizeChildren(\DOMNode $parent, string $mode, array &$diagnostics, ?string $foreignContext = null): array
-    {
+    private static function normalizeChildren(
+        \DOMNode $parent,
+        string $mode,
+        array &$diagnostics,
+        ?string $foreignContext = null,
+        ?string $baseUrl = null
+    ): array {
         $nodes = [];
         foreach ($parent->childNodes as $child) {
-            $normalized = self::normalizeNode($child, $mode, $diagnostics, $foreignContext);
+            $normalized = self::normalizeNode($child, $mode, $diagnostics, $foreignContext, $baseUrl);
             if ($normalized === null) {
                 continue;
             }
@@ -328,8 +353,13 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>|null
      */
-    private static function normalizeNode(\DOMNode $node, string $mode, array &$diagnostics, ?string $foreignContext = null): ?array
-    {
+    private static function normalizeNode(
+        \DOMNode $node,
+        string $mode,
+        array &$diagnostics,
+        ?string $foreignContext = null,
+        ?string $baseUrl = null
+    ): ?array {
         if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
             return [['type' => 'text', 'text' => $node->nodeValue ?? '']];
         }
@@ -362,7 +392,13 @@ final class Html5DomFragment
                 'tag' => $name,
             ];
 
-            return self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($node, $rawName, $elementForeignContext));
+            return self::normalizeChildren(
+                $node,
+                $mode,
+                $diagnostics,
+                self::childForeignContext($node, $rawName, $elementForeignContext),
+                $baseUrl
+            );
         }
 
         if (self::isBlockedElement($name)) {
@@ -374,8 +410,14 @@ final class Html5DomFragment
             return null;
         }
 
-        $attrs = self::normalizeAttributes($node, $name, $mode, $diagnostics, $elementForeignContext);
-        $children = self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($node, $rawName, $elementForeignContext));
+        $attrs = self::normalizeAttributes($node, $name, $mode, $diagnostics, $elementForeignContext, $baseUrl);
+        $children = self::normalizeChildren(
+            $node,
+            $mode,
+            $diagnostics,
+            self::childForeignContext($node, $rawName, $elementForeignContext),
+            $baseUrl
+        );
         $element = [
             'type' => 'element',
             'name' => $name,
@@ -600,8 +642,14 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return array<string, string>
      */
-    private static function normalizeAttributes(\DOMElement $element, string $tagName, string $mode, array &$diagnostics, ?string $foreignContext): array
-    {
+    private static function normalizeAttributes(
+        \DOMElement $element,
+        string $tagName,
+        string $mode,
+        array &$diagnostics,
+        ?string $foreignContext,
+        ?string $baseUrl
+    ): array {
         if (!$element->hasAttributes()) {
             return [];
         }
@@ -635,7 +683,7 @@ final class Html5DomFragment
             }
 
             if (strtolower($name) === 'srcset') {
-                $srcset = self::normalizeSrcsetAttribute($value, $tagName, $diagnostics);
+                $srcset = self::normalizeSrcsetAttribute($value, $tagName, $diagnostics, $baseUrl);
                 if ($srcset === null) {
                     continue;
                 }
@@ -651,6 +699,10 @@ final class Html5DomFragment
                     'attribute' => $name,
                 ];
                 continue;
+            }
+
+            if ($mode === 'html' && $baseUrl !== null && self::isUrlAttribute($name)) {
+                $value = self::resolveRelativeUrl($baseUrl, $value);
             }
 
             $attrs[$name] = $value;
@@ -775,8 +827,12 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeSrcsetAttribute(string $value, string $tagName, array &$diagnostics): ?string
-    {
+    private static function normalizeSrcsetAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
         $normalized = [];
         foreach (explode(',', $value) as $candidate) {
             $candidate = trim($candidate);
@@ -790,7 +846,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            $candidateValue = self::normalizeSrcsetCandidate($candidate, $tagName, $diagnostics);
+            $candidateValue = self::normalizeSrcsetCandidate($candidate, $tagName, $diagnostics, $baseUrl);
             if ($candidateValue !== null) {
                 $normalized[] = $candidateValue;
             }
@@ -820,8 +876,12 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeSrcsetCandidate(string $candidate, string $tagName, array &$diagnostics): ?string
-    {
+    private static function normalizeSrcsetCandidate(
+        string $candidate,
+        string $tagName,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
         $candidateWithoutControls = preg_replace('/[\x00-\x20]+/', '', $candidate) ?? $candidate;
         if (!self::isSafeImageCandidateUrl($candidateWithoutControls)) {
             $diagnostics[] = [
@@ -862,6 +922,10 @@ final class Html5DomFragment
             ];
 
             return null;
+        }
+
+        if ($baseUrl !== null) {
+            $url = self::resolveRelativeUrl($baseUrl, $url);
         }
 
         return $descriptor === '' ? $url : $url . ' ' . $descriptor;
@@ -932,6 +996,200 @@ final class Html5DomFragment
         $scheme = strtolower(strstr($trimmed, ':', true) ?: '');
 
         return in_array($scheme, ['http', 'https'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function resolveFragmentBaseUrl(\DOMElement $wrapper, ?string $callerBaseUrl, array &$diagnostics): ?string
+    {
+        $documentBaseUrl = self::normalizeCallerBaseUrl($callerBaseUrl);
+
+        foreach ($wrapper->getElementsByTagName('base') as $baseElement) {
+            if (!$baseElement instanceof \DOMElement || !$baseElement->hasAttribute('href')) {
+                continue;
+            }
+
+            $href = trim($baseElement->getAttribute('href'));
+            if ($href === '') {
+                continue;
+            }
+
+            $resolved = self::resolveBaseHref($href, $documentBaseUrl, $diagnostics);
+            if ($resolved !== null) {
+                return $resolved;
+            }
+
+            break;
+        }
+
+        return $documentBaseUrl;
+    }
+
+    private static function normalizeCallerBaseUrl(?string $baseUrl): ?string
+    {
+        if ($baseUrl === null) {
+            return null;
+        }
+
+        $trimmed = trim($baseUrl);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (!self::isTrustedAbsoluteBaseUrl($trimmed)) {
+            throw new \InvalidArgumentException('HTML fragment base URL must be an absolute HTTP(S) URL without credentials');
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function resolveBaseHref(string $href, ?string $documentBaseUrl, array &$diagnostics): ?string
+    {
+        if (self::isTrustedAbsoluteBaseUrl($href)) {
+            return $href;
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => 'base',
+                'attribute' => 'href',
+            ];
+
+            return null;
+        }
+
+        if ($documentBaseUrl !== null) {
+            return self::resolveRelativeUrl($documentBaseUrl, $href);
+        }
+
+        $diagnostics[] = [
+            'code' => 'unresolved-base-url',
+            'tag' => 'base',
+            'attribute' => 'href',
+        ];
+
+        return null;
+    }
+
+    private static function isTrustedAbsoluteBaseUrl(string $value): bool
+    {
+        $parts = parse_url($value);
+        if (!is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        return isset($parts['host'])
+            && !isset($parts['user'])
+            && !isset($parts['pass']);
+    }
+
+    private static function resolveRelativeUrl(string $baseUrl, string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return $value;
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) === 1) {
+            return $trimmed;
+        }
+
+        $base = parse_url($baseUrl);
+        if (!is_array($base) || !isset($base['scheme'], $base['host'])) {
+            return $value;
+        }
+
+        $scheme = strtolower((string) $base['scheme']);
+        $host = (string) $base['host'];
+        $port = isset($base['port']) ? ':' . (string) $base['port'] : '';
+        $origin = $scheme . '://' . $host . $port;
+
+        if (str_starts_with($trimmed, '//')) {
+            return $scheme . ':' . $trimmed;
+        }
+
+        $basePath = (string) ($base['path'] ?? '/');
+        if ($basePath === '') {
+            $basePath = '/';
+        }
+
+        $baseQuery = isset($base['query']) ? '?' . (string) $base['query'] : '';
+        if (str_starts_with($trimmed, '#')) {
+            return $origin . $basePath . $baseQuery . $trimmed;
+        }
+        if (str_starts_with($trimmed, '?')) {
+            return $origin . $basePath . $trimmed;
+        }
+
+        $fragment = '';
+        $pathAndQuery = $trimmed;
+        $fragmentOffset = strpos($pathAndQuery, '#');
+        if ($fragmentOffset !== false) {
+            $fragment = substr($pathAndQuery, $fragmentOffset);
+            $pathAndQuery = substr($pathAndQuery, 0, $fragmentOffset);
+        }
+
+        $query = '';
+        $path = $pathAndQuery;
+        $queryOffset = strpos($path, '?');
+        if ($queryOffset !== false) {
+            $query = substr($path, $queryOffset);
+            $path = substr($path, 0, $queryOffset);
+        }
+
+        $resolvedPath = str_starts_with($path, '/')
+            ? $path
+            : self::joinBasePath($basePath, $path);
+
+        return $origin . self::normalizeUrlPath($resolvedPath) . $query . $fragment;
+    }
+
+    private static function joinBasePath(string $basePath, string $relativePath): string
+    {
+        $slash = strrpos($basePath, '/');
+        $directory = str_ends_with($basePath, '/')
+            ? $basePath
+            : substr($basePath, 0, $slash === false ? 0 : $slash + 1);
+
+        if ($directory === '') {
+            $directory = '/';
+        }
+
+        return $directory . $relativePath;
+    }
+
+    private static function normalizeUrlPath(string $path): string
+    {
+        $trailingSlash = str_ends_with($path, '/') && $path !== '/';
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+
+            $segments[] = $segment;
+        }
+
+        $normalized = '/' . implode('/', $segments);
+        if ($trailingSlash && $normalized !== '/') {
+            $normalized .= '/';
+        }
+
+        return $normalized;
     }
 
     /**
