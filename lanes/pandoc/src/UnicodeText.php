@@ -1361,6 +1361,8 @@ final class UnicodeText
             || ($codepoint >= 0x1f260 && $codepoint <= 0x1f265)
             || ($codepoint >= 0x1f300 && $codepoint <= 0x1f64f)
             || ($codepoint >= 0x1f680 && $codepoint <= 0x1f6ff)
+            || ($codepoint >= 0x1f7e0 && $codepoint <= 0x1f7eb)
+            || $codepoint === 0x1f7f0
             || ($codepoint >= 0x1fa70 && $codepoint <= 0x1faff)
             || ($codepoint >= 0x1f900 && $codepoint <= 0x1f9ff)
             || ($codepoint >= 0x20000 && $codepoint <= 0x3fffd);

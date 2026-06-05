@@ -435,6 +435,24 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'BMP East Asian wide emoji wrapped line exceeds requested width');
         }
     },
+    'measures geometric emoji symbols for display columns' => static function (TestRunner $t): void {
+        $coloredCircles = "\u{1F7E0}\u{1F7E2}\u{1F7E6}";
+        $coloredSquares = "\u{1F7E9}\u{1F7EB}";
+        $heavyEquals = "\u{1F7F0}";
+        $sample = "\u{1F7E0}\u{1F7E9}\u{1F7F0}X";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Status {$sample} tail", 10, '  ');
+
+        $t->same(6, UnicodeText::displayWidth($coloredCircles));
+        $t->same(4, UnicodeText::displayWidth($coloredSquares));
+        $t->same(2, UnicodeText::displayWidth($heavyEquals));
+        $t->same(["\u{1F7E0}", "\u{1F7E9}", "\u{1F7F0}", 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4, 6]));
+        $t->same(["\u{1F7E0}\u{1F7E9}", "\u{1F7F0}X"], UnicodeText::splitAtDisplayWidth($sample, 3));
+        $t->same("\u{1F7E9}  ", UnicodeText::padDisplay("\u{1F7E9}", 4));
+        $t->same(['Status', "  {$sample}", '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Geometric emoji wrapped line exceeds requested width');
+        }
+    },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
         $combining = "A\u{0301}\u{00B7}";
