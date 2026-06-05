@@ -778,6 +778,31 @@ try {
     ) {
         throw new RuntimeException('Expected non-PDF sidecars to reach task args and then be rejected by process_single_pdf min_length filetype preflight.');
     }
+    $runtimePoolResultDrain = $runtimePlan['worker_pool']['pool_result_drain'];
+    if (
+        $runtimePoolResultDrain['review_reached'] !== true
+        || $runtimePoolResultDrain['result_values_ignored'] !== true
+        || $runtimePoolResultDrain['return_values_do_not_affect_summary'] !== true
+        || $runtimePoolResultDrain['result_count'] !== $runtimePlan['worker_pool']['task_args_count']
+        || $runtimePoolResultDrain['progress_total'] !== $runtimePlan['worker_pool']['task_args_count']
+        || !in_array('upload-notes.txt', $runtimePoolResultDrain['zero_return_filenames'], true)
+        || !in_array('extension-spoof.pdf', $runtimePoolResultDrain['zero_return_filenames'], true)
+        || !in_array('already-imported.pdf', $runtimePoolResultDrain['none_return_filenames'], true)
+        || $runtimePoolResultDrain['return_value_by_filename']['upload-notes.txt'] !== 0
+        || $runtimePoolResultDrain['return_boundary_by_filename']['upload-notes.txt'] !== 'unsupported-filetype-return-zero'
+        || $runtimePoolResultDrain['status_by_filename']['already-imported.pdf'] !== 'skipped-existing'
+        || $runtimePoolResultDrain['cleanup_after_result_drain'] !== true
+    ) {
+        throw new RuntimeException('Expected convert.py list(tqdm(pool.imap(...))) to drain worker returns but ignore them before cleanup.');
+    }
+    if (
+        $zeroWorkerPlan['worker_pool']['pool_result_drain']['review_reached'] !== false
+        || $zeroWorkerPlan['worker_pool']['pool_result_drain']['blocked_by'] !== 'pool-process-count-failed'
+        || $zeroWorkerPlan['worker_pool']['pool_result_drain']['result_count'] !== 0
+        || $zeroWorkerPlan['worker_pool']['pool_result_drain']['cleanup_after_result_drain'] !== false
+    ) {
+        throw new RuntimeException('Expected failed Pool creation to block result draining before cleanup.');
+    }
     if ($negativeMaxPlan['chunking']['max_files_limit_active'] !== true || $negativeMaxPlan['chunking']['selected_count'] !== 4) {
         throw new RuntimeException('Expected negative --max to behave like upstream Python slicing and drop the tail of the queue.');
     }
@@ -932,6 +957,16 @@ try {
         'runtime_sidecar_rejection_boundary' => $runtimeTaskPreflight['sidecar_rejection_boundary'],
         'runtime_task_preflight_status_by_filename' => $runtimeTaskPreflight['status_by_filename'],
         'runtime_task_preflight_return_boundaries' => $runtimeTaskPreflight['upstream_return_boundary_by_filename'],
+        'runtime_pool_result_drain_reached' => $runtimePoolResultDrain['review_reached'],
+        'runtime_pool_result_drain_call' => $runtimePoolResultDrain['result_drain_call'],
+        'runtime_pool_result_values_ignored' => $runtimePoolResultDrain['result_values_ignored'],
+        'runtime_pool_result_return_values_do_not_affect_summary' => $runtimePoolResultDrain['return_values_do_not_affect_summary'],
+        'runtime_pool_result_count' => $runtimePoolResultDrain['result_count'],
+        'runtime_pool_result_progress_total' => $runtimePoolResultDrain['progress_total'],
+        'runtime_pool_result_zero_return_filenames' => $runtimePoolResultDrain['zero_return_filenames'],
+        'runtime_pool_result_none_return_filenames' => $runtimePoolResultDrain['none_return_filenames'],
+        'runtime_pool_result_return_boundaries' => $runtimePoolResultDrain['return_boundary_by_filename'],
+        'runtime_pool_result_cleanup_after_drain' => $runtimePoolResultDrain['cleanup_after_result_drain'],
         'runtime_metadata_filenames' => $runtimePlan['metadata']['metadata_filenames'],
         'runtime_missing_metadata_filenames' => $runtimePlan['metadata']['missing_metadata_filenames'],
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],
@@ -1095,6 +1130,8 @@ try {
         'zero_worker_pool_creation_error_boundary' => $zeroWorkerPlan['worker_pool']['pool_creation']['error_boundary'],
         'zero_worker_pool_creation_error_class' => $zeroWorkerPlan['worker_pool']['pool_creation']['error_class'],
         'zero_worker_pool_imap_reached' => $zeroWorkerPlan['worker_pool']['pool_creation']['pool_imap_reached'],
+        'zero_worker_result_drain_reached' => $zeroWorkerPlan['worker_pool']['pool_result_drain']['review_reached'],
+        'zero_worker_result_drain_blocked_by' => $zeroWorkerPlan['worker_pool']['pool_result_drain']['blocked_by'],
         'negative_worker_total_processes' => $negativeWorkerPlan['worker_pool']['total_processes'],
         'negative_worker_pool_creation_error_boundary' => $negativeWorkerPlan['worker_pool']['pool_creation']['error_boundary'],
         'negative_worker_pool_creation_error_class' => $negativeWorkerPlan['worker_pool']['pool_creation']['error_class'],

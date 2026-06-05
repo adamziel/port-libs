@@ -1157,6 +1157,92 @@ return [
             $removeTree($input);
         }
     },
+    'records convert.py pool result drain ignoring worker return values' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['already.pdf', 'ready.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'notes.txt', 'WordPress upload sidecar notes.');
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'already.pdf',
+                '<!-- wp:paragraph --><p>Already imported.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Already Imported']
+            );
+
+            $batch = new BatchConverter();
+            $plan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                minLength: 80,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $mps = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                minLength: 80,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu'
+            );
+            $invalidWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 0
+            );
+
+            $drain = $plan['worker_pool']['pool_result_drain'];
+            $t->same('convert.py list(tqdm(pool.imap(...))) result drain boundary', $drain['source']);
+            $t->same('after_pool_imap_before_pool_cleanup', $drain['order']);
+            $t->same(true, $drain['review_reached']);
+            $t->same(null, $drain['blocked_by']);
+            $t->same('pool.imap(process_single_pdf, task_args)', $drain['pool_imap_call']);
+            $t->same('list(tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf"))', $drain['result_drain_call']);
+            $t->same(null, $drain['result_assignment']);
+            $t->same(true, $drain['result_values_ignored']);
+            $t->same(true, $drain['return_values_do_not_affect_summary']);
+            $t->same(3, $drain['task_args_count']);
+            $t->same(3, $drain['result_count']);
+            $t->same(3, $drain['progress_total']);
+            $t->same('len(task_args)', $drain['progress_total_source']);
+            $t->same(['notes.txt'], $drain['zero_return_filenames']);
+            $t->same(true, in_array('already.pdf', $drain['none_return_filenames'], true));
+            $t->same(true, in_array('ready.pdf', $drain['none_return_filenames'], true));
+            $t->same(['notes.txt'], $drain['non_null_return_filenames']);
+            $t->same(0, $drain['return_value_by_filename']['notes.txt']);
+            $t->same(null, $drain['return_value_by_filename']['already.pdf']);
+            $t->same('int', $drain['return_type_by_filename']['notes.txt']);
+            $t->same('NoneType', $drain['return_type_by_filename']['already.pdf']);
+            $t->same('unsupported-filetype-return-zero', $drain['return_boundary_by_filename']['notes.txt']);
+            $t->same('markdown_exists-return-none', $drain['return_boundary_by_filename']['already.pdf']);
+            $t->same('skipped-unsupported-filetype', $drain['status_by_filename']['notes.txt']);
+            $t->same('skipped-existing', $drain['status_by_filename']['already.pdf']);
+            $t->same(true, $drain['cleanup_after_result_drain']);
+            $t->same(false, $drain['executes_python_or_models']);
+            $t->same(false, $drain['executes_multiprocessing']);
+            $t->same(false, $drain['executes_external_pdf_tools']);
+
+            $mpsDrain = $mps['worker_pool']['pool_result_drain'];
+            $t->same(true, $mpsDrain['review_reached']);
+            $t->same(true, $mpsDrain['result_values_ignored']);
+            $t->same(false, $mpsDrain['executes_python_or_models']);
+
+            $blockedDrain = $invalidWorkers['worker_pool']['pool_result_drain'];
+            $t->same(false, $blockedDrain['review_reached']);
+            $t->same('pool-process-count-failed', $blockedDrain['blocked_by']);
+            $t->same(0, $blockedDrain['result_count']);
+            $t->same(false, $blockedDrain['cleanup_after_result_drain']);
+            $t->same(false, $blockedDrain['executes_multiprocessing']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py worker cleanup boundary after pool imap' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

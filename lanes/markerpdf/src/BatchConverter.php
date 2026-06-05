@@ -1088,6 +1088,11 @@ final class BatchConverter
         }
         $taskArgIdentityReview = $this->runtimeTaskArgIdentityReview($taskArgs, $poolErrorBoundary);
         $processSinglePdfPreflight = $this->runtimeProcessSinglePdfPreflightReview($taskArgs, $poolErrorBoundary);
+        $poolResultDrain = $this->runtimePoolResultDrainReview(
+            $taskArgs,
+            $processSinglePdfPreflight,
+            $poolErrorBoundary
+        );
 
         return [
             'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
@@ -1203,9 +1208,10 @@ final class BatchConverter
                 'falsy_non_mapping_metadata_filenames' => $metadataValueReview['falsy_non_mapping_metadata_filenames'],
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
-                'pool_cleanup' => $this->convertMainPoolCleanupPlan($totalProcesses, $modelHandoff),
                 'task_arg_identity_review' => $taskArgIdentityReview,
                 'process_single_pdf_preflight' => $processSinglePdfPreflight,
+                'pool_result_drain' => $poolResultDrain,
+                'pool_cleanup' => $this->convertMainPoolCleanupPlan($totalProcesses, $modelHandoff),
                 'progress_iterator' => $this->progressIterator(),
             ],
             'console_summary' => $this->conversionSummaryPlan(
@@ -1627,6 +1633,105 @@ final class BatchConverter
             'ready_filenames' => $readyFilenames,
             'filetype_checked_filenames' => $filetypeCheckedFilenames,
             'text_length_checked_filenames' => $textLengthCheckedFilenames,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * Runtime main-loop mirror for `list(tqdm(pool.imap(...)))`.
+     *
+     * Upstream drains every worker return value so sidecar `0` returns and
+     * Python `None` returns advance progress, but no result variable is kept.
+     *
+     * @param list<array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}> $taskArgs
+     * @param array<string, mixed> $processSinglePdfPreflight
+     * @return array<string, mixed>
+     */
+    private function runtimePoolResultDrainReview(
+        array $taskArgs,
+        array $processSinglePdfPreflight,
+        ?string $poolErrorBoundary = null
+    ): array {
+        $blockedBy = $poolErrorBoundary === null ? null : 'pool-process-count-failed';
+        $reached = $blockedBy === null;
+        $returnValues = $processSinglePdfPreflight['upstream_return_value_by_filename'] ?? [];
+        $returnBoundaries = $processSinglePdfPreflight['upstream_return_boundary_by_filename'] ?? [];
+        $statuses = $processSinglePdfPreflight['status_by_filename'] ?? [];
+
+        $rows = [];
+        $returnValueByFilename = [];
+        $returnTypeByFilename = [];
+        $returnBoundaryByFilename = [];
+        $statusByFilename = [];
+        $zeroReturnFilenames = [];
+        $noneReturnFilenames = [];
+        $nonNullReturnFilenames = [];
+
+        if ($reached) {
+            foreach ($taskArgs as $taskArg) {
+                $filename = basename((string) $taskArg['filepath']);
+                $returnValue = array_key_exists($filename, $returnValues)
+                    ? $returnValues[$filename]
+                    : null;
+                $returnType = $this->runtimeReturnValueType($returnValue);
+                $returnBoundary = array_key_exists($filename, $returnBoundaries)
+                    ? $returnBoundaries[$filename]
+                    : null;
+                $status = array_key_exists($filename, $statuses)
+                    ? $statuses[$filename]
+                    : null;
+
+                $returnValueByFilename[$filename] = $returnValue;
+                $returnTypeByFilename[$filename] = $returnType;
+                $returnBoundaryByFilename[$filename] = $returnBoundary;
+                $statusByFilename[$filename] = $status;
+
+                if ($returnValue === null) {
+                    $noneReturnFilenames[] = $filename;
+                } else {
+                    $nonNullReturnFilenames[] = $filename;
+                }
+                if ($returnValue === 0) {
+                    $zeroReturnFilenames[] = $filename;
+                }
+
+                $rows[] = [
+                    'filename' => $filename,
+                    'status' => $status,
+                    'return_value' => $returnValue,
+                    'return_type' => $returnType,
+                    'return_boundary' => $returnBoundary,
+                    'ignored_by_main_loop' => true,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'convert.py list(tqdm(pool.imap(...))) result drain boundary',
+            'order' => 'after_pool_imap_before_pool_cleanup',
+            'review_reached' => $reached,
+            'blocked_by' => $blockedBy,
+            'pool_error_boundary' => $poolErrorBoundary,
+            'pool_imap_call' => 'pool.imap(process_single_pdf, task_args)',
+            'result_drain_call' => 'list(tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf"))',
+            'result_assignment' => null,
+            'result_values_ignored' => $reached,
+            'return_values_do_not_affect_summary' => $reached,
+            'task_args_count' => count($taskArgs),
+            'result_count' => $reached ? count($rows) : 0,
+            'progress_total' => $reached ? count($taskArgs) : 0,
+            'progress_total_source' => 'len(task_args)',
+            'result_rows' => $rows,
+            'return_value_by_filename' => $returnValueByFilename,
+            'return_type_by_filename' => $returnTypeByFilename,
+            'return_boundary_by_filename' => $returnBoundaryByFilename,
+            'status_by_filename' => $statusByFilename,
+            'zero_return_filenames' => $zeroReturnFilenames,
+            'none_return_filenames' => $noneReturnFilenames,
+            'non_null_return_filenames' => $nonNullReturnFilenames,
+            'cleanup_after_result_drain' => $reached,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,
@@ -3140,6 +3245,30 @@ final class BatchConverter
         }
 
         return get_debug_type($slot);
+    }
+
+    private function runtimeReturnValueType(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NoneType';
+        }
+        if (is_int($value)) {
+            return 'int';
+        }
+        if (is_float($value)) {
+            return 'float';
+        }
+        if (is_bool($value)) {
+            return 'bool';
+        }
+        if (is_string($value)) {
+            return 'str';
+        }
+        if (is_array($value)) {
+            return array_is_list($value) ? 'list' : 'dict';
+        }
+
+        return get_debug_type($value);
     }
 
     /**
