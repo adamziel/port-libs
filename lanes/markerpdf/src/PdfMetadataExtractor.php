@@ -6553,17 +6553,19 @@ final class PdfMetadataExtractor
             }
 
             $metadata = $this->metadataFromXmpDocument($document);
-            if ($metadata !== []) {
-                $metadata['packet_encoding'] = $candidate['packet_encoding'];
-                if ($candidate['decoded_to_utf8']) {
-                    $metadata['decoded_to_utf8'] = true;
-                }
-                if ($candidate['encoding_fallback']) {
-                    $metadata['encoding_fallback'] = true;
-                }
-                if ($candidate['packet_boundary_applied']) {
-                    $metadata['packet_boundary_applied'] = true;
-                }
+            if ($metadata === []) {
+                continue;
+            }
+
+            $metadata['packet_encoding'] = $candidate['packet_encoding'];
+            if ($candidate['decoded_to_utf8']) {
+                $metadata['decoded_to_utf8'] = true;
+            }
+            if ($candidate['encoding_fallback']) {
+                $metadata['encoding_fallback'] = true;
+            }
+            if ($candidate['packet_boundary_applied']) {
+                $metadata['packet_boundary_applied'] = true;
             }
 
             return $metadata;
@@ -6986,7 +6988,7 @@ final class PdfMetadataExtractor
      */
     private function boundedXmpXmlRootCandidates(string $xml): array
     {
-        $skippedEmptyWrappers = [];
+        $candidates = [];
         $offset = 0;
         while (true) {
             $entry = $this->boundedXmlRootCandidateEntry($xml, 'xmpmeta', $offset);
@@ -6994,20 +6996,19 @@ final class PdfMetadataExtractor
                 break;
             }
 
-            if (!$entry['self_closing']) {
-                return [$entry['xml']];
-            }
-
-            $skippedEmptyWrappers[] = $entry['xml'];
+            $candidates[] = $entry['xml'];
             $offset = max($entry['end_offset'], $entry['start_offset'] + 1);
+            if (!$entry['self_closing'] && $this->xmlRootStartForLocalName($entry['xml'], 'RDF') !== null) {
+                return $candidates;
+            }
         }
 
         $candidate = $this->boundedXmlRootCandidate($xml, 'RDF', $offset);
         if ($candidate !== null) {
-            return [$candidate];
+            $candidates[] = $candidate;
         }
 
-        return $skippedEmptyWrappers === [] ? [] : [$skippedEmptyWrappers[0]];
+        return $candidates;
     }
 
     private function boundedXmlRootCandidate(string $xml, string $localName, int $offset = 0): ?string
