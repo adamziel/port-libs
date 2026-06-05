@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 10:03:10 UTC",
-    "sourceCommit": "0754799f0c08174faccf966c438b59d4201dd77c",
-    "sourceCommitShort": "0754799f0c08",
+    "generated": "2026-06-05 10:03:19 UTC",
+    "sourceCommit": "820e84f348dc9e1b35c27ce88d30d9cc8cc7b7b0",
+    "sourceCommitShort": "820e84f348dc",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0754799f0c08174faccf966c438b59d4201dd77c",
-    "dashboardCommitShort": "0754799f0c08",
+    "dashboardCommit": "820e84f348dc9e1b35c27ce88d30d9cc8cc7b7b0",
+    "dashboardCommitShort": "820e84f348dc",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "996",
             "php": "820 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 8018...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base bb5a...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For Legacy DOC/CFB follow-up, keep applying style references...",
+            "nextTarget": "For legacy DOC/CFB follow-up, keep applying parsed style ids...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
