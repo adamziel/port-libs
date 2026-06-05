@@ -38,6 +38,9 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Comment ID Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 654 Td (After Comment ID Boundary) Tj ET\n"
+    . "BI /W 4 /H 1 /CS /G /BPC 8 ID% comment after ID whitespace token\n"
+    . " abcEI\n"
+    . "BT /F1 12 Tf 72 653 Td (After Comment Whitespace Boundary) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 IDxEI\n"
     . "BT /F1 12 Tf 72 653 Td (After Tight EI Boundary) Tj ET\n"
     . "BI/W 16/H 1/CS/G/BPC 8 ID\n"
@@ -154,6 +157,9 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'comment_after_id_inline_payload_excluded_until_sample_boundary' => !str_contains($plainText, 'Comment ID Inline Payload Noise')
         && !str_contains($plainText, 'comment after ID token')
         && str_contains($plainText, 'After Comment ID Boundary'),
+    'comment_after_id_leading_whitespace_sample_preserved_for_tight_ei' => str_contains($plainText, 'After Comment Whitespace Boundary')
+        && !str_contains($plainText, 'comment after ID whitespace token')
+        && !str_contains($plainText, 'abcEI'),
     'tight_ei_inline_terminator_recovers_after_exact_sample_floor' => str_contains($plainText, 'After Tight EI Boundary')
         && !str_contains($plainText, 'IDxEI')
         && !str_contains($plainText, 'xEI'),

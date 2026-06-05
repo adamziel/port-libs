@@ -23404,13 +23404,16 @@ final class PdfTextExtractor
     private function skipInlineImage(string $stream, int &$index): bool
     {
         $length = strlen($stream);
-        $dictionary = $this->readInlineImageDictionary($stream, $index);
+        $consumeDataPrefixWhitespace = true;
+        $dictionary = $this->readInlineImageDictionary($stream, $index, $consumeDataPrefixWhitespace);
 
         if ($dictionary === null || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
             return false;
         }
 
-        $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
+        if ($consumeDataPrefixWhitespace) {
+            $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
+        }
         $dataStart = $index;
         $incompletePreviewFallbackEnd = null;
         $incompletePreviewFallbackCanCloseBeforeNextImage = false;
@@ -23541,7 +23544,8 @@ final class PdfTextExtractor
             }
 
             $dictionaryEnd = $index;
-            $dictionary = $this->readInlineImageDictionary($segment, $dictionaryEnd);
+            $consumeDataPrefixWhitespace = true;
+            $dictionary = $this->readInlineImageDictionary($segment, $dictionaryEnd, $consumeDataPrefixWhitespace);
             if ($dictionary !== null && $this->inlineImageDictionaryHasImageKeys($dictionary)) {
                 return true;
             }
@@ -23924,10 +23928,15 @@ final class PdfTextExtractor
         return false;
     }
 
-    private function readInlineImageDictionary(string $stream, int &$index): ?string
+    private function readInlineImageDictionary(
+        string $stream,
+        int &$index,
+        bool &$consumeDataPrefixWhitespace
+    ): ?string
     {
         $entries = [];
         $length = strlen($stream);
+        $consumeDataPrefixWhitespace = true;
 
         while ($index < $length) {
             $this->skipContentWhitespaceAndComments($stream, $index);
@@ -23935,7 +23944,12 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $dataBoundary = $this->inlineImageDataBoundaryOffset($stream, $index, $entries);
+            $dataBoundary = $this->inlineImageDataBoundaryOffset(
+                $stream,
+                $index,
+                $entries,
+                $consumeDataPrefixWhitespace
+            );
             if ($dataBoundary !== null) {
                 $index = $dataBoundary;
                 return implode(' ', $entries);
@@ -23947,9 +23961,12 @@ final class PdfTextExtractor
             }
 
             if ($keyToken === 'ID') {
-                return $this->inlineImageDataSeparatorFollowsId($stream, $index)
-                    ? implode(' ', $entries)
-                    : null;
+                if (!$this->inlineImageDataSeparatorFollowsId($stream, $index)) {
+                    return null;
+                }
+
+                $consumeDataPrefixWhitespace = true;
+                return implode(' ', $entries);
             }
 
             if (!str_starts_with($keyToken, '/')) {
@@ -23981,7 +23998,12 @@ final class PdfTextExtractor
     /**
      * @param list<string> $entries
      */
-    private function inlineImageDataBoundaryOffset(string $stream, int $index, array $entries): ?int
+    private function inlineImageDataBoundaryOffset(
+        string $stream,
+        int $index,
+        array $entries,
+        bool &$consumeDataPrefixWhitespace
+    ): ?int
     {
         if (substr($stream, $index, 2) !== 'ID') {
             return null;
@@ -23989,11 +24011,13 @@ final class PdfTextExtractor
 
         $afterId = $index + 2;
         if ($this->inlineImageDataSeparatorFollowsId($stream, $afterId)) {
+            $consumeDataPrefixWhitespace = true;
             return $afterId;
         }
 
         $commentBoundary = $this->inlineImageDataCommentBoundaryFollowsId($stream, $afterId);
         if ($commentBoundary !== null) {
+            $consumeDataPrefixWhitespace = false;
             return $commentBoundary;
         }
 
@@ -24002,6 +24026,7 @@ final class PdfTextExtractor
             return null;
         }
 
+        $consumeDataPrefixWhitespace = false;
         return $afterId;
     }
 
