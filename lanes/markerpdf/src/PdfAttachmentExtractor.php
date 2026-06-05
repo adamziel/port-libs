@@ -915,6 +915,7 @@ final class PdfAttachmentExtractor
         $filenameReview = $this->filenamePathReview($filename);
         $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
         $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
+        $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
         $relationship = $this->nameValue($this->resolveValue($fileSpec['AFRelationship'] ?? null, $objects));
         $fileSystem = $this->nameOrStringValue($fileSpec['FS'] ?? null, $objects);
@@ -956,6 +957,12 @@ final class PdfAttachmentExtractor
         }
         if ($declaredSize !== null && $bytes !== null) {
             $attachment['declared_size_matches'] = $declaredSize === strlen($bytes);
+        }
+        if ($decodedLength !== null) {
+            $attachment['decoded_length'] = $decodedLength;
+            if ($bytes !== null) {
+                $attachment['decoded_length_matches'] = $decodedLength === strlen($bytes);
+            }
         }
         if ($checksum !== null && $bytes !== null) {
             $computedChecksum = md5($bytes);
@@ -1146,6 +1153,8 @@ final class PdfAttachmentExtractor
                 'content_type',
                 'declared_size',
                 'declared_size_matches',
+                'decoded_length',
+                'decoded_length_matches',
                 'byte_length',
                 'sha256',
                 'checksum_hex',
@@ -1199,6 +1208,8 @@ final class PdfAttachmentExtractor
                     'sha256',
                     'declared_size',
                     'declared_size_matches',
+                    'decoded_length',
+                    'decoded_length_matches',
                     'checksum_hex',
                     'computed_checksum_hex',
                     'checksum_matches',
@@ -1939,6 +1950,7 @@ final class PdfAttachmentExtractor
         $params = $this->dict($this->resolveValue($streamDict['Params'] ?? null, $objects)) ?? [];
         $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
         $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
+        $decodedLength = $this->intValue($this->resolveValue($streamDict['DL'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
 
         $row = [
@@ -1965,6 +1977,10 @@ final class PdfAttachmentExtractor
         if ($declaredSize !== null) {
             $row['declared_size'] = $declaredSize;
             $row['declared_size_matches'] = $declaredSize === strlen($bytes);
+        }
+        if ($decodedLength !== null) {
+            $row['decoded_length'] = $decodedLength;
+            $row['decoded_length_matches'] = $decodedLength === strlen($bytes);
         }
         if ($checksum !== null) {
             $computedChecksum = md5($bytes);

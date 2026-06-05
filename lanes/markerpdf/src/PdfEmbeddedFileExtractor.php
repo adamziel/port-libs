@@ -323,6 +323,10 @@ final class PdfEmbeddedFileExtractor
                 $file['filters'] = $stream['filters'];
             }
 
+            foreach ($this->embeddedFileStreamMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+
             foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
                 $file[$key] = $metadataValue;
             }
@@ -518,6 +522,12 @@ final class PdfEmbeddedFileExtractor
                 $payload['size_matches_declared'] = $payload['bytes'] === $payload['declared_size'];
             }
         }
+        if (isset($file['decoded_length']) && is_int($file['decoded_length'])) {
+            $payload['decoded_length'] = $file['decoded_length'];
+            if (array_key_exists('decoded_length_matches', $file)) {
+                $payload['decoded_length_matches'] = $file['decoded_length_matches'];
+            }
+        }
 
         foreach (['checksum_algorithm', 'checksum', 'computed_checksum', 'checksum_matches'] as $key) {
             if (array_key_exists($key, $file)) {
@@ -621,6 +631,10 @@ final class PdfEmbeddedFileExtractor
 
         if ($stream['filters'] !== []) {
             $row['filters'] = $stream['filters'];
+        }
+
+        foreach ($this->embeddedFileStreamMetadata($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+            $row[$key] = $metadataValue;
         }
 
         foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
@@ -1384,6 +1398,22 @@ final class PdfEmbeddedFileExtractor
             'content' => $stream['content'],
             'filters' => $stream['filters'],
         ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function embeddedFileStreamMetadata(string $streamDictionary, array $objects, string $content): array
+    {
+        $metadata = [];
+        $decodedLength = $this->dictionaryIntegerValue($streamDictionary, 'DL', $objects);
+        if ($decodedLength !== null) {
+            $metadata['decoded_length'] = $decodedLength;
+            $metadata['decoded_length_matches'] = $decodedLength === strlen($content);
+        }
+
+        return $metadata;
     }
 
     /**
