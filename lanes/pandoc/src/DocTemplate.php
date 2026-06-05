@@ -399,8 +399,7 @@ final class DocTemplate
 
             $closing = strpos($template, '$', $index + 1);
             if ($closing === false) {
-                $buffer .= '$';
-                continue;
+                throw new \UnexpectedValueException('Unclosed doctemplate $...$ directive');
             }
 
             $this->appendTextToken($tokens, $buffer, $breakableSpaces);

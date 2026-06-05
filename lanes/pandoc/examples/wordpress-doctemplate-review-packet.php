@@ -204,6 +204,20 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $escapedDollar = (new DocTemplate())->render('Cost: $$5', []);
+    if ($escapedDollar !== 'Cost: $5') {
+        fwrite(STDERR, "Missing expected doctemplate escaped dollar output\n");
+        exit(1);
+    }
+
+    try {
+        (new DocTemplate())->render('Broken: $review-id', ['review-id' => 'PR-42']);
+        fwrite(STDERR, "Expected unclosed doctemplate dollar directive rejection\n");
+        exit(1);
+    } catch (\UnexpectedValueException) {
+        // Expected: literal dollar signs must be escaped as $$.
+    }
+
     fwrite(STDOUT, "OK wordpress doctemplate review packet\n");
     exit(0);
 }

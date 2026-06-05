@@ -1166,6 +1166,14 @@ TPL;
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('$for(items)$missing endfor', ['items' => ['x']]));
     },
 
+    'throws on unclosed pandoc doctemplate dollar directives while keeping escaped dollars' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same('Cost: $5', $renderer->render('Cost: $$5', []));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('Title: $title', ['title' => 'Review']));
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('Cost: $5', []));
+    },
+
     'returns pandoc doctemplate loop literal at partial nesting limit' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
