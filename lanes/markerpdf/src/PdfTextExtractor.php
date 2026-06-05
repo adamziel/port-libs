@@ -5355,7 +5355,7 @@ final class PdfTextExtractor
 
         $arrayBody = $this->pdfArrayFromValue($value, $objects);
         if ($arrayBody !== null) {
-            return $this->imageXObjectColorKeyMaskReview($arrayBody, $parentColorSpace, $softMaskPresent);
+            return $this->imageXObjectColorKeyMaskReview($arrayBody, $objects, $parentColorSpace, $softMaskPresent);
         }
 
         $reference = $this->objectReferencePairs($value)[0] ?? null;
@@ -5377,10 +5377,11 @@ final class PdfTextExtractor
 
     /**
      * @return array<string, mixed>
+     * @param array<int, string> $objects
      */
-    private function imageXObjectColorKeyMaskReview(string $arrayBody, ?string $parentColorSpace, bool $softMaskPresent): array
+    private function imageXObjectColorKeyMaskReview(string $arrayBody, array $objects, ?string $parentColorSpace, bool $softMaskPresent): array
     {
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArrayResolvingObjects($arrayBody, $objects);
         $ranges = [];
         for ($index = 0; $index + 1 < count($numbers); $index += 2) {
             $ranges[] = [

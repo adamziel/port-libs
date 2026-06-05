@@ -902,6 +902,77 @@ return [
         $t->true(!str_contains($encoded, $maskPayload));
         $t->true(!str_contains($encoded, $colorKeyPayload));
     },
+    'resolves indirect numeric operands in image XObject ColorKey Mask arrays' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before indirect ColorKey mask) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Indirect#20ColorKey Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After indirect ColorKey mask) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Indirect ColorKey Image Payload Noise) Tj ET';
+        $imageCompressed = gzcompress($imagePayload);
+        if (!is_string($imageCompressed)) {
+            throw new RuntimeException('Unable to compress indirect ColorKey mask fixture payload.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Indirect#20ColorKey 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Decode [1 0 0 1 0 1] /Mask [20 0 R 21 0 R 22 0 R 23 0 R 24 0 R 25 0 R] /Length " . strlen($imageCompressed) . " >>\nstream\n{$imageCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n0\nendobj\n"
+            . "21 0 obj\n0\nendobj\n"
+            . "22 0 obj\n120\nendobj\n"
+            . "23 0 obj\n140\nendobj\n"
+            . "24 0 obj\n200\nendobj\n"
+            . "25 0 obj\n255\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same('Indirect ColorKey', $entry['resource_name']);
+        $t->same(true, $entry['invoked']);
+        $t->same([
+            'type' => 'color_key_mask_array',
+            'ranges' => [
+                ['min' => 0.0, 'max' => 0.0],
+                ['min' => 120.0, 'max' => 140.0],
+                ['min' => 200.0, 'max' => 255.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'compares_before_decode' => true,
+            'transparent_when_all_components_match' => true,
+            'suppressed_by_soft_mask' => false,
+            'review_only' => true,
+        ], $entry['mask_review']);
+        $t->same(true, $entry['mask_review_only']);
+        $t->same([
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+                ['min' => 0.0, 'max' => 1.0],
+                ['min' => 0.0, 'max' => 1.0],
+            ],
+            'component_count' => 3,
+            'expected_components' => 3,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ], $entry['image_decode']);
+        $t->same(true, $entry['image_decode_applied_before_rgb']);
+        $t->same(hash('sha256', $imagePayload), $entry['decoded_sha256']);
+        $t->same(['Before indirect ColorKey mask', 'After indirect ColorKey mask'], $extractor->extractTextLines($pdf));
+        $t->same("Before indirect ColorKey mask\nAfter indirect ColorKey mask", $plainText);
+        $t->true(!str_contains($plainText, 'Indirect ColorKey Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $imagePayload));
+    },
     'exposes image XObject Decode arrays before RGB preview review' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before Decode images) Tj ET\n"
             . "q 24 0 0 12 72 690 cm /Rgb#20Decode Do Q\n"
