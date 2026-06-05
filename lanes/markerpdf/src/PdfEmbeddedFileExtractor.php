@@ -2545,7 +2545,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $sectionBodyOffset = $afterKeywordOffset;
-        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset, $definitions);
         if ($trailerOffset === null) {
             return null;
         }
@@ -3409,9 +3409,17 @@ final class PdfEmbeddedFileExtractor
 
     private function trailerDictionaryBody(string $pdfBytes): ?string
     {
-        $startxrefOffset = $this->startxrefOffsetWithClassicRebuild($pdfBytes);
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $startxrefOffset = $this->startxrefOffsetWithClassicRebuild(
+            $pdfBytes,
+            $definitions === [] ? null : $definitions
+        );
         if ($startxrefOffset !== null) {
-            $trailer = $this->trailerDictionaryBodyAtOffset($pdfBytes, $startxrefOffset);
+            $trailer = $this->trailerDictionaryBodyAtOffset(
+                $pdfBytes,
+                $startxrefOffset,
+                $definitions === [] ? null : $definitions
+            );
             if ($trailer !== null) {
                 return $trailer;
             }
@@ -3738,19 +3746,25 @@ final class PdfEmbeddedFileExtractor
         return $offsets;
     }
 
-    private function trailerDictionaryBodyAtOffset(string $pdfBytes, int $offset): ?string
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function trailerDictionaryBodyAtOffset(string $pdfBytes, int $offset, ?array $definitions = null): ?string
     {
         $offset = $this->skipWhitespace($pdfBytes, $offset);
         if (substr($pdfBytes, $offset, 4) === 'xref') {
-            return $this->xrefTableTrailerDictionaryAtOffset($pdfBytes, $offset);
+            return $this->xrefTableTrailerDictionaryAtOffset($pdfBytes, $offset, $definitions);
         }
 
         return $this->xrefStreamDictionaryAtObjectOffset($pdfBytes, $offset);
     }
 
-    private function xrefTableTrailerDictionaryAtOffset(string $pdfBytes, int $offset): ?string
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function xrefTableTrailerDictionaryAtOffset(string $pdfBytes, int $offset, ?array $definitions = null): ?string
     {
-        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $offset + 4);
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $offset + 4, $definitions);
         if ($trailerOffset === null) {
             return null;
         }
@@ -3764,10 +3778,26 @@ final class PdfEmbeddedFileExtractor
         return $dictionary === null ? null : $dictionary['body'];
     }
 
-    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset, ?array $definitions = null): ?int
     {
         $length = strlen($pdfBytes);
         while ($offset < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                            $offset = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
             $char = $pdfBytes[$offset];
 
             if ($char === '%') {

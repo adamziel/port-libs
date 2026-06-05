@@ -1112,6 +1112,77 @@ $xrefClassicRebuildLiteralStringDecoyBoundaryCurrentBasePdf = static function ()
     return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $literalXrefOffset];
 };
 
+$xrefClassicRebuildStreamTrailerBoundaryCurrentBasePdf = static function (): array {
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Stream-Trailer XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $decoyXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Stream Trailer Decoy Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current stream-trailer xref page) Tj T* (Stream-owned trailer skipped) Tj ET';
+    $decoyContent = 'BT /F1 12 Tf 72 720 Td (Stream trailer decoy page) Tj T* (Stream-owned trailer leak) Tj ET';
+    $currentPayload = '<wp-export><post id="current-stream-trailer-xref"/></wp-export>';
+    $decoyPayload = '<wp-export><post id="decoy-stream-trailer-xref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $streamObject = static fn (string $content): string => "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, $streamObject($currentContent));
+    $addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(7, '<< /Title (Current Stream-Trailer XRef Info) /Author (Current Stream-Trailer Importer) >>');
+    $addObject(8, '<< /Names [(current-stream-trailer-xref.xml) 9 0 R] >>');
+    $addObject(9, '<< /Type /Filespec /F (current-stream-trailer-xref.xml) /Desc (Current stream-trailer xref attachment) /AFRelationship /Source /EF << /F 10 0 R >> >>');
+    $addObject(10, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+    $addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(24, $streamObject($decoyContent));
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($decoyXmp) . " >>\nstream\n{$decoyXmp}\nendstream");
+    $addObject(27, '<< /Title (Stream Trailer Decoy Info) /Author (Decoy Stream-Trailer Importer) >>');
+    $addObject(28, '<< /Names [(decoy-stream-trailer-xref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (decoy-stream-trailer-xref.xml) /Desc (Decoy stream-trailer xref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($decoyPayload) . " >>\nstream\n{$decoyPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 32\n";
+    for ($objectNumber = 0; $objectNumber <= 31; $objectNumber++) {
+        $pdf .= $objectNumber === 0
+            ? $xrefRow(0, 65535, 'f')
+            : $xrefRow($offsets[$objectNumber] ?? 0, 0, isset($offsets[$objectNumber]) ? 'n' : 'f');
+    }
+
+    $fakeTrailer = "trailer\n<< /Size 32 /Root 20 0 R /Info 27 0 R >>\n";
+    $fakeTrailerOffset = strlen($pdf) + strlen("40 0 obj\n<< /Length " . strlen($fakeTrailer) . " >>\nstream\n");
+    $pdf .= "40 0 obj\n<< /Length " . strlen($fakeTrailer) . " >>\nstream\n"
+        . $fakeTrailer
+        . "endstream\nendobj\n";
+    $realTrailerOffset = strlen($pdf);
+    $pdf .= "trailer\n<< /Size 32 /Root 1 0 R /Info 7 0 R >>\n"
+        . "startxref\n999999\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $fakeTrailerOffset, $realTrailerOffset];
+};
+
 return [
     'rebuilds damaged startxref from the latest classic xref trailer boundary before WordPress text extraction' => static function (
         TestRunner $t
@@ -1593,6 +1664,50 @@ return [
         $t->true(!str_contains($encodedMetadata, 'Literal String XRef Decoy'));
         $t->true(!str_contains($encodedFiles, 'decoy-literal-string-xref'));
         $t->true(!str_contains($encodedAttachmentSummary, 'decoy-literal-string-xref'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'skips stream-owned trailer dictionaries during classic xref rebuild before WordPress imports' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildStreamTrailerBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $currentXrefOffset, $fakeTrailerOffset, $realTrailerOffset] = $xrefClassicRebuildStreamTrailerBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($currentXrefOffset > 0);
+        $t->true($fakeTrailerOffset > $currentXrefOffset);
+        $t->true($realTrailerOffset > $fakeTrailerOffset);
+        $t->same(['Current stream-trailer xref page', 'Stream-owned trailer skipped'], $extractor->extractTextLines($pdf));
+        $t->same(['Current stream-trailer xref page', 'Stream-owned trailer skipped'], $extractor->extractTextRuns($pdf));
+        $t->same("Current stream-trailer xref page\nStream-owned trailer skipped", $text);
+        $t->same("Current stream-trailer xref page\nStream-owned trailer skipped\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Stream-Trailer XRef Title', $metadata['title']);
+        $t->same('Current Stream-Trailer XRef Info', $metadata['info']['Title']);
+        $t->same('Current Stream-Trailer Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-stream-trailer-xref.xml', $files[0]['name']);
+        $t->same('current-stream-trailer-xref.xml', $files[0]['filename']);
+        $t->same('Current stream-trailer xref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-stream-trailer-xref.xml'], $attachmentSummary['filenames']);
+        $t->same(strlen($currentPayload), $attachmentSummary['total_bytes']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
+        $t->true(!str_contains($text, 'Stream trailer decoy page'));
+        $t->true(!str_contains($text, 'Stream-owned trailer leak'));
+        $t->true(!str_contains($encodedMetadata, 'Stream Trailer Decoy'));
+        $t->true(!str_contains($encodedFiles, 'decoy-stream-trailer-xref'));
+        $t->true(!str_contains($encodedAttachmentSummary, 'decoy-stream-trailer-xref'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

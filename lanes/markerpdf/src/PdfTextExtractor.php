@@ -17817,7 +17817,7 @@ final class PdfTextExtractor
         }
 
         $sectionBodyOffset = $afterKeywordOffset;
-        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset, $definitions);
         if ($trailerOffset === null) {
             return null;
         }
@@ -17847,11 +17847,27 @@ final class PdfTextExtractor
         ];
     }
 
-    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset, ?array $definitions = null): ?int
     {
         $length = strlen($pdfBytes);
         $index = $offset;
         while ($index < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $index >= $bodyStart && $index <= $bodyEnd) {
+                            $index = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
             $char = $pdfBytes[$index];
 
             if ($char === '%') {

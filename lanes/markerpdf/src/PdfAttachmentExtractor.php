@@ -1062,9 +1062,9 @@ final class PdfAttachmentExtractor
     private function selectedTrailerDictionary(string $pdfBytes, array $definitions): ?array
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
         if ($offset !== null) {
-            $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+            $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
             if ($table !== null) {
                 return $table['trailer'];
             }
@@ -2397,7 +2397,7 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset, $definitions);
         if ($trailerOffset === null) {
             return null;
         }
@@ -2421,10 +2421,26 @@ final class PdfAttachmentExtractor
         ];
     }
 
-    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset, ?array $definitions = null): ?int
     {
         $length = strlen($pdfBytes);
         while ($offset < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                            $offset = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
             $char = $pdfBytes[$offset];
 
             if ($char === '%') {
