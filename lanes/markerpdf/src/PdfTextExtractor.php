@@ -355,6 +355,7 @@ final class PdfTextExtractor
      *     compressed_generation_zero_boundary_count: int,
      *     strict_dependency_rejection_count: int,
      *     stream_member_rejection_count: int,
+     *     duplicate_header_object_number_rejection_count: int,
      *     duplicate_member_offset_rejection_count: int,
      *     invalid_member_offset_rejection_count: int,
      *     malformed_xref_stream_width_count: int,
@@ -390,6 +391,7 @@ final class PdfTextExtractor
             'compressed_generation_zero_boundary_count' => 0,
             'strict_dependency_rejection_count' => 0,
             'stream_member_rejection_count' => 0,
+            'duplicate_header_object_number_rejection_count' => 0,
             'duplicate_member_offset_rejection_count' => 0,
             'invalid_member_offset_rejection_count' => 0,
             'malformed_xref_stream_width_count' => 0,
@@ -500,6 +502,7 @@ final class PdfTextExtractor
                 }
             }
             $matchingHeaderObjectNumberCount = count($membersByObjectNumber);
+            $duplicateHeaderObjectNumber = $matchingHeaderObjectNumberCount > 1;
             $memberByObjectNumber = $matchingHeaderObjectNumberCount === 1 ? $membersByObjectNumber[0] : null;
             $directXrefStreamOwner = $this->latestDirectXrefStreamDefinition($definitions[$objectNumber] ?? []);
             $ownerCycleRejected = $directXrefStreamOwner !== null
@@ -523,6 +526,9 @@ final class PdfTextExtractor
             if ($ambiguousZeroWidthMember) {
                 $review['ambiguous_zero_width_member_count']++;
             }
+            if ($duplicateHeaderObjectNumber) {
+                $review['duplicate_header_object_number_rejection_count']++;
+            }
             if (!$strictMemberMatch) {
                 $review['strict_dependency_rejection_count']++;
             }
@@ -543,6 +549,7 @@ final class PdfTextExtractor
             }
             $selectedMemberBody = $memberTable !== null
                 && $selectedMember !== null
+                && !$duplicateHeaderObjectNumber
                 && !$selectedMemberDuplicateOffset
                 && !$selectedMemberInvalidOffset
                 ? $this->objectStreamMemberBody($memberTable, $selectedMember)
@@ -597,7 +604,7 @@ final class PdfTextExtractor
                 'matching_header_offset_count' => $selectedMember === null
                     ? 0
                     : ($memberOffsetCounts[$selectedMember['offset']] ?? 0),
-                'duplicate_header_object_number' => $matchingHeaderObjectNumberCount > 1,
+                'duplicate_header_object_number' => $duplicateHeaderObjectNumber,
                 'duplicate_member_offset' => $selectedMemberDuplicateOffset,
                 'member_offset_token_boundary' => $selectedMemberHasTokenBoundary,
                 'compressed_member_generation' => 0,
@@ -613,6 +620,7 @@ final class PdfTextExtractor
                 'invalid_object_stream_carrier_rejected' => !$objectStreamCarrierResolved,
                 'object_stream_member_is_stream' => $selectedMemberIsStream,
                 'stream_member_rejected' => $streamMemberRejected,
+                'duplicate_header_object_number_rejected' => $duplicateHeaderObjectNumber,
                 'duplicate_member_offset_rejected' => $selectedMemberDuplicateOffset,
                 'invalid_member_offset_rejected' => $selectedMemberInvalidOffset,
                 'direct_xref_stream_owner' => $directXrefStreamOwner !== null,
@@ -626,7 +634,8 @@ final class PdfTextExtractor
                     $matchingHeaderObjectNumberCount > 0,
                     $ambiguousZeroWidthMember,
                     $selectedMemberDuplicateOffset,
-                    $selectedMemberInvalidOffset
+                    $selectedMemberInvalidOffset,
+                    $duplicateHeaderObjectNumber
                 ),
                 'review_only' => true,
             ];
@@ -22974,6 +22983,10 @@ final class PdfTextExtractor
             }
             foreach ($pairs as $pair) {
                 $objectNumber = $pair['objectNumber'];
+                if (($memberObjectNumberCounts[$objectNumber] ?? 0) > 1) {
+                    continue;
+                }
+
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
                 if ($xrefEntry !== null) {
                     if (isset($objects[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2) {
@@ -23276,7 +23289,8 @@ final class PdfTextExtractor
         bool $memberExists,
         bool $ambiguousZeroWidthMember = false,
         bool $duplicateMemberOffset = false,
-        bool $invalidMemberOffset = false
+        bool $invalidMemberOffset = false,
+        bool $duplicateHeaderObjectNumber = false
     ): string
     {
         if ($invalidMemberOffset) {
@@ -23287,12 +23301,16 @@ final class PdfTextExtractor
             return 'duplicate_object_stream_member_offset';
         }
 
-        if ($strictMemberMatch) {
-            return $indexIsExplicit ? 'explicit_member_index' : 'default_zero_member_index';
-        }
-
         if ($ambiguousZeroWidthMember) {
             return 'ambiguous_zero_width_duplicate_header_object_number';
+        }
+
+        if ($duplicateHeaderObjectNumber) {
+            return 'duplicate_header_object_number';
+        }
+
+        if ($strictMemberMatch) {
+            return $indexIsExplicit ? 'explicit_member_index' : 'default_zero_member_index';
         }
 
         if (!$memberExists) {
