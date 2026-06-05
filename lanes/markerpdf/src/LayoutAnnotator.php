@@ -118,6 +118,9 @@ final class LayoutAnnotator
             if (!is_array($layoutResults[$index])) {
                 throw new InvalidArgumentException('Supplied layout predictions must be arrays.');
             }
+            if ($this->hasAmbiguousLayoutPayloadWrapper($layoutResults[$index])) {
+                continue;
+            }
             $pages[$index]['layout'] = $this->sanitizeSuppliedLayoutResult($layoutResults[$index]);
             $assignedPages++;
         }
@@ -214,6 +217,48 @@ final class LayoutAnnotator
                 $this->collectLayoutResultPayloadSources($wrapperValue, $sources, $depth + 1);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     */
+    private function hasAmbiguousLayoutPayloadWrapper(array $artifact, int $depth = 0): bool
+    {
+        if ($depth >= 2) {
+            return false;
+        }
+
+        foreach (self::LAYOUT_RESULT_PAYLOAD_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            if (array_is_list($value)) {
+                $dictionaries = [];
+                foreach ($value as $item) {
+                    if (is_array($item) && !array_is_list($item)) {
+                        $dictionaries[] = $item;
+                    }
+                }
+                if (count($dictionaries) > 1) {
+                    return true;
+                }
+                foreach ($dictionaries as $dictionary) {
+                    if ($this->hasAmbiguousLayoutPayloadWrapper($dictionary, $depth + 1)) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($this->hasAmbiguousLayoutPayloadWrapper($value, $depth + 1)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

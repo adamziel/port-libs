@@ -126,6 +126,9 @@ final class LayoutOrderer
             if (!is_array($orderResults[$index])) {
                 throw new InvalidArgumentException('Supplied ordering predictions must be arrays.');
             }
+            if ($this->hasAmbiguousOrderPayloadWrapper($orderResults[$index])) {
+                continue;
+            }
             $pages[$index]['order'] = $this->sanitizeSuppliedOrderResult($orderResults[$index]);
             $assignedPages++;
         }
@@ -225,6 +228,48 @@ final class LayoutOrderer
                 $this->collectOrderResultPayloadSources($wrapperValue, $sources, $depth + 1);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     */
+    private function hasAmbiguousOrderPayloadWrapper(array $artifact, int $depth = 0): bool
+    {
+        if ($depth >= 2) {
+            return false;
+        }
+
+        foreach (self::ORDER_RESULT_PAYLOAD_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            if (array_is_list($value)) {
+                $dictionaries = [];
+                foreach ($value as $item) {
+                    if (is_array($item) && !array_is_list($item)) {
+                        $dictionaries[] = $item;
+                    }
+                }
+                if (count($dictionaries) > 1) {
+                    return true;
+                }
+                foreach ($dictionaries as $dictionary) {
+                    if ($this->hasAmbiguousOrderPayloadWrapper($dictionary, $depth + 1)) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($this->hasAmbiguousOrderPayloadWrapper($value, $depth + 1)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

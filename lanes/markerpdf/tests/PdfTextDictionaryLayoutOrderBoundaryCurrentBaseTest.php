@@ -968,4 +968,56 @@ return [
         $t->same(0, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'rejects multi-dictionary typed order payload wrappers before selected pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(2500, [
+                    ['text' => 'Typed payload-list cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(2501, [
+                    ['text' => 'Second typed payload-list column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First typed payload-list column has no trusted order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['document_page' => 2501],
+                    'order_result' => [
+                        [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                        ],
+                        ['raw_payload' => 'multi-dictionary typed order payload must not be selected'],
+                    ],
+                ],
+            ],
+            orderImages: [
+                [
+                    'metadata' => ['document_page' => 2501],
+                    'image' => 'typed-payload-list-order-render',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(2501, $result['pages'][0]['pnum']);
+        $t->same(['Second typed payload-list column remains source ordered', 'First typed payload-list column has no trusted order'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second typed payload-list column remains source ordered First typed payload-list column has no trusted order', $blocks[0]['text']);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->true(!str_contains($encoded, 'multi-dictionary typed order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
