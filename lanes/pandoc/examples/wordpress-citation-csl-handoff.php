@@ -23,6 +23,8 @@ The numbered style preserves @numbered-source issue ranges for reviewer packets.
 
 The title-case style reviews @title-case-source source titles.
 
+The quoted style checks @quoted-source title punctuation.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -91,6 +93,16 @@ $cslJson = <<<'JSON'
     "publisher": "Review Press"
   },
   {
+    "id": "quoted-source",
+    "type": "dataset",
+    "title": "source packet.",
+    "author": [
+      {"literal": "Quote Desk"}
+    ],
+    "issued": {"date-parts": [[2026, 6, 3]]},
+    "publisher": "Review Press"
+  },
+  {
     "id": "https://example.com/bib?name=foobar&date=2000",
     "type": "webpage",
     "title": "URL Key Source",
@@ -113,6 +125,8 @@ $cslStyleXml = <<<'XML'
       <term name="et-al">and others</term>
       <term name="no date">undated</term>
       <term name="accessed">Retrieved</term>
+      <term name="open-quote">“</term>
+      <term name="close-quote">”</term>
     </terms>
   </locale>
   <macro name="review-citation">
@@ -168,6 +182,9 @@ $cslStyleXml = <<<'XML'
   <macro name="review-title-case">
     <text variable="title" text-case="title"/>
   </macro>
+  <macro name="review-quoted-title">
+    <text variable="title" quotes="true" strip-periods="true" text-case="title"/>
+  </macro>
   <macro name="review-source-locator">
     <choose>
       <if variable="DOI" match="any">
@@ -186,7 +203,14 @@ $cslStyleXml = <<<'XML'
       <names variable="author editor" delimiter="; ">
         <name initialize-with=". " name-as-sort-order="all"/>
       </names>
-      <text macro="review-title-case"/>
+      <choose>
+        <if type="dataset" match="any">
+          <text macro="review-quoted-title"/>
+        </if>
+        <else>
+          <text macro="review-title-case"/>
+        </else>
+      </choose>
       <text macro="review-publication"/>
       <text macro="review-number"/>
       <text macro="review-source-locator"/>
@@ -251,6 +275,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['macros']['review-title-case'][0]['textCase'] ?? null) !== 'title') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the title text-case transform');
     }
+    if (($summary['macros']['review-quoted-title'][0]['quotes'] ?? null) !== true) {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the title quotes transform');
+    }
+    if (($summary['macros']['review-quoted-title'][0]['stripPeriods'] ?? null) !== true) {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the strip-periods transform');
+    }
+    if (($summary['macros']['review-bibliography-entry'][0]['children'][1]['branches'][0]['types'][0] ?? null) !== 'dataset') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the quoted dataset branch');
+    }
     if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the bibliography macro reference');
     }
@@ -266,7 +299,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
         '<p>The numbered style preserves Review Board (2025) issue ranges for reviewer packets.</p>',
         '<p>The title-case style reviews Migration Desk (2026) source titles.</p>',
+        '<p>The quoted style checks Quote Desk (2026) title punctuation.</p>',
         '<dt>Migration Desk 2026</dt><dd>[Migration Desk. Migration Review: Source Import and API. Review Press, 2026. No stable source locator.]</dd>',
+        '<dt>Quote Desk 2026</dt><dd>[Quote Desk. “Source Packet”. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
         '<dt>Review Board 2025</dt><dd>[Review Board. Numbered Review Packet. 2025. nos. 2nd-4th. No stable source locator.]</dd>',
         '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
@@ -279,6 +314,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
     $sortedTerms = [
         '<dt>de la Cruz 2026</dt>',
+        '<dt>Quote Desk 2026</dt>',
         '<dt>Migration Desk 2026</dt>',
         '<dt>Review Board 2025</dt>',
         '<dt>WordPress Migration Team 2024</dt>',

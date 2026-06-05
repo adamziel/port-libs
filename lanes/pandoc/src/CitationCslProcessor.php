@@ -1841,7 +1841,9 @@ final class CitationCslProcessor
             default => '',
         };
 
+        $value = $this->stripRenderingPeriods($value, $element);
         $value = $this->applyTextCase($value, $element, $item);
+        $value = $this->applyRenderingQuotes($value, $element);
 
         return $this->applyRenderingAffixes($value, $element);
     }
@@ -2423,6 +2425,30 @@ final class CitationCslProcessor
         }
 
         return (string) ($element['prefix'] ?? '') . $value . (string) ($element['suffix'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function stripRenderingPeriods(string $value, array $element): string
+    {
+        if ($value === '' || ($element['stripPeriods'] ?? false) !== true) {
+            return $value;
+        }
+
+        return str_replace('.', '', $value);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function applyRenderingQuotes(string $value, array $element): string
+    {
+        if ($value === '' || ($element['quotes'] ?? false) !== true) {
+            return $value;
+        }
+
+        return $this->style->term('open-quote') . $value . $this->style->term('close-quote');
     }
 
     /**

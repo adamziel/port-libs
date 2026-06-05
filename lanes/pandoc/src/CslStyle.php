@@ -15,6 +15,8 @@ final class CslStyle
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
         'no date|long' => ['single' => 'n.d.', 'multiple' => 'n.d.'],
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
+        'open-quote|long' => ['single' => "\u{201C}", 'multiple' => "\u{201C}"],
+        'close-quote|long' => ['single' => "\u{201D}", 'multiple' => "\u{201D}"],
         'page|long' => ['single' => 'page', 'multiple' => 'pages'],
         'page|short' => ['single' => 'p.', 'multiple' => 'pp.'],
         'chapter|long' => ['single' => 'chapter', 'multiple' => 'chapters'],
@@ -765,6 +767,8 @@ final class CslStyle
             'suffix' => self::optionalAttribute($text, 'suffix'),
             'form' => self::optionalAttribute($text, 'form') !== '' ? self::optionalAttribute($text, 'form') : 'long',
             'plural' => self::booleanRenderingAttribute($text, 'plural', false, $scope),
+            'quotes' => self::booleanRenderingAttribute($text, 'quotes', false, $scope),
+            'stripPeriods' => self::booleanRenderingAttribute($text, 'strip-periods', false, $scope),
             'textCase' => self::textCaseAttribute($text, $scope),
         ];
         if ($variable !== '') {
@@ -903,6 +907,7 @@ final class CslStyle
             'variable' => $variable,
             'form' => $form,
             'plural' => $plural,
+            'stripPeriods' => self::booleanRenderingAttribute($label, 'strip-periods', false, $scope),
             'textCase' => self::textCaseAttribute($label, $scope),
         ];
     }

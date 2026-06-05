@@ -1832,6 +1832,120 @@ XML
 XML
         ));
     },
+    'applies bounded csl quotes and strip periods rendering attributes' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-packet',
+                'type' => 'report',
+                'title' => 'source packet.',
+                'container-title' => 'Journal of Review.',
+                'author' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'page' => '12-18',
+            ],
+            [
+                'id' => 'issue-packet',
+                'type' => 'report',
+                'title' => 'issue packet.',
+                'author' => [
+                    ['literal' => 'Issue Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'number' => '3',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Quote Review Style</title>
+    <id>https://example.test/styles/bounded-quote-review</id>
+    <updated>2026-06-05T05:15:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="open-quote">“</term>
+      <term name="close-quote">”</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <text variable="title" quotes="true" strip-periods="true" text-case="title"/>
+        <group delimiter=" ">
+          <label variable="page" form="short" strip-periods="true"/>
+          <number variable="page"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="number" form="short" strip-periods="true"/>
+          <number variable="number"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title" prefix="title " suffix="." quotes="true" strip-periods="true" text-case="title"/>
+      <group delimiter=" ">
+        <label variable="page" form="short" strip-periods="true" plural="always"/>
+        <number variable="page"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="number" form="short" strip-periods="true"/>
+        <number variable="number"/>
+      </group>
+      <text variable="container-title" quotes="true"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Quote Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['citationRendering'][0]['children'][0]['quotes'] ?? null);
+        $t->same(true, $summary['citationRendering'][0]['children'][0]['stripPeriods'] ?? null);
+        $t->same(true, $summary['citationRendering'][0]['children'][1]['children'][0]['stripPeriods'] ?? null);
+        $t->same(true, $summary['bibliographyRendering'][0]['quotes'] ?? null);
+        $t->same(true, $summary['bibliographyRendering'][1]['children'][0]['stripPeriods'] ?? null);
+
+        $t->same('(see “Source Packet” pp 12-18; “Issue Packet” no 3)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-packet', 'text' => '[@source-packet]', 'prefix' => 'see']),
+            new AstNode('citation', ['id' => 'issue-packet', 'text' => '[@issue-packet]']),
+        ]));
+        $t->same('title “Source Packet”. | pp 12-18 | “Journal of Review.”', $processor->renderBibliographyEntry('source-packet'));
+        $t->same('title “Issue Packet”. | no 3', $processor->renderBibliographyEntry('issue-packet'));
+
+        $document = (new MarkdownReader())->read('Review cites [see @source-packet; @issue-packet] for quoted source titles.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (see “Source Packet” pp 12-18; “Issue Packet” no 3) for quoted source titles.', $markdown);
+        $t->contains('Review Desk 2026' . "\n" . ':   title “Source Packet”. \| pp 12-18 \| “Journal of Review.”', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (see “Source Packet” pp 12-18; “Issue Packet” no 3) for quoted source titles.</p>', $blocks);
+        $t->contains('<dt>Review Desk 2026</dt><dd>title “Source Packet”. | pp 12-18 | “Journal of Review.”</dd>', $blocks);
+        $t->contains('<dt>Issue Desk 2025</dt><dd>title “Issue Packet”. | no 3</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><text variable="title" quotes="sometimes"/></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><label variable="page" strip-periods="sometimes"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl macro rendering references for citations and bibliography' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
