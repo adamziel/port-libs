@@ -599,6 +599,8 @@ final class BibtexCslParser
             'publisher-place' => self::literalListDisplay($publisherPlaceList),
             'page' => $page,
             'page-first' => self::firstPageFromRange($page),
+            'pagination' => self::firstField($fields, ['pagination']),
+            'book-pagination' => self::firstField($fields, ['bookpagination', 'book-pagination']),
             'number' => self::firstField($fields, ['number']),
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),

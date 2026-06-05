@@ -6832,6 +6832,92 @@ XML);
         $t->same('2020', $manual['sortYear'] ?? null);
         $t->same('manual-001', $manual['sortKey'] ?? null);
     },
+    'maps bounded biblatex pagination fields into csl page labels' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{column-source,
+  author         = {Ng, Nia},
+  title          = {Column Source},
+  journaltitle   = {Review Ledger},
+  date           = {2026},
+  pages          = {12--14},
+  pagination     = {column},
+  bookpagination = {section}
+}
+
+@inbook{verse-source,
+  author         = {Smith, Ada},
+  title          = {Verse Source},
+  booktitle      = {Migration Sourcebook},
+  date           = {2025},
+  pages          = {4--6},
+  pagination     = {verse},
+  bookpagination = {page}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('column', $items[0]['pagination'] ?? null);
+        $t->same('section', $items[0]['book-pagination'] ?? null);
+        $t->same('verse', $items[1]['pagination'] ?? null);
+        $t->same('page', $items[1]['book-pagination'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $column = $processor->item('column-source');
+        $verse = $processor->item('verse-source');
+        $t->same('12-14', $column['page'] ?? null);
+        $t->same('12', $column['pageFirst'] ?? null);
+        $t->same('column', $column['pagination'] ?? null);
+        $t->same('section', $column['bookPagination'] ?? null);
+        $t->same('verse', $verse['pagination'] ?? null);
+        $t->same('page', $verse['bookPagination'] ?? null);
+        $t->same('Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.', $processor->renderBibliographyEntry('column-source'));
+        $t->same('Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.', $processor->renderBibliographyEntry('verse-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <label variable="page" form="long"/>
+        <text variable="page"/>
+        <text variable="pagination" prefix="[" suffix="]"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <label variable="page" form="short"/>
+      <text variable="page"/>
+      <text variable="book-pagination"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(columns 12-14 [column]; verses 4-6 [verse])', $styled->renderCitationCluster([
+            $citation('column-source', '[@column-source]'),
+            $citation('verse-source', '[@verse-source]'),
+        ]));
+        $t->same('Column Source | cols. | 12-14 | section', $styled->renderBibliographyEntry('column-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-pagination',
+            'title' => 'Direct Pagination Source',
+            'page' => '7-8',
+            'pagination' => 'paragraph',
+            'book-pagination' => 'line',
+        ]])->item('direct-pagination');
+        $t->same('paragraph', $direct['pagination'] ?? null);
+        $t->same('line', $direct['bookPagination'] ?? null);
+
+        $document = (new MarkdownReader())->read('Column source @column-source and verse source [@verse-source] keep source page units visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Column source Ng (2026) and verse source (Smith 2025) keep source page units visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>', $blocks);
+        $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

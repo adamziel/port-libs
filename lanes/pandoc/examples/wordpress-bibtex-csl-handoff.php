@@ -73,6 +73,8 @@ Sort override sources [@sort-visible-adams; @sort-visible-zed] keep BibLaTeX sor
 
 Call-number source @archive-call-number preserves archive shelf metadata for review.
 
+Pagination source @pagination-review preserves column page-unit metadata for review.
+
 Container-author chapter @container-author-review preserves source volume authors for review.
 
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
@@ -561,6 +563,16 @@ $bibtex = <<<'BIB'
   library   = {NYPL Manuscripts Division, MS 42 Box 7 Folder 3}
 }
 
+@article{pagination-review,
+  author         = {Ng, Nia},
+  title          = {Column Pagination Review},
+  journaltitle   = {Source Unit Ledger},
+  date           = {2026},
+  pages          = {12--14},
+  pagination     = {column},
+  bookpagination = {section}
+}
+
 @incollection{container-author-review,
   author        = {Ng, Nia},
   bookauthor    = {Smith, Ada and Curator, Eli},
@@ -1021,6 +1033,44 @@ XML);
     if (($archiveCallNumber['raw']['call-number'] ?? null) !== 'NYPL Manuscripts Division, MS 42 Box 7 Folder 3') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw CSL call-number metadata');
     }
+    $paginationReview = $processor->item('pagination-review');
+    if (($paginationReview['pagination'] ?? null) !== 'column') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve pagination-review pagination metadata');
+    }
+    if (($paginationReview['bookPagination'] ?? null) !== 'section') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve pagination-review book pagination metadata');
+    }
+    $paginationStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" ">
+        <label variable="page" form="long"/>
+        <text variable="page"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <label variable="page" form="short"/>
+      <text variable="page"/>
+      <text variable="book-pagination"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $paginationBlocks = (new WordPressBlockWriter())->write($paginationStyled->appendBibliography(
+        (new MarkdownReader())->read('Pagination review [@pagination-review] keeps page unit labels visible.'),
+        'Pagination Sources'
+    ));
+    if (!str_contains($paginationBlocks, '<p>Pagination review columns 12-14 keeps page unit labels visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not apply pagination metadata to CSL page labels');
+    }
+    if (!str_contains($paginationBlocks, '<dt>Ng 2026</dt><dd>Column Pagination Review | cols. | 12-14 | section</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose pagination metadata in custom bibliography output');
+    }
     $containerAuthorReview = $processor->item('container-author-review');
     if (($containerAuthorReview['containerAuthors'][0]['family'] ?? null) !== 'Smith') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first container author family');
@@ -1105,6 +1155,8 @@ XML);
         '<dt>Zed 2026</dt><dd>Zed, Zoe. Visible Zed Manual. 2026.</dd>',
         '<p>Call-number source Smith (2026) preserves archive shelf metadata for review.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Archive Shelf Packet. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3.</dd>',
+        '<p>Pagination source Ng (2026) preserves column page-unit metadata for review.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Column Pagination Review. Source Unit Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>',
         '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',

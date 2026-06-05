@@ -657,6 +657,8 @@ final class CitationCslProcessor
             'publisherPlaceList' => $publisherPlaceList !== [] ? $publisherPlaceList : ($publisherPlace !== '' ? [$publisherPlace] : []),
             'page' => $page,
             'pageFirst' => self::firstStringField($item, ['page-first', 'pageFirst']) ?: self::firstPageFromRange($page),
+            'pagination' => self::firstStringField($item, ['pagination', 'page-label', 'pageLabel']),
+            'bookPagination' => self::firstStringField($item, ['book-pagination', 'bookPagination', 'bookpagination']),
             'number' => self::stringField($item, 'number'),
             'volume' => self::stringField($item, 'volume'),
             'issue' => self::stringField($item, 'issue'),
@@ -3474,6 +3476,8 @@ final class CitationCslProcessor
             ['version', 'Version'],
             ['medium', 'Medium'],
             ['callNumber', 'Call number'],
+            ['pagination', 'Pagination'],
+            ['bookPagination', 'Book pagination'],
             ['entrySubtype', 'Entry subtype'],
             ['status', 'Status'],
             ['note', 'Note'],
@@ -4301,7 +4305,7 @@ final class CitationCslProcessor
                 return '';
             }
 
-            $termName = $this->labelTermName($variable);
+            $termName = $this->labelTermName($variable, $item);
         }
 
         $plural = match ((string) ($element['plural'] ?? 'contextual')) {
@@ -4313,8 +4317,18 @@ final class CitationCslProcessor
         return $this->style->term($termName, (string) ($element['form'] ?? 'long'), $plural);
     }
 
-    private function labelTermName(string $variable): string
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function labelTermName(string $variable, array $item): string
     {
+        if ($variable === 'page' || $variable === 'page-first') {
+            $pagination = trim((string) ($item['pagination'] ?? ''));
+            if ($pagination !== '') {
+                return $this->paginationTermName($pagination);
+            }
+        }
+
         return match ($variable) {
             'page-first' => 'page',
             'number-of-pages' => 'page',
@@ -4322,6 +4336,22 @@ final class CitationCslProcessor
             'chapter-number' => 'chapter',
             'collection-number' => 'number',
             default => $variable,
+        };
+    }
+
+    private function paginationTermName(string $pagination): string
+    {
+        $pagination = strtolower(trim($pagination));
+        $pagination = str_replace(['_', ' '], '-', $pagination);
+
+        return match ($pagination) {
+            'p', 'pp', 'page', 'pages' => 'page',
+            'col', 'cols', 'column', 'columns' => 'column',
+            'l', 'll', 'line', 'lines' => 'line',
+            'para', 'paras', 'paragraph', 'paragraphs' => 'paragraph',
+            'sec', 'secs', 'section', 'sections' => 'section',
+            'v', 'vv', 'verse', 'verses' => 'verse',
+            default => $pagination,
         };
     }
 
@@ -4662,6 +4692,8 @@ final class CitationCslProcessor
             'publisher-place-list' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
             'page' => (string) $item['page'],
             'page-first' => (string) $item['pageFirst'],
+            'pagination', 'page-label' => (string) $item['pagination'],
+            'book-pagination', 'bookpagination' => (string) $item['bookPagination'],
             'number' => (string) $item['number'],
             'volume' => (string) $item['volume'],
             'issue' => (string) $item['issue'],
