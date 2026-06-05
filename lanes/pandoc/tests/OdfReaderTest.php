@@ -404,6 +404,98 @@ XML;
         $t->contains('<span class="odf-change odf-insertion" data-odf-change-id="ct-ins" data-odf-change-type="insertion" data-odf-change-creator="Editor A" data-odf-change-date="2026-06-05T00:10:00Z">inserted review text</span>', $blocksHtml);
         $t->contains('<span class="odf-change odf-deletion" data-odf-change-id="ct-del" data-odf-change-type="deletion" data-odf-change-creator="Editor B" data-odf-change-date="2026-06-05T00:12:00Z">legacy deleted claim</span>', $blocksHtml);
     },
+    'maps ODT embedded MathML objects into display math handoff nodes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $contentWithMathObjects = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Inline formula <draw:frame draw:name="Inline formula"><draw:object xlink:href="./Object 1"/></draw:frame> preserved.</text:p>
+      <draw:frame draw:name="Display formula"><draw:object xlink:href="Object 2"/></draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $mathObjectOne = <<<'XML'
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:body>
+    <office:math>
+      <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">
+        <semantics>
+          <mrow><mi>x</mi><mo>=</mo><mn>1</mn></mrow>
+          <annotation encoding="application/x-tex">x=1</annotation>
+        </semantics>
+      </math>
+    </office:math>
+  </office:body>
+</office:document>
+XML;
+        $mathObjectTwo = <<<'XML'
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow>
+</math>
+XML;
+        $manifestWithMathObjects = str_replace(
+            '</manifest:manifest>',
+            '<manifest:file-entry manifest:full-path="Object 1/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>'
+            . '<manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Object 2/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>'
+            . '<manifest:file-entry manifest:full-path="Object 2/content.xml" manifest:media-type="text/xml"/>'
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithMathObjects,
+            $manifestWithMathObjects,
+            null,
+            null,
+            [
+                ['name' => 'Object 1/content.xml', 'data' => $mathObjectOne],
+                ['name' => 'Object 2/content.xml', 'data' => $mathObjectTwo],
+            ]
+        ));
+
+        $blocks = $result['document']->children;
+        $t->same(2, count($blocks));
+        if (count($blocks) !== 2) {
+            return;
+        }
+        $paragraph = $blocks[0];
+        $inlineMath = $paragraph->children[1];
+        $displayParagraph = $blocks[1];
+        $displayMath = $displayParagraph->children[0];
+
+        $t->same('Inline formula x=1 preserved.', $paragraph->attr('text'));
+        $t->same('math', $inlineMath->type);
+        $t->same(true, $inlineMath->attr('display'));
+        $t->same('odt-mathml', $inlineMath->attr('sourceFormat'));
+        $t->same('Object 1', $inlineMath->attr('objectPath'));
+        $t->same('Object 1/content.xml', $inlineMath->attr('sourcePart'));
+        $t->same('x=1', $inlineMath->attr('text'));
+        $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $inlineMath->attr('mathml'));
+        $t->same('paragraph', $displayParagraph->type);
+        $t->same('a+b', $displayParagraph->attr('text'));
+        $t->same('math', $displayMath->type);
+        $t->same('Object 2/content.xml', $displayMath->attr('sourcePart'));
+        $t->same('a+b', $displayMath->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $displayMath->attr('mathml'));
+        $t->same(2, $result['importReport']['content']['mathCount']);
+        $t->same(1, count($result['media']));
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Inline formula $$x=1$$ preserved.', $markdown);
+        $t->contains('$$a+b$$', $markdown);
+        $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">', $blocksHtml);
+        $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $blocksHtml);
+        $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);

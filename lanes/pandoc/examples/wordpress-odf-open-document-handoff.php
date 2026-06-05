@@ -14,6 +14,8 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object 1/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
+  <manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Pictures/source-hero.png" manifest:media-type="image/png" manifest:size="2048">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="review-checksum">
       <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="review-iv"/>
@@ -74,7 +76,7 @@ $contentXml = <<<'XML'
         </text:changed-region>
       </text:tracked-changes>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
@@ -115,12 +117,29 @@ $metaXml = <<<'XML'
 </office:document-meta>
 XML;
 
+$mathObjectXml = <<<'XML'
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:body>
+    <office:math>
+      <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+        <semantics>
+          <mrow><msub><mi>p</mi><mi>i</mi></msub><mo>→</mo><msub><mi>m</mi><mi>i</mi></msub></mrow>
+          <annotation encoding="application/x-tex">p_i \to m_i</annotation>
+        </semantics>
+      </math>
+    </office:math>
+  </office:body>
+</office:document>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
     ['name' => 'content.xml', 'data' => $contentXml],
     ['name' => 'styles.xml', 'data' => $stylesXml],
     ['name' => 'meta.xml', 'data' => $metaXml],
+    ['name' => 'Object 1/content.xml', 'data' => $mathObjectXml],
     ['name' => 'Pictures/source-hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
 ]);
 
@@ -158,6 +177,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['trackedChanges']['count'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT tracked changes to be reported');
+    }
+    if (($result['importReport']['content']['mathCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT MathML object to be reported');
+    }
+    if (!str_contains($blocks, '<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">')) {
+        throw new RuntimeException('Expected ODT MathML object to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<annotation encoding="application/x-tex">p_i \to m_i</annotation>')) {
+        throw new RuntimeException('Expected ODT MathML source annotation to survive WordPress handoff');
     }
     if (!str_contains($blocks, '<span class="odf-change odf-insertion" data-odf-change-id="chg-add-source-note" data-odf-change-type="insertion" data-odf-change-creator="Migration Reviewer" data-odf-change-date="2026-06-05T00:20:00Z">tracked source note</span>')) {
         throw new RuntimeException('Expected ODT insertion tracked change to render in WordPress blocks');

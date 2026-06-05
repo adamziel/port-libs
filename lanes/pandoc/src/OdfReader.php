@@ -18,6 +18,7 @@ final class OdfReader
     private const DC_NS = 'http://purl.org/dc/elements/1.1/';
     private const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
+    private const MATH_NS = 'http://www.w3.org/1998/Math/MathML';
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -125,6 +126,7 @@ final class OdfReader
                     'bookmarkCount' => $contentStats['bookmarkCount'],
                     'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
+                    'mathCount' => $contentStats['mathCount'],
                 ],
             ],
         ];
@@ -812,6 +814,14 @@ final class OdfReader
             return new AstNode('div', $attrs, $this->blockNodes($textBox, $package, $catalog));
         }
 
+        $math = $this->frameObjectMathNode($frame, $package);
+        if ($math instanceof AstNode) {
+            return new AstNode('paragraph', [
+                'sourceFormat' => 'odt',
+                'text' => (string) $math->attr('text', ''),
+            ], [$math]);
+        }
+
         $image = $this->frameImageNode($frame, $package);
         if (!$image instanceof AstNode) {
             return null;
@@ -924,6 +934,11 @@ final class OdfReader
                 $image = $this->frameImageNode($child, $package);
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
+                    continue;
+                }
+                $math = $this->frameObjectMathNode($child, $package);
+                if ($math instanceof AstNode) {
+                    $nodes[] = $math;
                 }
                 continue;
             }
@@ -1272,6 +1287,106 @@ final class OdfReader
         return new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
     }
 
+    private function frameObjectMathNode(\DOMElement $frame, ?ZipPackage $package): ?AstNode
+    {
+        if (!$package instanceof ZipPackage) {
+            return null;
+        }
+
+        $object = self::firstChildElement($frame, 'object', self::DRAW_NS);
+        if (!$object instanceof \DOMElement) {
+            return null;
+        }
+
+        $href = self::attr($object, self::XLINK_NS, 'href');
+        if ($href === '') {
+            return null;
+        }
+
+        [$objectPath, $contentPart] = $this->objectContentPart($href);
+        if (!$package->has($contentPart)) {
+            return null;
+        }
+
+        $dom = self::loadXml($package->read($contentPart), 'ODT MathML object ' . $contentPart);
+        $math = $this->firstMathElement($dom);
+        if (!$math instanceof \DOMElement) {
+            return null;
+        }
+
+        $mathml = $this->mathElementXml($math);
+        if ($mathml === '') {
+            return null;
+        }
+
+        return new AstNode('math', [
+            'sourceFormat' => 'odt-mathml',
+            'display' => true,
+            'text' => $this->mathPlainText($math),
+            'mathml' => $mathml,
+            'objectPath' => $objectPath,
+            'sourcePart' => $contentPart,
+        ]);
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function objectContentPart(string $href): array
+    {
+        $part = $this->manifestPackagePart($href);
+        if (str_ends_with($part, '/content.xml')) {
+            return [substr($part, 0, -strlen('/content.xml')), $part];
+        }
+
+        $objectPath = rtrim($part, '/');
+
+        return [$objectPath, $objectPath . '/content.xml'];
+    }
+
+    private function firstMathElement(\DOMDocument $dom): ?\DOMElement
+    {
+        $math = $dom->getElementsByTagNameNS(self::MATH_NS, 'math')->item(0);
+
+        return $math instanceof \DOMElement ? $math : null;
+    }
+
+    private function mathElementXml(\DOMElement $math): string
+    {
+        $xml = $math->ownerDocument instanceof \DOMDocument ? $math->ownerDocument->saveXML($math) : '';
+
+        return trim(is_string($xml) ? $xml : '');
+    }
+
+    private function mathPlainText(\DOMElement $math): string
+    {
+        $parts = [];
+        $this->collectMathText($math, $parts);
+        $text = implode('', $parts);
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function collectMathText(\DOMNode $node, array &$parts): void
+    {
+        if ($node instanceof \DOMElement && $node->namespaceURI === self::MATH_NS && in_array($node->localName, ['annotation', 'annotation-xml'], true)) {
+            return;
+        }
+
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            $parts[] = $node->textContent;
+
+            return;
+        }
+
+        foreach ($node->childNodes as $child) {
+            $this->collectMathText($child, $parts);
+        }
+    }
+
     /**
      * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>}
      */
@@ -1522,6 +1637,9 @@ final class OdfReader
             if (!is_string($part) || $part === '') {
                 continue;
             }
+            if (str_ends_with($part, '/')) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -1581,7 +1699,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, trackedChangeCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, trackedChangeCount:int, mathCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -1590,6 +1708,7 @@ final class OdfReader
             'bookmarkCount' => 0,
             'bookmarkReferenceCount' => 0,
             'trackedChangeCount' => 0,
+            'mathCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -1603,6 +1722,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-change')) {
                 $stats['trackedChangeCount']++;
+            }
+            if ($node->type === 'math') {
+                $stats['mathCount']++;
             }
 
             $childStats = $this->contentNodeStats($node->children);
@@ -1628,6 +1750,9 @@ final class OdfReader
     {
         $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
         $path = ltrim($path, '/');
+        while (str_starts_with($path, './')) {
+            $path = substr($path, 2);
+        }
         if ($path === '') {
             throw new \RuntimeException('ODT package part path must not be empty');
         }
@@ -1678,6 +1803,10 @@ final class OdfReader
             }
             if ($node->type === 'image') {
                 $text .= (string) $node->attr('alt', '');
+                continue;
+            }
+            if ($node->type === 'math') {
+                $text .= (string) $node->attr('text', '');
                 continue;
             }
             if ($node->type === 'note') {

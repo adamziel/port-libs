@@ -1158,9 +1158,14 @@ final class WordPressBlockWriter
 
     private function renderMathInline(AstNode $node): string
     {
+        $class = $node->attr('display') === true ? 'display' : 'inline';
+        $mathml = $node->attr('mathml', null);
+        if (is_string($mathml) && trim($mathml) !== '') {
+            return '<span class="math ' . $class . '">' . trim($mathml) . '</span>';
+        }
+
         $open = $node->attr('display') === true ? '\\[' : '\\(';
         $close = $node->attr('display') === true ? '\\]' : '\\)';
-        $class = $node->attr('display') === true ? 'display' : 'inline';
 
         return '<span class="math ' . $class . '">'
             . $this->esc($open . (string) $node->attr('text', '') . $close)
