@@ -193,6 +193,33 @@ $pageResourceParentGenerationCurrentBasePdf = static function () use ($pageResou
         . "%%EOF";
 };
 
+$pageResourceFormNullCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'q /DirectNullForm Do Q q /IndirectNullForm Do Q q /ExplicitEmptyForm Do Q';
+    $directNullForm = 'q /InheritedNestedForm Do Q';
+    $indirectNullForm = 'q /InheritedNestedForm Do Q';
+    $explicitEmptyForm = 'q /InheritedNestedForm Do Q';
+    $nestedForm = 'BT /F1 12 Tf 12 24 Td <41> Tj ET';
+    $cmap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Null form inherited nested text',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources null /Length " . strlen($directNullForm) . " >>\nstream\n{$directNullForm}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources 12 0 R /Length " . strlen($indirectNullForm) . " >>\nstream\n{$indirectNullForm}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources 13 0 R /Length " . strlen($explicitEmptyForm) . " >>\nstream\n{$explicitEmptyForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($nestedForm) . " >>\nstream\n{$nestedForm}\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NullFormInherited /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 9 0 R >> /XObject << /DirectNullForm 5 0 R /IndirectNullForm 6 0 R /ExplicitEmptyForm 7 0 R /InheritedNestedForm 8 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+        . "12 0 obj\nnull\nendobj\n"
+        . "13 0 obj\n<< >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -352,5 +379,22 @@ return [
         $t->same([], $boundary);
         $t->same(false, str_contains($plainText, 'Stale parent generation font leak'));
         $t->same(false, str_contains($plainText, 'Stale parent generation form leak'));
+    },
+    'inherits invoking page resources for direct and indirect null Form XObject Resources while empty dictionaries stay explicit' => static function (TestRunner $t) use ($pageResourceFormNullCurrentBasePdf): void {
+        $pdf = $pageResourceFormNullCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Null form inherited nested text',
+            'Null form inherited nested text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(2, substr_count($plainText, 'Null form inherited nested text'));
+        $t->same(false, str_contains($plainText, 'InheritedNestedForm'));
+        $t->same(false, str_contains($plainText, 'ExplicitEmptyForm'));
     },
 ];

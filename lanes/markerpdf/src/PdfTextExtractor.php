@@ -3147,11 +3147,42 @@ final class PdfTextExtractor
         return $properties;
     }
 
-    private function formXObjectResourceOwnerBody(string $formBody, string $invokingResourceOwnerBody): string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function formXObjectResourceOwnerBody(string $formBody, string $invokingResourceOwnerBody, array $objects): string
     {
-        return $this->topLevelNameValueOffset($formBody, 'Resources') === null
+        return $this->formXObjectResourcesInheritInvoker($formBody, $objects)
             ? $invokingResourceOwnerBody
             : $formBody;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function formXObjectResourcesInheritInvoker(string $formBody, array $objects): bool
+    {
+        $value = $this->topLevelPdfValueAfterName($formBody, 'Resources');
+        if ($value === null) {
+            return true;
+        }
+
+        $value = trim($value);
+        if ($value === '' || $value === 'null') {
+            return true;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) !== 1) {
+            return false;
+        }
+
+        $objectBody = $this->objectBodyForResourceReference(
+            $objects,
+            (int) $match[1],
+            (int) $match[2]
+        );
+
+        return $objectBody !== null && trim($objectBody) === 'null';
     }
 
     private function formatPdfNumber(float $value): string
@@ -3247,7 +3278,7 @@ final class PdfTextExtractor
                     if ($form !== null) {
                         $nextActiveForms = $activeFormObjectNumbers;
                         $nextActiveForms[$objectNumber] = true;
-                        $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
+                        $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody, $objects);
                         $formFontMaps = $this->fontResourceMapsForResourceOwnerBody($formResourceOwnerBody, $objects, $fontObjectMaps);
                         $fontAliases = [];
                         foreach ($formFontMaps as $name => $map) {
@@ -3918,8 +3949,8 @@ final class PdfTextExtractor
 
             $nextActiveForms = $activeFormObjectNumbers;
             $nextActiveForms[$activeFormKey] = true;
-            $formHasOwnResources = $this->topLevelNameValueOffset($form['body'], 'Resources') !== null;
-            $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
+            $formHasOwnResources = !$this->formXObjectResourcesInheritInvoker($form['body'], $objects);
+            $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody, $objects);
             $formMatrix = $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects)
                 ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
             $formInvocationStates = [];
