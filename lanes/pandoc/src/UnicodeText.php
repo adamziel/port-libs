@@ -126,15 +126,28 @@ final class UnicodeText
     {
         $clusters = [];
         $joinNext = false;
+        $regionalIndicatorRun = 0;
         foreach (self::characters($text) as $char) {
             $codepoint = self::codepoint($char);
-            if (
-                $clusters === []
-                || (!$joinNext && !self::isCombiningOrZeroWidth($codepoint))
-            ) {
+            $combiningOrZeroWidth = self::isCombiningOrZeroWidth($codepoint);
+            $regionalIndicator = self::isRegionalIndicator($codepoint);
+            $append = $clusters !== []
+                && (
+                    $joinNext
+                    || $combiningOrZeroWidth
+                    || ($regionalIndicator && $regionalIndicatorRun === 1)
+                );
+
+            if (!$append) {
                 $clusters[] = $char;
+                $regionalIndicatorRun = $regionalIndicator ? 1 : 0;
             } else {
                 $clusters[count($clusters) - 1] .= $char;
+                if ($regionalIndicator) {
+                    $regionalIndicatorRun = min(2, $regionalIndicatorRun + 1);
+                } elseif (!$combiningOrZeroWidth && $codepoint !== 0x200d) {
+                    $regionalIndicatorRun = 0;
+                }
             }
             $joinNext = $codepoint === 0x200d;
         }
@@ -484,15 +497,33 @@ final class UnicodeText
         $width = 0;
         $hasJoiner = false;
         $hasWide = false;
+        $hasEmojiVariation = false;
+        $hasEmojiVariationBase = false;
+        $hasKeycap = false;
+        $hasKeycapBase = false;
         foreach (self::characters($cluster) as $char) {
             $codepoint = self::codepoint($char);
             $charWidth = self::codepointDisplayWidth($codepoint);
             $width += $charWidth;
             $hasJoiner = $hasJoiner || $codepoint === 0x200d;
             $hasWide = $hasWide || $charWidth === 2;
+            $hasEmojiVariation = $hasEmojiVariation || $codepoint === 0xfe0f;
+            $hasEmojiVariationBase = $hasEmojiVariationBase || self::isEmojiVariationBase($codepoint);
+            $hasKeycap = $hasKeycap || $codepoint === 0x20e3;
+            $hasKeycapBase = $hasKeycapBase || self::isKeycapBase($codepoint);
         }
 
-        return $hasJoiner && $hasWide ? 2 : $width;
+        if ($hasKeycap && $hasKeycapBase) {
+            return 2;
+        }
+        if ($hasEmojiVariation && $hasEmojiVariationBase) {
+            return max(2, $width);
+        }
+        if ($hasJoiner && $hasWide) {
+            return 2;
+        }
+
+        return $width;
     }
 
     private static function isCombiningOrZeroWidth(int $codepoint): bool
@@ -536,10 +567,13 @@ final class UnicodeText
             || ($codepoint >= 0x0e31 && $codepoint <= 0x0e31)
             || ($codepoint >= 0x0e34 && $codepoint <= 0x0e3a)
             || ($codepoint >= 0x0e47 && $codepoint <= 0x0e4e)
+            || ($codepoint >= 0x1ab0 && $codepoint <= 0x1aff)
+            || ($codepoint >= 0x1dc0 && $codepoint <= 0x1dff)
             || ($codepoint >= 0x200b && $codepoint <= 0x200f)
             || ($codepoint >= 0x202a && $codepoint <= 0x202e)
             || ($codepoint >= 0x2060 && $codepoint <= 0x206f)
             || ($codepoint >= 0x20d0 && $codepoint <= 0x20ff)
+            || ($codepoint >= 0x1f3fb && $codepoint <= 0x1f3ff)
             || ($codepoint >= 0xfe00 && $codepoint <= 0xfe0f)
             || ($codepoint >= 0xfe20 && $codepoint <= 0xfe2f)
             || ($codepoint >= 0xe0100 && $codepoint <= 0xe01ef);
@@ -558,7 +592,49 @@ final class UnicodeText
             || ($codepoint >= 0xff00 && $codepoint <= 0xff60)
             || ($codepoint >= 0xffe0 && $codepoint <= 0xffe6)
             || ($codepoint >= 0x1f300 && $codepoint <= 0x1f64f)
+            || ($codepoint >= 0x1f680 && $codepoint <= 0x1f6ff)
+            || ($codepoint >= 0x1fa70 && $codepoint <= 0x1faff)
             || ($codepoint >= 0x1f900 && $codepoint <= 0x1f9ff)
             || ($codepoint >= 0x20000 && $codepoint <= 0x3fffd);
+    }
+
+    private static function isRegionalIndicator(int $codepoint): bool
+    {
+        return $codepoint >= 0x1f1e6 && $codepoint <= 0x1f1ff;
+    }
+
+    private static function isKeycapBase(int $codepoint): bool
+    {
+        return ($codepoint >= 0x30 && $codepoint <= 0x39)
+            || $codepoint === 0x23
+            || $codepoint === 0x2a;
+    }
+
+    private static function isEmojiVariationBase(int $codepoint): bool
+    {
+        return $codepoint === 0x00a9
+            || $codepoint === 0x00ae
+            || $codepoint === 0x203c
+            || $codepoint === 0x2049
+            || $codepoint === 0x2122
+            || $codepoint === 0x2139
+            || ($codepoint >= 0x2194 && $codepoint <= 0x21aa)
+            || ($codepoint >= 0x231a && $codepoint <= 0x231b)
+            || $codepoint === 0x2328
+            || $codepoint === 0x23cf
+            || ($codepoint >= 0x23e9 && $codepoint <= 0x23f3)
+            || ($codepoint >= 0x23f8 && $codepoint <= 0x23fa)
+            || $codepoint === 0x24c2
+            || ($codepoint >= 0x25aa && $codepoint <= 0x25ab)
+            || $codepoint === 0x25b6
+            || $codepoint === 0x25c0
+            || ($codepoint >= 0x25fb && $codepoint <= 0x25fe)
+            || ($codepoint >= 0x2600 && $codepoint <= 0x27bf)
+            || ($codepoint >= 0x2934 && $codepoint <= 0x2935)
+            || ($codepoint >= 0x2b05 && $codepoint <= 0x2b55)
+            || $codepoint === 0x3030
+            || $codepoint === 0x303d
+            || $codepoint === 0x3297
+            || $codepoint === 0x3299;
     }
 }

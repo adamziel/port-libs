@@ -135,6 +135,36 @@ return [
         $t->same("  \u{9B5A}", UnicodeText::padDisplay("\u{9B5A}", 4, 'right'));
         $t->same("A\u{0301}   ", UnicodeText::padDisplay($accent, 4));
     },
+    'measures emoji presentation sequences as single display clusters' => static function (TestRunner $t): void {
+        $checkbox = "\u{2611}\u{FE0F}";
+        $keycap = "1\u{FE0F}\u{20E3}";
+        $thumb = "\u{1F44D}\u{1F3FD}";
+        $technologist = "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F4BB}";
+        $flag = "\u{1F1FA}\u{1F1F8}";
+        $rocket = "\u{1F680}";
+        $extendedCombining = "a\u{1AB0}";
+
+        $t->same(2, UnicodeText::displayWidth($checkbox));
+        $t->same(2, UnicodeText::displayWidth($keycap));
+        $t->same(2, UnicodeText::displayWidth($thumb));
+        $t->same(2, UnicodeText::displayWidth($technologist));
+        $t->same(2, UnicodeText::displayWidth($flag));
+        $t->same(2, UnicodeText::displayWidth($rocket));
+        $t->same(1, UnicodeText::displayWidth($extendedCombining));
+        $t->same(
+            [$checkbox, $keycap, $thumb, $technologist, $flag, $rocket, $extendedCombining],
+            UnicodeText::graphemes($checkbox . $keycap . $thumb . $technologist . $flag . $rocket . $extendedCombining)
+        );
+        $t->same([$flag, 'X'], UnicodeText::splitAtDisplayWidth($flag . 'X', 1));
+        $t->same(
+            [$checkbox, $keycap, $thumb, $technologist, $flag, $rocket, $extendedCombining, 'Z'],
+            UnicodeText::splitByDisplayBreakpoints(
+                $checkbox . $keycap . $thumb . $technologist . $flag . $rocket . $extendedCombining . 'Z',
+                [2, 4, 6, 8, 10, 12, 13]
+            )
+        );
+        $t->same($checkbox . '  ', UnicodeText::padDisplay($checkbox, 4));
+    },
     'splits display width breakpoints without cutting unicode graphemes' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $emoji = "\u{1F469}\u{200D}\u{1F4BB}";
