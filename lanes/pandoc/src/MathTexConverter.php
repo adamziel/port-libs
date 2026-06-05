@@ -539,6 +539,10 @@ final class MathTexConverter
             return '<mi>' . $this->esc($operatorName) . '</mi>';
         }
 
+        if ($command === 'substack') {
+            return $this->parseSubstackCommand($source, $offset);
+        }
+
         if ($command === 'overset') {
             $above = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset above');
             $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset base');
@@ -887,6 +891,68 @@ final class MathTexConverter
         return '<mstyle mathvariant="' . self::MATH_VARIANT_COMMANDS[$command] . '">'
             . $this->parseMathVariantArgument($source, $offset, $command)
             . '</mstyle>';
+    }
+
+    private function parseSubstackCommand(string $source, int &$offset): string
+    {
+        $content = $this->readRequiredGroupText($source, $offset);
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX substack row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, 'substack');
+        foreach ($rows as $rowIndex => $row) {
+            if (count($row) !== 1) {
+                throw new \InvalidArgumentException('Expected one-column TeX substack row at row ' . ($rowIndex + 1));
+            }
+
+            if (trim($row[0]) === '') {
+                throw new \InvalidArgumentException('Expected TeX substack row content at row ' . ($rowIndex + 1));
+            }
+        }
+
+        return $this->environmentTable($rows, ' columnalign="center" rowspacing="0.1em"');
+    }
+
+    private function endsWithTopLevelRowSeparator(string $content): bool
+    {
+        $depth = 0;
+        $separatorIsLastSignificantToken = false;
+        $length = strlen($content);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $content[$offset];
+            if ($char === '\\') {
+                if ($depth === 0 && ($content[$offset + 1] ?? '') === '\\') {
+                    $separatorIsLastSignificantToken = true;
+                    $offset++;
+                    continue;
+                }
+
+                $separatorIsLastSignificantToken = false;
+                if (($content[$offset + 1] ?? '') !== '') {
+                    $offset++;
+                }
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $separatorIsLastSignificantToken = false;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth = max(0, $depth - 1);
+                $separatorIsLastSignificantToken = false;
+                continue;
+            }
+
+            if (!ctype_space($char)) {
+                $separatorIsLastSignificantToken = false;
+            }
+        }
+
+        return $separatorIsLastSignificantToken;
     }
 
     private function parseMathVariantArgument(string $source, int &$offset, string $command): string

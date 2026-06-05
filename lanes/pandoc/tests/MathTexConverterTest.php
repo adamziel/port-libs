@@ -148,6 +148,17 @@ return [
         $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
         $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
     },
+    'converts bounded tex substack limits to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $substackMathml = $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)', true);
+        $standaloneMathml = $converter->texToMathMl('\\substack{p_i \\\\ m_i}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $substackMathml);
+        $t->contains('<msubsup><mo>∑</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>i</mi><mo>=</mo><mn>1</mn></mtd></mtr><mtr><mtd><mi>i</mi><mo>≠</mo><mi>j</mi></mtd></mtr></mtable><mi>n</mi></msubsup><msub><mi>a</mi><mi>i</mi></msub>', $substackMathml);
+        $t->contains('<msub><mo>lim</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>x</mi><mo>→</mo><mn>0</mn></mtd></mtr><mtr><mtd><mi>x</mi><mo>&gt;</mo><mn>0</mn></mtd></mtr></mtable></msub><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>', $substackMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)</annotation>', $substackMathml);
+        $t->contains('<mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable>', $standaloneMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
@@ -341,6 +352,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a & b}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a \\\\ }'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
