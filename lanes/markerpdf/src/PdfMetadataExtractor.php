@@ -503,6 +503,10 @@ final class PdfMetadataExtractor
         $stringFilterStatus = $this->encryptedAssociatedFileCryptFilterStatus($stringFilter, $cryptFilters);
         $streamFilterStatus = $this->encryptedAssociatedFileCryptFilterStatus($streamFilter, $cryptFilters);
         $embeddedFileFilterStatus = $this->encryptedAssociatedFileCryptFilterStatus($embeddedFileFilter, $cryptFilters);
+        $cryptFilterDictionaryReview = is_array($encryption['crypt_filter_dictionary_declaration_review'] ?? null)
+            ? $encryption['crypt_filter_dictionary_declaration_review']
+            : [];
+        $cryptFilterDictionaryFailClosed = ($cryptFilterDictionaryReview['fail_closed'] ?? false) === true;
         $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter';
         $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter';
 
@@ -525,6 +529,16 @@ final class PdfMetadataExtractor
             'raw_encrypted_bytes_exposed' => false,
             'executes_decryption' => false,
         ];
+
+        if ($cryptFilterDictionaryFailClosed) {
+            $policy['file_spec_strings_policy'] = 'suppressed_encrypted_strings';
+            $policy['embedded_file_stream_policy'] = 'suppressed_encrypted_embedded_file_streams';
+            $policy['payload_hash_available'] = false;
+            $policy['crypt_filter_dictionary_declaration_review'] = $cryptFilterDictionaryReview;
+            $policy['crypt_filter_dictionary_status'] = $cryptFilterDictionaryReview['status'] ?? null;
+            $policy['crypt_filter_dictionary_fail_closed'] = true;
+            $policy['crypt_filter_dictionary_policy'] = 'suppressed_malformed_crypt_filter_dictionary';
+        }
 
         if ($stringFilter !== null) {
             $policy['string_filter'] = $stringFilter;
@@ -5062,6 +5076,11 @@ final class PdfMetadataExtractor
         }
         $this->applyCryptFilterDefaults($metadata, $version);
 
+        $cryptFilterDictionaryReview = $this->cryptFilterDictionaryDeclarationReview($dictionary, $objects);
+        if ($cryptFilterDictionaryReview !== []) {
+            $metadata['crypt_filter_dictionary_declaration_review'] = $cryptFilterDictionaryReview;
+        }
+
         $cryptFilterRoleReview = $this->cryptFilterRoleDeclarationReview($dictionary, $objects, $metadata);
         if ($cryptFilterRoleReview !== []) {
             $metadata['crypt_filter_role_declaration_review'] = $cryptFilterRoleReview;
@@ -5279,6 +5298,112 @@ final class PdfMetadataExtractor
         }
 
         return 'encrypt_metadata_non_boolean_review';
+    }
+
+    /**
+     * /CF is the crypt-filter dictionary. Duplicate or non-dictionary /CF
+     * declarations are ambiguous for import preflight, even if the last parsed
+     * value names identity filters.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function cryptFilterDictionaryDeclarationReview(string $dictionary, array $objects): array
+    {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'CF');
+        if ($values === []) {
+            return [];
+        }
+
+        $entries = [];
+        $declaredFilterNames = [];
+        foreach ($values as $index => $value) {
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $valueForReview = trim($resolved ?? $value);
+            $operandShape = $this->encryptMetadataOperandShape($valueForReview);
+            $filterDictionary = $this->resolveDictionaryFromValue($value, $objects);
+            $filterNames = [];
+            if ($filterDictionary !== null) {
+                $filterNames = array_keys($this->dictionaryTopLevelEntries($filterDictionary['body']));
+                foreach ($filterNames as $name) {
+                    if (!in_array($name, $declaredFilterNames, true)) {
+                        $declaredFilterNames[] = $name;
+                    }
+                }
+            }
+
+            $entries[] = [
+                'source' => 'crypt_filter_dictionary_entry_review',
+                'index' => $index,
+                'pdf_name' => 'CF',
+                'present' => true,
+                'resolved' => $resolved !== null,
+                'operand_shape' => $operandShape,
+                'dictionary_resolved' => $filterDictionary !== null,
+                'filter_names' => $filterNames,
+                'status' => $filterDictionary !== null
+                    ? 'crypt_filter_dictionary_entry_resolved'
+                    : $this->cryptFilterDictionaryOperandStatus($value, $operandShape, $resolved !== null),
+                'review_only' => true,
+            ];
+        }
+
+        $resolvedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['dictionary_resolved'] ?? false) === true
+        ));
+        $malformedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['dictionary_resolved'] ?? false) !== true
+        ));
+        $duplicate = count($values) > 1;
+        $selectedIndex = count($entries) - 1;
+        $selectedEntry = $selectedIndex >= 0 ? $entries[$selectedIndex] : [];
+        $ambiguous = $duplicate || $malformedEntries !== [];
+        $status = $duplicate
+            ? 'duplicate_crypt_filter_dictionary_entries_review'
+            : ($malformedEntries !== [] ? 'malformed_crypt_filter_dictionary_entry_review' : 'well_formed_crypt_filter_dictionary');
+
+        return [
+            'source' => 'encryption_crypt_filter_dictionary_declaration_review',
+            'pdf_name' => 'CF',
+            'declared_entry_count' => count($values),
+            'resolved_dictionary_entry_count' => count($resolvedEntries),
+            'duplicate_entries' => $duplicate,
+            'malformed_entries' => $malformedEntries !== [],
+            'malformed_entry_count' => count($malformedEntries),
+            'ambiguous' => $ambiguous,
+            'fail_closed' => $ambiguous,
+            'status' => $status,
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'declared_filter_names' => $declaredFilterNames,
+            'selected_entry_index' => $selectedIndex >= 0 ? $selectedIndex : null,
+            'selected_filter_names' => is_array($selectedEntry['filter_names'] ?? null)
+                ? $selectedEntry['filter_names']
+                : [],
+            'entries' => $entries,
+            'review_only' => true,
+            'decryption_performed' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    private function cryptFilterDictionaryOperandStatus(string $rawValue, string $operandShape, bool $resolved): string
+    {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'crypt_filter_dictionary_unresolved_reference';
+        }
+        if ($operandShape === 'dictionary') {
+            return 'crypt_filter_dictionary_malformed_dictionary_review';
+        }
+
+        return 'crypt_filter_dictionary_non_dictionary_operand_review';
     }
 
     /**

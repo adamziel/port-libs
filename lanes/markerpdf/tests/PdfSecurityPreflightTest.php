@@ -710,7 +710,7 @@ return [
         $t->same('standard_security_handler_malformed_permissions', $permission['source']);
         $t->same(true, $permission['permissions_declared']);
         $t->same('00000010', $permission['permission_hex']);
-        $t->same(true, $permission['copy_or_extract_allowed']);
+        $t->same(null, $permission['copy_or_extract_allowed']);
         $t->same(false, $permission['permission_bits_reliable']);
         $t->same(false, $permission['permission_word_well_formed']);
         $t->same('permissions_malformed_blocked_without_decryption', $permission['policy']);

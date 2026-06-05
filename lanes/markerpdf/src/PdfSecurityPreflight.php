@@ -599,6 +599,9 @@ final class PdfSecurityPreflight
         }
 
         $cryptFilters = is_array($encryption['crypt_filters'] ?? null) ? $encryption['crypt_filters'] : [];
+        $cryptFilterDictionaryReview = is_array($encryption['crypt_filter_dictionary_declaration_review'] ?? null)
+            ? $encryption['crypt_filter_dictionary_declaration_review']
+            : [];
         $handler = is_string($encryption['filter'] ?? null) ? $encryption['filter'] : null;
         $version = is_int($encryption['version'] ?? null) ? $encryption['version'] : null;
         $revision = is_int($encryption['revision'] ?? null) ? $encryption['revision'] : null;
@@ -634,6 +637,12 @@ final class PdfSecurityPreflight
                 'auth_event_defaulted_filter_names' => [],
                 'auth_event_mismatch_role_names' => [],
                 'auth_event_mismatch_filter_names' => [],
+                'crypt_filter_dictionary_declaration_review' => $cryptFilterDictionaryReview,
+                'crypt_filter_dictionary_declaration_status' => $cryptFilterDictionaryReview['status'] ?? null,
+                'crypt_filter_dictionary_declared_entry_count' => (int) ($cryptFilterDictionaryReview['declared_entry_count'] ?? 0),
+                'crypt_filter_dictionary_duplicate_entries' => (bool) ($cryptFilterDictionaryReview['duplicate_entries'] ?? false),
+                'crypt_filter_dictionary_malformed_entry_count' => (int) ($cryptFilterDictionaryReview['malformed_entry_count'] ?? 0),
+                'crypt_filter_dictionary_fail_closed' => (bool) ($cryptFilterDictionaryReview['fail_closed'] ?? false),
                 'text_content_policy' => 'review_only_encrypted_document_boundary',
                 'embedded_file_payload_policy' => 'encrypted_filter_requires_decryption',
                 'roles' => [],
@@ -668,6 +677,12 @@ final class PdfSecurityPreflight
                 $version,
                 $revision
             );
+        }
+        if ($cryptFilterDictionaryReview !== []) {
+            $dictionaryFields = $this->cryptFilterDictionaryContentFields($cryptFilterDictionaryReview);
+            foreach ($roles as $index => $role) {
+                $roles[$index] = array_merge($role, $dictionaryFields);
+            }
         }
 
         $documentTextRows = array_values(array_filter(
@@ -709,6 +724,16 @@ final class PdfSecurityPreflight
             'auth_event_defaulted_filter_names' => $this->cryptFilterAuthEventDefaultedFilterNames($roles),
             'auth_event_mismatch_role_names' => $this->cryptFilterAuthEventMismatchRoleNames($roles),
             'auth_event_mismatch_filter_names' => $this->cryptFilterAuthEventMismatchFilterNames($roles),
+            'crypt_filter_dictionary_declaration_review' => $cryptFilterDictionaryReview,
+            'crypt_filter_dictionary_declaration_status' => $cryptFilterDictionaryReview['status'] ?? null,
+            'crypt_filter_dictionary_declared_entry_count' => (int) ($cryptFilterDictionaryReview['declared_entry_count'] ?? 0),
+            'crypt_filter_dictionary_resolved_entry_count' => (int) ($cryptFilterDictionaryReview['resolved_dictionary_entry_count'] ?? 0),
+            'crypt_filter_dictionary_duplicate_entries' => (bool) ($cryptFilterDictionaryReview['duplicate_entries'] ?? false),
+            'crypt_filter_dictionary_malformed_entry_count' => (int) ($cryptFilterDictionaryReview['malformed_entry_count'] ?? 0),
+            'crypt_filter_dictionary_entry_statuses' => is_array($cryptFilterDictionaryReview['entry_statuses'] ?? null)
+                ? $cryptFilterDictionaryReview['entry_statuses']
+                : [],
+            'crypt_filter_dictionary_fail_closed' => (bool) ($cryptFilterDictionaryReview['fail_closed'] ?? false),
             'cfm_defaulted_role_names' => $this->cryptFilterCfmDefaultedRoleNames($roles),
             'cfm_defaulted_filter_names' => $this->cryptFilterCfmDefaultedFilterNames($roles),
             'key_length_statuses' => $this->uniqueStringColumn($roles, 'key_length_status'),
@@ -888,6 +913,31 @@ final class PdfSecurityPreflight
                 ? $declaration['entry_statuses']
                 : [],
             'role_declaration_fail_closed' => (bool) ($declaration['fail_closed'] ?? false),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     * @return array<string, mixed>
+     */
+    private function cryptFilterDictionaryContentFields(array $declaration): array
+    {
+        return [
+            'crypt_filter_dictionary_declaration_status' => is_string($declaration['status'] ?? null)
+                ? $declaration['status']
+                : null,
+            'crypt_filter_dictionary_declared_entry_count' => (int) ($declaration['declared_entry_count'] ?? 0),
+            'crypt_filter_dictionary_resolved_entry_count' => (int) ($declaration['resolved_dictionary_entry_count'] ?? 0),
+            'crypt_filter_dictionary_duplicate_entries' => (bool) ($declaration['duplicate_entries'] ?? false),
+            'crypt_filter_dictionary_malformed_entry_count' => (int) ($declaration['malformed_entry_count'] ?? 0),
+            'crypt_filter_dictionary_selected_entry_index' => $declaration['selected_entry_index'] ?? null,
+            'crypt_filter_dictionary_selected_filter_names' => is_array($declaration['selected_filter_names'] ?? null)
+                ? $declaration['selected_filter_names']
+                : [],
+            'crypt_filter_dictionary_entry_statuses' => is_array($declaration['entry_statuses'] ?? null)
+                ? $declaration['entry_statuses']
+                : [],
+            'crypt_filter_dictionary_fail_closed' => (bool) ($declaration['fail_closed'] ?? false),
         ];
     }
 
@@ -1158,6 +1208,9 @@ final class PdfSecurityPreflight
      */
     private function cryptFilterRoleFailsClosed(array $row): bool
     {
+        if (($row['crypt_filter_dictionary_fail_closed'] ?? false) === true) {
+            return true;
+        }
         if (($row['role_declaration_fail_closed'] ?? false) === true) {
             return true;
         }
@@ -1186,9 +1239,20 @@ final class PdfSecurityPreflight
     {
         $status = is_string($row['status'] ?? null) ? $row['status'] : null;
         $authEventStatus = is_string($row['auth_event_status'] ?? null) ? $row['auth_event_status'] : null;
+        $dictionaryStatus = is_string($row['crypt_filter_dictionary_declaration_status'] ?? null)
+            ? $row['crypt_filter_dictionary_declaration_status']
+            : null;
         $roleDeclarationStatus = is_string($row['role_declaration_status'] ?? null)
             ? $row['role_declaration_status']
             : null;
+
+        if (($row['crypt_filter_dictionary_fail_closed'] ?? false) === true) {
+            return match ($dictionaryStatus) {
+                'duplicate_crypt_filter_dictionary_entries_review' => 'duplicate_crypt_filter_dictionary_entries_fail_closed',
+                'malformed_crypt_filter_dictionary_entry_review' => 'malformed_crypt_filter_dictionary_entry_fail_closed',
+                default => 'malformed_crypt_filter_dictionary_entry_fail_closed',
+            };
+        }
 
         if (($row['role_declaration_fail_closed'] ?? false) === true) {
             return match ($roleDeclarationStatus) {
@@ -1226,6 +1290,8 @@ final class PdfSecurityPreflight
     private function cryptFilterContentExtractionBoundary(?string $textPolicy): ?string
     {
         return match ($textPolicy) {
+            'duplicate_crypt_filter_dictionary_entries_fail_closed' => 'blocked_by_duplicate_document_crypt_filter_dictionary',
+            'malformed_crypt_filter_dictionary_entry_fail_closed' => 'blocked_by_malformed_document_crypt_filter_dictionary',
             'missing_declared_filter_fail_closed' => 'blocked_by_missing_document_crypt_filter',
             'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_document_crypt_filter',
             'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_document_crypt_filter_method',
@@ -5208,6 +5274,9 @@ final class PdfSecurityPreflight
             $standardHandler
         );
         $cryptFilterContentReview = $this->cryptFilterContentReview(true, $encryption);
+        $cryptFilterDictionaryDeclarationReview = is_array($encryption['crypt_filter_dictionary_declaration_review'] ?? null)
+            ? $encryption['crypt_filter_dictionary_declaration_review']
+            : [];
         $cryptFilterRoleDeclarationReview = is_array($encryption['crypt_filter_role_declaration_review'] ?? null)
             ? $encryption['crypt_filter_role_declaration_review']
             : [];
@@ -5310,6 +5379,12 @@ final class PdfSecurityPreflight
             'public_key_crypt_filter_selection' => is_array($publicKeyRecipientReview['crypt_filter_selection'] ?? null)
                 ? $publicKeyRecipientReview['crypt_filter_selection']
                 : [],
+            'crypt_filter_dictionary_declaration_review' => $cryptFilterDictionaryDeclarationReview,
+            'crypt_filter_dictionary_status' => $cryptFilterDictionaryDeclarationReview['status'] ?? null,
+            'crypt_filter_dictionary_declared_entry_count' => (int) ($cryptFilterDictionaryDeclarationReview['declared_entry_count'] ?? 0),
+            'crypt_filter_dictionary_duplicate_entries' => (bool) ($cryptFilterDictionaryDeclarationReview['duplicate_entries'] ?? false),
+            'crypt_filter_dictionary_malformed_entry_count' => (int) ($cryptFilterDictionaryDeclarationReview['malformed_entry_count'] ?? 0),
+            'crypt_filter_dictionary_fail_closed' => (bool) ($cryptFilterDictionaryDeclarationReview['fail_closed'] ?? false),
             'crypt_filter_role_declaration_review' => $cryptFilterRoleDeclarationReview,
             'crypt_filter_role_declaration_statuses' => is_array($cryptFilterRoleDeclarationReview['role_statuses'] ?? null)
                 ? $cryptFilterRoleDeclarationReview['role_statuses']
