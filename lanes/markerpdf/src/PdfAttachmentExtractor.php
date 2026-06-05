@@ -891,6 +891,7 @@ final class PdfAttachmentExtractor
         $params = $this->dict($this->resolveValue($streamDict['Params'] ?? null, $objects)) ?? [];
         $nameKey = isset($context['name_key']) && is_string($context['name_key']) ? $context['name_key'] : null;
         [$filename, $filenameSource] = $this->filenameWithSource($fileSpec, $objects, $nameKey, $streamObjectId);
+        $filenameReview = $this->filenamePathReview($filename);
         $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
         $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
@@ -916,6 +917,9 @@ final class PdfAttachmentExtractor
             'executes_python_or_models' => false,
             'executes_external_pdf_tools' => false,
         ];
+        foreach ($filenameReview as $key => $metadataValue) {
+            $attachment[$key] = $metadataValue;
+        }
 
         if ($bytes !== null) {
             $attachment['byte_length'] = strlen($bytes);
@@ -1078,6 +1082,13 @@ final class PdfAttachmentExtractor
                 'name_key',
                 'filename',
                 'filename_source',
+                'filename_leaf',
+                'filename_storage_name',
+                'filename_path_status',
+                'filename_has_path_segments',
+                'filename_contains_parent_segment',
+                'filename_absolute_path',
+                'filename_url_scheme',
                 'description',
                 'annotation_contents',
                 'file_identifier',
@@ -1533,6 +1544,76 @@ final class PdfAttachmentExtractor
         }
 
         return ['attachment-' . $streamObjectId, 'generated'];
+    }
+
+    /**
+     * FileSpec filenames may be platform paths or URL-like strings. Preserve
+     * the raw PDF filename for review, but give WordPress import code a
+     * basename-only storage/display candidate so path segments are never
+     * treated as local output paths.
+     *
+     * @return array<string, mixed>
+     */
+    private function filenamePathReview(string $filename): array
+    {
+        $normalized = str_replace('\\', '/', $filename);
+        $isWindowsDrivePath = preg_match('/^[A-Za-z]:\//', $normalized) === 1;
+        $urlScheme = null;
+        $path = $normalized;
+        if (!$isWindowsDrivePath && preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):\/\//', $filename, $match) === 1) {
+            $urlScheme = strtolower($match[1]);
+            $parsedPath = parse_url($filename, PHP_URL_PATH);
+            $path = is_string($parsedPath) ? str_replace('\\', '/', $parsedPath) : '';
+        }
+
+        $segments = array_values(array_filter(
+            explode('/', $path),
+            static fn (string $segment): bool => $segment !== ''
+        ));
+        $leaf = $segments === [] ? $filename : (string) end($segments);
+        if ($leaf === '' || $leaf === '.' || $leaf === '..') {
+            $leaf = 'attachment';
+        }
+
+        $hasParentSegment = in_array('..', $segments, true);
+        $hasPathSegments = $urlScheme !== null
+            || $isWindowsDrivePath
+            || str_starts_with($path, '/')
+            || str_contains($normalized, '/')
+            || str_contains($filename, '\\')
+            || $hasParentSegment
+            || in_array('.', $segments, true);
+
+        $review = [
+            'filename_leaf' => $leaf,
+            'filename_storage_name' => $this->safeFilenameStorageName($leaf),
+            'filename_path_status' => $urlScheme !== null
+                ? 'url_path_review_only'
+                : ($isWindowsDrivePath || str_starts_with($path, '/')
+                    ? 'absolute_path_review_only'
+                    : ($hasPathSegments ? 'relative_path_segments_review_only' : 'basename_only')),
+            'filename_has_path_segments' => $hasPathSegments,
+        ];
+
+        if ($hasParentSegment) {
+            $review['filename_contains_parent_segment'] = true;
+        }
+        if ($isWindowsDrivePath || str_starts_with($path, '/')) {
+            $review['filename_absolute_path'] = true;
+        }
+        if ($urlScheme !== null) {
+            $review['filename_url_scheme'] = $urlScheme;
+        }
+
+        return $review;
+    }
+
+    private function safeFilenameStorageName(string $leaf): string
+    {
+        $safe = preg_replace('/[^A-Za-z0-9._-]+/', '-', trim($leaf));
+        $safe = is_string($safe) ? trim($safe, ".-_\t\n\r\0\x0B") : '';
+
+        return $safe === '' ? 'attachment' : $safe;
     }
 
     /**

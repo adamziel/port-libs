@@ -14,6 +14,7 @@ $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
 $pagePayload = '<wp-page><attachment role="page-associated"/></wp-page>';
 $directPayload = '<wp-export><post id="direct-filespec-mirror"/></wp-export>';
 $sharedPayload = '<wp-export><post id="associated-filespec-mirror"/></wp-export>';
+$pathPayload = '<wp-export><post id="path-filename-review"/></wp-export>';
 $relatedPayload = '{"manifest":"catalog-related"}';
 $compressedCsv = gzcompress($csvPayload);
 $csvChecksum = md5($csvPayload);
@@ -26,9 +27,10 @@ $directPermanentIdHex = '00112233445566778899AABBCCDDEEFF';
 $directChangingIdHex = strtoupper(bin2hex('direct-filespec-mirror-v2'));
 $directFileSpec = '<< /Type /Filespec /FS /URL /F (https://example.test/direct-source.xml) /UF (direct-source.xml) /Desc (Direct FileSpec mirror export) /AFRelationship /Source /ID [<' . $directPermanentIdHex . '> <' . $directChangingIdHex . '>] /V true /EF << /UF 21 0 R >> >>';
 $sharedChecksum = md5($sharedPayload);
+$pathChecksum = md5($pathPayload);
 $relatedChecksum = md5($relatedPayload);
 $pdf = "%PDF-1.7\n"
-    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R {$directFileSpec} 22 0 R] >>\nendobj\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names 7 0 R /AF [13 0 R {$directFileSpec} 22 0 R 25 0 R] >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /AF [16 0 R {$directFileSpec} 22 0 R] /Annots [4 0 R 19 0 R 20 0 R 24 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [72 700 90 718] /Contents (Reviewer notes) /FS 8 0 R >>\nendobj\n"
@@ -60,6 +62,9 @@ $pdf = "%PDF-1.7\n"
     . "23 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sharedPayload) . " /CheckSum <{$sharedChecksum}> /ModDate (D:20260605051156Z) >> /Length " . strlen($sharedPayload) . " >>\n"
     . "stream\n{$sharedPayload}\nendstream\nendobj\n"
     . "24 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [210 620 232 642] /Contents (Shared associated FileSpec note) /FS 22 0 R >>\nendobj\n"
+    . "25 0 obj\n<< /Type /Filespec /F (C:\\\\Users\\\\Editor\\\\Downloads\\\\path-source.xml) /UF (../exports/path-source.xml) /Desc (Path-shaped source export) /AFRelationship /Source /EF << /UF 26 0 R >> >>\nendobj\n"
+    . "26 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pathPayload) . " /CheckSum <{$pathChecksum}> /ModDate (D:20260605073720Z) >> /Length " . strlen($pathPayload) . " >>\n"
+    . "stream\n{$pathPayload}\nendstream\nendobj\n"
     . "%%EOF\n"
     . "5 0 obj\n<< /Type /Filespec /F (post-eof-stale.csv) /Desc (Post EOF stale import rows) /AFRelationship /Alternative /EF << /F 6 0 R >> >>\nendobj\n"
     . "6 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($postEofPayload) . " /CheckSum <{$postEofChecksum}> >> /Length " . strlen($postEofPayload) . " >>\n"
@@ -182,6 +187,7 @@ if (($catalogAttachment['related_file_count'] ?? null) !== 1
     throw new RuntimeException('Expected named related files to be summarized without exposing related payload bytes.');
 }
 $pageAttachment = $findAttachment($summary, 'page-source.xml');
+$pathAttachment = $findAttachment($summary, '../exports/path-source.xml');
 if (!is_array($pageAttachment)
     || ($pageAttachment['source'] ?? null) !== 'page-associated-file'
     || ($pageAttachment['page_associated_file'] ?? null) !== true
@@ -191,6 +197,18 @@ if (!is_array($pageAttachment)
     || str_contains($summaryJson, $pagePayload)
 ) {
     throw new RuntimeException('Expected page associated source attachment review metadata without payload bytes.');
+}
+if (!is_array($pathAttachment)
+    || ($pathAttachment['source'] ?? null) !== 'catalog-associated-file'
+    || ($pathAttachment['filename_leaf'] ?? null) !== 'path-source.xml'
+    || ($pathAttachment['filename_storage_name'] ?? null) !== 'path-source.xml'
+    || ($pathAttachment['filename_path_status'] ?? null) !== 'relative_path_segments_review_only'
+    || ($pathAttachment['filename_has_path_segments'] ?? null) !== true
+    || ($pathAttachment['filename_contains_parent_segment'] ?? null) !== true
+    || ($pathAttachment['checksum_matches'] ?? null) !== true
+    || str_contains($summaryJson, $pathPayload)
+) {
+    throw new RuntimeException('Expected path-shaped FileSpec filenames to expose basename-safe review metadata without payload bytes.');
 }
 $indirectKidsNameTreeAttachment = $findAttachment($indirectKidsSummary, 'kids-current.csv');
 $indirectKidsPageAttachment = $findAttachment($indirectKidsSummary, 'page-kids-source.xml');
@@ -225,14 +243,14 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
         && !str_contains($indirectKidsJson, $kidsPagePayload),
     'indirect_kids_stale_name_tree_entry_pruned' => !str_contains($indirectKidsJson, 'zz-kids-stale.csv'),
     'file_attachment_annotation_mirror_preflight' => ($csvAttachment['file_attachment_annotation'] ?? false) === true,
-    'file_attachment_annotation_duplicate_payload_omitted' => $summary['attachment_count'] === 6
+    'file_attachment_annotation_duplicate_payload_omitted' => $summary['attachment_count'] === 7
         && substr_count($summaryJson, 'review-notes.csv') >= 1
         && !str_contains($summaryJson, $csvPayload),
     'terminal_eof_bounds_attachment_scan' => !str_contains($summaryJson, 'post-eof-stale.csv'),
     'direct_filespec_mirror_deduped' => ($directAttachment['associated_file_source'] ?? null) === 'catalog_af'
         && ($directAttachment['page_associated_file_source'] ?? null) === 'page_af'
         && ($directAttachment['file_attachment_annotation_source'] ?? null) === 'page_annotation'
-        && $summary['attachment_count'] === 6,
+        && $summary['attachment_count'] === 7,
     'direct_filespec_payload_omitted' => !str_contains($summaryJson, $directPayload),
     'direct_filespec_file_system_review' => ($directAttachment['file_system'] ?? null) === 'URL'
         && ($directAttachment['file_system_status'] ?? null) === 'external_url_file_system_review_only',
@@ -244,7 +262,7 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'associated_filespec_without_name_tree_deduped' => ($sharedAttachment['source'] ?? null) === 'catalog-associated-file'
         && ($sharedAttachment['page_associated_file_source'] ?? null) === 'page_af'
         && ($sharedAttachment['file_attachment_annotation_source'] ?? null) === 'page_annotation'
-        && $summary['attachment_count'] === 6,
+        && $summary['attachment_count'] === 7,
     'associated_filespec_without_name_tree_payload_omitted' => !str_contains($summaryJson, $sharedPayload),
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
     'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,
@@ -252,6 +270,10 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'related_file_name_pair_preflight' => ($catalogAttachment['related_files'][0]['related_filename'] ?? null) === 'catalog-related.json',
     'related_file_payload_omitted' => !str_contains($summaryJson, $relatedPayload),
     'page_associated_file_payload_omitted' => !str_contains($summaryJson, $pagePayload),
+    'filename_path_review' => ($pathAttachment['filename_path_status'] ?? null) === 'relative_path_segments_review_only'
+        && ($pathAttachment['filename_contains_parent_segment'] ?? null) === true,
+    'filename_storage_name_review' => ($pathAttachment['filename_storage_name'] ?? null) === 'path-source.xml',
+    'filename_path_payload_omitted' => !str_contains($summaryJson, $pathPayload),
     'relationship_roles' => array_values(array_filter(array_map(
         static fn (array $attachment): ?string => $attachment['relationship_role'] ?? null,
         $summary['attachments']
@@ -264,7 +286,7 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
 
 echo "<!-- wp:list -->\n<ul>\n";
 foreach ($summary['attachments'] as $attachment) {
-    $label = $attachment['filename']
+    $label = ($attachment['filename_storage_name'] ?? $attachment['filename'])
         . ' (' . $attachment['source'] . ', ' . ($attachment['relationship'] ?? 'unassociated') . ', ' . $attachment['content_type'] . ', ' . $attachment['byte_length'] . ' bytes)';
     echo '<li data-marker-attachment-sha256="'
         . htmlspecialchars($attachment['sha256'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
