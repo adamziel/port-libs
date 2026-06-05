@@ -20667,27 +20667,24 @@ final class PdfTextExtractor
         $codeSpaceRanges = [];
         $writingMode = null;
 
-        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
-            foreach ($useCMapMatches[1] as $rawName) {
-                $name = $this->decodePdfName($rawName);
-                if (in_array($name, $seenCMaps, true)) {
-                    continue;
-                }
+        foreach ($this->cMapUseCMapNames($cmap) as $name) {
+            if (in_array($name, $seenCMaps, true)) {
+                continue;
+            }
 
-                $base = isset($namedCMapBodies[$name])
-                    ? $this->parseToUnicodeCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name])
-                    : $this->predefinedToUnicodeCMap($name);
-                if ($base === null) {
-                    continue;
-                }
+            $base = isset($namedCMapBodies[$name])
+                ? $this->parseToUnicodeCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name])
+                : $this->predefinedToUnicodeCMap($name);
+            if ($base === null) {
+                continue;
+            }
 
-                $map = $base['map'] + $map;
-                if (isset($base['writingMode'])) {
-                    $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
-                }
-                foreach ($base['codeSpaceRanges'] as $range) {
-                    $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
-                }
+            $map = $base['map'] + $map;
+            if (isset($base['writingMode'])) {
+                $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
+            }
+            foreach ($base['codeSpaceRanges'] as $range) {
+                $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
             }
         }
 
@@ -20769,27 +20766,24 @@ final class PdfTextExtractor
         $codeSpaceRanges = [];
         $writingMode = null;
 
-        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
-            foreach ($useCMapMatches[1] as $rawName) {
-                $name = $this->decodePdfName($rawName);
-                if (in_array($name, $seenCMaps, true)) {
-                    continue;
-                }
+        foreach ($this->cMapUseCMapNames($cmap) as $name) {
+            if (in_array($name, $seenCMaps, true)) {
+                continue;
+            }
 
-                $base = isset($namedCMapBodies[$name])
-                    ? $this->parseCidCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name])
-                    : $this->predefinedCidCMap($name);
-                if ($base === null) {
-                    continue;
-                }
+            $base = isset($namedCMapBodies[$name])
+                ? $this->parseCidCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name])
+                : $this->predefinedCidCMap($name);
+            if ($base === null) {
+                continue;
+            }
 
-                $cidMap = $base['cidMap'] + $cidMap;
-                if (isset($base['writingMode'])) {
-                    $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
-                }
-                foreach ($base['codeSpaceRanges'] as $range) {
-                    $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
-                }
+            $cidMap = $base['cidMap'] + $cidMap;
+            if (isset($base['writingMode'])) {
+                $writingMode = (int) $base['writingMode'] === 1 ? 1 : 0;
+            }
+            foreach ($base['codeSpaceRanges'] as $range) {
+                $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
             }
         }
 
@@ -20942,6 +20936,62 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cMapUseCMapNames(string $cmap): array
+    {
+        $names = [];
+        $length = strlen($cmap);
+        for ($index = 0; $index < $length;) {
+            $char = $cmap[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($cmap, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($cmap, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($cmap[$index + 1] ?? '') === '<') {
+                    $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
+                    $index = $dictionaryEnd === null ? $index + 1 : $dictionaryEnd + 1;
+                    continue;
+                }
+
+                $this->readHexToken($cmap, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayBody = $this->readPdfArrayAt($cmap, $index);
+                $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
+                continue;
+            }
+
+            if ($char !== '/') {
+                $index++;
+                continue;
+            }
+
+            $nameToken = $this->readNameToken($cmap, $index);
+            $operatorOffset = $this->skipPdfWhitespace($cmap, $index);
+            if ($this->pdfKeywordAt($cmap, $operatorOffset, 'usecmap')) {
+                $name = $this->decodePdfName(substr($nameToken, 1));
+                if ($name !== '') {
+                    $names[] = $name;
+                }
+                $index = $operatorOffset + strlen('usecmap');
+            }
+        }
+
+        return $names;
     }
 
     private function cMapDeclaredOperatorCountBefore(string $cmap, int $beginOffset): ?int
