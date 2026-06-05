@@ -7039,6 +7039,21 @@ final class PdfMetadataExtractor
      */
     private function boundedXmpXmlRootCandidates(string $xml): array
     {
+        foreach ($this->xmpPacketContentCandidates($xml) as $packetXml) {
+            $candidates = $this->boundedXmpXmlRootCandidatesFromXml($packetXml);
+            if ($candidates !== []) {
+                return $candidates;
+            }
+        }
+
+        return $this->boundedXmpXmlRootCandidatesFromXml($xml);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function boundedXmpXmlRootCandidatesFromXml(string $xml): array
+    {
         $candidates = [];
         $offset = 0;
         while (true) {
@@ -7064,6 +7079,107 @@ final class PdfMetadataExtractor
         }
 
         return $candidates;
+    }
+
+    /**
+     * XMP packet processing instructions define the active packet body. Use
+     * complete begin/end pairs before scanning for XML roots so stale preamble
+     * XMP-looking roots cannot replace the current metadata packet.
+     *
+     * @return list<string>
+     */
+    private function xmpPacketContentCandidates(string $xml): array
+    {
+        $candidates = [];
+        $offset = 0;
+        while (true) {
+            $begin = $this->xmpPacketInstructionOffset($xml, 'begin', $offset);
+            if ($begin === null) {
+                break;
+            }
+
+            $beginEnd = $this->xmlProcessingInstructionEndOffset($xml, $begin);
+            if ($beginEnd === null) {
+                break;
+            }
+
+            $end = $this->xmpPacketInstructionOffset($xml, 'end', $beginEnd);
+            if ($end === null) {
+                break;
+            }
+
+            $endEnd = $this->xmlProcessingInstructionEndOffset($xml, $end);
+            if ($endEnd === null) {
+                break;
+            }
+
+            $packet = substr($xml, $beginEnd, $end - $beginEnd);
+            if (trim($packet, " \t\r\n\0") !== '') {
+                $candidates[] = $packet;
+            }
+
+            $offset = $endEnd;
+        }
+
+        return $candidates;
+    }
+
+    private function xmpPacketInstructionOffset(string $xml, string $kind, int $offset): ?int
+    {
+        $offset = max(0, $offset);
+        $length = strlen($xml);
+        while ($offset < $length) {
+            $tagStart = strpos($xml, '<', $offset);
+            if ($tagStart === false) {
+                return null;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 4), '<!--')) {
+                $end = strpos($xml, '-->', $tagStart + 4);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 9), '<![CDATA[')) {
+                $end = strpos($xml, ']]>', $tagStart + 9);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<?')) {
+                $end = $this->xmlProcessingInstructionEndOffset($xml, $tagStart);
+                if ($end === null) {
+                    return null;
+                }
+
+                $instruction = substr($xml, $tagStart, $end - $tagStart);
+                if (
+                    preg_match('/^<\?\s*xpacket\b/si', $instruction) === 1
+                    && preg_match('/\b' . preg_quote($kind, '/') . '\s*=/si', $instruction) === 1
+                ) {
+                    return $tagStart;
+                }
+
+                $offset = $end;
+                continue;
+            }
+
+            $end = str_starts_with(substr($xml, $tagStart, 2), '<!')
+                ? ($this->xmlMarkupDeclarationEndOffset($xml, $tagStart) ?? $this->xmlTagEndOffset($xml, $tagStart))
+                : $this->xmlTagEndOffset($xml, $tagStart);
+            if ($end === null) {
+                return null;
+            }
+            $offset = $end;
+        }
+
+        return null;
     }
 
     private function xmpmetaRootDeclaresAdobeNamespace(string $xml): bool
@@ -7448,6 +7564,13 @@ final class PdfMetadataExtractor
         }
 
         return null;
+    }
+
+    private function xmlProcessingInstructionEndOffset(string $xml, int $offset): ?int
+    {
+        $end = strpos($xml, '?>', $offset + 2);
+
+        return $end === false ? null : $end + 2;
     }
 
     private function xmlTagNameAt(string $xml, int $offset): ?string

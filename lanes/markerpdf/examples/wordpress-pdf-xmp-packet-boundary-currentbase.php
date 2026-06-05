@@ -29,17 +29,28 @@ $xmpPacket = static function (string $title, string $description, string $date):
         . '<?xpacket end="w"?>';
 };
 
+$bareXmpRoot = static function (string $packet): string {
+    $packet = preg_replace('/^<\?xpacket\b[^?]*\?>/s', '', $packet, 1) ?? $packet;
+
+    return preg_replace('/<\?xpacket\s+end="w"\?>$/s', '', $packet, 1) ?? $packet;
+};
+
+$prePacketDecoy = $bareXmpRoot($xmpPacket(
+    'Pre Packet Decoy XMP Title',
+    'A root before xpacket begin must not become WordPress metadata',
+    '2026-06-05T07:59:59Z'
+));
 $currentXmp = $xmpPacket(
-    'Current Padded XMP Title',
-    'Root packet survives trailing padding',
-    '2026-06-04T19:35:35-04:00'
+    'Current XPacket Root Title',
+    'The begin/end packet root wins before WordPress import',
+    '2026-06-05T03:45:12-04:00'
 );
 $decoyXmp = $xmpPacket(
     'Trailing Decoy XMP Title',
     'Trailing packet must not replace the current root',
     '2026-06-04T23:59:59Z'
 );
-$metadataBytes = $currentXmp . "\0\0 \n" . $decoyXmp;
+$metadataBytes = $prePacketDecoy . "\n" . $currentXmp . "\0\0 \n" . $decoyXmp;
 $compressedMetadata = gzcompress($metadataBytes);
 if (!is_string($compressedMetadata)) {
     throw new RuntimeException('Unable to compress XMP packet boundary smoke fixture.');
@@ -59,16 +70,24 @@ $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 
-if (($metadata['title'] ?? null) !== 'Current Padded XMP Title') {
-    throw new RuntimeException('Expected current bounded XMP packet title to win before trailing padding.');
+if (($metadata['title'] ?? null) !== 'Current XPacket Root Title') {
+    throw new RuntimeException('Expected current bounded XMP packet title to win before pre-packet and trailing decoys.');
 }
 if (($metadata['xmp']['packet_boundary_applied'] ?? null) !== true) {
     throw new RuntimeException('Expected XMP packet boundary fallback to be recorded.');
 }
-if (!is_string($encoded) || str_contains($encoded, 'Trailing Decoy XMP Title')) {
-    throw new RuntimeException('Expected trailing decoy XMP packet to stay out of document metadata.');
+if (
+    !is_string($encoded)
+    || str_contains($encoded, 'Pre Packet Decoy XMP Title')
+    || str_contains($encoded, 'Trailing Decoy XMP Title')
+) {
+    throw new RuntimeException('Expected pre-packet and trailing decoy XMP roots to stay out of document metadata.');
 }
-if (str_contains($plainText, 'Current Padded XMP Title') || str_contains($plainText, 'Trailing Decoy XMP Title')) {
+if (
+    str_contains($plainText, 'Current XPacket Root Title')
+    || str_contains($plainText, 'Pre Packet Decoy XMP Title')
+    || str_contains($plainText, 'Trailing Decoy XMP Title')
+) {
     throw new RuntimeException('Expected XMP packet text to stay out of visible WordPress paragraphs.');
 }
 
@@ -80,15 +99,17 @@ $htmlJson = static fn (array $data): string => htmlspecialchars(
 
 echo '<!-- markerpdf-pdf-xmp-packet-boundary-currentbase ' . $htmlJson([
     'support_component' => 'native-pdf-xmp-packet-boundary',
-    'native_boundary' => 'Catalog /Metadata XMP packet root is bounded before trailing padding or appended decoy packet bytes',
+    'native_boundary' => 'Catalog /Metadata XMP packet root is bounded by xpacket begin/end before pre-packet or appended decoy XMP roots',
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'source' => $metadata['source'],
-    'title_from_current_packet' => ($metadata['title'] ?? null) === 'Current Padded XMP Title',
+    'title_from_current_packet' => ($metadata['title'] ?? null) === 'Current XPacket Root Title',
     'packet_boundary_applied' => $metadata['xmp']['packet_boundary_applied'] ?? false,
     'packet_encoding' => $metadata['xmp']['packet_encoding'] ?? null,
+    'pre_packet_decoy_excluded' => is_string($encoded) && !str_contains($encoded, 'Pre Packet Decoy XMP Title'),
     'decoy_xmp_excluded' => is_string($encoded) && !str_contains($encoded, 'Trailing Decoy XMP Title'),
-    'visible_text_excludes_xmp' => !str_contains($plainText, 'Current Padded XMP Title')
+    'visible_text_excludes_xmp' => !str_contains($plainText, 'Current XPacket Root Title')
+        && !str_contains($plainText, 'Pre Packet Decoy XMP Title')
         && !str_contains($plainText, 'Trailing Decoy XMP Title'),
 ],) . " -->\n";
 

@@ -27,6 +27,12 @@ $xmpPacketBoundaryPacket = static function (string $title, string $description, 
         . '<?xpacket end="w"?>';
 };
 
+$xmpPacketBoundaryBareRoot = static function (string $packet): string {
+    $packet = preg_replace('/^<\?xpacket\b[^?]*\?>/s', '', $packet, 1) ?? $packet;
+
+    return preg_replace('/<\?xpacket\s+end="w"\?>$/s', '', $packet, 1) ?? $packet;
+};
+
 $xmpPacketBoundaryPdf = static function (string $metadataBytes, string $metadataDictionary, string $bodyText = 'XMP Packet Boundary Body'): string {
     $compressedMetadata = gzcompress($metadataBytes);
     if (!is_string($compressedMetadata)) {
@@ -88,6 +94,52 @@ return [
         $t->true(!str_contains($plainText, 'Current Padded XMP Title'));
         $t->true(!str_contains($plainText, 'Trailing Decoy XMP Title'));
     },
+    'prefers active xpacket begin end root over pre packet XMP decoys' => static function (
+        TestRunner $t
+    ) use ($xmpPacketBoundaryPacket, $xmpPacketBoundaryBareRoot, $xmpPacketBoundaryPdf): void {
+        $prePacketDecoy = $xmpPacketBoundaryBareRoot($xmpPacketBoundaryPacket(
+            'Pre Packet Decoy XMP Title',
+            'A root before xpacket begin must not become document metadata',
+            '2026-06-05T07:59:59Z'
+        ));
+        $currentXmp = $xmpPacketBoundaryPacket(
+            'Current XPacket Root Title',
+            'The begin/end packet root wins before WordPress import',
+            '2026-06-05T03:45:12-04:00'
+        );
+        $trailingXmp = $xmpPacketBoundaryPacket(
+            'Trailing XPacket Decoy Title',
+            'Trailing packet must not replace the active packet root',
+            '2026-06-05T08:59:59Z'
+        );
+        $pdf = $xmpPacketBoundaryPdf(
+            $prePacketDecoy . "\n" . $currentXmp . "\0\0 " . $trailingXmp,
+            '/Type /Metadata /Subtype /XML',
+            'XMP Begin End Boundary Body'
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['xmp', 'info'], $metadata['source']);
+        $t->same('Current XPacket Root Title', $metadata['title']);
+        $t->same('The begin/end packet root wins before WordPress import', $metadata['description']);
+        $t->same(['Packet Boundary Editor', 'Import Review Team'], $metadata['authors']);
+        $t->same(['wordpress', 'xmp-boundary'], $metadata['keywords']);
+        $t->same('Packet Boundary Tool', $metadata['creator_tool']);
+        $t->same('Packet Boundary Producer', $metadata['producer']);
+        $t->same('2026-06-05T03:45:12-04:00', $metadata['created_at']);
+        $t->same('2026-06-05T07:45:12Z', $metadata['created_at_utc']);
+        $t->same('2026-06-04T23:35:35Z', $metadata['metadata_date_utc']);
+        $t->same(true, $metadata['xmp']['packet_boundary_applied'] ?? null);
+        $t->same('XMP Begin End Boundary Body', $plainText);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Pre Packet Decoy XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Trailing XPacket Decoy Title'));
+        $t->true(!str_contains($plainText, 'Current XPacket Root Title'));
+        $t->true(!str_contains($plainText, 'Pre Packet Decoy XMP Title'));
+        $t->true(!str_contains($plainText, 'Trailing XPacket Decoy Title'));
+    },
     'summarizes rejected catalog metadata XML using the same packet boundary' => static function (
         TestRunner $t
     ) use ($xmpPacketBoundaryPacket, $xmpPacketBoundaryPdf): void {
@@ -135,5 +187,56 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Rejected Trailing Decoy Title'));
         $t->true(!str_contains($plainText, 'Rejected Padded XMP Title'));
         $t->true(!str_contains($plainText, 'Rejected Trailing Decoy Title'));
+    },
+    'summarizes rejected XML metadata streams from active xpacket roots only' => static function (
+        TestRunner $t
+    ) use ($xmpPacketBoundaryPacket, $xmpPacketBoundaryBareRoot, $xmpPacketBoundaryPdf): void {
+        $prePacketDecoy = $xmpPacketBoundaryBareRoot($xmpPacketBoundaryPacket(
+            'Rejected Pre Packet Decoy Title',
+            'Rejected pre packet root must not define review dates',
+            '2026-06-05T08:01:59Z'
+        ));
+        $currentXmp = $xmpPacketBoundaryPacket(
+            'Rejected Current XPacket Title',
+            'Rejected active packet is summarized but redacted',
+            '2026-06-05T08:02:59Z'
+        );
+        $trailingXmp = $xmpPacketBoundaryPacket(
+            'Rejected Trailing XPacket Decoy Title',
+            'Rejected trailing packet stays hidden',
+            '2026-06-05T08:59:59Z'
+        );
+        $metadataBytes = $prePacketDecoy . "\n" . $currentXmp . "\0\0" . $trailingXmp;
+        $pdf = $xmpPacketBoundaryPdf(
+            $metadataBytes,
+            '/Type /EmbeddedFile /Subtype /text#2Fxml',
+            'Rejected XMP Begin End Boundary Body'
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+        $summary = $review['xmp_summary'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Fallback Packet Boundary Title', $metadata['title']);
+        $t->same('Rejected XMP Begin End Boundary Body', $plainText);
+        $t->same('rejected_non_metadata_xml_stream', $review['status'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same(strlen($metadataBytes), $review['bytes'] ?? null);
+        $t->same(hash('sha256', $metadataBytes), $review['sha256'] ?? null);
+        $t->same(['title', 'description', 'creator_tool', 'producer', 'created_at', 'metadata_date', 'authors', 'keywords'], $summary['field_names'] ?? null);
+        $t->same(true, $summary['packet_boundary_applied'] ?? null);
+        $t->same(false, $summary['payload_included'] ?? null);
+        $t->same(true, $summary['text_values_redacted'] ?? null);
+        $t->same('2026-06-05T08:02:59Z', $summary['dates_utc']['created_at'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Rejected Pre Packet Decoy Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Rejected Current XPacket Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Rejected Trailing XPacket Decoy Title'));
+        $t->true(!str_contains($plainText, 'Rejected Current XPacket Title'));
+        $t->true(!str_contains($plainText, 'Rejected Pre Packet Decoy Title'));
     },
 ];
