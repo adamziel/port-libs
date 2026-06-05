@@ -102,7 +102,7 @@ final class PdfOutlineExtractor
             $outlineRoot['First'] ?? null,
             $objects,
             $pageIndexes,
-            $this->destinationMap($catalog, $objects),
+            $this->destinationMap($catalog, $objects, $pageIndexes),
             $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
             $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
             max(1, $maxDepth)
@@ -162,7 +162,7 @@ final class PdfOutlineExtractor
         foreach ($pageObjectNumbers as $index => $objectNumber) {
             $pageIndexes[$objectNumber] = $index;
         }
-        $destinations = $this->destinationMap($catalog, $objects);
+        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
 
         $destinationAction = $this->destinationActionReviewValue($catalog['OpenAction'], $objects, $destinations);
         if ($destinationAction !== null) {
@@ -248,7 +248,7 @@ final class PdfOutlineExtractor
             $outlineRoot['First'] ?? null,
             $objects,
             $pageIndexes,
-            $this->destinationMap($catalog, $objects),
+            $this->destinationMap($catalog, $objects, $pageIndexes),
             $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
             $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
             max(1, $maxDepth)
@@ -289,7 +289,7 @@ final class PdfOutlineExtractor
             return [];
         }
 
-        $destinations = $this->destinationMap($catalog, $objects);
+        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
@@ -364,7 +364,7 @@ final class PdfOutlineExtractor
                 $destination['value'],
                 $objects,
                 $pageIndexes,
-                $this->destinationMap($catalog, $objects),
+                $this->destinationMap($catalog, $objects, $pageIndexes),
                 $destination['name']
             );
             if ($details !== null) {
@@ -413,7 +413,7 @@ final class PdfOutlineExtractor
         foreach ($pageObjectNumbers as $index => $objectNumber) {
             $pageIndexes[$objectNumber] = $index;
         }
-        $destinations = $this->destinationMap($catalog, $objects);
+        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $catalogView = $this->catalogReviewContext($pdfBytes);
 
@@ -492,7 +492,7 @@ final class PdfOutlineExtractor
             $pageIndexes[$objectNumber] = $index;
         }
 
-        $destinations = $this->destinationMap($catalog, $objects);
+        $destinations = $this->destinationMap($catalog, $objects, $pageIndexes);
         $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $pagePresentationsByPage = $this->pagePresentationsByPageIndex($pagePresentations);
@@ -2660,23 +2660,26 @@ final class PdfOutlineExtractor
     /**
      * @param array<string, mixed> $catalog
      * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
      * @return array<string, mixed>
      */
-    private function destinationMap(array $catalog, array $objects): array
+    private function destinationMap(array $catalog, array $objects, array $pageIndexes = []): array
     {
         $destinations = [];
 
         $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null, $objects);
         if ($legacyDests !== null) {
             foreach ($legacyDests as $name => $destination) {
-                $destinations[$name] = $destination;
+                if ($this->destinationValueAllowedForMap($destination, $objects, $pageIndexes)) {
+                    $destinations[$name] = $destination;
+                }
             }
         }
 
         $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
         $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null, $objects);
         if ($nameTreeRoot !== null) {
-            $this->collectNameTreeDestinations($nameTreeRoot, $objects, $destinations);
+            $this->collectNameTreeDestinations($nameTreeRoot, $objects, $destinations, [], [], $pageIndexes);
         }
 
         return $destinations;
@@ -2686,10 +2689,10 @@ final class PdfOutlineExtractor
      * @param array<string, mixed> $node
      * @param array<int, mixed> $objects
      * @param array<string, mixed> $destinations
-     * @param array<int, true> $seen
      * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $activeLimits
+     * @param array<int, int> $pageIndexes
      */
-    private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
+    private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = [], array $pageIndexes = []): void
     {
         $nodeLimits = $this->nameTreeLimits($node, $objects);
         if ($nodeLimits !== null) {
@@ -2701,7 +2704,11 @@ final class PdfOutlineExtractor
         if (($kids === null || $kids === []) && $names !== null) {
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
                 $name = $this->destinationNameDetails($names[$index], $objects);
-                if ($name !== null && $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])) {
+                if (
+                    $name !== null
+                    && $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
+                    && $this->destinationValueAllowedForMap($names[$index + 1], $objects, $pageIndexes)
+                ) {
                     $destinations[$name['text']] = $names[$index + 1];
                 }
             }
@@ -2724,9 +2731,27 @@ final class PdfOutlineExtractor
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {
-                $this->collectNameTreeDestinations($child, $objects, $destinations, $seen, $activeLimits);
+                $this->collectNameTreeDestinations($child, $objects, $destinations, $seen, $activeLimits, $pageIndexes);
             }
         }
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function destinationValueAllowedForMap(mixed $value, array $objects, array $pageIndexes): bool
+    {
+        if ($pageIndexes === []) {
+            return true;
+        }
+
+        $resolved = $this->resolveValue($value, $objects);
+        if ($this->stringOrNameValue($resolved) !== null) {
+            return true;
+        }
+
+        return $this->destinationViewDetails($value, $objects, $pageIndexes, [], null) !== null;
     }
 
     /**
@@ -2761,8 +2786,24 @@ final class PdfOutlineExtractor
     private function nameWithinNameTreeLimits(string $name, array $limits, ?string $nameBytes = null): bool
     {
         $candidate = $nameBytes ?? $name;
+        $bytesMatch = true;
         foreach ($limits as $limit) {
             if (strcmp($candidate, $limit['lower_bytes']) < 0 || strcmp($candidate, $limit['upper_bytes']) > 0) {
+                $bytesMatch = false;
+                break;
+            }
+        }
+
+        if ($bytesMatch) {
+            return true;
+        }
+
+        if ($nameBytes === null || !str_starts_with($nameBytes, "\xfe\xff") && !str_starts_with($nameBytes, "\xff\xfe")) {
+            return false;
+        }
+
+        foreach ($limits as $limit) {
+            if (strcmp($name, $limit['lower']) < 0 || strcmp($name, $limit['upper']) > 0) {
                 return false;
             }
         }

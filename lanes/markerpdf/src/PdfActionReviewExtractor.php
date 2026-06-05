@@ -975,11 +975,55 @@ final class PdfActionReviewExtractor
             }
         }
 
-        if (is_int($resolved) && $resolved >= 0) {
+        if (is_int($resolved) && $resolved >= 0 && $resolved < count($this->pageIndexesByReference)) {
             return $resolved;
         }
 
         return $this->destinationViewDetails($resolved)['page'] ?? null;
+    }
+
+    private function destinationValueAllowedForMap(mixed $value, int $depth = 0): bool
+    {
+        if ($depth > 20) {
+            return false;
+        }
+
+        $pageReference = $this->referenceObject($value);
+        if ($pageReference !== null) {
+            $pageIndex = $this->pageIndexForReference($pageReference);
+            if ($pageIndex !== null) {
+                return true;
+            }
+        }
+
+        $resolved = $this->resolveValue($value);
+        if ($this->stringOrNameValue($resolved) !== null) {
+            return true;
+        }
+
+        $resolvedPageReference = $this->referenceObject($resolved);
+        if ($resolvedPageReference !== null) {
+            $pageIndex = $this->pageIndexForReference($resolvedPageReference);
+            if ($pageIndex !== null) {
+                return true;
+            }
+        }
+
+        if (is_int($resolved)) {
+            return $resolved >= 0 && $resolved < count($this->pageIndexesByReference);
+        }
+
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict !== null && array_key_exists('D', $dict)) {
+            return $this->destinationValueAllowedForMap($dict['D'], $depth + 1);
+        }
+
+        $array = $this->arrayItems($resolved);
+        if ($array !== null && $array !== []) {
+            return $this->destinationValueAllowedForMap($array[0], $depth + 1);
+        }
+
+        return false;
     }
 
     /**
@@ -1233,7 +1277,9 @@ final class PdfActionReviewExtractor
         $legacyDests = $this->resolveDictionary($catalog['Dests'] ?? null);
         if ($legacyDests !== null) {
             foreach ($legacyDests as $name => $destination) {
-                $destinations[$name] = $destination;
+                if ($this->destinationValueAllowedForMap($destination)) {
+                    $destinations[$name] = $destination;
+                }
             }
         }
 
@@ -1297,7 +1343,12 @@ final class PdfActionReviewExtractor
 
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
                 $name = $this->stringValue($this->resolveValue($names[$index]));
-                if ($name !== null && $name !== '' && $this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                if (
+                    $name !== null
+                    && $name !== ''
+                    && $this->nameTreeNameWithinLimits($name, $entryLimits)
+                    && $this->destinationValueAllowedForMap($names[$index + 1])
+                ) {
                     $destinations[$name] = $names[$index + 1];
                 }
             }

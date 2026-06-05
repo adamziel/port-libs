@@ -2884,21 +2884,16 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $destinationsByName = [];
-        foreach ($entries as $entry) {
-            if (!isset($destinationsByName[$entry['name']])) {
-                $destinationsByName[$entry['name']] = $entry['value'];
-            }
-        }
+        $rawDestinationsByName = $this->documentDestinationEntryValueMap($entries, $objects, $pageIndexes);
 
-        $destinations = [];
+        $destinationsByName = [];
         $unresolved = 0;
         foreach ($entries as $entry) {
             $details = $this->documentDestinationDetails(
                 $entry['value'],
                 $objects,
                 $pageIndexes,
-                $destinationsByName,
+                $rawDestinationsByName,
                 $entry['name']
             );
             if ($details === null) {
@@ -2909,8 +2904,12 @@ final class PdfMetadataExtractor
             $details['name'] = $entry['name'];
             $details['destination'] = $entry['name'];
             $details['source'] = $entry['source'];
-            $destinations[] = $details;
+            if ($entry['source'] === 'names_dests' || !isset($destinationsByName[$entry['name']])) {
+                $destinationsByName[$entry['name']] = $details;
+            }
         }
+
+        $destinations = array_values($destinationsByName);
 
         if ($destinations === []) {
             return $unresolved > 0
@@ -3161,14 +3160,76 @@ final class PdfMetadataExtractor
             }
         }
 
+        $pageObjectNumbers = $this->orderedDestinationPageObjectNumbers($catalog, $objects);
+        $pageIndexes = [];
+        foreach ($pageObjectNumbers as $index => $pageObjectNumber) {
+            $pageIndexes[$pageObjectNumber] = $index;
+        }
+
+        return $this->documentDestinationEntryValueMap($entries, $objects, $pageIndexes);
+    }
+
+    /**
+     * @param list<array{name: string, value: string, source: string}> $entries
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     * @return array<string, string>
+     */
+    private function documentDestinationEntryValueMap(array $entries, array $objects, array $pageIndexes): array
+    {
         $destinations = [];
         foreach ($entries as $entry) {
-            if (!isset($destinations[$entry['name']])) {
+            if (!$this->documentDestinationValueAllowedForMap($entry['value'], $objects, $pageIndexes)) {
+                continue;
+            }
+            if ($entry['source'] === 'names_dests' || !isset($destinations[$entry['name']])) {
                 $destinations[$entry['name']] = $entry['value'];
             }
         }
 
         return $destinations;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, int> $pageIndexes
+     */
+    private function documentDestinationValueAllowedForMap(string $value, array $objects, array $pageIndexes): bool
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if ($this->destinationNameFromRaw($trimmed, $objects) !== null) {
+            return true;
+        }
+
+        $page = $this->destinationPageFromRaw($trimmed, $objects, $pageIndexes);
+        if ($page !== null) {
+            return true;
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($trimmed, $objects);
+        if ($dictionary !== null) {
+            $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
+            if (isset($entries['D'])) {
+                return $this->documentDestinationValueAllowedForMap($entries['D'], $objects, $pageIndexes);
+            }
+        }
+
+        $items = $this->arrayItemsFromValue($trimmed, $objects);
+        if ($items !== []) {
+            return $this->destinationPageFromRaw($items[0] ?? '', $objects, $pageIndexes) !== null;
+        }
+
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
+        if (preg_match('/^\d+$/', $resolved) === 1) {
+            $pageIndex = (int) $resolved;
+            return $pageIndex >= 0 && $pageIndex < count($pageIndexes);
+        }
+
+        return false;
     }
 
     /**

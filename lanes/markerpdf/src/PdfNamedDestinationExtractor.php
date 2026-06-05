@@ -90,6 +90,7 @@ final class PdfNamedDestinationExtractor
 
         $namesDictionary = $this->resolve($catalog['Names'] ?? null, $objects, $cache);
         if ($this->isDictionary($namesDictionary) && array_key_exists('Dests', $namesDictionary)) {
+            $nameTreeDestinations = [];
             foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache) as $entry) {
                 $destination = $this->normalizeDestination(
                     $entry['name'],
@@ -99,10 +100,14 @@ final class PdfNamedDestinationExtractor
                     $objects,
                     $cache
                 );
-                if ($destination === null || isset($seenNames[$destination['name']])) {
+                if ($destination === null) {
                     continue;
                 }
 
+                $nameTreeDestinations[$destination['name']] = $destination;
+            }
+
+            foreach ($nameTreeDestinations as $destination) {
                 $destinations[] = $destination;
                 $seenNames[$destination['name']] = true;
             }
