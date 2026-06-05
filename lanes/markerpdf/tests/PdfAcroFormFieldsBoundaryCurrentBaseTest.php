@@ -34,6 +34,25 @@ $pageWidgetFieldBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$directWidgetFieldsRootBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible direct widget Fields boundary body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 14 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [8 0 R 14 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (direct.widget.parent) /TU (Direct widget parent label) /TM (direct-widget-parent-map) /V (Parent value from direct widget Fields ref) /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (direct.group) /V (Parent group value) /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Parent 10 0 R /T (child) /V (Child terminal value) /Kids [14 0 R] >>\nendobj\n"
+        . "14 0 obj\n<< /Subtype /Widget /Parent 12 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "16 0 obj\n<< /FT /Tx /T (detached.widget.ref) /V (Detached direct widget decoy) /Kids [18 0 R] >>\nendobj\n"
+        . "18 0 obj\n<< /Subtype /Widget /Parent 16 0 R /Rect [72 560 320 584] /F 4 >>\nendobj\n"
+        . "%%EOF";
+};
+
 $tokenAwareAcroFormFieldsBoundaryPdf = static function (): string {
     $pageText = 'BT /F1 12 Tf 72 720 Td (Visible token-aware AcroForm field body) Tj ET';
 
@@ -224,6 +243,53 @@ return [
         $t->true(str_contains($visibleText, 'Visible AcroForm page widget boundary body'));
         $t->true(!str_contains($visibleText, 'detached widget value must not surface'));
         $t->true(!str_contains($visibleText, 'inline page widget value'));
+    },
+    'normalizes direct widget entries in AcroForm Fields to their parent field roots' => static function (
+        TestRunner $t
+    ) use ($directWidgetFieldsRootBoundaryPdf, $fieldsByName): void {
+        $pdf = $directWidgetFieldsRootBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['direct.widget.parent', 'direct.group.child'], array_keys($fields));
+        $t->same(2, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $direct = $fields['direct.widget.parent'];
+        $t->same(6, $direct['object']);
+        $t->same('direct.widget.parent', $direct['name']);
+        $t->same('text', $direct['field_type_label']);
+        $t->same('Parent value from direct widget Fields ref', $direct['value']);
+        $t->same('field_terminal', $direct['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->same('Direct widget parent label', $direct['alternate_name']);
+        $t->same('direct-widget-parent-map', $direct['mapping_name']);
+        $t->same(['FT', 'V'], $direct['field_hierarchy']['local_attributes']);
+        $t->same(['DA'], $direct['field_hierarchy']['inherited_attributes']);
+        $t->same([8], array_column($direct['widgets'], 'object'));
+        $t->same([0], array_column($direct['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($direct['widgets'], 'referenced_from_page_annots'));
+
+        $child = $fields['direct.group.child'];
+        $t->same(12, $child['object']);
+        $t->same('Child terminal value', $child['value']);
+        $t->same([10, 12], array_column($child['field_hierarchy']['path'], 'object'));
+        $t->same(['direct.group', 'direct.group.child'], array_column($child['field_hierarchy']['path'], 'full_name'));
+        $t->same(['FT', 'DA'], $child['field_hierarchy']['inherited_attributes']);
+        $t->same(['V'], $child['field_hierarchy']['local_value_attributes']);
+        $t->same([14], array_column($child['widgets'], 'object'));
+        $t->same([1], array_column($child['widgets'], 'page_annotation_index'));
+        $t->same([true], array_column($child['widgets'], 'referenced_from_page_annots'));
+        $t->same('field_terminal_override', $child['value_state']['hierarchy_boundary']['current_value_source']);
+
+        $t->true(!isset($fields['detached.widget.ref']));
+        $t->true(str_contains($visibleText, 'Visible direct widget Fields boundary body'));
+        $t->true(!str_contains($visibleText, 'Parent value from direct widget Fields ref'));
+        $t->true(!str_contains($visibleText, 'Child terminal value'));
+        $t->true(!str_contains($visibleText, 'Detached direct widget decoy'));
+        $t->true(is_string($encoded) && !str_contains($encoded, '"name":"#8"'));
+        $t->true(is_string($encoded) && !str_contains($encoded, '"name":"#14"'));
     },
     'uses token aware AcroForm field keys before WordPress review metadata' => static function (TestRunner $t) use ($tokenAwareAcroFormFieldsBoundaryPdf, $fieldsByName): void {
         $pdf = $tokenAwareAcroFormFieldsBoundaryPdf();

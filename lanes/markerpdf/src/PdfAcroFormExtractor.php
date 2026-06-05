@@ -8759,7 +8759,7 @@ final class PdfAcroFormExtractor
      */
     private function fieldReferencesWithPageWidgetBoundaries(array $fieldRefs, array $objects, array $pageWidgets): array
     {
-        $refs = array_values(array_unique($fieldRefs));
+        $refs = $this->rootFieldReferencesFromAcroFormReferences($fieldRefs, $objects);
         $reachable = $this->fieldTreeObjectNumbers($refs, $objects);
 
         foreach (array_keys($pageWidgets) as $widgetObject) {
@@ -8792,6 +8792,35 @@ final class PdfAcroFormExtractor
             $refs[] = $candidate;
             foreach ($this->fieldTreeObjectNumbers([$candidate], $objects) as $objectNumber => $_) {
                 $reachable[$objectNumber] = true;
+            }
+        }
+
+        return $refs;
+    }
+
+    /**
+     * @param list<int> $fieldRefs
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function rootFieldReferencesFromAcroFormReferences(array $fieldRefs, array $objects): array
+    {
+        $refs = [];
+        foreach ($fieldRefs as $fieldRef) {
+            $candidate = $fieldRef;
+            if (isset($objects[$fieldRef])) {
+                $body = $this->dictionaryObjectBody($objects[$fieldRef]) ?? trim($objects[$fieldRef]);
+                if ($this->isPureWidget($body)) {
+                    $parentObject = $this->validObjectReferenceValueAfterName($body, 'Parent', $objects);
+                    $rootField = $parentObject === null ? null : $this->pageWidgetRootFieldCandidate($parentObject, $objects, []);
+                    if ($rootField !== null) {
+                        $candidate = $rootField;
+                    }
+                }
+            }
+
+            if (!in_array($candidate, $refs, true)) {
+                $refs[] = $candidate;
             }
         }
 
