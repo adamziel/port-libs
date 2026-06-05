@@ -11099,13 +11099,13 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $kidDictionary = $this->pageLabelDictionaryObjectBody($kidBody);
+            $nextSeen = $seen;
+            $nextSeen[$kidKey] = true;
+            $kidDictionary = $this->pageLabelDictionaryFromValueResolved($kidBody, $objects, $nextSeen);
             if ($kidDictionary === null) {
                 continue;
             }
 
-            $nextSeen = $seen;
-            $nextSeen[$kidKey] = true;
             $nodes[] = [
                 'dictionary' => $kidDictionary,
                 'seen' => $nextSeen,
