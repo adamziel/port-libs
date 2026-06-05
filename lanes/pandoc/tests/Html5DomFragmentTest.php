@@ -200,6 +200,43 @@ return [
         $t->true(!str_contains($html, '<textarea'), 'Expected textarea wrapper to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected form-side javascript URLs to be stripped');
     },
+    'preserves explicit input button labels as reviewer text while dropping controls' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<form action="/submit">'
+            . '<p><input type="submit" value="Send review"><input type="reset" value="Clear form"><input type="button" value="Preview packet"></p>'
+            . '<p><input type="image" src="javascript:alert(1)" alt="Image submit"><input type="text" value="Secret draft"><input type="hidden" value="Hidden token"></p>'
+            . '<p><input type="checkbox" checked value="yes">Agree</p>'
+            . '</form><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/input-label-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>Send reviewClear formPreview packet</p><p>Image submit</p><p>Agree</p><p>after</p>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Send reviewClear formPreview packetImage submitAgreeafter', $fragment->textContent());
+        $t->same(['form', 'input'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(8, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same('p', $nodes[0]['name']);
+        $t->same('Send review', $nodes[0]['children'][0]['text']);
+        $t->same('Clear form', $nodes[0]['children'][1]['text']);
+        $t->same('Preview packet', $nodes[0]['children'][2]['text']);
+        $t->same('Image submit', $nodes[1]['children'][0]['text']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('Agree', $nodes[2]['children'][0]['text']);
+        $t->same('/migration/input-label-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<input'), 'Expected input controls to be stripped');
+        $t->true(!str_contains($html, 'Secret draft'), 'Expected text input values to stay hidden from review text');
+        $t->true(!str_contains($html, 'Hidden token'), 'Expected hidden input values to stay hidden from review text');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected image input src URL to be stripped with the control');
+    },
     'unwraps active embed fallback content while dropping unsafe containers' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<iframe src="javascript:alert(1)">Fallback <b>caption</b><script>drop()</script></iframe>'

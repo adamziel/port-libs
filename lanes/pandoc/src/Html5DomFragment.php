@@ -431,6 +431,17 @@ final class Html5DomFragment
             );
         }
 
+        if ($mode === 'html' && $name === 'input') {
+            $diagnostics[] = [
+                'code' => 'blocked-tag',
+                'tag' => $name,
+            ];
+
+            $label = self::visibleInputLabel($node);
+
+            return $label === null ? null : [['type' => 'text', 'text' => $label]];
+        }
+
         if ($mode === 'html' && self::isBlockedElement($name)) {
             $diagnostics[] = [
                 'code' => 'blocked-tag',
@@ -750,6 +761,23 @@ final class Html5DomFragment
             'template',
             'xmp',
         ], true);
+    }
+
+    private static function visibleInputLabel(\DOMElement $element): ?string
+    {
+        $type = strtolower(trim($element->getAttribute('type')));
+        $attribute = match ($type) {
+            'button', 'reset', 'submit' => 'value',
+            'image' => 'alt',
+            default => null,
+        };
+        if ($attribute === null || !$element->hasAttribute($attribute)) {
+            return null;
+        }
+
+        $label = str_replace("\0", '', $element->getAttribute($attribute));
+
+        return trim($label) === '' ? null : $label;
     }
 
     /**
