@@ -744,6 +744,70 @@ MARKDOWN);
         $t->same(['review-assets.zip'], $sequence['finalPdfEmbeddedFileNames']);
     },
 
+    'fake runner flags encrypted pdf output permission dictionaries without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/protected.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Filter /Standard /V 4 /R 4 /Length 128 /P -44 /EncryptMetadata false >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Encrypt 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/protected.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/protected.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(false, $result['ok']);
+        $t->same('pdf-output-encrypted', $result['reason']);
+        $t->same(true, $result['pdfEncrypted']);
+        $t->same('Standard', $result['pdfEncryptionFilter']);
+        $t->same(4, $result['pdfEncryptionVersion']);
+        $t->same(4, $result['pdfEncryptionRevision']);
+        $t->same(128, $result['pdfEncryptionLength']);
+        $t->same(-44, $result['pdfPermissionInteger']);
+        $t->same(false, $result['pdfEncryptMetadata']);
+        $t->same([
+            'printLowQuality' => true,
+            'modify' => false,
+            'copy' => true,
+            'annotate' => false,
+            'fillForms' => true,
+            'extractAccessibility' => true,
+            'assemble' => true,
+            'printHighQuality' => true,
+        ], $result['pdfPermissionFlags']);
+        $t->contains('pdf-output-encrypted', implode(',', $result['diagnostics']));
+        $t->contains('pdf-encryption-filter:Standard', implode(',', $result['diagnostics']));
+        $t->contains('pdf-permission-flags:8', implode(',', $result['diagnostics']));
+        $t->same(false, $sequence['ok']);
+        $t->same(true, $sequence['finalPdfEncrypted']);
+        $t->same('Standard', $sequence['finalPdfEncryptionFilter']);
+        $t->same($result['pdfPermissionFlags'], $sequence['finalPdfPermissionFlags']);
+    },
+
     'fake runner rejects truncated stale or mismatched pdf output artifacts' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);

@@ -248,6 +248,14 @@ final class PdfEngineHandoff
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
+     *     pdfEncrypted: bool,
+     *     pdfEncryptionFilter: string|null,
+     *     pdfEncryptionVersion: int|null,
+     *     pdfEncryptionRevision: int|null,
+     *     pdfEncryptionLength: int|null,
+     *     pdfPermissionInteger: int|null,
+     *     pdfPermissionFlags: array<string, bool>,
+     *     pdfEncryptMetadata: bool|null,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -600,6 +608,14 @@ final class PdfEngineHandoff
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
+        $pdfEncrypted = false;
+        $pdfEncryptionFilter = null;
+        $pdfEncryptionVersion = null;
+        $pdfEncryptionRevision = null;
+        $pdfEncryptionLength = null;
+        $pdfPermissionInteger = null;
+        $pdfPermissionFlags = [];
+        $pdfEncryptMetadata = null;
         if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')) {
             if (strlen($pdfBytes) > self::MAX_PDF_OUTPUT_INSPECTION_BYTES) {
                 $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
@@ -610,6 +626,15 @@ final class PdfEngineHandoff
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
+                $pdfEncryption = $pdfInspection['encryption'];
+                $pdfEncrypted = $pdfEncryption['encrypted'];
+                $pdfEncryptionFilter = $pdfEncryption['filter'];
+                $pdfEncryptionVersion = $pdfEncryption['version'];
+                $pdfEncryptionRevision = $pdfEncryption['revision'];
+                $pdfEncryptionLength = $pdfEncryption['length'];
+                $pdfPermissionInteger = $pdfEncryption['permissions'];
+                $pdfPermissionFlags = $pdfEncryption['permissionFlags'];
+                $pdfEncryptMetadata = $pdfEncryption['encryptMetadata'];
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
                 }
@@ -624,6 +649,15 @@ final class PdfEngineHandoff
                 }
                 if ($pdfEmbeddedFileNames !== []) {
                     $diagnostics[] = 'pdf-byte-embedded-files:' . count($pdfEmbeddedFileNames);
+                }
+                if ($pdfEncrypted) {
+                    $diagnostics[] = 'pdf-output-encrypted';
+                    if ($pdfEncryptionFilter !== null) {
+                        $diagnostics[] = 'pdf-encryption-filter:' . $pdfEncryptionFilter;
+                    }
+                    if ($pdfPermissionFlags !== []) {
+                        $diagnostics[] = 'pdf-permission-flags:' . count($pdfPermissionFlags);
+                    }
                 }
             }
         }
@@ -707,6 +741,10 @@ final class PdfEngineHandoff
             $status = 'failed';
             $reason = 'pdf-output-page-mismatch';
         }
+        if ($reason === null && $pdfEncrypted) {
+            $status = 'failed';
+            $reason = 'pdf-output-encrypted';
+        }
 
         return [
             'ok' => $status === 'ok',
@@ -755,6 +793,14 @@ final class PdfEngineHandoff
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
+            'pdfEncrypted' => $pdfEncrypted,
+            'pdfEncryptionFilter' => $pdfEncryptionFilter,
+            'pdfEncryptionVersion' => $pdfEncryptionVersion,
+            'pdfEncryptionRevision' => $pdfEncryptionRevision,
+            'pdfEncryptionLength' => $pdfEncryptionLength,
+            'pdfPermissionInteger' => $pdfPermissionInteger,
+            'pdfPermissionFlags' => $pdfPermissionFlags,
+            'pdfEncryptMetadata' => $pdfEncryptMetadata,
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -786,6 +832,14 @@ final class PdfEngineHandoff
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
+     *     finalPdfEncrypted: bool,
+     *     finalPdfEncryptionFilter: string|null,
+     *     finalPdfEncryptionVersion: int|null,
+     *     finalPdfEncryptionRevision: int|null,
+     *     finalPdfEncryptionLength: int|null,
+     *     finalPdfPermissionInteger: int|null,
+     *     finalPdfPermissionFlags: array<string, bool>,
+     *     finalPdfEncryptMetadata: bool|null,
      *     sourceSha256: string|null,
      *     finalResourceArtifactsSha256: array<string, string>,
      *     finalEngineDependencyArtifactsSha256: array<string, string>,
@@ -931,6 +985,14 @@ final class PdfEngineHandoff
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
+            'finalPdfEncrypted' => is_array($finalRun) && ($finalRun['pdfEncrypted'] ?? false) === true,
+            'finalPdfEncryptionFilter' => is_array($finalRun) && is_string($finalRun['pdfEncryptionFilter'] ?? null) ? $finalRun['pdfEncryptionFilter'] : null,
+            'finalPdfEncryptionVersion' => is_array($finalRun) && is_int($finalRun['pdfEncryptionVersion'] ?? null) ? $finalRun['pdfEncryptionVersion'] : null,
+            'finalPdfEncryptionRevision' => is_array($finalRun) && is_int($finalRun['pdfEncryptionRevision'] ?? null) ? $finalRun['pdfEncryptionRevision'] : null,
+            'finalPdfEncryptionLength' => is_array($finalRun) && is_int($finalRun['pdfEncryptionLength'] ?? null) ? $finalRun['pdfEncryptionLength'] : null,
+            'finalPdfPermissionInteger' => is_array($finalRun) && is_int($finalRun['pdfPermissionInteger'] ?? null) ? $finalRun['pdfPermissionInteger'] : null,
+            'finalPdfPermissionFlags' => is_array($finalRun) && is_array($finalRun['pdfPermissionFlags'] ?? null) ? $finalRun['pdfPermissionFlags'] : [],
+            'finalPdfEncryptMetadata' => is_array($finalRun) && is_bool($finalRun['pdfEncryptMetadata'] ?? null) ? $finalRun['pdfEncryptMetadata'] : null,
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
@@ -1963,7 +2025,23 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{pageCount:int|null, outlineTitles:list<string>, annotationTypes:array<string, int>, linkTargets:list<string>, embeddedFileNames:list<string>}
+     * @return array{
+     *     pageCount:int|null,
+     *     outlineTitles:list<string>,
+     *     annotationTypes:array<string, int>,
+     *     linkTargets:list<string>,
+     *     embeddedFileNames:list<string>,
+     *     encryption:array{
+     *         encrypted:bool,
+     *         filter:string|null,
+     *         version:int|null,
+     *         revision:int|null,
+     *         length:int|null,
+     *         permissions:int|null,
+     *         permissionFlags:array<string, bool>,
+     *         encryptMetadata:bool|null
+     *     }
+     * }
      */
     private function inspectPdfOutput(string $pdfBytes): array
     {
@@ -1973,6 +2051,145 @@ final class PdfEngineHandoff
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
             'embeddedFileNames' => $this->extractPdfEmbeddedFileNames($pdfBytes),
+            'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     encrypted:bool,
+     *     filter:string|null,
+     *     version:int|null,
+     *     revision:int|null,
+     *     length:int|null,
+     *     permissions:int|null,
+     *     permissionFlags:array<string, bool>,
+     *     encryptMetadata:bool|null
+     * }
+     */
+    private function extractPdfEncryptionInfo(string $pdfBytes): array
+    {
+        $info = [
+            'encrypted' => false,
+            'filter' => null,
+            'version' => null,
+            'revision' => null,
+            'length' => null,
+            'permissions' => null,
+            'permissionFlags' => [],
+            'encryptMetadata' => null,
+        ];
+
+        if (preg_match('/\/Encrypt\b/s', $pdfBytes) !== 1) {
+            return $info;
+        }
+
+        $info['encrypted'] = true;
+        $dictionary = $this->extractPdfEncryptDictionary($pdfBytes);
+        if ($dictionary === null) {
+            return $info;
+        }
+
+        $info['filter'] = $this->extractPdfNameToken($dictionary, 'Filter');
+        $info['version'] = $this->extractPdfIntegerToken($dictionary, 'V');
+        $info['revision'] = $this->extractPdfIntegerToken($dictionary, 'R');
+        $info['length'] = $this->extractPdfIntegerToken($dictionary, 'Length');
+        $info['permissions'] = $this->extractPdfIntegerToken($dictionary, 'P');
+        $info['encryptMetadata'] = $this->extractPdfBooleanToken($dictionary, 'EncryptMetadata');
+        if ($info['permissions'] !== null) {
+            $info['permissionFlags'] = $this->decodePdfPermissionFlags($info['permissions']);
+        }
+
+        return $info;
+    }
+
+    private function extractPdfEncryptDictionary(string $pdfBytes): ?string
+    {
+        if (preg_match('/\/Encrypt\s+(\d+)\s+(\d+)\s+R\b/s', $pdfBytes, $matches) === 1) {
+            $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+            $key = $matches[1] . ' ' . $matches[2];
+
+            return $objects[$key] ?? null;
+        }
+
+        $offset = 0;
+        while (($position = strpos($pdfBytes, '/Encrypt', $offset)) !== false) {
+            $cursor = $position + strlen('/Encrypt');
+            if ($cursor < strlen($pdfBytes) && preg_match('/[A-Za-z0-9_.-]/', $pdfBytes[$cursor]) === 1) {
+                $offset = $cursor;
+                continue;
+            }
+            while ($cursor < strlen($pdfBytes) && ctype_space($pdfBytes[$cursor])) {
+                $cursor++;
+            }
+            if (substr($pdfBytes, $cursor, 2) !== '<<') {
+                $offset = $cursor + 1;
+                continue;
+            }
+
+            $parsed = $this->parsePdfDictionary($pdfBytes, $cursor);
+            if ($parsed !== null) {
+                return $parsed['value'];
+            }
+
+            $offset = $cursor + 2;
+        }
+
+        return null;
+    }
+
+    private function extractPdfNameToken(string $dictionary, string $name): ?string
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\/([A-Za-z0-9_.#-]+)/s', $dictionary, $matches) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfNameToken($matches[1]);
+    }
+
+    private function decodePdfNameToken(string $name): string
+    {
+        return preg_replace_callback(
+            '/#([0-9A-Fa-f]{2})/',
+            static fn (array $matches): string => chr(hexdec($matches[1])),
+            $name
+        ) ?? $name;
+    }
+
+    private function extractPdfIntegerToken(string $dictionary, string $name): ?int
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s+(-?\d+)\b/s', $dictionary, $matches) !== 1) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    private function extractPdfBooleanToken(string $dictionary, string $name): ?bool
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s+(true|false)\b/si', $dictionary, $matches) !== 1) {
+            return null;
+        }
+
+        return strtolower($matches[1]) === 'true';
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function decodePdfPermissionFlags(int $permissions): array
+    {
+        $bits = $permissions < 0 ? $permissions + 4294967296 : $permissions;
+
+        return [
+            'printLowQuality' => ($bits & 0x0004) !== 0,
+            'modify' => ($bits & 0x0008) !== 0,
+            'copy' => ($bits & 0x0010) !== 0,
+            'annotate' => ($bits & 0x0020) !== 0,
+            'fillForms' => ($bits & 0x0100) !== 0,
+            'extractAccessibility' => ($bits & 0x0200) !== 0,
+            'assemble' => ($bits & 0x0400) !== 0,
+            'printHighQuality' => ($bits & 0x0800) !== 0,
         ];
     }
 
@@ -2256,6 +2473,23 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return array<string, string>
+     */
+    private function pdfObjectBodiesByReference(string $pdfBytes): array
+    {
+        if (preg_match_all('/\b(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj\b/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $objects = [];
+        foreach ($matches as $match) {
+            $objects[$match[1] . ' ' . $match[2]] = $match[3];
+        }
+
+        return $objects;
+    }
+
+    /**
      * @return list<string>
      */
     private function extractPdfTitleStrings(string $objectBody): array
@@ -2297,6 +2531,73 @@ final class PdfEngineHandoff
         }
 
         return $titles;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function parsePdfDictionary(string $bytes, int $offset): ?array
+    {
+        $length = strlen($bytes);
+        if ($offset + 1 >= $length || substr($bytes, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        $depth = 1;
+        for ($i = $offset + 2; $i < $length - 1; $i++) {
+            if ($bytes[$i] === '(') {
+                $end = $this->pdfLiteralStringEnd($bytes, $i);
+                if ($end !== null) {
+                    $i = $end - 1;
+                }
+                continue;
+            }
+            if ($bytes[$i] === '<' && $bytes[$i + 1] === '<') {
+                $depth++;
+                $i++;
+                continue;
+            }
+            if ($bytes[$i] === '>' && $bytes[$i + 1] === '>') {
+                $depth--;
+                $i++;
+                if ($depth === 0) {
+                    return ['value' => substr($bytes, $offset, $i + 1 - $offset), 'next' => $i + 1];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function pdfLiteralStringEnd(string $bytes, int $offset): ?int
+    {
+        $length = strlen($bytes);
+        if ($offset >= $length || $bytes[$offset] !== '(') {
+            return null;
+        }
+
+        $depth = 1;
+        for ($i = $offset + 1; $i < $length; $i++) {
+            $char = $bytes[$i];
+            if ($char === '\\') {
+                if ($i + 1 < $length) {
+                    $i++;
+                }
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i + 1;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
