@@ -2990,9 +2990,11 @@ final class TableRecognizer
     private function tableGridGeometryBoundary(array $rows, array $cols, ?array $imageSize): array
     {
         if ($imageSize === null) {
+            $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
+
             return [
-                'rows' => $rows,
-                'cols' => $cols,
+                'rows' => $this->sortGridBandsByGeometry($rows, $rotated ? 'x' : 'y'),
+                'cols' => $this->sortGridBandsByGeometry($cols, $rotated ? 'y' : 'x'),
                 'review' => null,
             ];
         }
@@ -3000,18 +3002,36 @@ final class TableRecognizer
         $size = $this->imageSize($imageSize);
         $rowBoundary = $this->boundedGridBands($rows, 'row', 'row_id', $size);
         $colBoundary = $this->boundedGridBands($cols, 'column', 'col_id', $size);
+        $rotated = $rowBoundary['bands'] !== [] && $colBoundary['bands'] !== []
+            && $this->isRotated($rowBoundary['bands'], $colBoundary['bands']);
+        $rowSortAxis = $rotated ? 'x' : 'y';
+        $colSortAxis = $rotated ? 'y' : 'x';
+        $rowBands = $this->sortGridBandsByGeometry($rowBoundary['bands'], $rowSortAxis);
+        $colBands = $this->sortGridBandsByGeometry($colBoundary['bands'], $colSortAxis);
+        $rowBoundary['review_rows'] = $this->withGridBandGeometryOrderReview($rowBoundary['review_rows'], $rowBands, 'row_id', $rowSortAxis);
+        $colBoundary['review_rows'] = $this->withGridBandGeometryOrderReview($colBoundary['review_rows'], $colBands, 'col_id', $colSortAxis);
         $reviewRows = array_merge($rowBoundary['review_rows'], $colBoundary['review_rows']);
+        $sourceActiveRowIds = $this->activeBandReviewIds($rowBoundary['review_rows']);
+        $sourceActiveColIds = $this->activeBandReviewIds($colBoundary['review_rows']);
+        $geometryActiveRowIds = $this->bandIds($rowBands, 'row_id');
+        $geometryActiveColIds = $this->bandIds($colBands, 'col_id');
 
         return [
-            'rows' => $rowBoundary['bands'],
-            'cols' => $colBoundary['bands'],
+            'rows' => $rowBands,
+            'cols' => $colBands,
             'review' => [
                 'review_target' => 'table_grid_geometry_boundary',
                 'image_size' => $size,
                 'row_band_count' => count($rows),
                 'col_band_count' => count($cols),
-                'active_row_band_count' => count($rowBoundary['bands']),
-                'active_col_band_count' => count($colBoundary['bands']),
+                'active_row_band_count' => count($rowBands),
+                'active_col_band_count' => count($colBands),
+                'active_row_ids' => $geometryActiveRowIds,
+                'active_col_ids' => $geometryActiveColIds,
+                'row_sort_axis' => $rowSortAxis,
+                'col_sort_axis' => $colSortAxis,
+                'row_band_order_normalized' => $sourceActiveRowIds !== $geometryActiveRowIds,
+                'col_band_order_normalized' => $sourceActiveColIds !== $geometryActiveColIds,
                 'clipped_band_count' => count(array_filter(
                     $reviewRows,
                     static fn (array $row): bool => ($row['status'] ?? null) === 'clipped_to_table_image'
@@ -3024,6 +3044,98 @@ final class TableRecognizer
                 'col_bands' => $colBoundary['review_rows'],
             ],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $bands
+     * @return list<array<string, mixed>>
+     */
+    private function sortGridBandsByGeometry(array $bands, string $axis): array
+    {
+        $indexed = [];
+        foreach (array_values($bands) as $index => $band) {
+            $bbox = $band['bbox'];
+            $primaryStart = $axis === 'x' ? $bbox[0] : $bbox[1];
+            $primaryEnd = $axis === 'x' ? $bbox[2] : $bbox[3];
+            $secondaryStart = $axis === 'x' ? $bbox[1] : $bbox[0];
+            $secondaryEnd = $axis === 'x' ? $bbox[3] : $bbox[2];
+            $indexed[] = [
+                'index' => $index,
+                'band' => $band,
+                'primary_start' => $primaryStart,
+                'primary_center' => ($primaryStart + $primaryEnd) / 2.0,
+                'secondary_start' => $secondaryStart,
+                'secondary_center' => ($secondaryStart + $secondaryEnd) / 2.0,
+            ];
+        }
+
+        usort($indexed, static function (array $left, array $right): int {
+            return $left['primary_start'] <=> $right['primary_start']
+                ?: $left['primary_center'] <=> $right['primary_center']
+                ?: $left['secondary_start'] <=> $right['secondary_start']
+                ?: $left['secondary_center'] <=> $right['secondary_center']
+                ?: $left['index'] <=> $right['index'];
+        });
+
+        return array_map(static fn (array $entry): array => $entry['band'], $indexed);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviewRows
+     * @param list<array<string, mixed>> $orderedBands
+     * @return list<array<string, mixed>>
+     */
+    private function withGridBandGeometryOrderReview(array $reviewRows, array $orderedBands, string $idField, string $axis): array
+    {
+        $order = $this->bandOrderMap($orderedBands, $idField);
+        foreach ($reviewRows as &$reviewRow) {
+            $id = $this->nullableInteger($reviewRow['id'] ?? null);
+            if ($id === null || !array_key_exists($id, $order)) {
+                continue;
+            }
+
+            $reviewRow['geometry_order'] = $order[$id];
+            $reviewRow['geometry_sort_axis'] = $axis;
+        }
+        unset($reviewRow);
+
+        return $reviewRows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $reviewRows
+     * @return list<int>
+     */
+    private function activeBandReviewIds(array $reviewRows): array
+    {
+        $ids = [];
+        foreach ($reviewRows as $reviewRow) {
+            if (($reviewRow['active'] ?? null) !== true) {
+                continue;
+            }
+            $id = $this->nullableInteger($reviewRow['id'] ?? null);
+            if ($id !== null) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $bands
+     * @return list<int>
+     */
+    private function bandIds(array $bands, string $idField): array
+    {
+        $ids = [];
+        foreach ($bands as $band) {
+            if (isset($band[$idField])) {
+                $ids[] = (int) $band[$idField];
+            }
+        }
+
+        return $ids;
     }
 
     /**
