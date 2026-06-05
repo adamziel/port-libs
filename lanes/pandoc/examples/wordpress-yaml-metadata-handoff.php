@@ -88,6 +88,19 @@ merge-sequence-audit:
     - *merge_review_base
   status: needs-review
 flow-merge-review: {<<: [*merge_review_override, *merge_review_base], reviewer: Flow Desk}
+? explicit-review-defaults_
+: &explicit_review_defaults {status: queued, priority: 6, labels: [explicit, review]}
+? explicit-review
+:
+  ? <<
+  : *explicit_review_defaults
+  ? status
+  : approved
+  ? "source:key"
+  : "metadata: value"
+?
+  "explicit:source-uri"
+: "https://example.test/exports/packet#explicit-key"
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -232,6 +245,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-merge-review']['reviewer'] ?? '') !== 'Flow Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow merge-sequence override');
     }
+    if (($meta['explicit-review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing explicit-key review override');
+    }
+    if (($meta['explicit-review']['priority'] ?? null) !== 6) {
+        throw new RuntimeException('YAML metadata self-test missing explicit-key merge priority');
+    }
+    if (($meta['explicit-review']['labels'] ?? []) !== ['explicit', 'review']) {
+        throw new RuntimeException('YAML metadata self-test missing explicit-key merge labels');
+    }
+    if (($meta['explicit-review']['source:key'] ?? '') !== 'metadata: value') {
+        throw new RuntimeException('YAML metadata self-test missing explicit quoted metadata key');
+    }
+    if (($meta['explicit:source-uri'] ?? '') !== 'https://example.test/exports/packet#explicit-key') {
+        throw new RuntimeException('YAML metadata self-test missing block-form explicit source URI key');
+    }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
@@ -289,6 +317,7 @@ echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
 echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadline', $meta) && $meta['optional-deadline'] === null) ? 'yes' : 'no') . "\n";
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
+echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / ' . ($meta['explicit-review']['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";

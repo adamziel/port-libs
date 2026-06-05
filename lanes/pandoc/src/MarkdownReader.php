@@ -440,6 +440,20 @@ final class MarkdownReader
                 continue;
             }
 
+            $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index);
+            if ($explicitMapping !== null) {
+                [$key, $sourceValue, $children, $nextIndex] = $explicitMapping;
+                [$value] = $this->parseYamlMetadataValue($sourceValue, $children);
+                if ($key === '<<') {
+                    $metadata = $this->mergeYamlMapValue($metadata, $value);
+                } else {
+                    $metadata[$key] = $value;
+                }
+
+                $index = $nextIndex;
+                continue;
+            }
+
             $mapping = $this->parseYamlMappingLine($trimmed);
             if ($this->countIndentColumns($line) > 0 || $mapping === null) {
                 $index++;
@@ -447,29 +461,8 @@ final class MarkdownReader
             }
 
             [$key, $sourceValue] = $mapping;
-            [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
-            $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
-            $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
-
-            if ($multilineFlow !== null) {
-                $value = $multilineFlow;
-            } elseif ($blockScalarHeader !== null) {
-                $value = $this->parseYamlBlockScalar(
-                    $children,
-                    $blockScalarHeader['style'],
-                    $blockScalarHeader['chomp'],
-                    $blockScalarHeader['indent']
-                );
-            } elseif ($sourceValue === '') {
-                $value = $this->parseYamlIndentedValue($children);
-            } else {
-                $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
-                    ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
-                $value = $multiline ?? $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
-            }
-
-            $this->rememberYamlAnchor($anchorName, $value);
+            [$value] = $this->parseYamlMetadataValue($sourceValue, $children);
             if ($key === '<<') {
                 $metadata = $this->mergeYamlMapValue($metadata, $value);
             } else {
@@ -480,6 +473,130 @@ final class MarkdownReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:string, 2:list<string>, 3:int}|null
+     */
+    private function parseYamlExplicitMappingPair(array $lines, int $start): ?array
+    {
+        $line = $lines[$start] ?? '';
+        if ($this->countIndentColumns($line) > 0) {
+            return null;
+        }
+
+        $trimmed = trim($line);
+        if (!$this->isYamlExplicitMappingKeyLine($trimmed)) {
+            return null;
+        }
+
+        $keySource = trim(substr($trimmed, 1));
+        $cursor = $start + 1;
+        $keyValue = null;
+        if ($keySource === '') {
+            $keyLines = [];
+            $count = count($lines);
+            while ($cursor < $count && $this->parseYamlExplicitMappingValueLine(trim($lines[$cursor])) === null) {
+                $keyLines[] = $lines[$cursor];
+                $cursor++;
+            }
+
+            if ($keyLines === [] || $cursor >= $count) {
+                return null;
+            }
+
+            $keyValue = $this->parseYamlIndentedValue($keyLines);
+        } else {
+            $keyValue = $this->parseYamlScalarValue($keySource);
+            while (
+                isset($lines[$cursor])
+                && (trim($lines[$cursor]) === '' || str_starts_with(trim($lines[$cursor]), '#'))
+            ) {
+                $cursor++;
+            }
+        }
+
+        if (!isset($lines[$cursor])) {
+            return null;
+        }
+
+        $sourceValue = $this->parseYamlExplicitMappingValueLine(trim($lines[$cursor]));
+        if ($sourceValue === null) {
+            return null;
+        }
+
+        $key = $this->normalizeYamlExplicitMappingKey($keyValue);
+        if ($key === null || $key === '') {
+            return null;
+        }
+
+        [$children, $nextIndex] = $this->collectYamlChildLines($lines, $cursor + 1);
+
+        return [$key, $sourceValue, $children, $nextIndex];
+    }
+
+    private function isYamlExplicitMappingKeyLine(string $trimmed): bool
+    {
+        return $trimmed === '?' || preg_match('/^\?[ \t]+.+$/', $trimmed) === 1;
+    }
+
+    private function parseYamlExplicitMappingValueLine(string $trimmed): ?string
+    {
+        if (preg_match('/^:(?:[ \t]*(.*))?$/', $trimmed, $m) !== 1) {
+            return null;
+        }
+
+        return rtrim($m[1] ?? '');
+    }
+
+    private function normalizeYamlExplicitMappingKey(mixed $key): ?string
+    {
+        if (is_string($key)) {
+            return $key;
+        }
+
+        if (is_int($key) || is_float($key)) {
+            return (string) $key;
+        }
+
+        if (is_bool($key)) {
+            return $key ? 'true' : 'false';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $children
+     * @return array{0:mixed, 1:string|null}
+     */
+    private function parseYamlMetadataValue(string $sourceValue, array $children): array
+    {
+        [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
+        $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
+        $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
+
+        if ($multilineFlow !== null) {
+            $value = $multilineFlow;
+        } elseif ($blockScalarHeader !== null) {
+            $value = $this->parseYamlBlockScalar(
+                $children,
+                $blockScalarHeader['style'],
+                $blockScalarHeader['chomp'],
+                $blockScalarHeader['indent']
+            );
+        } elseif ($sourceValue === '') {
+            $value = $this->parseYamlIndentedValue($children);
+        } else {
+            $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
+                ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
+            $value = $multiline ?? $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+        }
+
+        $this->rememberYamlAnchor($anchorName, $value);
+
+        return [$value, $anchorName];
     }
 
     /**
@@ -495,7 +612,10 @@ final class MarkdownReader
             if (
                 trim($line) !== ''
                 && $this->countIndentColumns($line) === 0
-                && $this->parseYamlMappingLine(trim($line)) !== null
+                && (
+                    $this->parseYamlMappingLine(trim($line)) !== null
+                    || $this->isYamlExplicitMappingKeyLine(trim($line))
+                )
             ) {
                 break;
             }
@@ -705,7 +825,7 @@ final class MarkdownReader
                 continue;
             }
 
-            return $this->parseYamlMappingLine($trimmed) !== null;
+            return $this->parseYamlMappingLine($trimmed) !== null || $this->isYamlExplicitMappingKeyLine($trimmed);
         }
 
         return false;

@@ -1549,6 +1549,52 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('sequence-block-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml explicit mapping keys in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '? title',
+            ': Explicit key **Packet**',
+            '? authors',
+            ':',
+            '  - Reviewer One',
+            '  - Reviewer Two',
+            '? review-defaults_',
+            ': &review_defaults {status: queued, priority: 5, labels: [metadata, review]}',
+            '? review',
+            ':',
+            '  ? <<',
+            '  : *review_defaults',
+            '  ? status',
+            '  : approved',
+            '  ? "source:key"',
+            '  : "metadata: value"',
+            '?',
+            '  "source:url"',
+            ': "https://example.test/import#front"',
+            '...',
+            '',
+            '# Explicit key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $authorInlines = $meta['authorInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Explicit key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same(['Reviewer One', 'Reviewer Two'], $meta['authors']);
+        $t->same(2, count($authorInlines));
+        $t->same(null, $meta['review-defaults_'] ?? null);
+        $t->same('approved', $meta['review']['status']);
+        $t->same(5, $meta['review']['priority']);
+        $t->same(['metadata', 'review'], $meta['review']['labels']);
+        $t->same('metadata: value', $meta['review']['source:key']);
+        $t->same('https://example.test/import#front', $meta['source:url']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('explicit-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="explicit-key-yaml-body">Explicit key YAML body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
