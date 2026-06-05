@@ -169,12 +169,13 @@ final class LayoutOrderer
         }
 
         $sanitized = [];
-        foreach ($boxes as $box) {
+        foreach ($boxes as $index => $box) {
             if (!is_array($box)) {
                 continue;
             }
 
-            $bbox = $this->bboxValue($box['bbox'] ?? (array_is_list($box) ? $box : null));
+            $isBareBbox = array_is_list($box) && count($box) === 4;
+            $bbox = $this->bboxValue($box['bbox'] ?? ($isBareBbox ? $box : null));
             if ($bbox === null) {
                 continue;
             }
@@ -182,7 +183,7 @@ final class LayoutOrderer
                 continue;
             }
 
-            $position = 0;
+            $position = $isBareBbox ? $index + 1 : 0;
             if (array_key_exists('position', $box)) {
                 $positionValue = $this->integerValue($box['position']);
                 if ($positionValue === null) {

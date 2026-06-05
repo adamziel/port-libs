@@ -132,4 +132,52 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'uses bbox-list order rows as ordered geometry before pdftext dictionary layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(1400, [
+                    ['text' => 'Bbox-list cover page skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(1401, [
+                    ['text' => 'Second bbox-list order column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First bbox-list order column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 1401,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        [318.0, 96.0, 570.0, 144.0],
+                        [60.0, 96.0, 290.0, 144.0],
+                    ],
+                    'raw_payload' => 'bbox-list order payload must not cross page order metadata',
+                ],
+            ],
+            orderImages: [
+                ['page' => 1401, 'image' => 'bbox-list-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(1401, $result['pages'][0]['pnum']);
+        $t->same(['Second bbox-list order column', 'First bbox-list order column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second bbox-list order column First bbox-list order column', $blocks[0]['text']);
+        $t->same([
+            ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+            ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+        ], $result['pages'][0]['order']['bboxes']);
+        $t->true(!str_contains($encoded, 'bbox-list order payload must not cross'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
