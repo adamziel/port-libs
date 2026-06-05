@@ -3809,6 +3809,10 @@ final class PdfAttachmentExtractor
             $foundSection = true;
             $firstObject = (int) $section[1];
             $rowCount = (int) $section[2];
+            if ($rowCount <= 0) {
+                return $entries === [] ? null : $entries;
+            }
+
             $rowIndex = 0;
             while ($rowIndex < $rowCount && ++$lineIndex < $lineCount) {
                 $row = trim($lines[$lineIndex]);

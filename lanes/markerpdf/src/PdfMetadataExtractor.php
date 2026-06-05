@@ -9685,6 +9685,10 @@ final class PdfMetadataExtractor
             $foundSection = true;
             $startObject = (int) $header[1];
             $count = max(0, (int) $header[2]);
+            if ($count === 0) {
+                return $entries === [] ? null : $entries;
+            }
+
             for ($entryIndex = 0; $entryIndex < $count;) {
                 if (++$lineIndex >= $lineCount) {
                     return null;
