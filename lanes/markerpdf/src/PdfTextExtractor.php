@@ -5973,6 +5973,17 @@ final class PdfTextExtractor
         }
 
         preg_match_all('/[+-]?\d+/', $arrayBody, $matches);
+        $items = $this->pdfArrayItems($arrayBody);
+        if (count($items) >= 2) {
+            $lower = $this->pageLabelLimitOperand($items[0], $objects);
+            $upper = $this->pageLabelLimitOperand($items[1], $objects);
+            if ($lower === null || $upper === null) {
+                return null;
+            }
+
+            return $lower <= $upper ? [$lower, $upper] : null;
+        }
+
         if (count($matches[0]) < 2) {
             return null;
         }
@@ -5980,6 +5991,37 @@ final class PdfTextExtractor
         $lower = (int) $matches[0][0];
         $upper = (int) $matches[0][1];
         return $lower <= $upper ? [$lower, $upper] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelLimitOperand(string $value, array $objects, array $seen = []): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$key])) {
+            return null;
+        }
+
+        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$key] = true;
+        return $this->pageLabelLimitOperand($body, $objects, $seen);
     }
 
     /**

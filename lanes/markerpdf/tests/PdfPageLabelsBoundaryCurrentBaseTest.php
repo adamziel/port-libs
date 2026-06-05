@@ -89,6 +89,36 @@ $indirectOperandPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$indirectLimitOperandPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Opening fallback imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Body indirect limit imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Appendix indirect limit imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Appendix continued imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [30 0 R 31 0 R] /Kids [21 0 R 22 0 R] >>\nendobj\n"
+        . "21 0 obj\n<< /Nums [0 << /P (stale-front-) /S /D /St 90 >> 1 << /P (Body ) /S /D /St 4 >>] >>\nendobj\n"
+        . "22 0 obj\n<< /Nums [2 << /P (App-) /S /A /St 26 >> 3 << /P (stale-back-) /S /D /St 99 >>] >>\nendobj\n"
+        . "30 0 obj\n1\nendobj\n"
+        . "31 0 obj\n2\nendobj\n"
+        . "%%EOF\n";
+};
+
 $escapedNamePageLabelBoundaryPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Escaped page imported) Tj ET',
@@ -191,6 +221,24 @@ return [
         $t->same(['Front matter imported', 'Front matter continued', 'Appendix imported'], array_column($entries, 'text'));
         $t->true(!in_array('', $previewLabels, true));
         $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'resolves indirect PageLabels Limits operands before kid boundary filtering' => static function (TestRunner $t) use ($indirectLimitOperandPageLabelBoundaryPdf): void {
+        $pdf = $indirectLimitOperandPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Body 4', 'App-Z', 'App-AA'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Opening fallback imported', 'Body indirect limit imported', 'Appendix indirect limit imported', 'Appendix continued imported'], array_column($entries, 'text'));
+        $t->true(!in_array('stale-front-90', $labels, true));
+        $t->true(!in_array('stale-back-99', $previewLabels, true));
+        $t->same('App-AA', $preview->getPageImagePlan($pdf, 4)['page_label']);
     },
     'keeps escaped catalog PageLabels names above nested private decoys' => static function (TestRunner $t) use ($escapedNamePageLabelBoundaryPdf): void {
         $pdf = $escapedNamePageLabelBoundaryPdf();

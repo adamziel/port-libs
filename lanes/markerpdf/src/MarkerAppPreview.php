@@ -1397,16 +1397,36 @@ final class MarkerAppPreview
             return null;
         }
 
-        $lower = trim($elements[0]);
-        $upper = trim($elements[1]);
-        if (preg_match('/^-?\d+$/', $lower) !== 1 || preg_match('/^-?\d+$/', $upper) !== 1) {
+        $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
+        $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
+        if ($lower === null || $upper === null) {
             return null;
         }
 
-        $lowerIndex = (int) $lower;
-        $upperIndex = (int) $upper;
+        return $lower <= $upper ? [$lower, $upper] : null;
+    }
 
-        return $lowerIndex <= $upperIndex ? [$lowerIndex, $upperIndex] : null;
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     */
+    private function pageLabelLimitOperand(string $value, array $objects, array $seen): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        if (preg_match('/^(\d+)\s+\d+\s+R$/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectId = (int) $match[1];
+        if ($objectId <= 0 || in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+            return null;
+        }
+
+        return $this->pageLabelLimitOperand($objects[$objectId]['body'], $objects, [...$seen, $objectId]);
     }
 
     /**
