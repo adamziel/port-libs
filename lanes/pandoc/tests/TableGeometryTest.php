@@ -59,6 +59,25 @@ $buildColspecTableDocument = static function (): AstNode {
     ]);
 };
 
+$buildDefaultColumnSpecDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Column spec audit',
+            'alignments' => ['left', 'bogus', 'right'],
+            'widths' => [0.1, 0, '0.45'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Declared'], [new AstNode('text', ['text' => 'Declared'])]),
+                    new AstNode('table_cell', ['text' => 'Default'], [new AstNode('text', ['text' => 'Default'])]),
+                    new AstNode('table_cell', ['text' => 'Right'], [new AstNode('text', ['text' => 'Right'])]),
+                    new AstNode('table_cell', ['text' => 'Implicit'], [new AstNode('text', ['text' => 'Implicit'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowHeadColumnDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -230,17 +249,37 @@ return [
     'preserves pandoc table colspec columns beyond physical row cells' => static function (TestRunner $t) use ($buildColspecTableDocument): void {
         $document = $buildColspecTableDocument();
         $table = $document->children[0];
+        $columnSpecs = TableGeometry::columnSpecs($table, 5);
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(4, TableGeometry::columnCount($table));
         $t->same(3, TableGeometry::columnCountForRows($table->children[0]->children));
         $t->same(['left', 'center', 'right', 'left'], TableGeometry::alignments($table, 4));
+        $t->same([0, 1, 2, 3, 4], array_map(static fn (array $spec): int => $spec['column'], $columnSpecs));
+        $t->same(['left', 'center', 'right', 'left', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], $columnSpecs));
+        $t->same([0.2, 0.25, 0.25, 0.3, null], array_map(static fn (array $spec): ?float => $spec['width'], $columnSpecs));
+        $t->same([true, true, true, true, false], array_map(static fn (array $spec): bool => $spec['declared'], $columnSpecs));
         $t->contains('| Scope    |   Items    |     Status |              |', $markdown);
         $t->contains('|:-------|:--------:|---------:|:-----------|', $markdown);
         $t->contains('| Posts    |     42     |      Ready |              |', $markdown);
         $t->contains('<colgroup><col style="width:20%"/><col style="width:25%"/><col style="width:25%"/><col style="width:30%"/></colgroup>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Import queue with reserved audit column</figcaption>', $blocks);
+    },
+    'normalizes declared and implicit pandoc column specs for review handoff' => static function (TestRunner $t) use ($buildDefaultColumnSpecDocument): void {
+        $document = $buildDefaultColumnSpecDocument();
+        $table = $document->children[0];
+        $columnSpecs = TableGeometry::columnSpecs($table, 5);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, TableGeometry::columnCount($table));
+        $t->same([0, 1, 2, 3, 4], array_map(static fn (array $spec): int => $spec['column'], $columnSpecs));
+        $t->same(['left', 'default', 'right', 'default', 'default'], array_map(static fn (array $spec): string => $spec['alignment'], $columnSpecs));
+        $t->same([0.1, null, 0.45, null, null], array_map(static fn (array $spec): ?float => $spec['width'], $columnSpecs));
+        $t->same([true, true, true, false, false], array_map(static fn (array $spec): bool => $spec['declared'], $columnSpecs));
+        $t->same([], TableGeometry::columnSpecs($table, -2));
+        $t->contains('<tbody><tr><td style="text-align:left">Declared</td><td>Default</td><td style="text-align:right">Right</td><td>Implicit</td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, '<colgroup>'), 'Invalid/default Pandoc widths should not emit a misleading WordPress colgroup');
     },
     'renders table body row head columns by visual column for wordpress handoff' => static function (TestRunner $t) use ($buildRowHeadColumnDocument): void {
         $document = $buildRowHeadColumnDocument();

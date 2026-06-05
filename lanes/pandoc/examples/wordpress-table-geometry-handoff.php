@@ -80,6 +80,17 @@ $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
     $migrationGrids = TableGeometry::sectionGrids($document->children[0]);
+    $columnSpecs = TableGeometry::columnSpecs($document->children[0], 5);
+    if (array_map(static fn (array $spec): string => $spec['alignment'], $columnSpecs) !== ['left', 'right', 'center', 'default', 'default']) {
+        throw new RuntimeException('Table geometry self-test missing normalized column alignment specs');
+    }
+    if (array_map(static fn (array $spec): ?float => $spec['width'], $columnSpecs) !== [0.25, 0.25, 0.25, 0.25, null]) {
+        throw new RuntimeException('Table geometry self-test missing normalized column width specs');
+    }
+    if (array_map(static fn (array $spec): bool => $spec['declared'], $columnSpecs) !== [true, true, true, true, false]) {
+        throw new RuntimeException('Table geometry self-test missing implicit column spec marker');
+    }
+
     if (($migrationGrids[0]['rows'][0][1]['kind'] ?? null) !== 'covered' || ($migrationGrids[0]['rows'][0][1]['covering'] ?? null) !== 'colspan') {
         throw new RuntimeException('Table geometry self-test missing head colspan covered-slot report');
     }

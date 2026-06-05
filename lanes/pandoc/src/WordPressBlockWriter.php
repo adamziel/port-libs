@@ -412,12 +412,13 @@ final class WordPressBlockWriter
         }
 
         $cols = [];
-        foreach ($widths as $width) {
-            if (!is_numeric($width) || (float) $width <= 0.0) {
+        foreach (TableGeometry::columnSpecs($node, count($widths)) as $spec) {
+            $width = $spec['width'];
+            if ($width === null) {
                 return '';
             }
 
-            $cols[] = '<col style="width:' . $this->esc($this->formatTableWidth((float) $width)) . '"/>';
+            $cols[] = '<col style="width:' . $this->esc($this->formatTableWidth($width)) . '"/>';
         }
 
         return '<colgroup>' . implode('', $cols) . '</colgroup>';

@@ -307,6 +307,39 @@ final class TableGeometry
         return 'default';
     }
 
+    /**
+     * @return list<array{column:int,alignment:string,width:?float,declared:bool}>
+     */
+    public static function columnSpecs(AstNode $table, int $columnCount): array
+    {
+        $columnCount = max(0, $columnCount);
+        $alignments = self::alignments($table, $columnCount);
+        $widths = $table->attr('widths', []);
+        if (!is_array($widths)) {
+            $widths = [];
+        } else {
+            $widths = array_values($widths);
+        }
+
+        $declaredColumnCount = self::declaredColumnCount($table);
+        $specs = [];
+        for ($column = 0; $column < $columnCount; $column++) {
+            $width = null;
+            if (array_key_exists($column, $widths) && is_numeric($widths[$column]) && (float) $widths[$column] > 0.0) {
+                $width = (float) $widths[$column];
+            }
+
+            $specs[] = [
+                'column' => $column,
+                'alignment' => $alignments[$column] ?? 'default',
+                'width' => $width,
+                'declared' => $column < $declaredColumnCount,
+            ];
+        }
+
+        return $specs;
+    }
+
     public static function rowHeadColumns(AstNode $body, int $columnCount): int
     {
         $value = $body->attr('rowHeadColumns', 0);
