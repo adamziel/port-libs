@@ -279,6 +279,32 @@ return [
         $t->true(!array_key_exists('url', $refs[1]), 'Supplied unsafe pdftext ref URLs remain review-only and are not replaced by synthesized anchors.');
         $t->same('page-9-3', $refs[1]['ref']);
     },
+    'rejects fractional pdftext reference integer metadata before anchor synthesis' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $fractionalPage = $pdftextLinkedPage();
+        $fractionalPage['refs'] = [[
+            'page' => 9.5,
+            'idx' => 2,
+            'coord' => [144.0, 216.0],
+        ]];
+
+        $fractionalDestinationPage = $pdftextLinkedPage();
+        $fractionalDestinationPage['refs'] = [[
+            'url' => '#appendix',
+            'dest_page' => 4.25,
+            'dest_pos' => [72.0, 144.0],
+        ]];
+
+        $fractionalIndex = $pdftextLinkedPage();
+        $fractionalIndex['refs'] = [[
+            'page' => 9,
+            'idx' => 2.5,
+            'coord' => [144.0, 216.0],
+        ]];
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalPage], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalDestinationPage], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalIndex], maxPages: 1));
+    },
     'honors pdftext disable_links at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['refs'][0]['raw_private_payload'] = 'hidden disabled-link ref payload';

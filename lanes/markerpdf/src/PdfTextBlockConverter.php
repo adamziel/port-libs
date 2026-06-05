@@ -335,6 +335,10 @@ final class PdfTextBlockConverter
     private function integerMetadata(mixed $value, string $field): int
     {
         $this->assertNumeric($value, $field);
+        $floatValue = (float) $value;
+        if (!is_finite($floatValue) || floor($floatValue) !== $floatValue) {
+            throw new InvalidArgumentException("pdftext {$field} must be an integer.");
+        }
 
         return (int) $value;
     }
