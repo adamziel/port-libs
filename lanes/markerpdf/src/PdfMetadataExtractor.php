@@ -628,6 +628,9 @@ final class PdfMetadataExtractor
         if ($value === null) {
             return [];
         }
+        if ($this->trimPdfWhitespaceAndComments($value) === 'null') {
+            return [];
+        }
 
         $base = [
             'source' => 'catalog_metadata_stream_boundary',

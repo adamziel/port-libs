@@ -23,6 +23,26 @@ $xmpMetadataBoundaryPdf = static function (
 };
 
 return [
+    'treats catalog Metadata null as absent before WordPress import' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf): void {
+        $pdf = $xmpMetadataBoundaryPdf(
+            'null',
+            'Null Metadata Boundary Body'
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['info'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same(['Metadata Boundary Author'], $metadata['authors']);
+        $t->same('Null Metadata Boundary Body', $plainText);
+        $t->same(false, isset($metadata['catalog']['metadata_stream_review']));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'catalog_metadata_stream_boundary'));
+    },
     'keeps direct catalog Metadata dictionaries review-only before WordPress import' => static function (
         TestRunner $t
     ) use ($xmpMetadataBoundaryPdf): void {
