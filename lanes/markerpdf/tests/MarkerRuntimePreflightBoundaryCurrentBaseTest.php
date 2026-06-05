@@ -956,6 +956,55 @@ return [
             $removeTree($root);
         }
     },
+    'records output-folder parent file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $root = $makeTempDir();
+        try {
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued pdf\n%%EOF");
+            $blockedParent = $root . DIRECTORY_SEPARATOR . 'blocked-parent';
+            $blockedOutput = $blockedParent . DIRECTORY_SEPARATOR . 'marker-output';
+            $missingMetadata = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+            file_put_contents($blockedParent, 'not a directory');
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $blockedOutput,
+                workers: 4,
+                metadataFile: $missingMetadata
+            );
+
+            $t->same('os.makedirs(out_folder, exist_ok=True)', $plan['paths']['output_folder_creation_call']);
+            $t->same('after_list_input_files_before_chunk_files', $plan['paths']['output_folder_creation_order']);
+            $t->same(false, $plan['paths']['output_path_exists']);
+            $t->same('missing', $plan['paths']['output_path_type']);
+            $t->same(false, $plan['paths']['output_folder_exists']);
+            $t->same(true, $plan['paths']['output_folder_creation_required']);
+            $t->same($blockedParent, $plan['paths']['output_folder_parent_path']);
+            $t->same(true, $plan['paths']['output_folder_parent_path_exists']);
+            $t->same('file', $plan['paths']['output_folder_parent_path_type']);
+            $t->same($blockedParent, $plan['paths']['output_folder_parent_conflict_path']);
+            $t->same('file', $plan['paths']['output_folder_parent_conflict_type']);
+            $t->same(true, $plan['paths']['output_folder_parent_creation_blocked']);
+            $t->same(true, $plan['paths']['output_folder_creation_blocked']);
+            $t->same('output-folder-parent-not-directory', $plan['paths']['output_folder_creation_error_boundary']);
+            $t->same('NotADirectoryError', $plan['paths']['output_folder_creation_error_class']);
+            $t->contains('Not a directory', (string) $plan['paths']['output_folder_creation_error_message']);
+            $t->same('queued.pdf', $plan['input_listing']['file_basenames'][0]);
+            $t->same('output-folder-create-failed', $plan['chunking']['chunk_error_boundary']);
+            $t->same(false, $plan['chunking']['chunking_reached']);
+            $t->same(false, $plan['metadata']['metadata_load_reached']);
+            $t->same($missingMetadata, $plan['metadata']['metadata_file']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same('output-folder-create-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $plan['console_summary']['summary_reached']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($root);
+        }
+    },
     'records malformed metadata json before model handoff and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

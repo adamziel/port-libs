@@ -1575,7 +1575,7 @@ final class BatchConverter
     }
 
     /**
-     * @return array{output_path_exists: bool, output_path_type: string, output_folder_exists: bool, upstream_creates_output_folder: true, native_plan_creates_output_folder: false, output_folder_creation_required: bool, output_folder_creation_call: string, output_folder_creation_order: string, output_folder_creation_blocked: bool, output_folder_creation_error_class: string|null, output_folder_creation_error_message: string|null}
+     * @return array{output_path_exists: bool, output_path_type: string, output_folder_exists: bool, output_folder_parent_path: string, output_folder_parent_path_exists: bool, output_folder_parent_path_type: string, output_folder_parent_conflict_path: string|null, output_folder_parent_conflict_type: string|null, output_folder_parent_creation_blocked: bool, upstream_creates_output_folder: true, native_plan_creates_output_folder: false, output_folder_creation_required: bool, output_folder_creation_call: string, output_folder_creation_order: string, output_folder_creation_blocked: bool, output_folder_creation_error_boundary: string|null, output_folder_creation_error_class: string|null, output_folder_creation_error_message: string|null}
      */
     private function outputFolderCreationPlan(string $absoluteOutputFolder): array
     {
@@ -1590,22 +1590,43 @@ final class BatchConverter
             $pathType = 'other';
         }
 
-        $blocked = $exists && !$isDirectory;
+        $parentPath = dirname($absoluteOutputFolder);
+        $parentConflict = $this->outputFolderParentConflict($absoluteOutputFolder);
+        $targetBlocked = $exists && !$isDirectory;
+        $parentBlocked = $parentConflict !== null;
+        $blocked = $targetBlocked || $parentBlocked;
+        $errorBoundary = null;
+        $errorClass = null;
+        $errorMessage = null;
+        if ($targetBlocked) {
+            $errorBoundary = 'output-folder-target-exists-not-directory';
+            $errorClass = 'FileExistsError';
+            $errorMessage = "[Errno 17] File exists: '" . $absoluteOutputFolder . "'";
+        } elseif ($parentBlocked) {
+            $errorBoundary = 'output-folder-parent-not-directory';
+            $errorClass = 'NotADirectoryError';
+            $errorMessage = "[Errno 20] Not a directory: '" . $absoluteOutputFolder . "'";
+        }
 
         return [
             'output_path_exists' => $exists,
             'output_path_type' => $pathType,
             'output_folder_exists' => $isDirectory,
+            'output_folder_parent_path' => $parentPath,
+            'output_folder_parent_path_exists' => file_exists($parentPath),
+            'output_folder_parent_path_type' => $this->filesystemPathType($parentPath),
+            'output_folder_parent_conflict_path' => $parentConflict['path'] ?? null,
+            'output_folder_parent_conflict_type' => $parentConflict['type'] ?? null,
+            'output_folder_parent_creation_blocked' => $parentBlocked,
             'upstream_creates_output_folder' => true,
             'native_plan_creates_output_folder' => false,
             'output_folder_creation_required' => !$isDirectory,
             'output_folder_creation_call' => 'os.makedirs(out_folder, exist_ok=True)',
             'output_folder_creation_order' => 'after_list_input_files_before_chunk_files',
             'output_folder_creation_blocked' => $blocked,
-            'output_folder_creation_error_class' => $blocked ? 'FileExistsError' : null,
-            'output_folder_creation_error_message' => $blocked
-                ? "[Errno 17] File exists: '" . $absoluteOutputFolder . "'"
-                : null,
+            'output_folder_creation_error_boundary' => $errorBoundary,
+            'output_folder_creation_error_class' => $errorClass,
+            'output_folder_creation_error_message' => $errorMessage,
         ];
     }
 
@@ -1661,6 +1682,29 @@ final class BatchConverter
             'skipped_non_file_basenames' => array_values($skippedNonFileBasenames),
             'non_pdf_file_basenames' => $this->nonPdfBasenames($fileBasenames),
         ];
+    }
+
+    /**
+     * @return array{path: string, type: string}|null
+     */
+    private function outputFolderParentConflict(string $absoluteOutputFolder): ?array
+    {
+        $parent = dirname($absoluteOutputFolder);
+        while ($parent !== '' && $parent !== dirname($parent)) {
+            if (file_exists($parent)) {
+                return is_dir($parent)
+                    ? null
+                    : ['path' => $parent, 'type' => $this->filesystemPathType($parent)];
+            }
+
+            $parent = dirname($parent);
+        }
+
+        if ($parent !== '' && file_exists($parent) && !is_dir($parent)) {
+            return ['path' => $parent, 'type' => $this->filesystemPathType($parent)];
+        }
+
+        return null;
     }
 
     /**

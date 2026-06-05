@@ -156,6 +156,15 @@ try {
         metadataFile: $missingMetadata,
         workers: 8
     );
+    $blockedOutputParent = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'blocked-parent';
+    $parentBlockedOutput = $blockedOutputParent . DIRECTORY_SEPARATOR . 'marker-output';
+    file_put_contents($blockedOutputParent, 'not a directory');
+    $outputParentConflictPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $parentBlockedOutput,
+        metadataFile: $missingMetadata,
+        workers: 8
+    );
     $malformedMetadata = $output . DIRECTORY_SEPARATOR . 'malformed-metadata.json';
     file_put_contents($malformedMetadata, '{"ready-for-marker.pdf": {"title": "Ready"');
     $metadataErrorPlan = $batch->runtimeMainPreflightPlan(
@@ -355,6 +364,19 @@ try {
         || $outputConflictPlan['console_summary']['blocked_by'] !== 'output-folder-create-failed'
     ) {
         throw new RuntimeException('Expected output-folder file conflicts to block before metadata loading, conversion summary, or worker-pool planning.');
+    }
+    if (
+        $outputParentConflictPlan['paths']['output_folder_creation_blocked'] !== true
+        || $outputParentConflictPlan['paths']['output_path_type'] !== 'missing'
+        || $outputParentConflictPlan['paths']['output_folder_parent_conflict_path'] !== $blockedOutputParent
+        || $outputParentConflictPlan['paths']['output_folder_parent_conflict_type'] !== 'file'
+        || $outputParentConflictPlan['paths']['output_folder_creation_error_boundary'] !== 'output-folder-parent-not-directory'
+        || $outputParentConflictPlan['paths']['output_folder_creation_error_class'] !== 'NotADirectoryError'
+        || $outputParentConflictPlan['metadata']['metadata_load_reached'] !== false
+        || $outputParentConflictPlan['worker_pool']['task_args_count'] !== 0
+        || $outputParentConflictPlan['console_summary']['summary_reached'] !== false
+    ) {
+        throw new RuntimeException('Expected output-folder parent file conflicts to block at os.makedirs before metadata, task args, summary, or worker launch.');
     }
     if (
         $missingInputBoundary['success'] !== false
@@ -589,6 +611,14 @@ try {
         'output_conflict_pool_error_boundary' => $outputConflictPlan['worker_pool']['pool_error_boundary'],
         'output_conflict_conversion_summary_reached' => $outputConflictPlan['console_summary']['summary_reached'],
         'output_conflict_conversion_summary_blocked_by' => $outputConflictPlan['console_summary']['blocked_by'],
+        'output_parent_conflict_creation_blocked' => $outputParentConflictPlan['paths']['output_folder_creation_blocked'],
+        'output_parent_conflict_path_type' => $outputParentConflictPlan['paths']['output_path_type'],
+        'output_parent_conflict_parent_path_type' => $outputParentConflictPlan['paths']['output_folder_parent_conflict_type'],
+        'output_parent_conflict_error_boundary' => $outputParentConflictPlan['paths']['output_folder_creation_error_boundary'],
+        'output_parent_conflict_error_class' => $outputParentConflictPlan['paths']['output_folder_creation_error_class'],
+        'output_parent_conflict_metadata_load_reached' => $outputParentConflictPlan['metadata']['metadata_load_reached'],
+        'output_parent_conflict_task_args_count' => $outputParentConflictPlan['worker_pool']['task_args_count'],
+        'output_parent_conflict_conversion_summary_reached' => $outputParentConflictPlan['console_summary']['summary_reached'],
         'missing_input_boundary_success' => $missingInputBoundary['success'],
         'missing_input_boundary_error' => $missingInputBoundary['error_boundary'],
         'missing_input_boundary_error_class' => $missingInputBoundary['error_class'],
