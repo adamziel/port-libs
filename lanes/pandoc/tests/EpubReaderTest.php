@@ -60,6 +60,29 @@ $opfXml = <<<'XML'
 </package>
 XML;
 
+$alternateOpfXml = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="fixed-id" xml:lang="en">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="fixed-id">urn:uuid:wp-epub-fixed-layout-42</dc:identifier>
+    <dc:title>Fixed layout reviewer edition</dc:title>
+    <dc:creator>Migration Layout Desk</dc:creator>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-04T22:10:00Z</meta>
+    <meta property="rendition:layout">pre-paginated</meta>
+    <meta property="rendition:orientation">landscape</meta>
+    <meta property="rendition:spread">none</meta>
+    <meta property="rendition:viewport">width=1024, height=768</meta>
+  </metadata>
+  <manifest>
+    <item id="fixed-nav" href="fixed-nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="fixed-page" href="fixed-page.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="fixed-page"/>
+  </spine>
+</package>
+XML;
+
 $navXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <head><title>Navigation</title></head>
@@ -259,6 +282,59 @@ return [
         $t->same('/OEBPS/text/chapter1.xhtml', $document->children[0]->attr('part'));
         $t->contains('Chapter XHTML stays available', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
+    },
+    'summarizes alternate EPUB rootfile renditions without changing selected spine' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
+        $multiRootContainer = str_replace(
+            '</rootfiles>',
+            '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml"/>' . "\n" . '  </rootfiles>',
+            $containerXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $multiRootContainer,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml],
+            ]
+        ));
+
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same(2, count($result['container']['rootfiles']));
+        $t->same(true, $result['container']['rootfiles'][0]['selected']);
+        $t->same(false, $result['container']['rootfiles'][1]['selected']);
+        $t->same(2, $result['renditions']['count']);
+        $t->same(1, $result['renditions']['alternateCount']);
+        $t->same('/OEBPS/package.opf', $result['renditions']['selectedPath']);
+        $t->same(0, $result['renditions']['selectedIndex']);
+        $t->same([], $result['renditions']['diagnostics']);
+
+        $selected = $result['renditions']['items'][0];
+        $alternate = $result['renditions']['items'][1];
+        $t->same(true, $selected['selected']);
+        $t->same('/OEBPS/package.opf', $selected['path']);
+        $t->same('WordPress Import EPUB', $selected['metadata']['title']);
+        $t->same(6, $selected['manifestCount']);
+        $t->same(2, $selected['spineCount']);
+        $t->same([], $selected['renditionProperties']);
+
+        $t->same(false, $alternate['selected']);
+        $t->same('/OEBPS/fixed/package.opf', $alternate['path']);
+        $t->same(true, $alternate['exists']);
+        $t->same('Fixed layout reviewer edition', $alternate['metadata']['title']);
+        $t->same('urn:uuid:wp-epub-fixed-layout-42', $alternate['metadata']['identifier']);
+        $t->same(['Migration Layout Desk'], $alternate['metadata']['creators']);
+        $t->same('2026-06-04T22:10:00Z', $alternate['metadata']['modified']);
+        $t->same('pre-paginated', $alternate['renditionProperties']['layout']);
+        $t->same('landscape', $alternate['renditionProperties']['orientation']);
+        $t->same('none', $alternate['renditionProperties']['spread']);
+        $t->same('width=1024, height=768', $alternate['renditionProperties']['viewport']);
+        $t->same(2, $alternate['manifestCount']);
+        $t->same(1, $alternate['spineCount']);
+        $t->same([], $alternate['diagnostics']);
+        $t->same($result['renditions'], $result['importReport']['renditions']);
+        $t->same($result['renditions'], $result['document']->attr('renditions'));
+        $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['part']);
+        $t->same(2, count($result['document']->children));
     },
     'parses EPUB3 nav and legacy NCX table of contents targets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());

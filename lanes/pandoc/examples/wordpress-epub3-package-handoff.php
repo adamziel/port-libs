@@ -12,6 +12,7 @@ $containerXml = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
   <rootfiles>
     <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/fixed/package.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
 </container>
 XML;
@@ -51,6 +52,29 @@ $opfXml = <<<'XML'
     <link rel="first" href="text/chapter.xhtml#source" media-type="application/xhtml+xml" properties="preview"/>
     <link rel="record" href="https://example.invalid/wp-source" media-type="text/html"/>
   </collection>
+</package>
+XML;
+
+$alternateOpfXml = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="fixed-id" xml:lang="en">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="fixed-id">urn:uuid:wordpress-epub-fixed-layout</dc:identifier>
+    <dc:title>WordPress EPUB fixed-layout review packet</dc:title>
+    <dc:creator>Migration Layout Desk</dc:creator>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-04T22:15:00Z</meta>
+    <meta property="rendition:layout">pre-paginated</meta>
+    <meta property="rendition:orientation">landscape</meta>
+    <meta property="rendition:spread">none</meta>
+    <meta property="rendition:viewport">width=1024, height=768</meta>
+  </metadata>
+  <manifest>
+    <item id="fixed-nav" href="fixed-nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="fixed-page" href="fixed-page.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="fixed-page"/>
+  </spine>
 </package>
 XML;
 
@@ -139,6 +163,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
     ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
+    ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
     ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smilXml],
@@ -196,6 +221,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['collections'][0]['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-collection-link') {
         throw new RuntimeException('Expected EPUB OPF collection external link to be reported without fetching');
     }
+    if (($result['renditions']['count'] ?? null) !== 2 || ($result['renditions']['alternateCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB multiple rootfile renditions to be summarized');
+    }
+    if (($result['renditions']['items'][0]['selected'] ?? null) !== true || ($result['renditions']['items'][0]['path'] ?? null) !== '/EPUB/package.opf') {
+        throw new RuntimeException('Expected EPUB primary rendition to remain selected');
+    }
+    if (($result['renditions']['items'][1]['metadata']['title'] ?? null) !== 'WordPress EPUB fixed-layout review packet') {
+        throw new RuntimeException('Expected alternate EPUB rendition metadata title');
+    }
+    if (($result['renditions']['items'][1]['renditionProperties']['layout'] ?? null) !== 'pre-paginated') {
+        throw new RuntimeException('Expected alternate EPUB rendition layout metadata');
+    }
+    if (($result['document']->attr('renditions')['alternateCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB document attrs to expose rendition review metadata');
+    }
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
@@ -241,6 +281,9 @@ echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
 echo 'guideTextTarget=' . ($result['guide']['items'][0]['target'] ?? '') . "\n";
 echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";
 echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target'] ?? '') . "\n";
+echo 'renditions=' . ($result['renditions']['count'] ?? 0) . "\n";
+echo 'alternateRenditionTitle=' . ($result['renditions']['items'][1]['metadata']['title'] ?? '') . "\n";
+echo 'alternateRenditionLayout=' . ($result['renditions']['items'][1]['renditionProperties']['layout'] ?? '') . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
