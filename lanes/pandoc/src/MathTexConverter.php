@@ -1411,9 +1411,167 @@ final class MathTexConverter
 
     private function parseMathVariantCommand(string $source, int &$offset, string $command): string
     {
-        return '<mstyle mathvariant="' . self::MATH_VARIANT_COMMANDS[$command] . '">'
-            . $this->parseMathVariantArgument($source, $offset, $command)
+        $variant = self::MATH_VARIANT_COMMANDS[$command];
+
+        return '<mstyle mathvariant="' . $variant . '">'
+            . $this->rewriteMathVariantIdentifiers($this->parseMathVariantArgument($source, $offset, $command), $variant)
             . '</mstyle>';
+    }
+
+    private function rewriteMathVariantIdentifiers(string $mathml, string $variant): string
+    {
+        $rewritten = preg_replace_callback('/<mi>([A-Za-z0-9])<\/mi>/', function (array $matches) use ($variant): string {
+            $character = $this->mathVariantUnicodeCharacter($variant, $matches[1]) ?? $matches[1];
+
+            return '<mi>' . $this->esc($character) . '</mi>';
+        }, $mathml);
+
+        if (!is_string($rewritten)) {
+            return $mathml;
+        }
+
+        $withNumbers = preg_replace_callback('/<mn>([0-9]+)<\/mn>/', function (array $matches) use ($variant): string {
+            $digits = '';
+            for ($offset = 0; $offset < strlen($matches[1]); $offset++) {
+                $digit = $matches[1][$offset];
+                $digits .= $this->mathVariantUnicodeCharacter($variant, $digit) ?? $digit;
+            }
+
+            return '<mn>' . $this->esc($digits) . '</mn>';
+        }, $rewritten);
+
+        return is_string($withNumbers) ? $withNumbers : $rewritten;
+    }
+
+    private function mathVariantUnicodeCharacter(string $variant, string $character): ?string
+    {
+        $codepoint = $this->mathVariantUnicodeCodepoint($variant, $character);
+        if ($codepoint === null) {
+            return null;
+        }
+
+        return $this->utf8FromCodepoint($codepoint);
+    }
+
+    private function mathVariantUnicodeCodepoint(string $variant, string $character): ?int
+    {
+        $ord = ord($character);
+
+        return match ($variant) {
+            'bold' => $this->mathVariantOffsetCodepoint($ord, 0x1D400, 0x1D41A, 0x1D7CE),
+            'double-struck' => $this->mathDoubleStruckCodepoint($ord, $character),
+            'fraktur' => $this->mathFrakturCodepoint($ord, $character),
+            'italic' => $this->mathItalicCodepoint($ord, $character),
+            'monospace' => $this->mathVariantOffsetCodepoint($ord, 0x1D670, 0x1D68A, 0x1D7F6),
+            'sans-serif' => $this->mathVariantOffsetCodepoint($ord, 0x1D5A0, 0x1D5BA, 0x1D7E2),
+            'script' => $this->mathScriptCodepoint($ord, $character),
+            default => null,
+        };
+    }
+
+    private function mathVariantOffsetCodepoint(int $ord, int $uppercaseBase, int $lowercaseBase, ?int $digitBase): ?int
+    {
+        if ($ord >= 65 && $ord <= 90) {
+            return $uppercaseBase + ($ord - 65);
+        }
+
+        if ($ord >= 97 && $ord <= 122) {
+            return $lowercaseBase + ($ord - 97);
+        }
+
+        if ($digitBase !== null && $ord >= 48 && $ord <= 57) {
+            return $digitBase + ($ord - 48);
+        }
+
+        return null;
+    }
+
+    private function mathDoubleStruckCodepoint(int $ord, string $character): ?int
+    {
+        $exceptions = [
+            'C' => 0x2102,
+            'H' => 0x210D,
+            'N' => 0x2115,
+            'P' => 0x2119,
+            'Q' => 0x211A,
+            'R' => 0x211D,
+            'Z' => 0x2124,
+        ];
+        if (isset($exceptions[$character])) {
+            return $exceptions[$character];
+        }
+
+        return $this->mathVariantOffsetCodepoint($ord, 0x1D538, 0x1D552, 0x1D7D8);
+    }
+
+    private function mathFrakturCodepoint(int $ord, string $character): ?int
+    {
+        $exceptions = [
+            'C' => 0x212D,
+            'H' => 0x210C,
+            'I' => 0x2111,
+            'R' => 0x211C,
+            'Z' => 0x2128,
+        ];
+        if (isset($exceptions[$character])) {
+            return $exceptions[$character];
+        }
+
+        return $this->mathVariantOffsetCodepoint($ord, 0x1D504, 0x1D51E, null);
+    }
+
+    private function mathItalicCodepoint(int $ord, string $character): ?int
+    {
+        if ($character === 'h') {
+            return 0x210E;
+        }
+
+        return $this->mathVariantOffsetCodepoint($ord, 0x1D434, 0x1D44E, null);
+    }
+
+    private function mathScriptCodepoint(int $ord, string $character): ?int
+    {
+        $exceptions = [
+            'B' => 0x212C,
+            'E' => 0x2130,
+            'F' => 0x2131,
+            'H' => 0x210B,
+            'I' => 0x2110,
+            'L' => 0x2112,
+            'M' => 0x2133,
+            'R' => 0x211B,
+            'e' => 0x212F,
+            'g' => 0x210A,
+            'o' => 0x2134,
+        ];
+        if (isset($exceptions[$character])) {
+            return $exceptions[$character];
+        }
+
+        return $this->mathVariantOffsetCodepoint($ord, 0x1D49C, 0x1D4B6, null);
+    }
+
+    private function utf8FromCodepoint(int $codepoint): string
+    {
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3F))
+            . chr(0x80 | (($codepoint >> 6) & 0x3F))
+            . chr(0x80 | ($codepoint & 0x3F));
     }
 
     private function parseExplicitSpaceCommand(string $source, int &$offset, string $command): string

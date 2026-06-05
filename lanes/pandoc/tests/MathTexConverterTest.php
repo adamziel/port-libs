@@ -475,20 +475,35 @@ return [
     },
     'converts bounded tex math alphabet variants to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
+        $u = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $variantMathml = $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code}', true);
         $scriptVariantMathml = $converter->texToMathMl('\\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i');
         $singleTokenMathml = $converter->texToMathMl('\\mathbf x + \\mathbb R');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $variantMathml);
         $t->contains('<mstyle mathvariant="normal"><mi>d</mi></mstyle><mi>x</mi>', $variantMathml);
-        $t->contains('<mstyle mathvariant="bold"><msub><mi>v</mi><mi>i</mi></msub></mstyle>', $variantMathml);
-        $t->contains('<mstyle mathvariant="italic"><mi>n</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mi>S</mi></mstyle>', $variantMathml);
-        $t->contains('<mstyle mathvariant="monospace"><mrow><mi>c</mi><mi>o</mi><mi>d</mi><mi>e</mi></mrow></mstyle>', $variantMathml);
+        $t->contains('<mstyle mathvariant="bold"><msub><mi>' . $u(0x1D42F) . '</mi><mi>' . $u(0x1D422) . '</mi></msub></mstyle>', $variantMathml);
+        $t->contains('<mstyle mathvariant="italic"><mi>' . $u(0x1D45B) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mi>' . $u(0x1D5B2) . '</mi></mstyle>', $variantMathml);
+        $t->contains('<mstyle mathvariant="monospace"><mrow><mi>' . $u(0x1D68C) . '</mi><mi>' . $u(0x1D698) . '</mi><mi>' . $u(0x1D68D) . '</mi><mi>' . $u(0x1D68E) . '</mi></mrow></mstyle>', $variantMathml);
         $t->contains('<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code}</annotation>', $variantMathml);
-        $t->contains('<msub><mstyle mathvariant="script"><mi>F</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>R</mi></mstyle>', $scriptVariantMathml);
-        $t->contains('<mstyle mathvariant="fraktur"><mi>g</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>L</mi></mstyle>', $scriptVariantMathml);
+        $t->contains('<msub><mstyle mathvariant="script"><mi>' . $u(0x2131) . '</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $u(0x211D) . '</mi></mstyle>', $scriptVariantMathml);
+        $t->contains('<mstyle mathvariant="fraktur"><mi>' . $u(0x1D524) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>' . $u(0x2112) . '</mi></mstyle>', $scriptVariantMathml);
         $t->contains('<msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub>', $scriptVariantMathml);
-        $t->contains('<mstyle mathvariant="bold"><mi>x</mi></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mi>R</mi></mstyle>', $singleTokenMathml);
+        $t->contains('<mstyle mathvariant="bold"><mi>' . $u(0x1D431) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $u(0x211D) . '</mi></mstyle>', $singleTokenMathml);
+    },
+    'rewrites bounded tex math alphabet ascii runs to unicode alphanumeric mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $u = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $alphabetMathml = $converter->texToMathMl('\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}', true);
+        $safeFallbackMathml = $converter->texToMathMl('\\mathit{h} + \\boldsymbol{\\alpha}_i + \\mathrm{d}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alphabetMathml);
+        $t->contains('<mstyle mathvariant="double-struck"><mrow><mi>' . $u(0x1D538) . '</mi><mi>' . $u(0x2124) . '</mi><mn>' . $u(0x1D7D8) . $u(0x1D7E1) . '</mn></mrow></mstyle>', $alphabetMathml);
+        $t->contains('<mstyle mathvariant="script"><mrow><mi>' . $u(0x2131) . '</mi><mi>' . $u(0x2112) . '</mi><mi>' . $u(0x1D4AA) . '</mi></mrow></mstyle>', $alphabetMathml);
+        $t->contains('<mstyle mathvariant="fraktur"><mrow><mi>' . $u(0x1D524) . '</mi><mi>' . $u(0x211C) . '</mi></mrow></mstyle>', $alphabetMathml);
+        $t->contains('<mstyle mathvariant="monospace"><mrow><mi>' . $u(0x1D68C) . '</mi><mi>' . $u(0x1D698) . '</mi><mi>' . $u(0x1D68D) . '</mi><mi>' . $u(0x1D68E) . '</mi><mn>' . $u(0x1D7FA) . $u(0x1D7F8) . '</mn></mrow></mstyle>', $alphabetMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>', $alphabetMathml);
+        $t->contains('<mstyle mathvariant="italic"><mi>' . $u(0x210E) . '</mi></mstyle><mo>+</mo><msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub><mo>+</mo><mstyle mathvariant="normal"><mi>d</mi></mstyle>', $safeFallbackMathml);
     },
     'rejects malformed bounded tex color phantom cancel and variant commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

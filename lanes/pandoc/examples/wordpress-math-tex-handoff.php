@@ -35,6 +35,8 @@ Overlap layout audit $\smash{\frac{a}{b}} + \smash[t]{p_i} + \smash[b]{m_i} + \m
 
 Math alphabet audit $\mathrm{d}x + \mathbf{v_i} + \mathit{n} + \mathsf{S} + \mathtt{code} + \mathcal{F}_n + \mathbb{R} + \mathfrak{g} + \mathscr{L} + \boldsymbol{\alpha}_i$ stays semantic.
 
+Math alphanumeric audit $\mathbb{AZ09} + \mathcal{FLO} + \mathfrak{gR} + \mathtt{code42}$ keeps Unicode MathML review glyphs.
+
 Stacked limits audit $\sum_{\substack{i=1 \\ i\ne j}}^{n} a_i + \lim_{\substack{x \to 0 \\ x > 0}} f(x)$ stays semantic.
 
 AMS layout audit $\begin{align}f(p_i) &= m_i \\ g(p_i) &= \frac{a_i}{b_i}\end{align} + \begin{gathered}x+y \\ z\end{gathered} + \begin{split}S &= \sum_{i=1}^{n} p_i \\ &= \frac{a}{b}\end{split}$ stays semantic.
@@ -102,6 +104,7 @@ $summary = [
     'colorPhantomCancelMathml' => $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}'),
     'smashOverlapMathml' => $converter->texToMathMl('\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}'),
     'mathVariantMathml' => $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i'),
+    'mathAlphanumericMathml' => $converter->texToMathMl('\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}'),
     'substackMathml' => $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)'),
     'amsEnvironmentMathml' => $converter->texToMathMl('\\begin{align}f(p_i) &= m_i \\\\ g(p_i) &= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &= \\sum_{i=1}^{n} p_i \\\\ &= \\frac{a}{b}\\end{split}'),
     'alignedAtMathml' => $converter->texToMathMl('\\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\\\ x &= y & u &= v\\end{alignedat}'),
@@ -140,6 +143,8 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test left bounded macro unexpanded');
     }
 
+    $mathSymbol = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
     foreach ([
         '<span class="math inline">\\(\\langle post_id,media_id \\rangle\\)</span>',
         '<span class="math inline">\\(\\wpreview{p_i} + \\wpreview[final]{m_i}\\)</span>',
@@ -150,6 +155,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}\\)</span>',
         '<span class="math inline">\\(\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}\\)</span>',
         '<span class="math inline">\\(\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i\\)</span>',
+        '<span class="math inline">\\(\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}\\)</span>',
         '<span class="math inline">\\(\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)\\)</span>',
         '<span class="math inline">\\(\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}\\)</span>',
         '<span class="math inline">\\(\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}\\)</span>',
@@ -213,12 +219,16 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mpadded width="0"><msub><mi>R</mi><mi>i</mi></msub></mpadded>',
         '<mpadded width="0" lspace="-0.5width"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></mpadded>',
         '<mstyle mathvariant="normal"><mi>d</mi></mstyle><mi>x</mi>',
-        '<mstyle mathvariant="bold"><msub><mi>v</mi><mi>i</mi></msub></mstyle>',
-        '<mstyle mathvariant="italic"><mi>n</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mi>S</mi></mstyle>',
-        '<mstyle mathvariant="monospace"><mrow><mi>c</mi><mi>o</mi><mi>d</mi><mi>e</mi></mrow></mstyle>',
-        '<msub><mstyle mathvariant="script"><mi>F</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>R</mi></mstyle>',
-        '<mstyle mathvariant="fraktur"><mi>g</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>L</mi></mstyle>',
+        '<mstyle mathvariant="bold"><msub><mi>' . $mathSymbol(0x1D42F) . '</mi><mi>' . $mathSymbol(0x1D422) . '</mi></msub></mstyle>',
+        '<mstyle mathvariant="italic"><mi>' . $mathSymbol(0x1D45B) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mi>' . $mathSymbol(0x1D5B2) . '</mi></mstyle>',
+        '<mstyle mathvariant="monospace"><mrow><mi>' . $mathSymbol(0x1D68C) . '</mi><mi>' . $mathSymbol(0x1D698) . '</mi><mi>' . $mathSymbol(0x1D68D) . '</mi><mi>' . $mathSymbol(0x1D68E) . '</mi></mrow></mstyle>',
+        '<msub><mstyle mathvariant="script"><mi>' . $mathSymbol(0x2131) . '</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $mathSymbol(0x211D) . '</mi></mstyle>',
+        '<mstyle mathvariant="fraktur"><mi>' . $mathSymbol(0x1D524) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>' . $mathSymbol(0x2112) . '</mi></mstyle>',
         '<msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub>',
+        '<mstyle mathvariant="double-struck"><mrow><mi>' . $mathSymbol(0x1D538) . '</mi><mi>' . $mathSymbol(0x2124) . '</mi><mn>' . $mathSymbol(0x1D7D8) . $mathSymbol(0x1D7E1) . '</mn></mrow></mstyle>',
+        '<mstyle mathvariant="script"><mrow><mi>' . $mathSymbol(0x2131) . '</mi><mi>' . $mathSymbol(0x2112) . '</mi><mi>' . $mathSymbol(0x1D4AA) . '</mi></mrow></mstyle>',
+        '<mstyle mathvariant="fraktur"><mrow><mi>' . $mathSymbol(0x1D524) . '</mi><mi>' . $mathSymbol(0x211C) . '</mi></mrow></mstyle>',
+        '<mstyle mathvariant="monospace"><mrow><mi>' . $mathSymbol(0x1D68C) . '</mi><mi>' . $mathSymbol(0x1D698) . '</mi><mi>' . $mathSymbol(0x1D68D) . '</mi><mi>' . $mathSymbol(0x1D68E) . '</mi><mn>' . $mathSymbol(0x1D7FA) . $mathSymbol(0x1D7F8) . '</mn></mrow></mstyle>',
         '<msubsup><mo>∑</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>i</mi><mo>=</mo><mn>1</mn></mtd></mtr><mtr><mtd><mi>i</mi><mo>≠</mo><mi>j</mi></mtd></mtr></mtable><mi>n</mi></msubsup><msub><mi>a</mi><mi>i</mi></msub>',
         '<msub><mo>lim</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>x</mi><mo>→</mo><mn>0</mn></mtd></mtr><mtr><mtd><mi>x</mi><mo>&gt;</mo><mn>0</mn></mtd></mtr></mtable></msub><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>',
         '<mtable columnalign="right left"><mtr><mtd><mi>f</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mi>g</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo></mtd><mtd><mo>=</mo><mfrac><msub><mi>a</mi><mi>i</mi></msub><msub><mi>b</mi><mi>i</mi></msub></mfrac></mtd></mtr></mtable>',
@@ -248,6 +258,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}</annotation>',
         '<annotation encoding="application/x-tex">\\smash{\\frac{a}{b}} + \\smash[t]{p_i} + \\smash[b]{m_i} + \\mathllap{L_i} + \\mathrlap{R_i} + \\mathclap{x+y}</annotation>',
         '<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i</annotation>',
+        '<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>',
         '<annotation encoding="application/x-tex">\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>',
         '<annotation encoding="application/x-tex">\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}</annotation>',
