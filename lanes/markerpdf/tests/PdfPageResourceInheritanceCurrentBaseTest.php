@@ -439,6 +439,43 @@ $pageResourceEntryWrapperCurrentBasePdf = static function () use ($pageResourceI
         . "%%EOF";
 };
 
+$pageResourceDuplicateResourcesCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'BT /F1 12 Tf 72 720 Td <41> Tj T* /Span /DupActual BDC <42> Tj EMC ET q /CurrentForm Do Q q /StaleForm Do Q';
+    $currentForm = 'BT /F1 12 Tf 12 24 Td <43> Tj ET';
+    $staleForm = 'BT /F1 12 Tf 12 24 Td <44> Tj ET';
+    $nestedDecoyForm = 'BT /F1 12 Tf 12 24 Td (Nested duplicate resource decoy leak) Tj ET';
+    $currentCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Current duplicate resource font text',
+        '42' => 'Current duplicate resource actual glyph',
+        '43' => 'Current duplicate resource form text',
+    ]);
+    $staleCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Stale duplicate resource font leak',
+        '42' => 'Stale duplicate resource actual glyph leak',
+        '44' => 'Stale duplicate resource form leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 50 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources 20 0 R /PieceInfo << /WPReview << /Private << /Resources 40 0 R >> >> >> /Resources 30 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /StaleDuplicateResourceFont /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($staleCMap) . " >>\nstream\n{$staleCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($staleForm) . " >>\nstream\n{$staleForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /ActualText (Stale duplicate resource ActualText leak) >>\nendobj\n"
+        . "9 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CurrentDuplicateResourceFont /Encoding /Identity-H /ToUnicode 10 0 R >>\nendobj\n"
+        . "10 0 obj\n<< /Length " . strlen($currentCMap) . " >>\nstream\n{$currentCMap}\nendstream\nendobj\n"
+        . "11 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($currentForm) . " >>\nstream\n{$currentForm}\nendstream\nendobj\n"
+        . "12 0 obj\n<< /ActualText (Current duplicate resource ActualText) >>\nendobj\n"
+        . "20 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /StaleForm 7 0 R >> /Properties << /DupActual 8 0 R >> >>\nendobj\n"
+        . "30 0 obj\n<< /Font << /F1 9 0 R >> /XObject << /CurrentForm 11 0 R >> /Properties << /DupActual 12 0 R >> >>\nendobj\n"
+        . "40 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /CurrentForm 41 0 R >> >>\nendobj\n"
+        . "41 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($nestedDecoyForm) . " >>\nstream\n{$nestedDecoyForm}\nendstream\nendobj\n"
+        . "50 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /StaleForm 7 0 R >> /Properties << /DupActual 8 0 R >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -826,5 +863,36 @@ return [
         $t->same(false, str_contains($plainText, 'Wrapped entry actual text glyph'));
         $t->same(false, str_contains($plainText, 'Fwrapped'));
         $t->same(false, str_contains($plainText, 'WrappedForm'));
+    },
+    'uses the last top-level page Resources entry before nested decoys and stale duplicates' => static function (TestRunner $t) use ($pageResourceDuplicateResourcesCurrentBasePdf): void {
+        $pdf = $pageResourceDuplicateResourcesCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resources = $boundary[0]['resources'] ?? [];
+        $expected = [
+            'Current duplicate resource font text',
+            'Current duplicate resource ActualText',
+            'Current duplicate resource form text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(false, $resources['inherited'] ?? null);
+        $t->same(3, $resources['resource_owner_object'] ?? null);
+        $t->same(30, $resources['resource_object'] ?? null);
+        $t->same(0, $resources['resource_generation'] ?? null);
+        $t->same(['Font', 'XObject', 'Properties'], $resources['categories'] ?? null);
+        $t->same(['F1'], $resources['font_names'] ?? null);
+        $t->same(['CurrentForm'], $resources['xobject_names'] ?? null);
+        $t->same(['DupActual'], $resources['properties_names'] ?? null);
+        $t->same(false, str_contains($plainText, 'Stale duplicate resource font leak'));
+        $t->same(false, str_contains($plainText, 'Stale duplicate resource ActualText leak'));
+        $t->same(false, str_contains($plainText, 'Stale duplicate resource form leak'));
+        $t->same(false, str_contains($plainText, 'Nested duplicate resource decoy leak'));
+        $t->same(false, str_contains($plainText, 'CurrentForm'));
+        $t->same(false, str_contains($plainText, 'StaleForm'));
     },
 ];

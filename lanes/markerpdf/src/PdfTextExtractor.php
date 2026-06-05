@@ -3803,7 +3803,7 @@ final class PdfTextExtractor
      */
     private function formXObjectResourcesInheritInvoker(string $formBody, array $objects): bool
     {
-        $value = $this->topLevelPdfValueAfterName($formBody, 'Resources');
+        $value = $this->topLevelPdfLastValueAfterName($formBody, 'Resources');
         if ($value === null) {
             return true;
         }
@@ -15942,7 +15942,7 @@ final class PdfTextExtractor
      */
     private function pageResourceDictionaryResolution(string $objectBody, array $objects): array
     {
-        $value = $this->topLevelPdfValueAfterName($objectBody, 'Resources');
+        $value = $this->topLevelPdfLastValueAfterName($objectBody, 'Resources');
         if ($value === null) {
             return ['state' => 'inherit'];
         }
@@ -16012,7 +16012,7 @@ final class PdfTextExtractor
      */
     private function resourceDictionaryBody(string $objectBody, array $objects): ?string
     {
-        $value = $this->topLevelPdfValueAfterName($objectBody, 'Resources');
+        $value = $this->topLevelPdfLastValueAfterName($objectBody, 'Resources');
         if ($value === null) {
             return null;
         }
@@ -18838,6 +18838,16 @@ final class PdfTextExtractor
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
 
         return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+    }
+
+    private function topLevelPdfLastValueAfterName(string $body, string $name): ?string
+    {
+        $values = $this->topLevelPdfValuesAfterName($body, $name);
+        if ($values === []) {
+            return null;
+        }
+
+        return $values[count($values) - 1];
     }
 
     private function topLevelPdfEncryptValueAfterName(string $body): ?string
