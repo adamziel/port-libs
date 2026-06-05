@@ -179,6 +179,69 @@ return [
         $t->same(true, $files[0]['checksum_matches']);
     },
 
+    'ignores DecodeParms aligned to null attachment filters before embedded-file extraction' => static function (TestRunner $t) use ($asciiHex, $pngSubPredictorEncode, $pdfPrefix): void {
+        $payload = "Title,Status\nNull Slot Attachment,Ready\n";
+        $columns = strlen($payload);
+        $compressed = gzcompress($pngSubPredictorEncode($payload, $columns));
+        if (!is_string($compressed)) {
+            throw new RuntimeException('Unable to compress null-slot DecodeParms attachment fixture.');
+        }
+
+        $leakingPayload = 'NULL_SLOT_ATTACHMENT_LEAK_SHOULD_NOT_COUNT';
+        $leakingCompressed = gzcompress($leakingPayload);
+        if (!is_string($leakingCompressed)) {
+            throw new RuntimeException('Unable to compress leaking null-slot attachment fixture.');
+        }
+
+        $hex = $asciiHex($compressed);
+        $leakingHex = $asciiHex($leakingCompressed);
+        $checksum = md5($payload);
+        $leakingChecksum = md5($leakingPayload);
+        $pdf = $pdfPrefix(
+            '<< /Names [(null-slot.csv) 10 0 R (leaking-null-slot.bin) 12 0 R] >>',
+            "10 0 obj\n<< /Type /Filespec /F (null-slot.csv) /Desc (Null filter DecodeParms rows) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+                . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ null /ASCIIHexDecode /FlateDecode ] /DecodeParms [ 99 0 R null << /Predictor 12 /Columns {$columns} /Colors 1 /BitsPerComponent 8 >> ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($hex) . " >>\nstream\n{$hex}\nendstream\nendobj\n"
+                . "12 0 obj\n<< /Type /Filespec /F (leaking-null-slot.bin) /Desc (Real filter unresolved DecodeParms) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+                . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter [ /ASCIIHexDecode /FlateDecode null ] /DecodeParms [ null 99 0 R null ] /Params << /Size " . strlen($leakingPayload) . " /CheckSum <{$leakingChecksum}> >> /Length " . strlen($leakingHex) . " >>\nstream\n{$leakingHex}\nendstream\nendobj\n"
+        );
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['null-slot.csv'], $summary['filenames']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same('null-slot.csv', $summary['attachments'][0]['filename']);
+        $t->same('Source', $summary['attachments'][0]['relationship']);
+        $t->same('original_source', $summary['attachments'][0]['relationship_role']);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $summary['attachments'][0]['filters']);
+        $t->same(strlen($payload), $summary['attachments'][0]['byte_length']);
+        $t->same($checksum, $summary['attachments'][0]['computed_checksum_hex']);
+        $t->same(true, $summary['attachments'][0]['checksum_matches']);
+        $t->same(false, array_key_exists('bytes', $summary['attachments'][0]));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'leaking-null-slot.bin'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $leakingPayload));
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, count($files));
+        $t->same('null-slot.csv', $files[0]['filename']);
+        $t->same('Null filter DecodeParms rows', $files[0]['description']);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $files[0]['filters']);
+        $t->same(strlen($payload), $files[0]['size']);
+        $t->same($payload, $files[0]['content']);
+        $t->same($checksum, $files[0]['computed_checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'leaking-null-slot.bin'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $leakingPayload));
+
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $t->true(str_contains($plainText, 'Visible Attachment Review'));
+        $t->true(!str_contains($plainText, 'Null Slot Attachment'));
+        $t->true(!str_contains($plainText, 'NULL_SLOT_ATTACHMENT_LEAK'));
+    },
+
     'decodes singleton TIFF predictor DecodeParms for embedded attachment streams' => static function (TestRunner $t) use ($tiffPredictorEncode, $pdfPrefix): void {
         $payload = "ABCDEFGHabcdefgh";
         $columns = 8;

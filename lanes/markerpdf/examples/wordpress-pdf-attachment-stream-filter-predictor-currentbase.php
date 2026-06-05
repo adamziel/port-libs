@@ -49,7 +49,7 @@ $pdf = "%PDF-1.7\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Names [(predictor-source.xml) 10 0 R (invalid-predictor.bin) 12 0 R] >>\nendobj\n"
     . "10 0 obj\n<< /Type /Filespec /F (predictor-source.xml) /Desc (Predictor filtered WordPress source) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
-    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 12 /Columns {$columns} /Colors 1 /BitsPerComponent 8 /EarlyChange 1 >> ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($hexPayload) . " >>\nstream\n{$hexPayload}\nendstream\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Filter [ null /ASCIIHexDecode /FlateDecode ] /DecodeParms [ 99 0 R null << /Predictor 12 /Columns {$columns} /Colors 1 /BitsPerComponent 8 /EarlyChange 1 >> ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($hexPayload) . " >>\nstream\n{$hexPayload}\nendstream\nendobj\n"
     . "12 0 obj\n<< /Type /Filespec /F (invalid-predictor.bin) /Desc (Invalid predictor source) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
     . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 99 /Columns 1 >> ] /Params << /Size " . strlen($invalidPayload) . " /CheckSum <{$invalidChecksum}> >> /Length " . strlen($invalidHexPayload) . " >>\nstream\n{$invalidHexPayload}\nendstream\nendobj\n"
     . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
@@ -84,13 +84,14 @@ if (!is_array($attachment)
 }
 
 echo '<!-- markerpdf-pdf-attachment-stream-filter-predictor ' . htmlspecialchars(json_encode([
-    'native_boundary' => 'EmbeddedFile Flate DecodeParms predictor stream filter stack',
+    'native_boundary' => 'EmbeddedFile Flate DecodeParms predictor stream filter stack with null filter slots',
     'attachment_count' => $summary['attachment_count'],
     'filename' => $attachment['filename'],
     'filters' => $attachment['filters'],
     'byte_length' => $attachment['byte_length'],
     'checksum_matches' => $attachment['checksum_matches'],
     'flate_predictor_decodeparms_applied' => ($embeddedFile['content'] ?? null) === $payload,
+    'null_filter_decodeparms_slot_ignored' => ($embeddedFile['content'] ?? null) === $payload,
     'invalid_predictor_fail_closed' => !str_contains($summaryJson, 'invalid-predictor.bin'),
     'payload_bytes_omitted_from_summary' => !str_contains($summaryJson, $payload),
     'visible_text' => $plainText,

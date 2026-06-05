@@ -4412,17 +4412,26 @@ final class PdfEmbeddedFileExtractor
 
         $dictionary = $match[1];
         $stream = $match[2];
-        $filters = $this->streamFilters($dictionary, $objects);
-        $decodeParms = $this->streamDecodeParms($dictionary, $objects);
-        if ($decodeParms === null) {
-            return null;
-        }
-        if (!$this->decodeParmsSupportedForFilters($filters, $decodeParms, $objects)) {
+        $filterSlots = $this->streamFilterSlots($dictionary, $objects);
+        if ($filterSlots === null) {
             return null;
         }
 
-        foreach ($filters as $filterIndex => $filter) {
-            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $filterIndex);
+        $filters = $this->streamFilterNames($filterSlots);
+        $decodeParms = $this->streamDecodeParmsForFilters($dictionary, $objects, $filterSlots);
+        if ($decodeParms === null) {
+            return null;
+        }
+        if (!$this->decodeParmsSupportedForFilters($filterSlots, $decodeParms, $objects)) {
+            return null;
+        }
+
+        foreach ($filterSlots as $filterIndex => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filterSlots, $decodeParms, $filterIndex);
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
                 return null;
             }
@@ -4448,20 +4457,111 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * @return list<string>
+     * @return list<string|null>|null
      * @param array<int, string> $objects
      */
-    private function streamFilters(string $dictionary, array $objects): array
+    private function streamFilterSlots(string $dictionary, array $objects): ?array
     {
         $value = $this->dictionaryRawValue($dictionary, 'Filter');
         if ($value === null) {
             return [];
         }
 
-        $resolved = $this->resolveRawValue($value, $objects) ?? $value;
-        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)/', $resolved, $matches);
+        $filters = $this->streamFilterSlotsFromValue($value, $objects);
+        if ($filters === null) {
+            return null;
+        }
 
-        return array_map(fn (string $name): string => $this->decodePdfName($name), $matches[1] ?? []);
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                return $filters;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param list<string|null> $filterSlots
+     * @return list<string>
+     */
+    private function streamFilterNames(array $filterSlots): array
+    {
+        $filters = [];
+        foreach ($filterSlots as $filter) {
+            if (is_string($filter)) {
+                $filters[] = $filter;
+            }
+        }
+
+        return $filters;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return list<string|null>|null
+     */
+    private function streamFilterSlotsFromValue(
+        string $value,
+        array $objects,
+        array $seen = [],
+        bool $allowArray = true
+    ): ?array {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if ($reference['objectNumber'] <= 0 || isset($seen[$objectKey]) || !isset($objects[$reference['objectNumber']])) {
+                return null;
+            }
+
+            $nextSeen = $seen;
+            $nextSeen[$objectKey] = true;
+            return $this->streamFilterSlotsFromValue(
+                $objects[$reference['objectNumber']],
+                $objects,
+                $nextSeen,
+                $allowArray
+            );
+        }
+
+        if (str_starts_with($trimmed, '[')) {
+            if (!$allowArray) {
+                return null;
+            }
+
+            $array = $this->readPdfArrayAt($trimmed, 0);
+            if ($array === null || $this->skipWhitespace($trimmed, $array['end']) !== strlen($trimmed)) {
+                return null;
+            }
+
+            $filters = [];
+            foreach ($this->arrayItemsFromValue($array['raw'], $objects) as $item) {
+                $slot = $this->streamFilterSlotsFromValue($item, $objects, $seen, false);
+                if ($slot === null || count($slot) !== 1) {
+                    return null;
+                }
+
+                $filters[] = $slot[0];
+            }
+
+            return $filters;
+        }
+
+        if ($trimmed === 'null') {
+            return [null];
+        }
+
+        if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)$/', $trimmed, $match) === 1) {
+            return [$this->decodePdfName($match[1])];
+        }
+
+        return null;
     }
 
     /**
@@ -4476,6 +4576,77 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $this->decodeParmsValueList($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     * @return list<string|null>|null
+     */
+    private function streamDecodeParmsForFilters(string $dictionary, array $objects, array $filters): ?array
+    {
+        if ($filters === []) {
+            return [];
+        }
+
+        $value = $this->dictionaryRawValue($dictionary, 'DecodeParms');
+        if ($value === null) {
+            return [];
+        }
+
+        $resolved = $this->resolveRawValue($value, $objects) ?? $value;
+        $resolved = trim($resolved);
+        if ($resolved === '') {
+            return null;
+        }
+
+        if (!str_starts_with($resolved, '[')) {
+            return $this->decodeParmsValueList($value, $objects);
+        }
+
+        $array = $this->readPdfArrayAt($resolved, 0);
+        if ($array === null || $this->skipWhitespace($resolved, $array['end']) !== strlen($resolved)) {
+            return null;
+        }
+
+        return $this->decodeParmsArrayItemsForFilters($array['raw'], $objects, $filters);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     * @return list<string|null>|null
+     */
+    private function decodeParmsArrayItemsForFilters(string $arrayRaw, array $objects, array $filters): ?array
+    {
+        $rawItems = $this->arrayItemsFromValue($arrayRaw, $objects);
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        $compactArray = count($rawItems) === count($nonNullFilterIndexes)
+            && count($rawItems) !== count($filters);
+
+        $items = [];
+        foreach ($rawItems as $itemIndex => $rawItem) {
+            $filterIndex = $compactArray ? ($nonNullFilterIndexes[$itemIndex] ?? null) : $itemIndex;
+            if ($filterIndex !== null && array_key_exists($filterIndex, $filters) && $filters[$filterIndex] === null) {
+                $items[] = null;
+                continue;
+            }
+
+            $resolved = $this->decodeParmsValueList($rawItem, $objects);
+            if ($resolved === null || count($resolved) !== 1) {
+                return null;
+            }
+
+            $items[] = $resolved[0];
+        }
+
+        return $items;
     }
 
     /**
@@ -4538,7 +4709,7 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * @param list<string> $filters
+     * @param list<string|null> $filters
      * @param list<string|null> $decodeParms
      */
     private function decodeParmsForFilterIndex(array $filters, array $decodeParms, int $filterIndex): ?string
@@ -4548,7 +4719,7 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * @param list<string> $filters
+     * @param list<string|null> $filters
      * @param list<string|null> $decodeParms
      */
     private function decodeParmsIndexForFilterIndex(array $filters, array $decodeParms, int $filterIndex): ?int
@@ -4557,22 +4728,36 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        if (count($decodeParms) === count($filters) && array_key_exists($filterIndex, $decodeParms)) {
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $candidateFilterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $candidateFilterIndex;
+            }
+        }
+
+        if ($nonNullFilterIndexes === []) {
+            return null;
+        }
+
+        if (count($decodeParms) === count($nonNullFilterIndexes) && count($decodeParms) !== count($filters)) {
+            $compactPosition = array_search($filterIndex, $nonNullFilterIndexes, true);
+            if ($compactPosition !== false) {
+                $decodeParmsIndexes = array_keys($decodeParms);
+                $decodeParmsIndex = $decodeParmsIndexes[$compactPosition] ?? null;
+                return is_int($decodeParmsIndex) ? $decodeParmsIndex : null;
+            }
+        }
+
+        if (array_key_exists($filterIndex, $decodeParms)) {
             return $filterIndex;
         }
 
-        if (count($decodeParms) === 1 && count($filters) === 1) {
-            $index = array_key_first($decodeParms);
-            return is_int($index) ? $index : null;
+        if (count($decodeParms) !== 1 || $nonNullFilterIndexes !== [$filterIndex]) {
+            return null;
         }
 
-        if (count($decodeParms) === count($filters)) {
-            $indexes = array_keys($decodeParms);
-            $index = $indexes[$filterIndex] ?? null;
-            return is_int($index) ? $index : null;
-        }
-
-        return null;
+        $decodeParmsIndex = array_key_first($decodeParms);
+        return is_int($decodeParmsIndex) ? $decodeParmsIndex : null;
     }
 
     /**
@@ -4637,7 +4822,7 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * @param list<string> $filters
+     * @param list<string|null> $filters
      * @param list<string|null> $decodeParms
      * @param array<int, string> $objects
      */
@@ -4645,6 +4830,10 @@ final class PdfEmbeddedFileExtractor
     {
         $appliedDecodeParmsIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
             $decodeParmsIndex = $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $filterIndex);
             if ($decodeParmsIndex === null || !array_key_exists($decodeParmsIndex, $decodeParms)) {
                 continue;
