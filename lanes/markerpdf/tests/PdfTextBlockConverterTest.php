@@ -217,6 +217,18 @@ return [
 
         $t->same('TimesNewRomanPS_fixed_pitch_non_symbolic', $span['font']);
     },
+    'rejects negative pdftext font flags at the converter boundary' => static function (TestRunner $t) use ($pdftextPage): void {
+        $converter = new PdfTextBlockConverter();
+        $page = $pdftextPage();
+        $page['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = -1;
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage($page, 0));
+
+        $page['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 0.0;
+        $span = $converter->pdftextFormatToPage($page, 0)['blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same('TimesNewRomanPS_', $span['font']);
+    },
     'requires pdftext span text strings at the core dictionary boundary' => static function (TestRunner $t) use ($pdftextPage): void {
         $converter = new PdfTextBlockConverter();
 

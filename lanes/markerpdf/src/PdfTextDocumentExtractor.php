@@ -392,7 +392,7 @@ final class PdfTextDocumentExtractor
             }
         }
         if (array_key_exists('flags', $sanitizedFont) && $sanitizedFont['flags'] !== null) {
-            $sanitizedFont['flags'] = $this->dictionaryOutputIntegerMetadata($sanitizedFont['flags'], 'font.flags');
+            $sanitizedFont['flags'] = $this->dictionaryOutputUnsignedIntegerMetadata($sanitizedFont['flags'], 'font.flags');
         }
 
         return $sanitizedFont;
@@ -473,6 +473,16 @@ final class PdfTextDocumentExtractor
         return (int) $value;
     }
 
+    private function dictionaryOutputUnsignedIntegerMetadata(mixed $value, string $field): int
+    {
+        $integer = $this->dictionaryOutputIntegerMetadata($value, $field);
+        if ($integer < 0) {
+            throw new InvalidArgumentException("pdftext {$field} must be zero or greater.");
+        }
+
+        return $integer;
+    }
+
     /**
      * @param mixed $value
      * @return list<float>
@@ -518,7 +528,7 @@ final class PdfTextDocumentExtractor
         }
 
         if (array_key_exists('flags', $font) && $font['flags'] !== null) {
-            $this->dictionaryOutputIntegerMetadata($font['flags'], "{$field}.flags");
+            $this->dictionaryOutputUnsignedIntegerMetadata($font['flags'], "{$field}.flags");
         }
     }
 

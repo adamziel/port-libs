@@ -578,6 +578,28 @@ return [
         $t->same(33, $charSpan['font']['flags']);
         $t->same(33, $span['chars'][0]['font']['flags']);
     },
+    'rejects negative pdftext font flags before WordPress style metadata' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage): void {
+        $negativeSpanFlags = $pdftextLinkedPage();
+        $negativeSpanFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = -1;
+
+        $negativeCharFlags = $pdftextCharsPage();
+        $negativeCharFlags['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = -33;
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$negativeSpanFlags], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$negativeCharFlags], maxPages: 1, keepChars: true));
+
+        $zeroFlags = $pdftextCharsPage();
+        $zeroFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 0.0;
+        $zeroFlags['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = 0.0;
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$zeroFlags], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same('Helvetica_', $span['font']);
+        $t->same(0, $charSpan['font']['flags']);
+        $t->same(0, $span['chars'][0]['font']['flags']);
+    },
     'preserves pdftext superscript and subscript flags at the core boundary' => static function (TestRunner $t) use ($pdftextScriptPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextScriptPage()], maxPages: 1);
         $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];

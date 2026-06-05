@@ -208,7 +208,7 @@ final class PdfTextBlockConverter
                         $this->assertNumeric($span['font'][$fontKey] ?? null, "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.{$fontKey}");
                     }
                     if (array_key_exists('flags', $span['font']) && $span['font']['flags'] !== null) {
-                        $this->integerMetadata($span['font']['flags'], "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.flags");
+                        $this->unsignedIntegerMetadata($span['font']['flags'], "blocks[{$blockIndex}].lines[{$lineIndex}].spans[{$spanIndex}].font.flags");
                     }
                     if (
                         array_key_exists('rotation', $span)
@@ -357,6 +357,16 @@ final class PdfTextBlockConverter
         }
 
         return (int) $value;
+    }
+
+    private function unsignedIntegerMetadata(mixed $value, string $field): int
+    {
+        $integer = $this->integerMetadata($value, $field);
+        if ($integer < 0) {
+            throw new InvalidArgumentException("pdftext {$field} must be zero or greater.");
+        }
+
+        return $integer;
     }
 
     private function numericMetadata(mixed $value): int|float

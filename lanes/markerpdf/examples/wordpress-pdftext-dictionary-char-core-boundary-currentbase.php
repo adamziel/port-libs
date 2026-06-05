@@ -112,6 +112,24 @@ try {
     $fractionalCharFlagsRejected = true;
 }
 
+$negativeSpanFlagsPage = $page;
+$negativeSpanFlagsPage['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = -1;
+$negativeSpanFlagsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$negativeSpanFlagsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $negativeSpanFlagsRejected = true;
+}
+
+$negativeCharFlagsPage = $page;
+$negativeCharFlagsPage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = -33;
+$negativeCharFlagsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$negativeCharFlagsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $negativeCharFlagsRejected = true;
+}
+
 $integralFloatFlagsPage = $page;
 $integralFloatFlagsPage['blocks'][0]['lines'][0]['spans'][0]['font']['flags'] = 33.0;
 $integralFloatFlagsPage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['flags'] = 33.0;
@@ -133,6 +151,8 @@ if (array_key_exists('c', $span['chars'][0] ?? [])
     || !$missingCharFlagsRejected
     || !$fractionalSpanFlagsRejected
     || !$fractionalCharFlagsRejected
+    || !$negativeSpanFlagsRejected
+    || !$negativeCharFlagsRejected
     || !$integralFloatFlagsAccepted
 ) {
     throw new RuntimeException('Expected pdftext keep_chars character dictionaries to keep only upstream-shaped keys.');
@@ -160,6 +180,8 @@ echo '<!-- markerpdf-pdftext-dictionary-char-core-boundary-currentbase ' . htmls
     'missing_char_font_flags_rejected' => $missingCharFlagsRejected,
     'fractional_span_font_flags_rejected' => $fractionalSpanFlagsRejected,
     'fractional_char_font_flags_rejected' => $fractionalCharFlagsRejected,
+    'negative_span_font_flags_rejected' => $negativeSpanFlagsRejected,
+    'negative_char_font_flags_rejected' => $negativeCharFlagsRejected,
     'integral_float_font_flags_accepted' => $integralFloatFlagsAccepted,
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
