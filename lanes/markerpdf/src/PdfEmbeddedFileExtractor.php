@@ -4587,6 +4587,9 @@ final class PdfEmbeddedFileExtractor
             if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
                 return null;
             }
+            if (!$this->streamFilterInputHasBoundedEndMarker($filter, $stream, $filterDecodeParms, $objects)) {
+                return null;
+            }
 
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
@@ -5322,6 +5325,121 @@ final class PdfEmbeddedFileExtractor
             }
             $out .= str_repeat($stream[$offset + 1], 257 - $control);
             $offset++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamFilterInputHasBoundedEndMarker(
+        string $filter,
+        string $stream,
+        ?string $decodeParms = null,
+        array $objects = []
+    ): bool {
+        $offset = $this->streamFilterInputEndByteOffset($filter, $stream, $decodeParms, $objects);
+        if ($offset === null) {
+            return !in_array($filter, [
+                'FlateDecode',
+                'Fl',
+                'ASCII85Decode',
+                'A85',
+                'ASCIIHexDecode',
+                'AHx',
+                'RunLengthDecode',
+                'RL',
+            ], true);
+        }
+
+        for ($index = $offset, $length = strlen($stream); $index < $length; $index++) {
+            if (!in_array($stream[$index], ["\0", "\t", "\n", "\f", "\r", ' '], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamFilterInputEndByteOffset(
+        string $filter,
+        string $stream,
+        ?string $decodeParms = null,
+        array $objects = []
+    ): ?int {
+        return match ($filter) {
+            'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false) ? $offset + 1 : null,
+            'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false) ? $offset + 2 : null,
+            'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null) ? $offset + 1 : null,
+            'FlateDecode', 'Fl' => $this->flateExplicitEndByteOffset($stream),
+            default => null,
+        };
+    }
+
+    private function runLengthExplicitEndOffset(string $stream): ?int
+    {
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $offset;
+            }
+            if ($control <= 127) {
+                $literalLength = $control + 1;
+                if ($offset + $literalLength >= $length) {
+                    return null;
+                }
+                $offset += $literalLength;
+                continue;
+            }
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function flateExplicitEndByteOffset(string $stream): ?int
+    {
+        if (
+            !function_exists('inflate_init')
+            || !function_exists('inflate_add')
+            || !function_exists('inflate_get_status')
+            || !function_exists('inflate_get_read_len')
+        ) {
+            return null;
+        }
+
+        $encodings = [];
+        foreach (['ZLIB_ENCODING_DEFLATE', 'ZLIB_ENCODING_RAW', 'ZLIB_ENCODING_GZIP'] as $constant) {
+            if (defined($constant)) {
+                $encodings[] = constant($constant);
+            }
+        }
+
+        $finish = defined('ZLIB_FINISH') ? constant('ZLIB_FINISH') : 4;
+        $streamEnd = defined('ZLIB_STREAM_END') ? constant('ZLIB_STREAM_END') : 1;
+        foreach (array_unique($encodings) as $encoding) {
+            $context = @inflate_init($encoding);
+            if ($context === false) {
+                continue;
+            }
+
+            $decoded = @inflate_add($context, $stream, $finish);
+            if ($decoded === false || @inflate_get_status($context) !== $streamEnd) {
+                continue;
+            }
+
+            $readLength = @inflate_get_read_len($context);
+            if (is_int($readLength) && $readLength > 0) {
+                return $readLength;
+            }
         }
 
         return null;
