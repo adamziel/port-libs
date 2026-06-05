@@ -9423,6 +9423,13 @@ final class PdfMetadataExtractor
 
             $char = $pdfBytes[$index];
 
+            if (
+                substr($pdfBytes, $index, 5) === '%%EOF'
+                || $this->pdfKeywordAt($pdfBytes, $index, 'startxref')
+            ) {
+                return null;
+            }
+
             if ($char === '%') {
                 $index = $this->lineCommentEndOffset($pdfBytes, $index);
                 continue;

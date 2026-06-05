@@ -19701,6 +19701,13 @@ final class PdfTextExtractor
 
             $char = $pdfBytes[$index];
 
+            if (
+                substr($pdfBytes, $index, 5) === '%%EOF'
+                || $this->pdfKeywordAt($pdfBytes, $index, 'startxref')
+            ) {
+                return null;
+            }
+
             if ($char === '%') {
                 $this->skipPdfComment($pdfBytes, $index);
                 continue;

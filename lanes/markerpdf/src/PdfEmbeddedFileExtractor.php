@@ -3922,6 +3922,13 @@ final class PdfEmbeddedFileExtractor
 
             $char = $pdfBytes[$offset];
 
+            if (
+                substr($pdfBytes, $offset, 5) === '%%EOF'
+                || $this->pdfKeywordAt($pdfBytes, $offset, 'startxref')
+            ) {
+                return null;
+            }
+
             if ($char === '%') {
                 $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
                 continue;
