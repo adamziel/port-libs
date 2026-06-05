@@ -10448,6 +10448,7 @@ final class PdfTextExtractor
         foreach ($kidNodes as $kidNode) {
             $kidLimits = $kidNode['limits'];
             $sameLowerLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
+            $kidContributed = false;
             foreach ($this->pageLabelNumberTreeEntries($kidNode['dictionary'], $objects, $pageCount, $kidNode['seen'], $limits) as $pageIndex => $section) {
                 if ($sameLowerLimits !== null) {
                     foreach ($sameLowerKidLimits[$sameLowerLimits[0]] ?? [] as $claimedLimits) {
@@ -10459,10 +10460,11 @@ final class PdfTextExtractor
 
                 if (!array_key_exists($pageIndex, $entries)) {
                     $entries[$pageIndex] = $section;
+                    $kidContributed = true;
                 }
             }
 
-            if ($sameLowerLimits !== null) {
+            if ($sameLowerLimits !== null && $kidContributed) {
                 $sameLowerKidLimits[$sameLowerLimits[0]][] = $sameLowerLimits;
             }
         }

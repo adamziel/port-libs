@@ -1694,6 +1694,7 @@ final class MarkerAppPreview
             foreach ($kidNodes as $kidNode) {
                 $kidLimits = $kidNode['limits'];
                 $sameLowerLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
+                $kidContributed = false;
                 $seenPageIndexes = [];
                 foreach ($sections as $section) {
                     $seenPageIndexes[$section['page_index']] = true;
@@ -1715,9 +1716,10 @@ final class MarkerAppPreview
 
                     $seenPageIndexes[$pageIndex] = true;
                     $sections[] = $section;
+                    $kidContributed = true;
                 }
 
-                if ($sameLowerLimits !== null) {
+                if ($sameLowerLimits !== null && $kidContributed) {
                     $sameLowerKidLimits[$sameLowerLimits[0]][] = $sameLowerLimits;
                 }
             }
