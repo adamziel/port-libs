@@ -2602,23 +2602,47 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return array{offset: int, tokenOffset: int}|null
      */
-    private function latestStartxrefEntry(string $pdfBytes): ?array
+    private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
     {
         if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
-        $latest = end($matches);
-        if (!is_array($latest)) {
-            return null;
+        for ($index = count($matches) - 1; $index >= 0; $index--) {
+            $match = $matches[$index];
+            $tokenOffset = $match[0][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || (
+                    $definitions !== null
+                    && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'offset' => max(0, (int) ($match[1][0] ?? 0)),
+                'tokenOffset' => $tokenOffset,
+            ];
         }
 
-        return [
-            'offset' => max(0, (int) ($latest[1][0] ?? 0)),
-            'tokenOffset' => (int) ($latest[0][1] ?? 0),
-        ];
+        return null;
+    }
+
+    private function tokenStartsInPdfCommentLine(string $pdfBytes, int $tokenOffset): bool
+    {
+        $before = substr($pdfBytes, 0, $tokenOffset);
+        $lastLineFeed = strrpos($before, "\n");
+        $lastCarriageReturn = strrpos($before, "\r");
+        $lineStart = max($lastLineFeed === false ? -1 : $lastLineFeed, $lastCarriageReturn === false ? -1 : $lastCarriageReturn) + 1;
+        $commentOffset = strpos($pdfBytes, '%', $lineStart);
+
+        return $commentOffset !== false && $commentOffset < $tokenOffset;
     }
 
     /**
@@ -2630,7 +2654,7 @@ final class PdfEmbeddedFileExtractor
      */
     private function startxrefOffsetWithClassicRebuild(string $pdfBytes, ?array $definitions = null): ?int
     {
-        $entry = $this->latestStartxrefEntry($pdfBytes);
+        $entry = $this->latestStartxrefEntry($pdfBytes, $definitions);
         if ($entry === null) {
             return null;
         }

@@ -315,6 +315,94 @@ $xrefClassicRebuildCommentKeywordBoundaryCurrentBasePdf = static function (): st
     return $pdf;
 };
 
+$xrefClassicRebuildCommentedStartxrefBoundaryCurrentBasePdf = static function (): array {
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Commented Startxref Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $decoyXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Commented Startxref Decoy Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current commented startxref page) Tj T* (Commented startxref ignored) Tj ET';
+    $decoyContent = 'BT /F1 12 Tf 72 720 Td (Commented startxref decoy page) Tj T* (Post EOF startxref leak) Tj ET';
+    $currentPayload = '<wp-export><post id="current-commented-startxref"/></wp-export>';
+    $decoyPayload = '<wp-export><post id="decoy-commented-startxref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(7, '<< /Title (Current Commented Startxref Info Title) /Author (Current Startxref Importer) >>');
+    $addObject(8, '<< /Names [(current-commented-startxref.xml) 9 0 R] >>');
+    $addObject(9, '<< /Type /Filespec /F (current-commented-startxref.xml) /Desc (Current commented startxref attachment) /AFRelationship /Source /EF << /F 10 0 R >> >>');
+    $addObject(10, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 11\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . $xrefRow($offsets[3])
+        . $xrefRow($offsets[4])
+        . $xrefRow($offsets[5])
+        . $xrefRow($offsets[6])
+        . $xrefRow($offsets[7])
+        . $xrefRow($offsets[8])
+        . $xrefRow($offsets[9])
+        . $xrefRow($offsets[10])
+        . "trailer\n<< /Size 32 /Root 1 0 R /Info 7 0 R >>\n"
+        . "startxref\n999999\n%%EOF\n";
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+    $addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(24, "<< /Length " . strlen($decoyContent) . " >>\nstream\n{$decoyContent}\nendstream");
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($decoyXmp) . " >>\nstream\n{$decoyXmp}\nendstream");
+    $addObject(27, '<< /Title (Commented Startxref Decoy Info Title) /Author (Decoy Startxref Importer) >>');
+    $addObject(28, '<< /Names [(decoy-commented-startxref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (decoy-commented-startxref.xml) /Desc (Decoy commented startxref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($decoyPayload) . " >>\nstream\n{$decoyPayload}\nendstream");
+
+    $decoyXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "20 12\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . $xrefRow($offsets[22])
+        . $xrefRow($offsets[23])
+        . $xrefRow($offsets[24])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[26])
+        . $xrefRow($offsets[27])
+        . $xrefRow($offsets[28])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[30])
+        . $xrefRow($offsets[31])
+        . "trailer\n<< /Size 32 /Root 20 0 R /Info 27 0 R >>\n"
+        . "% startxref\n{$decoyXrefOffset}\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $decoyXrefOffset];
+};
+
 return [
     'rebuilds damaged startxref from the latest classic xref trailer boundary before WordPress text extraction' => static function (
         TestRunner $t
@@ -415,6 +503,41 @@ return [
         $t->true(!str_contains($text, 'Comment xref decoy page'));
         $t->true(!str_contains($text, 'Comment root leak'));
         $t->true(!str_contains($encodedMetadata, 'Comment XRef Decoy'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'skips commented startxref tokens before classic rebuild text metadata and attachment selection' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildCommentedStartxrefBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $currentXrefOffset, $decoyXrefOffset] = $xrefClassicRebuildCommentedStartxrefBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($currentXrefOffset > 0);
+        $t->true($decoyXrefOffset > $currentXrefOffset);
+        $t->same(['Current commented startxref page', 'Commented startxref ignored'], $extractor->extractTextLines($pdf));
+        $t->same(['Current commented startxref page', 'Commented startxref ignored'], $extractor->extractTextRuns($pdf));
+        $t->same("Current commented startxref page\nCommented startxref ignored", $text);
+        $t->same("Current commented startxref page\nCommented startxref ignored\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Commented Startxref Title', $metadata['title']);
+        $t->same('Current Commented Startxref Info Title', $metadata['info']['Title']);
+        $t->same('Current Startxref Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-commented-startxref.xml', $files[0]['name']);
+        $t->same('current-commented-startxref.xml', $files[0]['filename']);
+        $t->same('Current commented startxref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->true(!str_contains($text, 'Commented startxref decoy page'));
+        $t->true(!str_contains($text, 'Post EOF startxref leak'));
+        $t->true(!str_contains($encodedMetadata, 'Commented Startxref Decoy'));
+        $t->true(!str_contains($encodedFiles, 'decoy-commented-startxref'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

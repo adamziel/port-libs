@@ -13244,14 +13244,13 @@ final class PdfTextExtractor
             $match = $matches[$index];
             $tokenOffset = $match[0][1] ?? null;
             if (
-                is_int($tokenOffset)
-                && (
-                    (
-                        $definitions !== null
-                        && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
-                    )
-                    || $this->offsetInPdfByteRanges($tokenOffset, $linearizedHintRanges)
+                !is_int($tokenOffset)
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || (
+                    $definitions !== null
+                    && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
                 )
+                || $this->offsetInPdfByteRanges($tokenOffset, $linearizedHintRanges)
             ) {
                 continue;
             }
@@ -13263,6 +13262,17 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function tokenStartsInPdfCommentLine(string $pdfBytes, int $tokenOffset): bool
+    {
+        $before = substr($pdfBytes, 0, $tokenOffset);
+        $lastLineFeed = strrpos($before, "\n");
+        $lastCarriageReturn = strrpos($before, "\r");
+        $lineStart = max($lastLineFeed === false ? -1 : $lastLineFeed, $lastCarriageReturn === false ? -1 : $lastCarriageReturn) + 1;
+        $commentOffset = strpos($pdfBytes, '%', $lineStart);
+
+        return $commentOffset !== false && $commentOffset < $tokenOffset;
     }
 
     /**
