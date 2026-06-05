@@ -1291,7 +1291,7 @@ final class PdfMetadataExtractor
             $metadata['document_destinations'] = $documentDestinations;
         }
 
-        $documentOutline = $this->documentOutlineMetadata($catalog, $objects);
+        $documentOutline = $this->documentOutlineMetadata($pdfBytes, $catalog, $objects);
         if ($documentOutline !== []) {
             $metadata['document_outline'] = $documentOutline;
         }
@@ -2874,7 +2874,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function documentOutlineMetadata(string $catalog, array $objects): array
+    private function documentOutlineMetadata(string $pdfBytes, string $catalog, array $objects): array
     {
         $outlineRoot = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Outlines'), $objects);
         if ($outlineRoot === null || !$this->isDocumentOutlineRootDictionary($outlineRoot['body'])) {
@@ -2889,10 +2889,12 @@ final class PdfMetadataExtractor
 
         $structureContext = $this->documentOutlineStructureElementContext($catalog, $objects);
         $destinationsByName = $this->documentDestinationRawMap($catalog, $objects);
+        $pageLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
         $items = $this->documentOutlineItemMetadataRows(
             $this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First'),
             $objects,
             $pageIndexes,
+            $pageLabels,
             $destinationsByName,
             $structureContext,
             $outlineRoot['object'],
@@ -2938,6 +2940,16 @@ final class PdfMetadataExtractor
             'titles' => array_values(array_map(static fn (array $item): string => $item['title'], $items)),
             'items' => $items,
         ];
+        $outlinePageLabels = array_values(array_filter(
+            array_map(
+                static fn (array $item): ?string => is_string($item['page_label'] ?? null) ? $item['page_label'] : null,
+                $items
+            ),
+            static fn (?string $label): bool => $label !== null && $label !== ''
+        ));
+        if ($outlinePageLabels !== []) {
+            $metadata['page_labels'] = $outlinePageLabels;
+        }
 
         foreach ($this->documentOutlineStructureElementSummary($items) as $key => $value) {
             $metadata[$key] = $value;
@@ -3090,6 +3102,7 @@ final class PdfMetadataExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, int> $pageIndexes
+     * @param list<string> $pageLabels
      * @param array<string, string> $destinationsByName
      * @param array{root_language: string|null, role_map: array<string, string>} $structureContext
      * @param array<int, true> $seen
@@ -3099,6 +3112,7 @@ final class PdfMetadataExtractor
         ?string $firstItemValue,
         array $objects,
         array $pageIndexes,
+        array $pageLabels,
         array $destinationsByName,
         array $structureContext,
         ?int $expectedParentObject,
@@ -3145,6 +3159,7 @@ final class PdfMetadataExtractor
                 $level,
                 $objects,
                 $pageIndexes,
+                $pageLabels,
                 $destinationsByName,
                 $structureContext
             );
@@ -3153,6 +3168,7 @@ final class PdfMetadataExtractor
                 $this->dictionaryTopLevelRawValue($dictionary, 'First'),
                 $objects,
                 $pageIndexes,
+                $pageLabels,
                 $destinationsByName,
                 $structureContext,
                 $current,
@@ -3245,6 +3261,7 @@ final class PdfMetadataExtractor
     /**
      * @param array<int, string> $objects
      * @param array<int, int> $pageIndexes
+     * @param list<string> $pageLabels
      * @param array<string, string> $destinationsByName
      * @param array{root_language: string|null, role_map: array<string, string>} $structureContext
      * @return array<string, mixed>
@@ -3256,6 +3273,7 @@ final class PdfMetadataExtractor
         int $level,
         array $objects,
         array $pageIndexes,
+        array $pageLabels,
         array $destinationsByName,
         array $structureContext
     ): array {
@@ -3341,6 +3359,9 @@ final class PdfMetadataExtractor
                 $row['destination_resolved'] = true;
                 foreach (['destination', 'page', 'page_number', 'page_object', 'view_mode', 'view_position', 'view_parameters'] as $key) {
                     $row[$key] = $details[$key] ?? null;
+                }
+                if (is_int($row['page'] ?? null)) {
+                    $row['page_label'] = $pageLabels[$row['page']] ?? (string) ($row['page'] + 1);
                 }
             }
         }
