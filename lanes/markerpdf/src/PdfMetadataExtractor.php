@@ -2301,8 +2301,13 @@ final class PdfMetadataExtractor
     ): void {
         $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
         $rawRole = $this->dictionaryNameValue($dictionary, 'S', $objects);
-        $isStructElement = $type === 'StructElem' || $rawRole !== null;
-        if (!$isStructElement) {
+        if ($type !== null && $type !== 'StructElem') {
+            return;
+        }
+        if ($type !== 'StructElem' && $rawRole === null) {
+            return;
+        }
+        if ($type !== 'StructElem' && $rawRole !== null && $this->isActionLikeStructureRoleDictionary($dictionary, $rawRole)) {
             return;
         }
 
@@ -2404,6 +2409,65 @@ final class PdfMetadataExtractor
             $seenObjects,
             $depth + 1
         );
+    }
+
+    /**
+     * Outline items may reference a dictionary through /SE. A PDF action
+     * dictionary also uses /S for its subtype, so keep untyped action
+     * dictionaries out of structure-element review metadata unless they are
+     * explicitly declared as /Type /StructElem.
+     */
+    private function isActionLikeStructureRoleDictionary(string $dictionary, string $role): bool
+    {
+        $actionRoles = [
+            'GoTo' => true,
+            'GoToR' => true,
+            'GoToE' => true,
+            'Launch' => true,
+            'Thread' => true,
+            'URI' => true,
+            'Sound' => true,
+            'Movie' => true,
+            'Hide' => true,
+            'Named' => true,
+            'SubmitForm' => true,
+            'ResetForm' => true,
+            'ImportData' => true,
+            'JavaScript' => true,
+            'SetOCGState' => true,
+            'Rendition' => true,
+            'Trans' => true,
+            'GoTo3DView' => true,
+            'RichMediaExecute' => true,
+        ];
+        if (!isset($actionRoles[$role])) {
+            return false;
+        }
+
+        foreach ([
+            'D',
+            'F',
+            'JS',
+            'URI',
+            'Next',
+            'NewWindow',
+            'Win',
+            'AN',
+            'TA',
+            'OP',
+            'Fields',
+            'Flags',
+            'State',
+            'Position',
+            'Start',
+            '3DView',
+        ] as $actionKey) {
+            if ($this->dictionaryTopLevelRawValue($dictionary, $actionKey) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
