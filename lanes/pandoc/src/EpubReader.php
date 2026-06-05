@@ -2760,6 +2760,9 @@ final class EpubReader
         $audioSrc = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'src') : null;
         $textReference = $textSrc === null ? self::emptySmilReference($textTarget) : $this->smilReference($package, $smilPart, $textSrc);
         $audioReference = $this->smilReference($package, $smilPart, $audioSrc);
+        $clipBegin = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipBegin') : null;
+        $clipEnd = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipEnd') : null;
+        $clipTiming = self::smilClipTiming($clipBegin, $clipEnd);
 
         return [
             'id' => self::nullableAttribute($par, 'id'),
@@ -2776,9 +2779,64 @@ final class EpubReader
             'audioExists' => $audioReference['exists'],
             'audioByteLength' => $audioReference['byteLength'],
             'audioCrc32' => $audioReference['crc32'],
-            'clipBegin' => $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipBegin') : null,
-            'clipEnd' => $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipEnd') : null,
-            'diagnostics' => array_merge($textReference['diagnostics'], $audioReference['diagnostics']),
+            'clipBegin' => $clipBegin,
+            'clipBeginSeconds' => $clipTiming['clipBeginSeconds'],
+            'clipEnd' => $clipEnd,
+            'clipEndSeconds' => $clipTiming['clipEndSeconds'],
+            'clipDurationSeconds' => $clipTiming['clipDurationSeconds'],
+            'clipValid' => $clipTiming['valid'],
+            'clipDiagnostics' => $clipTiming['diagnostics'],
+            'diagnostics' => array_merge($textReference['diagnostics'], $audioReference['diagnostics'], $clipTiming['diagnostics']),
+        ];
+    }
+
+    /**
+     * @return array{clipBeginSeconds:?float, clipEndSeconds:?float, clipDurationSeconds:?float, valid:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function smilClipTiming(?string $clipBegin, ?string $clipEnd): array
+    {
+        $beginSeconds = is_string($clipBegin) ? self::smilClockSeconds($clipBegin) : null;
+        $endSeconds = is_string($clipEnd) ? self::smilClockSeconds($clipEnd) : null;
+        $diagnostics = [];
+
+        if (is_string($clipBegin) && trim($clipBegin) !== '' && $beginSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-overlay-clip-begin',
+                'clipBegin' => $clipBegin,
+                'message' => 'EPUB media-overlay clipBegin must be a bounded SMIL clock value',
+            ];
+        }
+
+        if (is_string($clipEnd) && trim($clipEnd) !== '' && $endSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-overlay-clip-end',
+                'clipEnd' => $clipEnd,
+                'message' => 'EPUB media-overlay clipEnd must be a bounded SMIL clock value',
+            ];
+        }
+
+        $durationSeconds = null;
+        if ($beginSeconds !== null && $endSeconds !== null) {
+            if ($endSeconds < $beginSeconds) {
+                $diagnostics[] = [
+                    'type' => 'media-overlay-clip-end-before-begin',
+                    'clipBegin' => $clipBegin,
+                    'clipEnd' => $clipEnd,
+                    'clipBeginSeconds' => $beginSeconds,
+                    'clipEndSeconds' => $endSeconds,
+                    'message' => 'EPUB media-overlay clipEnd must not be earlier than clipBegin',
+                ];
+            } else {
+                $durationSeconds = $endSeconds - $beginSeconds;
+            }
+        }
+
+        return [
+            'clipBeginSeconds' => $beginSeconds,
+            'clipEndSeconds' => $endSeconds,
+            'clipDurationSeconds' => $durationSeconds,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
         ];
     }
 

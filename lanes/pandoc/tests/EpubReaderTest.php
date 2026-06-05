@@ -1100,10 +1100,18 @@ return [
         $t->same('/OEBPS/audio/chapter1.mp3', $overlay['items'][0]['audioTarget']);
         $t->same(true, $overlay['items'][0]['audioExists']);
         $t->same('0:00:01.000', $overlay['items'][0]['clipBegin']);
+        $t->same(1.0, $overlay['items'][0]['clipBeginSeconds']);
         $t->same('0:00:05.500', $overlay['items'][0]['clipEnd']);
+        $t->same(5.5, $overlay['items'][0]['clipEndSeconds']);
+        $t->same(4.5, $overlay['items'][0]['clipDurationSeconds']);
+        $t->same(true, $overlay['items'][0]['clipValid']);
+        $t->same([], $overlay['items'][0]['clipDiagnostics']);
         $t->same('page-audio', $overlay['items'][1]['id']);
         $t->same('/OEBPS/text/chapter1.xhtml#page-1', $overlay['items'][1]['textTarget']);
         $t->same('/OEBPS/audio/chapter1.mp3', $overlay['items'][1]['audioTarget']);
+        $t->same(5.5, $overlay['items'][1]['clipBeginSeconds']);
+        $t->same(7.0, $overlay['items'][1]['clipEndSeconds']);
+        $t->same(1.5, $overlay['items'][1]['clipDurationSeconds']);
         $t->same([], $overlay['diagnostics']);
         $t->same('mo-chapter-1', $result['spine'][0]['mediaOverlay']);
         $t->same('mo-chapter-1', $result['xhtmlAssets'][1]['mediaOverlay']);
@@ -1172,6 +1180,75 @@ return [
         $t->same($durations, $result['metadata']['mediaDurations']);
         $t->same($durations, $result['importReport']['mediaDurations']);
         $t->same($durations, $result['document']->attr('mediaDurations'));
+    },
+    'normalizes EPUB3 SMIL media overlay clip timing for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $smilWithClipTiming = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq id="timing-overlay" epub:textref="../text/chapter1.xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+      <par id="metric-clip">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter1.mp3" clipBegin="1.25s" clipEnd="2250ms"/>
+      </par>
+      <par id="invalid-begin">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter1.mp3" clipBegin="not-a-clock" clipEnd="2s"/>
+      </par>
+      <par id="reversed-clip">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter1.mp3" clipBegin="0:00:05.000" clipEnd="0:00:04.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+        $opfWithOverlay = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter-1"/><item id="mo-chapter-1" href="overlays/chapter1.smil" media-type="application/smil+xml"/><item id="audio-chapter-1" href="audio/chapter1.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlay,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/chapter1.smil', 'data' => $smilWithClipTiming],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3-DATA'],
+            ]
+        ));
+
+        $items = $result['mediaOverlays']['mo-chapter-1']['items'];
+        $t->same(3, count($items));
+
+        $t->same('metric-clip', $items[0]['id']);
+        $t->same('1.25s', $items[0]['clipBegin']);
+        $t->same(1.25, $items[0]['clipBeginSeconds']);
+        $t->same('2250ms', $items[0]['clipEnd']);
+        $t->same(2.25, $items[0]['clipEndSeconds']);
+        $t->same(1.0, $items[0]['clipDurationSeconds']);
+        $t->same(true, $items[0]['clipValid']);
+        $t->same([], $items[0]['clipDiagnostics']);
+        $t->same([], $items[0]['diagnostics']);
+
+        $t->same('invalid-begin', $items[1]['id']);
+        $t->same('not-a-clock', $items[1]['clipBegin']);
+        $t->same(null, $items[1]['clipBeginSeconds']);
+        $t->same(2.0, $items[1]['clipEndSeconds']);
+        $t->same(null, $items[1]['clipDurationSeconds']);
+        $t->same(false, $items[1]['clipValid']);
+        $t->same('invalid-media-overlay-clip-begin', $items[1]['clipDiagnostics'][0]['type']);
+        $t->same('not-a-clock', $items[1]['clipDiagnostics'][0]['clipBegin']);
+        $t->same($items[1]['clipDiagnostics'], $items[1]['diagnostics']);
+
+        $t->same('reversed-clip', $items[2]['id']);
+        $t->same(5.0, $items[2]['clipBeginSeconds']);
+        $t->same(4.0, $items[2]['clipEndSeconds']);
+        $t->same(null, $items[2]['clipDurationSeconds']);
+        $t->same(false, $items[2]['clipValid']);
+        $t->same('media-overlay-clip-end-before-begin', $items[2]['clipDiagnostics'][0]['type']);
+        $t->same(5.0, $items[2]['clipDiagnostics'][0]['clipBeginSeconds']);
+        $t->same(4.0, $items[2]['clipDiagnostics'][0]['clipEndSeconds']);
+        $t->same($result['mediaOverlays']['mo-chapter-1'], $result['importReport']['mediaOverlays']['mo-chapter-1']);
     },
     'retains remote nav NCX and media-overlay references without fetching' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $remoteNavXhtml, $remoteNcxXml, $remoteSmilXml): void {
         $opfWithOverlay = str_replace(

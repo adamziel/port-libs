@@ -390,11 +390,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? null) !== '/EPUB/audio/chapter.mp3') {
         throw new RuntimeException('Expected EPUB media-overlay audio target to resolve relative to the SMIL part');
     }
+    if (($result['mediaOverlays']['mo-chapter']['items'][0]['clipBeginSeconds'] ?? null) !== 0.0 || ($result['mediaOverlays']['mo-chapter']['items'][0]['clipEndSeconds'] ?? null) !== 4.25) {
+        throw new RuntimeException('Expected EPUB media-overlay first clip timing to normalize to seconds');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['items'][0]['clipDurationSeconds'] ?? null) !== 4.25 || ($result['mediaOverlays']['mo-chapter']['items'][0]['clipValid'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB media-overlay first clip duration to stay reviewable');
+    }
     if (($result['mediaOverlays']['mo-chapter']['items'][1]['textTarget'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
         throw new RuntimeException('Expected EPUB media-overlay page marker to stay addressable for review');
     }
+    if (($result['mediaOverlays']['mo-chapter']['items'][1]['clipDurationSeconds'] ?? null) !== 0.75) {
+        throw new RuntimeException('Expected EPUB media-overlay page marker clip duration to normalize to seconds');
+    }
     if (($result['mediaOverlays']['mo-chapter']['items'][2]['audioExternal'] ?? null) !== true || ($result['mediaOverlays']['mo-chapter']['items'][2]['diagnostics'][0]['type'] ?? null) !== 'external-media-overlay-reference') {
         throw new RuntimeException('Expected remote EPUB media-overlay audio to stay unfetched for review');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['items'][2]['clipDurationSeconds'] ?? null) !== 3.0) {
+        throw new RuntimeException('Expected remote EPUB media-overlay clip duration to normalize without fetching audio');
     }
     if (($result['mediaDurations']['total']['duration'] ?? null) !== '0:00:08.000' || ($result['mediaDurations']['total']['durationSeconds'] ?? null) !== 8.0) {
         throw new RuntimeException('Expected EPUB package-level media duration metadata');
@@ -509,7 +521,10 @@ echo 'bindingDiagnostics=' . count($result['bindings']['diagnostics'] ?? []) . "
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
+echo 'mediaOverlayFirstClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['clipDurationSeconds'] ?? '') . "\n";
+echo 'mediaOverlayPageClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][1]['clipDurationSeconds'] ?? '') . "\n";
 echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['audioTarget'] ?? '') . "\n";
+echo 'remoteOverlayClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['clipDurationSeconds'] ?? '') . "\n";
 echo 'mediaDuration=' . ($result['mediaDurations']['total']['duration'] ?? '') . "\n";
 echo 'mediaOverlayDuration=' . ($result['mediaOverlays']['mo-chapter']['duration'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
