@@ -3846,6 +3846,20 @@ final class PdfAttachmentExtractor
             return $this->latestDirectObjectDefinition($definitions);
         }
 
+        if (($xrefEntry['type'] ?? 1) === 2) {
+            $objectStreamDefinition = $this->latestDirectObjectStreamDefinition($definitions);
+            if ($objectStreamDefinition !== null) {
+                return $objectStreamDefinition;
+            }
+
+            $xrefStreamDefinition = $this->latestDirectXrefStreamDefinition($definitions);
+            if ($xrefStreamDefinition !== null) {
+                return $xrefStreamDefinition;
+            }
+
+            return null;
+        }
+
         if (($xrefEntry['type'] ?? 1) !== 1) {
             return null;
         }
@@ -3874,6 +3888,46 @@ final class PdfAttachmentExtractor
                 continue;
             }
             $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Object streams are stream objects and cannot themselves be compressed
+     * members. Keep a scanned /ObjStm body available when a malformed type-2
+     * row tries to hide the current object-stream base.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectStreamDefinition(array $definitions): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($this->objectBodyHasTypeName($definition['body'], 'ObjStm')) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * Xref streams are selected as direct file-level stream objects by
+     * startxref. A malformed decoded type-2 row for that same object number
+     * must not replace the direct xref owner with a compressed member cycle.
+     *
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectXrefStreamDefinition(array $definitions): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($this->objectBodyHasTypeName($definition['body'], 'XRef')) {
+                $candidates[] = $definition;
+            }
         }
 
         return $this->latestDirectObjectDefinition($candidates);
