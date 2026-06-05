@@ -70,6 +70,16 @@ final class PdfMetadataExtractor
         'Dests' => true,
         'EmbeddedFiles' => true,
     ];
+    private const VALID_DESTINATION_VIEW_NAMES = [
+        'Fit' => true,
+        'FitB' => true,
+        'FitBH' => true,
+        'FitBV' => true,
+        'FitH' => true,
+        'FitR' => true,
+        'FitV' => true,
+        'XYZ' => true,
+    ];
 
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_PDF = 'http://ns.adobe.com/pdf/1.3/';
@@ -4393,16 +4403,38 @@ final class PdfMetadataExtractor
         }
 
         $viewMode = isset($items[1]) ? $this->destinationNameFromRaw($items[1], $objects) : null;
+        if ($viewMode !== null && !isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode])) {
+            return null;
+        }
+
         $viewPosition = [];
         for ($index = 2, $count = count($items); $index < $count; $index++) {
             $viewPosition[] = $this->destinationNumericValue($items[$index], $objects);
         }
+        $viewPosition = $this->normalizedDestinationViewPosition($viewMode, $viewPosition);
 
         if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {
             $viewPosition[2] = null;
         }
 
         return $this->documentDestinationRow($page, $destinationName, $viewMode, $viewPosition);
+    }
+
+    /**
+     * @param list<float|null> $viewPosition
+     * @return list<float|null>
+     */
+    private function normalizedDestinationViewPosition(?string $viewMode, array $viewPosition): array
+    {
+        $expectedCount = match ($viewMode) {
+            'Fit', 'FitB' => 0,
+            'FitH', 'FitBH', 'FitV', 'FitBV' => 1,
+            'FitR' => 4,
+            'XYZ' => 3,
+            default => null,
+        };
+
+        return $expectedCount === null ? $viewPosition : array_slice($viewPosition, 0, $expectedCount);
     }
 
     /**

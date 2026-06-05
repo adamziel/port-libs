@@ -16,6 +16,17 @@ final class PdfOutlineExtractor
      */
     private array $objectSingleTopLevelValues = [];
 
+    private const VALID_DESTINATION_VIEW_NAMES = [
+        'Fit' => true,
+        'FitB' => true,
+        'FitBH' => true,
+        'FitBV' => true,
+        'FitH' => true,
+        'FitR' => true,
+        'FitV' => true,
+        'XYZ' => true,
+    ];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -4662,6 +4673,10 @@ final class PdfOutlineExtractor
 
         $array = $this->arrayItems($resolved);
         if ($array !== null && $array !== []) {
+            if (!$this->destinationArrayViewModeIsValid($array, $objects)) {
+                return null;
+            }
+
             return $this->explicitDestinationDetails($array, $objects, $pageIndexes, $destinationName);
         }
 
@@ -4710,6 +4725,10 @@ final class PdfOutlineExtractor
         }
 
         $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null, $objects));
+        if ($viewMode !== null && !isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode])) {
+            return null;
+        }
+
         $viewPosition = [];
         for ($index = 2, $count = count($array); $index < $count; $index++) {
             $viewPosition[] = $this->numericOrNullValue($this->resolveValue($array[$index], $objects));
@@ -4855,6 +4874,9 @@ final class PdfOutlineExtractor
         if ($array === null || $array === []) {
             return null;
         }
+        if (!$this->destinationArrayViewModeIsValid($array, $objects)) {
+            return null;
+        }
 
         $first = $array[0];
         $pageObjectNumber = $this->validReferenceObjectNumber($first, $objects);
@@ -4867,6 +4889,21 @@ final class PdfOutlineExtractor
         }
 
         return $this->destinationPageIndex($first, $objects, $pageIndexes, $destinations, $seenNames);
+    }
+
+    /**
+     * @param list<mixed> $array
+     * @param array<int, mixed> $objects
+     */
+    private function destinationArrayViewModeIsValid(array $array, array $objects): bool
+    {
+        if (count($array) < 2) {
+            return true;
+        }
+
+        $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null, $objects));
+
+        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
     }
 
     /**
