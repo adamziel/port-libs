@@ -14063,7 +14063,7 @@ final class PdfTextExtractor
             ];
         }
 
-        return null;
+        return $this->postDirectFilterExtraDecoderOperand($dict, $next);
     }
 
     private function pdfNameTokenEndOffset(string $body, int $offset): int
@@ -14124,6 +14124,57 @@ final class PdfTextExtractor
                 'preview' => substr($dict, $next, $nextEnd - $next),
                 'name' => $name,
             ];
+        }
+
+        return $this->postDirectFilterExtraDecoderOperand($dict, $next);
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function postDirectFilterExtraDecoderOperand(string $dict, int $offset): ?array
+    {
+        $index = $this->skipPdfWhitespace($dict, $offset);
+        $length = strlen($dict);
+
+        while ($index < $length) {
+            if (substr($dict, $index, 2) === '>>' || ($dict[$index] ?? '') === ']') {
+                return null;
+            }
+
+            if (($dict[$index] ?? '') !== '/') {
+                return null;
+            }
+
+            $nameEnd = $this->pdfNameTokenEndOffset($dict, $index);
+            if ($nameEnd <= $index + 1) {
+                return null;
+            }
+
+            $name = $this->decodePdfName(substr($dict, $index + 1, $nameEnd - $index - 1));
+            if ($name === 'Length') {
+                return null;
+            }
+
+            if ($this->streamFilterNameLooksLikeDecoder($name)) {
+                return [
+                    'type' => 'name',
+                    'preview' => substr($dict, $index, $nameEnd - $index),
+                    'name' => $name,
+                ];
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($dict, $nameEnd);
+            if ($valueOffset >= $length || substr($dict, $valueOffset, 2) === '>>' || ($dict[$valueOffset] ?? '') === ']') {
+                return null;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dict, $valueOffset);
+            if ($nextOffset <= $valueOffset) {
+                return null;
+            }
+
+            $index = $this->skipPdfWhitespace($dict, $nextOffset);
         }
 
         return null;
