@@ -18988,7 +18988,15 @@ final class PdfTextExtractor
     {
         $operand = trim($operand);
         if (str_starts_with($operand, '<')) {
-            return $this->normalizeHexKey(trim($operand, '<>'));
+            $hex = preg_replace('/\s+/', '', strtolower(trim($operand, '<>')));
+            if ($hex === null || $hex === '' || preg_match('/^[\da-f]+$/', $hex) !== 1) {
+                return '';
+            }
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            return $hex;
         }
 
         if (str_starts_with($operand, '(')) {
