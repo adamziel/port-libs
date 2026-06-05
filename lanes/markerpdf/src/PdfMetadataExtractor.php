@@ -3625,8 +3625,9 @@ final class PdfMetadataExtractor
         }
 
         $limits = $this->nameTreeEffectiveLimits($node, $objects, $inheritedLimits);
+        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         $names = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Names') ?? '', $objects);
-        $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
+        $entryLimits = ($kids !== [] || $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits))
             ? $limits
             : $inheritedLimits;
         for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
@@ -3642,11 +3643,10 @@ final class PdfMetadataExtractor
             ];
         }
 
-        $kids = $this->arrayItemsFromValue($this->dictionaryTopLevelRawValue($node['body'], 'Kids') ?? '', $objects);
         foreach ($kids as $kid) {
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null) {
-                $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $entryLimits);
+                $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $limits);
             }
         }
     }
