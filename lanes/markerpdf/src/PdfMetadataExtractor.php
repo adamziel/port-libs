@@ -7466,6 +7466,18 @@ final class PdfMetadataExtractor
         array $objects = []
     ): ?int {
         $previousOffset = $this->dictionaryIntegerValue($sectionBody, 'Prev', $objects);
+        if ($previousOffset === null && $objects !== []) {
+            $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelpers(
+                $sectionBody,
+                $objects,
+                $definitions,
+                $currentOffset
+            );
+            if ($helperObjects !== $objects) {
+                $previousOffset = $this->dictionaryIntegerValue($sectionBody, 'Prev', $helperObjects);
+            }
+        }
+
         if ($previousOffset === null || $previousOffset < 0) {
             return $previousOffset;
         }
@@ -7661,6 +7673,13 @@ final class PdfMetadataExtractor
     private function repairCurrentUpdateXrefTableRows(array $entries, array $definitions, string $trailer, int $xrefOffset, array $objects = []): array
     {
         $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev', $objects === [] ? null : $objects);
+        if ($previousOffset === null && $objects !== []) {
+            $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelpers($trailer, $objects, $definitions, $xrefOffset);
+            if ($helperObjects !== $objects) {
+                $previousOffset = $this->dictionaryIntegerValue($trailer, 'Prev', $helperObjects);
+            }
+        }
+
         if ($previousOffset === null || $previousOffset < 0) {
             return $entries;
         }

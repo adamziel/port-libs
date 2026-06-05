@@ -15088,6 +15088,18 @@ final class PdfTextExtractor
         array $objects = []
     ): ?int {
         $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $sectionBody, $objects);
+        if ($previousOffset === null && $objects !== []) {
+            $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelper(
+                $sectionBody,
+                $objects,
+                $definitions,
+                $currentOffset
+            );
+            if ($helperObjects !== $objects) {
+                $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $sectionBody, $helperObjects);
+            }
+        }
+
         if ($previousOffset === null || $previousOffset < 0) {
             return $previousOffset;
         }
@@ -15145,7 +15157,7 @@ final class PdfTextExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
             $trailer = $tableSection['trailer'];
@@ -15685,10 +15697,11 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>, trailer: string}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
+    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null, array $objects = []): ?array
     {
         if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
             return null;
@@ -15717,7 +15730,7 @@ final class PdfTextExtractor
 
         $entries = $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset));
         if ($definitions !== null) {
-            $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailer, $offset);
+            $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailer, $offset, $objects);
         }
 
         return [
@@ -15851,9 +15864,17 @@ final class PdfTextExtractor
         array $entries,
         array $definitions,
         string $trailer,
-        int $xrefOffset
+        int $xrefOffset,
+        array $objects = []
     ): array {
-        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer);
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects);
+        if ($previousOffset === null && $objects !== []) {
+            $helperObjects = $this->objectsWithCompressedXrefPrevOperandHelper($trailer, $objects, $definitions, $xrefOffset);
+            if ($helperObjects !== $objects) {
+                $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $helperObjects);
+            }
+        }
+
         if ($previousOffset === null || $previousOffset < 0) {
             return $entries;
         }
@@ -17280,6 +17301,47 @@ final class PdfTextExtractor
         }
 
         return $resolved;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function objectsWithCompressedXrefPrevOperandHelper(
+        string $sectionBody,
+        array $objects,
+        array $definitions,
+        int $beforeOffset
+    ): array {
+        $reference = $this->objectReferenceAfterName($sectionBody, 'Prev');
+        if ($reference === null || $reference['generation'] !== 0) {
+            return $objects;
+        }
+
+        $helper = $this->compressedStreamDictionaryOperandHelperBeforeOffset(
+            $definitions,
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation'],
+            $beforeOffset
+        );
+        if ($helper === null || !$this->xrefPrevOperandHelperBodyIsSafe($helper['body'])) {
+            return $objects;
+        }
+
+        $objects[$reference['objectNumber']] = $helper['body'];
+        return $objects;
+    }
+
+    private function xrefPrevOperandHelperBodyIsSafe(string $body): bool
+    {
+        if ($body === '' || preg_match('/\b(?:obj|endobj|stream|endstream|xref|trailer|startxref)\b/s', $body) === 1) {
+            return false;
+        }
+
+        $offset = $this->skipPdfWhitespace($body, 0);
+        return preg_match('/\G[+-]?\d+\s*\z/s', $body, $match, 0, $offset) === 1;
     }
 
     /**
