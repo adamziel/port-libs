@@ -11721,6 +11721,22 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     */
+    private function ccittFaxDecodeParmsUsesRowEndOwnership(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return false;
+        }
+
+        if (!$this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            return false;
+        }
+
+        return $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects) === false;
+    }
+
+    /**
+     * @param array<int, string> $objects
      * @param list<string|null> $filters
      */
     private function ccittFaxDecodedBytesReachBoundary(
@@ -11756,7 +11772,9 @@ final class PdfTextExtractor
             return false;
         }
 
-        $rowCount = $this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects, $imageHeight);
+        $rowCount = $this->ccittFaxDecodeParmsUsesRowEndOwnership($decodeParms, $objects)
+            ? $this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects, $imageHeight)
+            : null;
         if ($rowCount !== null) {
             $rowEndMarker = "\x00\x10\x01";
 
