@@ -20719,10 +20719,51 @@ final class PdfTextExtractor
         if (
             !str_starts_with($operand, '[')
             || $toUnicodeMap === null
-            || $this->mapWritingMode($toUnicodeMap) === 1
             || !$this->hasSourceBoundaryDataForGlyphAdvance($toUnicodeMap)
         ) {
             return $this->decodeTextOperand($operand, $toUnicodeMap);
+        }
+
+        if ($this->mapWritingMode($toUnicodeMap) === 1) {
+            $text = '';
+            $endY = 0.0;
+            $pendingWordGap = false;
+            foreach ($this->textArrayElements($operand) as $element) {
+                if ($element['type'] === 'text') {
+                    $textOperand = (string) $element['value'];
+                    $decoded = $this->decodeTextOperand($textOperand, $toUnicodeMap);
+                    if ($decoded !== '') {
+                        if ($pendingWordGap && !$this->endsWithWhitespace($text) && !$this->startsWithWhitespace($decoded)) {
+                            $text .= ' ';
+                        }
+                        $text .= $decoded;
+                        $pendingWordGap = false;
+                    }
+
+                    $endY = $this->advanceTextEndY(
+                        $endY,
+                        $decoded,
+                        $fontSize,
+                        $characterSpacing,
+                        $wordSpacing,
+                        $this->glyphVerticalDisplacementsForTextOperand($textOperand, $toUnicodeMap),
+                        $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap)
+                    ) ?? $endY;
+                    continue;
+                }
+
+                $previousEndY = $endY;
+                $adjustedEndY = $this->adjustTextEndY($endY, (float) $element['value'], $fontSize);
+                if ($adjustedEndY === null) {
+                    continue;
+                }
+                if (abs($adjustedEndY - $previousEndY) >= self::POSITIONED_TEXT_WORD_GAP) {
+                    $pendingWordGap = $text !== '';
+                }
+                $endY = $adjustedEndY;
+            }
+
+            return $text;
         }
 
         $text = '';
