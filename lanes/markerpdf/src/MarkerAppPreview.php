@@ -1565,17 +1565,19 @@ final class MarkerAppPreview
             return $labels;
         }
 
-        $value = $this->valueAfterName($catalogBody, 'PageLabels');
-        if ($value === null) {
-            return $labels;
+        $sections = [];
+        foreach ($this->valuesAfterName($catalogBody, 'PageLabels') as $value) {
+            $candidateSections = $this->pageLabelSections($value, $objects);
+            $candidateSections = array_filter(
+                $candidateSections,
+                static fn (array $section): bool => $section['page_index'] >= 0 && $section['page_index'] < $pageCount
+            );
+            usort($candidateSections, static fn (array $left, array $right): int => $left['page_index'] <=> $right['page_index']);
+            if ($candidateSections !== []) {
+                $sections = $candidateSections;
+                break;
+            }
         }
-
-        $sections = $this->pageLabelSections($value, $objects);
-        $sections = array_filter(
-            $sections,
-            static fn (array $section): bool => $section['page_index'] >= 0 && $section['page_index'] < $pageCount
-        );
-        usort($sections, static fn (array $left, array $right): int => $left['page_index'] <=> $right['page_index']);
         if ($sections === []) {
             return $labels;
         }
@@ -2242,6 +2244,14 @@ final class MarkerAppPreview
 
     private function valueAfterName(string $body, string $name): ?string
     {
+        return $this->valuesAfterName($body, $name)[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function valuesAfterName(string $body, string $name): array
+    {
         $body = trim($body);
         if (str_starts_with($body, '<<')) {
             $dictionary = $this->readBalancedDictionary($body, 0);
@@ -2251,10 +2261,11 @@ final class MarkerAppPreview
         }
 
         $length = strlen($body);
+        $values = [];
         for ($offset = 0; $offset < $length;) {
             $offset = $this->skipPdfWhitespace($body, $offset);
             if ($offset >= $length) {
-                return null;
+                return $values;
             }
 
             $skipped = $this->skipCompositeValueBytes($body, $offset);
@@ -2280,10 +2291,15 @@ final class MarkerAppPreview
                 continue;
             }
 
-            return $value === null ? null : $value[0];
+            if ($value === null) {
+                return $values;
+            }
+
+            $values[] = $value[0];
+            $offset = $value[1];
         }
 
-        return null;
+        return $values;
     }
 
     /**

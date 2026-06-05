@@ -9908,12 +9908,13 @@ final class PdfTextExtractor
             $fallback[] = (string) ($index + 1);
         }
 
-        $dictionary = $this->pageLabelsDictionaryBody($objects);
-        if ($dictionary === null) {
-            return $fallback;
+        $sections = [];
+        foreach ($this->pageLabelsDictionaryBodies($objects) as $dictionary) {
+            $sections = $this->pageLabelNumberTreeEntries($dictionary, $objects, $pageCount);
+            if ($sections !== []) {
+                break;
+            }
         }
-
-        $sections = $this->pageLabelNumberTreeEntries($dictionary, $objects, $pageCount);
         if ($sections === []) {
             return $fallback;
         }
@@ -9949,22 +9950,33 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return list<string>
      * @param array<int, string> $objects
      */
-    private function pageLabelsDictionaryBody(array $objects): ?string
+    private function pageLabelsDictionaryBodies(array $objects): array
     {
         foreach ($objects as $body) {
             if (!$this->isCatalogObject($body)) {
                 continue;
             }
 
-            $value = $this->topLevelPdfValueAfterName($body, 'PageLabels');
-            if ($value !== null) {
-                return $this->pageLabelDictionaryFromValue($value, $objects);
+            $values = $this->topLevelPdfValuesAfterName($body, 'PageLabels');
+            if ($values === []) {
+                continue;
             }
+
+            $dictionaries = [];
+            foreach ($values as $value) {
+                $dictionary = $this->pageLabelDictionaryFromValue($value, $objects);
+                if ($dictionary !== null) {
+                    $dictionaries[] = $dictionary;
+                }
+            }
+
+            return $dictionaries;
         }
 
-        return null;
+        return [];
     }
 
     /**
