@@ -19,6 +19,7 @@ final class CslStyle
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
         'and others|long' => ['single' => 'and others', 'multiple' => 'and others'],
+        'ellipsis|long' => ['single' => "\u{2026}", 'multiple' => "\u{2026}"],
         'no date|long' => ['single' => 'n.d.', 'multiple' => 'n.d.'],
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
         'open-quote|long' => ['single' => "\u{201C}", 'multiple' => "\u{201C}"],
@@ -88,6 +89,7 @@ final class CslStyle
             'and' => 'text',
             'etAlMin' => 3,
             'etAlUseFirst' => 1,
+            'etAlUseLast' => false,
             'etAlSubsequentMin' => null,
             'etAlSubsequentUseFirst' => null,
             'delimiterPrecedesEtAl' => 'contextual',
@@ -110,6 +112,7 @@ final class CslStyle
             'and' => 'text',
             'etAlMin' => null,
             'etAlUseFirst' => 1,
+            'etAlUseLast' => false,
             'etAlSubsequentMin' => null,
             'etAlSubsequentUseFirst' => null,
             'delimiterPrecedesEtAl' => 'contextual',
@@ -738,6 +741,7 @@ final class CslStyle
             'and' => is_string($overrides['and'] ?? null) ? $overrides['and'] : $defaults['and'],
             'etAlMin' => is_int($overrides['etAlMin'] ?? null) ? $overrides['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($overrides['etAlUseFirst'] ?? null) ? $overrides['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'etAlUseLast' => is_bool($overrides['etAlUseLast'] ?? null) ? $overrides['etAlUseLast'] : (bool) ($defaults['etAlUseLast'] ?? false),
             'etAlSubsequentMin' => is_int($overrides['etAlSubsequentMin'] ?? null) ? $overrides['etAlSubsequentMin'] : ($defaults['etAlSubsequentMin'] ?? null),
             'etAlSubsequentUseFirst' => is_int($overrides['etAlSubsequentUseFirst'] ?? null) ? $overrides['etAlSubsequentUseFirst'] : ($defaults['etAlSubsequentUseFirst'] ?? null),
             'delimiterPrecedesEtAl' => is_string($overrides['delimiterPrecedesEtAl'] ?? null) ? $overrides['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
@@ -811,6 +815,7 @@ final class CslStyle
 
         $etAlMin = self::positiveIntegerNameAttribute($names, $name, 'et-al-min', $scope);
         $etAlUseFirst = self::positiveIntegerNameAttribute($names, $name, 'et-al-use-first', $scope);
+        $etAlUseLast = self::optionalBooleanNameAttribute($name, $names, 'et-al-use-last', $scope);
         $etAlSubsequentMin = self::positiveIntegerNameAttribute($names, $name, 'et-al-subsequent-min', $scope);
         $etAlSubsequentUseFirst = self::positiveIntegerNameAttribute($names, $name, 'et-al-subsequent-use-first', $scope);
         if ($etAlMin !== null) {
@@ -818,6 +823,9 @@ final class CslStyle
         }
         if ($etAlUseFirst !== null) {
             $overrides['etAlUseFirst'] = $etAlUseFirst;
+        }
+        if ($etAlUseLast !== null) {
+            $overrides['etAlUseLast'] = $etAlUseLast;
         }
         if ($etAlSubsequentMin !== null) {
             $overrides['etAlSubsequentMin'] = $etAlSubsequentMin;

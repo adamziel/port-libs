@@ -4184,6 +4184,7 @@ final class CitationCslProcessor
             'and' => is_string($options['and'] ?? null) ? $options['and'] : $defaults['and'],
             'etAlMin' => is_int($options['etAlMin'] ?? null) ? $options['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($options['etAlUseFirst'] ?? null) ? $options['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'etAlUseLast' => is_bool($options['etAlUseLast'] ?? null) ? $options['etAlUseLast'] : (bool) ($defaults['etAlUseLast'] ?? false),
             'etAlSubsequentMin' => is_int($options['etAlSubsequentMin'] ?? null) ? $options['etAlSubsequentMin'] : ($defaults['etAlSubsequentMin'] ?? null),
             'etAlSubsequentUseFirst' => is_int($options['etAlSubsequentUseFirst'] ?? null) ? $options['etAlSubsequentUseFirst'] : ($defaults['etAlSubsequentUseFirst'] ?? null),
             'delimiterPrecedesEtAl' => is_string($options['delimiterPrecedesEtAl'] ?? null) ? $options['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
@@ -5081,6 +5082,15 @@ final class CitationCslProcessor
         }
 
         if ($useEtAl) {
+            if ($this->usesEtAlLastName($options, $forceEtAl, $etAlMin, $etAlUseFirst, $visibleCount, $count)) {
+                $lastName = $renderableNames[$count - 1];
+                $lastRendered = $bibliography
+                    ? $this->renderBibliographyName($lastName, $options, $count - 1)
+                    : $this->renderCitationName($lastName, $options);
+
+                return $this->joinNamesWithEtAlUseLast($rendered, $lastRendered, $options);
+            }
+
             $term = $this->renderEtAlTerm($options);
             if ($rendered === []) {
                 return $term;
@@ -5114,6 +5124,22 @@ final class CitationCslProcessor
             ['subsequent', 'ibid', 'ibid-with-locator', 'near-note'],
             true
         );
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function usesEtAlLastName(array $options, bool $forceEtAl, mixed $etAlMin, mixed $etAlUseFirst, int $visibleCount, int $count): bool
+    {
+        if ($forceEtAl || ($options['etAlUseLast'] ?? false) !== true) {
+            return false;
+        }
+
+        if (!is_int($etAlMin) || !is_int($etAlUseFirst) || $etAlUseFirst > $etAlMin - 2) {
+            return false;
+        }
+
+        return $visibleCount + 1 < $count;
     }
 
     /**
@@ -5156,6 +5182,17 @@ final class CitationCslProcessor
         }
 
         return $names . $separator . $term;
+    }
+
+    /**
+     * @param list<string> $rendered
+     * @param array<string, mixed> $options
+     */
+    private function joinNamesWithEtAlUseLast(array $rendered, string $lastRendered, array $options): string
+    {
+        $delimiter = (string) $options['delimiter'];
+
+        return implode($delimiter, [...$rendered, $this->style->term('ellipsis'), $lastRendered]);
     }
 
     /**

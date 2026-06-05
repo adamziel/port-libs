@@ -3947,6 +3947,104 @@ XML
 XML
         ));
     },
+    'applies bounded csl et al use last for truncated name lists' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'last-source',
+                'type' => 'report',
+                'title' => 'Et Al Last Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Okafor', 'given' => 'Ola'],
+                    ['literal' => 'Migration Desk'],
+                    ['family' => 'Smith', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/et-al-last-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Et Al Use Last Review Style</title>
+    <id>https://example.test/styles/bounded-et-al-use-last-review</id>
+    <updated>2026-06-05T15:33:02+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", " et-al-min="4" et-al-use-first="2" et-al-use-last="true">
+          <name/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author" delimiter="; " et-al-min="4" et-al-use-first="2" et-al-use-last="true">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $ellipsis = "\u{2026}";
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0]['nameRendering'] ?? [];
+        $bibliographyNames = $summary['bibliographyRendering'][0]['nameRendering'] ?? [];
+        $t->same('Bounded Et Al Use Last Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['nameRendering']['citation']['etAlUseLast'] ?? null);
+        $t->same(true, $citationNames['etAlUseLast'] ?? null);
+        $t->same(true, $bibliographyNames['etAlUseLast'] ?? null);
+
+        $citation = new AstNode('citation', ['id' => 'last-source', 'text' => '[@last-source]']);
+        $t->same('(de la Cruz, Ng, ' . $ellipsis . ', Smith 2026)', $processor->renderCitationCluster([$citation]));
+        $t->same('de la Cruz, A. M.; Ng, N.; ' . $ellipsis . '; Smith, S. Et Al Last Source Packet. https://example.test/et-al-last-source.', $processor->renderBibliographyEntry('last-source'));
+
+        $fallback = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", " et-al-min="4" et-al-use-first="3" et-al-use-last="true"><name/></names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography><layout><text variable="title"/></layout></bibliography>
+</style>
+XML
+        );
+        $t->same('(de la Cruz, Ng, Okafor, et al. 2026)', $fallback->renderCitationCluster([$citation]));
+
+        $document = (new MarkdownReader())->read('Review cites @last-source before bibliography handoff.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites de la Cruz, Ng, ' . $ellipsis . ', Smith (2026) before bibliography handoff.', $markdown);
+        $t->contains('de la Cruz, Ng, ' . $ellipsis . ', Smith 2026' . "\n" . ':   de la Cruz, A. M.; Ng, N.; ' . $ellipsis . '; Smith, S. Et Al Last Source Packet. https://example.test/et-al-last-source.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites de la Cruz, Ng, ' . $ellipsis . ', Smith (2026) before bibliography handoff.</p>', $blocks);
+        $t->contains('<dt>de la Cruz, Ng, ' . $ellipsis . ', Smith 2026</dt><dd>de la Cruz, A. M.; Ng, N.; ' . $ellipsis . '; Smith, S. Et Al Last Source Packet. https://example.test/et-al-last-source.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author" et-al-use-last="maybe"><name/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl et al subsequent thresholds for repeated citations' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
