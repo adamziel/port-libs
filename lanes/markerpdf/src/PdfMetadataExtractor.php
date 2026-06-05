@@ -6791,11 +6791,7 @@ final class PdfMetadataExtractor
     {
         foreach ($this->xmpTopLevelPropertyElements($document, $namespace, $localName) as $element) {
             $values = [];
-            foreach ($element->getElementsByTagNameNS(self::NS_RDF, 'li') as $item) {
-                if (!$item instanceof DOMElement) {
-                    continue;
-                }
-
+            foreach ($this->xmpRdfCollectionItems($element) as $item) {
                 $value = $this->xmpQualifiedTextValue($item);
                 if ($value !== null) {
                     $values[] = $value;
@@ -6894,11 +6890,7 @@ final class PdfMetadataExtractor
     private function preferredAltText(DOMElement $element): ?string
     {
         $first = null;
-        foreach ($element->getElementsByTagNameNS(self::NS_RDF, 'li') as $item) {
-            if (!$item instanceof DOMElement) {
-                continue;
-            }
-
+        foreach ($this->xmpRdfCollectionItems($element) as $item) {
             $value = $this->xmpQualifiedTextValue($item);
             if ($value === null) {
                 continue;
