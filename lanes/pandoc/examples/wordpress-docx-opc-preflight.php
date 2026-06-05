@@ -32,6 +32,7 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero%20image.PNG"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
 </Relationships>
 XML;
 
@@ -88,10 +89,14 @@ foreach ($graph->summarizeTargetsForSource($documentPart) as $relationship) {
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     $relationshipPreflight[$target['id']] = [
+        'id' => $target['id'],
         'target' => $target['target'],
         'contentType' => $target['contentType'],
         'external' => $target['external'],
         'exists' => $target['exists'],
+        'externalTargetKind' => $target['externalTargetKind'],
+        'externalTargetScheme' => $target['externalTargetScheme'],
+        'externalTargetAllowed' => $target['externalTargetAllowed'],
         'valid' => $target['valid'],
         'issues' => $target['issues'],
     ];
@@ -106,6 +111,9 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
         'targetPart' => $target['targetPart'],
         'contentType' => $target['contentType'],
         'external' => $target['external'],
+        'externalTargetKind' => $target['externalTargetKind'],
+        'externalTargetScheme' => $target['externalTargetScheme'],
+        'externalTargetAllowed' => $target['externalTargetAllowed'],
         'depth' => $target['depth'],
         'valid' => $target['valid'],
         'issues' => $target['issues'],
@@ -143,16 +151,27 @@ $summary = [
             static fn (bool $valid, array $target): bool => $valid && $target['valid'],
             true
         ),
-        'issues' => array_filter(
+        'issues' => array_values(array_filter(
             $reachableTargets,
             static fn (array $target): bool => $target['issues'] !== []
-        ),
+        )),
     ],
     'wordpressImport' => [
         'mediaParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
             static fn (?string $target): bool => $target !== null && str_starts_with($target, '/word/media/')
         ))),
+        'externalTargets' => array_values(array_map(
+            static fn (array $target): array => [
+                'id' => $target['id'],
+                'target' => $target['target'],
+                'kind' => $target['externalTargetKind'],
+                'scheme' => $target['externalTargetScheme'],
+                'allowed' => $target['externalTargetAllowed'],
+                'issues' => $target['issues'],
+            ],
+            array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
+        )),
         'hasReviewerEditLink' => ($relationshipSummaries['rIdReviewer']['external'] ?? false) === true,
     ],
 ];
@@ -185,9 +204,16 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/media/hero image.PNG']['contentType'] !== 'image/png'
-        || $summary['integrity']['documentRelationshipsValid'] !== true
-        || $summary['integrity']['reachableRelationshipsValid'] !== true
-        || $summary['integrity']['issues'] !== []
+        || $summary['integrity']['documentRelationshipsValid'] !== false
+        || $summary['integrity']['reachableRelationshipsValid'] !== false
+        || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'
+        || ($summary['wordpressImport']['externalTargets'][0]['allowed'] ?? null) !== true
+        || ($summary['wordpressImport']['externalTargets'][1]['id'] ?? null) !== 'rIdUnsafeReviewer'
+        || ($summary['wordpressImport']['externalTargets'][1]['scheme'] ?? null) !== 'javascript'
+        || ($summary['wordpressImport']['externalTargets'][1]['allowed'] ?? null) !== false
+        || ($summary['wordpressImport']['externalTargets'][1]['issues'] ?? null) !== ['external-target-unsafe-scheme']
+        || ($summary['integrity']['issues'][0]['id'] ?? null) !== 'rIdUnsafeReviewer'
+        || ($summary['integrity']['issues'][0]['issues'] ?? null) !== ['external-target-unsafe-scheme']
     ) {
         throw new RuntimeException('OPC DOCX preflight self-test failed');
     }

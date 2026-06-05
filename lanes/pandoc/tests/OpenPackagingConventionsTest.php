@@ -326,6 +326,9 @@ XML;
         $t->same('https://example.test/review', $preflight['rIdExternal']['target']);
         $t->same(true, $preflight['rIdExternal']['external']);
         $t->same(null, $preflight['rIdExternal']['exists']);
+        $t->same('absolute-uri', $preflight['rIdExternal']['externalTargetKind']);
+        $t->same('https', $preflight['rIdExternal']['externalTargetScheme']);
+        $t->same(true, $preflight['rIdExternal']['externalTargetAllowed']);
         $t->same([], $preflight['rIdExternal']['issues']);
 
         $t->same('../../evil.xml', $preflight['rIdEscape']['target']);
@@ -335,6 +338,77 @@ XML;
         $imagePreflight = $graph->preflightTargetsForSource('/word/document.xml', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
         $t->same(['rIdMissingImage', 'rIdEscape'], array_column($imagePreflight, 'id'));
         $t->same([], $graph->preflightTargetsForSource('/word/missing.xml'));
+    },
+    'classifies and preflights external OPC relationship target policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHttp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source packet.html?post=42#review" TargetMode="External"/>
+  <Relationship Id="rIdMailto" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="mailto:editor@example.test" TargetMode="External"/>
+  <Relationship Id="rIdNetwork" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="//cdn.example.test/review.png" TargetMode="External"/>
+  <Relationship Id="rIdRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html#packet" TargetMode="External"/>
+  <Relationship Id="rIdFragment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#local-bookmark" TargetMode="External"/>
+  <Relationship Id="rIdFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///tmp/source.html" TargetMode="External"/>
+  <Relationship Id="rIdJavascript" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="data:text/plain;base64,SGVsbG8=" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same([
+            'rIdHttp',
+            'rIdMailto',
+            'rIdNetwork',
+            'rIdRelative',
+            'rIdFragment',
+            'rIdFile',
+            'rIdJavascript',
+            'rIdData',
+        ], array_keys($preflight));
+        $t->same('absolute-uri', $preflight['rIdHttp']['externalTargetKind']);
+        $t->same('https', $preflight['rIdHttp']['externalTargetScheme']);
+        $t->same(true, $preflight['rIdHttp']['externalTargetAllowed']);
+        $t->same([], $preflight['rIdHttp']['issues']);
+        $t->same('mailto', $preflight['rIdMailto']['externalTargetScheme']);
+        $t->same(true, $preflight['rIdMailto']['valid']);
+        $t->same('network-path-reference', $preflight['rIdNetwork']['externalTargetKind']);
+        $t->same(null, $preflight['rIdNetwork']['externalTargetScheme']);
+        $t->same(true, $preflight['rIdNetwork']['externalTargetAllowed']);
+        $t->same('relative-reference', $preflight['rIdRelative']['externalTargetKind']);
+        $t->same(null, $preflight['rIdRelative']['externalTargetScheme']);
+        $t->same(true, $preflight['rIdRelative']['valid']);
+        $t->same('fragment-reference', $preflight['rIdFragment']['externalTargetKind']);
+        $t->same(true, $preflight['rIdFragment']['externalTargetAllowed']);
+        $t->same('absolute-uri', $preflight['rIdFile']['externalTargetKind']);
+        $t->same('file', $preflight['rIdFile']['externalTargetScheme']);
+        $t->same(false, $preflight['rIdFile']['externalTargetAllowed']);
+        $t->same(false, $preflight['rIdFile']['valid']);
+        $t->same(['external-target-unsafe-scheme'], $preflight['rIdFile']['issues']);
+        $t->same('javascript', $preflight['rIdJavascript']['externalTargetScheme']);
+        $t->same(['external-target-unsafe-scheme'], $preflight['rIdJavascript']['issues']);
+        $t->same('data', $preflight['rIdData']['externalTargetScheme']);
+        $t->same(['external-target-unsafe-scheme'], $preflight['rIdData']['issues']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same('javascript', $closureById['rIdJavascript']['externalTargetScheme']);
+        $t->same(false, $closureById['rIdJavascript']['valid']);
+        $t->same(['external-target-unsafe-scheme'], $closureById['rIdJavascript']['issues']);
+        $t->same(null, $closureById['rIdRelative']['targetPart']);
     },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'

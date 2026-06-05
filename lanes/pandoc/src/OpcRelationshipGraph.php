@@ -135,7 +135,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}>
+     * @return list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
      */
     public function preflightTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
@@ -151,6 +151,7 @@ final class OpcRelationshipGraph
         $preflight = [];
         foreach ($items as $relationship) {
             if ($relationship->isExternal()) {
+                $externalTarget = $relationship->externalTargetPreflight();
                 $preflight[] = [
                     'id' => $relationship->id,
                     'type' => $relationship->type,
@@ -159,8 +160,11 @@ final class OpcRelationshipGraph
                     'external' => true,
                     'exists' => null,
                     'relationshipPartTarget' => false,
-                    'valid' => true,
-                    'issues' => [],
+                    'externalTargetKind' => $externalTarget['kind'],
+                    'externalTargetScheme' => $externalTarget['scheme'],
+                    'externalTargetAllowed' => $externalTarget['allowed'],
+                    'valid' => $externalTarget['issues'] === [],
+                    'issues' => $externalTarget['issues'],
                 ];
                 continue;
             }
@@ -176,6 +180,9 @@ final class OpcRelationshipGraph
                     'external' => false,
                     'exists' => null,
                     'relationshipPartTarget' => false,
+                    'externalTargetKind' => null,
+                    'externalTargetScheme' => null,
+                    'externalTargetAllowed' => null,
                     'valid' => false,
                     'issues' => ['invalid-target'],
                 ];
@@ -208,6 +215,9 @@ final class OpcRelationshipGraph
                 'external' => false,
                 'exists' => $exists,
                 'relationshipPartTarget' => $relationshipPartTarget,
+                'externalTargetKind' => null,
+                'externalTargetScheme' => null,
+                'externalTargetAllowed' => null,
                 'valid' => $issues === [],
                 'issues' => $issues,
             ];
@@ -274,7 +284,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}>
+     * @return list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
@@ -310,6 +320,9 @@ final class OpcRelationshipGraph
                     'external' => $target['external'],
                     'exists' => $target['exists'],
                     'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'externalTargetKind' => $target['externalTargetKind'],
+                    'externalTargetScheme' => $target['externalTargetScheme'],
+                    'externalTargetAllowed' => $target['externalTargetAllowed'],
                     'valid' => $target['valid'],
                     'issues' => $target['issues'],
                 ];
