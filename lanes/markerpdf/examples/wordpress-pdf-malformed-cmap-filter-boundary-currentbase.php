@@ -380,6 +380,34 @@ $buildNullFilterDecodeParmsCMapPdf = static function () use ($utf16beHex): strin
         . "%%EOF";
 };
 
+$buildAllNullFilterDecodeParmsCMapPdf = static function () use ($utf16beHex): string {
+    $mappedText = 'All Null Filter CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPAllNullFilterDecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPAllNullFilterDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPAllNullFilterDecodeParmsBoundary-H /Filter [ null ] /DecodeParms 99 0 R /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $buildIndirectNullFilterDecodeParmsCMapPdf = static function () use ($utf16beHex): string {
     $mappedText = 'Indirect Null Slot CMap Import';
     $cMap = "/CIDInit /ProcSet findresource begin\n"
@@ -768,6 +796,7 @@ $generationPdf = $buildGenerationCMapFilterPdf();
 $decodeParmsPdf = $buildDecodeParmsCMapFilterPdf();
 $trailingDecodeParmsPdf = $buildTrailingDecodeParmsCMapFilterPdf();
 $nullFilterDecodeParmsPdf = $buildNullFilterDecodeParmsCMapPdf();
+$allNullFilterDecodeParmsPdf = $buildAllNullFilterDecodeParmsCMapPdf();
 $indirectNullFilterDecodeParmsPdf = $buildIndirectNullFilterDecodeParmsCMapPdf();
 $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
 $nestedArrayDictionaryPdf = $buildNestedArrayDictionaryCMapFilterPdf();
@@ -787,6 +816,7 @@ $generationLines = $extractor->extractTextLines($generationPdf);
 $decodeParmsLines = $extractor->extractTextLines($decodeParmsPdf);
 $trailingDecodeParmsLines = $extractor->extractTextLines($trailingDecodeParmsPdf);
 $nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParmsPdf);
+$allNullFilterDecodeParmsLines = $extractor->extractTextLines($allNullFilterDecodeParmsPdf);
 $indirectNullFilterDecodeParmsLines = $extractor->extractTextLines($indirectNullFilterDecodeParmsPdf);
 $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
 $nestedArrayDictionaryLines = $extractor->extractTextLines($nestedArrayDictionaryPdf);
@@ -804,6 +834,7 @@ $generationPlainText = implode("\n", $generationLines);
 $decodeParmsPlainText = implode("\n", $decodeParmsLines);
 $trailingDecodeParmsPlainText = implode("\n", $trailingDecodeParmsLines);
 $nullFilterDecodeParmsPlainText = implode("\n", $nullFilterDecodeParmsLines);
+$allNullFilterDecodeParmsPlainText = implode("\n", $allNullFilterDecodeParmsLines);
 $indirectNullFilterDecodeParmsPlainText = implode("\n", $indirectNullFilterDecodeParmsLines);
 $staleReferencePlainText = implode("\n", $staleReferenceLines);
 $nestedArrayDictionaryPlainText = implode("\n", $nestedArrayDictionaryLines);
@@ -821,6 +852,7 @@ $generationReview = $extractor->extractCMapStreamFilterLengthOwnerReview($genera
 $decodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($decodeParmsPdf);
 $trailingDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($trailingDecodeParmsPdf);
 $nullFilterDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($nullFilterDecodeParmsPdf);
+$allNullFilterDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($allNullFilterDecodeParmsPdf);
 $indirectNullFilterDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectNullFilterDecodeParmsPdf);
 $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($staleReferencePdf);
 $nestedArrayDictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($nestedArrayDictionaryPdf);
@@ -838,6 +870,7 @@ $generationEntry = $generationReview['entries'][0] ?? [];
 $decodeParmsEntry = $decodeParmsReview['entries'][0] ?? [];
 $trailingDecodeParmsEntry = $trailingDecodeParmsReview['entries'][0] ?? [];
 $nullFilterDecodeParmsEntry = $nullFilterDecodeParmsReview['entries'][0] ?? [];
+$allNullFilterDecodeParmsEntry = $allNullFilterDecodeParmsReview['entries'][0] ?? [];
 $indirectNullFilterDecodeParmsEntry = $indirectNullFilterDecodeParmsReview['entries'][0] ?? [];
 $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
 $nestedArrayDictionaryEntry = $nestedArrayDictionaryReview['entries'][0] ?? [];
@@ -886,6 +919,10 @@ if ($trailingDecodeParmsLines !== ['Trailing DecodeParms Safe Import']) {
 
 if ($nullFilterDecodeParmsLines !== ['Null Slot CMap Import']) {
     throw new RuntimeException('Expected null-filter DecodeParms CMap text to decode.');
+}
+
+if ($allNullFilterDecodeParmsLines !== ['All Null Filter CMap Import']) {
+    throw new RuntimeException('Expected all-null-filter DecodeParms CMap text to decode.');
 }
 
 if ($indirectNullFilterDecodeParmsLines !== ['Indirect Null Slot CMap Import']) {
@@ -942,6 +979,9 @@ if (
     || str_contains($nullFilterDecodeParmsPlainText, '99 0 R')
     || str_contains($nullFilterDecodeParmsPlainText, 'Predictor')
     || str_contains($nullFilterDecodeParmsPlainText, 'WPNullFilterDecodeParmsBoundary-H')
+    || str_contains($allNullFilterDecodeParmsPlainText, '99 0 R')
+    || str_contains($allNullFilterDecodeParmsPlainText, 'Predictor')
+    || str_contains($allNullFilterDecodeParmsPlainText, 'WPAllNullFilterDecodeParmsBoundary-H')
     || str_contains($indirectNullFilterDecodeParmsPlainText, '99 0 R')
     || str_contains($indirectNullFilterDecodeParmsPlainText, 'Predictor')
     || str_contains($indirectNullFilterDecodeParmsPlainText, 'WPIndirectNullFilterDecodeParmsBoundary-H')
@@ -1077,6 +1117,38 @@ if (($nullFilterDecodeParmsEntry['decodeparms_operands'][0]['resolved'] ?? null)
 
 if (($nullFilterDecodeParmsEntry['decodeparms_operands'][1]['value'] ?? null) !== '<< /Predictor 1 >>') {
     throw new RuntimeException('Expected real FlateDecode CMap DecodeParms to remain review-visible.');
+}
+
+if (($allNullFilterDecodeParmsReview['decoded_cmap_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected all-null-filter DecodeParms CMap stream to decode.');
+}
+
+if (($allNullFilterDecodeParmsReview['unresolved_operand_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected all-null-filter DecodeParms reference not to count as unresolved.');
+}
+
+if (($allNullFilterDecodeParmsReview['invalid_decodeparms_operand_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected unresolved DecodeParms to be ignored when all CMap filters are null.');
+}
+
+if (($allNullFilterDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected all-null-filter DecodeParms slot not to fail CMap decoding.');
+}
+
+if (($allNullFilterDecodeParmsEntry['decodeparms_operand_policy'] ?? null) !== 'decodeparms_resolved') {
+    throw new RuntimeException('Expected all-null-filter DecodeParms CMap review metadata to stay resolved.');
+}
+
+if (($allNullFilterDecodeParmsEntry['decoded_with_current_operands'] ?? null) !== true) {
+    throw new RuntimeException('Expected all-null-filter DecodeParms CMap to decode with current required operands.');
+}
+
+if (($allNullFilterDecodeParmsEntry['decodeparms_operands'][0]['object_number'] ?? null) !== 99) {
+    throw new RuntimeException('Expected all-null-filter ignored DecodeParms reference to remain review-visible.');
+}
+
+if (($allNullFilterDecodeParmsEntry['decodeparms_operands'][0]['resolved'] ?? null) !== false) {
+    throw new RuntimeException('Expected all-null-filter ignored DecodeParms reference to remain unresolved metadata.');
 }
 
 if (($indirectNullFilterDecodeParmsReview['decoded_cmap_count'] ?? null) !== 1) {
@@ -1260,6 +1332,7 @@ $lines = array_merge(
     $decodeParmsLines,
     $trailingDecodeParmsLines,
     $nullFilterDecodeParmsLines,
+    $allNullFilterDecodeParmsLines,
     $indirectNullFilterDecodeParmsLines,
     $staleReferenceLines,
     $nestedArrayDictionaryLines,
@@ -1274,7 +1347,7 @@ $lines = array_merge(
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, direct and indirect null-filter DecodeParms slots, post-endcmap decoded operators, and literal CMapName decoys stay bounded before WordPress text import',
+    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, all-null and mixed null-filter DecodeParms slots, post-endcmap decoded operators, and literal CMapName decoys stay bounded before WordPress text import',
     'fallback_text' => implode(' | ', $lines),
     'dictionary_decoded_cmap_count' => $dictionaryReview['decoded_cmap_count'] ?? null,
     'dictionary_invalid_filter_operand_count' => $dictionaryReview['invalid_filter_operand_count'] ?? null,
@@ -1326,6 +1399,19 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && (($nullFilterDecodeParmsReview['invalid_decodeparms_operand_count'] ?? null) === 0)
         && (($nullFilterDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null) === 0)
         && (($nullFilterDecodeParmsEntry['decodeparms_operands'][0]['resolved'] ?? null) === false),
+    'all_null_filter_decodeparms_decoded_cmap_count' => $allNullFilterDecodeParmsReview['decoded_cmap_count'] ?? null,
+    'all_null_filter_decodeparms_unresolved_operand_count' => $allNullFilterDecodeParmsReview['unresolved_operand_count'] ?? null,
+    'all_null_filter_decodeparms_invalid_operand_count' => $allNullFilterDecodeParmsReview['invalid_decodeparms_operand_count'] ?? null,
+    'all_null_filter_decodeparms_invalid_parameter_count' => $allNullFilterDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null,
+    'all_null_filter_decodeparms_operand_policy' => $allNullFilterDecodeParmsEntry['decodeparms_operand_policy'] ?? null,
+    'all_null_filter_decodeparms_owner_policy' => $allNullFilterDecodeParmsEntry['owner_policy'] ?? null,
+    'all_null_filter_decodeparms_ignored_reference' => $allNullFilterDecodeParmsEntry['decodeparms_operands'][0]['object_number'] ?? null,
+    'all_null_filter_decodeparms_reference_resolved' => $allNullFilterDecodeParmsEntry['decodeparms_operands'][0]['resolved'] ?? null,
+    'all_null_filter_decodeparms_slot_ignored' => ($allNullFilterDecodeParmsReview['decoded_cmap_count'] ?? null) === 1
+        && (($allNullFilterDecodeParmsReview['unresolved_operand_count'] ?? null) === 0)
+        && (($allNullFilterDecodeParmsReview['invalid_decodeparms_operand_count'] ?? null) === 0)
+        && (($allNullFilterDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null) === 0)
+        && (($allNullFilterDecodeParmsEntry['decodeparms_operands'][0]['resolved'] ?? null) === false),
     'indirect_null_filter_decodeparms_decoded_cmap_count' => $indirectNullFilterDecodeParmsReview['decoded_cmap_count'] ?? null,
     'indirect_null_filter_decodeparms_invalid_operand_count' => $indirectNullFilterDecodeParmsReview['invalid_decodeparms_operand_count'] ?? null,
     'indirect_null_filter_decodeparms_invalid_parameter_count' => $indirectNullFilterDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null,
@@ -1424,6 +1510,8 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($trailingDecodeParmsPlainText, 'Trailing DecodeParms CMap Leak')
         && !str_contains($nullFilterDecodeParmsPlainText, '99 0 R')
         && !str_contains($nullFilterDecodeParmsPlainText, 'Predictor')
+        && !str_contains($allNullFilterDecodeParmsPlainText, '99 0 R')
+        && !str_contains($allNullFilterDecodeParmsPlainText, 'Predictor')
         && !str_contains($indirectNullFilterDecodeParmsPlainText, '99 0 R')
         && !str_contains($indirectNullFilterDecodeParmsPlainText, 'Predictor')
         && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')

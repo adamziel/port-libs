@@ -10770,6 +10770,10 @@ final class PdfTextExtractor
      */
     private function streamDecodeParmsForFilters(string $dict, array $objects, array $filters): ?array
     {
+        if ($filters === []) {
+            return [];
+        }
+
         $offset = $this->topLevelNameValueOffset($dict, 'DecodeParms');
         if ($offset === null) {
             return [];
@@ -20024,6 +20028,10 @@ final class PdfTextExtractor
      */
     private function invalidStreamDecodeParmsOperandCount(array $operands, ?array $filters = null, ?array $decodeParms = null): int
     {
+        if ($filters === []) {
+            return 0;
+        }
+
         $count = 0;
         $singleResolvedContainer = count($operands) === 1
             && $decodeParms !== null
@@ -20061,6 +20069,10 @@ final class PdfTextExtractor
      */
     private function malformedStreamDecodeParmsOperandCount(array $operands, ?array $filters = null, ?array $decodeParms = null): int
     {
+        if ($filters === []) {
+            return 0;
+        }
+
         $count = 0;
         $singleResolvedContainer = count($operands) === 1
             && $decodeParms !== null
@@ -20335,6 +20347,10 @@ final class PdfTextExtractor
         $count = 0;
         foreach ($operandGroups as $name => $operands) {
             foreach ($operands as $index => $operand) {
+                if ($name === 'DecodeParms' && $filters === []) {
+                    continue;
+                }
+
                 if (
                     $name === 'DecodeParms'
                     && $filters !== null
