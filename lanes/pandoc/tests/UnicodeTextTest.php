@@ -205,6 +205,22 @@ return [
         $t->same("  \u{9B5A}", UnicodeText::padDisplay("\u{9B5A}", 4, 'right'));
         $t->same("A\u{0301}   ", UnicodeText::padDisplay($accent, 4));
     },
+    'measures decomposed hangul jamo syllables as display clusters' => static function (TestRunner $t): void {
+        $han = "\u{1112}\u{1161}\u{11AB}";
+        $geul = "\u{1100}\u{1173}\u{11AF}";
+        $extended = "\u{A960}\u{D7B0}\u{D7CB}";
+        $text = $han . $geul . 'X';
+
+        $t->same(2, UnicodeText::displayWidth($han));
+        $t->same(4, UnicodeText::displayWidth($han . $geul));
+        $t->same(2, UnicodeText::displayWidth($extended));
+        $t->same(0, UnicodeText::displayWidth("\u{1161}\u{11AF}"));
+        $t->same([$han, $geul, 'X'], UnicodeText::graphemes($text));
+        $t->same([$han, $geul . 'X'], UnicodeText::splitAtDisplayWidth($text, 2));
+        $t->same([$han, $geul, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [2, 4]));
+        $t->same($han . '  ', UnicodeText::padDisplay($han, 4));
+        $t->same(['Review', '  ' . $han . $geul, '  tail'], UnicodeText::wrapByDisplayWidth('Review ' . $han . $geul . ' tail', 10, '  '));
+    },
     'measures emoji presentation sequences as single display clusters' => static function (TestRunner $t): void {
         $checkbox = "\u{2611}\u{FE0F}";
         $keycap = "1\u{FE0F}\u{20E3}";

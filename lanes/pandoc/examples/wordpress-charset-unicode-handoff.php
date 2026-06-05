@@ -19,6 +19,10 @@ $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     12,
     '  '
 );
+$hangulHan = "\u{1112}\u{1161}\u{11AB}";
+$hangulGeul = "\u{1100}\u{1173}\u{11AF}";
+$hangulExtended = "\u{A960}\u{D7B0}\u{D7CB}";
+$hangulJamoSlices = UnicodeText::splitByDisplayBreakpoints($hangulHan . $hangulGeul . 'X', [2, 4]);
 $softBreakAuditLines = UnicodeText::wrapByDisplayWidth("Zero\u{200B}width\u{200B}breaks soft\u{00AD}hyphen \u{9B5A}\u{200B}\u{9B5A} tail", 10, '  ');
 $unicodeSeparatorAuditLines = UnicodeText::wrapByDisplayWidth(
     "CJK\u{3000}review\u{2003}queue\u{2028}Hard reset\u{2029}\u{9B5A}\u{3000}\u{9B5A} tail",
@@ -70,6 +74,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Display slices'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $displaySlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $displaySlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Hangul Jamo'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $hangulJamoSlices) . ' / ' . $hangulExtended])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $hangulJamoSlices)) . ' / ' . UnicodeText::displayWidth($hangulExtended)])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Wrapped note'])]),
@@ -169,6 +178,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>\u{9B5A} / A\u{0301} / \u{1F469}\u{200D}\u{1F4BB} / B</td><td>2,1,2,1</td>")) {
         throw new RuntimeException('charset handoff self-test missing display-width split audit');
+    }
+    if (!str_contains($blocks, '<td>Hangul Jamo</td><td>' . $hangulHan . ' / ' . $hangulGeul . ' / X / ' . $hangulExtended . '</td><td>2,2,1 / 2</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Hangul Jamo display-width audit');
     }
     if (!str_contains($blocks, "<td>Wrapped note</td><td>Import \u{9B5A}\u{9B5A} /   emoji \u{1F44D}\u{1F3FD} /   flag \u{1F1FA}\u{1F1F8} /   Cafe\u{0301} trail</td><td>11,10,9,12</td>")) {
         throw new RuntimeException('charset handoff self-test missing display-width wrap audit');
