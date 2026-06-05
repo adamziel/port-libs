@@ -45,6 +45,7 @@ final class CslStyle
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
      * @param list<array<string, mixed>> $citationRenderingElements
      * @param list<array<string, mixed>> $bibliographyRenderingElements
+     * @param array<string, list<array<string, mixed>>> $macros
      * @param array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
@@ -57,6 +58,7 @@ final class CslStyle
         private readonly array $bibliographySortKeys,
         private readonly array $citationRenderingElements,
         private readonly array $bibliographyRenderingElements,
+        private readonly array $macros,
         private readonly array $nameRendering,
         private readonly array $terms,
         private readonly array $metadata,
@@ -69,6 +71,7 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            [],
             [],
             [],
             [],
@@ -99,6 +102,7 @@ final class CslStyle
         }
 
         $defaultLocale = trim($root->getAttribute('default-locale'));
+        $macros = self::parseMacros($root);
         $terms = self::DEFAULT_TERMS;
         foreach ($localeXmls as $index => $localeXml) {
             if (!is_string($localeXml)) {
@@ -141,6 +145,22 @@ final class CslStyle
             'defaultLocale' => $defaultLocale,
         ];
 
+        $citationRenderingElements = self::renderingElements($layout, 'citation');
+        $bibliographyRenderingElements = $bibliographyLayoutElement instanceof \DOMElement
+            ? self::renderingElements($bibliographyLayoutElement, 'bibliography')
+            : [];
+        self::validateMacroReferences($citationRenderingElements, $bibliographyRenderingElements, $macros);
+        $citationNameRendering = self::firstAuthorEditorNamesElement($layout) instanceof \DOMElement
+            ? self::nameRenderingOptions($layout, 'citation')
+            : (self::nameRenderingOptionsForRenderingElements($citationRenderingElements, 'citation', $macros) ?? self::DEFAULT_NAME_RENDERING['citation']);
+        $bibliographyNameRendering = $bibliographyLayoutElement instanceof \DOMElement
+            ? (
+                self::firstAuthorEditorNamesElement($bibliographyLayoutElement) instanceof \DOMElement
+                    ? self::nameRenderingOptions($bibliographyLayoutElement, 'bibliography')
+                    : (self::nameRenderingOptionsForRenderingElements($bibliographyRenderingElements, 'bibliography', $macros) ?? self::DEFAULT_NAME_RENDERING['bibliography'])
+            )
+            : self::DEFAULT_NAME_RENDERING['bibliography'];
+
         return new self(
             self::layoutAttributes($layout, '; '),
             $bibliographyLayoutElement instanceof \DOMElement
@@ -151,13 +171,12 @@ final class CslStyle
                 : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
             self::sortKeys($citation, 'citation'),
             $bibliography instanceof \DOMElement ? self::sortKeys($bibliography, 'bibliography') : [],
-            self::renderingElements($layout, 'citation'),
-            $bibliographyLayoutElement instanceof \DOMElement ? self::renderingElements($bibliographyLayoutElement, 'bibliography') : [],
+            $citationRenderingElements,
+            $bibliographyRenderingElements,
+            $macros,
             [
-                'citation' => self::nameRenderingOptions($layout, 'citation'),
-                'bibliography' => $bibliographyLayoutElement instanceof \DOMElement
-                    ? self::nameRenderingOptions($bibliographyLayoutElement, 'bibliography')
-                    : self::DEFAULT_NAME_RENDERING['bibliography'],
+                'citation' => $citationNameRendering,
+                'bibliography' => $bibliographyNameRendering,
             ],
             $terms,
             $metadata
@@ -245,6 +264,22 @@ final class CslStyle
     }
 
     /**
+     * @return array<string, list<array<string, mixed>>>
+     */
+    public function macros(): array
+    {
+        return $this->macros;
+    }
+
+    /**
+     * @return list<array<string, mixed>>|null
+     */
+    public function macroRenderingElements(string $name): ?array
+    {
+        return $this->macros[$name] ?? null;
+    }
+
+    /**
      * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
      */
     public function citationNameRendering(): array
@@ -261,7 +296,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -274,6 +309,7 @@ final class CslStyle
             'bibliographySort' => $this->bibliographySortKeys,
             'citationRendering' => $this->citationRenderingElements,
             'bibliographyRendering' => $this->bibliographyRenderingElements,
+            'macros' => $this->macros,
             'nameRendering' => $this->nameRendering,
             'terms' => [
                 'and' => $this->term('and'),
@@ -282,6 +318,73 @@ final class CslStyle
                 'accessed' => $this->term('accessed'),
             ],
         ];
+    }
+
+    /**
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function parseMacros(\DOMElement $root): array
+    {
+        $macros = [];
+        foreach (self::directChildren($root, 'macro') as $macro) {
+            $name = trim($macro->getAttribute('name'));
+            if ($name === '') {
+                throw new \InvalidArgumentException('CSL macro element is missing a name');
+            }
+
+            if (array_key_exists($name, $macros)) {
+                throw new \InvalidArgumentException('Duplicate CSL macro name: ' . $name);
+            }
+
+            $macros[$name] = self::renderingElements($macro, 'macro ' . $name);
+        }
+
+        return $macros;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $citationElements
+     * @param list<array<string, mixed>> $bibliographyElements
+     * @param array<string, list<array<string, mixed>>> $macros
+     */
+    private static function validateMacroReferences(array $citationElements, array $bibliographyElements, array $macros): void
+    {
+        self::validateRenderingMacroReferences($citationElements, $macros, [], 'citation');
+        self::validateRenderingMacroReferences($bibliographyElements, $macros, [], 'bibliography');
+        foreach (array_keys($macros) as $name) {
+            self::validateRenderingMacroReferences($macros[$name], $macros, [$name], 'macro ' . $name);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, list<array<string, mixed>>> $macros
+     * @param list<string> $stack
+     */
+    private static function validateRenderingMacroReferences(array $elements, array $macros, array $stack, string $context): void
+    {
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            if (($element['type'] ?? '') === 'text' && array_key_exists('macro', $element)) {
+                $name = (string) $element['macro'];
+                if (!array_key_exists($name, $macros)) {
+                    throw new \InvalidArgumentException('CSL ' . $context . ' references undefined macro: ' . $name);
+                }
+
+                if (in_array($name, $stack, true)) {
+                    throw new \InvalidArgumentException('CSL macro recursion detected: ' . implode(' -> ', [...$stack, $name]));
+                }
+
+                self::validateRenderingMacroReferences($macros[$name], $macros, [...$stack, $name], 'macro ' . $name);
+            }
+
+            if (($element['type'] ?? '') === 'group' && isset($element['children']) && is_array($element['children'])) {
+                self::validateRenderingMacroReferences($element['children'], $macros, $stack, $context);
+            }
+        }
     }
 
     /**
@@ -346,41 +449,143 @@ final class CslStyle
      */
     private static function nameRenderingOptions(\DOMElement $layout, string $scope): array
     {
-        $defaults = self::DEFAULT_NAME_RENDERING[$scope];
         $names = self::firstAuthorEditorNamesElement($layout);
         if (!$names instanceof \DOMElement) {
-            return $defaults;
+            return self::DEFAULT_NAME_RENDERING[$scope];
         }
 
+        return self::nameRenderingOptionsFromNames($names, $scope);
+    }
+
+    /**
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     */
+    private static function nameRenderingOptionsFromNames(\DOMElement $names, string $scope): array
+    {
+        $defaults = self::DEFAULT_NAME_RENDERING[$scope];
+        $overrides = self::nameRenderingOverridesFromNames($names, $scope);
+
+        return self::mergeNameRenderingOptions($defaults, $overrides);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, list<array<string, mixed>>> $macros
+     * @param list<string> $stack
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}|null
+     */
+    private static function nameRenderingOptionsForRenderingElements(array $elements, string $scope, array $macros, array $stack = []): ?array
+    {
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $type = (string) ($element['type'] ?? '');
+            if ($type === 'names' && self::renderingNamesElementIncludesAuthorEditor($element)) {
+                $overrides = is_array($element['nameRendering'] ?? null) ? $element['nameRendering'] : [];
+
+                return self::mergeNameRenderingOptions(self::DEFAULT_NAME_RENDERING[$scope], $overrides);
+            }
+
+            if ($type === 'group' && isset($element['children']) && is_array($element['children'])) {
+                $options = self::nameRenderingOptionsForRenderingElements($element['children'], $scope, $macros, $stack);
+                if ($options !== null) {
+                    return $options;
+                }
+            }
+
+            if ($type === 'text' && isset($element['macro']) && is_string($element['macro'])) {
+                $name = $element['macro'];
+                if (isset($macros[$name]) && !in_array($name, $stack, true)) {
+                    $options = self::nameRenderingOptionsForRenderingElements($macros[$name], $scope, $macros, [...$stack, $name]);
+                    if ($options !== null) {
+                        return $options;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private static function renderingNamesElementIncludesAuthorEditor(array $element): bool
+    {
+        $variable = strtolower(trim((string) ($element['variable'] ?? 'author editor')));
+        if ($variable === '') {
+            return true;
+        }
+
+        $variables = preg_split('/\s+/', $variable) ?: [];
+
+        return in_array('author', $variables, true) || in_array('editor', $variables, true);
+    }
+
+    /**
+     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $defaults
+     * @param array<string, mixed> $overrides
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     */
+    private static function mergeNameRenderingOptions(array $defaults, array $overrides): array
+    {
+        return [
+            'delimiter' => is_string($overrides['delimiter'] ?? null) ? $overrides['delimiter'] : $defaults['delimiter'],
+            'and' => is_string($overrides['and'] ?? null) ? $overrides['and'] : $defaults['and'],
+            'etAlMin' => is_int($overrides['etAlMin'] ?? null) ? $overrides['etAlMin'] : $defaults['etAlMin'],
+            'etAlUseFirst' => is_int($overrides['etAlUseFirst'] ?? null) ? $overrides['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'initializeWith' => is_string($overrides['initializeWith'] ?? null) ? $overrides['initializeWith'] : $defaults['initializeWith'],
+            'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+        ];
+    }
+
+    /**
+     * @return array{delimiter?:string, and?:string, etAlMin?:int, etAlUseFirst?:int, initializeWith?:string, nameAsSortOrder?:string}
+     */
+    private static function nameRenderingOverridesFromNames(\DOMElement $names, string $scope): array
+    {
         $name = self::directChild($names, 'name');
-        $delimiter = $names->hasAttribute('delimiter') ? $names->getAttribute('delimiter') : $defaults['delimiter'];
-        $and = self::nameAttribute($name, $names, 'and', $defaults['and']);
-        if (!in_array($and, ['text', 'symbol', 'none'], true)) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' name and attribute must be text, symbol, or none');
+        $overrides = [];
+        if ($names->hasAttribute('delimiter')) {
+            $overrides['delimiter'] = $names->getAttribute('delimiter');
         }
 
-        $nameAsSortOrder = self::nameAttribute($name, $names, 'name-as-sort-order', $defaults['nameAsSortOrder']);
-        if (!in_array($nameAsSortOrder, ['first', 'all'], true)) {
+        $and = self::optionalNameAttribute($name, $names, 'and');
+        if ($and !== null) {
+            $overrides['and'] = $and;
+        }
+        if (!in_array($and, ['text', 'symbol', 'none'], true)) {
+            if ($and !== null) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' name and attribute must be text, symbol, or none');
+            }
+        }
+
+        $nameAsSortOrder = self::optionalNameAttribute($name, $names, 'name-as-sort-order');
+        if ($nameAsSortOrder !== null) {
+            $overrides['nameAsSortOrder'] = $nameAsSortOrder;
+        }
+        if ($nameAsSortOrder !== null && !in_array($nameAsSortOrder, ['first', 'all'], true)) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' name-as-sort-order must be first or all');
         }
 
         $etAlMin = self::positiveIntegerNameAttribute($names, $name, 'et-al-min', $scope);
         $etAlUseFirst = self::positiveIntegerNameAttribute($names, $name, 'et-al-use-first', $scope);
-        $initializeWith = $name instanceof \DOMElement && $name->hasAttribute('initialize-with')
-            ? $name->getAttribute('initialize-with')
-            : $defaults['initializeWith'];
+        if ($etAlMin !== null) {
+            $overrides['etAlMin'] = $etAlMin;
+        }
+        if ($etAlUseFirst !== null) {
+            $overrides['etAlUseFirst'] = $etAlUseFirst;
+        }
+        if ($name instanceof \DOMElement && $name->hasAttribute('initialize-with')) {
+            $overrides['initializeWith'] = $name->getAttribute('initialize-with');
+        }
 
-        return [
-            'delimiter' => $delimiter,
-            'and' => $and,
-            'etAlMin' => $etAlMin ?? $defaults['etAlMin'],
-            'etAlUseFirst' => $etAlUseFirst ?? $defaults['etAlUseFirst'],
-            'initializeWith' => $initializeWith,
-            'nameAsSortOrder' => $nameAsSortOrder,
-        ];
+        return $overrides;
     }
 
-    private static function nameAttribute(?\DOMElement $name, \DOMElement $names, string $attribute, string $default): string
+    private static function optionalNameAttribute(?\DOMElement $name, \DOMElement $names, string $attribute): ?string
     {
         if ($name instanceof \DOMElement && $name->hasAttribute($attribute)) {
             return trim($name->getAttribute($attribute));
@@ -390,7 +595,7 @@ final class CslStyle
             return trim($names->getAttribute($attribute));
         }
 
-        return $default;
+        return null;
     }
 
     private static function positiveIntegerNameAttribute(\DOMElement $names, ?\DOMElement $name, string $attribute, string $scope): ?int
@@ -443,7 +648,7 @@ final class CslStyle
             'group' => self::groupRenderingElement($element, $scope),
             'text' => self::textRenderingElement($element, $scope),
             'date' => self::dateRenderingElement($element, $scope),
-            'names' => self::namesRenderingElement($element),
+            'names' => self::namesRenderingElement($element, $scope),
             default => null,
         };
     }
@@ -470,9 +675,10 @@ final class CslStyle
         $variable = trim($text->getAttribute('variable'));
         $term = trim($text->getAttribute('term'));
         $value = trim($text->getAttribute('value'));
-        $declared = array_filter([$variable, $term, $value], static fn (string $attribute): bool => $attribute !== '');
+        $macro = trim($text->getAttribute('macro'));
+        $declared = array_filter([$variable, $term, $value, $macro], static fn (string $attribute): bool => $attribute !== '');
         if (count($declared) !== 1) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' text element must declare exactly one variable, term, or value');
+            throw new \InvalidArgumentException('CSL ' . $scope . ' text element must declare exactly one variable, term, value, or macro');
         }
 
         $element = [
@@ -486,8 +692,10 @@ final class CslStyle
             $element['variable'] = $variable;
         } elseif ($term !== '') {
             $element['term'] = $term;
-        } else {
+        } elseif ($value !== '') {
             $element['value'] = $value;
+        } else {
+            $element['macro'] = $macro;
         }
 
         return $element;
@@ -525,19 +733,25 @@ final class CslStyle
     /**
      * @return array{type:string, prefix:string, suffix:string, variable:string}
      */
-    private static function namesRenderingElement(\DOMElement $names): array
+    private static function namesRenderingElement(\DOMElement $names, string $scope): array
     {
         $variable = trim($names->getAttribute('variable'));
         if ($variable === '') {
             $variable = 'author editor';
         }
 
-        return [
+        $element = [
             'type' => 'names',
             'prefix' => self::optionalAttribute($names, 'prefix'),
             'suffix' => self::optionalAttribute($names, 'suffix'),
             'variable' => $variable,
         ];
+        $overrides = self::nameRenderingOverridesFromNames($names, $scope);
+        if ($overrides !== []) {
+            $element['nameRendering'] = $overrides;
+        }
+
+        return $element;
     }
 
     private static function optionalAttribute(\DOMElement $element, string $name): string

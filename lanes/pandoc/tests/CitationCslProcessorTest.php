@@ -1234,6 +1234,127 @@ XML
 XML
         ));
     },
+    'applies bounded csl macro rendering references for citations and bibliography' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'macro-source',
+                'type' => 'article-journal',
+                'title' => 'Macro Source Packet',
+                'container-title' => 'Import Review',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'accessed' => ['date-parts' => [[2026, 6, 6]]],
+                'URL' => 'https://example.test/macro-source',
+            ],
+            [
+                'id' => 'title-only',
+                'type' => 'webpage',
+                'title' => 'Title Only Packet',
+                'issued' => [],
+                'URL' => 'https://example.test/title-only',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Macro Rendering Review Style</title>
+    <id>https://example.test/styles/macro-rendering-review</id>
+    <updated>2026-06-05T02:10:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="accessed">Retrieved</term>
+      <term name="no date">undated</term>
+    </terms>
+  </locale>
+  <macro name="citation-key">
+    <group delimiter=" ">
+      <names variable="author editor"/>
+      <date variable="issued">
+        <date-part name="year"/>
+      </date>
+    </group>
+  </macro>
+  <macro name="bibliography-entry">
+    <group delimiter=". " suffix=".">
+      <names variable="author editor"/>
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="URL"/>
+      <group delimiter=" ">
+        <text term="accessed"/>
+        <date variable="accessed"/>
+      </group>
+    </group>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <text macro="citation-key"/>
+    </layout>
+  </citation>
+  <bibliography hanging-indent="true">
+    <layout>
+      <text macro="bibliography-entry"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Macro Rendering Review Style', $summary['title'] ?? null);
+        $t->same('group', $summary['macros']['citation-key'][0]['type'] ?? null);
+        $t->same('text', $summary['citationRendering'][0]['type'] ?? null);
+        $t->same('citation-key', $summary['citationRendering'][0]['macro'] ?? null);
+        $t->same('bibliography-entry', $summary['bibliographyRendering'][0]['macro'] ?? null);
+
+        $t->same('(de la Cruz and Ng 2026; Title Only Packet undated)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'macro-source', 'text' => '[@macro-source]']),
+            new AstNode('citation', ['id' => 'title-only', 'text' => '[@title-only]']),
+        ]));
+        $t->same('de la Cruz, Ana Maria; Ng, Nia. Macro Source Packet. Import Review. https://example.test/macro-source. Retrieved 2026-06-06.', $processor->renderBibliographyEntry('macro-source'));
+        $t->same('Title Only Packet. https://example.test/title-only.', $processor->renderBibliographyEntry('title-only'));
+
+        $document = (new MarkdownReader())->read('Review cites [see @macro-source, pp. 12-18] and @title-only.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = $processed->children[0]->children[1];
+        $titleOnly = $processed->children[0]->children[3];
+        $bibliography = $processed->children[2];
+        $t->same('(see de la Cruz and Ng 2026, pp. 12-18)', $cluster->attr('rendered'));
+        $t->same('Title Only Packet (undated)', $titleOnly->attr('rendered'));
+        $t->same(true, $bibliography->attr('hangingIndent'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (see de la Cruz and Ng 2026, pp. 12-18) and Title Only Packet (undated).', $markdown);
+        $t->contains('de la Cruz and Ng 2026' . "\n" . ':   de la Cruz, Ana Maria; Ng, Nia. Macro Source Packet. Import Review. https://example.test/macro-source. Retrieved 2026-06-06.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (see de la Cruz and Ng 2026, pp. 12-18) and Title Only Packet (undated).</p>', $blocks);
+        $t->contains('<dt>de la Cruz and Ng 2026</dt><dd>de la Cruz, Ana Maria; Ng, Nia. Macro Source Packet. Import Review. https://example.test/macro-source. Retrieved 2026-06-06.</dd>', $blocks);
+        $t->contains('<dt>Title Only Packet undated</dt><dd>Title Only Packet. https://example.test/title-only.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><text macro="missing-macro"/></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <macro name="loop"><text macro="loop"/></macro>
+  <citation><layout><text macro="loop"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

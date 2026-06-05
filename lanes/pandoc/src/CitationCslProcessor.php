@@ -79,7 +79,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -1324,12 +1324,12 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderRenderingElement(array $element, array $item, string $scope): string
+    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = []): string
     {
         $type = (string) ($element['type'] ?? '');
         $value = match ($type) {
-            'group' => $this->renderGroupElement($element, $item, $scope),
-            'text' => $this->renderTextElement($element, $item, $scope),
+            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack),
+            'text' => $this->renderTextElement($element, $item, $scope, $macroStack),
             'date' => $this->renderDateElement($element, $item, $scope),
             'names' => $this->renderNamesElement($element, $item, $scope),
             default => '',
@@ -1342,7 +1342,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderGroupElement(array $element, array $item, string $scope): string
+    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = []): string
     {
         $children = $element['children'] ?? [];
         if (!is_array($children)) {
@@ -1359,7 +1359,7 @@ final class CitationCslProcessor
 
             $isVariableChild = $this->isVariableRenderingElement($child);
             $hasVariableChild = $hasVariableChild || $isVariableChild;
-            $value = $this->renderRenderingElement($child, $item, $scope);
+            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack);
             if ($value === '') {
                 continue;
             }
@@ -1389,6 +1389,11 @@ final class CitationCslProcessor
             return true;
         }
 
+        if ($type === 'text' && array_key_exists('macro', $element)) {
+            $macro = $this->style->macroRenderingElements((string) $element['macro']);
+            return is_array($macro) && $this->hasVariableRenderingElement($macro);
+        }
+
         if ($type === 'group' && isset($element['children']) && is_array($element['children'])) {
             foreach ($element['children'] as $child) {
                 if (is_array($child) && $this->isVariableRenderingElement($child)) {
@@ -1401,11 +1406,29 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param list<array<string, mixed>> $elements
+     */
+    private function hasVariableRenderingElement(array $elements): bool
+    {
+        foreach ($elements as $element) {
+            if (is_array($element) && $this->isVariableRenderingElement($element)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderTextElement(array $element, array $item, string $scope): string
+    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = []): string
     {
+        if (array_key_exists('macro', $element)) {
+            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack);
+        }
+
         if (array_key_exists('variable', $element)) {
             return $this->renderVariableValue($item, (string) $element['variable'], $scope);
         }
@@ -1419,6 +1442,46 @@ final class CitationCslProcessor
         }
 
         return (string) ($element['value'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     */
+    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack): string
+    {
+        $elements = $this->style->macroRenderingElements($name);
+        if ($elements === null) {
+            throw new \InvalidArgumentException('CSL references undefined macro: ' . $name);
+        }
+
+        if (in_array($name, $macroStack, true)) {
+            throw new \InvalidArgumentException('CSL macro recursion detected: ' . implode(' -> ', [...$macroStack, $name]));
+        }
+
+        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     */
+    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack): string
+    {
+        $rendered = [];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack);
+            if ($value !== '') {
+                $rendered[] = $value;
+            }
+        }
+
+        return $this->joinRenderedElements($rendered, $delimiter);
     }
 
     /**
@@ -1458,11 +1521,36 @@ final class CitationCslProcessor
             return '';
         }
 
+        $elementOptions = $element['nameRendering'] ?? null;
+        $options = is_array($elementOptions)
+            ? $this->normalizedNameRenderingOptions($elementOptions, $scope)
+            : ($scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering());
+
         return $this->renderNameList(
             $names,
-            $scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering(),
+            $options,
             $scope === 'bibliography'
         );
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     */
+    private function normalizedNameRenderingOptions(array $options, string $scope): array
+    {
+        $defaults = $scope === 'bibliography'
+            ? $this->style->bibliographyNameRendering()
+            : $this->style->citationNameRendering();
+
+        return [
+            'delimiter' => is_string($options['delimiter'] ?? null) ? $options['delimiter'] : $defaults['delimiter'],
+            'and' => is_string($options['and'] ?? null) ? $options['and'] : $defaults['and'],
+            'etAlMin' => is_int($options['etAlMin'] ?? null) ? $options['etAlMin'] : $defaults['etAlMin'],
+            'etAlUseFirst' => is_int($options['etAlUseFirst'] ?? null) ? $options['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
+            'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+        ];
     }
 
     /**

@@ -89,16 +89,45 @@ $cslStyleXml = <<<'XML'
       <term name="accessed">Retrieved</term>
     </terms>
   </locale>
+  <macro name="review-citation">
+    <group delimiter=" ">
+      <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
+        <name/>
+      </names>
+      <date variable="issued">
+        <date-part name="year"/>
+      </date>
+    </group>
+  </macro>
+  <macro name="review-publication">
+    <group delimiter=", ">
+      <text variable="publisher"/>
+      <date variable="issued">
+        <date-part name="year"/>
+      </date>
+    </group>
+  </macro>
+  <macro name="review-accessed">
+    <group delimiter=" ">
+      <text term="accessed"/>
+      <date variable="accessed"/>
+    </group>
+  </macro>
+  <macro name="review-bibliography-entry">
+    <group delimiter=". " suffix=".">
+      <names variable="author editor" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+      <text macro="review-publication"/>
+      <text variable="DOI" prefix="DOI "/>
+      <text variable="URL"/>
+      <text macro="review-accessed"/>
+    </group>
+  </macro>
   <citation>
     <layout prefix="(" suffix=")" delimiter="; ">
-      <group delimiter=" ">
-        <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
-          <name/>
-        </names>
-        <date variable="issued">
-          <date-part name="year"/>
-        </date>
-      </group>
+      <text macro="review-citation"/>
     </layout>
   </citation>
   <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
@@ -107,24 +136,7 @@ $cslStyleXml = <<<'XML'
       <key variable="title"/>
     </sort>
     <layout prefix="[" suffix="]" delimiter=" ">
-      <group delimiter=". " suffix=".">
-        <names variable="author editor" delimiter="; ">
-          <name initialize-with=". " name-as-sort-order="all"/>
-        </names>
-        <text variable="title"/>
-        <group delimiter=", ">
-          <text variable="publisher"/>
-          <date variable="issued">
-            <date-part name="year"/>
-          </date>
-        </group>
-        <text variable="DOI" prefix="DOI "/>
-        <text variable="URL"/>
-        <group delimiter=" ">
-          <text term="accessed"/>
-          <date variable="accessed"/>
-        </group>
-      </group>
+      <text macro="review-bibliography-entry"/>
     </layout>
   </bibliography>
 </style>
@@ -135,6 +147,14 @@ $document = $processor->appendBibliography((new MarkdownReader())->read($markdow
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
+    $summary = $processor->cslStyleSummary();
+    if (($summary['citationRendering'][0]['macro'] ?? null) !== 'review-citation') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the citation macro reference');
+    }
+    if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the bibliography macro reference');
+    }
+
     foreach ([
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
