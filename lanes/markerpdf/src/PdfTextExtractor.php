@@ -17185,9 +17185,10 @@ final class PdfTextExtractor
         }
 
         $bodies = [];
-        foreach ($this->objectReferences($descendantFonts) as $objectNumber) {
-            if (isset($objects[$objectNumber])) {
-                $bodies[] = $objects[$objectNumber];
+        foreach ($this->pdfObjectReferencePairs($descendantFonts) as $reference) {
+            $body = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($body !== null) {
+                $bodies[] = $body;
             }
         }
 

@@ -241,6 +241,42 @@ $fontWidthExactGenerationDescriptorBoundaryCurrentBasePdf = static function (): 
         . "7 1 obj\n<< /Type /FontDescriptor /FontName /UnreferencedDescriptor /Flags 32 /MissingWidth 1000 >>\nendobj\n%%EOF";
 };
 
+$fontWidthExactGenerationDescendantBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "8 beginbfchar\n"
+        . "<0001> <0057>\n"
+        . "<0002> <0069>\n"
+        . "<0003> <0064>\n"
+        . "<0004> <0065>\n"
+        . "<0005> <0054>\n"
+        . "<0006> <0068>\n"
+        . "<0007> <0069>\n"
+        . "<0008> <006E>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcidgen 12 Tf '
+        . '1 0 0 1 72 720 Tm <0001000200030004> Tj '
+        . '1 0 0 1 118 720 Tm <0005000600070008> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <0005000600070008> Tj '
+        . '1 0 0 1 96 704 Tm <0001000200030004> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcidgen 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /DescendantGeneration /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ReferencedDescendant /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 250 /W [1 4 1000 5 8 250] >>\nendobj\n"
+        . "4 1 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /StaleDescendant /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [1 4 250 5 8 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthLastCharBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Flast 12 Tf '
         . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
@@ -1139,6 +1175,35 @@ return [
         $t->true(!in_array('UnreferencedDescriptor_non_symbolic', array_column($spans, 'font'), true));
         $t->true(!str_contains($plainText, 'DescriptorGeneration'));
         $t->true(!str_contains($plainText, 'Fdesc'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'resolves exact-generation Type0 descendant CIDFont widths before current advance gaps' => static function (TestRunner $t) use ($fontWidthExactGenerationDescendantBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthExactGenerationDescendantBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['WideThin', 'Thin Wide'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Thin', 'Thin', 'Wide'], $extractor->extractTextRuns($pdf));
+        $t->same("WideThin\nThin Wide", $plainText);
+        $t->same("WideThin\nThin Wide\n", $extractor->naiveGetText($pdf));
+        $t->same(['Wide', 'Thin'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same(['Thin', 'Wide'], array_column($secondLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 12.0, 12.0], [24.0, 0.0, 72.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 72.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Wide Thin' . "\n" . 'ThinWide'));
+        $t->true(!str_contains($plainText, 'StaleDescendant'));
+        $t->true(!str_contains($plainText, 'Fcidgen'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'clips simple-font Widths entries to LastChar before positioned word gaps on current base' => static function (TestRunner $t) use ($fontWidthLastCharBoundaryCurrentBasePdf): void {
