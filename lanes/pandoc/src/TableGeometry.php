@@ -579,6 +579,44 @@ final class TableGeometry
         return $section . ':' . $row . ':' . $sourceCell . ':' . $sourceColumn;
     }
 
+    /**
+     * @param array{accessibility?:bool,idPrefix?:string} $options
+     * @return array{
+     *     caption:string,
+     *     columnCount:int,
+     *     declaredColumnCount:int,
+     *     columns:list<array{column:int,alignment:string,width:?float,declared:bool}>,
+     *     sections:list<array<string, mixed>>,
+     *     coverage:list<array<string, mixed>>,
+     *     diagnostics:list<array<string, mixed>>,
+     *     accessibility:array<string, array{id?:string,scope?:string,headers?:list<string>}>,
+     *     summary:array<string, mixed>
+     * }
+     */
+    public static function reviewPacket(AstNode $table, array $options = []): array
+    {
+        $columnCount = self::columnCount($table);
+        $sections = self::sectionGrids($table);
+        $coverage = self::serializableCoverage(self::cellCoverage($table));
+        $diagnostics = self::diagnostics($table);
+        $includeAccessibility = ($options['accessibility'] ?? true) !== false;
+        $accessibility = $includeAccessibility
+            ? self::accessibilityAttributes($table, self::reviewPacketIdPrefix($table, $options))
+            : [];
+
+        return [
+            'caption' => (string) $table->attr('caption', ''),
+            'columnCount' => $columnCount,
+            'declaredColumnCount' => self::declaredColumnCount($table),
+            'columns' => self::columnSpecs($table, $columnCount),
+            'sections' => self::serializableSectionGrids($sections),
+            'coverage' => $coverage,
+            'diagnostics' => $diagnostics,
+            'accessibility' => $accessibility,
+            'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics),
+        ];
+    }
+
     private static function normalizeAlignment(string $alignment): string
     {
         return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
@@ -635,6 +673,204 @@ final class TableGeometry
         }
 
         return $id;
+    }
+
+    /**
+     * @param array{accessibility?:bool,idPrefix?:string} $options
+     */
+    private static function reviewPacketIdPrefix(AstNode $table, array $options): string
+    {
+        $prefix = trim((string) ($options['idPrefix'] ?? ''));
+        if ($prefix !== '') {
+            return $prefix;
+        }
+
+        $prefix = trim((string) $table->attr('accessibilityIdPrefix', ''));
+        if ($prefix !== '') {
+            return $prefix;
+        }
+
+        $htmlAttributes = $table->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && isset($htmlAttributes['id'])) {
+            $prefix = trim((string) $htmlAttributes['id']);
+            if ($prefix !== '') {
+                return $prefix;
+            }
+        }
+
+        $prefix = trim((string) $table->attr('id', ''));
+
+        return $prefix === '' ? 'pandoc-table' : $prefix;
+    }
+
+    /**
+     * @param list<array{
+     *     section:string,
+     *     columnCount:int,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>,
+     *     rows:list<list<array<string, mixed>>>
+     * }> $sections
+     * @return list<array<string, mixed>>
+     */
+    private static function serializableSectionGrids(array $sections): array
+    {
+        $reports = [];
+        foreach ($sections as $section) {
+            $rows = [];
+            foreach ($section['rowEntries'] as $rowIndex => $entry) {
+                $slots = [];
+                foreach ($section['rows'][$rowIndex] ?? [] as $slot) {
+                    $slots[] = self::serializableGridSlot($slot);
+                }
+
+                $rows[] = [
+                    'row' => $rowIndex,
+                    'rowRole' => (string) $entry['rowRole'],
+                    'header' => (bool) $entry['header'],
+                    'rowHeadColumns' => (int) $entry['rowHeadColumns'],
+                    'slots' => $slots,
+                ];
+            }
+
+            $reports[] = [
+                'section' => (string) $section['section'],
+                'columnCount' => (int) $section['columnCount'],
+                'rowCount' => count($rows),
+                'rows' => $rows,
+            ];
+        }
+
+        return $reports;
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return array<string, mixed>
+     */
+    private static function serializableGridSlot(array $slot): array
+    {
+        $node = $slot['node'] ?? null;
+        unset($slot['node']);
+        if ($node instanceof AstNode) {
+            $slot['text'] = self::plainText($node);
+        }
+
+        return $slot;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function serializableCoverage(array $coverage): array
+    {
+        $records = [];
+        foreach ($coverage as $record) {
+            $node = $record['node'] ?? null;
+            unset($record['node']);
+            if ($node instanceof AstNode) {
+                $record['text'] = self::plainText($node);
+            }
+
+            $records[] = $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{
+     *     section:string,
+     *     columnCount:int,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>,
+     *     rows:list<list<array<string, mixed>>>
+     * }> $sections
+     * @param list<array<string, mixed>> $coverage
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private static function reviewPacketSummary(array $sections, array $coverage, array $diagnostics): array
+    {
+        $rowCount = 0;
+        $coveredSlotCount = 0;
+        $missingSlotCount = 0;
+        foreach ($sections as $section) {
+            $rowCount += count($section['rowEntries']);
+            foreach ($section['rows'] as $slots) {
+                foreach ($slots as $slot) {
+                    if (($slot['kind'] ?? '') === 'covered') {
+                        $coveredSlotCount++;
+                    } elseif (($slot['kind'] ?? '') === 'missing') {
+                        $missingSlotCount++;
+                    }
+                }
+            }
+        }
+
+        $headerCellCount = 0;
+        $hasSpans = false;
+        foreach ($coverage as $record) {
+            if (($record['headerCell'] ?? false) === true) {
+                $headerCellCount++;
+            }
+
+            if ((int) ($record['rawColspan'] ?? 1) > 1 || (int) ($record['rawRowspan'] ?? 1) > 1) {
+                $hasSpans = true;
+            }
+        }
+
+        $diagnosticCodes = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code !== '') {
+                $diagnosticCodes[] = $code;
+            }
+        }
+
+        return [
+            'sectionCount' => count($sections),
+            'rowCount' => $rowCount,
+            'cellCount' => count($coverage),
+            'headerCellCount' => $headerCellCount,
+            'coveredSlotCount' => $coveredSlotCount,
+            'missingSlotCount' => $missingSlotCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
+            'hasSpans' => $hasSpans,
+        ];
+    }
+
+    private static function plainText(AstNode $node): string
+    {
+        if ($node->type === 'text') {
+            return (string) $node->attr('text', '');
+        }
+
+        if ($node->type === 'space' || $node->type === 'softbreak') {
+            return ' ';
+        }
+
+        if ($node->type === 'linebreak') {
+            return "\n";
+        }
+
+        if ($node->children !== []) {
+            $text = '';
+            foreach ($node->children as $child) {
+                $text .= self::plainText($child);
+            }
+
+            return $text;
+        }
+
+        foreach (['text', 'alt', 'caption', 'tex'] as $attr) {
+            $value = $node->attr($attr, null);
+            if (is_scalar($value)) {
+                return (string) $value;
+            }
+        }
+
+        return '';
     }
 
     private static function tableAttributeColumnCount(mixed $columns): int

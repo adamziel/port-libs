@@ -275,6 +275,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">42</td>')) {
         throw new RuntimeException('Table geometry self-test missing accessible data-cell headers attributes');
     }
+    $reviewPacket = TableGeometry::reviewPacket($document->children[5], ['idPrefix' => 'Migration Grid']);
+    if (($reviewPacket['summary']['cellCount'] ?? null) !== 10 || ($reviewPacket['summary']['coveredSlotCount'] ?? null) !== 2) {
+        throw new RuntimeException('Table geometry self-test missing serializable review-packet summary');
+    }
+    if (($reviewPacket['sections'][1]['rows'][0]['rowRole'] ?? null) !== 'body-head' || ($reviewPacket['sections'][1]['rows'][1]['rowHeadColumns'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing review-packet row roles');
+    }
+    if (($reviewPacket['coverage'][5]['text'] ?? null) !== 'Posts' || array_key_exists('node', $reviewPacket['coverage'][5])) {
+        throw new RuntimeException('Table geometry self-test missing serializable review-packet coverage text');
+    }
+    if (($reviewPacket['accessibility']['body:1:1:1']['headers'] ?? null) !== ['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1']) {
+        throw new RuntimeException('Table geometry self-test missing review-packet accessibility relationships');
+    }
+    json_encode($reviewPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

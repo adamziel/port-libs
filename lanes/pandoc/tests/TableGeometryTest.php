@@ -691,4 +691,57 @@ return [
         $t->contains('<tr><td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">7</td><td headers="migration-grid-head-r1c3 migration-grid-body-r1c3 migration-grid-body-r2c1" style="text-align:center">Import</td></tr>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Accessible review grid</figcaption>', $blocks);
     },
+    'builds serializable review packets for importer table geometry handoff' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildDeclaredColumnOverflowDocument): void {
+        $accessibleTable = $buildAccessibleHeaderDocument()->children[0];
+        $packet = TableGeometry::reviewPacket($accessibleTable, ['idPrefix' => 'Migration Grid']);
+
+        $t->same('Accessible review grid', $packet['caption']);
+        $t->same(3, $packet['columnCount']);
+        $t->same(3, $packet['declaredColumnCount']);
+        $t->same(['left', 'right', 'center'], array_map(static fn (array $spec): string => $spec['alignment'], $packet['columns']));
+        $t->same([null, null, null], array_map(static fn (array $spec): ?float => $spec['width'], $packet['columns']));
+        $t->same(['head', 'body'], array_map(static fn (array $section): string => $section['section'], $packet['sections']));
+        $t->same(1, $packet['sections'][0]['rowCount']);
+        $t->same(3, $packet['sections'][1]['rowCount']);
+        $t->same('head', $packet['sections'][0]['rows'][0]['rowRole']);
+        $t->same('body-head', $packet['sections'][1]['rows'][0]['rowRole']);
+        $t->same('body', $packet['sections'][1]['rows'][1]['rowRole']);
+        $t->same(true, $packet['sections'][1]['rows'][0]['header']);
+        $t->same(false, $packet['sections'][1]['rows'][1]['header']);
+        $t->same(1, $packet['sections'][1]['rows'][1]['rowHeadColumns']);
+        $t->same('Document', $packet['sections'][0]['rows'][0]['slots'][0]['text']);
+        $t->same('covered', $packet['sections'][0]['rows'][0]['slots'][1]['kind']);
+        $t->same('colspan', $packet['sections'][0]['rows'][0]['slots'][1]['covering']);
+        $t->same('Posts', $packet['sections'][1]['rows'][1]['slots'][0]['text']);
+        $t->same('covered', $packet['sections'][1]['rows'][2]['slots'][0]['kind']);
+        $t->same('rowspan', $packet['sections'][1]['rows'][2]['slots'][0]['covering']);
+        $t->same(10, $packet['summary']['cellCount']);
+        $t->same(6, $packet['summary']['headerCellCount']);
+        $t->same(2, $packet['summary']['coveredSlotCount']);
+        $t->same(0, $packet['summary']['missingSlotCount']);
+        $t->same([], $packet['summary']['diagnosticCodes']);
+        $t->same(true, $packet['summary']['hasSpans']);
+        $t->same(false, array_key_exists('node', $packet['coverage'][0]));
+        $t->same('Document', $packet['coverage'][0]['text']);
+        $t->same('Posts', $packet['coverage'][5]['text']);
+        $t->same('migration-grid-head-r1c1', $packet['accessibility']['head:0:0:0']['id'] ?? null);
+        $t->same('colgroup', $packet['accessibility']['head:0:0:0']['scope'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $packet['accessibility']['body:1:1:1']['headers'] ?? null);
+        $encoded = json_encode($packet, JSON_THROW_ON_ERROR);
+        $t->contains('"sections"', $encoded);
+        $t->contains('"accessibility"', $encoded);
+
+        $overflowPacket = TableGeometry::reviewPacket($buildDeclaredColumnOverflowDocument()->children[0], ['accessibility' => false]);
+        $t->same(3, $overflowPacket['columnCount']);
+        $t->same(2, $overflowPacket['declaredColumnCount']);
+        $t->same(2, $overflowPacket['summary']['diagnosticCount']);
+        $t->same(['cell-exceeds-declared-columns'], $overflowPacket['summary']['diagnosticCodes']);
+        $t->same([], $overflowPacket['accessibility']);
+        $t->same('Full width audit note', $overflowPacket['coverage'][6]['text']);
+        $t->same(true, $overflowPacket['coverage'][6]['headerCell']);
+        $t->same(3, $overflowPacket['coverage'][6]['colspan']);
+        $t->same(1, $overflowPacket['sections'][1]['rows'][0]['rowHeadColumns']);
+        $t->same('missing', $overflowPacket['sections'][0]['rows'][0]['slots'][2]['kind']);
+        $t->same(false, array_key_exists('node', $overflowPacket['sections'][1]['rows'][2]['slots'][0]));
+    },
 ];
