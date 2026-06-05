@@ -8,6 +8,7 @@ final class LegacyDocReader
 {
     private const SUMMARY_INFORMATION = "\x05SummaryInformation";
     private const DOCUMENT_SUMMARY_INFORMATION = "\x05DocumentSummaryInformation";
+    private const FMTID_USER_DEFINED_PROPERTIES = '05d5cdd59c2e1b10939708002b2cf9ae';
 
     /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>}
@@ -339,31 +340,49 @@ final class LegacyDocReader
             if ($descriptorOffset + 20 > strlen($bytes)) {
                 break;
             }
+            $fmtid = bin2hex(substr($bytes, $descriptorOffset, 16));
             $propertySetOffset = self::u32($bytes, $descriptorOffset + 16);
             if ($propertySetOffset >= strlen($bytes)) {
                 continue;
             }
 
-            $properties = $this->readPropertySet($bytes, $propertySetOffset);
-            $metadata = array_replace($metadata, $this->mapPropertySetValues($properties, $kind));
+            $propertySet = $this->readPropertySet($bytes, $propertySetOffset);
+            if ($kind === 'document-summary' && $fmtid === self::FMTID_USER_DEFINED_PROPERTIES) {
+                $customProperties = $this->customDocumentProperties($propertySet['properties'], $propertySet['dictionary']);
+                if ($customProperties !== []) {
+                    $metadata['customProperties'] = array_replace(
+                        $metadata['customProperties'] ?? [],
+                        $customProperties
+                    );
+                }
+                continue;
+            }
+
+            $metadata = array_replace($metadata, $this->mapPropertySetValues($propertySet['properties'], $kind));
         }
 
         return $metadata;
     }
 
     /**
-     * @return array<int,mixed>
+     * @return array{properties:array<int,mixed>,dictionary:array<int,string>}
      */
     private function readPropertySet(string $bytes, int $offset): array
     {
         if ($offset + 8 > strlen($bytes)) {
-            return [];
+            return [
+                'properties' => [],
+                'dictionary' => [],
+            ];
         }
 
         $propertySetSize = self::u32($bytes, $offset);
         $propertyCount = self::u32($bytes, $offset + 4);
         if ($propertySetSize < 8 || $offset + $propertySetSize > strlen($bytes)) {
-            return [];
+            return [
+                'properties' => [],
+                'dictionary' => [],
+            ];
         }
 
         $entriesOffset = $offset + 8;
@@ -388,14 +407,22 @@ final class LegacyDocReader
             }
         }
 
+        $dictionary = [];
+        if (isset($locations[0])) {
+            $dictionary = $this->readDictionary($bytes, $locations[0], $codepage, $offset + $propertySetSize);
+        }
+
         foreach ($locations as $propertyId => $valueOffset) {
-            if ($propertyId === 1) {
+            if ($propertyId === 0 || $propertyId === 1) {
                 continue;
             }
             $values[$propertyId] = $this->readTypedPropertyValue($bytes, $valueOffset, $codepage);
         }
 
-        return $values;
+        return [
+            'properties' => $values,
+            'dictionary' => $dictionary,
+        ];
     }
 
     private function readTypedPropertyValue(string $bytes, int $offset, int $codepage): mixed
@@ -527,6 +554,26 @@ final class LegacyDocReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<int,mixed> $properties
+     * @param array<int,string> $dictionary
+     * @return array<string,mixed>
+     */
+    private function customDocumentProperties(array $properties, array $dictionary): array
+    {
+        $customProperties = [];
+        foreach ($dictionary as $propertyId => $name) {
+            $value = $properties[$propertyId] ?? null;
+            if ($name === '' || $value === null || $value === '') {
+                continue;
+            }
+
+            $customProperties[$name] = $value;
+        }
+
+        return $customProperties;
     }
 
     /**
@@ -864,6 +911,65 @@ final class LegacyDocReader
             'value' => $values,
             'bytes' => $cursor - $offset,
         ];
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function readDictionary(string $bytes, int $offset, int $codepage, int $limit): array
+    {
+        if ($offset + 4 > $limit || $limit > strlen($bytes)) {
+            return [];
+        }
+
+        $count = self::u32($bytes, $offset);
+        $cursor = $offset + 4;
+        $dictionary = [];
+        $seenNames = [];
+        for ($index = 0; $index < $count; $index++) {
+            if ($cursor + 8 > $limit) {
+                return [];
+            }
+
+            $propertyId = self::u32($bytes, $cursor);
+            $nameLength = self::u32($bytes, $cursor + 4);
+            $cursor += 8;
+            if ($propertyId < 2 || $propertyId > 0x7fffffff || $nameLength === 0) {
+                return [];
+            }
+
+            if ($codepage === 1200) {
+                $byteLength = $nameLength * 2;
+                if ($cursor + $byteLength > $limit) {
+                    return [];
+                }
+
+                $name = rtrim($this->decodeUtf16Le(substr($bytes, $cursor, $byteLength)), "\0");
+                $cursor += $byteLength;
+                $padding = (4 - ($byteLength % 4)) % 4;
+                if ($cursor + $padding > $limit) {
+                    return [];
+                }
+                $cursor += $padding;
+            } else {
+                if ($cursor + $nameLength > $limit) {
+                    return [];
+                }
+
+                $name = $this->decodeCodePageString(substr($bytes, $cursor, $nameLength), $codepage);
+                $cursor += $nameLength;
+            }
+
+            $normalizedName = strtolower($name);
+            if (isset($dictionary[$propertyId]) || isset($seenNames[$normalizedName])) {
+                throw new \RuntimeException('Legacy DOC custom property dictionary contains duplicate entries');
+            }
+
+            $dictionary[$propertyId] = $name;
+            $seenNames[$normalizedName] = true;
+        }
+
+        return $dictionary;
     }
 
     /**

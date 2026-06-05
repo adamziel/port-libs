@@ -326,6 +326,15 @@ $typedVectorVariant = static function (array $variants): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$typedDictionary = static function (array $names): string {
+    $raw = pack('V', count($names));
+    foreach ($names as $propertyId => $name) {
+        $bytes = (string) $name . "\0";
+        $raw .= pack('V', (int) $propertyId) . pack('V', strlen($bytes)) . $bytes;
+    }
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
     if (!array_key_exists(1, $properties)) {
         $properties = [1 => $typedI2(1252)] + $properties;
@@ -349,6 +358,29 @@ $typedPropertySet = static function (array $properties) use ($u32, $typedI2): st
         . str_repeat("\0", 16)
         . $u32(48)
         . $set;
+};
+$typedPropertySetStream = static function (array $sets) use ($typedPropertySet, $u32): string {
+    $descriptorOffset = 28 + (count($sets) * 20);
+    $descriptors = '';
+    $payload = '';
+    foreach ($sets as $set) {
+        $fmtid = (string) $set['fmtid'];
+        if (strlen($fmtid) !== 16) {
+            throw new RuntimeException('Property set FMTID fixtures must be 16 bytes');
+        }
+
+        $propertySetBytes = substr($typedPropertySet($set['properties']), 48);
+        $descriptors .= $fmtid . $u32($descriptorOffset + strlen($payload));
+        $payload .= $propertySetBytes;
+    }
+
+    return pack('v', 0xfffe)
+        . pack('v', 0)
+        . $u32(0)
+        . str_repeat("\0", 16)
+        . $u32(count($sets))
+        . $descriptors
+        . $payload;
 };
 $propertySet = static function (array $values) use ($typedLpstr, $typedPropertySet): string {
     $properties = [];
@@ -682,6 +714,55 @@ return [
             ],
         ], $metadata['headingPairs']);
         $t->same($metadata['headingPairs'], $result['document']->attr('meta')['headingPairs']);
+    },
+    'extracts legacy DOC user-defined custom document properties from OLE dictionaries' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedI4, $typedBool, $typedFiletime): void {
+        $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
+        $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+        if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
+            throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+        }
+
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Custom metadata review packet\r"),
+            "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+                [
+                    'fmtid' => $docSummaryFmtid,
+                    'properties' => [
+                        2 => $typedLpstr('Import queue'),
+                        15 => $typedLpstr('Example Press'),
+                    ],
+                ],
+                [
+                    'fmtid' => $userDefinedFmtid,
+                    'properties' => [
+                        0 => $typedDictionary([
+                            2 => 'MigrationBatch',
+                            3 => 'Needs Review',
+                            4 => 'Source Id',
+                            5 => 'Review Timestamp',
+                        ]),
+                        1 => $typedI2(1252),
+                        2 => $typedLpstr('batch-42'),
+                        3 => $typedBool(true),
+                        4 => $typedI4(9876),
+                        5 => $typedFiletime('2024-03-04T05:06:07Z'),
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same('Import queue', $metadata['category']);
+        $t->same('Example Press', $metadata['company']);
+        $t->same([
+            'MigrationBatch' => 'batch-42',
+            'Needs Review' => true,
+            'Source Id' => 9876,
+            'Review Timestamp' => '2024-03-04T05:06:07Z',
+        ], $metadata['customProperties']);
+        $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
     'extracts complex legacy DOC piece-table text from the selected 1Table stream' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams();

@@ -115,6 +115,15 @@ $typedVectorVariant = static function (array $variants): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$typedDictionary = static function (array $names): string {
+    $raw = pack('V', count($names));
+    foreach ($names as $propertyId => $name) {
+        $bytes = (string) $name . "\0";
+        $raw .= pack('V', (int) $propertyId) . pack('V', strlen($bytes)) . $bytes;
+    }
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
     if (!array_key_exists(1, $properties)) {
         $properties = [1 => $typedI2(1252)] + $properties;
@@ -138,6 +147,29 @@ $typedPropertySet = static function (array $properties) use ($u32, $typedI2): st
         . str_repeat("\0", 16)
         . $u32(48)
         . $set;
+};
+$typedPropertySetStream = static function (array $sets) use ($typedPropertySet, $u32): string {
+    $descriptorOffset = 28 + (count($sets) * 20);
+    $descriptors = '';
+    $payload = '';
+    foreach ($sets as $set) {
+        $fmtid = (string) $set['fmtid'];
+        if (strlen($fmtid) !== 16) {
+            throw new RuntimeException('Property set FMTID fixtures must be 16 bytes');
+        }
+
+        $propertySetBytes = substr($typedPropertySet($set['properties']), 48);
+        $descriptors .= $fmtid . $u32($descriptorOffset + strlen($payload));
+        $payload .= $propertySetBytes;
+    }
+
+    return pack('v', 0xfffe)
+        . pack('v', 0)
+        . $u32(0)
+        . str_repeat("\0", 16)
+        . $u32(count($sets))
+        . $descriptors
+        . $payload;
 };
 $propertySet = static function (array $values) use ($typedLpstr, $typedPropertySet): string {
     $properties = [];
@@ -172,6 +204,11 @@ $plcPcd = $u32(0)
 $clx = "\x02" . $u32(strlen($plcPcd)) . $plcPcd;
 $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
+$docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
+$userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
+    throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+}
 
 $streams = [
     'WordDocument' => $wordDocument,
@@ -189,26 +226,45 @@ $streams = [
         18 => $typedLpstr('Native PHP legacy DOC handoff'),
         19 => $typedI4(0x00000002),
     ]),
-    "\x05DocumentSummaryInformation" => $typedPropertySet([
-        1 => $typedI2(65001),
-        2 => $typedLpstr('Data Liberation import queue - legacy обзор'),
-        5 => $typedI4(2),
-        6 => $typedI4(2),
-        11 => $typedBool(false),
-        12 => $typedVectorVariant([
-            $typedVariantLpstr('Sections'),
-            $typedVariantI4(2),
-            $typedVariantLpstr('Appendices'),
-            $typedVariantI4(1),
-        ]),
-        13 => $typedVectorLpstr([
-            'Overview',
-            'Reviewer notes',
-            'Source appendix',
-        ]),
-        15 => $typedLpstr('Example Press'),
-        16 => $typedBool(true),
-        17 => $typedI4(78),
+    "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+        [
+            'fmtid' => $docSummaryFmtid,
+            'properties' => [
+                1 => $typedI2(65001),
+                2 => $typedLpstr('Data Liberation import queue - legacy обзор'),
+                5 => $typedI4(2),
+                6 => $typedI4(2),
+                11 => $typedBool(false),
+                12 => $typedVectorVariant([
+                    $typedVariantLpstr('Sections'),
+                    $typedVariantI4(2),
+                    $typedVariantLpstr('Appendices'),
+                    $typedVariantI4(1),
+                ]),
+                13 => $typedVectorLpstr([
+                    'Overview',
+                    'Reviewer notes',
+                    'Source appendix',
+                ]),
+                15 => $typedLpstr('Example Press'),
+                16 => $typedBool(true),
+                17 => $typedI4(78),
+            ],
+        ],
+        [
+            'fmtid' => $userDefinedFmtid,
+            'properties' => [
+                0 => $typedDictionary([
+                    2 => 'MigrationBatch',
+                    3 => 'Needs Review',
+                    4 => 'Source Id',
+                ]),
+                1 => $typedI2(1252),
+                2 => $typedLpstr('legacy-doc-42'),
+                3 => $typedBool(true),
+                4 => $typedI4(4242),
+            ],
+        ],
     ]),
 ];
 
@@ -398,6 +454,13 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['headingPairs'][0]['parts'] ?? []) !== ['Overview', 'Reviewer notes']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing heading-pair section inventory');
+    }
+    if (($summary['metadata']['customProperties'] ?? []) !== [
+        'MigrationBatch' => 'legacy-doc-42',
+        'Needs Review' => true,
+        'Source Id' => 4242,
+    ]) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
     }
     if (($summary['textSource'] ?? '') !== 'piece-table' || ($summary['fib']['complex'] ?? null) !== true || ($summary['fib']['tableStream'] ?? '') !== '1Table') {
         throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
