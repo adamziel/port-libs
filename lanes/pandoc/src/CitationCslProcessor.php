@@ -3266,25 +3266,37 @@ final class CitationCslProcessor
 
         $parts = [];
         if ($eventTitle !== '') {
-            $parts[] = 'Event: ' . $this->withTerminalPunctuation($eventTitle);
+            $parts[] = $this->localizedEventBibliographyPart('event', 'Event', $eventTitle);
         }
         if ($eventTitleAddon !== '') {
-            $parts[] = 'Event addendum: ' . $this->withTerminalPunctuation($eventTitleAddon);
+            $parts[] = $this->localizedEventBibliographyPart('event-title-addon', 'Event addendum', $eventTitleAddon);
         }
         if ($eventType !== '') {
-            $parts[] = 'Event type: ' . $this->withTerminalPunctuation($eventType);
+            $parts[] = $this->localizedEventBibliographyPart('event-type', 'Event type', $eventType);
         }
         if (is_array($eventOrganizers) && $eventOrganizers !== []) {
-            $parts[] = 'Event organizer: ' . rtrim($this->renderNameList($eventOrganizers, $this->style->bibliographyNameRendering(), true), '.') . '.';
+            $parts[] = $this->localizedEventBibliographyLabel('event-organizer', 'Event organizer') . ': ' . rtrim($this->renderNameList($eventOrganizers, $this->style->bibliographyNameRendering(), true), '.') . '.';
         }
         if ($eventPlace !== '') {
-            $parts[] = 'Event place: ' . $this->withTerminalPunctuation($eventPlace);
+            $parts[] = $this->localizedEventBibliographyPart('event-place', 'Event place', $eventPlace);
         }
         if (is_array($eventDate) && (string) ($eventDate['display'] ?? '') !== '') {
-            $parts[] = 'Event date ' . (string) $eventDate['display'] . '.';
+            $parts[] = $this->localizedEventBibliographyLabel('event-date', 'Event date') . ' ' . (string) $eventDate['display'] . '.';
         }
 
         return $parts;
+    }
+
+    private function localizedEventBibliographyPart(string $termName, string $fallbackLabel, string $value): string
+    {
+        return $this->localizedEventBibliographyLabel($termName, $fallbackLabel) . ': ' . $this->withTerminalPunctuation($value);
+    }
+
+    private function localizedEventBibliographyLabel(string $termName, string $fallbackLabel): string
+    {
+        $label = trim($this->style->term($termName));
+
+        return $label !== '' ? $label : $fallbackLabel;
     }
 
     /**

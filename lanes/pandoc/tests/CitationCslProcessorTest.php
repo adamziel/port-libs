@@ -2802,6 +2802,88 @@ XML);
         ]])->item('manual-organizer');
         $t->same('Manual Review Desk', $manual['eventOrganizers'][0]['literal'] ?? null);
     },
+    'localizes bounded biblatex event bibliography labels through csl terms' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{localized-proceedings,
+  editor          = {Curator, Eli},
+  title           = {Localized Proceedings},
+  eventtitle      = {Source Review Summit},
+  eventtitleaddon = {Import track},
+  eventtype       = {atelier},
+  eventorganizer  = {{Bureau de revue} and Curator, Eli},
+  venue           = {Montréal},
+  eventdate       = {2026-06-04/2026-06-05},
+  date            = {2026},
+  publisher       = {Migration Desk}
+}
+
+@inproceedings{localized-event-paper,
+  author   = {Ng, Nia},
+  title    = {Localized Event Paper},
+  pages    = {50--54},
+  crossref = {localized-proceedings}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="fr-FR">
+  <info>
+    <title>Localized Event Review Style</title>
+    <id>https://example.test/styles/localized-event-review</id>
+    <updated>2026-06-05T16:39:41+00:00</updated>
+  </info>
+  <locale xml:lang="fr-FR">
+    <terms>
+      <term name="event">Événement</term>
+      <term name="event-title-addon">Supplément d'événement</term>
+      <term name="event-type">Type d'événement</term>
+      <term name="event-organizer">Organisateur</term>
+      <term name="event-place">Lieu</term>
+      <term name="event-date">Dates</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author editor"/>
+        <date variable="issued"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout/>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $paper = $processor->item('localized-event-paper');
+        $t->same('Localized Event Review Style', $summary['title'] ?? null);
+        $t->same('Événement', $summary['terms']['event'] ?? null);
+        $t->same("Supplément d'événement", $summary['terms']['eventTitleAddon'] ?? null);
+        $t->same("Type d'événement", $summary['terms']['eventType'] ?? null);
+        $t->same('Organisateur', $summary['terms']['eventOrganizer'] ?? null);
+        $t->same('Lieu', $summary['terms']['eventPlace'] ?? null);
+        $t->same('Dates', $summary['terms']['eventDate'] ?? null);
+        $t->same('Source Review Summit', $paper['eventTitle'] ?? null);
+        $t->same('Montréal', $paper['eventPlace'] ?? null);
+        $t->same('Bureau de revue', $paper['eventOrganizers'][0]['literal'] ?? null);
+        $t->same('Curator', $paper['eventOrganizers'][1]['family'] ?? null);
+        $t->same('(Curator 2026; Ng 2026)', $processor->renderCitationCluster([
+            $citation('localized-proceedings', '[@localized-proceedings]'),
+            $citation('localized-event-paper', '[@localized-event-paper]'),
+        ]));
+        $t->same(
+            "Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d'événement: Import track. Type d'événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.",
+            $processor->renderBibliographyEntry('localized-event-paper')
+        );
+
+        $document = (new MarkdownReader())->read('Localized event source @localized-event-paper keeps custom event labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Localized event source Ng (2026) keeps custom event labels visible.</p>', $blocks);
+        $t->contains("<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d&#039;événement: Import track. Type d&#039;événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.</dd>", $blocks);
+    },
     'maps bounded biblatex ids aliases into canonical csl citations' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{canonical-manual,

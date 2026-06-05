@@ -59,6 +59,8 @@ Event paper @event-paper and proceedings [@event-proceedings] preserve conferenc
 
 Organizer paper @organized-paper and webinar [@organizer-webinar] keep event review owners visible.
 
+Localized event source @localized-event-paper keeps custom CSL event labels visible.
+
 Alias source @legacy-alias-source resolves to one canonical bibliography item.
 
 Subtype source @review-subtype preserves source-kind metadata for review.
@@ -478,6 +480,21 @@ $bibtex = <<<'BIB'
   url            = {https://example.test/organizer-webinar}
 }
 
+@inproceedings{localized-event-paper,
+  author          = {Ng, Nia},
+  title           = {Localized Event Paper},
+  booktitle       = {Localized Proceedings},
+  eventtitle      = {Source Review Summit},
+  eventtitleaddon = {Import track},
+  eventtype       = {atelier},
+  eventorganizer  = {{Bureau de revue} and Curator, Eli},
+  venue           = {Montreal},
+  eventdate       = {2026-06-04/2026-06-05},
+  date            = {2026},
+  publisher       = {Migration Desk},
+  pages           = {50--54}
+}
+
 @book{canonical-alias-source,
   author    = {{Alias Review Desk}},
   title     = {Canonical Alias Packet},
@@ -838,6 +855,54 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($organizerWebinar['eventOrganizers'][1]['family'] ?? null) !== 'Curator') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not parse explicit webinar event organizer names');
     }
+    $localizedEventPaper = $processor->item('localized-event-paper');
+    if (($localizedEventPaper['eventTitle'] ?? null) !== 'Source Review Summit') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve localized-event source event title');
+    }
+    if (($localizedEventPaper['eventOrganizers'][0]['literal'] ?? null) !== 'Bureau de revue') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve localized-event source event organizer');
+    }
+    if (($localizedEventPaper['eventDate']['display'] ?? null) !== '2026-06-04/2026-06-05') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve localized-event source event date');
+    }
+    $localizedProcessor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="fr-FR">
+  <info>
+    <title>Localized Event Review Style</title>
+    <id>https://example.test/styles/localized-event-review</id>
+    <updated>2026-06-05T16:39:41+00:00</updated>
+  </info>
+  <locale xml:lang="fr-FR">
+    <terms>
+      <term name="event">Événement</term>
+      <term name="event-title-addon">Supplément d'événement</term>
+      <term name="event-type">Type d'événement</term>
+      <term name="event-organizer">Organisateur</term>
+      <term name="event-place">Lieu</term>
+      <term name="event-date">Dates</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author editor"/>
+        <date variable="issued"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout/>
+  </bibliography>
+</style>
+XML);
+    $localizedBlocks = (new WordPressBlockWriter())->write($localizedProcessor->appendBibliography(
+        (new MarkdownReader())->read('Localized event source @localized-event-paper keeps custom CSL event labels visible.'),
+        'Works Cited'
+    ));
+    if (!str_contains($localizedBlocks, "<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d&#039;événement: Import track. Type d&#039;événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montreal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.</dd>")) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render localized CSL event bibliography labels');
+    }
     $canonicalAliasSource = $processor->item('canonical-alias-source');
     if (($canonicalAliasSource['citationAliases'] ?? null) !== ['legacy-alias-source', 'source-packet-alias']) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve canonical alias source ids metadata');
@@ -1010,6 +1075,8 @@ XML);
         '<p>Organizer paper Ng (2026) and webinar (Smith 2025) keep event review owners visible.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Organizer Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 52-56.</dd>',
         '<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>',
+        '<p>Localized event source Ng (2026) keeps custom CSL event labels visible.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Event: Source Review Summit. Event addendum: Import track. Event type: atelier. Event organizer: Bureau de revue; Curator, Eli. Event place: Montreal. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.</dd>',
         '<p>Alias source Alias Review Desk (2026) resolves to one canonical bibliography item.</p>',
         '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>',
         '<p>Subtype source Ng (2026) preserves source-kind metadata for review.</p>',

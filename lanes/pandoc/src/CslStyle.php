@@ -22,6 +22,12 @@ final class CslStyle
         'ellipsis|long' => ['single' => "\u{2026}", 'multiple' => "\u{2026}"],
         'no date|long' => ['single' => 'n.d.', 'multiple' => 'n.d.'],
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
+        'event|long' => ['single' => 'Event', 'multiple' => 'Events'],
+        'event-title-addon|long' => ['single' => 'Event addendum', 'multiple' => 'Event addenda'],
+        'event-type|long' => ['single' => 'Event type', 'multiple' => 'Event types'],
+        'event-organizer|long' => ['single' => 'Event organizer', 'multiple' => 'Event organizers'],
+        'event-place|long' => ['single' => 'Event place', 'multiple' => 'Event places'],
+        'event-date|long' => ['single' => 'Event date', 'multiple' => 'Event dates'],
         'open-quote|long' => ['single' => "\u{201C}", 'multiple' => "\u{201C}"],
         'close-quote|long' => ['single' => "\u{201D}", 'multiple' => "\u{201D}"],
         'page|long' => ['single' => 'page', 'multiple' => 'pages'],
@@ -434,7 +440,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool}, terms:array<string, string>}
      */
     public function summary(): array
     {
@@ -456,6 +462,12 @@ final class CslStyle
                 'etAl' => $this->term('et-al'),
                 'noDate' => $this->term('no date'),
                 'accessed' => $this->term('accessed'),
+                'event' => $this->term('event'),
+                'eventTitleAddon' => $this->term('event-title-addon'),
+                'eventType' => $this->term('event-type'),
+                'eventOrganizer' => $this->term('event-organizer'),
+                'eventPlace' => $this->term('event-place'),
+                'eventDate' => $this->term('event-date'),
             ],
         ];
     }
