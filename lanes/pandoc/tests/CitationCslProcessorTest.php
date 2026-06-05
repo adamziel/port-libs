@@ -5949,6 +5949,166 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.</dd>', $blocks);
     },
+    'maps bounded biblatex sort override fields into csl ordering metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{visible-zed,
+  author    = {Zed, Zoe},
+  sortname  = {Adams, Ari},
+  title     = {Visible Zed Manual},
+  sorttitle = {Middle Sort Packet},
+  date      = {2026},
+  sortyear  = {2026},
+  sortkey   = {001-visible-zed}
+}
+
+@book{visible-adams,
+  author    = {Adams, Ada},
+  sortname  = {Zed, Zoe},
+  title     = {Visible Adams Manual},
+  sorttitle = {Visible Adams Manual},
+  date      = {2020},
+  sortyear  = {2020},
+  sortkey   = {900-visible-adams}
+}
+
+@book{sortyear-old,
+  author   = {Smith, Sam},
+  title    = {Later Visible Source},
+  date     = {2026},
+  sortyear = {2019},
+  sortkey  = {400-sortyear-old}
+}
+
+@book{sortyear-new,
+  author   = {Smith, Sam},
+  title    = {Earlier Visible Source},
+  date     = {2020},
+  sortyear = {2025},
+  sortkey  = {500-sortyear-new}
+}
+
+@book{title-zebra,
+  author    = {Curator, Eli},
+  title     = {Zebra Visible Source},
+  sorttitle = {Alpha Sort Source},
+  date      = {2024},
+  sortkey   = {200-title-zebra}
+}
+
+@book{title-alpha,
+  author    = {Curator, Eli},
+  title     = {Alpha Visible Source},
+  sorttitle = {Zebra Sort Source},
+  date      = {2024},
+  sortkey   = {300-title-alpha}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(6, count($items));
+        $t->same('Adams, Ari', $items[0]['sort-name'] ?? null);
+        $t->same('Middle Sort Packet', $items[0]['sort-title'] ?? null);
+        $t->same('2026', $items[0]['sort-year'] ?? null);
+        $t->same('001-visible-zed', $items[0]['sort-key'] ?? null);
+        $t->same('Zed, Zoe', $items[1]['sort-name'] ?? null);
+        $t->same('2019', $items[2]['sort-year'] ?? null);
+        $t->same('Alpha Sort Source', $items[4]['sort-title'] ?? null);
+        $t->same('Zebra Sort Source', $items[5]['sort-title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $zed = $processor->item('visible-zed');
+        $adams = $processor->item('visible-adams');
+        $old = $processor->item('sortyear-old');
+        $zebra = $processor->item('title-zebra');
+        $t->same('Zed', $zed['authors'][0]['family'] ?? null);
+        $t->same('Adams, Ari', $zed['sortName'] ?? null);
+        $t->same('Zed, Zoe', $adams['sortName'] ?? null);
+        $t->same('2019', $old['sortYear'] ?? null);
+        $t->same('Alpha Sort Source', $zebra['sortTitle'] ?? null);
+        $t->same('001-visible-zed', $zed['sortKey'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="author"/>
+      <key variable="issued"/>
+      <key variable="title"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="issued"/>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="author"/>
+      <key variable="issued"/>
+      <key variable="title"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="sort-name"/>
+      <text variable="sort-year"/>
+      <text variable="sort-title"/>
+      <text variable="sort-key"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $cluster = [
+            $citation('visible-adams', '[@visible-adams]'),
+            $citation('sortyear-new', '[@sortyear-new]'),
+            $citation('title-alpha', '[@title-alpha]'),
+            $citation('visible-zed', '[@visible-zed]'),
+            $citation('sortyear-old', '[@sortyear-old]'),
+            $citation('title-zebra', '[@title-zebra]'),
+        ];
+        $t->same('[Zed | 2026 | Visible Zed Manual; Curator | 2024 | Zebra Visible Source; Curator | 2024 | Alpha Visible Source; Smith | 2026 | Later Visible Source; Smith | 2020 | Earlier Visible Source; Adams | 2020 | Visible Adams Manual]', $styled->renderCitationCluster($cluster));
+        $t->same('Visible Zed Manual :: Adams, Ari :: 2026 :: Middle Sort Packet :: 001-visible-zed', $styled->renderBibliographyEntry('visible-zed'));
+        $t->same('Zebra Visible Source :: Alpha Sort Source :: 200-title-zebra', $styled->renderBibliographyEntry('title-zebra'));
+        $t->same('Later Visible Source :: 2019 :: 400-sortyear-old', $styled->renderBibliographyEntry('sortyear-old'));
+
+        $keySorted = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort><key variable="sort-key"/></sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <text variable="title"/>
+    </layout>
+  </citation>
+  <bibliography><layout><text variable="title"/></layout></bibliography>
+</style>
+XML);
+        $t->same('[Visible Zed Manual; Zebra Visible Source; Alpha Visible Source; Later Visible Source; Earlier Visible Source; Visible Adams Manual]', $keySorted->renderCitationCluster($cluster));
+
+        $document = (new MarkdownReader())->read('Sorted source [@visible-adams; @sortyear-new; @title-alpha; @visible-zed; @sortyear-old; @title-zebra] keeps visible metadata unchanged.');
+        $processed = $styled->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Sorted source [Zed | 2026 | Visible Zed Manual; Curator | 2024 | Zebra Visible Source; Curator | 2024 | Alpha Visible Source; Smith | 2026 | Later Visible Source; Smith | 2020 | Earlier Visible Source; Adams | 2020 | Visible Adams Manual] keeps visible metadata unchanged.</p>', $blocks);
+        $zebraPosition = strpos($blocks, '<dt>Curator 2024</dt><dd>Zebra Visible Source :: Alpha Sort Source :: 200-title-zebra</dd>');
+        $alphaPosition = strpos($blocks, '<dt>Curator 2024</dt><dd>Alpha Visible Source :: Zebra Sort Source :: 300-title-alpha</dd>');
+        $t->true(is_int($zebraPosition) && is_int($alphaPosition) && $zebraPosition < $alphaPosition, 'Sort-title override should order Curator entries without changing visible titles');
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-sort',
+            'title' => 'Manual Sort Source',
+            'sort-name' => 'Manual, Sort',
+            'sort-title' => 'A Manual Sort Key',
+            'sort-year' => '2020',
+            'sort-key' => 'manual-001',
+        ]])->item('manual-sort');
+        $t->same('Manual, Sort', $manual['sortName'] ?? null);
+        $t->same('A Manual Sort Key', $manual['sortTitle'] ?? null);
+        $t->same('2020', $manual['sortYear'] ?? null);
+        $t->same('manual-001', $manual['sortKey'] ?? null);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

@@ -630,6 +630,10 @@ final class CitationCslProcessor
             'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
             'shorthand' => self::firstStringField($item, ['shorthand']),
             'shorthandIntro' => self::firstStringField($item, ['shorthand-intro', 'shorthandIntro', 'shorthandintro']),
+            'sortKey' => self::firstStringField($item, ['sort-key', 'sortKey', 'sortkey']),
+            'sortName' => self::firstStringField($item, ['sort-name', 'sortName', 'sortname']),
+            'sortTitle' => self::firstStringField($item, ['sort-title', 'sortTitle', 'sorttitle']),
+            'sortYear' => self::firstStringField($item, ['sort-year', 'sortYear', 'sortyear']),
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::stringField($item, 'title-addon'),
@@ -2100,11 +2104,15 @@ final class CitationCslProcessor
         $variable = $this->sortVariable($key);
 
         return match ($variable) {
-            'author' => $this->normalizeSortText($this->namesSortValue($item['authors'] ?? [], $item['editors'] ?? [])),
-            'editor' => $this->normalizeSortText($this->namesSortValue($item['editors'] ?? [], [])),
-            'issued', 'date' => $this->issuedSortValue($item),
-            'title' => $this->normalizeSortText((string) $item['title']),
-            'short-title' => $this->normalizeSortText((string) $item['shortTitle']),
+            'sort-key' => $this->normalizeSortText((string) ($item['sortKey'] ?? '')),
+            'sort-name' => $this->normalizeSortText((string) ($item['sortName'] ?? '')),
+            'sort-title' => $this->normalizeSortText((string) ($item['sortTitle'] ?? '')),
+            'sort-year' => $this->sortYearSortValue($item),
+            'author' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['authors'] ?? [], $item['editors'] ?? [])),
+            'editor' => $this->normalizeSortText($this->sortNameValue($item) !== '' ? $this->sortNameValue($item) : $this->namesSortValue($item['editors'] ?? [], [])),
+            'issued', 'date' => $this->sortYearSortValue($item) !== '' ? $this->sortYearSortValue($item) : $this->issuedSortValue($item),
+            'title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['title']),
+            'short-title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['shortTitle']),
             'citation-label' => $this->normalizeSortText((string) $item['citationLabel']),
             'shorthand' => $this->normalizeSortText((string) $item['shorthand']),
             'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
@@ -2183,6 +2191,22 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
+    private function sortNameValue(array $item): string
+    {
+        return trim((string) ($item['sortName'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sortTitleValue(array $item): string
+    {
+        return trim((string) ($item['sortTitle'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
     private function issuedSortValue(array $item): string
     {
         $date = $item['issuedDate'] ?? null;
@@ -2192,6 +2216,23 @@ final class CitationCslProcessor
         }
 
         return $this->normalizeSortText(is_array($date) ? (string) ($date['display'] ?? $date['literal'] ?? '') : '');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function sortYearSortValue(array $item): string
+    {
+        $sortYear = trim((string) ($item['sortYear'] ?? ''));
+        if ($sortYear === '') {
+            return '';
+        }
+
+        if (preg_match('/^-?\d+$/', $sortYear) === 1) {
+            return sprintf('%+08d-00-00', (int) $sortYear);
+        }
+
+        return $this->normalizeSortText($sortYear);
     }
 
     private function normalizeSortText(string $value): string
@@ -4418,6 +4459,10 @@ final class CitationCslProcessor
             'citation-label' => (string) $item['citationLabel'],
             'shorthand' => (string) $item['shorthand'],
             'shorthand-intro' => (string) $item['shorthandIntro'],
+            'sort-key' => (string) $item['sortKey'],
+            'sort-name' => (string) $item['sortName'],
+            'sort-title' => (string) $item['sortTitle'],
+            'sort-year' => (string) $item['sortYear'],
             'title' => (string) $item['title'],
             'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],

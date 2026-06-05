@@ -67,6 +67,8 @@ Split URL date source @split-url-date preserves component access-date metadata.
 
 Truncated author source @truncated-name-list keeps source-authored et-al markers visible.
 
+Sort override sources [@sort-visible-adams; @sort-visible-zed] keep BibLaTeX sorting hints available for review.
+
 Call-number source @archive-call-number preserves archive shelf metadata for review.
 
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
@@ -512,6 +514,26 @@ $bibtex = <<<'BIB'
   url          = {https://example.test/truncated-name-list}
 }
 
+@book{sort-visible-zed,
+  author    = {Zed, Zoe},
+  sortname  = {Adams, Ari},
+  title     = {Visible Zed Manual},
+  sorttitle = {Alpha Sort Packet},
+  date      = {2026},
+  sortyear  = {2019},
+  sortkey   = {001-sort-visible-zed}
+}
+
+@book{sort-visible-adams,
+  author    = {Adams, Ada},
+  sortname  = {Zed, Zoe},
+  title     = {Visible Adams Manual},
+  sorttitle = {Omega Sort Packet},
+  date      = {2020},
+  sortyear  = {2025},
+  sortkey   = {900-sort-visible-adams}
+}
+
 @book{archive-call-number,
   author    = {Smith, Ada},
   title     = {Archive Shelf Packet},
@@ -842,6 +864,64 @@ if (($argv[1] ?? '') === '--self-test') {
     if ($processor->renderBibliographyEntry('truncated-name-list') !== 'Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-name-list.') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not render source-authored et-al bibliography names');
     }
+    $sortVisibleZed = $processor->item('sort-visible-zed');
+    if (($sortVisibleZed['sortName'] ?? null) !== 'Adams, Ari') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve sort-visible-zed sort name');
+    }
+    if (($sortVisibleZed['sortTitle'] ?? null) !== 'Alpha Sort Packet') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve sort-visible-zed sort title');
+    }
+    if (($sortVisibleZed['sortYear'] ?? null) !== '2019') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve sort-visible-zed sort year');
+    }
+    if (($sortVisibleZed['sortKey'] ?? null) !== '001-sort-visible-zed') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve sort-visible-zed sort key');
+    }
+    $sortStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="author"/>
+      <key variable="issued"/>
+      <key variable="title"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="issued"/>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="author"/>
+      <key variable="issued"/>
+      <key variable="title"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="sort-name"/>
+      <text variable="sort-year"/>
+      <text variable="sort-title"/>
+      <text variable="sort-key"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $sortBlocks = (new WordPressBlockWriter())->write($sortStyled->appendBibliography(
+        (new MarkdownReader())->read('Sorted review [@sort-visible-adams; @sort-visible-zed] keeps visible metadata unchanged.'),
+        'Sorted Sources'
+    ));
+    if (!str_contains($sortBlocks, '<p>Sorted review [Zed | 2026 | Visible Zed Manual; Adams | 2020 | Visible Adams Manual] keeps visible metadata unchanged.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not apply sort override fields to styled citation order');
+    }
+    $sortZedPosition = strpos($sortBlocks, '<dt>Zed 2026</dt><dd>Visible Zed Manual :: Adams, Ari :: 2019 :: Alpha Sort Packet :: 001-sort-visible-zed</dd>');
+    $sortAdamsPosition = strpos($sortBlocks, '<dt>Adams 2020</dt><dd>Visible Adams Manual :: Zed, Zoe :: 2025 :: Omega Sort Packet :: 900-sort-visible-adams</dd>');
+    if (!is_int($sortZedPosition) || !is_int($sortAdamsPosition) || $sortZedPosition > $sortAdamsPosition) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not apply sort override fields to styled bibliography order');
+    }
     $archiveCallNumber = $processor->item('archive-call-number');
     if (($archiveCallNumber['callNumber'] ?? null) !== 'NYPL Manuscripts Division, MS 42 Box 7 Folder 3') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve archive call-number metadata');
@@ -916,6 +996,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>',
         '<p>Truncated author source Smith, Ng, et al. (2026) keeps source-authored et-al markers visible.</p>',
         '<dt>Smith, Ng, et al. 2026</dt><dd>Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-name-list.</dd>',
+        '<p>Sort override sources (Adams 2020; Zed 2026) keep BibLaTeX sorting hints available for review.</p>',
+        '<dt>Adams 2020</dt><dd>Adams, Ada. Visible Adams Manual. 2020.</dd>',
+        '<dt>Zed 2026</dt><dd>Zed, Zoe. Visible Zed Manual. 2026.</dd>',
         '<p>Call-number source Smith (2026) preserves archive shelf metadata for review.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Archive Shelf Packet. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
