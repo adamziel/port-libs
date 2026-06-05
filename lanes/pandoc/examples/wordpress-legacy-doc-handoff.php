@@ -1273,12 +1273,20 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
     }
 
+    $directorySectorOffset = 512 + 512;
+    $directoryFieldOffset = static fn (int $directoryId, int $fieldOffset): int => $directorySectorOffset + ($directoryId * 128) + $fieldOffset;
+    $wordDocumentDirectoryId = (int) $nodeByPath['WordDocument'];
+    $objectPoolDirectoryId = (int) $nodeByPath['ObjectPool'];
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
         'non-null CFB header CLSID' => substr_replace($docBytes, "\x01", 8, 1),
         'nonzero CFB header reserved bytes' => substr_replace($docBytes, "\x01\0\0\0\0\0", 34, 6),
         'invalid CFB mini stream cutoff' => substr_replace($docBytes, $u32(2048), 56, 4),
+        'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
+        'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
+        'CFB storage stream-data bytes' => substr_replace($docBytes, $u64(64), $directoryFieldOffset($objectPoolDirectoryId, 120), 8),
+        'red CFB sibling-tree root' => substr_replace($docBytes, "\0", $directoryFieldOffset((int) ($childIds[0] ?? $wordDocumentDirectoryId), 67), 1),
         'duplicate CFB FAT sector' => substr_replace(substr_replace($docBytes, $u32(2), 44, 4), $u32(0), 80, 4),
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),

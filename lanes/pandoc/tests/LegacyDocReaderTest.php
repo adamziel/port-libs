@@ -1306,6 +1306,34 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects invalid CFB directory object-type fields before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            'ObjectPool/_42/Native' => 'nested native bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+
+        $rootLeftSibling = substr_replace($bytes, $u32(1), $directorySectorOffset + 68, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($rootLeftSibling));
+
+        $wordDocumentChild = substr_replace($bytes, $u32(2), $directorySectorOffset + 128 + 76, 4);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($wordDocumentChild));
+
+        $objectPoolSize = substr_replace($bytes, $u64(64), $directorySectorOffset + (2 * 128) + 120, 8);
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($objectPoolSize));
+    },
+    'rejects red CFB directory sibling-tree roots before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'A' => 'a',
+            'BB' => 'bb',
+            'CCC' => 'ccc',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $bbColorOffset = $directorySectorOffset + (2 * 128) + 67;
+        $redRoot = substr_replace($bytes, "\0", $bbColorOffset, 1);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($redRoot));
+    },
     'rejects duplicate and misclassified CFB FAT sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

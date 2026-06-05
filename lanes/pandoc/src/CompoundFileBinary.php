@@ -451,6 +451,7 @@ final class CompoundFileBinary
                 'modifiedAt' => self::readFiletime($entryBytes, 108),
                 'directoryId' => $directoryId,
             ];
+            self::validateDirectoryEntryObjectFields($entry);
             if ($clsid !== null) {
                 $entry['clsid'] = $clsid;
             }
@@ -477,9 +478,27 @@ final class CompoundFileBinary
         $root['path'] = '';
         $entries = [$root];
         $visited = [$root['directoryId'] => true];
-        self::collectDirectoryTree($root['childId'], '', $rawEntries, $entries, $byName, $visited, null, null, false);
+        self::collectDirectoryTree($root['childId'], '', $rawEntries, $entries, $byName, $visited, null, null, false, true);
 
         return [$entries, $byName];
+    }
+
+    /**
+     * @param array<string,mixed> $entry
+     */
+    private static function validateDirectoryEntryObjectFields(array $entry): void
+    {
+        $type = (int) $entry['type'];
+        $name = (string) $entry['name'];
+        if ($type === 2 && (int) $entry['childId'] !== self::FREESECT) {
+            throw new \RuntimeException('CFB stream directory entry must not reference child entries: ' . $name);
+        }
+        if ($type === 1 && (int) $entry['size'] !== 0) {
+            throw new \RuntimeException('CFB storage directory entry must not declare stream bytes: ' . $name);
+        }
+        if ($type === 5 && ((int) $entry['leftSiblingId'] !== self::FREESECT || (int) $entry['rightSiblingId'] !== self::FREESECT)) {
+            throw new \RuntimeException('CFB root directory entry must not reference sibling entries');
+        }
     }
 
     /**
@@ -499,7 +518,8 @@ final class CompoundFileBinary
         array &$visited,
         ?array $minEntry,
         ?array $maxEntry,
-        bool $parentIsRed
+        bool $parentIsRed,
+        bool $treeRoot = false
     ): void {
         if (!self::isRegularSector($nodeId)) {
             return;
@@ -516,6 +536,9 @@ final class CompoundFileBinary
         if (!in_array($entry['colorFlag'], [0, 1], true)) {
             throw new \RuntimeException('CFB directory entry has an invalid red-black color flag: ' . $entry['name']);
         }
+        if ($treeRoot && $entry['colorFlag'] === 0) {
+            throw new \RuntimeException('CFB directory sibling tree root must be black: ' . $entry['name']);
+        }
         if ($parentIsRed && $entry['colorFlag'] === 0) {
             throw new \RuntimeException('CFB directory sibling tree contains consecutive red nodes');
         }
@@ -527,7 +550,7 @@ final class CompoundFileBinary
         }
 
         $entryIsRed = $entry['colorFlag'] === 0;
-        self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $minEntry, $entry, $entryIsRed);
+        self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $minEntry, $entry, $entryIsRed, false);
 
         $entry['path'] = $parentPath === '' ? $entry['name'] : $parentPath . '/' . $entry['name'];
         $entryIndex = count($entries);
@@ -547,10 +570,10 @@ final class CompoundFileBinary
             }
         }
         if ($entry['type'] === 1) {
-            self::collectDirectoryTree($entry['childId'], $entry['path'], $rawEntries, $entries, $byName, $visited, null, null, false);
+            self::collectDirectoryTree($entry['childId'], $entry['path'], $rawEntries, $entries, $byName, $visited, null, null, false, true);
         }
 
-        self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $entry, $maxEntry, $entryIsRed);
+        self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $entry, $maxEntry, $entryIsRed, false);
     }
 
     /**
