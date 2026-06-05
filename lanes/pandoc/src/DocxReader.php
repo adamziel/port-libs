@@ -27,6 +27,34 @@ final class DocxReader
     public const REL_TYPE_ALTERNATIVE_FORMAT_IMPORT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
 
     /**
+     * Bounded subset of Pandoc's DOCX symbol font table for common review
+     * markers. Keys are post-F000-normalized font codepoints.
+     *
+     * @var array<string, array<int, int>>
+     */
+    private const DOCX_SYMBOL_FONT_MAP = [
+        'symbol' => [
+            0x61 => 0x03b1,
+            0x62 => 0x03b2,
+            0xb7 => 0x2022,
+        ],
+        'wingdings' => [
+            0x9f => 0x2022,
+        ],
+        'wingdings-2' => [
+            0x50 => 0x2713,
+            0x52 => 0x2611,
+            0x53 => 0x2612,
+        ],
+        'wingdings-3' => [
+            0x66 => 0x2190,
+            0x67 => 0x2192,
+            0x68 => 0x2191,
+            0x69 => 0x2193,
+        ],
+    ];
+
+    /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
@@ -1598,6 +1626,14 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isWordElement($child, 'sym')) {
+                $symbol = $this->symbolText($child);
+                if ($symbol !== '') {
+                    $nodes[] = new AstNode('text', ['text' => $symbol]);
+                }
+                continue;
+            }
+
             if ($this->isWordElement($child, 'footnoteReference')) {
                 $this->appendReferencedNote($nodes, $referencedNotes, 'footnote', $child);
                 continue;
@@ -1629,6 +1665,70 @@ final class DocxReader
         }
 
         return $this->applyRunStyle($run, $this->coalesceTextNodes($nodes));
+    }
+
+    private function symbolText(\DOMElement $symbol): string
+    {
+        $font = $this->symbolFontKey((string) ($this->wordAttr($symbol, 'font') ?? ''));
+        $codepoint = $this->symbolCodepoint((string) ($this->wordAttr($symbol, 'char') ?? ''));
+        if ($font === null || $codepoint === null) {
+            return '';
+        }
+
+        $normalizedCodepoint = $codepoint >= 0xf000 ? $codepoint - 0xf000 : $codepoint;
+        $mappedCodepoint = self::DOCX_SYMBOL_FONT_MAP[$font][$normalizedCodepoint] ?? $codepoint;
+
+        return $this->codepointToUtf8($mappedCodepoint);
+    }
+
+    private function symbolFontKey(string $font): ?string
+    {
+        $normalized = strtolower(trim(preg_replace('/\s+/u', ' ', $font) ?? $font));
+
+        return match ($normalized) {
+            'symbol' => 'symbol',
+            'wingdings' => 'wingdings',
+            'wingdings 2', 'wingdings2' => 'wingdings-2',
+            'wingdings 3', 'wingdings3' => 'wingdings-3',
+            default => null,
+        };
+    }
+
+    private function symbolCodepoint(string $hex): ?int
+    {
+        $hex = trim($hex);
+        if ($hex === '' || preg_match('/^[0-9a-fA-F]+$/', $hex) !== 1) {
+            return null;
+        }
+
+        return hexdec($hex);
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint < 0 || $codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)) {
+            return '';
+        }
+
+        if ($codepoint <= 0x7f) {
+            return chr($codepoint);
+        }
+
+        if ($codepoint <= 0x7ff) {
+            return chr(0xc0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        if ($codepoint <= 0xffff) {
+            return chr(0xe0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3f))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        return chr(0xf0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3f))
+            . chr(0x80 | (($codepoint >> 6) & 0x3f))
+            . chr(0x80 | ($codepoint & 0x3f));
     }
 
     /**

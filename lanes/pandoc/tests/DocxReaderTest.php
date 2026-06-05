@@ -623,6 +623,27 @@ $smartTagDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$symbolRunDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Checklist symbols </w:t></w:r>
+      <w:r><w:sym w:font="Symbol" w:char="F061"/></w:r>
+      <w:r><w:t xml:space="preserve">/</w:t></w:r>
+      <w:r><w:sym w:font="Symbol" w:char="0061"/></w:r>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:r><w:sym w:font="Wingdings" w:char="F09F"/></w:r>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:r><w:sym w:font="Wingdings 2" w:char="F050"/></w:r>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:r><w:sym w:font="Wingdings 3" w:char="F066"/></w:r>
+      <w:r><w:sym w:font="Unknown Symbol Font" w:char="F050"/></w:r>
+      <w:r><w:t xml:space="preserve"> remain visible.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -862,6 +883,14 @@ $buildSmartTagPackage = static function () use ($contentTypesXml, $packageRelati
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $smartTagDocumentXml],
+    ]);
+};
+
+$buildSymbolRunPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $symbolRunDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $symbolRunDocumentXml],
     ]);
 };
 
@@ -1648,6 +1677,21 @@ return [
 
         $t->contains('Tagged [**Review Desk**]{.docx-smart-tag data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"} for import.', $markdown);
         $t->contains('<p>Tagged <span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Review Desk</strong></span> for import.</p>', $blocks);
+    },
+    'decodes DOCX symbol font runs into Unicode text' => static function (TestRunner $t) use ($buildSymbolRunPackage): void {
+        $document = (new DocxReader())->readDocument($buildSymbolRunPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(1, count($paragraph->children));
+        $t->same('Checklist symbols α/α • ✓ ← remain visible.', $paragraph->children[0]->attr('text'));
+
+        $t->contains('Checklist symbols α/α • ✓ ← remain visible.', $markdown);
+        $t->contains('<p>Checklist symbols α/α • ✓ ← remain visible.</p>', $blocks);
+        $t->true(!str_contains($markdown, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into Markdown output');
+        $t->true(!str_contains($blocks, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into WordPress blocks');
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();
