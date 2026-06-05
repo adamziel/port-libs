@@ -1735,6 +1735,113 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'preserves EPUB trigger XHTML controls for static review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $triggerXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:ev="http://www.w3.org/2001/xml-events">
+  <head>
+    <title>Trigger controls</title>
+    <epub:trigger id="play-trigger" ev:observer="play-button" ev:event="click" action="play" ref="intro-audio"/>
+    <epub:trigger id="hide-trigger" ev:observer="details-toggle" ev:event="click" ev:defaultAction="cancel" ev:phase="default" ev:propagate="stop" action="hide" ref="review-details"/>
+    <epub:trigger id="bad-trigger" ev:observer="missing-button" ev:event="click" action="spin" ref="missing-audio"/>
+    <epub:trigger id="empty-trigger"/>
+  </head>
+  <body>
+    <h1>Trigger controls</h1>
+    <span id="play-button" role="button" tabindex="0">Play audio</span>
+    <span id="details-toggle" role="button" tabindex="0">Toggle details</span>
+    <audio id="intro-audio" src="../audio/intro.mp3"/>
+    <aside id="review-details">Reviewer-only details.</aside>
+  </body>
+</html>
+XML;
+        $opfWithTriggerContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="trigger-content" href="text/trigger-content.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithTriggerContent = str_replace(
+            '</spine>',
+            '<itemref idref="trigger-content"/></spine>',
+            $opfWithTriggerContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithTriggerContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/trigger-content.xhtml', 'data' => $triggerXhtml],
+                ['name' => 'OEBPS/audio/intro.mp3', 'data' => 'INTRO-AUDIO'],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/trigger-content.xhtml'];
+        $triggerBlock = $result['document']->children[2];
+
+        $t->same(1, $report['triggerAssetCount'] ?? null);
+        $t->same(4, $report['triggerCount'] ?? null);
+        $t->same(['trigger'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['trigger'] ?? null);
+        $t->same(4, count($asset['triggers']));
+        $t->same(2, $asset['validTriggerCount']);
+        $t->same(2, $asset['invalidTriggerCount']);
+
+        $play = $asset['triggers'][0];
+        $t->same('play-trigger', $play['id']);
+        $t->same('play', $play['action']);
+        $t->same(true, $play['actionValid']);
+        $t->same('intro-audio', $play['ref']);
+        $t->same(true, $play['refExists']);
+        $t->same('audio', $play['refElement']);
+        $t->same('play-button', $play['observer']);
+        $t->same(true, $play['observerExists']);
+        $t->same('span', $play['observerElement']);
+        $t->same('click', $play['event']);
+        $t->same([], $play['diagnostics']);
+
+        $hide = $asset['triggers'][1];
+        $t->same('hide', $hide['action']);
+        $t->same('review-details', $hide['ref']);
+        $t->same(true, $hide['refExists']);
+        $t->same('aside', $hide['refElement']);
+        $t->same('details-toggle', $hide['observer']);
+        $t->same('cancel', $hide['defaultAction']);
+        $t->same('default', $hide['phase']);
+        $t->same('stop', $hide['propagate']);
+        $t->same(true, $hide['valid']);
+
+        $bad = $asset['triggers'][2];
+        $t->same('bad-trigger', $bad['id']);
+        $t->same('spin', $bad['action']);
+        $t->same(false, $bad['actionValid']);
+        $t->same(false, $bad['refExists']);
+        $t->same(false, $bad['observerExists']);
+        $t->same(['invalid-epub-trigger-action', 'unresolved-epub-trigger-ref', 'unresolved-epub-trigger-observer'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $bad['diagnostics']));
+
+        $empty = $asset['triggers'][3];
+        $t->same('empty-trigger', $empty['id']);
+        $t->same(null, $empty['action']);
+        $t->same(null, $empty['ref']);
+        $t->same(null, $empty['event']);
+        $t->same(null, $empty['observer']);
+        $t->same(['missing-epub-trigger-action', 'missing-epub-trigger-ref', 'missing-epub-trigger-event', 'missing-epub-trigger-observer'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $empty['diagnostics']));
+
+        $t->same(7, count($asset['diagnostics']));
+        $t->same([
+            'invalid-epub-trigger-action',
+            'unresolved-epub-trigger-ref',
+            'unresolved-epub-trigger-observer',
+            'missing-epub-trigger-action',
+            'missing-epub-trigger-ref',
+            'missing-epub-trigger-event',
+            'missing-epub-trigger-observer',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $asset['diagnostics']));
+        $t->same($asset['triggers'], $triggerBlock->attr('contentTriggers'));
+        $t->same($asset['flags'], $triggerBlock->attr('contentResourceFlags'));
+        $t->same(['trigger'], $triggerBlock->attr('contentResourceReviewFlags'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reconciles OPF remote-resources declarations with observed XHTML resource references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $declaredRemoteXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

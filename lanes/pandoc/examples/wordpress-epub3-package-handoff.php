@@ -151,12 +151,15 @@ $navXhtml = <<<'XML'
 XML;
 
 $chapterXhtml = <<<'XML'
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:ev="http://www.w3.org/2001/xml-events">
   <body>
     <h1 id="source">Source chapter</h1>
     <span id="page-1"></span>
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
     <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
+    <p><span id="source-play" role="button" tabindex="0">Play source audio</span></p>
+    <audio id="source-audio" src="../audio/chapter.mp3"/>
+    <epub:trigger id="source-audio-trigger" ev:observer="source-play" ev:event="click" action="play" ref="source-audio"/>
     <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi><mo>=</mo><mn>1</mn></math>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title>Source mark</title><circle cx="5" cy="5" r="4"/></svg>
     <epub:switch id="source-format-choice">
@@ -549,14 +552,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['xhtmlResourceReport']['mathmlAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['svgAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['switchAssetCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB XHTML content scan to identify embedded MathML, SVG, and switch markers');
     }
-    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'switch', 'remote-resources']) {
+    if (($result['xhtmlResourceReport']['triggerAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['triggerCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify trigger controls');
+    }
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'switch', 'trigger', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB XHTML content review flags for the source chapter');
     }
-    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'switch', 'remote-resources']) {
+    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'switch', 'trigger', 'remote-resources']) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML content review flags');
     }
     if (($result['document']->children[0]->attr('contentResourceFlags')['switch'] ?? null) !== true) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB switch content metadata');
+    }
+    if (($result['document']->children[0]->attr('contentResourceFlags')['trigger'] ?? null) !== true) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB trigger content metadata');
+    }
+    $chapterTrigger = $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0] ?? null;
+    if (!is_array($chapterTrigger) || ($chapterTrigger['action'] ?? null) !== 'play' || ($chapterTrigger['refElement'] ?? null) !== 'audio' || ($chapterTrigger['observerElement'] ?? null) !== 'span') {
+        throw new RuntimeException('Expected EPUB trigger action/ref/observer metadata to remain reviewable');
+    }
+    if (($result['document']->children[0]->attr('contentTriggers')[0]['id'] ?? null) !== 'source-audio-trigger') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB trigger metadata');
     }
     if (($result['document']->children[0]->attr('contentReferences')[0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose remote XHTML content reference diagnostics');
@@ -785,7 +801,10 @@ echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsB
 echo 'xhtmlContentRemoteReferences=' . ($result['xhtmlResourceReport']['externalReferenceCount'] ?? 0) . "\n";
 echo 'xhtmlContentMathmlAssets=' . ($result['xhtmlResourceReport']['mathmlAssetCount'] ?? 0) . "\n";
 echo 'xhtmlContentSwitchAssets=' . ($result['xhtmlResourceReport']['switchAssetCount'] ?? 0) . "\n";
+echo 'xhtmlContentTriggerAssets=' . ($result['xhtmlResourceReport']['triggerAssetCount'] ?? 0) . "\n";
+echo 'xhtmlContentTriggers=' . ($result['xhtmlResourceReport']['triggerCount'] ?? 0) . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";
+echo 'chapterTriggerAction=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0]['action'] ?? '') . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";
 echo 'remoteResourceReferences=' . ($result['remoteResources']['remoteReferenceCount'] ?? 0) . "\n";

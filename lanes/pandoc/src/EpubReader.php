@@ -15,6 +15,7 @@ final class EpubReader
     public const NCX_NS = 'http://www.daisy.org/z3986/2005/ncx/';
     public const XMLENC_NS = 'http://www.w3.org/2001/04/xmlenc#';
     public const XMLDSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
+    public const XML_EVENTS_NS = 'http://www.w3.org/2001/xml-events';
     public const SMIL_NS = 'http://www.w3.org/ns/SMIL';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
@@ -4681,6 +4682,7 @@ final class EpubReader
                 'contentResourceFlags' => $contentReport['flags'],
                 'contentResourceReviewFlags' => $contentReport['reviewFlags'],
                 'contentReferences' => $contentReport['references'],
+                'contentTriggers' => $contentReport['triggers'],
                 'contentDiagnostics' => $contentReport['diagnostics'],
             ];
         }
@@ -4876,6 +4878,8 @@ final class EpubReader
         $svgAssetCount = 0;
         $scriptedAssetCount = 0;
         $switchAssetCount = 0;
+        $triggerAssetCount = 0;
+        $triggerCount = 0;
         $reviewRequiredCount = 0;
         $referenceCount = 0;
 
@@ -4895,10 +4899,15 @@ final class EpubReader
                 'reviewFlags' => is_array($report['reviewFlags'] ?? null) ? array_values($report['reviewFlags']) : [],
                 'referenceCount' => count(is_array($report['references'] ?? null) ? $report['references'] : []),
                 'references' => is_array($report['references'] ?? null) ? array_values($report['references']) : [],
+                'triggerCount' => count(is_array($report['triggers'] ?? null) ? $report['triggers'] : []),
+                'triggers' => is_array($report['triggers'] ?? null) ? array_values($report['triggers']) : [],
+                'validTriggerCount' => is_int($report['validTriggerCount'] ?? null) ? $report['validTriggerCount'] : 0,
+                'invalidTriggerCount' => is_int($report['invalidTriggerCount'] ?? null) ? $report['invalidTriggerCount'] : 0,
                 'diagnostics' => is_array($report['diagnostics'] ?? null) ? array_values($report['diagnostics']) : [],
             ];
 
             $referenceCount += $item['referenceCount'];
+            $triggerCount += $item['triggerCount'];
             if (($item['flags']['mathml'] ?? false) === true) {
                 ++$mathmlAssetCount;
             }
@@ -4910,6 +4919,9 @@ final class EpubReader
             }
             if (($item['flags']['switch'] ?? false) === true) {
                 ++$switchAssetCount;
+            }
+            if (($item['flags']['trigger'] ?? false) === true) {
+                ++$triggerAssetCount;
             }
             if ($item['reviewFlags'] !== []) {
                 ++$reviewRequiredCount;
@@ -4954,6 +4966,8 @@ final class EpubReader
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
             'switchAssetCount' => $switchAssetCount,
+            'triggerAssetCount' => $triggerAssetCount,
+            'triggerCount' => $triggerCount,
             'reviewRequiredCount' => $reviewRequiredCount,
             'items' => $items,
             'itemsByPart' => $itemsByPart,
@@ -4978,6 +4992,8 @@ final class EpubReader
     ): array {
         $flags = self::emptyXhtmlContentResourceFlags();
         $references = [];
+        $triggers = [];
+        $elementIds = [];
         $diagnostics = [];
 
         try {
@@ -4988,6 +5004,9 @@ final class EpubReader
                 'flags' => $flags,
                 'reviewFlags' => [],
                 'references' => [],
+                'triggers' => [],
+                'validTriggerCount' => 0,
+                'invalidTriggerCount' => 0,
                 'diagnostics' => [[
                     'type' => 'xhtml-content-resource-scan-failed',
                     'part' => $part,
@@ -4998,8 +5017,19 @@ final class EpubReader
 
         $root = $dom->documentElement;
         if ($root instanceof \DOMElement) {
-            $this->scanXhtmlContentElement($package, $part, $root, $manifestByPart, $flags, $references);
+            $this->scanXhtmlContentElement(
+                $package,
+                $part,
+                $root,
+                $manifestByPart,
+                $flags,
+                $references,
+                $triggers,
+                $elementIds
+            );
         }
+
+        $triggers = self::xhtmlTriggersWithElementResolution($triggers, $elementIds);
 
         foreach ($references as $reference) {
             foreach ($reference['diagnostics'] as $diagnostic) {
@@ -5011,12 +5041,29 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        foreach ($triggers as $trigger) {
+            foreach ($trigger['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'triggerIndex' => $trigger['index'],
+                    'triggerId' => $trigger['id'],
+                ] + $diagnostic;
+            }
+        }
 
         return [
             'part' => $part,
             'flags' => $flags,
             'reviewFlags' => self::xhtmlContentReviewFlags($flags),
             'references' => $references,
+            'triggers' => $triggers,
+            'validTriggerCount' => count(array_filter(
+                $triggers,
+                static fn (array $trigger): bool => ($trigger['valid'] ?? false) === true,
+            )),
+            'invalidTriggerCount' => count(array_filter(
+                $triggers,
+                static fn (array $trigger): bool => ($trigger['valid'] ?? true) !== true,
+            )),
             'diagnostics' => $diagnostics,
         ];
     }
@@ -5025,6 +5072,8 @@ final class EpubReader
      * @param array<string, array<string, mixed>> $manifestByPart
      * @param array<string, bool> $flags
      * @param list<array<string, mixed>> $references
+     * @param list<array<string, mixed>> $triggers
+     * @param array<string, array<string, mixed>> $elementIds
      */
     private function scanXhtmlContentElement(
         ZipPackage $package,
@@ -5032,10 +5081,13 @@ final class EpubReader
         \DOMElement $element,
         array $manifestByPart,
         array &$flags,
-        array &$references
+        array &$references,
+        array &$triggers,
+        array &$elementIds
     ): void {
         $namespace = (string) $element->namespaceURI;
         $localName = strtolower($element->localName);
+        self::registerXhtmlElementId($element, $elementIds);
         if ($namespace === 'http://www.w3.org/1998/Math/MathML' || $localName === 'math') {
             $flags['mathml'] = true;
         }
@@ -5047,6 +5099,10 @@ final class EpubReader
         }
         if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
             $flags['switch'] = true;
+        }
+        if ($namespace === self::EPUB_OPS_NS && $localName === 'trigger') {
+            $flags['trigger'] = true;
+            $triggers[] = self::xhtmlTriggerReport($element, count($triggers));
         }
 
         foreach (self::xhtmlEventHandlerAttributes($element) as $attributeName) {
@@ -5099,8 +5155,147 @@ final class EpubReader
         }
 
         foreach (self::childElements($element) as $child) {
-            $this->scanXhtmlContentElement($package, $part, $child, $manifestByPart, $flags, $references);
+            $this->scanXhtmlContentElement(
+                $package,
+                $part,
+                $child,
+                $manifestByPart,
+                $flags,
+                $references,
+                $triggers,
+                $elementIds
+            );
         }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $elementIds
+     */
+    private static function registerXhtmlElementId(\DOMElement $element, array &$elementIds): void
+    {
+        $id = trim($element->getAttribute('id'));
+        if ($id === '' || isset($elementIds[$id])) {
+            return;
+        }
+
+        $elementIds[$id] = [
+            'id' => $id,
+            'element' => $element->localName,
+            'namespace' => $element->namespaceURI,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function xhtmlTriggerReport(\DOMElement $element, int $index): array
+    {
+        $action = self::nullableAttribute($element, 'action');
+        $ref = self::nullableAttribute($element, 'ref');
+        $event = self::nullableNamespacedAttribute($element, self::XML_EVENTS_NS, 'event', 'ev:event');
+        $observer = self::nullableNamespacedAttribute($element, self::XML_EVENTS_NS, 'observer', 'ev:observer');
+        $defaultAction = self::nullableNamespacedAttribute($element, self::XML_EVENTS_NS, 'defaultAction', 'ev:defaultAction');
+        $phase = self::nullableNamespacedAttribute($element, self::XML_EVENTS_NS, 'phase', 'ev:phase');
+        $propagate = self::nullableNamespacedAttribute($element, self::XML_EVENTS_NS, 'propagate', 'ev:propagate');
+        $allowedActions = ['show', 'hide', 'play', 'pause', 'resume', 'mute', 'unmute'];
+        $diagnostics = [];
+
+        if ($action === null) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-trigger-action',
+                'message' => 'EPUB trigger is missing the required action attribute',
+            ];
+        } elseif (!in_array($action, $allowedActions, true)) {
+            $diagnostics[] = [
+                'type' => 'invalid-epub-trigger-action',
+                'action' => $action,
+                'allowedActions' => $allowedActions,
+                'message' => 'EPUB trigger action is not one of the EPUB-defined multimedia actions',
+            ];
+        }
+        if ($ref === null) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-trigger-ref',
+                'message' => 'EPUB trigger is missing the required ref IDREF target',
+            ];
+        }
+        if ($event === null) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-trigger-event',
+                'message' => 'EPUB trigger is missing the required XML Events event attribute',
+            ];
+        }
+        if ($observer === null) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-trigger-observer',
+                'message' => 'EPUB trigger is missing the required XML Events observer attribute',
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'id' => self::nullableAttribute($element, 'id'),
+            'action' => $action,
+            'actionValid' => $action !== null && in_array($action, $allowedActions, true),
+            'ref' => $ref,
+            'refExists' => false,
+            'refElement' => null,
+            'observer' => $observer,
+            'observerExists' => false,
+            'observerElement' => null,
+            'event' => $event,
+            'defaultAction' => $defaultAction,
+            'phase' => $phase,
+            'propagate' => $propagate,
+            'attributes' => self::elementAttributes($element),
+            'valid' => false,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $triggers
+     * @param array<string, array<string, mixed>> $elementIds
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlTriggersWithElementResolution(array $triggers, array $elementIds): array
+    {
+        foreach ($triggers as $index => $trigger) {
+            $ref = is_string($trigger['ref'] ?? null) ? $trigger['ref'] : null;
+            if ($ref !== null) {
+                $target = $elementIds[$ref] ?? null;
+                if (is_array($target)) {
+                    $triggers[$index]['refExists'] = true;
+                    $triggers[$index]['refElement'] = is_string($target['element'] ?? null) ? $target['element'] : null;
+                } else {
+                    $triggers[$index]['diagnostics'][] = [
+                        'type' => 'unresolved-epub-trigger-ref',
+                        'ref' => $ref,
+                        'message' => 'EPUB trigger ref does not match an element id in the XHTML content document',
+                    ];
+                }
+            }
+
+            $observer = is_string($trigger['observer'] ?? null) ? $trigger['observer'] : null;
+            if ($observer !== null) {
+                $source = $elementIds[$observer] ?? null;
+                if (is_array($source)) {
+                    $triggers[$index]['observerExists'] = true;
+                    $triggers[$index]['observerElement'] = is_string($source['element'] ?? null) ? $source['element'] : null;
+                } else {
+                    $triggers[$index]['diagnostics'][] = [
+                        'type' => 'unresolved-epub-trigger-observer',
+                        'observer' => $observer,
+                        'message' => 'EPUB trigger observer does not match an element id in the XHTML content document',
+                    ];
+                }
+            }
+
+            $triggers[$index]['valid'] = $triggers[$index]['diagnostics'] === [];
+        }
+
+        return $triggers;
     }
 
     /**
@@ -5159,7 +5354,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, switch:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, switch:bool, trigger:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -5168,6 +5363,7 @@ final class EpubReader
             'svg' => false,
             'scripted' => false,
             'switch' => false,
+            'trigger' => false,
             'remoteResources' => false,
             'missingReferences' => false,
             'encryptedReferences' => false,
@@ -5187,6 +5383,7 @@ final class EpubReader
             'svg' => 'svg',
             'scripted' => 'scripted',
             'switch' => 'switch',
+            'trigger' => 'trigger',
             'remoteResources' => 'remote-resources',
             'missingReferences' => 'missing-references',
             'encryptedReferences' => 'encrypted-references',
@@ -5682,6 +5879,7 @@ final class EpubReader
                 'contentResourceFlags' => $asset['contentResourceFlags'] ?? [],
                 'contentResourceReviewFlags' => $asset['contentResourceReviewFlags'] ?? [],
                 'contentReferences' => $asset['contentReferences'] ?? [],
+                'contentTriggers' => $asset['contentTriggers'] ?? [],
                 'contentDiagnostics' => $asset['contentDiagnostics'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];
@@ -6032,6 +6230,20 @@ final class EpubReader
         }
 
         $value = trim($element->getAttribute($name));
+
+        return $value === '' ? null : $value;
+    }
+
+    private static function nullableNamespacedAttribute(
+        \DOMElement $element,
+        string $namespace,
+        string $localName,
+        string $prefixedName
+    ): ?string {
+        $value = trim($element->getAttributeNS($namespace, $localName));
+        if ($value === '' && $element->hasAttribute($prefixedName)) {
+            $value = trim($element->getAttribute($prefixedName));
+        }
 
         return $value === '' ? null : $value;
     }
