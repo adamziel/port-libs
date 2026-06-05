@@ -18476,8 +18476,12 @@ final class PdfTextExtractor
     private function trailerExplicitlyClearsRoot(string $body): bool
     {
         $root = $this->topLevelPdfValueAfterName($body, 'Root');
+        if ($root === null) {
+            return false;
+        }
 
-        return $root !== null && trim($root) === 'null';
+        $offset = 0;
+        return trim($root) === 'null' || $this->readPdfIndirectReferenceToken($root, $offset) === null;
     }
 
     /**
