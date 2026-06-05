@@ -341,7 +341,7 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
-    private const SHIFT_JIS_JIS0208_POINTERS = [
+    private const JIS0208_POINTERS = [
         1 => 0x3001,
         2 => 0x3002,
         28 => 0x2015,
@@ -457,8 +457,10 @@ final class UnicodeText
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
-        if ($normalized === 'shift_jis') {
-            [$text, $repairs] = self::decodeShiftJis($bytes);
+        if ($normalized === 'shift_jis' || $normalized === 'euc-jp') {
+            [$text, $repairs] = $normalized === 'shift_jis'
+                ? self::decodeShiftJis($bytes)
+                : self::decodeEucJp($bytes);
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
@@ -901,6 +903,7 @@ final class UnicodeText
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
+            'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
             default => 'utf-8',
         };
     }
@@ -1305,14 +1308,14 @@ final class UnicodeText
                     }
                     continue;
                 }
-                if (!isset(self::SHIFT_JIS_JIS0208_POINTERS[$pointer])) {
+                if (!isset(self::JIS0208_POINTERS[$pointer])) {
                     $out .= self::REPLACEMENT;
                     $repairs++;
                     $offset++;
                     continue;
                 }
 
-                $out .= self::fromCodepoint(self::SHIFT_JIS_JIS0208_POINTERS[$pointer]);
+                $out .= self::fromCodepoint(self::JIS0208_POINTERS[$pointer]);
                 $offset++;
                 continue;
             }
@@ -1334,6 +1337,78 @@ final class UnicodeText
         $leadingOffset = $leading < 0xa0 ? 0x81 : 0xc1;
 
         return (($leading - $leadingOffset) * 188) + $trailing - $offset;
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeEucJp(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte === 0x8e) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $trail = ord($bytes[$offset + 1]);
+                if ($trail < 0xa1 || $trail > 0xdf) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if ($trail > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(0xff61 + $trail - 0xa1);
+                $offset++;
+                continue;
+            }
+            if ($byte >= 0xa1 && $byte <= 0xfe) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $trail = ord($bytes[$offset + 1]);
+                if ($trail < 0xa1 || $trail > 0xfe) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if ($trail > 0x7f) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                $pointer = (($byte - 0xa1) * 94) + $trail - 0xa1;
+                if (!isset(self::JIS0208_POINTERS[$pointer])) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset++;
+                    continue;
+                }
+
+                $out .= self::fromCodepoint(self::JIS0208_POINTERS[$pointer]);
+                $offset++;
+                continue;
+            }
+
+            $out .= self::REPLACEMENT;
+            $repairs++;
+        }
+
+        return [$out, $repairs];
     }
 
     private static function fromCodepoint(int $codepoint): string

@@ -29,6 +29,9 @@ $macRomanText = (string) $macRomanSource->children[1]->attr('text');
 $shiftJisBytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
 $shiftJisSource = (new MarkdownReader())->readBytes($shiftJisBytes, 'windows-31j');
 $shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
+$eucJpBytes = (string) hex2bin('2320b7d7b2e80a0acbdccab8a4c8c8beb3d18eb68ec08eb68ec5a1a2b4ddada1c7c8a1c1baeaa1a3');
+$eucJpSource = (new MarkdownReader())->readBytes($eucJpBytes, 'x-euc-jp');
+$eucJpText = (string) $eucJpSource->children[1]->attr('text');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
 $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} Cafe\u{0301} trail",
@@ -267,6 +270,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($shiftJisText) . '/' . UnicodeText::displayWidth($shiftJisText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'EUC-JP source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $eucJpText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucJpSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucJpText) . '/' . UnicodeText::displayWidth($eucJpText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
@@ -407,6 +415,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Shift_JIS source</td><td>本文と半角ｶﾀｶﾅ、丸①波～髙崎。</td><td>shift_jis:29/30</td>")) {
         throw new RuntimeException('charset handoff self-test missing Shift_JIS decode audit row');
+    }
+    if (($eucJpSource->attr('sourceEncoding')['encoding'] ?? '') !== 'euc-jp') {
+        throw new RuntimeException('charset handoff self-test missing EUC-JP source encoding');
+    }
+    if (!str_contains($blocks, "<td>EUC-JP source</td><td>本文と半角ｶﾀｶﾅ、丸①波～崎。</td><td>euc-jp:27/28</td>")) {
+        throw new RuntimeException('charset handoff self-test missing EUC-JP decode audit row');
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');

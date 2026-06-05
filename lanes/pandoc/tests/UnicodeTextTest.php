@@ -145,6 +145,30 @@ return [
         $t->same("\u{FFFD}\"A", $malformed['text']);
         $t->same(1, $malformed['repairs']);
     },
+    'decodes euc jp japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = (string) hex2bin('2320b7d7b2e80a0acbdccab8a4c8c8beb3d18eb68ec08eb68ec5a1a2b4ddada1c7c8a1c1baeaa1a3');
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-euc-jp');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cseucpkdfmtjapanese');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedHalfwidth = UnicodeText::decodeBytes("\x8E A", 'euc-jp');
+        $malformedJis0208 = UnicodeText::decodeBytes("\xA4\"A", 'eucjp');
+
+        $t->same('euc-jp', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 計画\n\n本文と半角ｶﾀｶﾅ、丸①波～崎。", $decoded['text']);
+        $t->same(['encoding' => 'euc-jp', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same("本文と半角ｶﾀｶﾅ、丸①波～崎。", $document->children[1]->attr('text'));
+        $t->same(27, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(28, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="計画">計画</h1>', $blocks);
+        $t->contains("<p>本文と半角ｶﾀｶﾅ、丸①波～崎。</p>", $blocks);
+        $t->same('euc-jp', $malformedHalfwidth['encoding']);
+        $t->same("\u{FFFD} A", $malformedHalfwidth['text']);
+        $t->same(1, $malformedHalfwidth['repairs']);
+        $t->same("\u{FFFD}\"A", $malformedJis0208['text']);
+        $t->same(1, $malformedJis0208['repairs']);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([
