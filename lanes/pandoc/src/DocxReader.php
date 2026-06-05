@@ -74,6 +74,11 @@ final class DocxReader
     private array $noteReferenceState = [];
 
     /**
+     * @var array<string, array<string, mixed>>
+     */
+    private array $currentStyles = [];
+
+    /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
@@ -755,27 +760,33 @@ final class DocxReader
             throw new \InvalidArgumentException('DOCX document XML is missing w:body');
         }
 
-        $this->noteReferenceState = $this->newNoteReferenceState($this->bodyNoteNumberingPolicies($body));
-        $blocks = $this->bodyChildren(
-            $body,
-            $package,
-            $relationships,
-            $referencedNotes,
-            $styles,
-            $numbering
-        );
-        $attrs = [
-            'sourceFormat' => 'docx',
-            'documentPart' => $documentPart,
-        ];
-        $documentNoteReferenceState = $this->noteReferenceState;
-        $sectionProperties = $this->sectionProperties($body, $package, $relationships, $referencedNotes, $styles, $numbering);
-        $this->noteReferenceState = $documentNoteReferenceState;
-        if ($sectionProperties !== []) {
-            $attrs['sectionProperties'] = $sectionProperties;
-        }
+        $previousStyles = $this->currentStyles;
+        $this->currentStyles = $styles;
+        try {
+            $this->noteReferenceState = $this->newNoteReferenceState($this->bodyNoteNumberingPolicies($body));
+            $blocks = $this->bodyChildren(
+                $body,
+                $package,
+                $relationships,
+                $referencedNotes,
+                $styles,
+                $numbering
+            );
+            $attrs = [
+                'sourceFormat' => 'docx',
+                'documentPart' => $documentPart,
+            ];
+            $documentNoteReferenceState = $this->noteReferenceState;
+            $sectionProperties = $this->sectionProperties($body, $package, $relationships, $referencedNotes, $styles, $numbering);
+            $this->noteReferenceState = $documentNoteReferenceState;
+            if ($sectionProperties !== []) {
+                $attrs['sectionProperties'] = $sectionProperties;
+            }
 
-        return new AstNode('document', $attrs, $blocks);
+            return new AstNode('document', $attrs, $blocks);
+        } finally {
+            $this->currentStyles = $previousStyles;
+        }
     }
 
     /**
@@ -3033,38 +3044,303 @@ final class DocxReader
             return $nodes;
         }
 
+        $styleId = $this->runStyleId($properties);
+        $seen = [];
+        $runProperties = $this->mergeRunProperties(
+            $this->resolveStyleRunProperties($styleId, $seen),
+            $this->runPropertiesFromElement($properties),
+        );
+        if ($runProperties === null) {
+            return $nodes;
+        }
+
         $wrap = static function (string $type, array $children): array {
             return [new AstNode($type, [], $children)];
         };
 
-        if ($this->hasOnOffChild($properties, 'u')) {
+        if (($runProperties['underline'] ?? false) === true) {
             $nodes = $wrap('underline', $nodes);
         }
-        if ($this->hasOnOffChild($properties, 'strike') || $this->hasOnOffChild($properties, 'dstrike')) {
+        if (($runProperties['strikeout'] ?? false) === true) {
             $nodes = $wrap('strikeout', $nodes);
         }
-        if ($this->hasVertAlign($properties, 'subscript')) {
+        if (($runProperties['subscript'] ?? false) === true) {
             $nodes = $wrap('subscript', $nodes);
-        }
-        if ($this->hasVertAlign($properties, 'superscript')) {
+        } elseif (($runProperties['superscript'] ?? false) === true) {
             $nodes = $wrap('superscript', $nodes);
         }
-        if ($this->hasOnOffChild($properties, 'smallCaps')) {
+        if (($runProperties['smallCaps'] ?? false) === true) {
             $nodes = $wrap('small_caps', $nodes);
         }
-        if ($this->hasOnOffChild($properties, 'i')) {
+        if (($runProperties['emph'] ?? false) === true) {
             $nodes = $wrap('emph', $nodes);
         }
-        if ($this->hasOnOffChild($properties, 'b')) {
+        if (($runProperties['strong'] ?? false) === true) {
             $nodes = $wrap('strong', $nodes);
         }
 
-        $metadataAttrs = $this->runMetadataAttrs($properties);
+        $metadataAttrs = $runProperties['metadata'] ?? null;
         if ($metadataAttrs !== null) {
             $nodes = [new AstNode('span', $metadataAttrs, $nodes)];
         }
 
         return $nodes;
+    }
+
+    private function runStyleId(\DOMElement $properties): ?string
+    {
+        $style = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'rStyle');
+        if (!$style instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($style, 'val');
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @return array<string, mixed>|null
+     */
+    private function resolveStyleRunProperties(?string $styleId, array &$seen): ?array
+    {
+        if ($styleId === null || isset($seen[$styleId]) || !isset($this->currentStyles[$styleId])) {
+            return null;
+        }
+
+        $seen[$styleId] = true;
+        $style = $this->currentStyles[$styleId];
+        $properties = $this->resolveStyleRunProperties(
+            is_string($style['basedOn'] ?? null) ? $style['basedOn'] : null,
+            $seen
+        );
+        $styleRunProperties = $style['runProperties'] ?? null;
+        if (is_array($styleRunProperties)) {
+            $properties = $this->mergeRunProperties($properties, $styleRunProperties);
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function runPropertiesFromElement(\DOMElement $properties): ?array
+    {
+        $runProperties = [];
+        foreach ([
+            'u' => 'underline',
+            'smallCaps' => 'smallCaps',
+            'i' => 'emph',
+            'b' => 'strong',
+        ] as $childName => $propertyName) {
+            $value = $this->onOffChildValue($properties, $childName);
+            if ($value !== null) {
+                $runProperties[$propertyName] = $value;
+            }
+        }
+
+        $strikeout = null;
+        foreach (['strike', 'dstrike'] as $childName) {
+            $value = $this->onOffChildValue($properties, $childName);
+            if ($value === true) {
+                $strikeout = true;
+                break;
+            }
+            if ($value === false && $strikeout === null) {
+                $strikeout = false;
+            }
+        }
+        if ($strikeout !== null) {
+            $runProperties['strikeout'] = $strikeout;
+        }
+
+        $verticalAlign = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'vertAlign');
+        if ($verticalAlign instanceof \DOMElement) {
+            $value = strtolower(trim((string) ($this->wordAttr($verticalAlign, 'val') ?? '')));
+            $runProperties['subscript'] = $value === 'subscript';
+            $runProperties['superscript'] = $value === 'superscript';
+        }
+
+        $metadata = $this->runMetadataAttrs($properties);
+        if ($metadata !== null) {
+            $runProperties['metadata'] = $metadata;
+        }
+
+        $metadataOverrides = $this->runMetadataOverrideFamilies($properties);
+        if ($metadataOverrides !== []) {
+            $runProperties['metadataOverrides'] = $metadataOverrides;
+        }
+
+        return $runProperties === [] ? null : $runProperties;
+    }
+
+    private function onOffChildValue(\DOMElement $properties, string $localName): ?bool
+    {
+        $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->onOffWordAttr($child, 'val', true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function runMetadataOverrideFamilies(\DOMElement $properties): array
+    {
+        $families = [];
+        foreach ([
+            'highlight' => 'highlight',
+            'shd' => 'shading',
+            'lang' => 'language',
+            'rtl' => 'rtl',
+        ] as $childName => $family) {
+            if ($this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $childName) instanceof \DOMElement) {
+                $families[] = $family;
+            }
+        }
+
+        return $families;
+    }
+
+    /**
+     * @param array<string, mixed>|null $base
+     * @param array<string, mixed>|null $override
+     * @return array<string, mixed>|null
+     */
+    private function mergeRunProperties(?array $base, ?array $override): ?array
+    {
+        if ($base === null) {
+            return $override;
+        }
+        if ($override === null) {
+            return $base;
+        }
+
+        $merged = $base;
+        foreach (['underline', 'strikeout', 'subscript', 'superscript', 'smallCaps', 'emph', 'strong'] as $name) {
+            if (array_key_exists($name, $override)) {
+                $merged[$name] = (bool) $override[$name];
+            }
+        }
+
+        $metadata = $this->mergeRunMetadataAttrs(
+            isset($base['metadata']) && is_array($base['metadata']) ? $base['metadata'] : null,
+            isset($override['metadata']) && is_array($override['metadata']) ? $override['metadata'] : null,
+            isset($override['metadataOverrides']) && is_array($override['metadataOverrides']) ? $override['metadataOverrides'] : [],
+        );
+        if ($metadata !== null) {
+            $merged['metadata'] = $metadata;
+        } else {
+            unset($merged['metadata']);
+        }
+        unset($merged['metadataOverrides']);
+
+        return $merged === [] ? null : $merged;
+    }
+
+    /**
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $base
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $override
+     * @param list<mixed> $overrideFamilies
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function mergeRunMetadataAttrs(?array $base, ?array $override, array $overrideFamilies): ?array
+    {
+        if ($base === null) {
+            return $override;
+        }
+
+        $classes = $base['classes'];
+        $attributes = $base['attributes'];
+        foreach ($overrideFamilies as $family) {
+            if (!is_string($family)) {
+                continue;
+            }
+
+            [$classes, $attributes] = $this->removeRunMetadataFamily($classes, $attributes, $family);
+        }
+
+        if ($override !== null) {
+            $classes = array_values(array_unique([
+                ...$classes,
+                ...$override['classes'],
+            ]));
+            $attributes = array_replace($attributes, $override['attributes']);
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     * @return array{0:list<string>, 1:array<string, string>}
+     */
+    private function removeRunMetadataFamily(array $classes, array $attributes, string $family): array
+    {
+        $removeExactClasses = [];
+        $removeClassPrefixes = [];
+        $removeExactAttributes = [];
+        $removeAttributePrefixes = [];
+
+        if ($family === 'highlight') {
+            $removeExactClasses[] = 'docx-highlight';
+            $removeClassPrefixes[] = 'docx-highlight-';
+            $removeExactAttributes[] = 'data-docx-highlight';
+        } elseif ($family === 'shading') {
+            $removeExactClasses[] = 'docx-shading';
+            $removeAttributePrefixes[] = 'data-docx-shading-';
+        } elseif ($family === 'language') {
+            $removeExactClasses[] = 'docx-language';
+            array_push($removeExactAttributes, 'lang', 'data-docx-lang', 'data-docx-lang-bidi', 'data-docx-lang-east-asia');
+        } elseif ($family === 'rtl') {
+            $removeExactClasses[] = 'docx-rtl';
+            $removeExactAttributes[] = 'dir';
+        }
+
+        $classes = array_values(array_filter(
+            $classes,
+            static function (string $class) use ($removeExactClasses, $removeClassPrefixes): bool {
+                if (in_array($class, $removeExactClasses, true)) {
+                    return false;
+                }
+
+                foreach ($removeClassPrefixes as $prefix) {
+                    if (str_starts_with($class, $prefix)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            },
+        ));
+
+        foreach (array_keys($attributes) as $name) {
+            if (in_array($name, $removeExactAttributes, true)) {
+                unset($attributes[$name]);
+                continue;
+            }
+
+            foreach ($removeAttributePrefixes as $prefix) {
+                if (str_starts_with((string) $name, $prefix)) {
+                    unset($attributes[$name]);
+                    break;
+                }
+            }
+        }
+
+        return [$classes, $attributes];
     }
 
     /**
@@ -4441,8 +4717,8 @@ final class DocxReader
                 continue;
             }
 
-            $type = $this->wordAttr($styleElement, 'type');
-            if ($type !== null && strtolower($type) !== 'paragraph') {
+            $type = strtolower((string) ($this->wordAttr($styleElement, 'type') ?? 'paragraph'));
+            if (!in_array($type, ['paragraph', 'character'], true)) {
                 continue;
             }
 
@@ -4454,13 +4730,16 @@ final class DocxReader
             $name = $this->styleChildValue($styleElement, 'name');
             $basedOn = $this->styleChildValue($styleElement, 'basedOn');
             $properties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'pPr');
+            $runProperties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'rPr');
 
             $styles[$styleId] = [
+                'type' => $type,
                 'name' => $name,
                 'basedOn' => $basedOn,
-                'headingLevel' => $this->styleElementHeadingLevel($styleElement),
-                'numPr' => $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null,
-                'paragraphMetadata' => $properties instanceof \DOMElement ? $this->paragraphPropertiesMetadataAttrs($properties) : null,
+                'headingLevel' => $type === 'paragraph' ? $this->styleElementHeadingLevel($styleElement) : null,
+                'numPr' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null,
+                'paragraphMetadata' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->paragraphPropertiesMetadataAttrs($properties) : null,
+                'runProperties' => $runProperties instanceof \DOMElement ? $this->runPropertiesFromElement($runProperties) : null,
             ];
         }
 

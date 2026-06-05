@@ -379,6 +379,55 @@ $paragraphStyleMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$characterStyleRunStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="character" w:styleId="ReviewEmphasis">
+    <w:name w:val="Review Emphasis"/>
+    <w:rPr>
+      <w:i/>
+      <w:highlight w:val="yellow"/>
+      <w:lang w:val="fr-FR"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="ReviewAlert">
+    <w:name w:val="Review Alert"/>
+    <w:basedOn w:val="ReviewEmphasis"/>
+    <w:rPr>
+      <w:b/>
+      <w:u/>
+      <w:shd w:fill="FFE699"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="ReviewMuted">
+    <w:name w:val="Review Muted"/>
+    <w:basedOn w:val="ReviewAlert"/>
+    <w:rPr>
+      <w:i w:val="0"/>
+      <w:highlight w:val="none"/>
+      <w:lang w:val="de-DE"/>
+    </w:rPr>
+  </w:style>
+</w:styles>
+XML;
+
+$characterStyleRunDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Character styled </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewEmphasis"/></w:rPr><w:t>emphasis</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewAlert"/></w:rPr><w:t>alert</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewAlert"/><w:highlight w:val="green"/><w:lang w:val="es-ES"/></w:rPr><w:t>override</w:t></w:r>
+      <w:r><w:t xml:space="preserve">, </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewMuted"/></w:rPr><w:t>muted</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $stylesNumberingDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1383,6 +1432,22 @@ $buildParagraphStyleMetadataPackage = static function () use (
     ]);
 };
 
+$buildCharacterStyleRunPackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $characterStyleRunDocumentXml,
+    $characterStyleRunStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $characterStyleRunDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $characterStyleRunStylesXml],
+    ]);
+};
+
 $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableSpanDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -2075,6 +2140,65 @@ return [
         $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true">Base styled review note.</span></p>', $blocks);
         $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-keep-next docx-paragraph-indent docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true" data-docx-indent-left-twips="480" data-docx-indent-hanging-twips="120" data-docx-page-break-before="true">Derived styled review note.</span></p>', $blocks);
         $t->contains('<p><span class="docx-paragraph-spacing docx-keep-next docx-paragraph-align docx-align-end docx-paragraph-indent" data-docx-paragraph-align="end" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true" data-docx-indent-right-twips="360">Direct override review note.</span></p>', $blocks);
+    },
+    'preserves DOCX character style run properties through style chains and direct overrides' => static function (TestRunner $t) use ($buildCharacterStyleRunPackage): void {
+        $document = (new DocxReader())->readDocument($buildCharacterStyleRunPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(9, count($paragraph->children));
+        $t->same('Character styled ', $paragraph->children[0]->attr('text'));
+
+        $emphasis = $paragraph->children[1];
+        $t->same('span', $emphasis->type);
+        $t->same(['docx-highlight', 'docx-highlight-yellow', 'docx-language'], $emphasis->attr('classes'));
+        $t->same('yellow', $emphasis->attr('attributes')['data-docx-highlight']);
+        $t->same('fr-FR', $emphasis->attr('attributes')['data-docx-lang']);
+        $t->same('emph', $emphasis->children[0]->type);
+        $t->same('emphasis', $emphasis->children[0]->children[0]->attr('text'));
+
+        $alert = $paragraph->children[3];
+        $t->same('span', $alert->type);
+        $t->same(['docx-highlight', 'docx-highlight-yellow', 'docx-language', 'docx-shading'], $alert->attr('classes'));
+        $t->same('yellow', $alert->attr('attributes')['data-docx-highlight']);
+        $t->same('fr-FR', $alert->attr('attributes')['lang']);
+        $t->same('FFE699', $alert->attr('attributes')['data-docx-shading-fill']);
+        $t->same('strong', $alert->children[0]->type);
+        $t->same('emph', $alert->children[0]->children[0]->type);
+        $t->same('underline', $alert->children[0]->children[0]->children[0]->type);
+        $t->same('alert', $alert->children[0]->children[0]->children[0]->children[0]->attr('text'));
+
+        $override = $paragraph->children[5];
+        $t->same('span', $override->type);
+        $t->same(['docx-shading', 'docx-highlight', 'docx-highlight-green', 'docx-language'], $override->attr('classes'));
+        $t->same('green', $override->attr('attributes')['data-docx-highlight']);
+        $t->same('es-ES', $override->attr('attributes')['data-docx-lang']);
+        $t->same('es-ES', $override->attr('attributes')['lang']);
+        $t->same('FFE699', $override->attr('attributes')['data-docx-shading-fill']);
+
+        $muted = $paragraph->children[7];
+        $t->same('span', $muted->type);
+        $t->same(['docx-shading', 'docx-language'], $muted->attr('classes'));
+        $t->same('de-DE', $muted->attr('attributes')['data-docx-lang']);
+        $t->same('de-DE', $muted->attr('attributes')['lang']);
+        $t->same('FFE699', $muted->attr('attributes')['data-docx-shading-fill']);
+        $t->same('strong', $muted->children[0]->type);
+        $t->same('underline', $muted->children[0]->children[0]->type);
+        $t->same('muted', $muted->children[0]->children[0]->children[0]->attr('text'));
+
+        $t->contains('[*emphasis*]{.docx-highlight .docx-highlight-yellow .docx-language data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR"}', $markdown);
+        $t->contains('[***[alert]{.underline}***]{.docx-highlight .docx-highlight-yellow .docx-language .docx-shading data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"}', $markdown);
+        $t->contains('[***[override]{.underline}***]{.docx-shading .docx-highlight .docx-highlight-green .docx-language data-docx-shading-fill="FFE699" data-docx-highlight="green" data-docx-lang="es-ES" lang="es-ES"}', $markdown);
+        $t->contains('[**[muted]{.underline}**]{.docx-shading .docx-language data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"}', $markdown);
+
+        $t->contains('<span class="docx-highlight docx-highlight-yellow docx-language" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR"><em>emphasis</em></span>', $blocks);
+        $t->contains('<span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>alert</u></em></strong></span>', $blocks);
+        $t->contains('<span class="docx-shading docx-highlight docx-highlight-green docx-language" data-docx-shading-fill="FFE699" data-docx-highlight="green" data-docx-lang="es-ES" lang="es-ES"><strong><em><u>override</u></em></strong></span>', $blocks);
+        $t->contains('<span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted</u></strong></span>', $blocks);
+        $t->true(!str_contains($markdown, 'docx-highlight-yellow .docx-language data-docx-highlight="yellow" data-docx-lang="de-DE"'), 'Disabled style highlight should not leak into muted character style Markdown');
+        $t->true(!str_contains($blocks, '<em><u>muted</u></em>'), 'Disabled inherited italic should not leak into muted character style WordPress output');
     },
     'preserves nested DOCX numbering levels as child AST lists' => static function (TestRunner $t) use ($buildNestedNumberingPackage): void {
         $document = (new DocxReader())->readDocument($buildNestedNumberingPackage());

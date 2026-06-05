@@ -177,6 +177,13 @@ XML],
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Character style reviewer label </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewAlert"/></w:rPr><w:t>inherited urgency</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:rStyle w:val="ReviewMuted"/></w:rPr><w:t>muted follow-up</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Multilingual source note </w:t></w:r>
       <w:r><w:rPr><w:lang w:val="es-ES"/></w:rPr><w:t>Resumen</w:t></w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
@@ -434,6 +441,20 @@ XML],
     </w:pPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="ChecklistBullet"><w:name w:val="Checklist Bullet"/><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="11"/></w:numPr></w:pPr></w:style>
+  <w:style w:type="character" w:styleId="ReviewEmphasis">
+    <w:name w:val="Review Emphasis"/>
+    <w:rPr><w:i/><w:highlight w:val="yellow"/><w:lang w:val="fr-FR"/></w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="ReviewAlert">
+    <w:name w:val="Review Alert"/>
+    <w:basedOn w:val="ReviewEmphasis"/>
+    <w:rPr><w:b/><w:u/><w:shd w:fill="FFE699"/></w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="ReviewMuted">
+    <w:name w:val="Review Muted"/>
+    <w:basedOn w:val="ReviewAlert"/>
+    <w:rPr><w:i w:val="0"/><w:highlight w:val="none"/><w:lang w:val="de-DE"/></w:rPr>
+  </w:style>
 </w:styles>
 XML],
     ['name' => 'word/numbering.xml', 'data' => <<<'XML'
@@ -680,6 +701,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
+        '<p>Character style reviewer label <span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>inherited urgency</u></em></strong></span> and <span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted follow-up</u></strong></span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
