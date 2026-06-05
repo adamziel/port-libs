@@ -491,6 +491,27 @@ $tableSpanDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableMetadataDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblCaption w:val="DOCX migration status"/>
+        <w:tblDescription w:val="Reviewer summary for imported DOCX table metadata."/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Scope</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Status</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Media</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Needs alt review</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $notesContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1370,6 +1391,14 @@ $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelat
     ]);
 };
 
+$buildTableMetadataPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableMetadataDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableMetadataDocumentXml],
+    ]);
+};
+
 $buildNotesPackage = static function () use (
     $notesContentTypesXml,
     $packageRelationshipsXml,
@@ -2137,6 +2166,32 @@ return [
         $t->contains('<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>', $blocks);
         $t->contains('<tr><td><p>Ready</p></td></tr>', $blocks);
         $t->contains('<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>', $blocks);
+    },
+    'preserves DOCX table caption and description metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableMetadataPackage): void {
+        $document = (new DocxReader())->readDocument($buildTableMetadataPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $t->same('DOCX migration status', $table->attr('caption'));
+        $t->same(['docx-table-metadata'], $table->attr('classes'));
+        $t->same('Reviewer summary for imported DOCX table metadata.', $table->attr('attributes')['data-docx-table-description']);
+        $t->same('Reviewer summary for imported DOCX table metadata.', $table->attr('htmlAttributes')['aria-description']);
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $t->same('DOCX migration status', $geometry['caption'] ?? null);
+        $t->same('DOCX migration status', $geometry['captions']['long']['text'] ?? null);
+        $t->same('caption', $geometry['captions']['long']['source'] ?? null);
+        $t->same('Reviewer summary for imported DOCX table metadata.', $geometry['sourceAttributes']['attributes']['data-docx-table-description'] ?? null);
+        $t->same('Reviewer summary for imported DOCX table metadata.', $geometry['sourceAttributes']['htmlAttributes']['aria-description'] ?? null);
+        $t->same(true, $geometry['summary']['hasCaption'] ?? null);
+
+        $t->contains(': DOCX migration status', $markdown);
+        $t->contains('<table class="docx-table-metadata" aria-description="Reviewer summary for imported DOCX table metadata.">', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">DOCX migration status</figcaption>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

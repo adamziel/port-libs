@@ -344,6 +344,10 @@ XML],
       <w:r><w:t xml:space="preserve"> remain reviewable.</w:t></w:r>
     </w:p>
     <w:tbl>
+      <w:tblPr>
+        <w:tblCaption w:val="DOCX review table"/>
+        <w:tblDescription w:val="Reviewer summary table from the source DOCX package."/>
+      </w:tblPr>
       <w:tr>
         <w:tc>
           <w:tcPr><w:gridSpan w:val="2"/><w:vMerge w:val="restart"/></w:tcPr>
@@ -714,8 +718,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-embedded-object docx-embedded-package" data-docx-embedded-kind="package" data-docx-relationship-id="rIdReviewEmbeddedPackage"',
         'data-docx-target-part="/word/embeddings/source-audit.xlsx"',
         'DOCX embedded package: Source audit package</span>',
+        '<table class="docx-table-metadata" aria-description="Reviewer summary table from the source DOCX package.">',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
+        '<figcaption class="wp-element-caption">DOCX review table</figcaption>',
         'DOCX footnote import note.',
         'DOCX endnote import note.',
         'DOCX automatic footnote label note.',

@@ -4045,9 +4045,58 @@ final class DocxReader
             $rows[] = new AstNode('table_row', [], $cells);
         }
 
-        return TableGeometry::withReviewPacket(new AstNode('table', ['caption' => ''], [
+        return TableGeometry::withReviewPacket(new AstNode('table', $this->tableAttrs($table), [
             new AstNode('table_body', [], $rows),
         ]), ['idPrefix' => 'docx-table']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableAttrs(\DOMElement $table): array
+    {
+        $attrs = ['caption' => ''];
+        $properties = $this->firstChildElement($table, self::WORDPROCESSINGML_NS, 'tblPr');
+        if (!$properties instanceof \DOMElement) {
+            return $attrs;
+        }
+
+        $caption = $this->tablePropertyValue($properties, 'tblCaption');
+        if ($caption !== null) {
+            $attrs['caption'] = $caption;
+        }
+
+        $description = $this->tablePropertyValue($properties, 'tblDescription');
+        if ($description !== null) {
+            $attrs['classes'] = ['docx-table-metadata'];
+            $attrs['attributes'] = [
+                'data-docx-table-description' => $description,
+            ];
+            $attrs['htmlAttributes'] = [
+                'aria-description' => $description,
+            ];
+        } elseif ($caption !== null) {
+            $attrs['classes'] = ['docx-table-metadata'];
+        }
+
+        return $attrs;
+    }
+
+    private function tablePropertyValue(\DOMElement $properties, string $localName): ?string
+    {
+        $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($child, 'val');
+        if ($value === null) {
+            $value = $child->textContent;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /**
