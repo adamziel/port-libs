@@ -416,48 +416,24 @@ final class PdfAttachmentExtractor
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         $definitions = $this->directObjectDefinitions($pdfBytes);
-        $offset = $definitions === []
-            ? $this->latestStartxrefOffset($pdfBytes)
-            : $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
-        if ($offset === null) {
+        $trailer = $this->selectedTrailerDictionary($pdfBytes, $definitions);
+        if ($trailer === null) {
             return null;
         }
 
-        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions === [] ? null : $definitions);
-        if ($table !== null) {
-            return $this->refObjectReference($table['trailer']['Root'] ?? null);
-        }
-
-        $stream = $this->xrefStreamSectionAt($offset, $definitions);
-        if ($stream !== null) {
-            return $this->refObjectReference($stream['dictionary']['Root'] ?? null);
-        }
-
-        return null;
+        return $this->refObjectReference($trailer['Root'] ?? null);
     }
 
     private function latestTrailerHasRootCatalogEntry(string $pdfBytes): bool
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         $definitions = $this->directObjectDefinitions($pdfBytes);
-        $offset = $definitions === []
-            ? $this->latestStartxrefOffset($pdfBytes)
-            : $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
-        if ($offset === null) {
+        $trailer = $this->selectedTrailerDictionary($pdfBytes, $definitions);
+        if ($trailer === null) {
             return false;
         }
 
-        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions === [] ? null : $definitions);
-        if ($table !== null) {
-            return array_key_exists('Root', $table['trailer']);
-        }
-
-        $stream = $this->xrefStreamSectionAt($offset, $definitions);
-        if ($stream !== null) {
-            return array_key_exists('Root', $stream['dictionary']);
-        }
-
-        return false;
+        return array_key_exists('Root', $trailer);
     }
 
     /**
@@ -1392,7 +1368,7 @@ final class PdfAttachmentExtractor
     private function selectedTrailerDictionary(string $pdfBytes, array $definitions): ?array
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
-        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset !== null) {
             $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
             if ($table !== null) {
@@ -1405,19 +1381,35 @@ final class PdfAttachmentExtractor
             }
         }
 
-        $trailerOffset = strrpos($pdfBytes, 'trailer');
-        if ($trailerOffset === false) {
-            return null;
+        $trailer = null;
+        $searchOffset = 0;
+        while (($trailerOffset = strpos($pdfBytes, 'trailer', $searchOffset)) !== false) {
+            if (
+                !$this->pdfKeywordAt($pdfBytes, $trailerOffset, 'trailer')
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $trailerOffset)
+                || $this->offsetOwnedByDirectObjectBody($trailerOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $trailerOffset, $definitions)
+            ) {
+                $searchOffset = $trailerOffset + strlen('trailer');
+                continue;
+            }
+
+            $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $trailerOffset + strlen('trailer'));
+            if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
+                $searchOffset = $trailerOffset + strlen('trailer');
+                continue;
+            }
+
+            $index = $dictionaryOffset;
+            $candidate = $this->dict($this->parseValue($pdfBytes, $index));
+            if ($candidate !== null) {
+                $trailer = $candidate;
+            }
+
+            $searchOffset = $trailerOffset + strlen('trailer');
         }
 
-        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
-        if ($dictionaryOffset === false) {
-            return null;
-        }
-
-        $index = $dictionaryOffset;
-
-        return $this->dict($this->parseValue($pdfBytes, $index));
+        return $trailer;
     }
 
     /**

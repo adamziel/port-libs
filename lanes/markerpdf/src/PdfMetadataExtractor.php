@@ -11196,6 +11196,16 @@ final class PdfMetadataExtractor
         $body = null;
         $offset = 0;
         while (($position = strpos($pdfBytes, 'trailer', $offset)) !== false) {
+            if (
+                !$this->pdfKeywordAt($pdfBytes, $position, 'trailer')
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $position)
+                || $this->offsetOwnedByDirectObjectBody($position, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $position, $definitions)
+            ) {
+                $offset = $position + 7;
+                continue;
+            }
+
             $dictionaryOffset = strpos($pdfBytes, '<<', $position);
             if ($dictionaryOffset === false) {
                 break;

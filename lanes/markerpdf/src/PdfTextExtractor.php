@@ -21057,13 +21057,15 @@ final class PdfTextExtractor
 
             if ($char === '(') {
                 $end = $this->skipPdfLiteralStringAt($pdfBytes, $index);
-                if ($end !== null) {
-                    if ($tokenOffset > $index && $tokenOffset < $end) {
-                        return true;
-                    }
-                    $index = $end + 1;
-                    continue;
+                if ($end === null) {
+                    return true;
                 }
+
+                if ($tokenOffset > $index && $tokenOffset < $end) {
+                    return true;
+                }
+                $index = $end + 1;
+                continue;
             }
 
             $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $index);
