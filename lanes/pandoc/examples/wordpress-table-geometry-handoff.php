@@ -74,6 +74,38 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Body-local head row review',
+        'alignments' => ['left', 'right', 'center'],
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Document'], [new AstNode('text', ['text' => 'Document'])]),
+                new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [
+            'rowHeadColumns' => 1,
+            'headRows' => [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                    new AstNode('table_cell', ['text' => 'Queue'], [new AstNode('text', ['text' => 'Queue'])]),
+                    new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                ]),
+            ],
+        ], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                new AstNode('table_cell', ['text' => 'Import'], [new AstNode('text', ['text' => 'Import'])]),
+            ]),
+        ]),
+    ]),
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -148,6 +180,31 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<tr><td style="text-align:right">Needs media</td><td>Overflow note</td></tr><tr><th colspan="3" style="text-align:left">Full width audit note</th></tr>')) {
         throw new RuntimeException('Table geometry self-test dropped malformed declared-column overflow content');
+    }
+
+    $bodyHeadGroups = TableGeometry::sectionRowEntryGroups($document->children[3]);
+    if (($bodyHeadGroups[1]['rowEntries'][0]['rowRole'] ?? null) !== 'body-head') {
+        throw new RuntimeException('Table geometry self-test missing body-local head row role');
+    }
+    if (($bodyHeadGroups[1]['rowEntries'][1]['rowHeadColumns'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing body row-head column metadata');
+    }
+    $bodyHeadGrid = TableGeometry::sectionGrids($document->children[3]);
+    if (($bodyHeadGrid[1]['rows'][0][2]['headerCell'] ?? null) !== true) {
+        throw new RuntimeException('Table geometry self-test missing body-head visual header-cell marker');
+    }
+    if (($bodyHeadGrid[1]['rows'][2][0]['headerCell'] ?? null) !== true || ($bodyHeadGrid[1]['rows'][2][0]['covering'] ?? null) !== 'rowspan') {
+        throw new RuntimeException('Table geometry self-test missing row-head covered-slot marker');
+    }
+    $bodyHeadCoverage = TableGeometry::cellCoverage($document->children[3]);
+    if (($bodyHeadCoverage[3]['rowRole'] ?? null) !== 'body-head' || ($bodyHeadCoverage[3]['headerCell'] ?? null) !== true) {
+        throw new RuntimeException('Table geometry self-test missing body-head coverage metadata');
+    }
+    if (($bodyHeadCoverage[6]['rowRole'] ?? null) !== 'body' || ($bodyHeadCoverage[6]['rowHeadColumns'] ?? null) !== 1 || ($bodyHeadCoverage[6]['headerCell'] ?? null) !== true) {
+        throw new RuntimeException('Table geometry self-test missing row-head coverage metadata');
+    }
+    if (!str_contains($blocks, '<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing body-local head rows in WordPress tbody output');
     }
 
     echo "table geometry handoff self-test ok\n";

@@ -240,6 +240,43 @@ $buildCellCoverageDocument = static function (): AstNode {
     ]);
 };
 
+$buildBodyHeadRowRoleDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Body-local head row review',
+            'alignments' => ['left', 'right', 'center'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Document'], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'rowHeadColumns' => 1,
+                'headRows' => [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                        new AstNode('table_cell', ['text' => 'Queue'], [new AstNode('text', ['text' => 'Queue'])]),
+                        new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                    ]),
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Import'], [new AstNode('text', ['text' => 'Import'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -488,5 +525,43 @@ return [
         $t->same([0.2, 0.25, 0.4, null], $needsMedia['widths']);
         $t->same([true, true, true, false], $needsMedia['declaredColumns']);
         $t->contains('<tr><td colspan="4" style="text-align:center">Needs media</td></tr>', $blocks);
+    },
+    'marks pandoc body-local head rows in geometry audits and wordpress tbody output' => static function (TestRunner $t) use ($buildBodyHeadRowRoleDocument): void {
+        $document = $buildBodyHeadRowRoleDocument();
+        $table = $document->children[0];
+        $groups = TableGeometry::sectionRowEntryGroups($table);
+        $sectionGrids = TableGeometry::sectionGrids($table);
+        $coverage = TableGeometry::cellCoverage($table);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['head', 'body'], array_map(static fn (array $group): string => $group['section'], $groups));
+        $t->same(['head'], array_map(static fn (array $entry): string => $entry['rowRole'], $groups[0]['rowEntries']));
+        $t->same(['body-head', 'body', 'body'], array_map(static fn (array $entry): string => $entry['rowRole'], $groups[1]['rowEntries']));
+        $t->same([true, false, false], array_map(static fn (array $entry): bool => $entry['header'], $groups[1]['rowEntries']));
+        $t->same([0, 1, 1], array_map(static fn (array $entry): int => $entry['rowHeadColumns'], $groups[1]['rowEntries']));
+
+        $bodyGrid = $sectionGrids[1]['rows'];
+        $t->same('body-head', $bodyGrid[0][0]['rowRole']);
+        $t->same(true, $bodyGrid[0][0]['headerRow']);
+        $t->same(true, $bodyGrid[0][2]['headerCell']);
+        $t->same('body', $bodyGrid[1][0]['rowRole']);
+        $t->same(false, $bodyGrid[1][0]['headerRow']);
+        $t->same(true, $bodyGrid[1][0]['headerCell']);
+        $t->same(false, $bodyGrid[1][1]['headerCell']);
+        $t->same(true, $bodyGrid[2][0]['headerCell']);
+        $t->same('rowspan', $bodyGrid[2][0]['covering']);
+
+        $t->same('body-head', $coverage[3]['rowRole']);
+        $t->same(true, $coverage[3]['headerRow']);
+        $t->same(true, $coverage[3]['headerCell']);
+        $t->same(0, $coverage[3]['rowHeadColumns']);
+        $t->same('body', $coverage[6]['rowRole']);
+        $t->same(false, $coverage[6]['headerRow']);
+        $t->same(true, $coverage[6]['headerCell']);
+        $t->same(1, $coverage[6]['rowHeadColumns']);
+        $t->same(false, $coverage[7]['headerCell']);
+
+        $t->contains('<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Body-local head row review</figcaption>', $blocks);
     },
 ];

@@ -149,22 +149,40 @@ final class TableGeometry
     }
 
     /**
-     * @return list<array{section:string,columnCount:int,rows:list<list<array<string, mixed>>>}>
+     * @return list<array{
+     *     section:string,
+     *     columnCount:int,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>,
+     *     rows:list<list<array<string, mixed>>>
+     * }>
      */
     public static function sectionGrids(AstNode $table): array
     {
         $columnCount = self::columnCount($table);
         $sectionGrids = [];
 
-        foreach (self::sectionRowGroups($table) as $group) {
+        foreach (self::sectionRowGroups($table, $columnCount) as $group) {
             $sectionGrids[] = [
                 'section' => $group['section'],
                 'columnCount' => $columnCount,
-                'rows' => self::sectionGrid($group['rows'], $columnCount),
+                'rowEntries' => $group['rowEntries'],
+                'rows' => self::sectionGridForEntries($group['rowEntries'], $columnCount),
             ];
         }
 
         return $sectionGrids;
+    }
+
+    /**
+     * @return list<array{
+     *     section:string,
+     *     rows:list<AstNode>,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>
+     * }>
+     */
+    public static function sectionRowEntryGroups(AstNode $table, ?int $columnCount = null): array
+    {
+        return self::sectionRowGroups($table, $columnCount ?? self::columnCount($table));
     }
 
     /**
@@ -246,8 +264,15 @@ final class TableGeometry
 
         $columnSpecs = self::columnSpecs($table, $columnCount);
         $coverage = [];
-        foreach (self::sectionRowGroups($table) as $group) {
+        foreach (self::sectionRowGroups($table, $columnCount) as $group) {
             foreach (self::layoutRows($group['rows'], $columnCount) as $rowIndex => $layoutRow) {
+                $rowEntry = $group['rowEntries'][$rowIndex] ?? [
+                    'header' => false,
+                    'rowHeadColumns' => 0,
+                    'rowRole' => $group['section'],
+                ];
+                $headerRow = (bool) $rowEntry['header'];
+                $rowHeadColumns = (int) $rowEntry['rowHeadColumns'];
                 foreach ($layoutRow['cells'] as $cell) {
                     $columns = [];
                     $columnAlignments = [];
@@ -274,6 +299,10 @@ final class TableGeometry
                         'endColumn' => $cell['column'] + $cell['colspan'],
                         'rawEndColumn' => $cell['column'] + $rawColspan,
                         'columns' => $columns,
+                        'rowRole' => (string) $rowEntry['rowRole'],
+                        'headerRow' => $headerRow,
+                        'rowHeadColumns' => $rowHeadColumns,
+                        'headerCell' => self::isHeaderCell($headerRow, $rowHeadColumns, $cell['column'], $cell['node']),
                         'sourceCell' => $cell['sourceCell'],
                         'sourceColumn' => $cell['sourceColumn'],
                         'colspan' => $cell['colspan'],
@@ -300,7 +329,7 @@ final class TableGeometry
     {
         $diagnostics = [];
         $declaredColumnCount = self::declaredColumnCount($table);
-        foreach (self::sectionRowGroups($table) as $group) {
+        foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
             $rowCount = count($rows);
             $layoutColumnCount = max(1, $declaredColumnCount, self::columnCountForRows($rows));
@@ -437,6 +466,11 @@ final class TableGeometry
         return min($count, max(0, $columnCount));
     }
 
+    public static function isHeaderCell(bool $headerRow, int $rowHeadColumns, int $column, AstNode $cell): bool
+    {
+        return $headerRow || $cell->attr('header') === true || ($rowHeadColumns > 0 && $column < $rowHeadColumns);
+    }
+
     private static function normalizeAlignment(string $alignment): string
     {
         return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
@@ -545,34 +579,99 @@ final class TableGeometry
     }
 
     /**
-     * @return list<array{section:string,rows:list<AstNode>}>
+     * @param list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}> $rowEntries
+     * @return list<list<array<string, mixed>>>
      */
-    private static function sectionRowGroups(AstNode $table): array
+    private static function sectionGridForEntries(array $rowEntries, int $columnCount): array
+    {
+        $rows = [];
+        foreach ($rowEntries as $entry) {
+            $rows[] = $entry['row'];
+        }
+
+        $grid = self::sectionGrid($rows, $columnCount);
+        foreach ($grid as $rowIndex => $slots) {
+            $entry = $rowEntries[$rowIndex] ?? [
+                'header' => false,
+                'rowHeadColumns' => 0,
+                'rowRole' => '',
+            ];
+            $headerRow = (bool) $entry['header'];
+            $rowHeadColumns = (int) $entry['rowHeadColumns'];
+            foreach ($slots as $column => $slot) {
+                $slot['rowRole'] = (string) $entry['rowRole'];
+                $slot['headerRow'] = $headerRow;
+                $slot['rowHeadColumns'] = $rowHeadColumns;
+                $slot['headerCell'] = false;
+                if (($slot['kind'] ?? '') !== 'missing' && ($slot['node'] ?? null) instanceof AstNode) {
+                    $slot['headerCell'] = self::isHeaderCell(
+                        $headerRow,
+                        $rowHeadColumns,
+                        (int) ($slot['anchorColumn'] ?? $slot['column'] ?? $column),
+                        $slot['node']
+                    );
+                }
+                $grid[$rowIndex][$column] = $slot;
+            }
+        }
+
+        return $grid;
+    }
+
+    /**
+     * @return list<array{
+     *     section:string,
+     *     rows:list<AstNode>,
+     *     rowEntries:list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>
+     * }>
+     */
+    private static function sectionRowGroups(AstNode $table, ?int $columnCount): array
     {
         $groups = [];
         $bodyIndex = 0;
         foreach ($table->children as $section) {
             if ($section->type === 'table_head') {
+                $entries = self::rowEntries(self::sectionRows($section), true, 0, 'head');
                 $groups[] = [
                     'section' => 'head',
-                    'rows' => self::sectionRows($section),
+                    'rows' => self::entryRows($entries),
+                    'rowEntries' => $entries,
                 ];
                 continue;
             }
 
             if ($section->type === 'table_body') {
+                $entries = [];
+                $bodyHeadRows = $section->attr('headRows', []);
+                if (is_array($bodyHeadRows)) {
+                    foreach ($bodyHeadRows as $row) {
+                        if ($row instanceof AstNode && $row->type === 'table_row') {
+                            $entries[] = [
+                                'row' => $row,
+                                'header' => true,
+                                'rowHeadColumns' => 0,
+                                'rowRole' => 'body-head',
+                            ];
+                        }
+                    }
+                }
+                $rowHeadColumns = self::rowHeadColumns($section, max(0, $columnCount ?? self::columnCountForRows(self::bodyRows($section))));
+                array_push($entries, ...self::rowEntries(self::sectionRows($section), false, $rowHeadColumns, 'body'));
                 $groups[] = [
                     'section' => 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex),
-                    'rows' => self::bodyRows($section),
+                    'rows' => self::entryRows($entries),
+                    'rowEntries' => $entries,
                 ];
                 $bodyIndex++;
                 continue;
             }
 
             if ($section->type === 'table_foot') {
+                $entries = self::rowEntries(self::sectionRows($section), false, 0, 'foot');
                 $groups[] = [
                     'section' => 'foot',
-                    'rows' => self::sectionRows($section),
+                    'rows' => self::entryRows($entries),
+                    'rowEntries' => $entries,
                 ];
             }
         }
@@ -607,6 +706,39 @@ final class TableGeometry
         }
 
         array_push($rows, ...self::sectionRows($body));
+
+        return $rows;
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}>
+     */
+    private static function rowEntries(array $rows, bool $header, int $rowHeadColumns, string $rowRole): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            $entries[] = [
+                'row' => $row,
+                'header' => $header,
+                'rowHeadColumns' => $rowHeadColumns,
+                'rowRole' => $rowRole,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{row:AstNode,header:bool,rowHeadColumns:int,rowRole:string}> $entries
+     * @return list<AstNode>
+     */
+    private static function entryRows(array $entries): array
+    {
+        $rows = [];
+        foreach ($entries as $entry) {
+            $rows[] = $entry['row'];
+        }
 
         return $rows;
     }

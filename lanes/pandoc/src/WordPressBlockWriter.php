@@ -571,16 +571,11 @@ final class WordPressBlockWriter
                 $layoutCell['rowspan'],
                 $cell
             );
-            $tag = $this->isTableHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
+            $tag = TableGeometry::isHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
         }
 
         return $html . '</tr>';
-    }
-
-    private function isTableHeaderCell(bool $header, int $rowHeadColumns, int $column, AstNode $cell): bool
-    {
-        return $header || $cell->attr('header') === true || ($rowHeadColumns > 0 && $column < $rowHeadColumns);
     }
 
     private function renderTableCellContent(AstNode $cell): string
