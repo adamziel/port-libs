@@ -32,6 +32,10 @@ reviewOverride_: &merge_review_override
 review:
   <<: *review_defaults
   owner: !wp-reviewer "Import Desk"
+optional-deadline:
+blank-note: # intentionally blank in source packet
+explicit-empty: ""
+flow-empty-review: {migration-ticket:, quoted-empty: ""}
 review-notes:
   - |-
     Preserve original front matter.
@@ -39,6 +43,10 @@ review-notes:
   - >-
     Fold reviewer note before
     block rendering.
+handoff-gaps:
+  -
+  - status: queued
+    reason:
 merge-sequence-review:
   <<: [*merge_review_override, *merge_review_base]
   priority: 1
@@ -99,11 +107,38 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
     }
+    if (!array_key_exists('optional-deadline', $meta) || $meta['optional-deadline'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing empty scalar deadline null');
+    }
+    if (!array_key_exists('blank-note', $meta) || $meta['blank-note'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing comment-only scalar null');
+    }
+    if (($meta['explicit-empty'] ?? null) !== '') {
+        throw new RuntimeException('YAML metadata self-test confused quoted empty scalar with null');
+    }
+    if (
+        !array_key_exists('migration-ticket', $meta['flow-empty-review'] ?? [])
+        || $meta['flow-empty-review']['migration-ticket'] !== null
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing flow empty scalar null');
+    }
+    if (($meta['flow-empty-review']['quoted-empty'] ?? null) !== '') {
+        throw new RuntimeException('YAML metadata self-test missing flow quoted empty scalar');
+    }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
     }
     if (($meta['review-notes'][1] ?? '') !== 'Fold reviewer note before block rendering.') {
         throw new RuntimeException('YAML metadata self-test missing folded sequence block scalar note');
+    }
+    if (!array_key_exists(0, $meta['handoff-gaps'] ?? []) || $meta['handoff-gaps'][0] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing bare sequence item null');
+    }
+    if (
+        !array_key_exists('reason', $meta['handoff-gaps'][1] ?? [])
+        || $meta['handoff-gaps'][1]['reason'] !== null
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing sequence map empty scalar null');
     }
     if (($meta['merge-sequence-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing earlier merge-sequence precedence');
@@ -175,6 +210,7 @@ echo 'Authors: ' . implode(', ', $meta['authors'] ?? []) . "\n";
 echo 'Review status: ' . ($meta['review']['status'] ?? '') . "\n";
 echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
+echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadline', $meta) && $meta['optional-deadline'] === null) ? 'yes' : 'no') . "\n";
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";

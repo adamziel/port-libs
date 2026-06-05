@@ -1297,6 +1297,51 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('single-quoted-yaml-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml empty scalar metadata values as nulls' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Empty scalar **Packet**',
+            'subtitle:',
+            'review:',
+            '  assigned:',
+            '  note: # reviewer intentionally left this blank',
+            '  explicit-empty: ""',
+            "  single-empty: ''",
+            '  flow: {empty:, quoted-empty: "", explicit-null: null}',
+            'checklist:',
+            '  -',
+            '  - status: queued',
+            '    reason:',
+            'references:',
+            '  - id: empty-scalar-ref',
+            '    note:',
+            '  -',
+            '...',
+            '',
+            '# Empty scalar YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Empty scalar **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(null, $meta['subtitle']);
+        $t->same(null, $meta['review']['assigned']);
+        $t->same(null, $meta['review']['note']);
+        $t->same('', $meta['review']['explicit-empty']);
+        $t->same('', $meta['review']['single-empty']);
+        $t->same(null, $meta['review']['flow']['empty']);
+        $t->same('', $meta['review']['flow']['quoted-empty']);
+        $t->same(null, $meta['review']['flow']['explicit-null']);
+        $t->same(null, $meta['checklist'][0]);
+        $t->same('queued', $meta['checklist'][1]['status']);
+        $t->same(null, $meta['checklist'][1]['reason']);
+        $t->same('empty-scalar-ref', $meta['references'][0]['id']);
+        $t->same(null, $meta['references'][0]['note']);
+        $t->same(null, $meta['references'][1]);
+        $t->contains('<h1 id="empty-scalar-yaml-body">Empty scalar YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml block scalar sequence metadata values' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

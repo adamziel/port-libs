@@ -586,7 +586,7 @@ final class MarkdownReader
         }
 
         if ($normalized === []) {
-            return '';
+            return null;
         }
 
         if (preg_match('/^-[ \t]?(.*)$/', $normalized[0]) === 1) {
@@ -887,7 +887,7 @@ final class MarkdownReader
     {
         $value = trim($this->stripYamlTrailingComment($value));
         if ($value === '') {
-            $parsed = '';
+            $parsed = null;
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
