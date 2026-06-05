@@ -31,3 +31,17 @@ index 1111111..2222222 100644
  context line
 \ No newline at end of file
 ```
+
+```` {.md #markdown-review .numberLines startFrom=5}
+# Migration Review
+
+- [x] Preserve [media](uploads/hero.png)
+- Keep `legacy_shortcode` visible
+> Reviewer note with <https://example.test/post>
+
+[asset]: uploads/hero.png "Hero image"
+
+``` {.php}
+echo esc_html($title);
+```
+````

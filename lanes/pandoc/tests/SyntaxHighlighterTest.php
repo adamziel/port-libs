@@ -36,6 +36,10 @@ return [
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('TeX'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
+        $t->same('markdown', SyntaxHighlighter::normalizeLanguage('md'));
+        $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
+        $t->same('markdown', SyntaxHighlighter::normalizeLanguage('commonmark'));
+        $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -265,6 +269,50 @@ return [
         $t->contains('.sourceCode .in', $highlighted['css']);
         $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
         $t->contains('<span class="in">+echo esc_html($new_title);</span>', $wordpressBlock);
+    },
+    'highlights markdown family review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'markdown-review',
+            'classes' => ['sourceCode', 'md', 'numberLines'],
+            'attributes' => ['startFrom' => '5'],
+            'text' => implode("\n", [
+                '# Migration Review',
+                '',
+                '- [x] Preserve [media](uploads/hero.png)',
+                '- Keep `legacy_shortcode` visible',
+                '> Reviewer note with <https://example.test/post>',
+                '',
+                '[asset]: uploads/hero.png "Hero image"',
+                '',
+                '``` {.php}',
+                'echo esc_html($title);',
+                '```',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'kate');
+
+        $t->same('md', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('markdown', $highlighted['language']);
+        $t->same('md', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(5, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource md numberLines"><code class="sourceCode markdown" style="counter-reset: source-line 4;">', $highlighted['html']);
+        $t->contains('<span id="markdown-review-5"><a href="#markdown-review-5"></a><span class="re"># Migration Review</span></span>', $highlighted['html']);
+        $t->contains('<span class="op">- </span><span class="cn">[x]</span> Preserve <span class="ot">[media](uploads/hero.png)</span>', $highlighted['html']);
+        $t->contains('<span class="st">`legacy_shortcode`</span>', $highlighted['html']);
+        $t->contains('<span class="op">&gt; </span>Reviewer note with <span class="ot">&lt;https://example.test/post&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">[asset]: uploads/hero.png &quot;Hero image&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="pp">``` {.php}</span>', $highlighted['html']);
+        $t->contains('<span class="pp">```</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="re"># Migration Review</span>', $wordpressBlock);
+
+        $commonmark = (new SyntaxHighlighter())->highlight('## Imported Notes', 'commonmark');
+        $t->same('markdown', $commonmark['language']);
+        $t->contains('<pre class="sourceCode markdown"><code class="sourceCode markdown"><span class="re">## Imported Notes</span></code></pre>', $commonmark['html']);
     },
     'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

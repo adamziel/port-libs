@@ -40,6 +40,14 @@ final class SyntaxHighlighter
         'lhs' => 'haskell',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
+        'commonmark' => 'markdown',
+        'gfm' => 'markdown',
+        'markdown' => 'markdown',
+        'md' => 'markdown',
+        'mmd' => 'markdown',
+        'multimarkdown' => 'markdown',
+        'pandoc' => 'markdown',
+        'pandoc-markdown' => 'markdown',
         'patch' => 'diff',
         'php' => 'php',
         'postgres' => 'sql',
@@ -291,6 +299,7 @@ final class SyntaxHighlighter
             'html' => $this->tokenizeHtml($code),
             'javascript' => $this->tokenizeJavaScript($code),
             'json' => $this->tokenizeJson($code),
+            'markdown' => $this->tokenizeMarkdown($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
             'sql' => $this->tokenizeSql($code),
@@ -508,6 +517,32 @@ final class SyntaxHighlighter
             ['attribute', '/^(?:index|new file mode|deleted file mode|similarity index|dissimilarity index|rename from|rename to|copy from|copy to|old mode|new mode)[^\\n]*/i'],
             ['information', '/^\\+(?!\\+\\+)[^\\n]*/'],
             ['warning', '/^-(?!--)[^\\n]*/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeMarkdown(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^<!--[\\s\\S]*?-->/'],
+            ['preprocessor', '/^(?:`{3,}|~{3,})[^\\n]*/'],
+            ['region', '/^#{1,6}(?=\\s|$)[^\\n]*/'],
+            ['region', '/^ {0,3}(?:(?:\\*\\s*){3,}|(?:_\\s*){3,}|(?:-\\s*){3,})(?=\\n|$)/'],
+            ['attribute', '/^\\[[^\\]\\n]+\\]:[^\\n]*/'],
+            ['attribute', '/^\\[\\^[^\\]\\n]+\\]/'],
+            ['information', '/^!\\[[^\\]\\n]*\\]\\((?:\\\\.|[^)\\n])*\\)/'],
+            ['attribute', '/^\\[[^\\]\\n]+\\]\\((?:\\\\.|[^)\\n])*\\)/'],
+            ['attribute', '/^<(?:(?:https?|mailto):[^>\\s]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})>/'],
+            ['operator', '/^ {0,3}(?:[-+*]|\\d+[.)])\\s+/'],
+            ['operator', '/^>\\s?/'],
+            ['constant', '/^\\[[ xX]\\](?=\\s)/'],
+            ['string', '/^`+(?:[^`\\\\]|\\\\.)*`+/'],
+            ['warning', '/^~~[^~\\n]+~~/'],
+            ['keyword', '/^(?:\\*\\*[^*\\n]+\\*\\*|__[^_\\n]+__)/'],
+            ['variable', '/^(?:\\*[^*\\n]+\\*|_[^_\\n]+_)/'],
+            ['operator', '/^[\\\\*_`{}\\[\\]()#+.!|>-]/'],
         ]);
     }
 

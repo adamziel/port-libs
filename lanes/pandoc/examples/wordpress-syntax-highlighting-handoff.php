@@ -60,6 +60,12 @@ if (!$diffCodeBlock instanceof PortLibs\Pandoc\AstNode || $diffCodeBlock->type !
 }
 $diff = $highlighter->highlightCodeBlock($diffCodeBlock, 'tango');
 $diffWordpressBlock = $highlighter->wordpressHtmlBlock($diffCodeBlock, 'tango');
+$markdownCodeBlock = $document->children[4] ?? null;
+if (!$markdownCodeBlock instanceof PortLibs\Pandoc\AstNode || $markdownCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Markdown code block');
+}
+$markdown = $highlighter->highlightCodeBlock($markdownCodeBlock, 'kate');
+$markdownWordpressBlock = $highlighter->wordpressHtmlBlock($markdownCodeBlock, 'kate');
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -140,6 +146,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($diffWordpressBlock, '<span class="co">\ No newline at end of file</span>')) {
         throw new RuntimeException('Expected diff no-newline diagnostic token handoff');
     }
+    if (($markdown['language'] ?? '') !== 'markdown') {
+        throw new RuntimeException('Expected md alias to normalize to Markdown highlighting');
+    }
+    if (($markdown['lineNumbering']['start'] ?? null) !== 5) {
+        throw new RuntimeException('Expected Markdown source startFrom line-number handoff');
+    }
+    if (!str_contains($markdown['html'], '<span class="re"># Migration Review</span>')) {
+        throw new RuntimeException('Expected Markdown heading token handoff');
+    }
+    if (!str_contains($markdown['html'], '<span class="op">- </span><span class="cn">[x]</span> Preserve <span class="ot">[media](uploads/hero.png)</span>')) {
+        throw new RuntimeException('Expected Markdown task-list and link token handoff');
+    }
+    if (!str_contains($markdown['html'], '<span class="st">`legacy_shortcode`</span>')) {
+        throw new RuntimeException('Expected Markdown code-span token handoff');
+    }
+    if (!str_contains($markdownWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected Markdown WordPress style metadata');
+    }
+    if (!str_contains($markdownWordpressBlock, '<span class="pp">``` {.php}</span>')) {
+        throw new RuntimeException('Expected nested Markdown fence token handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -152,5 +179,6 @@ echo "numberedHighlightedHtml:\n" . $numbered['html'] . "\n";
 echo "haskellHighlightedHtml:\n" . $haskell['html'] . "\n";
 echo "latexHighlightedHtml:\n" . $latex['html'] . "\n";
 echo "diffHighlightedHtml:\n" . $diff['html'] . "\n";
+echo "markdownHighlightedHtml:\n" . $markdown['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
