@@ -125,7 +125,8 @@ final class PdfAttachmentExtractor
                 $objects,
                 'embedded-files-name-tree',
                 $context,
-                $encryptionPolicy
+                $encryptionPolicy,
+                isset($entry['fileSpecRaw']) && is_string($entry['fileSpecRaw']) ? $entry['fileSpecRaw'] : null
             );
             if ($attachment !== null) {
                 $seenEmbeddedFileNames[$entry['name']] = true;
@@ -531,7 +532,7 @@ final class PdfAttachmentExtractor
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @param list<int> $seen
      * @param array{lower: string, upper: string}|null $inheritedLimits
-     * @return list<array{name: string, fileSpec: mixed}>
+     * @return list<array{name: string, fileSpec: mixed, fileSpecRaw?: string}>
      */
     private function nameTreeEntries(
         mixed $value,
@@ -546,12 +547,14 @@ final class PdfAttachmentExtractor
         }
 
         $objectId = $this->refObjectId($value);
+        $nodeDictionaryBody = null;
         if ($objectId !== null) {
             $object = $this->objectForReference($value, $objects);
             if (in_array($objectId, $seen, true) || $object === null) {
                 return [];
             }
             $seen[] = $objectId;
+            $nodeDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($object['body']);
             $value = $object['value'];
         }
 
@@ -565,6 +568,14 @@ final class PdfAttachmentExtractor
         $childLimits = $limits;
         $names = $this->arrayValue($this->resolveValue($dict['Names'] ?? null, $objects));
         if ($names !== null) {
+            $rawNameItems = [];
+            if ($nodeDictionaryBody !== null) {
+                $rawNames = $this->rawDictionaryEntryValue($nodeDictionaryBody, 'Names');
+                if ($rawNames !== null) {
+                    $rawNameItems = $this->rawArrayItemsFromValue($rawNames, $objects);
+                }
+            }
+
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $limits)
                 ? $limits
                 : $inheritedLimits;
@@ -575,10 +586,15 @@ final class PdfAttachmentExtractor
                     continue;
                 }
 
-                $entries[] = [
+                $entry = [
                     'name' => $name,
                     'fileSpec' => $names[$index + 1],
                 ];
+                if (isset($rawNameItems[$index + 1]) && is_string($rawNameItems[$index + 1])) {
+                    $entry['fileSpecRaw'] = $rawNameItems[$index + 1];
+                }
+
+                $entries[] = $entry;
             }
         }
 
@@ -985,13 +1001,20 @@ final class PdfAttachmentExtractor
         array $objects,
         string $source,
         array $context,
-        ?array $encryptionPolicy = null
+        ?array $encryptionPolicy = null,
+        ?string $fileSpecRaw = null
     ): ?array {
         $fileSpecObjectId = $this->refObjectId($fileSpecValue);
         $fileSpecObject = $this->objectForReference($fileSpecValue, $objects);
-        $fileSpecDictionaryBody = $fileSpecObject === null
-            ? null
-            : $this->topLevelDictionaryBodyFromObjectBody($fileSpecObject['body']);
+        $fileSpecDictionaryBody = null;
+        if ($fileSpecObject !== null) {
+            $fileSpecDictionaryBody = $this->topLevelDictionaryBodyFromObjectBody($fileSpecObject['body']);
+        } elseif ($fileSpecRaw !== null) {
+            $fileSpecDictionaryBody = $this->rawDictionaryBodyFromValue($fileSpecRaw, $objects);
+        } elseif (is_string($fileSpecValue)) {
+            $fileSpecDictionaryBody = $this->rawDictionaryBodyFromValue($fileSpecValue, $objects);
+        }
+
         if (
             $fileSpecDictionaryBody !== null
             && $this->dictionaryHasDuplicateKeys($fileSpecDictionaryBody, self::FILE_SPEC_ATTACHMENT_BOUNDARY_KEYS)
@@ -5906,6 +5929,44 @@ final class PdfAttachmentExtractor
         $value = end($values);
 
         return is_string($value) ? $value : null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<string>
+     */
+    private function rawArrayItemsFromValue(string $value, array $objects): array
+    {
+        $index = 0;
+        $parsed = $this->parseValue($value, $index);
+        $object = $this->objectForReference($parsed, $objects);
+        if ($object !== null) {
+            $value = trim($object['body']);
+        }
+
+        $index = 0;
+        $this->skipWhitespaceAndComments($value, $index);
+        if (($value[$index] ?? '') !== '[') {
+            return [];
+        }
+
+        $index++;
+        $items = [];
+        for ($length = strlen($value); $index < $length;) {
+            $this->skipWhitespaceAndComments($value, $index);
+            if (($value[$index] ?? '') === ']') {
+                break;
+            }
+
+            $raw = $this->rawValueAt($value, $index);
+            if ($raw === null) {
+                break;
+            }
+
+            $items[] = $raw;
+        }
+
+        return $items;
     }
 
     /**
