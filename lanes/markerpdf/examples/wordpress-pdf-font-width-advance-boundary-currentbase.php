@@ -100,6 +100,15 @@ $tjDrawnExtentPdf = "%PDF-1.4\n"
     . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjDrawnExtentAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 70 /Widths [{$tjDrawnExtentWidths}] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($tjDrawnExtentContent) . " >>\nstream\n{$tjDrawnExtentContent}\nendstream\nendobj\n%%EOF";
 
+$absoluteTmStyledGapContent = 'BT /Ftm 12 Tf '
+    . '1 0 0 1 72 720 Tm <4142> Tj 1 0 0 1 96 720 Tm <4344> Tj '
+    . 'T* 1 0 0 1 72 704 Tm <4142> Tj 1 0 0 1 108 704 Tm <4344> Tj ET';
+$absoluteTmStyledGapPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftm 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+AbsoluteTmStyledGap /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($absoluteTmStyledGapContent) . " >>\nstream\n{$absoluteTmStyledGapContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $negativeTcBacktrackContent = 'BT /FnegTc 12 Tf -30 Tc 1 0 0 1 72 720 Tm <4142> Tj ET';
 $negativeTcBacktrackPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /FnegTc 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -339,6 +348,25 @@ $tjDrawnExtentSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $tjDrawnExtentLine['spans'] ?? []
 );
+$absoluteTmStyledGapLines = $extractor->extractTextLines($absoluteTmStyledGapPdf);
+$absoluteTmStyledGapPlainText = implode("\n", $absoluteTmStyledGapLines);
+$absoluteTmStyledGapPages = $extractor->extractStyledTextPages($absoluteTmStyledGapPdf);
+$absoluteTmStyledGapStyledLines = [];
+foreach (($absoluteTmStyledGapPages[0]['blocks'] ?? []) as $block) {
+    foreach (($block['lines'] ?? []) as $line) {
+        $absoluteTmStyledGapStyledLines[] = $line;
+    }
+}
+$absoluteTmStyledGapFirstLine = $absoluteTmStyledGapStyledLines[0] ?? [];
+$absoluteTmStyledGapSecondLine = $absoluteTmStyledGapStyledLines[1] ?? [];
+$absoluteTmStyledGapFirstBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $absoluteTmStyledGapFirstLine['spans'] ?? []
+);
+$absoluteTmStyledGapSecondBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $absoluteTmStyledGapSecondLine['spans'] ?? []
+);
 $negativeTcBacktrackLines = $extractor->extractTextLines($negativeTcBacktrackPdf);
 $negativeTcBacktrackPages = $extractor->extractStyledTextPages($negativeTcBacktrackPdf);
 $negativeTcBacktrackLine = $negativeTcBacktrackPages[0]['blocks'][0]['lines'][0] ?? [];
@@ -428,7 +456,7 @@ $type3FontMatrixVectorSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-td-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -472,6 +500,12 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_drawn_extent_real_tm_gap_preserved' => ($tjDrawnExtentLines[1] ?? null) === 'ABCD EF',
     'tj_drawn_extent_double_gap_output_excluded' => !str_contains($tjDrawnExtentPlainText, 'ABCD EF' . "\n" . 'ABCD EF'),
     'tj_drawn_extent_styled_bboxes_preserved' => $tjDrawnExtentSpanBboxes === [[0.0, 0.0, 36.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
+    'absolute_tm_styled_gap_lines_preserved' => $absoluteTmStyledGapLines === ['ABCD', 'AB CD'],
+    'absolute_tm_styled_gap_plain_text_preserved' => $absoluteTmStyledGapPlainText === "ABCD\nAB CD",
+    'absolute_tm_styled_gap_first_bboxes_preserved' => $absoluteTmStyledGapFirstBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'absolute_tm_styled_gap_second_bboxes_preserved' => $absoluteTmStyledGapSecondBboxes === [[0.0, 0.0, 24.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
+    'absolute_tm_styled_gap_line_bbox_preserved' => ($absoluteTmStyledGapSecondLine['bbox'] ?? null) === [0.0, 0.0, 60.0, 12.0],
+    'absolute_tm_styled_gap_compaction_excluded' => $absoluteTmStyledGapSecondBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
     'negative_tc_backtrack_text_preserved' => $negativeTcBacktrackLines === ['AB'],
     'negative_tc_backtrack_span_bbox_preserved' => $negativeTcBacktrackSpanBboxes === [[0.0, 0.0, 30.0, 12.0]],
     'negative_tc_backtrack_line_bbox_preserved' => ($negativeTcBacktrackLine['bbox'] ?? null) === [0.0, 0.0, 30.0, 12.0],
@@ -538,6 +572,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_drawn_extent_plain_text' => $tjDrawnExtentPlainText,
     'tj_drawn_extent_span_bboxes' => $tjDrawnExtentSpanBboxes,
     'tj_drawn_extent_line_bbox' => $tjDrawnExtentLine['bbox'] ?? null,
+    'absolute_tm_styled_gap_lines' => $absoluteTmStyledGapLines,
+    'absolute_tm_styled_gap_first_bboxes' => $absoluteTmStyledGapFirstBboxes,
+    'absolute_tm_styled_gap_second_bboxes' => $absoluteTmStyledGapSecondBboxes,
+    'absolute_tm_styled_gap_second_line_bbox' => $absoluteTmStyledGapSecondLine['bbox'] ?? null,
     'negative_tc_backtrack_lines' => $negativeTcBacktrackLines,
     'negative_tc_backtrack_span_bboxes' => $negativeTcBacktrackSpanBboxes,
     'negative_tc_backtrack_line_bbox' => $negativeTcBacktrackLine['bbox'] ?? null,
@@ -563,7 +601,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

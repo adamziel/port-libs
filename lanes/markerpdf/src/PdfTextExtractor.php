@@ -11789,6 +11789,7 @@ final class PdfTextExtractor
      */
     private function fontMapFromFontBody(string $body, array $objects, array $namedCMapBodies): ?array
     {
+        $isSimpleFont = $this->isSimpleFontBody($body);
         $encodingFallback = $this->fontEncodingMap($body, $objects);
         $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
         $cMapWordSpacing = $cidEncodingMap !== null
@@ -11847,7 +11848,10 @@ final class PdfTextExtractor
             $cmap['wordSpacingUsesCidMap'] = true;
         }
         $cmap = $this->withFontWidthMetrics($cmap, $widthMetrics, $this->fontWritingMode($body, $cmap, $cidEncodingMap, $objects));
-        return $this->withFontDescriptorInfo($cmap, $descriptorInfo);
+        $cmap = $this->withFontDescriptorInfo($cmap, $descriptorInfo);
+        $cmap['simpleFont'] = $isSimpleFont;
+
+        return $cmap;
     }
 
     /**
@@ -23028,6 +23032,14 @@ final class PdfTextExtractor
                 ) {
                     $this->pushSpanLine($lines, $spans);
                     $pendingStyledSpanGap = 0.0;
+                } elseif ($this->mapWritingMode($toUnicodeMap) !== 1) {
+                    $pendingStyledSpanGap = $this->styledTextMatrixGapWidth(
+                        $operands,
+                        $toUnicodeMap,
+                        $currentTextDrawnEndX,
+                        $currentTextMatrixHorizontalScale,
+                        $currentTextMatrixHorizontalExtentScale
+                    ) ?? $pendingStyledSpanGap;
                 }
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $matrixY;
@@ -23208,6 +23220,43 @@ final class PdfTextExtractor
         }
 
         $gap = ($currentTextX + $tx) - $currentTextEndX;
+
+        return $gap >= self::POSITIONED_TEXT_WORD_GAP ? $gap : null;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function styledTextMatrixGapWidth(
+        array $operands,
+        ?array $toUnicodeMap,
+        ?float $currentTextDrawnEndX,
+        float $textMatrixHorizontalScale,
+        float $textMatrixHorizontalExtentScale
+    ): ?float {
+        if (($toUnicodeMap['simpleFont'] ?? false) !== true) {
+            return null;
+        }
+
+        if (
+            $textMatrixHorizontalScale <= 0.0
+            || !is_finite($textMatrixHorizontalScale)
+            || !is_finite($textMatrixHorizontalExtentScale)
+            || abs($textMatrixHorizontalScale - $textMatrixHorizontalExtentScale) > 0.000001
+        ) {
+            return null;
+        }
+
+        if ($currentTextDrawnEndX === null) {
+            return null;
+        }
+
+        $matrixX = $this->textMatrixX($operands);
+        if ($matrixX === null) {
+            return null;
+        }
+
+        $gap = $matrixX - $currentTextDrawnEndX;
 
         return $gap >= self::POSITIONED_TEXT_WORD_GAP ? $gap : null;
     }
