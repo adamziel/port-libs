@@ -107,3 +107,18 @@ def normalize_title(packet: ReviewPacket) -> str:
         return "Untitled"
     return raw.strip()
 ```
+
+``` {.cpp #cpp-review .numberLines startFrom=30}
+#include <string>
+#include "wp_import.h"
+// WordPress import extension review
+namespace Migration {
+class ReviewPacket {
+public:
+    explicit ReviewPacket(std::string title) : title_(std::move(title)) {}
+    bool is_draft() const { return title_.empty() || title_ == "Draft"; }
+private:
+    std::string title_;
+};
+}
+```

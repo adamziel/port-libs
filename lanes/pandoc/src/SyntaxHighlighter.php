@@ -25,10 +25,19 @@ final class SyntaxHighlighter
 
     private const LANGUAGE_ALIASES = [
         'bash' => 'bash',
+        'c' => 'c',
+        'cc' => 'cpp',
+        'cpp' => 'cpp',
+        'c++' => 'cpp',
+        'cxx' => 'cpp',
         'console' => 'bash',
         'css' => 'css',
         'diff' => 'diff',
         'git-diff' => 'diff',
+        'h' => 'c',
+        'hh' => 'cpp',
+        'hpp' => 'cpp',
+        'hxx' => 'cpp',
         'html' => 'html',
         'html5' => 'html',
         'haskell' => 'haskell',
@@ -478,6 +487,7 @@ final class SyntaxHighlighter
     {
         return match ($language) {
             'bash' => $this->tokenizeBash($code),
+            'c', 'cpp' => $this->tokenizeC($code),
             'css' => $this->tokenizeCss($code),
             'diff' => $this->tokenizeDiff($code),
             'haskell' => $this->tokenizeHaskell($code),
@@ -495,6 +505,28 @@ final class SyntaxHighlighter
             'yaml' => $this->tokenizeYaml($code),
             default => [['type' => 'text', 'text' => $code, 'class' => '']],
         };
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeC(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['preprocessor', '/^#[ \\t]*(?:include|define|undef|if|ifdef|ifndef|elif|else|endif|pragma|error|warning)\\b[^\\n]*/'],
+            ['string', '/^(?:u8|u|U|L)?"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^(?:u8|u|U|L)?'(?:\\\\.|[^'\\\\])+'/s"],
+            ['keyword', '/^\\b(?:alignas|alignof|asm|auto|break|case|catch|class|concept|const|consteval|constexpr|constinit|continue|decltype|default|delete|do|else|enum|explicit|export|extern|for|friend|goto|if|inline|mutable|namespace|new|noexcept|operator|private|protected|public|register|requires|restrict|return|sizeof|static|static_assert|struct|switch|template|this|thread_local|throw|try|typedef|typename|union|using|virtual|volatile|while)\\b/'],
+            ['constant', '/^\\b(?:false|NULL|nullptr|true)\\b/'],
+            ['datatype', '/^\\b(?:bool|char|char8_t|char16_t|char32_t|double|float|int|long|short|signed|size_t|ssize_t|std|string|uint8_t|uint16_t|uint32_t|uint64_t|unsigned|void|wchar_t)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)[uUlLfF]*\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({*&:]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|->\\*|->|\\.\\*|\\.\\.\\.|<<=|>>=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
     }
 
     /**

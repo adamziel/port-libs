@@ -90,6 +90,12 @@ if (!$pythonCodeBlock instanceof PortLibs\Pandoc\AstNode || $pythonCodeBlock->ty
 }
 $python = $highlighter->highlightCodeBlock($pythonCodeBlock, 'monochrome');
 $pythonWordpressBlock = $highlighter->wordpressHtmlBlock($pythonCodeBlock, 'monochrome');
+$cppCodeBlock = $document->children[9] ?? null;
+if (!$cppCodeBlock instanceof PortLibs\Pandoc\AstNode || $cppCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a C++ code block');
+}
+$cpp = $highlighter->highlightCodeBlock($cppCodeBlock, 'pygments');
+$cppWordpressBlock = $highlighter->wordpressHtmlBlock($cppCodeBlock, 'pygments');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -295,6 +301,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($pythonWordpressBlock, '<span class="kw">return</span> <span class="va">raw</span><span class="op">.</span><span class="fu">strip</span><span class="op">()</span>')) {
         throw new RuntimeException('Expected Python method call token handoff');
     }
+    if (($cpp['language'] ?? '') !== 'cpp') {
+        throw new RuntimeException('Expected cpp alias to normalize to C++ highlighting');
+    }
+    if (($cpp['lineNumbering']['start'] ?? null) !== 30) {
+        throw new RuntimeException('Expected C++ source startFrom line-number handoff');
+    }
+    if (!str_contains($cpp['html'], '<span class="pp">#include &lt;string&gt;</span>')) {
+        throw new RuntimeException('Expected C++ preprocessor token handoff');
+    }
+    if (!str_contains($cpp['html'], '<span class="kw">class</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected C++ class datatype token handoff');
+    }
+    if (!str_contains($cpp['html'], '<span class="dt">std</span><span class="op">::</span><span class="dt">string</span>')) {
+        throw new RuntimeException('Expected C++ std::string token handoff');
+    }
+    if (!str_contains($cpp['html'], '<span class="kw">return</span> <span class="va">title_</span><span class="op">.</span><span class="fu">empty</span><span class="op">()</span>')) {
+        throw new RuntimeException('Expected C++ method-call token handoff');
+    }
+    if (!str_contains($cppWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
+        throw new RuntimeException('Expected C++ WordPress style metadata');
+    }
+    if (!str_contains($cppWordpressBlock, '<span class="st">&quot;Draft&quot;</span>')) {
+        throw new RuntimeException('Expected C++ string token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -327,8 +357,10 @@ echo "rubyHighlightedHtml:\n" . $ruby['html'] . "\n";
 echo "luaHighlightedHtml:\n" . $lua['html'] . "\n";
 echo "typescriptHighlightedHtml:\n" . $typescript['html'] . "\n";
 echo "pythonHighlightedHtml:\n" . $python['html'] . "\n";
+echo "cppHighlightedHtml:\n" . $cpp['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
 echo "pythonWordpressBlock:\n" . $pythonWordpressBlock . "\n";
+echo "cppWordpressBlock:\n" . $cppWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

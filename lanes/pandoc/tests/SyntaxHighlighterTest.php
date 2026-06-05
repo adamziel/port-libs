@@ -33,6 +33,12 @@ return [
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('unified-diff'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
+        $t->same('c', SyntaxHighlighter::normalizeLanguage('c'));
+        $t->same('c', SyntaxHighlighter::normalizeLanguage('h'));
+        $t->same('cpp', SyntaxHighlighter::normalizeLanguage('c++'));
+        $t->same('cpp', SyntaxHighlighter::normalizeLanguage('cpp'));
+        $t->same('cpp', SyntaxHighlighter::normalizeLanguage('cxx'));
+        $t->same('cpp', SyntaxHighlighter::normalizeLanguage('hpp'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('TeX'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
@@ -508,6 +514,54 @@ return [
         $t->same('python', $directPython['language']);
         $t->contains('<span class="kw">async</span> <span class="kw">def</span> <span class="fu">load</span>', $directPython['html']);
         $t->contains('<span class="kw">await</span> <span class="fu">fetch</span><span class="op">()</span>', $directPython['html']);
+    },
+    'highlights c and cpp review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'cpp-review',
+            'classes' => ['sourceCode', 'cpp', 'numberLines'],
+            'attributes' => ['startFrom' => '30'],
+            'text' => implode("\n", [
+                '#include <string>',
+                '#include "wp_import.h"',
+                '// WordPress import extension review',
+                'namespace Migration {',
+                'class ReviewPacket {',
+                'public:',
+                '    explicit ReviewPacket(std::string title) : title_(std::move(title)) {}',
+                '    bool is_draft() const { return title_.empty() || title_ == "Draft"; }',
+                'private:',
+                '    std::string title_;',
+                '};',
+                '}',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'pygments');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'pygments');
+        $directC = (new SyntaxHighlighter())->highlight('static const char *title = "Draft";', 'h');
+
+        $t->same('cpp', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('cpp', $highlighted['language']);
+        $t->same('cpp', $highlighted['requestedLanguage']);
+        $t->same('pygments', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(30, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource cpp numberLines"><code class="sourceCode cpp" style="counter-reset: source-line 29;">', $highlighted['html']);
+        $t->contains('<span id="cpp-review-30"><a href="#cpp-review-30"></a><span class="pp">#include &lt;string&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span class="pp">#include &quot;wp_import.h&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="co">// WordPress import extension review</span>', $highlighted['html']);
+        $t->contains('<span class="kw">namespace</span> <span class="dt">Migration</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span><span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="kw">explicit</span> <span class="dt">ReviewPacket</span><span class="op">(</span><span class="dt">std</span><span class="op">::</span><span class="dt">string</span> <span class="va">title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">title_</span><span class="op">(</span><span class="dt">std</span><span class="op">::</span><span class="fu">move</span><span class="op">(</span><span class="va">title</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="dt">bool</span> <span class="fu">is_draft</span><span class="op">()</span> <span class="kw">const</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">title_</span><span class="op">.</span><span class="fu">empty</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="va">title_</span> <span class="op">==</span> <span class="st">&quot;Draft&quot;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="pygments">', $wordpressBlock);
+        $t->contains('<span class="dt">std</span><span class="op">::</span><span class="dt">string</span>', $wordpressBlock);
+        $t->same('c', $directC['language']);
+        $t->contains('<span class="kw">static</span> <span class="kw">const</span> <span class="dt">char</span> <span class="op">*</span><span class="va">title</span> <span class="op">=</span> <span class="st">&quot;Draft&quot;</span><span class="op">;</span>', $directC['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
