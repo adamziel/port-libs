@@ -14125,6 +14125,57 @@ final class PdfTextExtractor
             return false;
         }
 
+        if (in_array($token, ['q', 'Q', 'h', 'W', 'W*', 'n'], true)) {
+            return count($operands) === 0;
+        }
+
+        if ($token === 'cm' || $token === 'c') {
+            return $this->type3CharProcHasNumericOperands($operands, 6);
+        }
+
+        if ($token === 'v' || $token === 'y' || $token === 're') {
+            return $this->type3CharProcHasNumericOperands($operands, 4);
+        }
+
+        if ($token === 'm' || $token === 'l') {
+            return $this->type3CharProcHasNumericOperands($operands, 2);
+        }
+
+        if ($token === 'd') {
+            return count($operands) === 2
+                && str_starts_with($operands[0], '[')
+                && $this->type3CharProcDashArrayIsNumeric($operands[0])
+                && $this->numericOperand($operands[1]) !== null;
+        }
+
+        if (in_array($token, ['w', 'J', 'j', 'M', 'i'], true)) {
+            return $this->type3CharProcHasNumericOperands($operands, 1);
+        }
+
+        if (in_array($token, ['ri', 'gs', 'CS', 'cs'], true)) {
+            return count($operands) === 1 && str_starts_with($operands[0], '/');
+        }
+
+        if ($token === 'G' || $token === 'g') {
+            return $this->type3CharProcHasNumericOperands($operands, 1);
+        }
+
+        if ($token === 'RG' || $token === 'rg') {
+            return $this->type3CharProcHasNumericOperands($operands, 3);
+        }
+
+        if ($token === 'K' || $token === 'k') {
+            return $this->type3CharProcHasNumericOperands($operands, 4);
+        }
+
+        if ($token === 'SC' || $token === 'sc') {
+            return $operands !== [] && $this->type3CharProcOperandsAreNumeric($operands);
+        }
+
+        if ($token === 'SCN' || $token === 'scn') {
+            return $operands !== [] && $this->type3CharProcColorOperandsAreSafe($operands);
+        }
+
         if ($token === 'MP') {
             return count($operands) === 1 && $this->markedContentTagOperand($operands[0]);
         }
@@ -14155,6 +14206,60 @@ final class PdfTextExtractor
 
         if ($token === 'EMC') {
             return count($operands) === 0;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcHasNumericOperands(array $operands, int $count): bool
+    {
+        return count($operands) === $count && $this->type3CharProcOperandsAreNumeric($operands);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcOperandsAreNumeric(array $operands): bool
+    {
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function type3CharProcDashArrayIsNumeric(string $operand): bool
+    {
+        $arrayBody = $this->pdfArrayFromValue($operand, []);
+        if ($arrayBody === null) {
+            return false;
+        }
+
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            if ($this->numericOperand($item) === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcColorOperandsAreSafe(array $operands): bool
+    {
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) !== null || str_starts_with($operand, '/')) {
+                continue;
+            }
+
+            return false;
         }
 
         return true;
