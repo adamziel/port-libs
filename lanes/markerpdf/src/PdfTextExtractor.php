@@ -324,6 +324,7 @@ final class PdfTextExtractor
      *     nonzero_generation_reference_count: int,
      *     compressed_generation_zero_boundary_count: int,
      *     strict_dependency_rejection_count: int,
+     *     stream_member_rejection_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
      *     suppressed_hybrid_type2_entry_count: int,
      *     hybrid_table_free_owner_count: int,
@@ -349,6 +350,7 @@ final class PdfTextExtractor
             'nonzero_generation_reference_count' => 0,
             'compressed_generation_zero_boundary_count' => 0,
             'strict_dependency_rejection_count' => 0,
+            'stream_member_rejection_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
             'suppressed_hybrid_type2_entry_count' => 0,
             'hybrid_table_free_owner_count' => 0,
@@ -456,6 +458,20 @@ final class PdfTextExtractor
             if (!$strictMemberMatch) {
                 $review['strict_dependency_rejection_count']++;
             }
+            $selectedMember = $strictMemberMatch
+                ? $memberAtDefaultIndex
+                : ($recoveredByObjectNumber ? $memberByObjectNumber : null);
+            $selectedMemberBody = $memberTable !== null && $selectedMember !== null
+                ? $this->objectStreamMemberBody($memberTable, $selectedMember)
+                : null;
+            $selectedMemberIsStream = $selectedMemberBody !== null
+                && $this->objectStreamMemberIsTopLevelStreamObject($selectedMemberBody);
+            $objectStreamCarrierHasFilter = isset($objects[$objectStreamNumber])
+                && $this->objectStreamCarrierHasFilters($objects[$objectStreamNumber], $objects);
+            $streamMemberRejected = $selectedMemberIsStream && $objectStreamCarrierHasFilter;
+            if ($streamMemberRejected) {
+                $review['stream_member_rejection_count']++;
+            }
 
             $referencedGenerations = array_map('intval', array_keys($nonzeroGenerationReferences[$objectNumber] ?? []));
             sort($referencedGenerations, SORT_NUMERIC);
@@ -497,6 +513,9 @@ final class PdfTextExtractor
                 'recovered_by_object_number' => $recoveredByObjectNumber,
                 'ambiguous_zero_width_member' => $ambiguousZeroWidthMember,
                 'strict_dependency_would_reject' => !$strictMemberMatch,
+                'object_stream_carrier_has_filter' => $objectStreamCarrierHasFilter,
+                'object_stream_member_is_stream' => $selectedMemberIsStream,
+                'stream_member_rejected' => $streamMemberRejected,
                 'direct_xref_stream_owner' => $directXrefStreamOwner !== null,
                 'owner_cycle_rejected' => $ownerCycleRejected,
                 'owner_policy' => $ownerCycleRejected
@@ -14256,18 +14275,16 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $memberTable['decoded'];
-            $first = $memberTable['first'];
             $pairs = $memberTable['members'];
             $memberObjectNumberCounts = $this->objectStreamMemberObjectNumberCounts($pairs);
             $hasCompressedXrefEntriesForStream = $this->hasCompressedXrefEntriesForObjectStream($xrefEntries, $objectStreamNumber);
             if ($hasSelectedXrefEntries && !$hasCompressedXrefEntriesForStream) {
                 continue;
             }
+            $carrierRejectsTopLevelStreamMembers = $this->objectStreamCarrierHasFilters($body, $objects);
 
             foreach ($pairs as $pair) {
                 $objectNumber = $pair['objectNumber'];
-                $offset = $pair['offset'];
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
                 if ($xrefEntry !== null) {
                     if (isset($objects[$objectNumber]) && ($xrefEntry['type'] ?? null) === 2) {
@@ -14301,15 +14318,19 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $nextOffset = $this->objectStreamMemberEndOffset($pairs, $offset, strlen($decoded) - $first);
-                if ($nextOffset === null) {
+                $memberBody = $this->objectStreamMemberBody($memberTable, $pair);
+                if ($memberBody === null || $memberBody === '') {
                     continue;
                 }
 
-                $memberBody = trim(substr($decoded, $first + $offset, $nextOffset - $offset));
-                if ($memberBody !== '') {
-                    $expanded[$objectNumber] = $memberBody;
+                if (
+                    $carrierRejectsTopLevelStreamMembers
+                    && $this->objectStreamMemberIsTopLevelStreamObject($memberBody)
+                ) {
+                    continue;
                 }
+
+                $expanded[$objectNumber] = $memberBody;
             }
         }
 
@@ -14368,6 +14389,55 @@ final class PdfTextExtractor
         }
 
         return $endOffset > $memberOffset ? $endOffset : null;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberBody(array $memberTable, array $member): ?string
+    {
+        $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+        $nextOffset = $this->objectStreamMemberEndOffset(
+            $memberTable['members'],
+            $member['offset'],
+            $objectDataLength
+        );
+        if ($nextOffset === null) {
+            return null;
+        }
+
+        return trim(substr(
+            $memberTable['decoded'],
+            $memberTable['first'] + $member['offset'],
+            $nextOffset - $member['offset']
+        ));
+    }
+
+    private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($memberBody, 0);
+        $dictionaryEndOffset = $dictionaryOffset;
+        if ($this->readPdfDictionaryTokenAt($memberBody, $dictionaryEndOffset) === null) {
+            return false;
+        }
+
+        $streamKeywordOffset = $this->skipPdfWhitespace($memberBody, $dictionaryEndOffset);
+        return $this->pdfKeywordAt($memberBody, $streamKeywordOffset, 'stream');
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectStreamCarrierHasFilters(string $body, array $objects): bool
+    {
+        $stream = $this->streamDictionaryAndPayload($body, $objects);
+        if ($stream === null) {
+            return false;
+        }
+
+        $filters = $this->streamFilters($stream['dict'], $objects);
+        return is_array($filters) && $filters !== [];
     }
 
     private function objectStreamIndexSelectionPolicy(
