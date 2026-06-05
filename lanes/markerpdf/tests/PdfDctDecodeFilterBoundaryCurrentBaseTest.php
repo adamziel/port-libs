@@ -102,6 +102,44 @@ $pdfDctDecodeFilterBoundaryCurrentBaseUnsupportedPrefixFixture = static function
     ];
 };
 
+$pdfDctDecodeFilterBoundaryCurrentBaseMalformedFilterFixture = static function (): array {
+    $before = 'BT /F1 12 Tf 72 720 Td (Before malformed DCT filter) Tj ET';
+    $after = 'BT /F1 12 Tf 72 680 Td (After malformed DCT filter) Tj ET';
+    $fakeObject = 'BT /F1 12 Tf 72 700 Td (Malformed nested DCT filter leak) Tj ET';
+    $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+        . "endstream\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+        . "\xff\xd9";
+    $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+    if ($fakeTerminatorOffset === false) {
+        throw new RuntimeException('Focused malformed DCT filter fixture must contain a fake endstream marker.');
+    }
+
+    $filterStack = '[[/DCTDecode]]';
+    $streamOnlyPdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+        . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter {$filterStack} /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+
+    $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+    $pagePdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter {$filterStack} /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+    return [
+        'before' => $before,
+        'after' => $after,
+        'jpeg_payload' => $jpegPayload,
+        'fake_terminator_offset' => $fakeTerminatorOffset,
+        'stream_only_pdf' => $streamOnlyPdf,
+        'page_pdf' => $pagePdf,
+    ];
+};
+
 $pdfDctDecodeFilterBoundaryCurrentBaseCryptIdentityFixture = static function (): array {
     $before = 'BT /F1 12 Tf 72 720 Td (Before Crypt Identity DCT stream) Tj ET';
     $after = 'BT /F1 12 Tf 72 680 Td (After Crypt Identity DCT stream) Tj ET';
@@ -687,6 +725,44 @@ return [
         $t->true(($entry['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
         $t->same(['Crypt', 'DCTDecode'], $entry['filters'] ?? null);
         $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'keeps malformed DCTDecode filter operands review-only without native raster decode claims' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseMalformedFilterFixture): void {
+        $fixture = $pdfDctDecodeFilterBoundaryCurrentBaseMalformedFilterFixture();
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $streamOnlyPdf = $fixture['stream_only_pdf'];
+        $pagePdf = $fixture['page_pdf'];
+        $expected = [
+            'Before malformed DCT filter',
+            'After malformed DCT filter',
+        ];
+
+        foreach ([$streamOnlyPdf, $pagePdf] as $pdf) {
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same("Before malformed DCT filter\nAfter malformed DCT filter", $plainText);
+            $t->same("Before malformed DCT filter\nAfter malformed DCT filter\n", $extractor->naiveGetText($pdf));
+            $t->true(!str_contains($plainText, 'Malformed nested DCT filter leak'));
+            $t->true(!str_contains($plainText, 'JFIF'));
+            $t->true(!str_contains($plainText, 'endstream'));
+        }
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pagePdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(false, $entry['filters_resolved'] ?? null);
+        $t->same([], $entry['filters'] ?? null);
+        $t->same([], $entry['preview_only_filters'] ?? null);
+        $t->same([], $entry['filter_details'] ?? null);
+        $t->same(strlen($fixture['jpeg_payload']), $entry['raw_length'] ?? null);
+        $t->true(($entry['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
         $t->same(false, $entry['native_raster_decode'] ?? null);
         $t->same(false, $entry['decoded_with_current_filters'] ?? null);
         $t->same(false, $entry['payload_in_visible_text'] ?? null);
