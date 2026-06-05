@@ -329,6 +329,10 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        foreach ($this->reviewMetadataBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         $translators = $this->bibliographyTranslators($item);
         if ($translators !== '') {
             $parts[] = 'Translated by ' . rtrim($translators, '.') . '.';
@@ -486,6 +490,9 @@ final class CitationCslProcessor
             'archiveLocation' => self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']),
             'language' => self::stringField($item, 'language'),
             'abstract' => self::stringField($item, 'abstract'),
+            'medium' => self::stringField($item, 'medium'),
+            'note' => self::stringField($item, 'note'),
+            'addendum' => self::stringField($item, 'addendum'),
             'keywords' => self::stringListField($item, 'keyword'),
             'sourceFiles' => $sourceFilePolicy['files'],
             'sourceFileDiagnostics' => $sourceFileDiagnostics,
@@ -1952,6 +1959,34 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function reviewMetadataBibliographyParts(array $item): array
+    {
+        $parts = [];
+        foreach ([
+            ['medium', 'Medium'],
+            ['note', 'Note'],
+            ['addendum', 'Addendum'],
+        ] as [$key, $label]) {
+            $value = trim((string) ($item[$key] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $parts[] = $label . ': ' . $this->withTerminalPunctuation($value);
+        }
+
+        return $parts;
+    }
+
+    private function withTerminalPunctuation(string $value): string
+    {
+        return preg_match('/[.!?]\z/u', $value) === 1 ? $value : $value . '.';
+    }
+
+    /**
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      */
@@ -2840,6 +2875,9 @@ final class CitationCslProcessor
             'archive_location', 'archive-location' => (string) $item['archiveLocation'],
             'language' => (string) $item['language'],
             'abstract' => (string) $item['abstract'],
+            'medium' => (string) $item['medium'],
+            'note' => (string) $item['note'],
+            'addendum' => (string) $item['addendum'],
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),

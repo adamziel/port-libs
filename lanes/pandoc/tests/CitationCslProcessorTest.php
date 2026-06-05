@@ -1119,6 +1119,79 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.</dd>', $blocks);
     },
+    'maps bounded biblatex note addendum and howpublished review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{review-note-source,
+  author       = {Ng, Nia},
+  title        = {Review Packet Snapshot},
+  date         = {2026-06-05},
+  howpublished = {Archived web packet},
+  note         = {Needs source-check before migration},
+  addendum     = {Queue imported by handoff},
+  url          = {https://example.test/review-packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('review-note-source', $items[0]['id']);
+        $t->same('Archived web packet', $items[0]['medium']);
+        $t->same('Needs source-check before migration', $items[0]['note']);
+        $t->same('Queue imported by handoff', $items[0]['addendum']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('review-note-source');
+        $t->same('Archived web packet', $item['medium'] ?? null);
+        $t->same('Needs source-check before migration', $item['note'] ?? null);
+        $t->same('Queue imported by handoff', $item['addendum'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('review-note-source', '[@review-note-source]')]));
+        $t->same(
+            'Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.',
+            $processor->renderBibliographyEntry('review-note-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="medium"/>
+        <text variable="note"/>
+        <text variable="addendum"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="medium"/>
+      <text variable="note"/>
+      <text variable="addendum"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Review Packet Snapshot | Archived web packet | Needs source-check before migration | Queue imported by handoff]', $styled->renderCitationCluster([$citation('review-note-source', '[@review-note-source]')]));
+        $t->same('Review Packet Snapshot :: Archived web packet :: Needs source-check before migration :: Queue imported by handoff', $styled->renderBibliographyEntry('review-note-source'));
+
+        $document = (new MarkdownReader())->read('Review note source @review-note-source keeps import audit notes attached.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review note source Ng (2026) keeps import audit notes attached.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-note',
+            'title' => 'Manual Note Source',
+            'medium' => 'Reviewer PDF',
+            'note' => 'Manual note',
+            'addendum' => 'Manual addendum',
+        ]])->item('manual-note');
+        $t->same('Reviewer PDF', $manual['medium'] ?? null);
+        $t->same('Manual note', $manual['note'] ?? null);
+        $t->same('Manual addendum', $manual['addendum'] ?? null);
+    },
     'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{role-review,

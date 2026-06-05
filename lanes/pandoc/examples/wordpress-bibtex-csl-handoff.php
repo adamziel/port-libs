@@ -25,6 +25,8 @@ A BibLaTeX entry set @migration-review-set keeps data-only member summaries avai
 
 The related manual @related-manual keeps companion entry metadata attached to the source packet.
 
+A review note source @review-note-source keeps import audit notes and publication medium attached.
+
 A translated source @translated-manual preserves original publication metadata for source review.
 
 Patent and legal sources @import-patent and @review-act preserve legal review metadata.
@@ -155,6 +157,16 @@ $bibtex = <<<'BIB'
   related       = {migration-review-set, missing-related},
   relatedtype   = {companion},
   relatedstring = {Companion review set}
+}
+
+@online{review-note-source,
+  author       = {Ng, Nia},
+  title        = {Review Packet Snapshot},
+  date         = {2026-06-05},
+  howpublished = {Archived web packet},
+  note         = {Needs source-check before migration},
+  addendum     = {Queue imported by handoff},
+  url          = {https://example.test/review-packet}
 }
 
 @book{translated-manual,
@@ -351,6 +363,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($relatedManual['raw']['missingRelatedKeys'] ?? null) !== ['missing-related']) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing related keys');
     }
+    $reviewNoteSource = $processor->item('review-note-source');
+    if (($reviewNoteSource['medium'] ?? null) !== 'Archived web packet') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review-note source medium metadata');
+    }
+    if (($reviewNoteSource['note'] ?? null) !== 'Needs source-check before migration') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review-note source note metadata');
+    }
+    if (($reviewNoteSource['addendum'] ?? null) !== 'Queue imported by handoff') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review-note source addendum metadata');
+    }
     $translatedManual = $processor->item('translated-manual');
     if (($translatedManual['originalTitle'] ?? null) !== 'Manual de Migración') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve translated manual original title');
@@ -497,6 +519,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>',
         '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
         '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>',
+        '<p>A review note source Ng (2026) keeps import audit notes and publication medium attached.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<dt>Müller 2026</dt><dd>Müller, Mia. Block Import Review Patent. 2026. Patent US-123456. Jurisdiction: US. Holder: WordPress Foundation. Event date 2024-01-15. Status: granted. https://example.test/patents/us-123456.</dd>',
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
