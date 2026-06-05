@@ -222,6 +222,18 @@ $fontWidthNonFiniteWidthBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthNonFiniteTjAdjustmentBoundaryCurrentBasePdf = static function (): string {
+    $hugeAdjustment = str_repeat('9', 400);
+    $content = 'BT /Ftjinf 12 Tf 1 0 0 1 72 720 Tm [(AB) ' . $hugeAdjustment . ' (CD)] TJ '
+        . '1 0 0 1 120 720 Tm <4546> Tj ET';
+    $widths = implode(' ', array_fill(0, 39, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftjinf 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+NonFiniteTjAdjustment /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 70 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthRotatedTextMatrixBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Frot 12 Tf '
         . '0 1 -1 0 72 720 Tm <4142> Tj '
@@ -1031,6 +1043,34 @@ return [
         $t->true(!str_contains($plainText, 'ABCD'));
         $t->true(!str_contains($plainText, 'NonFiniteAdvance'));
         $t->true(!str_contains($plainText, 'Finf'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'ignores non-finite TJ adjustment operands before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthNonFiniteTjAdjustmentBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthNonFiniteTjAdjustmentBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+        $spanBboxes = array_column($spans, 'bbox');
+        $allBboxNumbersFinite = true;
+        foreach ($spanBboxes as $bbox) {
+            foreach ($bbox as $number) {
+                $allBboxNumbersFinite = $allBboxNumbersFinite && is_float($number) && is_finite($number);
+            }
+        }
+
+        $t->same(['ABCDEF'], $extractor->extractTextLines($pdf));
+        $t->same(['ABCD', 'EF'], $extractor->extractTextRuns($pdf));
+        $t->same('ABCDEF', $plainText);
+        $t->same("ABCDEF\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABCD', 'EF'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 72.0, 12.0]], $spanBboxes);
+        $t->same([0.0, 0.0, 72.0, 12.0], $line['bbox'] ?? null);
+        $t->true($allBboxNumbersFinite);
+        $t->true(!str_contains($plainText, 'ABCD EF'));
+        $t->true(!str_contains($plainText, 'NonFiniteTjAdjustment'));
+        $t->true(!str_contains($plainText, 'Ftjinf'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses rotated text matrix horizontal vector for native styled font advance bboxes on current base' => static function (TestRunner $t) use ($fontWidthRotatedTextMatrixBoundaryCurrentBasePdf): void {

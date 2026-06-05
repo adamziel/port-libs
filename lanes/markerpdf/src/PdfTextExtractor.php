@@ -29930,7 +29930,9 @@ final class PdfTextExtractor
             return null;
         }
 
-        return (float) $operand;
+        $value = (float) $operand;
+
+        return is_finite($value) ? $value : null;
     }
 
     /**
