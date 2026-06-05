@@ -3058,7 +3058,7 @@ final class PdfMetadataExtractor
     private function documentOutlineMetadata(string $pdfBytes, string $catalog, array $objects): array
     {
         $outlineRoot = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($catalog, 'Outlines'), $objects);
-        if ($outlineRoot === null || !$this->isDocumentOutlineRootDictionary($outlineRoot['body'])) {
+        if ($outlineRoot === null || !$this->isDocumentOutlineRootDictionary($outlineRoot['body'], $objects)) {
             return [];
         }
 
@@ -3527,14 +3527,16 @@ final class PdfMetadataExtractor
             return false;
         }
 
-        return $this->isDocumentOutlineRootDictionary($dictionary);
+        return $this->isDocumentOutlineRootDictionary($dictionary, $objects);
     }
 
-    private function isDocumentOutlineRootDictionary(string $dictionary): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function isDocumentOutlineRootDictionary(string $dictionary, array $objects): bool
     {
-        $type = $this->dictionaryStringValue($dictionary, 'Type');
-        if ($type !== null) {
-            return $type === 'Outlines';
+        if ($this->dictionaryTopLevelRawValue($dictionary, 'Type') !== null) {
+            return $this->dictionaryNameValue($dictionary, 'Type', $objects) === 'Outlines';
         }
 
         return $this->dictionaryTopLevelRawValue($dictionary, 'Title') === null

@@ -1785,7 +1785,7 @@ final class PdfTextExtractor
             }
         }
 
-        if ($outlineRootBody === null || !$this->lightweightOutlineRootBodyIsValid($outlineRootBody)) {
+        if ($outlineRootBody === null || !$this->lightweightOutlineRootBodyIsValid($outlineRootBody, $objects)) {
             return [];
         }
         if (!$this->lightweightOutlineRootAllowsItemTraversal($outlineRootBody, $objects)) {
@@ -1900,12 +1900,14 @@ final class PdfTextExtractor
         return $items;
     }
 
-    private function lightweightOutlineRootBodyIsValid(string $body): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineRootBodyIsValid(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
-        $type = $this->pdfNameValueAfterName($dictionary, 'Type');
-        if ($type !== null) {
-            return $type === 'Outlines';
+        if ($this->topLevelPdfValueAfterName($dictionary, 'Type') !== null) {
+            return $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'Type', $objects) === 'Outlines';
         }
 
         return $this->topLevelPdfValueAfterName($dictionary, 'Title') === null
@@ -1943,7 +1945,7 @@ final class PdfTextExtractor
     {
         return $objectNumber !== null
             && isset($objects[$objectNumber])
-            && $this->lightweightOutlineRootBodyIsValid($objects[$objectNumber]);
+            && $this->lightweightOutlineRootBodyIsValid($objects[$objectNumber], $objects);
     }
 
     /**
