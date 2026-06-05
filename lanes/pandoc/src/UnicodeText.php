@@ -388,7 +388,15 @@ final class UnicodeText
     {
         $normalized = self::normalizeEncoding($encoding);
         $bom = null;
-        if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+        if (str_starts_with($bytes, "\xFF\xFE\x00\x00")) {
+            $bom = 'utf-32le';
+            $bytes = substr($bytes, 4);
+            $normalized = 'utf-32le';
+        } elseif (str_starts_with($bytes, "\x00\x00\xFE\xFF")) {
+            $bom = 'utf-32be';
+            $bytes = substr($bytes, 4);
+            $normalized = 'utf-32be';
+        } elseif (str_starts_with($bytes, "\xEF\xBB\xBF")) {
             $bom = 'utf-8';
             $bytes = substr($bytes, 3);
             $normalized = 'utf-8';
@@ -405,6 +413,15 @@ final class UnicodeText
         $normalized ??= 'utf-8';
         if ($normalized === 'utf-16') {
             $normalized = $bom === 'utf-16be' ? 'utf-16be' : 'utf-16le';
+        }
+        if ($normalized === 'utf-32') {
+            $normalized = $bom === 'utf-32le' ? 'utf-32le' : 'utf-32be';
+        }
+
+        if ($normalized === 'utf-32le' || $normalized === 'utf-32be') {
+            [$text, $repairs] = self::decodeUtf32($bytes, $normalized === 'utf-32le');
+
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
 
         if ($normalized === 'utf-16le' || $normalized === 'utf-16be') {
@@ -849,6 +866,9 @@ final class UnicodeText
             'utf16' => 'utf-16',
             'utf16le' => 'utf-16le',
             'utf16be' => 'utf-16be',
+            'utf32', 'ucs4' => 'utf-32',
+            'utf32le', 'ucs4le' => 'utf-32le',
+            'utf32be', 'ucs4be' => 'utf-32be',
             'windows1252', 'cp1252', 'msansi' => 'windows-1252',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
@@ -1097,6 +1117,34 @@ final class UnicodeText
     /**
      * @return array{0:string, 1:int}
      */
+    private static function decodeUtf32(string $bytes, bool $littleEndian): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset += 4) {
+            if ($offset + 3 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                break;
+            }
+
+            $codepoint = self::u32($bytes, $offset, $littleEndian);
+            if ($codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint($codepoint);
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
     private static function decodeUtf16(string $bytes, bool $littleEndian): array
     {
         $out = '';
@@ -1145,6 +1193,20 @@ final class UnicodeText
         $second = ord($bytes[$offset + 1]);
 
         return $littleEndian ? ($first | ($second << 8)) : (($first << 8) | $second);
+    }
+
+    private static function u32(string $bytes, int $offset, bool $littleEndian): int
+    {
+        $first = ord($bytes[$offset]);
+        $second = ord($bytes[$offset + 1]);
+        $third = ord($bytes[$offset + 2]);
+        $fourth = ord($bytes[$offset + 3]);
+
+        if ($littleEndian) {
+            return $first | ($second << 8) | ($third << 16) | ($fourth << 24);
+        }
+
+        return ($first << 24) | ($second << 16) | ($third << 8) | $fourth;
     }
 
     /**

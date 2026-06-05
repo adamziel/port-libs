@@ -24,6 +24,24 @@ $utf16le = static function (array $codepoints): string {
     return $bytes;
 };
 
+$utf32le = static function (array $codepoints): string {
+    $bytes = '';
+    foreach ($codepoints as $codepoint) {
+        $bytes .= pack('V', $codepoint);
+    }
+
+    return $bytes;
+};
+
+$utf32be = static function (array $codepoints): string {
+    $bytes = '';
+    foreach ($codepoints as $codepoint) {
+        $bytes .= pack('N', $codepoint);
+    }
+
+    return $bytes;
+};
+
 return [
     'decodes utf bom and utf16 source bytes for markdown readers' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUnicode body");
@@ -143,6 +161,53 @@ return [
         $t->same('BE', $document->children[1]->attr('text'));
         $t->contains('<h1 id="計画">計画</h1>', $blocks);
         $t->contains('<p>BE</p>', $blocks);
+    },
+    'decodes utf32 byte order marks before utf16 fallback' => static function (TestRunner $t) use ($utf32le, $utf32be): void {
+        $utf32leSource = "\xFF\xFE\x00\x00" . $utf32le([
+            0x0023,
+            0x0020,
+            0x1f4da,
+            0x000a,
+            0x000a,
+            0x0052,
+            0x0065,
+            0x0076,
+            0x0069,
+            0x0065,
+            0x0077,
+        ]);
+        $utf32beSource = "\x00\x00\xFE\xFF" . $utf32be([
+            0x0023,
+            0x0020,
+            0x8a08,
+            0x753b,
+            0x000a,
+            0x000a,
+            0x0042,
+            0x0045,
+        ]);
+        $decodedLe = UnicodeText::decodeBytes($utf32leSource, 'windows-1252');
+        $decodedBe = UnicodeText::decodeBytes($utf32beSource, 'utf-16le');
+        $explicit = UnicodeText::decodeBytes($utf32be([0x0050, 0x006c, 0x0061, 0x006e]), 'utf-32be');
+        $invalid = UnicodeText::decodeBytes($utf32be([0x0041, 0x110000]) . "\x00", 'utf-32be');
+        $document = (new MarkdownReader())->readBytes($utf32beSource, 'windows-1252');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('utf-32le', $decodedLe['encoding']);
+        $t->same('utf-32le', $decodedLe['bom']);
+        $t->same("# \u{1F4DA}\n\nReview", $decodedLe['text']);
+        $t->same(0, $decodedLe['repairs']);
+        $t->same('utf-32be', $decodedBe['encoding']);
+        $t->same('utf-32be', $decodedBe['bom']);
+        $t->same("# 計画\n\nBE", $decodedBe['text']);
+        $t->same(['encoding' => 'utf-32be', 'bom' => 'utf-32be', 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same('BE', $document->children[1]->attr('text'));
+        $t->contains('<h1 id="計画">計画</h1>', $blocks);
+        $t->same('Plan', $explicit['text']);
+        $t->same('utf-32be', $explicit['encoding']);
+        $t->same("A\u{FFFD}\u{FFFD}", $invalid['text']);
+        $t->same(2, $invalid['repairs']);
     },
     'repairs malformed utf8 with replacement characters' => static function (TestRunner $t): void {
         $decoded = UnicodeText::decodeBytes("Broken \xE2(\xA1 UTF-8");

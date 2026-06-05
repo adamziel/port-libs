@@ -10,6 +10,15 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\UnicodeText;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
+$utf32beBytes = static function (array $codepoints): string {
+    $bytes = '';
+    foreach ($codepoints as $codepoint) {
+        $bytes .= pack('N', $codepoint);
+    }
+
+    return $bytes;
+};
+
 $legacyBytes = "# Cafe\xE9 Review\r\n\r\nEditor \x93quoted\x94 source \x97 price \x8010.\rReviewer line ending note.";
 
 $source = (new MarkdownReader())->readBytes($legacyBytes, 'windows-1252');
@@ -79,6 +88,22 @@ $latinExtendedFallback = UnicodeText::normalize(
     'fallback'
 );
 $bomOverrideSource = (new MarkdownReader())->readBytes("\xFE\xFF\x00#\x00 \x8A\x08\x75\x3B\x00\x0A\x00\x0A\x00B\x00E", 'windows-1252');
+$utf32BomSource = (new MarkdownReader())->readBytes("\x00\x00\xFE\xFF" . $utf32beBytes([
+    0x0023,
+    0x0020,
+    0x1f4da,
+    0x0020,
+    0x0052,
+    0x0065,
+    0x0076,
+    0x0069,
+    0x0065,
+    0x0077,
+    0x000a,
+    0x000a,
+    0x8a08,
+    0x753b,
+]), 'windows-1252');
 $table = new AstNode('table', [
     'caption' => 'Unicode width audit',
     'alignments' => ['default', 'default', 'default'],
@@ -256,6 +281,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $bomOverrideSource->children[0]->attr('text') . ' / ' . $bomOverrideSource->children[1]->attr('text')])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($bomOverrideSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($bomOverrideSource->attr('sourceEncoding')['bom'] ?? '')])]),
         ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'UTF-32 BOM source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $utf32BomSource->children[0]->attr('text') . ' / ' . $utf32BomSource->children[1]->attr('text')])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($utf32BomSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . ($utf32BomSource->attr('sourceEncoding')['bom'] ?? '') . ':' . UnicodeText::displayWidth((string) $utf32BomSource->children[0]->attr('text'))])]),
+        ]),
     ]),
 ]);
 $document = new AstNode('document', $source->attrs, [...$source->children, $table]);
@@ -380,6 +410,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>BOM override</td><td>計画 / BE</td><td>utf-16be:utf-16be</td>")) {
         throw new RuntimeException('charset handoff self-test missing BOM override audit row');
+    }
+    if (($utf32BomSource->attr('sourceEncoding')['encoding'] ?? '') !== 'utf-32be') {
+        throw new RuntimeException('charset handoff self-test missing UTF-32 source encoding');
+    }
+    if (!str_contains($blocks, "<td>UTF-32 BOM source</td><td>\u{1F4DA} Review / 計画</td><td>utf-32be:utf-32be:9</td>")) {
+        throw new RuntimeException('charset handoff self-test missing UTF-32 BOM audit row');
     }
 
     echo "charset unicode handoff self-test ok\n";
