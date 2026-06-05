@@ -5995,23 +5995,51 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{bytes: int, sha256: string}|null
+     * @return array<string, mixed>|null
      */
     private function encryptedPermissionValidationMetadata(string $dictionary, array $objects): ?array
     {
-        $value = $this->dictionaryTopLevelRawValue($dictionary, 'Perms');
-        if ($value === null) {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'Perms');
+        if ($values === []) {
             return null;
         }
 
-        $bytes = $this->pdfStringBytesFromValue($value, $objects);
-        if ($bytes === null) {
-            return null;
+        $entries = [];
+        foreach ($values as $index => $value) {
+            $bytes = $this->pdfStringBytesFromValue($value, $objects);
+            $entries[] = [
+                'source' => 'standard_permissions_validation_ciphertext_entry',
+                'index' => $index,
+                'present' => true,
+                'bytes_resolved' => $bytes !== null,
+                'bytes' => $bytes === null ? null : strlen($bytes),
+                'sha256' => $bytes === null ? null : hash('sha256', $bytes),
+                'status' => $bytes === null
+                    ? 'permission_digest_entry_unresolved'
+                    : 'permission_digest_ciphertext_review',
+                'raw_bytes_exposed' => false,
+            ];
         }
+
+        $selectedIndex = count($entries) - 1;
+        $selected = $entries[$selectedIndex];
 
         return [
-            'bytes' => strlen($bytes),
-            'sha256' => hash('sha256', $bytes),
+            'bytes_resolved' => (bool) ($selected['bytes_resolved'] ?? false),
+            'bytes' => $selected['bytes'] ?? null,
+            'sha256' => $selected['sha256'] ?? null,
+            'declared_entry_count' => count($values),
+            'duplicate_entries' => count($values) > 1,
+            'selected_entry_index' => $selectedIndex,
+            'selected_entry_status' => $selected['status'] ?? null,
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'entries' => $entries,
         ];
     }
 
@@ -6024,7 +6052,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<string, array<string, mixed>> $cryptFilters
      * @param array<string, mixed> $metadata
-     * @param array{bytes: int, sha256: string}|null $perms
+     * @param array<string, mixed>|null $perms
      * @return array<string, mixed>
      */
     private function standardAuthenticationReview(
@@ -6062,6 +6090,12 @@ final class PdfMetadataExtractor
             'present' => $perms !== null,
             'bytes' => $perms['bytes'] ?? null,
             'sha256' => $perms['sha256'] ?? null,
+            'declared_entry_count' => $perms['declared_entry_count'] ?? 0,
+            'duplicate_entries' => (bool) ($perms['duplicate_entries'] ?? false),
+            'selected_entry_index' => $perms['selected_entry_index'] ?? null,
+            'selected_entry_status' => $perms['selected_entry_status'] ?? null,
+            'entry_statuses' => is_array($perms['entry_statuses'] ?? null) ? $perms['entry_statuses'] : [],
+            'entry_reviews' => is_array($perms['entries'] ?? null) ? $perms['entries'] : [],
             'expected_bytes' => $expectedLengths['Perms'] ?? null,
             'length_valid' => $perms !== null && isset($expectedLengths['Perms'])
                 ? $perms['bytes'] === $expectedLengths['Perms']
@@ -6158,22 +6192,60 @@ final class PdfMetadataExtractor
         ?int $expectedBytes,
         bool $required
     ): array {
-        $value = $this->dictionaryTopLevelRawValue($dictionary, $pdfName);
+        $values = $this->dictionaryTopLevelRawValues($dictionary, $pdfName);
+        $entries = [];
+        foreach ($values as $index => $value) {
+            $entryBytes = $this->pdfStringBytesFromValue($value, $objects);
+            $entryLength = $entryBytes === null ? null : strlen($entryBytes);
+            $entryLengthValid = $entryLength !== null && $expectedBytes !== null
+                ? $entryLength === $expectedBytes
+                : ($entryLength === null ? null : true);
+            $entries[] = [
+                'source' => 'standard_authentication_entry_declaration_review',
+                'index' => $index,
+                'present' => true,
+                'bytes_resolved' => $entryBytes !== null,
+                'bytes' => $entryLength,
+                'expected_bytes' => $expectedBytes,
+                'length_valid' => $entryLengthValid,
+                'sha256' => $entryBytes === null ? null : hash('sha256', $entryBytes),
+                'status' => $this->standardAuthenticationEntryStatus(true, $entryBytes !== null, $entryLengthValid, $required),
+                'raw_bytes_exposed' => false,
+            ];
+        }
+
+        $selectedIndex = count($entries) - 1;
+        $selectedEntry = $selectedIndex >= 0 ? $entries[$selectedIndex] : null;
+        $value = $selectedIndex >= 0 ? $values[$selectedIndex] : null;
         $bytes = $value === null ? null : $this->pdfStringBytesFromValue($value, $objects);
         $length = $bytes === null ? null : strlen($bytes);
         $lengthValid = $length !== null && $expectedBytes !== null ? $length === $expectedBytes : ($length === null ? null : true);
+        $selectedStatus = $this->standardAuthenticationEntryStatus($value !== null, $bytes !== null, $lengthValid, $required);
+        $duplicateEntries = count($values) > 1;
 
         return [
             'pdf_name' => $pdfName,
             'purpose' => $purpose,
             'required_for_revision' => $required,
             'present' => $value !== null,
+            'declared_entry_count' => count($values),
+            'duplicate_entries' => $duplicateEntries,
+            'selected_entry_index' => $selectedIndex >= 0 ? $selectedIndex : null,
+            'selected_entry_status' => $selectedEntry['status'] ?? $selectedStatus,
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'entry_reviews' => $entries,
             'bytes_resolved' => $bytes !== null,
             'bytes' => $length,
             'expected_bytes' => $expectedBytes,
             'length_valid' => $lengthValid,
             'sha256' => $bytes === null ? null : hash('sha256', $bytes),
-            'status' => $this->standardAuthenticationEntryStatus($value !== null, $bytes !== null, $lengthValid, $required),
+            'status' => $duplicateEntries ? 'authentication_entry_duplicate_entries_review' : $selectedStatus,
             'raw_bytes_exposed' => false,
             'validated' => false,
         ];
@@ -6195,7 +6267,7 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * @param array{bytes: int, sha256: string}|null $perms
+     * @param array<string, mixed>|null $perms
      */
     private function standardPermissionDigestStatus(?array $perms, ?int $expectedBytes, ?int $revision): string
     {
@@ -6205,7 +6277,15 @@ final class PdfMetadataExtractor
                 : 'permission_digest_absent_for_legacy_revision';
         }
 
-        if ($expectedBytes !== null && $perms['bytes'] !== $expectedBytes) {
+        if (($perms['duplicate_entries'] ?? false) === true) {
+            return 'permission_digest_duplicate_entries_review';
+        }
+
+        if (($perms['bytes_resolved'] ?? true) !== true) {
+            return 'permission_digest_unresolved';
+        }
+
+        if ($expectedBytes !== null && ($perms['bytes'] ?? null) !== $expectedBytes) {
             return 'permission_digest_length_mismatch_review';
         }
 

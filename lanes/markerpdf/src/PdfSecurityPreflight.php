@@ -395,6 +395,7 @@ final class PdfSecurityPreflight
         $missingRequiredEntries = [];
         $unresolvedRequiredEntries = [];
         $lengthMismatchEntries = [];
+        $duplicateRequiredEntries = [];
         $requiredEntryStatuses = [];
 
         foreach ($entries as $name => $entry) {
@@ -413,6 +414,10 @@ final class PdfSecurityPreflight
             }
 
             $presentRequiredEntries[] = $name;
+            if (($entry['duplicate_entries'] ?? false) === true) {
+                $duplicateRequiredEntries[] = $name;
+                continue;
+            }
             if (($entry['bytes_resolved'] ?? false) !== true) {
                 $unresolvedRequiredEntries[] = $name;
                 continue;
@@ -427,9 +432,11 @@ final class PdfSecurityPreflight
             : [];
         $permissionDigestRequired = is_int($permissionDigest['expected_bytes'] ?? null);
         $permissionDigestStatus = is_string($permissionDigest['status'] ?? null) ? $permissionDigest['status'] : null;
+        $permissionDigestDuplicateEntries = ($permissionDigest['duplicate_entries'] ?? false) === true;
         $permissionDigestReady = !$permissionDigestRequired
             || (
                 ($permissionDigest['present'] ?? false) === true
+                && !$permissionDigestDuplicateEntries
                 && ($permissionDigest['length_valid'] ?? null) === true
                 && $permissionDigestStatus === 'permission_digest_ciphertext_review'
             );
@@ -437,6 +444,7 @@ final class PdfSecurityPreflight
             && $missingRequiredEntries === []
             && $unresolvedRequiredEntries === []
             && $lengthMismatchEntries === []
+            && $duplicateRequiredEntries === []
             && $permissionDigestReady;
 
         return array_merge($base, [
@@ -451,6 +459,8 @@ final class PdfSecurityPreflight
             'missing_required_entries' => $missingRequiredEntries,
             'unresolved_required_entries' => $unresolvedRequiredEntries,
             'length_mismatch_required_entries' => $lengthMismatchEntries,
+            'duplicate_required_entries' => $duplicateRequiredEntries,
+            'duplicate_required_entry_count' => count($duplicateRequiredEntries),
             'required_entry_statuses' => $requiredEntryStatuses,
             'permission_digest_required' => $permissionDigestRequired,
             'permission_digest_present' => (bool) ($permissionDigest['present'] ?? false),
@@ -458,6 +468,12 @@ final class PdfSecurityPreflight
             'permission_digest_expected_bytes' => $permissionDigest['expected_bytes'] ?? null,
             'permission_digest_length_valid' => $permissionDigest['length_valid'] ?? null,
             'permission_digest_status' => $permissionDigestStatus,
+            'permission_digest_declared_entry_count' => (int) ($permissionDigest['declared_entry_count'] ?? 0),
+            'permission_digest_duplicate_entries' => $permissionDigestDuplicateEntries,
+            'permission_digest_selected_entry_index' => $permissionDigest['selected_entry_index'] ?? null,
+            'permission_digest_entry_statuses' => is_array($permissionDigest['entry_statuses'] ?? null)
+                ? $permissionDigest['entry_statuses']
+                : [],
             'ready_for_password_attempt' => $ready,
             'status' => $ready
                 ? 'standard_authentication_material_ready_for_password_attempt'
