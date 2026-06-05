@@ -130,6 +130,20 @@ $tiffPredictorEncode = static function (string $bytes, int $columns): string {
     return $encoded;
 };
 
+$runLengthLiteralEncode = static function (string $bytes, bool $includeEod = true): string {
+    if ($bytes === '') {
+        return $includeEod ? chr(128) : '';
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 128) {
+        $chunk = substr($bytes, $offset, 128);
+        $encoded .= chr(strlen($chunk) - 1) . $chunk;
+    }
+
+    return $encoded . ($includeEod ? chr(128) : '');
+};
+
 $imageRow = 'raw EI BT /F1 12 Tf 72 690 Td (Inline DP Image Noise) Tj ET';
 $compressedImage = gzcompress("\0" . $imageRow, 0);
 if (!is_string($compressedImage)) {
@@ -140,6 +154,8 @@ $oversizedCompressedImage = gzcompress($oversizedImageRow, 0);
 if (!is_string($oversizedCompressedImage)) {
     throw new RuntimeException('Unable to build oversized inline image fixture.');
 }
+$runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
+$runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -153,7 +169,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 640 Td (Before Oversized Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
     . $oversizedCompressedImage . "\nEI\n"
-    . "BT /F1 12 Tf 72 624 Td (After Oversized Inline Image) Tj ET";
+    . "BT /F1 12 Tf 72 624 Td (After Oversized Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 608 Td (Before RunLength Inline Image) Tj ET\n"
+    . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
+    . $runLengthPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 592 Td (After RunLength Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -207,6 +227,24 @@ $lzwIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
     $inlineReviewObjects,
     3
 );
+$runLengthIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
+    '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /RL /D [0 3]',
+    $runLengthLiteralEncode("\x1c", true),
+    $inlineReviewObjects,
+    3
+);
+$runLengthSuppliedSampleBypassRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 1 /H 1 /CS /RGB /BPC 8 /F /RL /D [0 1 0 1 0 1]',
+        $runLengthLiteralEncode("\x01\x02\x03", false),
+        [],
+        1,
+        [[1, 2, 3]]
+    );
+} catch (InvalidArgumentException) {
+    $runLengthSuppliedSampleBypassRejected = true;
+}
 $incompleteAscii85ReviewDecodeFailed = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -245,6 +283,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After A85 Inline Image',
         'Before Oversized Inline Image',
         'After Oversized Inline Image',
+        'Before RunLength Inline Image',
+        'After RunLength Inline Image',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
@@ -261,6 +301,11 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'lzw_inline_decodeparms_preview_decoded' => ($lzwIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($lzwIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '0055FF',
     'lzw_inline_palette_indexes' => array_column($lzwIndexedReview['pixels'] ?? [], 'palette_index'),
+    'runlength_inline_eod_present' => str_contains($runLengthPayload, chr(128)),
+    'runlength_inline_preview_decoded' => ($runLengthIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',
+    'runlength_inline_palette_indexes' => array_column($runLengthIndexedReview['pixels'] ?? [], 'palette_index'),
+    'runlength_missing_eod_supplied_sample_bypass_rejected' => $runLengthSuppliedSampleBypassRejected,
     'invalid_lzw_earlychange_decode_failed' => $invalidLzwEarlyChangeDecodeFailed,
     'resolves_current_indirect_inline_imagemask_geometry' => ($indirectMaskReview['width'] ?? null) === 4
         && ($indirectMaskReview['height'] ?? null) === 1
@@ -271,7 +316,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'ASCII85 Inline Noise')
         && !str_contains($plainText, '87cURDc')
         && !str_contains($plainText, 'Oversized Flate Inline Noise')
-        && !str_contains($plainText, 'X EI'),
+        && !str_contains($plainText, 'X EI')
+        && !str_contains($plainText, 'RunLength Inline Noise')
+        && !str_contains($plainText, 'RL EI'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {

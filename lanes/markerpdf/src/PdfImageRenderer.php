@@ -1668,7 +1668,7 @@ final class PdfImageRenderer
             && is_string($imageStream['decoded_bytes'] ?? null);
         $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
         $usesSuppliedSamples = $suppliedSamples !== null;
-        if (!$imageStreamDecoded && !$imageStreamReviewOnly && !$usesSuppliedSamples) {
+        if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
             throw new InvalidArgumentException('Inline image filters must be natively decoded before output preview.');
         }
 
@@ -5723,6 +5723,7 @@ final class PdfImageRenderer
         return match ($filter) {
             'ASCIIHexDecode', 'AHx' => strpos($stream, '>') !== false,
             'ASCII85Decode', 'A85' => strpos($stream, '~>') !== false,
+            'RunLengthDecode', 'RL' => strpos($stream, chr(128)) !== false,
             default => true,
         };
     }

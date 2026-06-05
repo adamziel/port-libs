@@ -138,6 +138,20 @@ $tiffPredictorEncode = static function (string $bytes, int $columns): string {
     return $encoded;
 };
 
+$runLengthLiteralEncode = static function (string $bytes, bool $includeEod = true): string {
+    if ($bytes === '') {
+        return $includeEod ? chr(128) : '';
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 128) {
+        $chunk = substr($bytes, $offset, 128);
+        $encoded .= chr(strlen($chunk) - 1) . $chunk;
+    }
+
+    return $encoded . ($includeEod ? chr(128) : '');
+};
+
 return [
     'requires ASCII85 inline image end marker before accepting delimiter-looking EI bytes' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -292,6 +306,65 @@ return [
                 $lzwLiteralEncode("\x00"),
                 $objects,
                 1
+            )
+        );
+    },
+    'requires RunLength EOD before inline image decode preview accepts supplied samples' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $runLengthLiteralEncode): void {
+        $extractor = new PdfTextExtractor();
+        $payloadText = 'RL EI BT /F1 12 Tf 72 690 Td (RunLength Inline Noise) Tj ET';
+        $encodedPayload = $runLengthLiteralEncode($payloadText, true);
+        $content = "BT /F1 12 Tf 72 720 Td (Before RunLength Inline Image) Tj ET\n"
+            . 'BI /W ' . strlen($payloadText) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
+            . $encodedPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After RunLength Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before RunLength Inline Image',
+            'After RunLength Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($payloadText, ' EI '));
+        $t->true(str_contains($encodedPayload, chr(128)));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->true(!str_contains($plainText, 'RunLength Inline Noise'));
+        $t->true(!str_contains($plainText, 'RL EI'));
+
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+        $preview = $renderer->inlineIndexedImageStreamPreviewRows(
+            '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /RL /D [0 3]',
+            $runLengthLiteralEncode("\x1c", true),
+            $objects,
+            3
+        );
+
+        $t->same(['RunLengthDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(3, $preview['image_stream']['raw_length']);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', "\x1c"), $preview['image_stream']['decoded_sha256']);
+        $t->same('1C', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same([0.0, 1.0, 3.0], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([0, 1, 3], array_column($preview['pixels'], 'palette_index'));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                '/W 1 /H 1 /CS /RGB /BPC 8 /F /RL /D [0 1 0 1 0 1]',
+                $runLengthLiteralEncode("\x01\x02\x03", false),
+                [],
+                1,
+                [[1, 2, 3]]
             )
         );
     },
