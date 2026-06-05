@@ -1599,7 +1599,6 @@ final class MarkerAppPreview
 
         $nums = $this->valueAfterName($value, 'Nums');
         if ($nums !== null) {
-            $nums = trim($this->resolvePageLabelPdfValue($nums, $objects, $seen));
             $seenPageIndexes = [];
             foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
                 $pageIndex = $section['page_index'];
@@ -1614,10 +1613,9 @@ final class MarkerAppPreview
 
         $kids = $this->valueAfterName($value, 'Kids');
         if ($kids !== null) {
-            $kids = trim($this->resolvePageLabelPdfValue($kids, $objects, $seen));
             $kidNodes = [];
             $kidOrder = 0;
-            foreach ($this->arrayElements($kids) as $kid) {
+            foreach ($this->pageLabelArrayElements($this->resolvePageLabelPdfValue($kids, $objects, $seen)) as $kid) {
                 $reference = $this->pageLabelReferenceOperand($kid);
                 if ($reference === null) {
                     continue;
@@ -1696,7 +1694,7 @@ final class MarkerAppPreview
      */
     private function pageLabelSectionsFromNums(string $nums, array $objects, array $seen, ?array $limits): array
     {
-        $elements = $this->arrayElements($nums);
+        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($nums, $objects, $seen));
         $sections = [];
         $seenPageIndexes = [];
         $lastAcceptedPageIndex = null;
@@ -1779,7 +1777,7 @@ final class MarkerAppPreview
             return null;
         }
 
-        $elements = $this->arrayElements(trim($this->resolvePageLabelPdfValue($limits, $objects, $seen)));
+        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
         if (count($elements) !== 2) {
             return null;
         }
@@ -1896,6 +1894,30 @@ final class MarkerAppPreview
         }
 
         return $this->skipPdfWhitespace($value, $dictionary[1]) >= strlen($value) ? $dictionary[0] : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageLabelArrayElements(string $value): array
+    {
+        $array = $this->pageLabelArrayToken($value);
+        return $array === null ? [] : $this->arrayElements($array);
+    }
+
+    private function pageLabelArrayToken(string $value): ?string
+    {
+        $value = trim($value);
+        if (($value[0] ?? '') !== '[') {
+            return null;
+        }
+
+        $array = $this->readBalancedArray($value, 0);
+        if ($array === null) {
+            return null;
+        }
+
+        return $this->skipPdfWhitespace($value, $array[1]) >= strlen($value) ? $array[0] : null;
     }
 
     /**

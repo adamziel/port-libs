@@ -10367,7 +10367,7 @@ final class PdfTextExtractor
     {
         $offset = $this->skipPdfWhitespace($value, 0);
         if (($value[$offset] ?? '') === '[') {
-            return $this->readPdfArrayAt($value, $offset);
+            return $this->pageLabelArrayObjectBody($value, $offset);
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -10389,6 +10389,22 @@ final class PdfTextExtractor
 
         $seen[$objectKey] = true;
         return $this->pageLabelArrayFromValue($body, $objects, $seen);
+    }
+
+    private function pageLabelArrayObjectBody(string $value, int $offset = 0): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, $offset);
+        if (($value[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $arrayBody = $this->readPdfArrayAt($value, $offset);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $endOffset = $offset + strlen($arrayBody) + 2;
+        return $this->skipPdfWhitespace($value, $endOffset) >= strlen($value) ? $arrayBody : null;
     }
 
     /**
