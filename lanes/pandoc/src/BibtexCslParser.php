@@ -601,6 +601,7 @@ final class BibtexCslParser
             'page-first' => self::firstPageFromRange($page),
             'pagination' => self::firstField($fields, ['pagination']),
             'book-pagination' => self::firstField($fields, ['bookpagination', 'book-pagination']),
+            'article-number' => self::firstField($fields, ['eid', 'article-number', 'articlenumber']),
             'number' => self::firstField($fields, ['number']),
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),

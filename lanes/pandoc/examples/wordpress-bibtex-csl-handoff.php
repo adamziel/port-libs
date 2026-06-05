@@ -79,6 +79,8 @@ Pagination source @pagination-review preserves column page-unit metadata for rev
 
 Special issue source @special-issue-review preserves imported issue title metadata for review.
 
+Article-number source @article-number-review preserves imported electronic article IDs for review.
+
 Container-author chapter @container-author-review preserves source volume authors for review.
 
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
@@ -596,6 +598,15 @@ $bibtex = <<<'BIB'
   issuetitleaddon = {Editorial packet supplement},
   date            = {2026},
   pages           = {30--35}
+}
+
+@article{article-number-review,
+  author       = {Roe, Pat},
+  title        = {Electronic Article Packet},
+  journaltitle = {Journal of Source Imports},
+  date         = {2026},
+  eid          = {e2026-77},
+  doi          = {10.5555/eid-review}
 }
 
 @incollection{container-author-review,
@@ -1143,6 +1154,43 @@ XML);
     if (!str_contains($issueBlocks, '<dt>Doe 2026</dt><dd>Special Issue Packet | Migration Special Issue: Import Desk Reports | Editorial packet supplement</dd>')) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not render issue-title metadata in custom bibliography output');
     }
+    $articleNumberReview = $processor->item('article-number-review');
+    if (($articleNumberReview['articleNumber'] ?? null) !== 'e2026-77') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve article-number metadata');
+    }
+    if (($articleNumberReview['raw']['article-number'] ?? null) !== 'e2026-77') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve raw article-number metadata');
+    }
+    $articleNumberStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="article-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="article-number"/>
+      <text variable="doi"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $articleNumberBlocks = (new WordPressBlockWriter())->write($articleNumberStyled->appendBibliography(
+        (new MarkdownReader())->read('Article number review [@article-number-review] keeps article IDs visible.'),
+        'Article Number Sources'
+    ));
+    if (!str_contains($articleNumberBlocks, '<p>Article number review Roe | e2026-77 keeps article IDs visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render article-number metadata in custom citations');
+    }
+    if (!str_contains($articleNumberBlocks, '<dt>Roe 2026</dt><dd>Electronic Article Packet | e2026-77 | 10.5555/eid-review</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render article-number metadata in custom bibliography output');
+    }
     $containerAuthorReview = $processor->item('container-author-review');
     if (($containerAuthorReview['containerAuthors'][0]['family'] ?? null) !== 'Smith') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve first container author family');
@@ -1233,6 +1281,8 @@ XML);
         '<dt>Ng 2026</dt><dd>Ng, Nia. Column Pagination Review. Source Unit Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>',
         '<p>Special issue source Doe (2026) preserves imported issue title metadata for review.</p>',
         '<dt>Doe 2026</dt><dd>Doe, Jane. Special Issue Packet. Journal of Source Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>',
+        '<p>Article-number source Roe (2026) preserves imported electronic article IDs for review.</p>',
+        '<dt>Roe 2026</dt><dd>Roe, Pat. Electronic Article Packet. Journal of Source Imports. 2026. Article number: e2026-77. DOI 10.5555/eid-review.</dd>',
         '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',

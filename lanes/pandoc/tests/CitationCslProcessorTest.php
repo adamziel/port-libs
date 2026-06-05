@@ -7322,6 +7322,77 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Source Packet Study. Journal of Imports. Issue title: Migration Special Issue: Import Desk Reports. Issue title addendum: Editorial packet supplement. 2026. 30-35.</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Plain Issue Source. Migration Notes. Issue title: Archive Review Number. 2025. 7-9.</dd>', $blocks);
     },
+    'maps bounded biblatex article number fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{article-number-source,
+  author       = {Doe, Jane},
+  title        = {Numbered Source Packet},
+  journaltitle = {Journal of Import Articles},
+  date         = {2026},
+  eid          = {e2026-42},
+  doi          = {10.5555/article-number}
+}
+
+@article{explicit-article-number-source,
+  author        = {Ng, Nia},
+  title         = {Explicit Article Number Packet},
+  journaltitle  = {Migration Notes},
+  date          = {2025},
+  articlenumber = {A-77}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('e2026-42', $items[0]['article-number'] ?? null);
+        $t->same('A-77', $items[1]['article-number'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $article = $processor->item('article-number-source');
+        $explicit = $processor->item('explicit-article-number-source');
+        $t->same('e2026-42', $article['articleNumber'] ?? null);
+        $t->same('A-77', $explicit['articleNumber'] ?? null);
+        $t->same('Doe, Jane. Numbered Source Packet. Journal of Import Articles. 2026. Article number: e2026-42. DOI 10.5555/article-number.', $processor->renderBibliographyEntry('article-number-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="article-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="article-number"/>
+      <text variable="doi"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(Doe | e2026-42; Ng | A-77)', $styled->renderCitationCluster([
+            $citation('article-number-source', '[@article-number-source]'),
+            $citation('explicit-article-number-source', '[@explicit-article-number-source]'),
+        ]));
+        $t->same('Numbered Source Packet :: e2026-42 :: 10.5555/article-number', $styled->renderBibliographyEntry('article-number-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-article-number',
+            'title' => 'Direct Article Number',
+            'article-number' => 'D-5',
+        ]])->item('direct-article-number');
+        $t->same('D-5', $direct['articleNumber'] ?? null);
+
+        $document = (new MarkdownReader())->read('Article-number source @article-number-source and explicit source [@explicit-article-number-source] keep imported article IDs visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Article-number source Doe (2026) and explicit source (Ng 2025) keep imported article IDs visible.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Numbered Source Packet. Journal of Import Articles. 2026. Article number: e2026-42. DOI 10.5555/article-number.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Explicit Article Number Packet. Migration Notes. 2025. Article number: A-77.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
