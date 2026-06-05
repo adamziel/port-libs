@@ -22178,6 +22178,68 @@ final class PdfTextExtractor
         return max(1.0, $this->length($text) * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO);
     }
 
+    private function textOperandHorizontalDrawnEndX(
+        ?float $startX,
+        string $operand,
+        ?array $toUnicodeMap,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): ?float {
+        if ($startX === null) {
+            return null;
+        }
+
+        $operand = trim($operand);
+        if (!str_starts_with($operand, '[')) {
+            $extent = $this->textElementHorizontalExtent(
+                $startX,
+                $operand,
+                $toUnicodeMap,
+                $fontSize,
+                $characterSpacing,
+                $wordSpacing,
+                $horizontalScale
+            );
+
+            return $extent === null ? null : $extent['maxX'];
+        }
+
+        $cursorX = $startX;
+        $maxX = $startX;
+        $hasTextExtent = false;
+        foreach ($this->textArrayElements($operand) as $element) {
+            if ($element['type'] === 'text') {
+                $textOperand = (string) $element['value'];
+                $extent = $this->textElementHorizontalExtent(
+                    $cursorX,
+                    $textOperand,
+                    $toUnicodeMap,
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $horizontalScale
+                );
+                if ($extent === null) {
+                    continue;
+                }
+
+                $cursorX = $extent['endX'];
+                $maxX = max($maxX, $extent['maxX']);
+                $hasTextExtent = true;
+                continue;
+            }
+
+            $adjustedX = $this->adjustTextEndX($cursorX, (float) $element['value'], $fontSize, $horizontalScale);
+            if ($adjustedX !== null) {
+                $cursorX = $adjustedX;
+            }
+        }
+
+        return $hasTextExtent ? $maxX : null;
+    }
+
     private function textOperandHorizontalExtentWidth(
         string $operand,
         ?array $toUnicodeMap,
@@ -22610,8 +22672,17 @@ final class PdfTextExtractor
                             true
                         );
                     } else {
-                        $currentTextDrawnEndX = $this->advanceTextEndXForOperand(
-                            $currentTextDrawnEndX ?? $currentTextX,
+                        $textStartX = $currentTextEndX ?? $currentTextX;
+                        $currentTextDrawnEndX = $this->textOperandHorizontalDrawnEndX(
+                            $textStartX,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        ) ?? $this->advanceTextEndXForOperand(
+                            $textStartX,
                             $operand,
                             $toUnicodeMap,
                             $currentFontSize,
@@ -22620,7 +22691,7 @@ final class PdfTextExtractor
                             $horizontalScale * $currentTextMatrixHorizontalScale
                         );
                         $currentTextEndX = $this->advanceTextEndXForOperand(
-                            $currentTextEndX ?? $currentTextX,
+                            $textStartX,
                             $operand,
                             $toUnicodeMap,
                             $currentFontSize,

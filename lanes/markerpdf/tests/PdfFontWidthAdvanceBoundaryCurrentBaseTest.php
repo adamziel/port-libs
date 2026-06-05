@@ -106,6 +106,18 @@ $fontWidthTjBacktrackBoundaryCurrentBasePdf = static function (): string {
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthTjDrawnExtentTmBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /FtjExtent 12 Tf '
+        . '1 0 0 1 72 720 Tm [(AB) 3000 (CD)] TJ 1 0 0 1 100 720 Tm (EF) Tj '
+        . 'T* 1 0 0 1 72 704 Tm [(AB) 3000 (CD)] TJ 1 0 0 1 116 704 Tm (EF) Tj ET';
+    $widths = implode(' ', array_fill(0, 39, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /FtjExtent 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjDrawnExtentAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 70 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthNegativeTcBacktrackBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /FnegTc 12 Tf -30 Tc 1 0 0 1 72 720 Tm <4142> Tj ET';
 
@@ -580,6 +592,27 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 12.0]]);
         $t->true(!str_contains($plainText, 'TjBacktrackAdvance'));
         $t->true(!str_contains($plainText, 'Ftj'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses TJ drawn glyph extent before same-line Tm word-gap decisions on current base' => static function (TestRunner $t) use ($fontWidthTjDrawnExtentTmBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthTjDrawnExtentTmBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstLine = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+
+        $t->same(['ABCDEF', 'ABCD EF'], $extractor->extractTextLines($pdf));
+        $t->same(['ABCD', 'EF', 'ABCD', 'EF'], $extractor->extractTextRuns($pdf));
+        $t->same("ABCDEF\nABCD EF", $plainText);
+        $t->same("ABCDEF\nABCD EF\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABCD', 'EF'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 36.0, 12.0], [36.0, 0.0, 60.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, "ABCD EF\nABCD EF"));
+        $t->true(str_contains($plainText, 'ABCD EF'));
+        $t->true(!str_contains($plainText, 'TjDrawnExtentAdvance'));
+        $t->true(!str_contains($plainText, 'FtjExtent'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'keeps negative character spacing backtracking from collapsing direct Tj styled font bboxes on current base' => static function (TestRunner $t) use ($fontWidthNegativeTcBacktrackBoundaryCurrentBasePdf): void {

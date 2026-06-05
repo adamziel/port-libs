@@ -82,6 +82,15 @@ $tjBacktrackPdf = "%PDF-1.4\n"
     . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjBacktrackAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 67 /Widths [{$tjBacktrackWidths}] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($tjBacktrackContent) . " >>\nstream\n{$tjBacktrackContent}\nendstream\nendobj\n%%EOF";
 
+$tjDrawnExtentContent = 'BT /FtjExtent 12 Tf '
+    . '1 0 0 1 72 720 Tm [(AB) 3000 (CD)] TJ 1 0 0 1 100 720 Tm (EF) Tj '
+    . 'T* 1 0 0 1 72 704 Tm [(AB) 3000 (CD)] TJ 1 0 0 1 116 704 Tm (EF) Tj ET';
+$tjDrawnExtentWidths = implode(' ', array_fill(0, 39, '1000'));
+$tjDrawnExtentPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /FtjExtent 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjDrawnExtentAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 70 /Widths [{$tjDrawnExtentWidths}] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($tjDrawnExtentContent) . " >>\nstream\n{$tjDrawnExtentContent}\nendstream\nendobj\n%%EOF";
+
 $negativeTcBacktrackContent = 'BT /FnegTc 12 Tf -30 Tc 1 0 0 1 72 720 Tm <4142> Tj ET';
 $negativeTcBacktrackPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /FnegTc 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -281,6 +290,14 @@ $tjBacktrackSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $tjBacktrackLine['spans'] ?? []
 );
+$tjDrawnExtentLines = $extractor->extractTextLines($tjDrawnExtentPdf);
+$tjDrawnExtentPlainText = implode("\n", $tjDrawnExtentLines);
+$tjDrawnExtentPages = $extractor->extractStyledTextPages($tjDrawnExtentPdf);
+$tjDrawnExtentLine = $tjDrawnExtentPages[0]['blocks'][0]['lines'][0] ?? [];
+$tjDrawnExtentSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $tjDrawnExtentLine['spans'] ?? []
+);
 $negativeTcBacktrackLines = $extractor->extractTextLines($negativeTcBacktrackPdf);
 $negativeTcBacktrackPages = $extractor->extractStyledTextPages($negativeTcBacktrackPdf);
 $negativeTcBacktrackLine = $negativeTcBacktrackPages[0]['blocks'][0]['lines'][0] ?? [];
@@ -362,7 +379,7 @@ $type3FontMatrixWidthsSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-vertical-width-vertical-tj-negative-tc-and-type3-fontmatrix-width-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-and-type3-fontmatrix-width-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -396,6 +413,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_backtrack_span_bbox_preserved' => $tjBacktrackSpanBboxes === [[0.0, 0.0, 36.0, 12.0]],
     'tj_backtrack_line_bbox_preserved' => ($tjBacktrackLine['bbox'] ?? null) === [0.0, 0.0, 36.0, 12.0],
     'tj_backtrack_final_cursor_collapse_excluded' => $tjBacktrackSpanBboxes !== [[0.0, 0.0, 12.0, 12.0]],
+    'tj_drawn_extent_near_tm_gap_excluded' => ($tjDrawnExtentLines[0] ?? null) === 'ABCDEF',
+    'tj_drawn_extent_real_tm_gap_preserved' => ($tjDrawnExtentLines[1] ?? null) === 'ABCD EF',
+    'tj_drawn_extent_double_gap_output_excluded' => !str_contains($tjDrawnExtentPlainText, 'ABCD EF' . "\n" . 'ABCD EF'),
+    'tj_drawn_extent_styled_bboxes_preserved' => $tjDrawnExtentSpanBboxes === [[0.0, 0.0, 36.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
     'negative_tc_backtrack_text_preserved' => $negativeTcBacktrackLines === ['AB'],
     'negative_tc_backtrack_span_bbox_preserved' => $negativeTcBacktrackSpanBboxes === [[0.0, 0.0, 30.0, 12.0]],
     'negative_tc_backtrack_line_bbox_preserved' => ($negativeTcBacktrackLine['bbox'] ?? null) === [0.0, 0.0, 30.0, 12.0],
@@ -450,6 +471,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'tj_backtrack_lines' => $tjBacktrackLines,
     'tj_backtrack_span_bboxes' => $tjBacktrackSpanBboxes,
     'tj_backtrack_line_bbox' => $tjBacktrackLine['bbox'] ?? null,
+    'tj_drawn_extent_lines' => $tjDrawnExtentLines,
+    'tj_drawn_extent_plain_text' => $tjDrawnExtentPlainText,
+    'tj_drawn_extent_span_bboxes' => $tjDrawnExtentSpanBboxes,
+    'tj_drawn_extent_line_bbox' => $tjDrawnExtentLine['bbox'] ?? null,
     'negative_tc_backtrack_lines' => $negativeTcBacktrackLines,
     'negative_tc_backtrack_span_bboxes' => $negativeTcBacktrackSpanBboxes,
     'negative_tc_backtrack_line_bbox' => $negativeTcBacktrackLine['bbox'] ?? null,
@@ -473,7 +498,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
