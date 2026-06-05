@@ -21167,6 +21167,14 @@ final class PdfTextExtractor
             $writingMode = (int) $lastMode === 1 ? 1 : 0;
         }
 
+        foreach ($this->cMapOperatorBlocks($cmap, 'beginnotdefchar', 'endnotdefchar') as $charBlock) {
+            $this->parseCidChars($charBlock['body'], $cidMap, $charBlock['declaredCount'], false);
+        }
+
+        foreach ($this->cMapOperatorBlocks($cmap, 'beginnotdefrange', 'endnotdefrange') as $rangeBlock) {
+            $this->parseCidRanges($rangeBlock['body'], $cidMap, $rangeBlock['declaredCount'], false);
+        }
+
         foreach ($this->cMapOperatorBlocks($cmap, 'begincidchar', 'endcidchar') as $charBlock) {
             $this->parseCidChars($charBlock['body'], $cidMap, $charBlock['declaredCount']);
         }
@@ -21469,7 +21477,7 @@ final class PdfTextExtractor
     /**
      * @param array<string, int> $cidMap
      */
-    private function parseCidChars(string $block, array &$cidMap, ?int $declaredCount = null): void
+    private function parseCidChars(string $block, array &$cidMap, ?int $declaredCount = null, bool $overwrite = true): void
     {
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
             return;
@@ -21483,6 +21491,9 @@ final class PdfTextExtractor
             $source = $this->normalizeHexKey($entry[1]);
             $cid = (int) $entry[2];
             if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
+                if (!$overwrite && array_key_exists($source, $cidMap)) {
+                    continue;
+                }
                 $cidMap[$source] = $cid;
             }
         }
@@ -21491,7 +21502,7 @@ final class PdfTextExtractor
     /**
      * @param array<string, int> $cidMap
      */
-    private function parseCidRanges(string $block, array &$cidMap, ?int $declaredCount = null): void
+    private function parseCidRanges(string $block, array &$cidMap, ?int $declaredCount = null, bool $overwrite = true): void
     {
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)/s', $block, $ranges, PREG_SET_ORDER)) {
             return;
@@ -21517,6 +21528,11 @@ final class PdfTextExtractor
                 $currentCid = $cid + $count;
                 if ($currentCid >= 0 && $currentCid <= 0xffff) {
                     $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                    if (!$overwrite && array_key_exists($sourceKey, $cidMap)) {
+                        $source++;
+                        $count++;
+                        continue;
+                    }
                     $cidMap[$sourceKey] = $currentCid;
                 }
                 $source++;
