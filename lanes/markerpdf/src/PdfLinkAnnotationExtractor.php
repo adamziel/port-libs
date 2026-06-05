@@ -898,6 +898,10 @@ final class PdfLinkAnnotationExtractor
     private function primaryLinkAction(array $actions): ?array
     {
         foreach ($actions as $action) {
+            if (($action['chained'] ?? false) === true) {
+                continue;
+            }
+
             if (
                 ($action['safety'] ?? null) === 'review-uri'
                 || ($action['safety'] ?? null) === 'local-destination'
