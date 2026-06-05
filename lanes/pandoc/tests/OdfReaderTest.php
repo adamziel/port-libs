@@ -559,6 +559,49 @@ XML;
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
     },
+    'maps ODT annotation ranges into review spans and note handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithAnnotationRange = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <office:body>
+    <office:text>
+      <text:p>Review <office:annotation office:name="ann-review-1"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated <text:span>claim</text:span><office:annotation-end office:name="ann-review-1"/> after.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithAnnotationRange));
+        $paragraph = $result['document']->children[0];
+        $range = $paragraph->children[1];
+        $note = $range->children[1];
+
+        $t->same('Review annotated claim after.', $paragraph->attr('text'));
+        $t->same('span', $range->type);
+        $t->same(['odf-annotation-range'], $range->attr('classes'));
+        $t->same('ann-review-1', $range->attr('annotationName'));
+        $t->same('ann-review-1', $range->attr('attributes')['data-odf-annotation-name']);
+        $t->same('Migration Reviewer', $range->attr('annotationMetadata')['author']);
+        $t->same('2026-06-05T05:58:00Z', $range->attr('annotationMetadata')['date']);
+        $t->same('Migration Reviewer', $range->attr('attributes')['data-odf-annotation-author']);
+        $t->same('2026-06-05T05:58:00Z', $range->attr('attributes')['data-odf-annotation-date']);
+        $t->same('annotated claim', $range->children[0]->attr('text'));
+        $t->same('note', $note->type);
+        $t->same('Migration Reviewer', $note->attr('author'));
+        $t->same('2026-06-05T05:58:00Z', $note->attr('date'));
+        $t->same('Range comment for the annotated source claim.', $note->children[0]->attr('text'));
+        $t->same(1, $result['importReport']['content']['noteCount']);
+        $t->same(1, $result['importReport']['content']['annotationRangeCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[annotated claim[^1]]{.odf-annotation-range data-odf-annotation-name="ann-review-1" data-odf-annotation-author="Migration Reviewer" data-odf-annotation-date="2026-06-05T05:58:00Z"}', $markdown);
+        $t->contains('[^1]: Range comment for the annotated source claim.', $markdown);
+        $t->contains('<span class="odf-annotation-range" data-odf-annotation-name="ann-review-1" data-odf-annotation-author="Migration Reviewer" data-odf-annotation-date="2026-06-05T05:58:00Z">annotated claim<sup id="fnref-1">', $blocksHtml);
+        $t->contains('<li id="fn-1"><p>Range comment for the annotated source claim.</p>', $blocksHtml);
+    },
     'maps ODT reference marks and references into internal review links' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithReferenceMarks = <<<'XML'
 <office:document-content

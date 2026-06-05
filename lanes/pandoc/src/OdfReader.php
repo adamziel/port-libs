@@ -157,6 +157,7 @@ final class OdfReader
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'fieldCount' => $contentStats['fieldCount'],
                     'citationCount' => $contentStats['citationCount'],
+                    'annotationRangeCount' => $contentStats['annotationRangeCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
                     'sectionCount' => $contentStats['sectionCount'],
@@ -1123,7 +1124,23 @@ final class OdfReader
                 continue;
             }
             if ($this->isElement($child, self::OFFICE_NS, 'annotation')) {
+                $annotationName = self::attr($child, self::OFFICE_NS, 'name');
+                $range = $annotationName === '' ? null : $this->annotationRange($children, $index, $annotationName);
+                if ($range !== null) {
+                    $inner = $this->coalesceTextNodes($this->inlineNodesFromNodeList($range['nodes'], $catalog, $package));
+                    $node = $this->annotationRangeSpanNode($child, $annotationName, $inner, $catalog, $package);
+                    if ($node instanceof AstNode) {
+                        $nodes[] = $node;
+                    }
+                    $index = $range['endIndex'];
+                    continue;
+                }
+
                 $nodes[] = $this->annotationNoteNode($child, null, $catalog);
+                continue;
+            }
+            if ($this->isElement($child, self::OFFICE_NS, 'annotation-end')) {
+                continue;
             }
         }
 
@@ -1607,20 +1624,103 @@ final class OdfReader
     }
 
     /**
+     * @param list<\DOMNode> $children
+     * @return ?array{nodes:list<\DOMNode>, endIndex:int}
+     */
+    private function annotationRange(array $children, int $startIndex, string $name): ?array
+    {
+        $range = [];
+        for ($index = $startIndex + 1, $count = count($children); $index < $count; $index++) {
+            $child = $children[$index];
+            if ($child instanceof \DOMElement && $this->isElement($child, self::OFFICE_NS, 'annotation-end')) {
+                $endName = self::attr($child, self::OFFICE_NS, 'name');
+                if ($endName === $name) {
+                    return [
+                        'nodes' => $range,
+                        'endIndex' => $index,
+                    ];
+                }
+            }
+
+            $range[] = $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function annotationRangeSpanNode(
+        \DOMElement $annotation,
+        string $name,
+        array $children,
+        array $catalog,
+        ?ZipPackage $package
+    ): ?AstNode {
+        $note = $this->annotationNoteNode($annotation, $package, $catalog);
+        if ($this->annotationNoteHasReviewContent($note)) {
+            $children[] = $note;
+        }
+        if ($children === []) {
+            return null;
+        }
+
+        $metadata = $this->annotationMetadata($annotation);
+        $attributes = [
+            'data-odf-annotation-name' => $name,
+        ];
+        foreach ($metadata as $key => $value) {
+            if ($value !== '') {
+                $attributes['data-odf-annotation-' . self::kebabCase($key)] = $value;
+            }
+        }
+
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'annotationName' => $name,
+            'annotationMetadata' => $metadata,
+            'classes' => ['odf-annotation-range'],
+            'attributes' => $attributes,
+        ], $children);
+    }
+
+    private function annotationNoteHasReviewContent(AstNode $note): bool
+    {
+        return $note->children !== []
+            || (string) $note->attr('author', '') !== ''
+            || (string) $note->attr('date', '') !== '';
+    }
+
+    /**
+     * @return array{author:string,date:string}
+     */
+    private function annotationMetadata(\DOMElement $annotation): array
+    {
+        $creator = self::firstChildElement($annotation, 'creator', self::DC_NS);
+        $date = self::firstChildElement($annotation, 'date', self::DC_NS);
+
+        return [
+            'author' => $creator instanceof \DOMElement ? self::normalizedText($creator) : '',
+            'date' => $date instanceof \DOMElement ? self::normalizedText($date) : '',
+        ];
+    }
+
+    /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      */
     private function annotationNoteNode(\DOMElement $annotation, ?ZipPackage $package, array $catalog): AstNode
     {
-        $creator = self::firstChildElement($annotation, 'creator', self::DC_NS);
-        $date = self::firstChildElement($annotation, 'date', self::DC_NS);
+        $metadata = $this->annotationMetadata($annotation);
         $blocks = $package instanceof ZipPackage
             ? $this->blockNodes($annotation, $package, $catalog)
             : $this->annotationInlineFallbackBlocks($annotation, $catalog);
 
         return new AstNode('note', [
             'sourceFormat' => 'odt',
-            'author' => $creator instanceof \DOMElement ? self::normalizedText($creator) : '',
-            'date' => $date instanceof \DOMElement ? self::normalizedText($date) : '',
+            'author' => $metadata['author'],
+            'date' => $metadata['date'],
         ], $blocks);
     }
 
@@ -2261,7 +2361,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2274,6 +2374,7 @@ final class OdfReader
             'sequenceCount' => 0,
             'fieldCount' => 0,
             'citationCount' => 0,
+            'annotationRangeCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
             'sectionCount' => 0,
@@ -2314,6 +2415,9 @@ final class OdfReader
             }
             if ($node->type === 'citation') {
                 $stats['citationCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-annotation-range')) {
+                $stats['annotationRangeCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-change')) {
                 $stats['trackedChangeCount']++;
