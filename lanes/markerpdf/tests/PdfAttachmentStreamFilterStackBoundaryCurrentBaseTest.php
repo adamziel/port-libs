@@ -59,6 +59,23 @@ $attachmentStreamFilterStackBoundaryCurrentBasePdf = static function () use (
         . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseDictionaryFilterPdf = static function (): string {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Malformed Filter Review) Tj ET';
+    $payload = "Title,Status\nDictionary Filter Attachment Leak,Blocked\n";
+    $checksum = md5($payload);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Names [(dict-filter.csv) 10 0 R] >>\nendobj\n"
+        . "10 0 obj\n<< /Type /Filespec /F (dict-filter.csv) /Desc (Malformed dictionary filter attachment) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter << /Name /FlateDecode >> /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($payload) . " >>\nstream\n{$payload}\nendstream\nendobj\n"
+        . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+};
+
 return [
     'treats Identity Crypt as a byte-preserving attachment stream stack stage while rejecting private crypt filters' => static function (
         TestRunner $t
@@ -113,5 +130,32 @@ return [
         $t->true(str_contains($plainText, 'Visible Identity Attachment Review'));
         $t->true(!str_contains($plainText, 'Identity Crypt Attachment'));
         $t->true(!str_contains($plainText, 'Private Crypt Leak'));
+    },
+    'rejects dictionary-valued attachment Filter operands before summary or payload extraction' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseDictionaryFilterPdf): void {
+        $pdf = $attachmentStreamFilterStackBoundaryCurrentBaseDictionaryFilterPdf();
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(0, $summary['attachment_count']);
+        $t->same(0, $summary['total_bytes']);
+        $t->same([], $summary['filenames']);
+        $t->same([], $summary['attachments']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->same([], $files);
+        $t->same('Visible Attachment Malformed Filter Review', $plainText);
+        $t->same(['Visible Attachment Malformed Filter Review'], (new PdfTextExtractor())->extractTextLines($pdf));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'dict-filter.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'Dictionary Filter Attachment Leak'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'dict-filter.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Dictionary Filter Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Dictionary Filter Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Malformed dictionary filter attachment'));
     },
 ];

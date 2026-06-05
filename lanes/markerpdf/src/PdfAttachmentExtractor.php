@@ -2359,7 +2359,15 @@ final class PdfAttachmentExtractor
      */
     private function filterSlots(mixed $filterValue, array $objects): ?array
     {
+        if ($filterValue === null) {
+            return [];
+        }
+
         $filterValue = $this->resolveValue($filterValue, $objects);
+        if ($filterValue === null) {
+            return [];
+        }
+
         $name = $this->nameValue($filterValue);
         if ($name !== null) {
             return [$name];
@@ -2367,7 +2375,7 @@ final class PdfAttachmentExtractor
 
         $array = $this->arrayValue($filterValue);
         if ($array === null) {
-            return [];
+            return null;
         }
 
         $filters = [];
