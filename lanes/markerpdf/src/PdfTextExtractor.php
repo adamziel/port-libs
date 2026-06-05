@@ -28897,7 +28897,7 @@ final class PdfTextExtractor
             if (
                 !$this->inlineImageEndMarkerAt($stream, $end)
                 && $this->inlineImageTightEndMarkerAt($stream, $end)
-                && $this->inlineImageTightEndCandidateMatchesSampleFloor(
+                && $this->inlineImageTightEndCandidateMatchesBoundary(
                     $dictionary,
                     substr($stream, $dataStart, $end - $dataStart)
                 )
@@ -30591,6 +30591,31 @@ final class PdfTextExtractor
         }
 
         return strlen($candidate) === $sampleFloor;
+    }
+
+    private function inlineImageTightEndCandidateMatchesBoundary(string $dictionary, string $candidate): bool
+    {
+        if ($this->inlineImageTightEndCandidateMatchesSampleFloor($dictionary, $candidate)) {
+            return true;
+        }
+
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters === null || $filters === []) {
+            return false;
+        }
+
+        return (
+            $this->inlineImageUsesDctDecode($filters)
+            && $this->inlineDctCandidateStateForFilters($dictionary, $filters, $candidate) === 'complete'
+        )
+            || (
+                $this->inlineImageUsesJpxDecode($filters)
+                && $this->inlineJpxCandidateStateForFilters($dictionary, $filters, $candidate) === 'complete'
+            )
+            || (
+                $this->inlineImageUsesCcittFaxDecode($filters)
+                && $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate) === 'complete'
+            );
     }
 
     private function inlineImageIncompletePreviewCandidateReachedSampleFloor(string $dictionary, string $candidate): bool

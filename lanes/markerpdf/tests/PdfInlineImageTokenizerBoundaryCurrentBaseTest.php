@@ -310,6 +310,26 @@ $inlineImageTokenizerPreviewFilterChainPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerTightPreviewFilterTerminatorPdf = static function (): string {
+    $dctPayload = "\xff\xd8\xff\xd9";
+    $jpxPayload = "\xff\x4f\xff\xd9";
+    $content = "BT /F1 12 Tf 72 720 Td (Before Tight Preview Filter) Tj ET\n"
+        . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F /DCTDecode ID\n"
+        . $dctPayload . "EI\n"
+        . "BT /F1 12 Tf 72 704 Td (Between Tight Preview Filters) Tj ET\n"
+        . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode ID\n"
+        . $jpxPayload . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (After Tight Preview Filters) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerCcittPdf = static function (string $filter, string $prefix): string {
     $payload = "\x00\x10\x04 EI BT /F1 12 Tf 72 660 Td ({$prefix} Inline Payload Noise) Tj ET rawtail\nEI";
     $content = "BT /F1 12 Tf 72 720 Td (Before {$prefix} Inline) Tj ET\n"
@@ -990,6 +1010,28 @@ return [
         $t->true(!str_contains($plainText, 'Wrapped JBIG2 Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, "\x97JB2"));
+    },
+    'recovers tight DCT and JPX preview-filter terminators before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerTightPreviewFilterTerminatorPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerTightPreviewFilterTerminatorPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Tight Preview Filter',
+            'Between Tight Preview Filters',
+            'After Tight Preview Filters',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Between Tight Preview Filters'));
+        $t->true(str_contains($plainText, 'After Tight Preview Filters'));
+        $t->true(!str_contains($plainText, 'DCTDecode'));
+        $t->true(!str_contains($plainText, 'JPXDecode'));
+        $t->true(!str_contains($plainText, 'EI'));
     },
     'keeps CCITTFax preview-only inline image payload closed across delimiter-looking EI bytes' => static function (TestRunner $t) use ($inlineImageTokenizerCcittPdf): void {
         $extractor = new PdfTextExtractor();

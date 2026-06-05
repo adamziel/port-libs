@@ -62,6 +62,12 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F [/RL /JPXDecode] ID\n"
     . $wrappedJpxPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 640 Td (After Wrapped Preview Filter) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F /DCTDecode ID\n"
+    . "\xff\xd8\xff\xd9" . "EI\n"
+    . "BT /F1 12 Tf 72 639 Td (Between Tight Preview Filters) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode ID\n"
+    . "\xff\x4f\xff\xd9" . "EI\n"
+    . "BT /F1 12 Tf 72 638 Td (After Tight Preview Filters) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x97JB2\r\n\x1a\n EI BT /F1 12 Tf 72 644 Td (JBIG2 Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
@@ -247,7 +253,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, and shading-paint wrapped stray EI inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, and shading-paint wrapped stray EI inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -387,6 +393,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'After JBIG2 Boundary'),
     'wrapped_preview_filter_payload_excluded' => !str_contains($plainText, 'Wrapped JPX Inline Payload Noise')
         && !str_contains($plainText, "\xff\x4f"),
+    'tight_preview_filter_terminators_preserve_following_text' => str_contains($plainText, 'Between Tight Preview Filters')
+        && str_contains($plainText, 'After Tight Preview Filters')
+        && !str_contains($plainText, 'DCTDecode')
+        && !str_contains($plainText, 'JPXDecode'),
     'visible_text_imported' => str_contains($plainText, 'Before Tokenizer Boundary')
         && str_contains($plainText, 'After Real Inline Image'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
