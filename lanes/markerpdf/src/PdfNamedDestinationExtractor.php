@@ -1112,7 +1112,7 @@ final class PdfNamedDestinationExtractor
             return $nodeLimits;
         }
 
-        return [
+        $limits = [
             'lower' => strcmp($nodeLimits['lower'], $inheritedLimits['lower']) < 0
                 ? $inheritedLimits['lower']
                 : $nodeLimits['lower'],
@@ -1120,6 +1120,11 @@ final class PdfNamedDestinationExtractor
                 ? $inheritedLimits['upper']
                 : $nodeLimits['upper'],
         ];
+        if (strcmp($limits['lower'], $limits['upper']) > 0) {
+            return $inheritedLimits;
+        }
+
+        return $limits;
     }
 
     /**
@@ -1138,6 +1143,9 @@ final class PdfNamedDestinationExtractor
         $lower = $this->destinationNameValue($limits[0], $objects, $cache);
         $upper = $this->destinationNameValue($limits[1], $objects, $cache);
         if ($lower === null || $upper === null || $lower === '' || $upper === '') {
+            return null;
+        }
+        if (strcmp($lower, $upper) > 0) {
             return null;
         }
 
