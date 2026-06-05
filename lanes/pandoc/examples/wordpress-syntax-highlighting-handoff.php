@@ -72,6 +72,12 @@ if (!$rubyCodeBlock instanceof PortLibs\Pandoc\AstNode || $rubyCodeBlock->type !
 }
 $ruby = $highlighter->highlightCodeBlock($rubyCodeBlock, 'espresso');
 $rubyWordpressBlock = $highlighter->wordpressHtmlBlock($rubyCodeBlock, 'espresso');
+$luaCodeBlock = $document->children[6] ?? null;
+if (!$luaCodeBlock instanceof PortLibs\Pandoc\AstNode || $luaCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Lua code block');
+}
+$lua = $highlighter->highlightCodeBlock($luaCodeBlock, 'breezedark');
+$luaWordpressBlock = $highlighter->wordpressHtmlBlock($luaCodeBlock, 'breezedark');
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -191,6 +197,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($rubyWordpressBlock, '<span class="dt">JSON</span><span class="op">.</span><span class="fu">parse</span>')) {
         throw new RuntimeException('Expected Ruby constant and method token handoff');
     }
+    if (($lua['language'] ?? '') !== 'lua') {
+        throw new RuntimeException('Expected pandoc-lua alias to normalize to Lua highlighting');
+    }
+    if (($lua['lineNumbering']['start'] ?? null) !== 3) {
+        throw new RuntimeException('Expected Lua source startFrom line-number handoff');
+    }
+    if (!str_contains($lua['html'], '<span class="kw">function</span> <span class="fu">Header</span>')) {
+        throw new RuntimeException('Expected Lua function token handoff');
+    }
+    if (!str_contains($lua['html'], '<span class="dt">pandoc</span><span class="op">.</span><span class="va">utils</span><span class="op">.</span><span class="fu">stringify</span>')) {
+        throw new RuntimeException('Expected Lua pandoc.utils method token handoff');
+    }
+    if (!str_contains($luaWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Lua WordPress style metadata');
+    }
+    if (!str_contains($luaWordpressBlock, '<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Div</span>')) {
+        throw new RuntimeException('Expected Lua pandoc constructor handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -205,5 +229,6 @@ echo "latexHighlightedHtml:\n" . $latex['html'] . "\n";
 echo "diffHighlightedHtml:\n" . $diff['html'] . "\n";
 echo "markdownHighlightedHtml:\n" . $markdown['html'] . "\n";
 echo "rubyHighlightedHtml:\n" . $ruby['html'] . "\n";
+echo "luaHighlightedHtml:\n" . $lua['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";

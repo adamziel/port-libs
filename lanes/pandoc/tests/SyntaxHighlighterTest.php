@@ -42,6 +42,8 @@ return [
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
+        $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
+        $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
@@ -364,6 +366,45 @@ return [
         $t->contains('<span class="dt">JSON</span><span class="op">.</span><span class="fu">parse</span>', $wordpressBlock);
         $t->same('ruby', $rake['language']);
         $t->contains('<span class="fu">task</span> <span class="ot">:import</span> <span class="kw">do</span>', $rake['html']);
+    },
+    'highlights lua filter review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'lua-filter-review',
+            'classes' => ['sourceCode', 'pandoc-lua', 'numberLines'],
+            'attributes' => ['startFrom' => '3'],
+            'text' => implode("\n", [
+                '-- WordPress import Lua filter',
+                'function Header(el)',
+                '  local title = pandoc.utils.stringify(el.content)',
+                '  if el.level == 1 then',
+                '    return pandoc.Div({el}, {class = "import-title"})',
+                '  end',
+                '  return nil',
+                'end',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directLua = (new SyntaxHighlighter())->highlight('return pandoc.Str("ok")', 'lua');
+
+        $t->same('pandoc-lua', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('lua', $highlighted['language']);
+        $t->same('pandoc-lua', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(3, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource pandoc-lua numberLines"><code class="sourceCode lua" style="counter-reset: source-line 2;">', $highlighted['html']);
+        $t->contains('<span id="lua-filter-review-3"><a href="#lua-filter-review-3"></a><span class="co">-- WordPress import Lua filter</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span> <span class="fu">Header</span><span class="op">(</span><span class="va">el</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">local</span> <span class="va">title</span> <span class="op">=</span> <span class="dt">pandoc</span><span class="op">.</span><span class="va">utils</span><span class="op">.</span><span class="fu">stringify</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">el</span><span class="op">.</span><span class="va">level</span> <span class="op">==</span> <span class="dv">1</span> <span class="kw">then</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Div</span><span class="op">({</span><span class="va">el</span><span class="op">},</span> <span class="op">{</span><span class="va">class</span> <span class="op">=</span> <span class="st">&quot;import-title&quot;</span><span class="op">})</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="cn">nil</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="dt">pandoc</span><span class="op">.</span><span class="fu">Div</span>', $wordpressBlock);
+        $t->same('lua', $directLua['language']);
+        $t->contains('<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Str</span><span class="op">(</span><span class="st">&quot;ok&quot;</span><span class="op">)</span>', $directLua['html']);
     },
     'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

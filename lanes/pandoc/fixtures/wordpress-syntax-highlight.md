@@ -64,3 +64,14 @@ module Migration
   end
 end
 ```
+
+``` {.pandoc-lua #lua-filter-review .numberLines startFrom=3}
+-- WordPress import Lua filter
+function Header(el)
+  local title = pandoc.utils.stringify(el.content)
+  if el.level == 1 then
+    return pandoc.Div({el}, {class = "import-title"})
+  end
+  return nil
+end
+```

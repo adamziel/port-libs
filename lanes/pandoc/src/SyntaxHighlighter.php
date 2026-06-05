@@ -40,6 +40,8 @@ final class SyntaxHighlighter
         'lhs' => 'haskell',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
+        'lua' => 'lua',
+        'pandoc-lua' => 'lua',
         'commonmark' => 'markdown',
         'gfm' => 'markdown',
         'markdown' => 'markdown',
@@ -302,6 +304,7 @@ final class SyntaxHighlighter
             'html' => $this->tokenizeHtml($code),
             'javascript' => $this->tokenizeJavaScript($code),
             'json' => $this->tokenizeJson($code),
+            'lua' => $this->tokenizeLua($code),
             'markdown' => $this->tokenizeMarkdown($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
@@ -461,6 +464,28 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*[!?=]?(?=\\s*\\()/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_]*[!?=]?\\b/'],
             ['operator', '/^(?:::|=>|->|===|==|!=|<=|>=|=~|!~|&&|\\|\\||\\.\\.\\.?|\\+=|-=|\\*=|\\/=|%=|[{}()[\\];,.+*\\/%=!<>?:&|^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeLua(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^--\\[\\[[\\s\\S]*?\\]\\]/'],
+            ['comment', '/^--[^\\n]*/'],
+            ['string', '/^\\[\\[[\\s\\S]*?\\]\\]/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:and|break|do|else|elseif|end|for|function|goto|if|in|local|not|or|repeat|return|then|until|while)\\b/'],
+            ['constant', '/^\\b(?:false|nil|true)\\b/'],
+            ['datatype', '/^\\bpandoc\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['function', '/^\\b(?:assert|collectgarbage|dofile|error|getmetatable|ipairs|load|next|pairs|pcall|print|rawequal|rawget|rawlen|rawset|require|select|setmetatable|tonumber|tostring|type|warn|xpcall)\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|\\.\\.|==|~=|<=|>=|::|\\/\\/|[{}()[\\];,.+*\\/%=#<>:-])/'],
         ]);
     }
 
