@@ -773,7 +773,7 @@ final class EpubReader
             ];
         }
 
-        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1 || str_starts_with($href, '//')) {
+        if (self::isExternalReference($href)) {
             return [
                 'target' => $href,
                 'part' => null,
@@ -842,6 +842,38 @@ final class EpubReader
             'encrypted' => is_array($manifestItem) && self::isEncryptedManifestItem($manifestItem),
             'canExposeBytes' => is_array($manifestItem) ? (bool) ($manifestItem['canExposeBytes'] ?? true) : $exists,
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     target:null,
+     *     part:null,
+     *     external:false,
+     *     exists:false,
+     *     byteLength:null,
+     *     crc32:null,
+     *     manifestId:null,
+     *     mediaType:null,
+     *     encrypted:false,
+     *     canExposeBytes:false,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function emptyPackageReference(): array
+    {
+        return [
+            'target' => null,
+            'part' => null,
+            'external' => false,
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'manifestId' => null,
+            'mediaType' => null,
+            'encrypted' => false,
+            'canExposeBytes' => false,
+            'diagnostics' => [],
         ];
     }
 
@@ -915,7 +947,7 @@ final class EpubReader
         foreach (self::navigationElements($dom) as $nav) {
             $types = self::epubTypes($nav);
             $list = self::firstChildElement($nav, 'ol', self::XHTML_NS);
-            $items = $list instanceof \DOMElement ? $this->readNavList($list, (string) $item['part']) : [];
+            $items = $list instanceof \DOMElement ? $this->readNavList($package, $list, (string) $item['part']) : [];
             $section = [
                 'type' => $types[0] ?? null,
                 'types' => $types,
@@ -984,7 +1016,7 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNavList(\DOMElement $list, string $navPart): array
+    private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart): array
     {
         $items = [];
         foreach (self::childElements($list, 'li', self::XHTML_NS) as $li) {
@@ -993,14 +1025,21 @@ final class EpubReader
             $href = $link instanceof \DOMElement ? trim($link->getAttribute('href')) : '';
             $childList = self::firstChildElement($li, 'ol', self::XHTML_NS);
             $types = self::epubTypes($link ?? $label ?? $li);
+            $reference = $href === ''
+                ? self::emptyPackageReference()
+                : $this->packageReference($package, $navPart, $href, [], 'nav');
 
             $items[] = [
                 'title' => $label instanceof \DOMElement ? self::normalizedText($label) : self::normalizedText($li),
                 'href' => $href === '' ? null : $href,
-                'target' => $href === '' ? null : OpcPackagePath::resolveInternalTarget($navPart, $href),
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'diagnostics' => $reference['diagnostics'],
                 'type' => $types[0] ?? null,
                 'types' => $types,
-                'children' => $childList instanceof \DOMElement ? $this->readNavList($childList, $navPart) : [],
+                'children' => $childList instanceof \DOMElement ? $this->readNavList($package, $childList, $navPart) : [],
             ];
         }
 
@@ -1033,14 +1072,14 @@ final class EpubReader
 
         return [
             'part' => (string) $item['part'],
-            'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($navMap, (string) $item['part']) : [],
+            'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part']) : [],
         ];
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNcxPoints(\DOMElement $parent, string $ncxPart): array
+    private function readNcxPoints(ZipPackage $package, \DOMElement $parent, string $ncxPart): array
     {
         $items = [];
         foreach (self::childElements($parent, 'navPoint', self::NCX_NS) as $point) {
@@ -1050,14 +1089,21 @@ final class EpubReader
                 : null;
             $content = self::firstChildElement($point, 'content', self::NCX_NS);
             $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
+            $reference = $src === ''
+                ? self::emptyPackageReference()
+                : $this->packageReference($package, $ncxPart, $src, [], 'ncx');
 
             $items[] = [
                 'id' => self::nullableAttribute($point, 'id'),
                 'playOrder' => self::nullableAttribute($point, 'playOrder'),
                 'title' => $label instanceof \DOMElement ? self::normalizedText($label) : '',
                 'href' => $src === '' ? null : $src,
-                'target' => $src === '' ? null : OpcPackagePath::resolveInternalTarget($ncxPart, $src),
-                'children' => $this->readNcxPoints($point, $ncxPart),
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'diagnostics' => $reference['diagnostics'],
+                'children' => $this->readNcxPoints($package, $point, $ncxPart),
             ];
         }
 
@@ -1151,6 +1197,7 @@ final class EpubReader
 
         $textRef = null;
         $textRefTarget = null;
+        $textRefReference = null;
         $items = [];
         if (
             ($item['exists'] ?? false) === true
@@ -1166,7 +1213,8 @@ final class EpubReader
             $body = self::firstChildElement($root, 'body', self::SMIL_NS) ?? $root;
             $textRef = self::firstSmilTextRef($body);
             if ($textRef !== null) {
-                $textRefTarget = $this->smilReference($package, (string) $item['part'], $textRef)['target'];
+                $textRefReference = $this->smilReference($package, (string) $item['part'], $textRef);
+                $textRefTarget = $textRefReference['target'];
             }
             $items = $this->readSmilOverlayItems($package, $body, (string) $item['part'], $textRefTarget);
         }
@@ -1183,6 +1231,8 @@ final class EpubReader
             'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? true),
             'textRef' => $textRef,
             'textRefTarget' => $textRefTarget,
+            'textRefExternal' => $textRefReference['external'] ?? false,
+            'textRefDiagnostics' => $textRefReference['diagnostics'] ?? [],
             'items' => $items,
             'diagnostics' => $diagnostics,
         ];
@@ -1237,10 +1287,12 @@ final class EpubReader
             'textSrc' => $textSrc,
             'textTarget' => $textReference['target'],
             'textPart' => $textReference['part'],
+            'textExternal' => $textReference['external'],
             'textExists' => $textReference['exists'],
             'audioSrc' => $audioSrc,
             'audioTarget' => $audioReference['target'],
             'audioPart' => $audioReference['part'],
+            'audioExternal' => $audioReference['external'],
             'audioExists' => $audioReference['exists'],
             'audioByteLength' => $audioReference['byteLength'],
             'audioCrc32' => $audioReference['crc32'],
@@ -1251,7 +1303,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{target:?string, part:?string, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     * @return array{target:?string, part:?string, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
      */
     private function smilReference(ZipPackage $package, string $basePart, ?string $src): array
     {
@@ -1260,12 +1312,29 @@ final class EpubReader
             return self::emptySmilReference(null);
         }
 
+        if (self::isExternalReference($src)) {
+            return [
+                'target' => $src,
+                'part' => null,
+                'external' => true,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'diagnostics' => [[
+                    'type' => 'external-media-overlay-reference',
+                    'src' => $src,
+                    'message' => 'EPUB media-overlay reference points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
         try {
             $target = OpcPackagePath::resolveInternalTarget($basePart, $src);
         } catch (\InvalidArgumentException $exception) {
             return [
                 'target' => null,
                 'part' => null,
+                'external' => false,
                 'exists' => false,
                 'byteLength' => null,
                 'crc32' => null,
@@ -1284,6 +1353,7 @@ final class EpubReader
         return [
             'target' => $target,
             'part' => $part,
+            'external' => false,
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
             'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
@@ -1297,13 +1367,16 @@ final class EpubReader
     }
 
     /**
-     * @return array{target:?string, part:?string, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     * @return array{target:?string, part:?string, external:bool, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
      */
     private static function emptySmilReference(?string $target): array
     {
+        $external = is_string($target) && self::isExternalReference($target);
+
         return [
             'target' => $target,
-            'part' => $target === null ? null : OpcPackagePath::stripQueryAndFragment($target),
+            'part' => $target === null || $external ? null : OpcPackagePath::stripQueryAndFragment($target),
+            'external' => $external,
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
@@ -1506,6 +1579,12 @@ final class EpubReader
         return $textRef === '' ? null : $textRef;
     }
 
+    private static function isExternalReference(string $reference): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $reference) === 1
+            || str_starts_with($reference, '//');
+    }
+
     private static function firstSmilTextRef(\DOMElement $element): ?string
     {
         $textRef = self::smilTextRef($element);
@@ -1559,7 +1638,7 @@ final class EpubReader
 
     private static function encryptionCipherPart(string $uri): string
     {
-        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1) {
+        if (self::isExternalReference($uri)) {
             throw new \InvalidArgumentException('EPUB encryption CipherReference URI must be package-relative');
         }
 

@@ -60,6 +60,7 @@ $navXhtml = <<<'XML'
     <nav epub:type="toc">
       <ol>
         <li><a href="text/chapter.xhtml#source">Source chapter</a></li>
+        <li><a href="https://cdn.example.test/epub/source-note.html">Remote source note</a></li>
       </ol>
     </nav>
     <nav epub:type="landmarks">
@@ -98,6 +99,10 @@ $smilXml = <<<'XML'
         <text src="../text/chapter.xhtml#page-1"/>
         <audio src="../audio/chapter.mp3" clipBegin="0:00:04.250" clipEnd="0:00:05.000"/>
       </par>
+      <par id="remote-audio" epub:type="annotation">
+        <text src="../text/chapter.xhtml#source"/>
+        <audio src="https://cdn.example.test/audio/source-note.mp3" clipBegin="0:00:05.000" clipEnd="0:00:08.000"/>
+      </par>
     </seq>
   </body>
 </smil>
@@ -109,6 +114,10 @@ $ncxXml = <<<'XML'
     <navPoint id="source" playOrder="1">
       <navLabel><text>Source chapter</text></navLabel>
       <content src="text/chapter.xhtml#source"/>
+    </navPoint>
+    <navPoint id="remote-note" playOrder="2">
+      <navLabel><text>Remote source note</text></navLabel>
+      <content src="https://cdn.example.test/epub/source-note.html"/>
     </navPoint>
   </navMap>
 </ncx>
@@ -154,8 +163,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['nav']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB nav href to resolve to the chapter fragment');
     }
+    if (($result['nav']['items'][1]['external'] ?? null) !== true || ($result['nav']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'external-nav-reference') {
+        throw new RuntimeException('Expected remote EPUB nav reference to stay unfetched for review');
+    }
     if (($result['ncx']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected NCX content src to resolve to the chapter fragment');
+    }
+    if (($result['ncx']['items'][1]['external'] ?? null) !== true || ($result['ncx']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'external-ncx-reference') {
+        throw new RuntimeException('Expected remote NCX reference to stay unfetched for review');
     }
     if (($result['nav']['landmarks'][0]['type'] ?? null) !== 'bodymatter') {
         throw new RuntimeException('Expected EPUB nav landmarks to preserve item type');
@@ -190,6 +205,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['mediaOverlays']['mo-chapter']['items'][1]['textTarget'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
         throw new RuntimeException('Expected EPUB media-overlay page marker to stay addressable for review');
     }
+    if (($result['mediaOverlays']['mo-chapter']['items'][2]['audioExternal'] ?? null) !== true || ($result['mediaOverlays']['mo-chapter']['items'][2]['diagnostics'][0]['type'] ?? null) !== 'external-media-overlay-reference') {
+        throw new RuntimeException('Expected remote EPUB media-overlay audio to stay unfetched for review');
+    }
     $foundEncryptedFont = false;
     foreach ($result['assets'] as $asset) {
         if ($asset['id'] === 'font-main' && (($asset['encrypted'] ?? false) !== true || ($asset['canExposeBytes'] ?? true) !== false)) {
@@ -216,6 +234,7 @@ echo 'identifier=' . $result['metadata']['identifier'] . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
+echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
 echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
@@ -225,5 +244,6 @@ echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target']
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
+echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['audioTarget'] ?? '') . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

@@ -157,19 +157,58 @@ $smilXml = <<<'XML'
 </smil>
 XML;
 
+$remoteNavXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Imported packet</a></li>
+        <li><a href="https://cdn.example.test/epub/source-note.html">Remote audit record</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+$remoteNcxXml = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="navpoint-remote" playOrder="1">
+      <navLabel><text>Remote appendix</text></navLabel>
+      <content src="https://cdn.example.test/epub/appendix.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+
+$remoteSmilXml = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <seq id="remote-overlay" epub:textref="https://cdn.example.test/remote/chapter.xhtml">
+      <par id="remote-audio" epub:type="bodymatter">
+        <text src="https://cdn.example.test/remote/chapter.xhtml#intro"/>
+        <audio src="https://cdn.example.test/audio/chapter.mp3" clipBegin="0:00:01.000" clipEnd="0:00:04.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+
 $buildEpubPackage = static function (
     ?string $overrideOpfXml = null,
     ?string $overrideContainerXml = null,
-    array $extraParts = []
+    array $extraParts = [],
+    ?string $overrideNavXhtml = null,
+    ?string $overrideNcxXml = null
 ) use ($containerXml, $opfXml, $navXhtml, $chapter1Xhtml, $chapter2Xhtml, $ncxXml): ZipPackage {
     return ZipPackage::fromParts(array_merge([
         ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
         ['name' => 'META-INF/container.xml', 'data' => $overrideContainerXml ?? $containerXml],
         ['name' => 'OEBPS/package.opf', 'data' => $overrideOpfXml ?? $opfXml],
-        ['name' => 'OEBPS/nav.xhtml', 'data' => $navXhtml],
+        ['name' => 'OEBPS/nav.xhtml', 'data' => $overrideNavXhtml ?? $navXhtml],
         ['name' => 'OEBPS/text/chapter1.xhtml', 'data' => $chapter1Xhtml],
         ['name' => 'OEBPS/text/chapter2.xhtml', 'data' => $chapter2Xhtml],
-        ['name' => 'OEBPS/toc.ncx', 'data' => $ncxXml],
+        ['name' => 'OEBPS/toc.ncx', 'data' => $overrideNcxXml ?? $ncxXml],
         ['name' => 'OEBPS/styles/book.css', 'data' => 'body { color: #222; }'],
         ['name' => 'OEBPS/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
     ], $extraParts));
@@ -426,6 +465,53 @@ return [
         $t->same('mo-chapter-1', $result['xhtmlAssets'][1]['mediaOverlay']);
         $t->same('mo-chapter-1', $result['document']->children[0]->attr('mediaOverlay'));
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
+    },
+    'retains remote nav NCX and media-overlay references without fetching' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $remoteNavXhtml, $remoteNcxXml, $remoteSmilXml): void {
+        $opfWithOverlay = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter-1"/><item id="mo-chapter-1" href="overlays/chapter1.smil" media-type="application/smil+xml"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlay,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/chapter1.smil', 'data' => $remoteSmilXml],
+            ],
+            $remoteNavXhtml,
+            $remoteNcxXml
+        ));
+
+        $remoteNavItem = $result['nav']['items'][1];
+        $t->same('Remote audit record', $remoteNavItem['title']);
+        $t->same('https://cdn.example.test/epub/source-note.html', $remoteNavItem['target']);
+        $t->same(true, $remoteNavItem['external']);
+        $t->same(null, $remoteNavItem['part']);
+        $t->same(false, $remoteNavItem['exists']);
+        $t->same('external-nav-reference', $remoteNavItem['diagnostics'][0]['type']);
+
+        $remoteNcxItem = $result['ncx']['items'][0];
+        $t->same('Remote appendix', $remoteNcxItem['title']);
+        $t->same('https://cdn.example.test/epub/appendix.xhtml', $remoteNcxItem['target']);
+        $t->same(true, $remoteNcxItem['external']);
+        $t->same(null, $remoteNcxItem['part']);
+        $t->same(false, $remoteNcxItem['exists']);
+        $t->same('external-ncx-reference', $remoteNcxItem['diagnostics'][0]['type']);
+
+        $overlay = $result['mediaOverlays']['mo-chapter-1'];
+        $t->same('https://cdn.example.test/remote/chapter.xhtml', $overlay['textRefTarget']);
+        $t->same(true, $overlay['textRefExternal']);
+        $t->same('external-media-overlay-reference', $overlay['textRefDiagnostics'][0]['type']);
+        $t->same(1, count($overlay['items']));
+        $t->same('https://cdn.example.test/remote/chapter.xhtml#intro', $overlay['items'][0]['textTarget']);
+        $t->same(true, $overlay['items'][0]['textExternal']);
+        $t->same('https://cdn.example.test/audio/chapter.mp3', $overlay['items'][0]['audioTarget']);
+        $t->same(true, $overlay['items'][0]['audioExternal']);
+        $t->same(false, $overlay['items'][0]['audioExists']);
+        $t->same('external-media-overlay-reference', $overlay['items'][0]['diagnostics'][0]['type']);
+        $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
+        $t->same(2, count($result['document']->children));
     },
     'rejects malformed EPUB packages before conversion handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $opfXml): void {
         $reader = new EpubReader();
