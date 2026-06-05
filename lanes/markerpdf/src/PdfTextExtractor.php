@@ -10181,6 +10181,10 @@ final class PdfTextExtractor
                 return ['state' => 'blocked'];
             }
 
+            if ($this->objectBodyIsStreamObject($objectBody)) {
+                return ['state' => 'blocked'];
+            }
+
             if (trim($objectBody) === 'null') {
                 return ['state' => 'inherit'];
             }
@@ -10220,7 +10224,11 @@ final class PdfTextExtractor
             $objectNumber = (int) $match[1];
             $generation = (int) $match[2];
             $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-            return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
+            if ($objectBody === null || $this->objectBodyIsStreamObject($objectBody)) {
+                return null;
+            }
+
+            return $this->dictionaryObjectBody($objectBody);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
@@ -11674,6 +11682,18 @@ final class PdfTextExtractor
     {
         $offset = strpos($objectBody, '<<');
         return $offset === false ? null : $this->readPdfDictionaryAt($objectBody, $offset);
+    }
+
+    private function objectBodyIsStreamObject(string $objectBody): bool
+    {
+        $offset = $this->skipPdfWhitespace($objectBody, 0);
+        $dictionaryEnd = $offset;
+        if ($this->readPdfDictionaryTokenAt($objectBody, $dictionaryEnd) === null) {
+            return false;
+        }
+
+        $streamOffset = $this->skipPdfWhitespace($objectBody, $dictionaryEnd);
+        return $this->pdfKeywordAt($objectBody, $streamOffset, 'stream');
     }
 
     private function readPdfDictionaryAt(string $value, int $offset): ?string

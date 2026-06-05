@@ -1325,6 +1325,20 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
+            $resourceReference = $this->objectReferenceFromValue($resourceValue);
+            if (
+                $resourceReference !== null
+                && isset($objects[$resourceReference['objectNumber']])
+                && ($this->currentObjectGenerations[$resourceReference['objectNumber']] ?? null) === $resourceReference['generation']
+                && $this->objectBodyIsStreamObject($objects[$resourceReference['objectNumber']])
+            ) {
+                return $this->malformedPageResourcesMetadata(
+                    $pageObjectNumber,
+                    $objectNumber,
+                    $resourceValue
+                );
+            }
+
             $resources = $this->resolveDictionaryFromValue($resourceValue, $objects);
             if ($resources === null) {
                 return $this->malformedPageResourcesMetadata(
@@ -2376,6 +2390,34 @@ final class PdfPagePropertyExtractor
 
         $dictionary = $this->readPdfDictionaryAt($objectBody, $offset);
         return $dictionary === null ? null : $dictionary['body'];
+    }
+
+    private function objectBodyIsStreamObject(string $objectBody): bool
+    {
+        $dictionaryOffset = $this->skipWhitespace($objectBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $streamOffset = $this->skipWhitespace($objectBody, $dictionary['end']);
+        return $this->pdfKeywordAt($objectBody, $streamOffset, 'stream');
+    }
+
+    private function pdfKeywordAt(string $value, int $offset, string $keyword): bool
+    {
+        $keywordLength = strlen($keyword);
+        if (substr($value, $offset, $keywordLength) !== $keyword) {
+            return false;
+        }
+
+        $afterOffset = $offset + $keywordLength;
+        if ($afterOffset >= strlen($value)) {
+            return true;
+        }
+
+        $after = $value[$afterOffset];
+        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
     }
 
     private function dictionaryRawValue(string $dictionary, string $key): ?string
