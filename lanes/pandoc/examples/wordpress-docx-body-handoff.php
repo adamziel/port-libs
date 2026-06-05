@@ -57,6 +57,7 @@ XML],
   xmlns:v="urn:schemas-microsoft-com:vml"
   xmlns:o="urn:schemas-microsoft-com:office:office"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
   xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -118,6 +119,19 @@ XML],
         <w:r><w:rPr><w:i/></w:rPr><w:t>Policy update</w:t></w:r>
       </w:customXml>
       <w:r><w:t xml:space="preserve"> remains auditable.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Compatibility branch </w:t></w:r>
+      <mc:AlternateContent>
+        <mc:Choice Requires="w14"><w:r><w:t>unsupported reviewer text</w:t></w:r></mc:Choice>
+        <mc:Fallback><w:r><w:t>fallback reviewer text</w:t></w:r></mc:Fallback>
+      </mc:AlternateContent>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <mc:AlternateContent>
+        <mc:Choice Requires="w"><w:r><w:rPr><w:b/></w:rPr><w:t>supported reviewer branch</w:t></w:r></mc:Choice>
+        <mc:Fallback><w:r><w:t>unused reviewer fallback</w:t></w:r></mc:Fallback>
+      </mc:AlternateContent>
+      <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:customXml w:uri="https://example.test/docx/custom" w:element="review-section">
       <w:customXmlPr>
@@ -431,6 +445,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
         '<span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Migration Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Migration Desk</strong></span>',
         '<span class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="packet-category" data-docx-custom-xml-prop-source-field="category" data-docx-custom-xml-prop-source-field-uri="https://example.test/docx/custom" data-docx-custom-xml-prop-review-id="packet-42"><em>Policy update</em></span>',
+        '<p>Compatibility branch fallback reviewer text and <strong>supported reviewer branch</strong>.</p>',
         '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Textbox lead </p>',
@@ -467,6 +482,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, '_GoBack')) {
         throw new RuntimeException('DOCX body handoff self-test rendered dummy Word return bookmark');
+    }
+    if (str_contains($blocks, 'unsupported reviewer text') || str_contains($blocks, 'unused reviewer fallback')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered unselected AlternateContent branch');
     }
 
     echo "docx body handoff self-test ok\n";

@@ -749,6 +749,52 @@ $textboxDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$alternateContentDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:body>
+    <mc:AlternateContent>
+      <mc:Choice Requires="w14">
+        <w:p><w:r><w:t>Unsupported choice paragraph.</w:t></w:r></w:p>
+      </mc:Choice>
+      <mc:Fallback>
+        <w:p><w:r><w:t>Fallback paragraph from compatibility markup.</w:t></w:r></w:p>
+      </mc:Fallback>
+    </mc:AlternateContent>
+    <mc:AlternateContent>
+      <mc:Choice Requires="w">
+        <w:p><w:r><w:t>Supported WordprocessingML choice paragraph.</w:t></w:r></w:p>
+      </mc:Choice>
+      <mc:Fallback>
+        <w:p><w:r><w:t>Unused fallback paragraph.</w:t></w:r></w:p>
+      </mc:Fallback>
+    </mc:AlternateContent>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Inline </w:t></w:r>
+      <mc:AlternateContent>
+        <mc:Choice Requires="w14"><w:r><w:t>unsupported inline</w:t></w:r></mc:Choice>
+        <mc:Fallback><w:r><w:t>fallback inline</w:t></w:r></mc:Fallback>
+      </mc:AlternateContent>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <mc:AlternateContent>
+        <mc:Choice Requires="w"><w:r><w:rPr><w:b/></w:rPr><w:t>supported inline</w:t></w:r></mc:Choice>
+        <mc:Fallback><w:r><w:t>unused inline</w:t></w:r></mc:Fallback>
+      </mc:AlternateContent>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <mc:AlternateContent>
+          <mc:Choice Requires="w14"><w:t>unsupported run text</w:t></mc:Choice>
+          <mc:Fallback><w:t>run fallback text</w:t></mc:Fallback>
+        </mc:AlternateContent>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $symbolRunDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1035,6 +1081,14 @@ $buildTextboxPackage = static function () use ($contentTypesXml, $packageRelatio
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $textboxDocumentXml],
+    ]);
+};
+
+$buildAlternateContentPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $alternateContentDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $alternateContentDocumentXml],
     ]);
 };
 
@@ -1954,6 +2008,37 @@ return [
         $t->contains('<p> after textbox.</p>', $blocks);
         $t->contains('<p>Fallback textbox note</p>', $blocks);
         $t->contains('<p> final text.</p>', $blocks);
+    },
+    'selects DOCX markup compatibility alternate content in body and run contexts' => static function (TestRunner $t) use ($buildAlternateContentPackage): void {
+        $document = (new DocxReader())->readDocument($buildAlternateContentPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('Fallback paragraph from compatibility markup.', $document->children[0]->children[0]->attr('text'));
+        $t->same('Supported WordprocessingML choice paragraph.', $document->children[1]->children[0]->attr('text'));
+
+        $paragraph = $document->children[2];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Inline fallback inline and ', $paragraph->children[0]->attr('text'));
+        $t->same('strong', $paragraph->children[1]->type);
+        $t->same('supported inline', $paragraph->children[1]->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[2]->attr('text'));
+        $t->same('run fallback text', $document->children[3]->children[0]->attr('text'));
+
+        $t->contains('Fallback paragraph from compatibility markup.', $markdown);
+        $t->contains('Supported WordprocessingML choice paragraph.', $markdown);
+        $t->contains('Inline fallback inline and **supported inline**.', $markdown);
+        $t->contains('run fallback text', $markdown);
+        $t->true(!str_contains($markdown, 'Unsupported choice paragraph'), 'Unsupported DOCX mc:Choice text should not render to Markdown');
+        $t->true(!str_contains($markdown, 'unused inline'), 'Unused DOCX mc:Fallback text should not render to Markdown when a supported choice exists');
+
+        $t->contains('<p>Fallback paragraph from compatibility markup.</p>', $blocks);
+        $t->contains('<p>Supported WordprocessingML choice paragraph.</p>', $blocks);
+        $t->contains('<p>Inline fallback inline and <strong>supported inline</strong>.</p>', $blocks);
+        $t->contains('<p>run fallback text</p>', $blocks);
+        $t->true(!str_contains($blocks, 'Unsupported choice paragraph'), 'Unsupported DOCX mc:Choice text should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, 'unused inline'), 'Unused DOCX mc:Fallback text should not render to WordPress blocks when a supported choice exists');
     },
     'decodes DOCX symbol font runs into Unicode text' => static function (TestRunner $t) use ($buildSymbolRunPackage): void {
         $document = (new DocxReader())->readDocument($buildSymbolRunPackage());

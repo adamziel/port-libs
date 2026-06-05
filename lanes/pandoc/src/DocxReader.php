@@ -914,6 +914,15 @@ final class DocxReader
                 continue;
             }
 
+            if ($this->isMarkupCompatibilityElement($child, 'AlternateContent')) {
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
+                array_push(
+                    $blocks,
+                    ...$this->alternateContentBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering)
+                );
+                continue;
+            }
+
             if ($this->isWordElement($child, 'p')) {
                 $paragraphHasTextboxRuns = $this->paragraphHasTextboxRuns($child);
                 $paragraphBlocks = $this->paragraphBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering, $activeCommentRangeId);
@@ -976,6 +985,28 @@ final class DocxReader
         $this->appendListParagraphs($blocks, $pendingListParagraphs);
 
         return $blocks;
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function alternateContentBlocks(
+        \DOMElement $alternateContent,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $selection = $this->alternateContentSelection($alternateContent);
+        if (!$selection instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->blockContainerChildren($selection, $package, $relationships, $referencedNotes, $styles, $numbering);
     }
 
     /**
@@ -1166,6 +1197,56 @@ final class DocxReader
         }
 
         return null;
+    }
+
+    private function alternateContentSelection(\DOMElement $alternateContent): ?\DOMElement
+    {
+        foreach ($alternateContent->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $this->isMarkupCompatibilityElement($child, 'Choice')
+                && $this->supportsAlternateContentChoice($child)
+            ) {
+                return $child;
+            }
+        }
+
+        return $this->firstChildElement($alternateContent, self::MARKUP_COMPATIBILITY_NS, 'Fallback');
+    }
+
+    private function supportsAlternateContentChoice(\DOMElement $choice): bool
+    {
+        $requires = trim($choice->getAttribute('Requires'));
+        if ($requires === '') {
+            return false;
+        }
+
+        foreach (preg_split('/\s+/', $requires) ?: [] as $prefix) {
+            if ($prefix === '' || preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $prefix) !== 1) {
+                return false;
+            }
+
+            $namespace = $choice->lookupNamespaceURI($prefix);
+            if ($namespace === null || !$this->supportsMarkupCompatibilityNamespace($namespace)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function supportsMarkupCompatibilityNamespace(string $namespace): bool
+    {
+        return in_array($namespace, [
+            self::WORDPROCESSINGML_NS,
+            self::DRAWINGML_MAIN_NS,
+            self::DRAWINGML_PICTURE_NS,
+            self::WORDPROCESSING_DRAWING_NS,
+            self::OFFICE_RELATIONSHIPS_NS,
+            self::OFFICE_MATH_NS,
+            self::VML_NS,
+            self::OFFICE_VML_NS,
+        ], true);
     }
 
     /**
@@ -1460,6 +1541,10 @@ final class DocxReader
             return $this->simpleFieldNodes($element, $package, $relationships, $referencedNotes);
         }
 
+        if ($this->isMarkupCompatibilityElement($element, 'AlternateContent')) {
+            return $this->alternateContentInlineNodes($element, $package, $relationships, $referencedNotes);
+        }
+
         if ($this->isMathElement($element, 'oMath')) {
             return $this->mathNodes($element, false);
         }
@@ -1493,6 +1578,43 @@ final class DocxReader
         }
 
         return [];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function alternateContentInlineNodes(
+        \DOMElement $alternateContent,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): array {
+        $selection = $this->alternateContentSelection($alternateContent);
+        if (!$selection instanceof \DOMElement) {
+            return [];
+        }
+
+        $nodes = [];
+        foreach ($selection->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'drawing')) {
+                array_push($nodes, ...$this->drawingNodes($child, $package, $relationships));
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'pict')) {
+                array_push($nodes, ...$this->vmlImageNodes($child, $package, $relationships));
+                continue;
+            }
+
+            array_push($nodes, ...$this->inlineNodes($child, $package, $relationships, $referencedNotes));
+        }
+
+        return $this->coalesceTextNodes($nodes);
     }
 
     /**
@@ -1879,79 +2001,122 @@ final class DocxReader
     {
         $nodes = [];
         foreach ($run->childNodes as $child) {
-            if (!$child instanceof \DOMElement || $this->isWordElement($child, 'rPr')) {
-                continue;
-            }
-
-            if ($this->isWordElement($child, 't') || $this->isWordElement($child, 'delText')) {
-                $nodes[] = new AstNode('text', ['text' => $child->textContent]);
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'tab')) {
-                $nodes[] = new AstNode('text', ['text' => "\t"]);
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'br')) {
-                $nodes[] = new AstNode('linebreak');
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'softHyphen')) {
-                $nodes[] = new AstNode('text', ['text' => "\u{00AD}"]);
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'noBreakHyphen')) {
-                $nodes[] = new AstNode('text', ['text' => "\u{2011}"]);
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'sym')) {
-                $symbol = $this->symbolText($child);
-                if ($symbol !== '') {
-                    $nodes[] = new AstNode('text', ['text' => $symbol]);
-                }
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'footnoteReference')) {
-                $this->appendReferencedNote($nodes, $referencedNotes, 'footnote', $child);
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'endnoteReference')) {
-                $this->appendReferencedNote($nodes, $referencedNotes, 'endnote', $child);
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'commentReference')) {
-                $this->appendReferencedNote($nodes, $referencedNotes, 'comment', $child);
-                continue;
-            }
-
-            if ($this->isMathElement($child, 'oMath')) {
-                array_push($nodes, ...$this->mathNodes($child, false));
-                continue;
-            }
-
-            if ($this->isMathElement($child, 'oMathPara')) {
-                array_push($nodes, ...$this->mathNodes($child, true));
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'drawing')) {
-                array_push($nodes, ...$this->drawingNodes($child, $package, $relationships));
-                continue;
-            }
-
-            if ($this->isWordElement($child, 'pict')) {
-                array_push($nodes, ...$this->vmlImageNodes($child, $package, $relationships));
-            }
+            array_push($nodes, ...$this->runChildNodes($child, $package, $relationships, $referencedNotes));
         }
 
         return $this->applyRunStyle($run, $this->coalesceTextNodes($nodes));
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function runChildNodes(\DOMNode $child, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
+    {
+        if (!$child instanceof \DOMElement || $this->isWordElement($child, 'rPr')) {
+            return [];
+        }
+
+        if ($this->isMarkupCompatibilityElement($child, 'AlternateContent')) {
+            return $this->alternateContentRunNodes($child, $package, $relationships, $referencedNotes);
+        }
+
+        if ($this->isWordElement($child, 't') || $this->isWordElement($child, 'delText')) {
+            return [new AstNode('text', ['text' => $child->textContent])];
+        }
+
+        if ($this->isWordElement($child, 'tab')) {
+            return [new AstNode('text', ['text' => "\t"])];
+        }
+
+        if ($this->isWordElement($child, 'br')) {
+            return [new AstNode('linebreak')];
+        }
+
+        if ($this->isWordElement($child, 'softHyphen')) {
+            return [new AstNode('text', ['text' => "\u{00AD}"])];
+        }
+
+        if ($this->isWordElement($child, 'noBreakHyphen')) {
+            return [new AstNode('text', ['text' => "\u{2011}"])];
+        }
+
+        if ($this->isWordElement($child, 'sym')) {
+            $symbol = $this->symbolText($child);
+
+            return $symbol === '' ? [] : [new AstNode('text', ['text' => $symbol])];
+        }
+
+        if ($this->isWordElement($child, 'footnoteReference')) {
+            $nodes = [];
+            $this->appendReferencedNote($nodes, $referencedNotes, 'footnote', $child);
+
+            return $nodes;
+        }
+
+        if ($this->isWordElement($child, 'endnoteReference')) {
+            $nodes = [];
+            $this->appendReferencedNote($nodes, $referencedNotes, 'endnote', $child);
+
+            return $nodes;
+        }
+
+        if ($this->isWordElement($child, 'commentReference')) {
+            $nodes = [];
+            $this->appendReferencedNote($nodes, $referencedNotes, 'comment', $child);
+
+            return $nodes;
+        }
+
+        if ($this->isMathElement($child, 'oMath')) {
+            return $this->mathNodes($child, false);
+        }
+
+        if ($this->isMathElement($child, 'oMathPara')) {
+            return $this->mathNodes($child, true);
+        }
+
+        if ($this->isWordElement($child, 'drawing')) {
+            return $this->drawingNodes($child, $package, $relationships);
+        }
+
+        if ($this->isWordElement($child, 'pict')) {
+            return $this->vmlImageNodes($child, $package, $relationships);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function alternateContentRunNodes(
+        \DOMElement $alternateContent,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): array {
+        $selection = $this->alternateContentSelection($alternateContent);
+        if (!$selection instanceof \DOMElement) {
+            return [];
+        }
+
+        $nodes = [];
+        foreach ($selection->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'r')) {
+                array_push($nodes, ...$this->runNodes($child, $package, $relationships, $referencedNotes));
+                continue;
+            }
+
+            array_push($nodes, ...$this->runChildNodes($child, $package, $relationships, $referencedNotes));
+        }
+
+        return $this->coalesceTextNodes($nodes);
     }
 
     private function symbolText(\DOMElement $symbol): string
@@ -3607,6 +3772,11 @@ final class DocxReader
     private function isWordElement(\DOMElement $element, string $localName): bool
     {
         return $element->namespaceURI === self::WORDPROCESSINGML_NS && $element->localName === $localName;
+    }
+
+    private function isMarkupCompatibilityElement(\DOMElement $element, string $localName): bool
+    {
+        return $element->namespaceURI === self::MARKUP_COMPATIBILITY_NS && $element->localName === $localName;
     }
 
     private function isMathElement(\DOMElement $element, string $localName): bool
