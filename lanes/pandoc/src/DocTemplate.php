@@ -425,16 +425,22 @@ final class DocTemplate
 
             $ifVariable = $this->controlVariable($directive, 'if');
             if ($ifVariable !== null) {
-                [$rendered, $nextIndex] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialStack);
+                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialStack);
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
+                if ($skipFollowingLineEnding) {
+                    $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
+                }
                 $index = $nextIndex - 1;
                 continue;
             }
 
             $forVariable = $this->controlVariable($directive, 'for');
             if ($forVariable !== null) {
-                [$rendered, $nextIndex] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialStack);
+                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialStack);
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
+                if ($skipFollowingLineEnding) {
+                    $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
+                }
                 $index = $nextIndex - 1;
                 continue;
             }
@@ -462,33 +468,45 @@ final class DocTemplate
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
-     * @return array{0:string, 1:int}
+     * @return array{0:string, 1:int, 2:bool}
      */
     private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context, array $partials, array $partialStack): array
     {
-        [$branches, $nextIndex] = $this->collectIfBranches($tokens, $start, $end, $firstVariable);
+        [$branches, $nextIndex, $blockMultiline] = $this->collectIfBranches($tokens, $start, $end, $firstVariable);
 
         foreach ($branches as $branch) {
             if ($branch['variable'] === null || $this->isTruthy($this->resolveExpression($branch['variable'], $context)['value'])) {
                 return [
-                    $this->renderRange($tokens, $branch['start'], $branch['end'], $context, $partials, $partialStack),
+                    $this->renderRangeDroppingLeadingLineEnding(
+                        $tokens,
+                        $branch['start'],
+                        $branch['end'],
+                        $context,
+                        $partials,
+                        $partialStack,
+                        $branch['trimLeadingLineEnding'],
+                    ),
                     $nextIndex,
+                    $blockMultiline,
                 ];
             }
         }
 
-        return ['', $nextIndex];
+        return ['', $nextIndex, $blockMultiline];
     }
 
     /**
      * @param list<array{type:string, value:string}> $tokens
-     * @return array{0:list<array{variable:?string, start:int, end:int}>, 1:int}
+     * @return array{0:list<array{variable:?string, start:int, end:int, trimLeadingLineEnding:bool}>, 1:int, 2:bool}
      */
     private function collectIfBranches(array $tokens, int $start, int $end, string $firstVariable): array
     {
         $branches = [];
         $branchVariable = $firstVariable;
         $branchStart = $start;
+        $blockMultiline = $this->tokenStartsWithLineEnding($tokens, $start, $end);
+        $branchTrimLeadingLineEnding = $blockMultiline;
+        $currentControlMultiline = $blockMultiline;
         $depth = 0;
 
         for ($index = $start; $index < $end; $index++) {
@@ -514,9 +532,10 @@ final class DocTemplate
                         'variable' => $branchVariable,
                         'start' => $branchStart,
                         'end' => $index,
+                        'trimLeadingLineEnding' => $branchTrimLeadingLineEnding,
                     ];
 
-                    return [$branches, $index + 1];
+                    return [$branches, $index + 1, $blockMultiline];
                 }
 
                 throw new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}");
@@ -532,9 +551,12 @@ final class DocTemplate
                     'variable' => $branchVariable,
                     'start' => $branchStart,
                     'end' => $index,
+                    'trimLeadingLineEnding' => $branchTrimLeadingLineEnding,
                 ];
                 $branchVariable = $elseifVariable;
                 $branchStart = $index + 1;
+                $branchTrimLeadingLineEnding = $this->tokenStartsWithLineEnding($tokens, $branchStart, $end);
+                $currentControlMultiline = $branchTrimLeadingLineEnding;
                 continue;
             }
 
@@ -543,9 +565,11 @@ final class DocTemplate
                     'variable' => $branchVariable,
                     'start' => $branchStart,
                     'end' => $index,
+                    'trimLeadingLineEnding' => $branchTrimLeadingLineEnding,
                 ];
                 $branchVariable = null;
                 $branchStart = $index + 1;
+                $branchTrimLeadingLineEnding = $currentControlMultiline;
             }
         }
 
@@ -557,11 +581,11 @@ final class DocTemplate
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
-     * @return array{0:string, 1:int}
+     * @return array{0:string, 1:int, 2:bool}
      */
     private function renderFor(array $tokens, int $start, int $end, string $variable, array $context, array $partials, array $partialStack): array
     {
-        [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex] = $this->collectForSlices($tokens, $start, $end);
+        [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex, $blockMultiline] = $this->collectForSlices($tokens, $start, $end);
         $expression = $this->parseVariableExpression($variable);
         $resolved = $this->resolveParsedExpression($expression, $context);
         $iterations = $this->loopIterations($resolved['exists'], $resolved['value']);
@@ -569,29 +593,46 @@ final class DocTemplate
 
         foreach ($iterations as $item) {
             $iterationContext = $this->contextForLoopIteration($context, $expression['name'], $item);
-            $rendered[] = $this->renderRange($tokens, $bodyStart, $bodyEnd, $iterationContext, $partials, $partialStack);
+            $rendered[] = $this->renderRangeDroppingLeadingLineEnding(
+                $tokens,
+                $bodyStart,
+                $bodyEnd,
+                $iterationContext,
+                $partials,
+                $partialStack,
+                $blockMultiline,
+            );
         }
 
         if ($rendered === []) {
-            return ['', $nextIndex];
+            return ['', $nextIndex, $blockMultiline];
         }
 
         $separator = $separatorStart === null
             ? ''
-            : $this->renderRange($tokens, $separatorStart, (int) $separatorEnd, $context, $partials, $partialStack);
+            : $this->renderRangeDroppingLeadingLineEnding(
+                $tokens,
+                $separatorStart,
+                (int) $separatorEnd,
+                $context,
+                $partials,
+                $partialStack,
+                $blockMultiline,
+            );
 
-        return [implode($separator, $rendered), $nextIndex];
+        return [implode($separator, $rendered), $nextIndex, $blockMultiline];
     }
 
     /**
      * @param list<array{type:string, value:string}> $tokens
-     * @return array{0:int, 1:int, 2:?int, 3:?int, 4:int}
+     * @return array{0:int, 1:int, 2:?int, 3:?int, 4:int, 5:bool}
      */
     private function collectForSlices(array $tokens, int $start, int $end): array
     {
         $depth = 0;
         $separatorStart = null;
         $separatorEnd = null;
+        $blockMultiline = $this->tokenStartsWithLineEnding($tokens, $start, $end);
 
         for ($index = $start; $index < $end; $index++) {
             $token = $tokens[$index];
@@ -617,7 +658,7 @@ final class DocTemplate
                         $separatorEnd = $index;
                     }
 
-                    return [$start, $bodyEnd, $separatorStart, $separatorEnd, $index + 1];
+                    return [$start, $bodyEnd, $separatorStart, $separatorEnd, $index + 1, $blockMultiline];
                 }
 
                 throw new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}");
@@ -629,6 +670,70 @@ final class DocTemplate
         }
 
         throw new \UnexpectedValueException('Unclosed doctemplate for block');
+    }
+
+    /**
+     * @param list<array{type:string, value:string}> $tokens
+     * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     * @param list<string> $partialStack
+     */
+    private function renderRangeDroppingLeadingLineEnding(
+        array $tokens,
+        int $start,
+        int $end,
+        array $context,
+        array $partials,
+        array $partialStack,
+        bool $dropLeadingLineEnding,
+    ): string {
+        if ($dropLeadingLineEnding) {
+            $this->dropLeadingLineEndingAt($tokens, $start, $end);
+        }
+
+        return $this->renderRange($tokens, $start, $end, $context, $partials, $partialStack);
+    }
+
+    /**
+     * @param list<array{type:string, value:string}> $tokens
+     */
+    private function tokenStartsWithLineEnding(array $tokens, int $index, int $end): bool
+    {
+        if ($index >= $end || !isset($tokens[$index]) || $tokens[$index]['type'] !== 'text') {
+            return false;
+        }
+
+        return $this->leadingLineEndingLength($tokens[$index]['value']) !== null;
+    }
+
+    /**
+     * @param list<array{type:string, value:string}> $tokens
+     */
+    private function dropLeadingLineEndingAt(array &$tokens, int $index, int $end): void
+    {
+        if ($index >= $end || !isset($tokens[$index]) || $tokens[$index]['type'] !== 'text') {
+            return;
+        }
+
+        $length = $this->leadingLineEndingLength($tokens[$index]['value']);
+        if ($length === null) {
+            return;
+        }
+
+        $tokens[$index]['value'] = substr($tokens[$index]['value'], $length);
+    }
+
+    private function leadingLineEndingLength(string $value): ?int
+    {
+        if (str_starts_with($value, "\r\n")) {
+            return 2;
+        }
+
+        if (str_starts_with($value, "\n") || str_starts_with($value, "\r")) {
+            return 1;
+        }
+
+        return null;
     }
 
     /**

@@ -106,6 +106,11 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    if (str_contains($output, "</p>\n\n<ul class=\"warnings\">") || str_contains($output, "<ul class=\"warnings\">\n\n<li")) {
+        fwrite(STDERR, "Unexpected blank line from multiline doctemplate warning-list controls\n");
+        exit(1);
+    }
+
     $loopGuard = (new DocTemplate())->render('${ loop() }', [], [
         'loop' => '${ loop() }',
     ]);

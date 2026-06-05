@@ -152,6 +152,45 @@ TPL;
         $t->same('Intro: one two|redacted|', $output);
     },
 
+    'swallows multiline pandoc doctemplate control block newlines' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Before
+$if(title)$
+Title: $title$
+$elseif(fallback)$
+Fallback: $fallback$
+$else$
+Untitled
+$endif$
+Items:
+$for(items)$
+- $it.title$
+$sep$
+---
+$endfor$
+After
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => '',
+            'fallback' => 'Imported Batch',
+            'items' => [
+                ['title' => 'Media audit'],
+                ['title' => 'Link review'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            'Before',
+            'Fallback: Imported Batch',
+            'Items:',
+            '- Media audit',
+            '---',
+            '- Link review',
+            'After',
+        ]), $output);
+    },
+
     'nests multiline pandoc doctemplate variables with explicit caret alignment' => static function (TestRunner $t): void {
         $template = '$for(items)$<li>$it.number$ $^$$it.description$ <a href="$it.editUrl$">edit</a></li>$sep$' . "\n" . '$endfor$';
 
@@ -257,7 +296,6 @@ TPL;
 
         $t->same(implode("\n", [
             'Summary: 2 warnings queued for Batch 42 Review',
-            '',
             '<ul>',
             '<li>MEDIA: Check alt text before publish</li>',
             '<li>LINKS: Verify redirects before publish</li>',
