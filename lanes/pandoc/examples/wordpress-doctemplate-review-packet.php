@@ -28,6 +28,7 @@ for $title$$~$</p>
 <p class="ticket">Ticket: ${ review-id/left 8 "[" "]" }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
+<p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="labeled-note">$^$Note: $summaryNote$</p>
 <p class="dedented-note">$^$$dedentedNote$
@@ -74,6 +75,7 @@ $context = [
         ['name' => 'Content editor'],
     ],
     'reviewSources' => ['media', 'links', 'layout'],
+    'reviewSourcesWithNewlines' => ["media\n", "links\n\n", "layout\r\n"],
     'reviewMeta' => [
         'zeta' => 'queued-last',
         'alpha' => 'queued-first',
@@ -122,6 +124,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="review-sources">LINKS / LAYOUT</p>',
+        '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         $labeledNotePrefix . 'Note: Review imported title blocks' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($labeledNotePrefix))

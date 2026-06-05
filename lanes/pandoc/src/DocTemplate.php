@@ -1401,7 +1401,7 @@ final class DocTemplate
             'last' => is_array($value) && array_is_list($value) && $value !== [] ? $value[array_key_last($value)] : $value,
             'rest' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 1) : $value,
             'allbutlast' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 0, -1) : $value,
-            'chomp' => is_string($value) ? rtrim($value, "\r\n") : $value,
+            'chomp' => $this->pipeChomp($value),
             'nowrap' => $value,
             'alpha' => $this->mapTextualValue($value, fn (string $text): string => $this->pipeAlphaText($text)),
             'roman' => $this->mapTextualValue($value, fn (string $text): string => $this->pipeRomanText($text)),
@@ -1565,6 +1565,24 @@ final class DocTemplate
 
         if (is_array($value) && array_is_list($value)) {
             return array_reverse($value);
+        }
+
+        return $value;
+    }
+
+    private function pipeChomp(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $chomped = [];
+            foreach ($value as $key => $item) {
+                $chomped[$key] = $this->pipeChomp($item);
+            }
+
+            return $chomped;
+        }
+
+        if (is_string($value)) {
+            return rtrim($value, "\r\n");
         }
 
         return $value;

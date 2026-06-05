@@ -389,6 +389,32 @@ TPL, [
         ]), $output);
     },
 
+    'recursively chomps pandoc doctemplate lists and maps' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+List: <$items/chomp[, ]$>
+Map: $for(metadata/chomp/pairs)$$it.key$=<$it.value$>$sep$; $endfor$
+Nested: $for(sections/chomp)$$it.title$: $it.note$$sep$ | $endfor$
+Missing: <$missing/chomp$>
+TPL, [
+            'items' => ["alpha\n", "beta\n\n", 'gamma'],
+            'metadata' => [
+                'zeta' => "queued-last\n\n",
+                'alpha' => "queued-first\n",
+            ],
+            'sections' => [
+                ['title' => 'Media', 'note' => "Check alt text\n\n"],
+                ['title' => 'Links', 'note' => "Review redirects\n"],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            'List: <alpha, beta, gamma>',
+            'Map: alpha=<queued-first>; zeta=<queued-last>',
+            'Nested: Media: Check alt text | Links: Review redirects',
+            'Missing: <>',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate breakable space markers without leaking markers' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Summary: $~$$warnings/length$ warnings queued for $title$$~$
