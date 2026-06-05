@@ -768,6 +768,31 @@ return [
         $t->same('', $directoryPackage->read('word/media/'));
     },
 
+    'rejects zip DOS directory attributes without directory names before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-folder',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x10,
+            ],
+        ])));
+
+        $directoryPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x10,
+            ],
+        ]));
+
+        $entry = $directoryPackage->entry('/word/media/');
+        $t->true($entry->isDirectory());
+        $t->true($entry->hasDosDirectoryAttribute());
+        $t->same('', $directoryPackage->read('/word/media/'));
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([

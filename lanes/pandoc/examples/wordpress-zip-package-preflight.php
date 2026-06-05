@@ -984,6 +984,53 @@ $buildStoredSizeMismatchBackedPackage = static function () use ($crc32): string 
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildDosDirectoryAttributeMismatchBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/reviewer-folder';
+    $data = '';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x10,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -1474,6 +1521,13 @@ try {
 } catch (RuntimeException $exception) {
     $storedSizeMismatchRejected = str_contains($exception->getMessage(), 'Stored ZIP entry')
         && str_contains($exception->getMessage(), 'mismatched compressed and uncompressed sizes');
+}
+$dosDirectoryAttributeMismatchRejected = false;
+try {
+    ZipPackage::fromString($buildDosDirectoryAttributeMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $dosDirectoryAttributeMismatchRejected = str_contains($exception->getMessage(), 'directory external attributes')
+        && str_contains($exception->getMessage(), 'not named as a directory');
 }
 $duplicateLocalOffsetRejected = false;
 try {
@@ -2134,6 +2188,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP directory entries with payload bytes to be rejected before media import');
     }
 
+    if (!$dosDirectoryAttributeMismatchRejected) {
+        throw new RuntimeException('Expected ZIP non-directory names with directory attributes to be rejected before media import');
+    }
+
     if (!$localEntryOverlapRejected) {
         throw new RuntimeException('Expected ZIP local entry overlap to be rejected before media import');
     }
@@ -2305,6 +2363,7 @@ echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDosDirectoryAttributePolicy=' . ($dosDirectoryAttributeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureParsed ? 'inspectable' : 'not-inspectable') . "\n";

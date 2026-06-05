@@ -12,6 +12,7 @@ final class ZipPackageEntry
     private const UNIX_HOST_SYSTEM = 3;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
+    private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
     private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
 
     public function __construct(
@@ -46,6 +47,11 @@ final class ZipPackageEntry
     public function isDirectory(): bool
     {
         return str_ends_with($this->name, '/');
+    }
+
+    public function hasDosDirectoryAttribute(): bool
+    {
+        return ($this->externalFileAttributes & self::DOS_DIRECTORY_ATTRIBUTE) !== 0;
     }
 
     public function crc32Hex(): string

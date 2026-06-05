@@ -174,6 +174,7 @@ final class ZipPackage
                 $versionNeededToExtract
             );
             self::assertDirectoryEntryMetadata($entry);
+            self::assertDirectoryAttributeConsistency($entry);
             if ($entry->isUnixSymlink()) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package reader: {$name}");
             }
@@ -1062,6 +1063,15 @@ final class ZipPackage
 
         if ($entry->compressedSize !== 0 || $entry->uncompressedSize !== 0) {
             throw new \RuntimeException("ZIP package directory entry {$entry->name} must not contain file data");
+        }
+    }
+
+    private static function assertDirectoryAttributeConsistency(ZipPackageEntry $entry): void
+    {
+        if (!$entry->isDirectory() && $entry->hasDosDirectoryAttribute()) {
+            throw new \RuntimeException(
+                "ZIP package entry {$entry->name} has directory external attributes but is not named as a directory"
+            );
         }
     }
 
