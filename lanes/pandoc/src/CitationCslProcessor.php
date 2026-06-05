@@ -1645,6 +1645,9 @@ final class CitationCslProcessor
         if ($names === []) {
             $names = $item['editors'];
         }
+        if ($names === []) {
+            $names = $item['translators'];
+        }
 
         if (!is_array($names) || $names === []) {
             $title = (string) $item['title'];
@@ -2514,10 +2517,35 @@ final class CitationCslProcessor
      */
     private function renderNamesElement(array $element, array $item, string $scope): string
     {
+        return $this->renderNamesElementValue($element, $item, $scope, true);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback): string
+    {
         $variable = (string) ($element['variable'] ?? 'author editor');
         $names = $this->namesForRenderingVariable($item, $variable);
         if ($names === []) {
-            if ($scope === 'citation' && $this->namesVariableAllowsTitleFallback($variable)) {
+            $substitute = $element['substitute'] ?? [];
+            if (is_array($substitute) && $substitute !== []) {
+                foreach ($substitute as $substituteElement) {
+                    if (!is_array($substituteElement)) {
+                        continue;
+                    }
+
+                    $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
+                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false)
+                        : $this->renderRenderingElement($substituteElement, $item, $scope);
+                    if ($value !== '') {
+                        return $value;
+                    }
+                }
+            }
+
+            if ($allowImplicitTitleFallback && $scope === 'citation' && $this->namesVariableAllowsTitleFallback($variable)) {
                 $title = (string) ($item['title'] ?? '');
 
                 return $title === '' ? (string) ($item['id'] ?? '') : $title;

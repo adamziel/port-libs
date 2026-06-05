@@ -17,6 +17,8 @@ The reviewer packet cites @particle-source for imported source access dates.
 
 The position style cites [@particle-source, p. 2], then [@particle-source, p. 3], and then [@particle-source, p. 3].
 
+The substitute style renders @editorial-source when imported source packets omit authors but keep editors.
+
 The local style renders @committee-source when source dates are missing.
 
 The numbered style preserves @numbered-source issue ranges for reviewer packets.
@@ -75,6 +77,15 @@ $cslJson = <<<'JSON'
       {"family": "Baker", "given": "Bea"},
       {"family": "Clark", "given": "Cy"}
     ]
+  },
+  {
+    "id": "editorial-source",
+    "type": "book",
+    "title": "Edited Source Packet",
+    "editor": [
+      {"literal": "Editor Desk"}
+    ],
+    "issued": {"date-parts": [[2026, 6, 2]]}
   },
   {
     "id": "numbered-source",
@@ -157,8 +168,12 @@ $cslStyleXml = <<<'XML'
   </locale>
   <macro name="review-citation">
     <group delimiter=" ">
-      <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
+      <names variable="author" delimiter=", " et-al-min="3" et-al-use-first="2">
         <name/>
+        <substitute>
+          <names variable="editor"/>
+          <text variable="title"/>
+        </substitute>
       </names>
       <date variable="issued">
         <date-part name="year"/>
@@ -333,6 +348,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['macros']['review-normal-citation'][0]['children'][0]['macro'] ?? null) !== 'review-citation') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the citation macro reference');
     }
+    if (($summary['macros']['review-citation'][0]['children'][0]['substitute'][0]['variable'] ?? null) !== 'editor') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the editor substitute for missing authors');
+    }
+    if (($summary['macros']['review-citation'][0]['children'][0]['substitute'][1]['variable'] ?? null) !== 'title') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the title substitute for missing creators');
+    }
     if (($summary['macros']['review-normal-citation'][0]['children'][1]['macro'] ?? null) !== 'review-locator') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the locator macro reference');
     }
@@ -394,6 +415,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Smith says Smith (1899) while the import queue cites (see WordPress Migration Team 2024, sec. 2; 1899, pp. 8-9).</p>',
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
         '<p>The position style cites (ibid, p. 2), then (ibid, p. 3), and then (ibid).</p>',
+        '<p>The substitute style renders Editor Desk (2026) when imported source packets omit authors but keep editors.</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
         '<p>The numbered style preserves Review Board (2025) issue ranges for reviewer packets.</p>',
         '<p>The title-case style reviews Migration Desk (2026) source titles.</p>',
@@ -402,6 +424,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The date-part bibliography includes (Date Desk 2026) for reviewer calendars.</p>',
         '<dt>Migration Desk 2026</dt><dd>[Migration Desk. Migration Review: Source Import and API. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>Quote Desk 2026</dt><dd>[Quote Desk. “Source Packet”. Review Press, 2026. No stable source locator.]</dd>',
+        '<dt>Editor Desk 2026</dt><dd>[Editor Desk. Edited Source Packet. 2026. No stable source locator.]</dd>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
         '<dt>Date Desk 2026</dt><dd>[Date Desk. Date Part Packet. Jun 5th, &#039;26. reviewed June 6 2026.]</dd>',
         '<dt>Review Board 2025</dt><dd>[Review Board. Numbered Review Packet. 2025. nos. 2nd-4th. No stable source locator.]</dd>',
@@ -418,6 +441,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Date Desk 2026</dt>',
         '<dt>de la Cruz 2026</dt>',
         '<dt>Quote Desk 2026</dt>',
+        '<dt>Editor Desk 2026</dt>',
         '<dt>Migration Desk 2026</dt>',
         '<dt>Review Board 2025</dt>',
         '<dt>WordPress Migration Team 2024</dt>',

@@ -452,6 +452,10 @@ final class CslStyle
                 self::validateRenderingMacroReferences($macros[$name], $macros, [...$stack, $name], 'macro ' . $name);
             }
 
+            if (($element['type'] ?? '') === 'names' && isset($element['substitute']) && is_array($element['substitute'])) {
+                self::validateRenderingMacroReferences($element['substitute'], $macros, $stack, $context);
+            }
+
             if (($element['type'] ?? '') === 'group' && isset($element['children']) && is_array($element['children'])) {
                 self::validateRenderingMacroReferences($element['children'], $macros, $stack, $context);
             }
@@ -950,6 +954,10 @@ final class CslStyle
         $overrides = self::nameRenderingOverridesFromNames($names, $scope);
         if ($overrides !== []) {
             $element['nameRendering'] = $overrides;
+        }
+        $substitute = self::directChild($names, 'substitute');
+        if ($substitute instanceof \DOMElement) {
+            $element['substitute'] = self::renderingElements($substitute, $scope);
         }
 
         return $element;

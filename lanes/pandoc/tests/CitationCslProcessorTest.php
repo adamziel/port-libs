@@ -2090,6 +2090,127 @@ XML
 XML
         ));
     },
+    'applies bounded csl names substitutes for missing primary creators' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'author-source',
+                'type' => 'report',
+                'title' => 'Author Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'editor-source',
+                'type' => 'book',
+                'title' => 'Edited Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'translator-source',
+                'type' => 'book',
+                'title' => 'Translated Packet',
+                'translator' => [
+                    ['family' => 'Translator', 'given' => 'Tia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'title-source',
+                'type' => 'report',
+                'title' => 'Orphan Packet',
+                'issued' => ['date-parts' => [[2023]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Substitute Review Style</title>
+    <id>https://example.test/styles/bounded-name-substitute-review</id>
+    <updated>2026-06-05T06:55:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", ">
+          <name initialize-with=". "/>
+          <substitute>
+            <names variable="editor"/>
+            <names variable="translator"/>
+            <text variable="title"/>
+          </substitute>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <substitute>
+          <names variable="editor"/>
+          <names variable="translator"/>
+          <text variable="title"/>
+        </substitute>
+      </names>
+      <choose>
+        <if variable="author editor translator" match="none">
+          <text value="title-only source packet"/>
+        </if>
+        <else>
+          <text variable="title"/>
+        </else>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationSubstitute = $summary['citationRendering'][0]['children'][0]['substitute'] ?? [];
+        $bibliographySubstitute = $summary['bibliographyRendering'][0]['substitute'] ?? [];
+        $t->same('Bounded Name Substitute Review Style', $summary['title'] ?? null);
+        $t->same('author', $summary['citationRendering'][0]['children'][0]['variable'] ?? null);
+        $t->same('names', $citationSubstitute[0]['type'] ?? null);
+        $t->same('editor', $citationSubstitute[0]['variable'] ?? null);
+        $t->same('translator', $citationSubstitute[1]['variable'] ?? null);
+        $t->same('title', $citationSubstitute[2]['variable'] ?? null);
+        $t->same('translator', $bibliographySubstitute[1]['variable'] ?? null);
+
+        $t->same('(Smith 2026; Curator 2025; Translator 2024; Orphan Packet 2023)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'author-source', 'text' => '[@author-source]']),
+            new AstNode('citation', ['id' => 'editor-source', 'text' => '[@editor-source]']),
+            new AstNode('citation', ['id' => 'translator-source', 'text' => '[@translator-source]']),
+            new AstNode('citation', ['id' => 'title-source', 'text' => '[@title-source]']),
+        ]));
+        $t->same('Smith, A. Author Packet.', $processor->renderBibliographyEntry('author-source'));
+        $t->same('Curator, E. Edited Packet.', $processor->renderBibliographyEntry('editor-source'));
+        $t->same('Translator, T. Translated Packet.', $processor->renderBibliographyEntry('translator-source'));
+        $t->same('Orphan Packet. title-only source packet.', $processor->renderBibliographyEntry('title-source'));
+
+        $document = (new MarkdownReader())->read('Review cites [@editor-source; @translator-source; @title-source] for incomplete source packets.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (Curator 2025; Translator 2024; Orphan Packet 2023) for incomplete source packets.', $markdown);
+        $t->contains('Curator 2025' . "\n" . ':   Curator, E. Edited Packet.', $markdown);
+        $t->contains('Translator 2024' . "\n" . ':   Translator, T. Translated Packet.', $markdown);
+        $t->contains('Orphan Packet 2023' . "\n" . ':   Orphan Packet. title-only source packet.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (Curator 2025; Translator 2024; Orphan Packet 2023) for incomplete source packets.</p>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Curator, E. Edited Packet.</dd>', $blocks);
+        $t->contains('<dt>Translator 2024</dt><dd>Translator, T. Translated Packet.</dd>', $blocks);
+        $t->contains('<dt>Orphan Packet 2023</dt><dd>Orphan Packet. title-only source packet.</dd>', $blocks);
+    },
     'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
