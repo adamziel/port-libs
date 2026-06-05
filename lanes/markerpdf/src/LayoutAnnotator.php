@@ -40,6 +40,7 @@ final class LayoutAnnotator
         'page_result',
         'result_metadata',
         'artifact_metadata',
+        'pdftext_source',
     ];
     private const LAYOUT_RESULT_PAGE_MARKER_WRAPPERS = [
         'metadata',

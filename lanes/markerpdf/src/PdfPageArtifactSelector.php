@@ -17,6 +17,7 @@ final class PdfPageArtifactSelector
         'page_result',
         'result_metadata',
         'artifact_metadata',
+        'pdftext_source',
     ];
     private const PAGE_MARKER_WRAPPERS = [
         'metadata',

@@ -1148,6 +1148,166 @@ return [
         $t->true(!str_contains($encoded, 'cover page_num order payload'));
         $t->true(!str_contains($encoded, 'selected page_num order payload'));
     },
+    'uses pdftext source page metadata before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(2800, [
+                    ['text' => 'Pdftext source cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(2801, [
+                    ['text' => 'Second pdftext source column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First pdftext source column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(2802, [
+                    ['text' => 'Pdftext source appendix skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'pdftext_source' => ['page' => 2800],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                    'raw_payload' => 'cover pdftext_source order payload must stay hidden',
+                ],
+                [
+                    'pdftext_source' => ['page' => 2801],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                    'raw_payload' => 'selected pdftext_source order payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['pdftext_source' => ['page' => 2800], 'image' => 'pdftext-source-cover-order-render'],
+                ['pdftext_source' => ['page' => 2801], 'image' => 'pdftext-source-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(2801, $result['pages'][0]['pnum']);
+        $t->same(['First pdftext source column', 'Second pdftext source column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First pdftext source column Second pdftext source column', $blocks[0]['text']);
+        $t->same(2801, $order['page'] ?? null);
+        $t->true(!array_key_exists('pdftext_source', $order), 'pdftext_source wrapper payload must not be copied into order review metadata.');
+        $t->true(!str_contains($encoded, 'cover pdftext_source order payload'));
+        $t->true(!str_contains($encoded, 'selected pdftext_source order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses pdftext source metadata for WordPress supplied layout and order artifacts' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-pdftext-source-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% pdftext_source pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(2900, [
+                        ['text' => 'Pdftext source converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(2901, [
+                        ['text' => 'Second converter pdftext source column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter pdftext source column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(2902, [
+                        ['text' => 'Pdftext source converter appendix should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['pdftext_source' => ['page' => 2900], 'image' => 'pdftext-source-cover-layout-render'],
+                        ['pdftext_source' => ['page' => 2901], 'image' => 'pdftext-source-selected-layout-render'],
+                    ],
+                    'layout_results' => [
+                        [
+                            'pdftext_source' => ['page' => 2900],
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                            'raw_payload' => 'cover pdftext_source layout payload must stay hidden',
+                        ],
+                        [
+                            'pdftext_source' => ['page' => 2901],
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                            'raw_payload' => 'selected pdftext_source layout payload must stay hidden',
+                        ],
+                    ],
+                    'order_images' => [
+                        ['pdftext_source' => ['page' => 2900], 'image' => 'pdftext-source-cover-order-render'],
+                        ['pdftext_source' => ['page' => 2901], 'image' => 'pdftext-source-selected-order-render'],
+                    ],
+                    'order_results' => [
+                        [
+                            'pdftext_source' => ['page' => 2900],
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ],
+                            'raw_payload' => 'cover pdftext_source order payload must stay hidden',
+                        ],
+                        [
+                            'pdftext_source' => ['page' => 2901],
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                            'raw_payload' => 'selected pdftext_source order payload must stay hidden',
+                        ],
+                    ],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('First converter pdftext source column.', $text);
+        $t->contains('Second converter pdftext source column.', $text);
+        $t->true(strpos($text, 'First converter pdftext source column.') < strpos($text, 'Second converter pdftext source column.'));
+        $t->true(!str_contains($text, 'Pdftext source converter cover should stay skipped.'));
+        $t->true(!str_contains($text, 'Pdftext source converter appendix should stay skipped.'));
+        $t->true(!str_contains($encoded, 'cover pdftext_source layout payload'));
+        $t->true(!str_contains($encoded, 'selected pdftext_source layout payload'));
+        $t->true(!str_contains($encoded, 'cover pdftext_source order payload'));
+        $t->true(!str_contains($encoded, 'selected pdftext_source order payload'));
+    },
     'rejects mixed wrapper-list payload dictionaries before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

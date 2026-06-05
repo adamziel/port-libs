@@ -40,6 +40,7 @@ final class LayoutOrderer
         'page_result',
         'result_metadata',
         'artifact_metadata',
+        'pdftext_source',
     ];
     private const ORDER_RESULT_PAGE_MARKER_WRAPPERS = [
         'metadata',
