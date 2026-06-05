@@ -14668,6 +14668,10 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($this->decodeParmsHasDuplicateTopLevelParameter($decodeParms)) {
+            return false;
+        }
+
         foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
             if (
                 $this->decodeParmsHasName($decodeParms, $name)
@@ -14703,6 +14707,17 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    private function decodeParmsHasDuplicateTopLevelParameter(string $decodeParms): bool
+    {
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange', 'Name'] as $name) {
+            if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($decodeParms, $name)) > 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decodeParmsHasName(?string $decodeParms, string $name): bool

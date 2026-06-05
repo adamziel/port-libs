@@ -745,6 +745,36 @@ $parserStreamFilterStackBoundaryCurrentBaseDuplicateDictionaryKeyPdf = static fu
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $rowOne = 'BT /F1 12 Tf 72 720 Td (Duplicate Predictor Parameter Leak) Tj T* ';
+    $rowTwo = str_pad('(Duplicate Predictor Still Leaks) Tj ET', strlen($rowOne));
+    $encodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor($rowOne . $rowTwo, strlen($rowOne));
+    $predictorCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($encodedRows);
+
+    $cryptLeak = "BT /F1 12 Tf 72 684 Td (Duplicate Crypt Name Leak) Tj ET\n"
+        . "\nendstream\n"
+        . "BT /F1 12 Tf 72 668 Td (Duplicate Crypt Tail Leak) Tj ET";
+    $cryptCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($cryptLeak);
+    if (!str_contains($cryptCompressed, "\nendstream\n")) {
+        throw new RuntimeException('Focused duplicate DecodeParms /Name fixture must expose a fake compressed endstream boundary.');
+    }
+
+    $visibleAfter = 'BT /F1 12 Tf 72 648 Td (Visible After Duplicate DecodeParms Parameters) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($rowOne) . " /Predictor 1 >> /Length " . strlen($predictorCompressed) . " >>\nstream\n{$predictorCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /Identity /Name /PrivateCF >> null ] /Length " . strlen($cryptCompressed) . " >>\nstream\n{$cryptCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1197,6 +1227,27 @@ return [
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects duplicate top-level DecodeParms parameters inside a single filter dictionary' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseDuplicateDecodeParmsParameterPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Visible After Duplicate DecodeParms Parameters'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same('Visible After Duplicate DecodeParms Parameters', $text);
+        $t->same("Visible After Duplicate DecodeParms Parameters\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Duplicate Predictor Parameter Leak'));
+        $t->true(!str_contains($text, 'Duplicate Predictor Still Leaks'));
+        $t->true(!str_contains($text, 'Duplicate Crypt Name Leak'));
+        $t->true(!str_contains($text, 'Duplicate Crypt Tail Leak'));
+        $t->true(!str_contains($text, 'PrivateCF'));
+        $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, 'endstream'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
