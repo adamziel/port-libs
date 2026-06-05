@@ -2942,9 +2942,10 @@ final class PdfEmbeddedFileExtractor
                 return $entries === [] ? null : $entries;
             }
 
+            $entriesBeforeSection = $entries;
             for ($entryIndex = 0; $entryIndex < $count;) {
                 if (++$lineIndex >= $lineCount) {
-                    return null;
+                    return $entriesBeforeSection === [] ? null : $entriesBeforeSection;
                 }
 
                 $row = trim($lines[$lineIndex]);
@@ -2953,8 +2954,8 @@ final class PdfEmbeddedFileExtractor
                 }
 
                 if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])(?:\s*(?:%.*)?)$/', $row, $rowMatch) !== 1) {
-                    if ($entryIndex === 0 && $entries !== []) {
-                        return $entries;
+                    if ($entriesBeforeSection !== []) {
+                        return $entriesBeforeSection;
                     }
 
                     return null;

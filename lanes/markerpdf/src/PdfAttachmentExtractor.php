@@ -4542,6 +4542,7 @@ final class PdfAttachmentExtractor
                 return $entries === [] ? null : $entries;
             }
 
+            $entriesBeforeSection = $entries;
             $rowIndex = 0;
             while ($rowIndex < $rowCount && ++$lineIndex < $lineCount) {
                 $row = trim($lines[$lineIndex]);
@@ -4549,8 +4550,8 @@ final class PdfAttachmentExtractor
                     continue;
                 }
                 if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])(?:\s*(?:%.*)?)$/', $row, $match) !== 1) {
-                    if ($rowIndex === 0 && $entries !== []) {
-                        return $entries;
+                    if ($entriesBeforeSection !== []) {
+                        return $entriesBeforeSection;
                     }
 
                     return null;
@@ -4565,8 +4566,8 @@ final class PdfAttachmentExtractor
             }
 
             if ($rowIndex < $rowCount) {
-                if ($rowIndex === 0 && $entries !== []) {
-                    return $entries;
+                if ($entriesBeforeSection !== []) {
+                    return $entriesBeforeSection;
                 }
 
                 return null;
