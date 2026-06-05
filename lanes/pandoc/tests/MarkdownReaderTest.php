@@ -1209,6 +1209,47 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('multiline-yaml-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml multiline single quoted metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            "title: 'Reviewer''s",
+            "  **Packet**'",
+            'authors:',
+            "  - 'Reviewer",
+            "    One'",
+            "  - 'Editor''s \\literal'",
+            'review:',
+            "  note: 'Line one",
+            "    line two'",
+            "  hash: 'Keep # quoted hash'",
+            "  backslash: 'C:\\source\\packet'",
+            'references:',
+            '  - id: single-quoted-ref',
+            "    title: 'Source: reviewer''s",
+            "      export'",
+            "flow: {labels: ['don''t normalize', 'backslash\\n literal'], 'source:key': 'quoted: value'}",
+            '...',
+            '',
+            '# Single quoted YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same("Reviewer's **Packet**", $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('Reviewer One', $meta['authors'][0]);
+        $t->same("Editor's \\literal", $meta['authors'][1]);
+        $t->same('Line one line two', $meta['review']['note']);
+        $t->same('Keep # quoted hash', $meta['review']['hash']);
+        $t->same('C:\\source\\packet', $meta['review']['backslash']);
+        $t->same('single-quoted-ref', $meta['references'][0]['id']);
+        $t->same("Source: reviewer's export", $meta['references'][0]['title']);
+        $t->same(["don't normalize", 'backslash\\n literal'], $meta['flow']['labels']);
+        $t->same('quoted: value', $meta['flow']['source:key']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('single-quoted-yaml-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
