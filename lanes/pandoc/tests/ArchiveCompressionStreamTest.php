@@ -854,6 +854,53 @@ return [
         $t->same('timestamped-review.tar', $timestampedMember['filename']);
     },
 
+    'accepts nul-padded gzip package streams and rejects nonzero trailers' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-padding","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP padded stream\n\nReady for archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $unpackedBytes = strlen($archive->read('/packet/manifest.json'))
+            + strlen($archive->read('/packet/content.md'));
+        $gzip = GzipStream::build($tarBytes, [
+            'filename' => 'padded-review-packet.tar',
+            'comment' => 'nul padded gzip stream',
+        ]);
+        $padded = $gzip . str_repeat("\0", 12);
+
+        $gzipInspection = GzipStream::inspect($padded);
+        $streamInspection = ArchiveCompressionStream::inspectTarStream(
+            $padded,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes),
+            $unpackedBytes
+        );
+
+        $t->same($tarBytes, GzipStream::decode($padded, strlen($tarBytes)));
+        $t->same(1, $gzipInspection['memberCount']);
+        $t->same(12, $gzipInspection['trailingPaddingBytes']);
+        $t->same(strlen($tarBytes), $gzipInspection['uncompressedSize']);
+        $t->same(12, $streamInspection['stream']['trailingPaddingBytes']);
+        $t->same(strlen($tarBytes), $streamInspection['stream']['uncompressedSize']);
+        $t->same('padded-review-packet.tar', $streamInspection['stream']['members'][0]['filename']);
+        $t->same('{"source":"gzip-padding","target":"wordpress"}', $streamInspection['archive']->read('/packet/manifest.json'));
+        $t->same("# GZIP padded stream\n\nReady for archive review.\n", $streamInspection['archive']->read('/packet/content.md'));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::inspect(str_repeat("\0", 8)));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode($gzip . "\0" . 'review-trailer'));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarStream(
+            $gzip . 'review-trailer',
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes),
+            $unpackedBytes
+        ));
+    },
+
     'rejects malformed gzip extra subfields before package bytes are exposed' => static function (TestRunner $t): void {
         $valid = GzipStream::build('review packet', [
             'filename' => 'packet.txt',

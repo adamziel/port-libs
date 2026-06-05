@@ -121,7 +121,7 @@ final class GzipStream
     public static function decode(string $bytes, ?int $maxUncompressedBytes = null): string
     {
         $data = '';
-        foreach (self::members($bytes, $maxUncompressedBytes) as $member) {
+        foreach (self::inspect($bytes, $maxUncompressedBytes)['members'] as $member) {
             $data .= $member['data'];
         }
 
@@ -129,31 +129,37 @@ final class GzipStream
     }
 
     /**
-     * @return list<array{
-     *     data:string,
-     *     modifiedAt:int,
-     *     extraFlags:int,
-     *     operatingSystem:int,
-     *     extraFieldData:?string,
-     *     extraFields:list<array{identifier:string,id1:int,id2:int,length:int,data:string}>,
-     *     filename:?string,
-     *     filenameText:?string,
-     *     filenameEncoding:?string,
-     *     comment:?string,
-     *     commentText:?string,
-     *     commentEncoding:?string,
-     *     headerCrc16:?int,
-     *     crc32:int,
-     *     uncompressedSize:int,
+     * @return array{
+     *     members:list<array{
+     *         data:string,
+     *         modifiedAt:int,
+     *         extraFlags:int,
+     *         operatingSystem:int,
+     *         extraFieldData:?string,
+     *         extraFields:list<array{identifier:string,id1:int,id2:int,length:int,data:string}>,
+     *         filename:?string,
+     *         filenameText:?string,
+     *         filenameEncoding:?string,
+     *         comment:?string,
+     *         commentText:?string,
+     *         commentEncoding:?string,
+     *         headerCrc16:?int,
+     *         crc32:int,
+     *         uncompressedSize:int,
+     *         compressedSize:int,
+     *         memberSize:int,
+     *         modifiedAtKnown:bool,
+     *         modifiedAtText:?string,
+     *         extraFlagsMeaning:string,
+     *         operatingSystemName:string
+     *     }>,
+     *     memberCount:int,
      *     compressedSize:int,
-     *     memberSize:int,
-     *     modifiedAtKnown:bool,
-     *     modifiedAtText:?string,
-     *     extraFlagsMeaning:string,
-     *     operatingSystemName:string
-     * }>
+     *     uncompressedSize:int,
+     *     trailingPaddingBytes:int
+     * }
      */
-    public static function members(string $bytes, ?int $maxUncompressedBytes = null): array
+    public static function inspect(string $bytes, ?int $maxUncompressedBytes = null): array
     {
         if ($bytes === '') {
             throw new \RuntimeException('GZIP stream is empty');
@@ -167,14 +173,22 @@ final class GzipStream
         $cursor = 0;
         $totalUncompressedBytes = 0;
         $length = strlen($bytes);
+        $trailingPaddingBytes = 0;
 
         while ($cursor < $length) {
             $memberStart = $cursor;
-            self::assertRange($bytes, $cursor, 10, 'member header');
+            if (!self::hasMemberHeaderAt($bytes, $cursor)) {
+                $padding = substr($bytes, $cursor);
+                if ($members !== [] && trim($padding, "\0") === '') {
+                    $trailingPaddingBytes = strlen($padding);
+                    $cursor = $length;
+                    break;
+                }
 
-            if (ord($bytes[$cursor]) !== self::ID1 || ord($bytes[$cursor + 1]) !== self::ID2) {
                 throw new \RuntimeException('Invalid GZIP member header signature');
             }
+
+            self::assertRange($bytes, $cursor, 10, 'member header');
 
             $method = ord($bytes[$cursor + 2]);
             if ($method !== self::COMPRESSION_METHOD_DEFLATE) {
@@ -284,7 +298,21 @@ final class GzipStream
             ];
         }
 
-        return $members;
+        return [
+            'members' => $members,
+            'memberCount' => count($members),
+            'compressedSize' => $length,
+            'uncompressedSize' => $totalUncompressedBytes,
+            'trailingPaddingBytes' => $trailingPaddingBytes,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function members(string $bytes, ?int $maxUncompressedBytes = null): array
+    {
+        return self::inspect($bytes, $maxUncompressedBytes)['members'];
     }
 
     /**
@@ -387,6 +415,13 @@ final class GzipStream
             'data' => $data,
             'compressedSize' => inflate_get_read_len($context),
         ];
+    }
+
+    private static function hasMemberHeaderAt(string $bytes, int $offset): bool
+    {
+        return $offset + 2 <= strlen($bytes)
+            && ord($bytes[$offset]) === self::ID1
+            && ord($bytes[$offset + 1]) === self::ID2;
     }
 
     /**

@@ -553,6 +553,8 @@ final class ArchiveCompressionStream
      *     type:string,
      *     memberCount:int,
      *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     trailingPaddingBytes:int,
      *     members:list<array{
      *         filename:?string,
      *         filenameText:?string,
@@ -580,6 +582,7 @@ final class ArchiveCompressionStream
      */
     private static function gzipStreamInspection(string $bytes, ?int $maxUncompressedBytes): array
     {
+        $inspection = GzipStream::inspect($bytes, $maxUncompressedBytes);
         $members = array_map(
             static fn (array $member): array => [
                 'filename' => $member['filename'],
@@ -604,13 +607,15 @@ final class ArchiveCompressionStream
                 'extraFieldCount' => count($member['extraFields']),
                 'headerCrc16' => $member['headerCrc16'],
             ],
-            GzipStream::members($bytes, $maxUncompressedBytes)
+            $inspection['members']
         );
 
         return [
             'type' => 'gzip',
-            'memberCount' => count($members),
+            'memberCount' => $inspection['memberCount'],
             'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $inspection['uncompressedSize'],
+            'trailingPaddingBytes' => $inspection['trailingPaddingBytes'],
             'members' => $members,
         ];
     }

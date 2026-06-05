@@ -1684,6 +1684,24 @@ $compressedTarPacket = GzipStream::build($tarPacketBytes, [
     'comment' => 'gzip tar review packet',
     'headerCrc' => true,
 ]);
+$paddedGzipTarPacket = $compressedTarPacket . str_repeat("\0", 12);
+$paddedGzipTarInspection = ArchiveCompressionStream::inspectTarStream(
+    $paddedGzipTarPacket,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
+$gzipNonZeroTrailerRejected = false;
+try {
+    ArchiveCompressionStream::inspectTarStream(
+        $compressedTarPacket . "\0" . 'review-trailer',
+        ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        strlen($tarPacketBytes),
+        $tarPacketUnpackedBytes
+    );
+} catch (RuntimeException $exception) {
+    $gzipNonZeroTrailerRejected = str_contains($exception->getMessage(), 'Invalid GZIP member header signature');
+}
 $latin1GzipTarPacket = GzipStream::build($tarPacketBytes, [
     'modifiedAt' => $documentModifiedAt,
     'filename' => "wordpress-r\xE9sum\xE9-packet.tar",
@@ -2745,6 +2763,22 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected archive stream auto-detection to return the tar packet bytes');
     }
 
+    if (($paddedGzipTarInspection['stream']['trailingPaddingBytes'] ?? null) !== 12) {
+        throw new RuntimeException('Expected gzip tar packet inspection to expose NUL trailer padding bytes');
+    }
+
+    if (($paddedGzipTarInspection['stream']['uncompressedSize'] ?? null) !== strlen($tarPacketBytes)) {
+        throw new RuntimeException('Expected padded gzip tar packet inspection to preserve decoded tar size');
+    }
+
+    if ($paddedGzipTarInspection['archive']->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
+        throw new RuntimeException('Expected NUL-padded gzip tar packet manifest bytes to round-trip');
+    }
+
+    if (!$gzipNonZeroTrailerRejected) {
+        throw new RuntimeException('Expected gzip tar packet with nonzero trailer bytes to be rejected before import');
+    }
+
     if (($splitGzipTarInspection['stream']['memberCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected split gzip tar packet to expose both gzip members');
     }
@@ -3241,6 +3275,8 @@ echo 'gzip.latin1FilenameText=' . $latin1GzipTarMembers[0]['filenameText'] . "\n
 echo 'gzip.latin1CommentText=' . $latin1GzipTarMembers[0]['commentText'] . "\n";
 echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): string => $field['identifier'], $compressedPackageMembers[0]['extraFields'])) . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
+echo 'gzip.trailingPaddingBytes=' . $paddedGzipTarInspection['stream']['trailingPaddingBytes'] . "\n";
+echo 'gzip.nonZeroTrailerPolicy=' . ($gzipNonZeroTrailerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
 echo 'tar.globalPaxComment=' . ($tarPacketRoundTrip->globalPaxHeaders()['comment'] ?? 'none') . "\n";
