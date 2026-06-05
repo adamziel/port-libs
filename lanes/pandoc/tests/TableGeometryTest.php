@@ -800,6 +800,36 @@ return [
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($boundaryPacket, JSON_THROW_ON_ERROR);
     },
+    'reports markdown pipe-table writer downgrades for visual spans' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSpannedTableDocument): void {
+        $table = $buildSectionGridDocument()->children[0];
+        $diagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Downgrade Grid']);
+        $plainTable = $buildSpannedTableDocument()->children[0];
+
+        $t->same(['markdown-colspan-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
+        $t->same(['markdown'], array_values(array_unique(array_map(static fn (array $diagnostic): string => $diagnostic['writer'], $diagnostics))));
+        $t->same('head', $diagnostics[0]['section']);
+        $t->same(0, $diagnostics[0]['row']);
+        $t->same(0, $diagnostics[0]['column']);
+        $t->same([0, 1], $diagnostics[0]['columns']);
+        $t->same(2, $diagnostics[0]['rawColspan']);
+        $t->same(1, $diagnostics[0]['rawRowspan']);
+        $t->same([['row' => 0, 'column' => 1, 'covering' => 'colspan']], $diagnostics[0]['flattenedSlots']);
+        $t->same('body', $diagnostics[1]['section']);
+        $t->same([0, 1], $diagnostics[1]['columns']);
+        $t->same([['row' => 0, 'column' => 1, 'covering' => 'colspan']], $diagnostics[1]['flattenedSlots']);
+        $t->same('markdown-rowspan-flattened', $diagnostics[2]['code']);
+        $t->same(2, $diagnostics[2]['rawRowspan']);
+        $t->same([
+            ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+            ['row' => 1, 'column' => 1, 'covering' => 'rowspan-colspan'],
+        ], $diagnostics[2]['flattenedSlots']);
+        $t->same($diagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['markdown-colspan-flattened', 'markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'wordpress'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports cell coverage with visual column specs for importer audits' => static function (TestRunner $t) use ($buildCellCoverageDocument): void {
         $document = $buildCellCoverageDocument();
         $table = $document->children[0];

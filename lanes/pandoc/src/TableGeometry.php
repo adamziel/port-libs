@@ -616,8 +616,12 @@ final class TableGeometry
     {
         $columnCount = self::columnCount($table);
         $sections = self::sectionGrids($table);
-        $coverage = self::serializableCoverage(self::cellCoverage($table));
+        $coverageRecords = self::cellCoverage($table);
+        $coverage = self::serializableCoverage($coverageRecords);
         $diagnostics = self::diagnostics($table);
+        $writerDowngrades = [
+            'markdown' => self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, 'markdown'),
+        ];
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $accessibility = $includeAccessibility
             ? self::accessibilityAttributes($table, self::reviewPacketIdPrefix($table, $options))
@@ -631,8 +635,9 @@ final class TableGeometry
             'sections' => self::serializableSectionGrids($sections),
             'coverage' => $coverage,
             'diagnostics' => $diagnostics,
+            'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
-            'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics),
+            'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics, $writerDowngrades),
         ];
 
         $sourceAttributes = self::sourceAttributeSummary($table);
@@ -657,6 +662,14 @@ final class TableGeometry
             array_replace($table->attrs, ['tableGeometry' => self::reviewPacket($table, $options)]),
             $table->children
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function writerDowngradeDiagnostics(AstNode $table, string $writer): array
+    {
+        return self::writerDowngradeDiagnosticsFromCoverage(self::cellCoverage($table), $writer);
     }
 
     private static function normalizeAlignment(string $alignment): string
@@ -1007,9 +1020,10 @@ final class TableGeometry
      * }> $sections
      * @param list<array<string, mixed>> $coverage
      * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, list<array<string, mixed>>> $writerDowngrades
      * @return array<string, mixed>
      */
-    private static function reviewPacketSummary(array $sections, array $coverage, array $diagnostics): array
+    private static function reviewPacketSummary(array $sections, array $coverage, array $diagnostics, array $writerDowngrades): array
     {
         $rowCount = 0;
         $coveredSlotCount = 0;
@@ -1055,6 +1069,26 @@ final class TableGeometry
             }
         }
 
+        $writerDowngradeCount = 0;
+        $writerDowngradeCodes = [];
+        $writerDowngradeWriters = [];
+        foreach ($writerDowngrades as $writer => $diagnosticsForWriter) {
+            $writer = (string) $writer;
+            if ($diagnosticsForWriter === []) {
+                continue;
+            }
+
+            $writerDowngradeWriters[] = $writer;
+            foreach ($diagnosticsForWriter as $diagnostic) {
+                $writerDowngradeCount++;
+                $code = (string) ($diagnostic['code'] ?? '');
+                if ($code !== '') {
+                    $writerDowngradeCodes[] = $code;
+                }
+            }
+        }
+        sort($writerDowngradeWriters);
+
         return [
             'sectionCount' => count($sections),
             'rowCount' => $rowCount,
@@ -1067,7 +1101,131 @@ final class TableGeometry
             'hasSpans' => $hasSpans,
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
+            'writerDowngradeCount' => $writerDowngradeCount,
+            'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
+            'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function writerDowngradeDiagnosticsFromCoverage(array $coverage, string $writer): array
+    {
+        $writer = self::normalizeWriterName($writer);
+        if ($writer !== 'markdown') {
+            return [];
+        }
+
+        $diagnostics = [];
+        foreach ($coverage as $record) {
+            $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
+            $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
+            if ($rawColspan > 1) {
+                $diagnostics[] = self::writerDowngradeRecord(
+                    'markdown-colspan-flattened',
+                    $writer,
+                    $record,
+                    self::flattenedSlotRecords($record, 'colspan')
+                );
+            }
+
+            if ($rawRowspan > 1) {
+                $diagnostics[] = self::writerDowngradeRecord(
+                    'markdown-rowspan-flattened',
+                    $writer,
+                    $record,
+                    self::flattenedSlotRecords($record, 'rowspan')
+                );
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    private static function normalizeWriterName(string $writer): string
+    {
+        $writer = strtolower(trim(str_replace('_', '-', $writer)));
+
+        return in_array($writer, ['markdown', 'markdown-pipe-table', 'pipe-table'], true) ? 'markdown' : $writer;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<array{row:int,column:int,covering:string}> $flattenedSlots
+     * @return array<string, mixed>
+     */
+    private static function writerDowngradeRecord(string $code, string $writer, array $record, array $flattenedSlots): array
+    {
+        return [
+            'code' => $code,
+            'writer' => $writer,
+            'section' => (string) ($record['section'] ?? ''),
+            'row' => (int) ($record['row'] ?? 0),
+            'column' => (int) ($record['column'] ?? 0),
+            'endColumn' => (int) ($record['endColumn'] ?? 0),
+            'sourceCell' => (int) ($record['sourceCell'] ?? 0),
+            'sourceColumn' => (int) ($record['sourceColumn'] ?? 0),
+            'columns' => self::intList($record['columns'] ?? []),
+            'rawColspan' => max(1, (int) ($record['rawColspan'] ?? 1)),
+            'colspan' => max(1, (int) ($record['colspan'] ?? 1)),
+            'rawRowspan' => max(1, (int) ($record['rawRowspan'] ?? 1)),
+            'rowspan' => max(1, (int) ($record['rowspan'] ?? 1)),
+            'flattenedSlots' => $flattenedSlots,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<array{row:int,column:int,covering:string}>
+     */
+    private static function flattenedSlotRecords(array $record, string $spanAxis): array
+    {
+        $anchorRow = (int) ($record['row'] ?? 0);
+        $slots = $record['occupiedSlots'] ?? [];
+        if (!is_array($slots)) {
+            return [];
+        }
+
+        $flattened = [];
+        foreach ($slots as $slot) {
+            if (!is_array($slot)) {
+                continue;
+            }
+
+            $covering = (string) ($slot['covering'] ?? '');
+            $row = (int) ($slot['row'] ?? 0);
+            if ($spanAxis === 'colspan') {
+                $include = $row === $anchorRow && in_array($covering, ['colspan', 'rowspan-colspan'], true);
+            } else {
+                $include = $row !== $anchorRow && in_array($covering, ['rowspan', 'rowspan-colspan'], true);
+            }
+
+            if (!$include) {
+                continue;
+            }
+
+            $flattened[] = [
+                'row' => $row,
+                'column' => (int) ($slot['column'] ?? 0),
+                'covering' => $covering,
+            ];
+        }
+
+        return $flattened;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function intList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (mixed $value): int => (int) $value, $values));
     }
 
     /**

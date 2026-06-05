@@ -378,6 +378,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($cellCoverage[5]['sourceCell'] ?? null) !== 0 || ($cellCoverage[5]['sourceColumn'] ?? null) !== 0 || ($cellCoverage[5]['column'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing source-to-visual coverage coordinates');
     }
+    $writerDowngrades = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'markdown');
+    if (array_map(static fn (array $diagnostic): string => $diagnostic['code'], $writerDowngrades) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
+        throw new RuntimeException('Table geometry self-test missing Markdown writer downgrade diagnostics');
+    }
+    $migrationPacket = TableGeometry::reviewPacket($document->children[0], ['idPrefix' => 'Migration Grid']);
+    if (($migrationPacket['summary']['writerDowngradeCount'] ?? null) !== 2 || ($migrationPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
+        throw new RuntimeException('Table geometry self-test missing review-packet writer downgrade summary');
+    }
+    if (($migrationPacket['writerDowngrades']['markdown'][0]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
+        throw new RuntimeException('Table geometry self-test missing flattened span slot report');
+    }
 
     $sectionDiagnostics = TableGeometry::diagnostics($document->children[1]);
     if (!str_contains($blocks, '<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>')) {
