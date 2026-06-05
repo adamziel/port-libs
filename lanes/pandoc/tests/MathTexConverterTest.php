@@ -481,6 +481,17 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{rl}x_i &amp;= p_i \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{array}</annotation>', $arrayMathml);
         $t->contains('<mtable columnalign="left center right"><mtr><mtd><mi>α</mi></mtd><mtd><mi>β</mi></mtd><mtd><mi>ω</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $ruledArrayMathml);
     },
+    'converts bounded tex compact matrix and subarray environments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $compactMathml = $converter->texToMathMl('\\left(\\begin{smallmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i', true);
+        $alignedSubarrayMathml = $converter->texToMathMl('\\prod_{\\begin{subarray}{r} k \\to \\infty \\\\ k > 0 \\end{subarray}} k');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $compactMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mstyle scriptlevel="1"><mtable rowspacing="0.1em" columnspacing="0.2778em"><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd></mtr></mtable></mstyle><mo fence="true" stretchy="true">)</mo>', $compactMathml);
+        $t->contains('<msubsup><mo>∑</mo><mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><mi>i</mi><mo>=</mo><mn>1</mn></mtd></mtr><mtr><mtd><mi>i</mi><mo>≠</mo><mi>j</mi></mtd></mtr></mtable><mi>n</mi></msubsup><msub><mi>a</mi><mi>i</mi></msub>', $compactMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\left(\\begin{smallmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i</annotation>', $compactMathml);
+        $t->contains('<msub><mo>∏</mo><mtable columnalign="right" rowspacing="0.1em"><mtr><mtd><mi>k</mi><mo>→</mo><mi>∞</mi></mtd></mtr><mtr><mtd><mi>k</mi><mo>&gt;</mo><mn>0</mn></mtd></mtr></mtable></msub><mi>k</mi>', $alignedSubarrayMathml);
+    },
     'converts bounded tex above below and style wrappers to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $aboveBelowMathml = $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n', true);
@@ -633,6 +644,11 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\tag{A} \\tag{B}\\end{align}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}\\tag{A}\\end{align}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\label{}\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{smallmatrix}\\end{smallmatrix}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{subarray}a \\\\ b\\end{subarray}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{subarray}{}a \\\\ b\\end{subarray}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{subarray}{p{2cm}}a \\\\ b\\end{subarray}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{subarray}{cc}a & b \\\\ c\\end{subarray}'));
     },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

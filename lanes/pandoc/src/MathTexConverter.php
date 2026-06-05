@@ -1396,6 +1396,14 @@ final class MathTexConverter
     private function parseEnvironment(string $source, int &$offset): string
     {
         $environment = $this->readRequiredGroupText($source, $offset);
+        if ($environment === 'smallmatrix') {
+            return $this->parseSmallMatrixEnvironment($source, $offset);
+        }
+
+        if ($environment === 'subarray') {
+            return $this->parseSubarrayEnvironment($source, $offset);
+        }
+
         if ($environment === 'array') {
             return $this->parseArrayEnvironment($source, $offset);
         }
@@ -1584,6 +1592,34 @@ final class MathTexConverter
         $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
 
         return $this->environmentTable($rows, ' columnalign="' . $this->esc($columnAlign) . '"');
+    }
+
+    private function parseSmallMatrixEnvironment(string $source, int &$offset): string
+    {
+        $content = $this->readEnvironmentContent($source, $offset, 'smallmatrix');
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX smallmatrix row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, 'smallmatrix');
+
+        return '<mstyle scriptlevel="1">'
+            . $this->environmentTable($rows, ' rowspacing="0.1em" columnspacing="0.2778em"')
+            . '</mstyle>';
+    }
+
+    private function parseSubarrayEnvironment(string $source, int &$offset): string
+    {
+        $columnAlign = $this->arrayColumnAlign($this->readRequiredGroupText($source, $offset));
+        $content = $this->readEnvironmentContent($source, $offset, 'subarray');
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX subarray row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, 'subarray');
+        $this->validateAmsRowEnvironmentRows($rows, 'subarray', count(explode(' ', $columnAlign)));
+
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($columnAlign) . '" rowspacing="0.1em"');
     }
 
     private function parseAmsRowEnvironment(string $source, int &$offset, string $environment): string
