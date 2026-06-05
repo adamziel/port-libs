@@ -196,6 +196,26 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $defaultFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'lang' => 'en',
+        'title' => 'Default Template Review',
+        'css' => ['review.css'],
+        'body' => '<!-- wp:paragraph --><p>Default body.</p><!-- /wp:paragraph -->',
+    ], null, 'html');
+    foreach ([
+        '<!DOCTYPE html>',
+        '<html lang="en">',
+        '<title>Default Template Review</title>',
+        '<link rel="stylesheet" href="review.css">',
+        '<h1 class="title">Default Template Review</h1>',
+        '<!-- wp:paragraph --><p>Default body.</p><!-- /wp:paragraph -->',
+    ] as $needle) {
+        if (!str_contains($defaultFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate default template fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
     $loopGuard = (new DocTemplate())->render('${ loop() }', [], [
         'loop' => '${ loop() }',
     ]);

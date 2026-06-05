@@ -982,6 +982,34 @@ HTML,
         ], ['title' => 'Bad format'], null, '../html'));
     },
 
+    'renders bounded pandoc default html5 template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->renderResource('templates/default', [], [
+            'lang' => 'en',
+            'title' => 'Batch 42 Review',
+            'css' => ['review.css'],
+            'header-includes' => ['<meta name="robots" content="noindex">'],
+            'include-before' => ['<main class="before">Queued</main>'],
+            'body' => '<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->',
+            'include-after' => ['<footer>Done</footer>'],
+        ], null, 'html');
+
+        $t->contains('<!DOCTYPE html>', $output);
+        $t->contains('<html lang="en">', $output);
+        $t->contains('<title>Batch 42 Review</title>', $output);
+        $t->contains('<link rel="stylesheet" href="review.css">', $output);
+        $t->contains('<meta name="robots" content="noindex">', $output);
+        $t->contains('<h1 class="title">Batch 42 Review</h1>', $output);
+        $t->contains('<!-- wp:paragraph --><p>Imported body.</p><!-- /wp:paragraph -->', $output);
+        $t->contains('<footer>Done</footer>', $output);
+        $t->same('custom Batch 42 Review', $renderer->renderResource('templates/default', [
+            'templates/default.html5' => 'custom $title$',
+        ], [
+            'title' => 'Batch 42 Review',
+        ], null, 'html5'));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'

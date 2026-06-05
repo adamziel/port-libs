@@ -41,6 +41,7 @@ final class DocTemplate
         $templatePath = $this->normalizeTemplateResourcePath($templatePath);
         $resources = $this->normalizeTemplateResourceMap($resources);
         $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format);
+        $resources = $this->withDefaultTemplateResource($templatePath, $resources);
         if (!array_key_exists($templatePath, $resources)) {
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
         }
@@ -62,6 +63,7 @@ final class DocTemplate
         $templatePath = $this->normalizeTemplateResourcePath($templatePath);
         $resources = $this->normalizeTemplateResourceMap($resources);
         $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format);
+        $resources = $this->withDefaultTemplateResource($templatePath, $resources);
         if (!array_key_exists($templatePath, $resources)) {
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
         }
@@ -126,8 +128,91 @@ final class DocTemplate
         }
 
         $candidate = $templatePath . '.' . $format;
+        if (array_key_exists($candidate, $resources) || $this->defaultTemplateResource($candidate) !== null) {
+            return $candidate;
+        }
 
-        return array_key_exists($candidate, $resources) ? $candidate : $templatePath;
+        $defaultCandidate = $this->defaultTemplateResourcePathFor($templatePath, $format);
+        if ($defaultCandidate !== null && (array_key_exists($defaultCandidate, $resources) || $this->defaultTemplateResource($defaultCandidate) !== null)) {
+            return $defaultCandidate;
+        }
+
+        return $templatePath;
+    }
+
+    /**
+     * @param array<string, string> $resources
+     * @return array<string, string>
+     */
+    private function withDefaultTemplateResource(string $templatePath, array $resources): array
+    {
+        if (array_key_exists($templatePath, $resources)) {
+            return $resources;
+        }
+
+        $default = $this->defaultTemplateResource($templatePath);
+        if ($default === null) {
+            return $resources;
+        }
+
+        $resources[$templatePath] = $default;
+
+        return $resources;
+    }
+
+    private function defaultTemplateResourcePathFor(string $templatePath, string $format): ?string
+    {
+        if ($templatePath !== 'templates/default') {
+            return null;
+        }
+
+        $format = $this->canonicalDefaultTemplateFormat($format);
+        if ($format === null || $format === '') {
+            return null;
+        }
+
+        return 'templates/default.' . $format;
+    }
+
+    private function canonicalDefaultTemplateFormat(string $format): ?string
+    {
+        return match ($format) {
+            'html' => 'html5',
+            'native', 'csljson', 'json', 'xml', 'fb2', 'pptx', 'ipynb' => '',
+            default => $format,
+        };
+    }
+
+    private function defaultTemplateResource(string $path): ?string
+    {
+        return match ($path) {
+            'templates/default.html5' => $this->defaultHtml5Template(),
+            default => null,
+        };
+    }
+
+    private function defaultHtml5Template(): string
+    {
+        return <<<'HTML'
+<!DOCTYPE html>
+<html$if(lang)$ lang="$lang$"$endif$>
+<head>
+<meta charset="utf-8">
+$if(title)$<title>$title$</title>
+$endif$$for(css)$<link rel="stylesheet" href="$it$">
+$endfor$$for(header-includes)$$it$
+$endfor$</head>
+<body>
+$for(include-before)$$it$
+$endfor$$if(title)$<header id="title-block-header">
+<h1 class="title">$title$</h1>
+</header>
+$endif$$body$
+$for(include-after)$
+$it$$endfor$
+</body>
+</html>
+HTML;
     }
 
     /**
