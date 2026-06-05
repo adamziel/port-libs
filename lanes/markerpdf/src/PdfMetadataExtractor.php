@@ -8434,15 +8434,13 @@ final class PdfMetadataExtractor
     private function xmpPdfaExtensionSchemas(DOMDocument $document): array
     {
         $schemas = [];
-        foreach ($document->getElementsByTagNameNS(self::NS_PDFA_EXTENSION, 'schemas') as $schemasElement) {
-            if (!$schemasElement instanceof DOMElement) {
-                continue;
-            }
-
-            foreach ($this->xmpRdfCollectionItems($schemasElement) as $schemaItem) {
-                $schema = $this->xmpPdfaExtensionSchemaRow($schemaItem);
-                if ($schema !== []) {
-                    $schemas[] = $schema;
+        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
+            foreach ($this->xmpChildElements($description, self::NS_PDFA_EXTENSION, 'schemas') as $schemasElement) {
+                foreach ($this->xmpRdfCollectionItems($schemasElement) as $schemaItem) {
+                    $schema = $this->xmpPdfaExtensionSchemaRow($schemaItem);
+                    if ($schema !== []) {
+                        $schemas[] = $schema;
+                    }
                 }
             }
         }
