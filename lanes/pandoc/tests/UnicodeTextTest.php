@@ -76,6 +76,44 @@ return [
         $t->contains('<h1 id="legacy-import">Legacy Import</h1>', $blocks);
         $t->contains("<p>Editor \u{201C}quoted\u{201D} source \u{2014} Cafe\u{00E9} costs \u{20AC}10.</p>", $blocks);
     },
+    'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
+        $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
+        $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([
+            0x0023,
+            0x0020,
+            0x9b5a,
+            0x000a,
+            0x000a,
+            0x0042,
+            0x004f,
+            0x004d,
+            0x0020,
+            0x006f,
+            0x0076,
+            0x0065,
+            0x0072,
+            0x0072,
+            0x0069,
+            0x0064,
+            0x0065,
+        ]), 'windows-1252');
+        $document = (new MarkdownReader())->readBytes("\xFE\xFF\x00#\x00 \x8A\x08\x75\x3B\x00\x0A\x00\x0A\x00B\x00E", 'windows-1252');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('utf-8', $utf8['encoding']);
+        $t->same('utf-8', $utf8['bom']);
+        $t->same("# Cafe\u{0301}\n\nUTF-8 source", $utf8['text']);
+        $t->same(0, $utf8['repairs']);
+        $t->same('utf-16le', $utf16['encoding']);
+        $t->same('utf-16le', $utf16['bom']);
+        $t->same("# \u{9B5A}\n\nBOM override", $utf16['text']);
+        $t->same(0, $utf16['repairs']);
+        $t->same(['encoding' => 'utf-16be', 'bom' => 'utf-16be', 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same('BE', $document->children[1]->attr('text'));
+        $t->contains('<h1 id="計画">計画</h1>', $blocks);
+        $t->contains('<p>BE</p>', $blocks);
+    },
     'repairs malformed utf8 with replacement characters' => static function (TestRunner $t): void {
         $decoded = UnicodeText::decodeBytes("Broken \xE2(\xA1 UTF-8");
         $document = (new MarkdownReader())->readBytes("Broken \xE2(\xA1 UTF-8");

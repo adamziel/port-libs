@@ -119,15 +119,15 @@ final class UnicodeText
         if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
             $bom = 'utf-8';
             $bytes = substr($bytes, 3);
-            $normalized ??= 'utf-8';
+            $normalized = 'utf-8';
         } elseif (str_starts_with($bytes, "\xFF\xFE")) {
             $bom = 'utf-16le';
             $bytes = substr($bytes, 2);
-            $normalized ??= 'utf-16le';
+            $normalized = 'utf-16le';
         } elseif (str_starts_with($bytes, "\xFE\xFF")) {
             $bom = 'utf-16be';
             $bytes = substr($bytes, 2);
-            $normalized ??= 'utf-16be';
+            $normalized = 'utf-16be';
         }
 
         $normalized ??= 'utf-8';
