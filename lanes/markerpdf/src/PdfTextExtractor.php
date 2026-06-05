@@ -17331,8 +17331,22 @@ final class PdfTextExtractor
      */
     private function type3CharProcColorOperandsAreSafe(array $operands): bool
     {
+        $seenPatternName = false;
         foreach ($operands as $operand) {
-            if ($this->numericOperand($operand) !== null || str_starts_with($operand, '/')) {
+            if ($this->numericOperand($operand) !== null) {
+                if ($seenPatternName) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (str_starts_with($operand, '/')) {
+                if ($seenPatternName) {
+                    return false;
+                }
+
+                $seenPatternName = true;
                 continue;
             }
 
