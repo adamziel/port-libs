@@ -2748,7 +2748,10 @@ final class PdfMetadataExtractor
             15
         );
 
+        $firstItemObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First') ?? '');
+        $lastItemObject = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? '');
         $declaredCount = $this->dictionaryIntegerValue($outlineRoot['body'], 'Count', $objects);
+        $hasChildren = $firstItemObject !== null || $lastItemObject !== null;
         $resolvedCount = count(array_filter(
             $items,
             static fn (array $item): bool => ($item['destination_resolved'] ?? false) === true
@@ -2765,9 +2768,17 @@ final class PdfMetadataExtractor
             'review_only' => true,
             'payload_included' => false,
             'outline_root_object' => $outlineRoot['object'],
-            'first_item_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'First') ?? ''),
-            'last_item_object' => $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($outlineRoot['body'], 'Last') ?? ''),
-            'declared_visible_count' => $declaredCount,
+            'first_item_object' => $firstItemObject,
+            'last_item_object' => $lastItemObject,
+            'has_children' => $hasChildren,
+            'outline_count' => $declaredCount,
+            'declared_visible_count' => $declaredCount === null ? null : abs($declaredCount),
+            'descendant_count' => $declaredCount === null ? null : abs($declaredCount),
+            'is_open' => $declaredCount === null ? null : $declaredCount >= 0,
+            'is_collapsed' => $declaredCount === null ? null : $declaredCount < 0,
+            'structure_state' => $declaredCount === null
+                ? ($hasChildren ? 'parent' : 'leaf')
+                : ($declaredCount < 0 ? 'collapsed' : ($hasChildren ? 'expanded' : 'leaf')),
             'item_count' => count($items),
             'resolved_destination_count' => $resolvedCount,
             'unresolved_destination_count' => count($items) - $resolvedCount,
