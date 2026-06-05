@@ -364,6 +364,66 @@ return [
         $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
         $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline invalid CCITT fax payload noise'));
     },
+    'resolves escaped CCITT Fax DecodeParms keys while ignoring nested decoys before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $payload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline escaped CCITT fax payload noise) Tj ET final";
+        $plan = $renderer->inlineImageReviewPlan(
+            '/W 8 /H 3 /IM true /F /CCF /DP << /Decoy << /Columns 4 /Rows 1 /BlackIs1 false /EndOfBlock true >> /#4B -1 /Colu#6Dns 32 /Ro#77s 3 /Black#49s1 true /EncodedByte#41lign true /EndOf#4cine true /EndOf#42lock false /DamagedRowsBefore#45rror 5 >> /D [1 0]',
+            $payload
+        );
+
+        $t->same(['CCITTFaxDecode'], $plan['image_filters']);
+        $t->same([
+            [
+                'filter' => 'CCITTFaxDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 32,
+                    'rows' => 3,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => true,
+                    'end_of_line' => true,
+                    'end_of_block' => false,
+                    'damaged_rows_before_error' => 5,
+                ],
+            ],
+        ], $plan['image_filter_details']);
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'invalid_decode_parms_fields' => [],
+            'effective_decode_parms' => [
+                'k' => -1,
+                'columns' => 32,
+                'rows' => 3,
+                'black_is_1' => true,
+                'encoded_byte_align' => true,
+                'end_of_line' => true,
+                'end_of_block' => false,
+                'damaged_rows_before_error' => 5,
+            ],
+            'defaults_applied' => [],
+            'dictionary_width' => 8,
+            'dictionary_height' => 3,
+            'effective_width' => 8,
+            'effective_height' => 3,
+            'width_source' => 'image_dictionary',
+            'height_source' => 'image_dictionary',
+            'columns_match_width' => false,
+            'rows_match_height' => true,
+            'dimension_mismatch' => true,
+        ], $plan['ccitt_fax_decode_boundary']);
+        $t->same(true, $plan['inline_image_review_only']);
+        $t->same(false, $plan['inline_image']['native_raster_decode']);
+        $t->same(true, $plan['inline_image_payload_excluded_from_text']);
+        $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
+        $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline escaped CCITT fax payload noise'));
+    },
     'keeps Flate-wrapped CCITT Fax endstream decoys inside image payload boundaries' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryZlibStored): void {
         $extractor = new PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before Flate CCITT stream) Tj ET';

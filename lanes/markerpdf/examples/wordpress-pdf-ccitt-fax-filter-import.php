@@ -57,6 +57,11 @@ $inlineGeometryReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 8 /H 3 /IM true /F /CCF /DP << /Columns 16 /Rows 4 /BlackIs1 true >>',
     "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT geometry payload noise) Tj ET final"
 );
+$escapedInlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline escaped CCITT fax payload noise) Tj ET final";
+$escapedInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 8 /H 3 /IM true /F /CCF /DP << /Decoy << /Columns 4 /Rows 1 /BlackIs1 false /EndOfBlock true >> /#4B -1 /Colu#6Dns 32 /Ro#77s 3 /Black#49s1 true /EncodedByte#41lign true /EndOf#4cine true /EndOf#42lock false /DamagedRowsBefore#45rror 5 >>',
+    $escapedInlinePayload
+);
 $fakeObject = 'BT /F1 12 Tf 72 700 Td (WordPress Flate CCITT prefix leak) Tj ET';
 $flateWrappedFaxPayload = "\x00\x11\x22\x33\n"
     . "endstream\nendobj\n"
@@ -127,6 +132,8 @@ $geometryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($geometr
 $inlineNotes = $inlineReview['notes'] ?? [];
 $invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $inlineGeometryBoundary = $inlineGeometryReview['ccitt_fax_decode_boundary'] ?? [];
+$escapedInlineParms = $escapedInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
+$escapedInlineBoundary = $escapedInlineReview['ccitt_fax_decode_boundary'] ?? [];
 $geometryBoundary = $geometryReview['entries'][0]['ccitt_fax_decode_boundary'] ?? [];
 if (!in_array('inline_ccitt_fax_image_filter_review_only', $inlineNotes, true)) {
     throw new RuntimeException('Inline CCITT Fax review boundary smoke failed.');
@@ -164,6 +171,16 @@ if (
 ) {
     throw new RuntimeException('CCITT effective DecodeParms geometry boundary smoke failed.');
 }
+if (
+    ($escapedInlineParms['k'] ?? null) !== -1
+    || ($escapedInlineParms['columns'] ?? null) !== 32
+    || ($escapedInlineParms['rows'] ?? null) !== 3
+    || ($escapedInlineParms['end_of_block'] ?? null) !== false
+    || ($escapedInlineBoundary['dimension_mismatch'] ?? null) !== true
+    || str_contains(json_encode($escapedInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $escapedInlinePayload)
+) {
+    throw new RuntimeException('Escaped CCITT DecodeParms renderer boundary smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
@@ -178,6 +195,20 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'inline_effective_decode_parms' => $inlineGeometryBoundary['effective_decode_parms'] ?? [],
     'inline_geometry_dimension_mismatch' => $inlineGeometryBoundary['dimension_mismatch'] ?? null,
     'inline_geometry_defaults_applied' => $inlineGeometryBoundary['defaults_applied'] ?? [],
+    'inline_escaped_decode_parms' => [
+        'k' => $escapedInlineParms['k'] ?? null,
+        'columns' => $escapedInlineParms['columns'] ?? null,
+        'rows' => $escapedInlineParms['rows'] ?? null,
+        'black_is_1' => $escapedInlineParms['black_is_1'] ?? null,
+        'encoded_byte_align' => $escapedInlineParms['encoded_byte_align'] ?? null,
+        'end_of_line' => $escapedInlineParms['end_of_line'] ?? null,
+        'end_of_block' => $escapedInlineParms['end_of_block'] ?? null,
+        'damaged_rows_before_error' => $escapedInlineParms['damaged_rows_before_error'] ?? null,
+    ],
+    'inline_escaped_decode_parms_nested_decoys_ignored' => ($escapedInlineParms['columns'] ?? null) === 32
+        && ($escapedInlineParms['rows'] ?? null) === 3,
+    'inline_escaped_payload_excluded_from_review' => !str_contains(json_encode($escapedInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $escapedInlinePayload),
+    'inline_escaped_dimension_mismatch' => $escapedInlineBoundary['dimension_mismatch'] ?? null,
     'xobject_geometry_effective_width' => $geometryBoundary['effective_width'] ?? null,
     'xobject_geometry_effective_height' => $geometryBoundary['effective_height'] ?? null,
     'xobject_geometry_width_source' => $geometryBoundary['width_source'] ?? null,

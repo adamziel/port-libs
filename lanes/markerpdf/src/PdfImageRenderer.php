@@ -5805,7 +5805,7 @@ final class PdfImageRenderer
             return null;
         }
 
-        $value = $this->extractPdfNameValue($decodeParms, $name);
+        $value = $this->pdfDictionaryValueForName($decodeParms, $name);
         if ($value === null) {
             return null;
         }
@@ -5822,7 +5822,7 @@ final class PdfImageRenderer
             return null;
         }
 
-        $value = $this->extractPdfNameValue($decodeParms, $name);
+        $value = $this->pdfDictionaryValueForName($decodeParms, $name);
         if ($value === null) {
             return null;
         }
@@ -5832,7 +5832,7 @@ final class PdfImageRenderer
 
     private function decodeParmsHasName(?string $decodeParms, string $name): bool
     {
-        return $decodeParms !== null && $this->extractPdfNameValue($decodeParms, $name) !== null;
+        return $decodeParms !== null && $this->pdfDictionaryValueForName($decodeParms, $name) !== null;
     }
 
     /**
