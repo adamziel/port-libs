@@ -1628,7 +1628,7 @@ final class TableRecognizer
                     $size,
                     $spaces['conflicts']
                 );
-                $normalizedCounts['conflicts'] = $localizedConflicts['count'];
+                $normalizedCounts['conflicts'] += $localizedConflicts['count'];
                 $table['ocr_grid_border_conflicts'] = $localizedConflicts['conflicts'];
             }
             if ($this->isPageImageCoordinateSpace($spaces['conflicts']) || $this->recordSpacesIncludePageImage($recordSpaces['conflicts'])) {
@@ -1638,7 +1638,7 @@ final class TableRecognizer
                     $dy,
                     $spaces['conflicts']
                 );
-                $translatedCounts['conflicts'] = $localizedConflicts['count'];
+                $translatedCounts['conflicts'] += $localizedConflicts['count'];
                 $table['ocr_grid_border_conflicts'] = $localizedConflicts['conflicts'];
             }
             $table = $this->withTableGeometryCoordinateSpace($table, 'conflicts', 'table_crop');
