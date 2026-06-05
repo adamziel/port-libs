@@ -67,6 +67,36 @@ final class MathTexConverter
         'wedge' => '∧',
     ];
 
+    /** @var array<string, string> */
+    private const NOT_RELATION_COMMANDS = [
+        '=' => '≠',
+        'approx' => '≉',
+        'equiv' => '≢',
+        'ge' => '≱',
+        'geq' => '≱',
+        'gt' => '≯',
+        'in' => '∉',
+        'le' => '≰',
+        'leq' => '≰',
+        'leftarrow' => '↚',
+        'leftrightarrow' => '↮',
+        'lt' => '≮',
+        'Rightarrow' => '⇏',
+        'rightarrow' => '↛',
+        'subset' => '⊄',
+        'subseteq' => '⊈',
+        'supset' => '⊅',
+        'supseteq' => '⊉',
+        'to' => '↛',
+    ];
+
+    /** @var array<string, string> */
+    private const NOT_RELATION_TOKENS = [
+        '=' => '≠',
+        '<' => '≮',
+        '>' => '≯',
+    ];
+
     /** @var array<string, array{lineThickness?: string, open?: string, close?: string}> */
     private const INFIX_FRACTION_COMMANDS = [
         'atop' => ['lineThickness' => '0'],
@@ -302,6 +332,20 @@ final class MathTexConverter
         '¬' => 'not',
         '≠' => 'not equal',
         '∉' => 'not in',
+        '≮' => 'not less than',
+        '≯' => 'not greater than',
+        '≰' => 'not less than or equal to',
+        '≱' => 'not greater than or equal to',
+        '≉' => 'not approximately equal to',
+        '≢' => 'not equivalent',
+        '↚' => 'not left arrow',
+        '↛' => 'not right arrow',
+        '↮' => 'not left right arrow',
+        '⇏' => 'not implies',
+        '⊄' => 'not subset',
+        '⊈' => 'not subset or equal',
+        '⊅' => 'not superset',
+        '⊉' => 'not superset or equal',
         '∂' => 'partial',
         '±' => 'plus or minus',
         '∏' => 'product',
@@ -1292,6 +1336,10 @@ final class MathTexConverter
             return $this->parseEquationReferenceCommand($source, $offset, $command);
         }
 
+        if ($command === 'not') {
+            return $this->parseNotCommand($source, $offset);
+        }
+
         if ($command === 'limits' || $command === 'nolimits' || $command === 'displaylimits') {
             throw new \InvalidArgumentException('Unexpected TeX \\' . $command . ' without previous math base at offset ' . $offset);
         }
@@ -2114,6 +2162,37 @@ final class MathTexConverter
         }
 
         return $reference;
+    }
+
+    private function parseNotCommand(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX relation after \\not at offset ' . $offset);
+        }
+
+        if ($char === '\\') {
+            $commandOffset = $offset + 1;
+            $command = $this->readCommandName($source, $commandOffset);
+            if (isset(self::NOT_RELATION_COMMANDS[$command])) {
+                $offset = $commandOffset;
+
+                return '<mo>' . self::NOT_RELATION_COMMANDS[$command] . '</mo>';
+            }
+        }
+
+        if (isset(self::NOT_RELATION_TOKENS[$char])) {
+            $offset++;
+
+            return '<mo>' . self::NOT_RELATION_TOKENS[$char] . '</mo>';
+        }
+
+        $defaultScriptPlacement = null;
+
+        return '<menclose notation="updiagonalstrike">'
+            . $this->parseAtom($source, $offset, $defaultScriptPlacement)
+            . '</menclose>';
     }
 
     private function parseArrowAccentCommand(string $source, int &$offset, string $command): string

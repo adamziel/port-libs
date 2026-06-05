@@ -562,6 +562,23 @@ return [
         $t->contains('<mi>a</mi><mo>←</mo><mi>b</mi><mo>↔</mo><mi>c</mi><mo>↦</mo><mi>d</mi><mo>∂</mo><mi>f</mi>', $arrowMathml);
         $t->contains('<mi>U</mi><mo>⊇</mo><mi>V</mi><mo>⊃</mo><mi>W</mi><mo>∨</mo><mi>a</mi><mo>≤</mo><mi>b</mi><mo>≥</mo><mi>c</mi><mo>≠</mo><mi>d</mi>', $aliasMathml);
     },
+    'converts bounded tex not relation overlays to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $notRelationMathml = $converter->texToMathMl('p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + f \\not\\approx g + q \\not\\Rightarrow r', true);
+        $notTokenMathml = $converter->texToMathMl('x \\not< y + y \\not> z + A \\not\\leftrightarrow B');
+        $fallbackMathml = $converter->texToMathMl('\\not\\alpha_i + \\not{p_i + m_i}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('p_i \\not\\in P + a \\not= b', false);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $notRelationMathml);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mo>∉</mo><mi>P</mi><mo>+</mo><mi>a</mi><mo>≠</mo><mi>b</mi><mo>+</mo><mi>x</mi><mo>≰</mo><mi>y</mi>', $notRelationMathml);
+        $t->contains('<mi>A</mi><mo>⊈</mo><mi>B</mi><mo>+</mo><mi>f</mi><mo>≉</mo><mi>g</mi><mo>+</mo><mi>q</mi><mo>⇏</mo><mi>r</mi>', $notRelationMathml);
+        $t->contains('<annotation encoding="application/x-tex">p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + f \\not\\approx g + q \\not\\Rightarrow r</annotation>', $notRelationMathml);
+        $t->contains('<mi>x</mi><mo>≮</mo><mi>y</mi><mo>+</mo><mi>y</mi><mo>≯</mo><mi>z</mi><mo>+</mo><mi>A</mi><mo>↮</mo><mi>B</mi>', $notTokenMathml);
+        $t->contains('<msub><menclose notation="updiagonalstrike"><mi>α</mi></menclose><mi>i</mi></msub><mo>+</mo><menclose notation="updiagonalstrike"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></menclose>', $fallbackMathml);
+        $t->contains('alttext="p sub i not in P plus a not equal b"', $accessibleMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\not'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\not_1'));
+    },
     'converts bounded tex accents overlines and underlines to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $accentMathml = $converter->texToMathMl('\\hat{x} + \\widehat{ab} + \\bar y + \\overline{AB} + \\vec{v}_i');
