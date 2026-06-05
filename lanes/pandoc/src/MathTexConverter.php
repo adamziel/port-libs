@@ -224,6 +224,9 @@ final class MathTexConverter
         'gather' => ['columnalign' => 'center', 'columns' => 1],
         'gather*' => ['columnalign' => 'center', 'columns' => 1],
         'gathered' => ['columnalign' => 'center', 'columns' => 1],
+        'multline' => ['columnalign' => 'center', 'columns' => 1],
+        'multline*' => ['columnalign' => 'center', 'columns' => 1],
+        'multlined' => ['columnalign' => 'center', 'columns' => 1],
         'split' => ['columnalign' => 'right left', 'columns' => 2],
     ];
 
@@ -2081,18 +2084,21 @@ final class MathTexConverter
     {
         $depth = 0;
         $separatorIsLastSignificantToken = false;
+        $offset = 0;
         $length = strlen($content);
-        for ($offset = 0; $offset < $length; $offset++) {
+        while ($offset < $length) {
             $char = $content[$offset];
             if ($char === '\\') {
                 if ($depth === 0 && ($content[$offset + 1] ?? '') === '\\') {
                     $separatorIsLastSignificantToken = true;
-                    $offset++;
+                    $offset += 2;
+                    $this->skipOptionalAlignmentRowSpacingArgument($content, $offset);
                     continue;
                 }
 
                 $separatorIsLastSignificantToken = false;
-                if (($content[$offset + 1] ?? '') !== '') {
+                $offset++;
+                if (($content[$offset] ?? '') !== '') {
                     $offset++;
                 }
                 continue;
@@ -2101,18 +2107,22 @@ final class MathTexConverter
             if ($char === '{') {
                 $depth++;
                 $separatorIsLastSignificantToken = false;
+                $offset++;
                 continue;
             }
 
             if ($char === '}') {
                 $depth = max(0, $depth - 1);
                 $separatorIsLastSignificantToken = false;
+                $offset++;
                 continue;
             }
 
             if (!ctype_space($char)) {
                 $separatorIsLastSignificantToken = false;
             }
+
+            $offset++;
         }
 
         return $separatorIsLastSignificantToken;
@@ -2639,6 +2649,7 @@ final class MathTexConverter
                     $rows[] = $row;
                     $row = [];
                     $offset += 2;
+                    $this->skipOptionalAlignmentRowSpacingArgument($content, $offset);
                     continue;
                 }
 
@@ -2693,6 +2704,20 @@ final class MathTexConverter
         }
 
         return $rows;
+    }
+
+    private function skipOptionalAlignmentRowSpacingArgument(string $content, int &$offset): void
+    {
+        if (($content[$offset] ?? '') !== '[') {
+            return;
+        }
+
+        $argument = $this->readTexBracketArgument($content, $offset);
+        if ($argument === null) {
+            throw new \InvalidArgumentException('Unclosed TeX row-spacing argument at offset ' . $offset);
+        }
+
+        $offset = $argument['next'];
     }
 
     private function parseEnvironmentCell(string $cell): string
