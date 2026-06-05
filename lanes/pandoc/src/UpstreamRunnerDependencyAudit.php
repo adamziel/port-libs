@@ -478,6 +478,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectPackages(string $contents): array
     {
+        $contents = self::stripCabalLineComments($contents);
         $rawPackages = '';
         $capturing = false;
 
@@ -519,6 +520,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectFlags(string $contents): array
     {
+        $contents = self::stripCabalLineComments($contents);
         $flags = [];
         $currentPackage = null;
 
@@ -558,6 +560,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectConstraints(string $contents): array
     {
+        $contents = self::stripCabalLineComments($contents);
         $rawConstraints = '';
         $capturing = false;
 
@@ -605,6 +608,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectPins(string $contents): array
     {
+        $contents = self::stripCabalLineComments($contents);
         $pins = [];
         $current = [];
         $finish = static function (array $block) use (&$pins): void {
@@ -657,6 +661,7 @@ final class UpstreamRunnerDependencyAudit
      */
     public static function parseCabalProjectSourceRepositories(string $contents): array
     {
+        $contents = self::stripCabalLineComments($contents);
         $repositories = [];
         $current = [];
         $finish = static function (array $block) use (&$repositories): void {

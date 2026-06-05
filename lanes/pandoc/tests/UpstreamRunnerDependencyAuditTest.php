@@ -937,4 +937,85 @@ return [
         $t->contains('missing Cabal runner other-modules: test:test-pandoc (Tests.Command)', $blocked);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'normalizes cabal project line comments before dependency planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = $pinnedProject();
+        $project = str_replace(
+            'packages: . pandoc-lua-engine pandoc-server pandoc-cli',
+            "packages: -- runner packages\n  . -- main pandoc package\n  pandoc-lua-engine\n  pandoc-server\n  pandoc-cli -- command package",
+            $project
+        );
+        $project = str_replace(
+            'constraints: skylighting-format-blaze-html >= 0.1.2, skylighting-format-context >= 0.1.0.2, auto-update >= 0.2.6, crypton >= 1.1.1',
+            "constraints: -- solver floors\n  skylighting-format-blaze-html >= 0.1.2, -- HTML format floor\n  skylighting-format-context >= 0.1.0.2,\n  auto-update >= 0.2.6,\n  crypton >= 1.1.1 -- crypton floor",
+            $project
+        );
+        $project = str_replace(
+            '  flags: +embed_data_files +http',
+            "  flags: +embed_data_files -- package data files\n  flags: +http -- HTTP reader support",
+            $project
+        );
+        $project = str_replace('  type: git', '  type: git -- pinned Git dependency', $project);
+        $project = preg_replace('/(  location: https:\/\/github\.com\/jgm\/[A-Za-z0-9_-]+\.git)/', '$1 -- upstream location', $project) ?? $project;
+        $project = preg_replace('/(  tag: [a-f0-9]+)/', '$1 -- pinned commit', $project) ?? $project;
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedProjectPackages(), $audit['projectPackageClosure']['presentPackages']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectPackageClosure']['missingFlags']);
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedProjectConstraints(), $audit['projectConstraintClosure']['presentConstraints']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['projectConstraintClosure']['mismatchedConstraints']);
+        $expectedPins = UpstreamRunnerDependencyAudit::expectedProjectPins();
+        ksort($expectedPins);
+        $t->same($expectedPins, $audit['projectSourceRepositoryPins']['present']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['missing']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['blockedReasons']);
+    },
+    'does not count commented cabal project packages or flags as present' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = $pinnedProject();
+        $project = str_replace(
+            'packages: . pandoc-lua-engine pandoc-server pandoc-cli',
+            "packages: . pandoc-lua-engine pandoc-server\n  -- pandoc-cli is intentionally commented out",
+            $project
+        );
+        $project = str_replace(
+            '  flags: +embed_data_files +http',
+            '  flags: +embed_data_files -- +http is intentionally commented out',
+            $project
+        );
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(['pandoc-cli'], $audit['projectPackageClosure']['missingPackages']);
+        $t->same(['http'], $audit['projectPackageClosure']['missingFlags']['pandoc']);
+        $t->same([], $audit['projectPackageClosure']['mismatchedFlags']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing cabal.project package entries: pandoc-cli', $blocked);
+        $t->contains('missing cabal.project package flags: pandoc (http)', $blocked);
+        $t->contains('cabal.project package entries/flags/constraints', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
 ];
