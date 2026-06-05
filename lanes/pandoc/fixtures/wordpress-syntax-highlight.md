@@ -91,3 +91,19 @@ export async function migrateBlock(payload: BlockPayload): Promise<void> {
   return;
 }
 ```
+
+``` {.python3 #python-review .numberLines startFrom=20}
+# WordPress import JSON cleanup
+from dataclasses import dataclass
+from pathlib import Path
+@dataclass
+class ReviewPacket:
+    source_id: int
+    title: str | None = None
+
+def normalize_title(packet: ReviewPacket) -> str:
+    raw = json.loads(Path(packet.source_path).read_text())["title"]
+    if raw is None:
+        return "Untitled"
+    return raw.strip()
+```

@@ -84,6 +84,12 @@ if (!$typescriptCodeBlock instanceof PortLibs\Pandoc\AstNode || $typescriptCodeB
 }
 $typescript = $highlighter->highlightCodeBlock($typescriptCodeBlock, 'kate');
 $typescriptWordpressBlock = $highlighter->wordpressHtmlBlock($typescriptCodeBlock, 'kate');
+$pythonCodeBlock = $document->children[8] ?? null;
+if (!$pythonCodeBlock instanceof PortLibs\Pandoc\AstNode || $pythonCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Python code block');
+}
+$python = $highlighter->highlightCodeBlock($pythonCodeBlock, 'monochrome');
+$pythonWordpressBlock = $highlighter->wordpressHtmlBlock($pythonCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -265,6 +271,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($typescriptWordpressBlock, '<span class="kw">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">migrateBlock</span>')) {
         throw new RuntimeException('Expected TypeScript async function token handoff');
     }
+    if (($python['language'] ?? '') !== 'python') {
+        throw new RuntimeException('Expected python3 alias to normalize to Python highlighting');
+    }
+    if (($python['lineNumbering']['start'] ?? null) !== 20) {
+        throw new RuntimeException('Expected Python source startFrom line-number handoff');
+    }
+    if (!str_contains($python['html'], '<span class="ot">@dataclass</span>')) {
+        throw new RuntimeException('Expected Python decorator token handoff');
+    }
+    if (!str_contains($python['html'], '<span class="kw">class</span> <span class="dt">ReviewPacket</span><span class="op">:</span>')) {
+        throw new RuntimeException('Expected Python class datatype token handoff');
+    }
+    if (!str_contains($python['html'], '<span class="kw">def</span> <span class="fu">normalize_title</span>')) {
+        throw new RuntimeException('Expected Python function token handoff');
+    }
+    if (!str_contains($python['html'], '<span class="va">json</span><span class="op">.</span><span class="fu">loads</span>')) {
+        throw new RuntimeException('Expected Python module function token handoff');
+    }
+    if (!str_contains($pythonWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected Python WordPress style metadata');
+    }
+    if (!str_contains($pythonWordpressBlock, '<span class="kw">return</span> <span class="va">raw</span><span class="op">.</span><span class="fu">strip</span><span class="op">()</span>')) {
+        throw new RuntimeException('Expected Python method call token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -296,7 +326,9 @@ echo "markdownHighlightedHtml:\n" . $markdown['html'] . "\n";
 echo "rubyHighlightedHtml:\n" . $ruby['html'] . "\n";
 echo "luaHighlightedHtml:\n" . $lua['html'] . "\n";
 echo "typescriptHighlightedHtml:\n" . $typescript['html'] . "\n";
+echo "pythonHighlightedHtml:\n" . $python['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
+echo "pythonWordpressBlock:\n" . $pythonWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

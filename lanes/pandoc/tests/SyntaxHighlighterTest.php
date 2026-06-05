@@ -44,6 +44,9 @@ return [
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
+        $t->same('python', SyntaxHighlighter::normalizeLanguage('py'));
+        $t->same('python', SyntaxHighlighter::normalizeLanguage('py3'));
+        $t->same('python', SyntaxHighlighter::normalizeLanguage('python3'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('ts'));
         $t->same('typescript', SyntaxHighlighter::normalizeLanguage('typescript'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
@@ -455,6 +458,56 @@ return [
         $t->same('typescript', $directTypescript['language']);
         $t->contains('<span class="kw">interface</span> <span class="dt">ReviewBlock</span>', $directTypescript['html']);
         $t->contains('<span class="kw">readonly</span> <span class="va">title</span><span class="op">:</span> <span class="dt">string</span>', $directTypescript['html']);
+    },
+    'highlights python3 review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'python-review',
+            'classes' => ['sourceCode', 'python3', 'numberLines'],
+            'attributes' => ['startFrom' => '20'],
+            'text' => implode("\n", [
+                '# WordPress import JSON cleanup',
+                'from dataclasses import dataclass',
+                'from pathlib import Path',
+                '@dataclass',
+                'class ReviewPacket:',
+                '    source_id: int',
+                '    title: str | None = None',
+                '',
+                'def normalize_title(packet: ReviewPacket) -> str:',
+                '    raw = json.loads(Path(packet.source_path).read_text())["title"]',
+                '    if raw is None:',
+                '        return "Untitled"',
+                '    return raw.strip()',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directPython = (new SyntaxHighlighter())->highlight('async def load(): await fetch()', 'py3');
+
+        $t->same('python3', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('python', $highlighted['language']);
+        $t->same('python3', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(20, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource python3 numberLines"><code class="sourceCode python" style="counter-reset: source-line 19;">', $highlighted['html']);
+        $t->contains('<span id="python-review-20"><a href="#python-review-20"></a><span class="co"># WordPress import JSON cleanup</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">from</span> <span class="va">dataclasses</span> <span class="kw">import</span> <span class="va">dataclass</span>', $highlighted['html']);
+        $t->contains('<span class="kw">from</span> <span class="va">pathlib</span> <span class="kw">import</span> <span class="dt">Path</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@dataclass</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="dt">ReviewPacket</span><span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="va">source_id</span><span class="op">:</span> <span class="dt">int</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">:</span> <span class="dt">str</span> <span class="op">|</span> <span class="cn">None</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="dt">str</span>', $highlighted['html']);
+        $t->contains('<span class="va">json</span><span class="op">.</span><span class="fu">loads</span><span class="op">(</span><span class="dt">Path</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">source_path</span><span class="op">).</span><span class="fu">read_text</span><span class="op">())[</span><span class="st">&quot;title&quot;</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">raw</span> <span class="kw">is</span> <span class="cn">None</span><span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">raw</span><span class="op">.</span><span class="fu">strip</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="ot">@dataclass</span>', $wordpressBlock);
+        $t->same('python', $directPython['language']);
+        $t->contains('<span class="kw">async</span> <span class="kw">def</span> <span class="fu">load</span>', $directPython['html']);
+        $t->contains('<span class="kw">await</span> <span class="fu">fetch</span><span class="op">()</span>', $directPython['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

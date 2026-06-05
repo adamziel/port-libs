@@ -55,7 +55,9 @@ final class SyntaxHighlighter
         'postgres' => 'sql',
         'postgresql' => 'sql',
         'py' => 'python',
+        'py3' => 'python',
         'python' => 'python',
+        'python3' => 'python',
         'rake' => 'ruby',
         'rb' => 'ruby',
         'ruby' => 'ruby',
@@ -637,11 +639,15 @@ final class SyntaxHighlighter
             ['string', "/^(?:r|u|f|fr|rf)?'''[\\s\\S]*?'''/i"],
             ['string', '/^(?:r|u|f|fr|rf)?"(?:\\\\.|[^"\\\\])*"/i'],
             ['string', "/^(?:r|u|f|fr|rf)?'(?:\\\\.|[^'\\\\])*'/i"],
-            ['keyword', '/^\\b(?:and|as|assert|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\\b/'],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|raise|return|try|while|with|yield)\\b/'],
             ['constant', '/^\\b(?:False|None|True)\\b/'],
-            ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['datatype', '/^\\b(?:bool|bytes|complex|dict|float|frozenset|int|list|object|set|str|tuple)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*\\b/'],
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
-            ['operator', '/^(?:==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>:-])/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:->|:=|\\*\\*|\\/\\/|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>:|-])/'],
         ]);
     }
 
