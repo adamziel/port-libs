@@ -1247,6 +1247,10 @@ final class TableGeometry
             if ($sourceAttributes !== []) {
                 $slot['sourceAttributes'] = $sourceAttributes;
             }
+            $content = self::cellContentSummary($node);
+            if ($content !== []) {
+                $slot['content'] = $content;
+            }
         }
 
         return $slot;
@@ -1440,6 +1444,51 @@ final class TableGeometry
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function cellContentSummary(AstNode $cell): array
+    {
+        if ($cell->children === []) {
+            return [];
+        }
+
+        $inlines = [];
+        $blocks = [];
+        foreach ($cell->children as $child) {
+            if (self::isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            $blocks[] = $child;
+        }
+
+        if ($blocks === []) {
+            return [];
+        }
+
+        $record = [
+            'text' => self::plainTextFromBlockNodes($blocks),
+            'childCount' => count($cell->children),
+            'inlineCount' => count($inlines),
+            'inlineTypes' => self::inlineTypes($inlines),
+            'hasInlineContent' => $inlines !== [],
+            'hasInlineFormatting' => self::inlinesHaveFormatting($inlines),
+            'blockCount' => count($blocks),
+            'blockTypes' => self::blockTypes($blocks),
+            'hasBlockContent' => true,
+            'hasMixedInlineAndBlockContent' => $inlines !== [],
+            'blocks' => self::serializableBlocks($blocks),
+        ];
+
+        if ($inlines !== []) {
+            $record['inlines'] = self::serializableInlines($inlines);
+        }
+
+        return $record;
+    }
+
+    /**
      * @param list<AstNode> $nodes
      */
     private static function childrenAreInlineNodes(array $nodes): bool
@@ -1528,6 +1577,9 @@ final class TableGeometry
         $nestedTableCaptions = [];
         $nestedTableDescendantCaptions = [];
         $nestedTableDiagnosticCodes = [];
+        $blockContentCellCount = 0;
+        $multiBlockCellCount = 0;
+        $cellBlockTypes = [];
 
         foreach ($rows as $slots) {
             foreach ($slots as $slot) {
@@ -1554,6 +1606,21 @@ final class TableGeometry
                 $node = $slot['node'] ?? null;
                 if (!$node instanceof AstNode) {
                     continue;
+                }
+
+                $content = self::cellContentSummary($node);
+                if ($content !== []) {
+                    $blockContentCellCount++;
+                    if ((int) ($content['blockCount'] ?? 0) > 1) {
+                        $multiBlockCellCount++;
+                    }
+
+                    foreach ($content['blockTypes'] ?? [] as $blockType) {
+                        $blockType = trim((string) $blockType);
+                        if ($blockType !== '') {
+                            $cellBlockTypes[] = $blockType;
+                        }
+                    }
                 }
 
                 $nestedTables = self::nestedTableSummaries($node);
@@ -1604,6 +1671,10 @@ final class TableGeometry
             'nestedTableDescendantCaptions' => array_values(array_unique($nestedTableDescendantCaptions)),
             'nestedTableDiagnosticCount' => $nestedTableDiagnosticCount,
             'nestedTableDiagnosticCodes' => array_values(array_unique($nestedTableDiagnosticCodes)),
+            'blockContentCellCount' => $blockContentCellCount,
+            'multiBlockCellCount' => $multiBlockCellCount,
+            'hasBlockContentCells' => $blockContentCellCount > 0,
+            'cellBlockTypes' => array_values(array_unique($cellBlockTypes)),
         ];
     }
 
@@ -1626,6 +1697,10 @@ final class TableGeometry
                 $nestedTables = self::nestedTableSummaries($node);
                 if ($nestedTables !== []) {
                     $record['nestedTables'] = $nestedTables;
+                }
+                $content = self::cellContentSummary($node);
+                if ($content !== []) {
+                    $record['content'] = $content;
                 }
             }
 
@@ -1680,6 +1755,9 @@ final class TableGeometry
         $maxVisualShift = 0;
         $nestedTableCellCount = 0;
         $nestedTableCount = 0;
+        $blockContentCellCount = 0;
+        $multiBlockCellCount = 0;
+        $cellBlockTypes = [];
         foreach ($coverage as $record) {
             if (($record['headerCell'] ?? false) === true) {
                 $headerCellCount++;
@@ -1699,6 +1777,25 @@ final class TableGeometry
             if (is_array($nestedTables) && $nestedTables !== []) {
                 $nestedTableCellCount++;
                 $nestedTableCount += count($nestedTables);
+            }
+
+            $content = $record['content'] ?? [];
+            if (!is_array($content) || ($content['hasBlockContent'] ?? false) !== true) {
+                continue;
+            }
+
+            $blockContentCellCount++;
+            if ((int) ($content['blockCount'] ?? 0) > 1) {
+                $multiBlockCellCount++;
+            }
+            $blockTypes = $content['blockTypes'] ?? [];
+            if (is_array($blockTypes)) {
+                foreach ($blockTypes as $blockType) {
+                    $blockType = trim((string) $blockType);
+                    if ($blockType !== '') {
+                        $cellBlockTypes[] = $blockType;
+                    }
+                }
             }
         }
 
@@ -1773,6 +1870,10 @@ final class TableGeometry
             'maxVisualShift' => $maxVisualShift,
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
+            'blockContentCellCount' => $blockContentCellCount,
+            'multiBlockCellCount' => $multiBlockCellCount,
+            'hasBlockContentCells' => $blockContentCellCount > 0,
+            'cellBlockTypes' => array_values(array_unique($cellBlockTypes)),
             'columnGroupCount' => count($columnGroups),
             'hasColumnGroups' => $columnGroups !== [],
             'writerDowngradeCount' => $writerDowngradeCount,
@@ -1799,6 +1900,17 @@ final class TableGeometry
 
                     $nestedTables = self::nestedTableSummaries($node);
                     if ($nestedTables === []) {
+                        $content = self::cellContentSummary($node);
+                        if ($content !== []) {
+                            $diagnostics[] = self::writerCellBlockRequirementRecord(
+                                'asciidoc-block-cell-required',
+                                $writer,
+                                $record,
+                                $content,
+                                'asciidoc-block-cell'
+                            );
+                        }
+
                         continue;
                     }
 
@@ -1856,6 +1968,22 @@ final class TableGeometry
                     $writer,
                     $record,
                     self::flattenedSlotRecords($record, 'rowspan')
+                );
+            }
+
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode || self::nestedTableSummaries($node) !== []) {
+                continue;
+            }
+
+            $content = self::cellContentSummary($node);
+            if ($content !== []) {
+                $diagnostics[] = self::writerCellBlockRequirementRecord(
+                    'markdown-cell-blocks-flattened',
+                    $writer,
+                    $record,
+                    $content,
+                    'multiline-or-grid-table-cell'
                 );
             }
         }
@@ -1965,6 +2093,33 @@ final class TableGeometry
 
         $writerRecord['nestedTableCaptions'] = array_values(array_unique($captions));
         $writerRecord['nestedTableDiagnosticCodes'] = array_values(array_unique($diagnosticCodes));
+
+        return $writerRecord;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param array<string, mixed> $content
+     * @return array<string, mixed>
+     */
+    private static function writerCellBlockRequirementRecord(
+        string $code,
+        string $writer,
+        array $record,
+        array $content,
+        string $requiredFeature
+    ): array {
+        $writerRecord = self::writerDowngradeRecord($code, $writer, $record, []);
+        unset($writerRecord['flattenedSlots']);
+        $writerRecord['reason'] = 'block-content';
+        $writerRecord['requiredFeature'] = $requiredFeature;
+        $writerRecord['blockCount'] = (int) ($content['blockCount'] ?? 0);
+
+        $blockTypes = $content['blockTypes'] ?? [];
+        $writerRecord['blockTypes'] = is_array($blockTypes)
+            ? array_values(array_map(static fn (mixed $type): string => (string) $type, $blockTypes))
+            : [];
+        $writerRecord['hasMixedInlineAndBlockContent'] = (bool) ($content['hasMixedInlineAndBlockContent'] ?? false);
 
         return $writerRecord;
     }

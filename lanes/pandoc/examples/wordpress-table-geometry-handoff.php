@@ -185,6 +185,39 @@ $malformedSpanTable = new AstNode('table', [
     ]),
 ]);
 
+$blockContentTable = new AstNode('table', [
+    'caption' => 'Cell block content audit',
+    'alignments' => ['left', 'right'],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Packet'], [new AstNode('text', ['text' => 'Packet'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Review source'], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Review ']),
+                    new AstNode('emph', [], [new AstNode('text', ['text' => 'source'])]),
+                ]),
+                new AstNode('bullet_list', [], [
+                    new AstNode('list_item', [], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Image alt text'])]),
+                    ]),
+                    new AstNode('list_item', [], [
+                        new AstNode('paragraph', [], [
+                            new AstNode('strong', [], [new AstNode('text', ['text' => 'Resolve captions'])]),
+                        ]),
+                    ]),
+                ]),
+            ]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -509,6 +542,7 @@ $document = new AstNode('document', [], [
     ...$captionMetadataTables,
     $blockCaptionTable,
     $malformedSpanTable,
+    $blockContentTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1020,6 +1054,36 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test leaked malformed span attributes into WordPress output');
     }
     json_encode($malformedSpanPacket, JSON_THROW_ON_ERROR);
+
+    $blockContentPacket = TableGeometry::reviewPacket($blockContentTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc'],
+    ]);
+    if (
+        ($blockContentPacket['summary']['hasBlockContentCells'] ?? null) !== true
+        || ($blockContentPacket['summary']['blockContentCellCount'] ?? null) !== 1
+        || ($blockContentPacket['summary']['multiBlockCellCount'] ?? null) !== 1
+        || ($blockContentPacket['summary']['cellBlockTypes'] ?? null) !== ['paragraph', 'bullet_list']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing block-level table cell review metadata');
+    }
+    if (
+        ($blockContentPacket['coverage'][2]['content']['blockTypes'] ?? null) !== ['paragraph', 'bullet_list']
+        || ($blockContentPacket['sections'][1]['rows'][0]['slots'][0]['content']['blockCount'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing block-level table cell coverage metadata');
+    }
+    if (
+        ($blockContentPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-cell-blocks-flattened', 'asciidoc-block-cell-required']
+        || ($blockContentPacket['writerDowngrades']['markdown'][0]['requiredFeature'] ?? null) !== 'multiline-or-grid-table-cell'
+        || ($blockContentPacket['writerDowngrades']['asciidoc'][0]['requiredFeature'] ?? null) !== 'asciidoc-block-cell'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing block-level cell writer handoff diagnostics');
+    }
+    if (!str_contains($blocks, '<td style="text-align:left"><p>Review <em>source</em></p><ul><li>Image alt text</li><li><strong>Resolve captions</strong></li></ul></td><td style="text-align:right">Ready</td>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for block-level table cell content');
+    }
+    json_encode($blockContentPacket, JSON_THROW_ON_ERROR);
 
     echo "table geometry handoff self-test ok\n";
     return;

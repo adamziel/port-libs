@@ -1504,6 +1504,97 @@ return [
         $t->same(false, array_key_exists('node', $packet['captions']['long']['blocks'][0] ?? []));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'serializes block-level table cell content for importer review packets and writer handoff' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Cell block content audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Packet'], [new AstNode('text', ['text' => 'Packet'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Review source'], [
+                        new AstNode('paragraph', [], [
+                            new AstNode('text', ['text' => 'Review ']),
+                            new AstNode('emph', [], [new AstNode('text', ['text' => 'source'])]),
+                        ]),
+                        new AstNode('bullet_list', [], [
+                            new AstNode('list_item', [], [
+                                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Image alt text'])]),
+                            ]),
+                            new AstNode('list_item', [], [
+                                new AstNode('paragraph', [], [
+                                    new AstNode('strong', [], [new AstNode('text', ['text' => 'Resolve captions'])]),
+                                ]),
+                            ]),
+                        ]),
+                    ]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc'],
+        ]);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+
+        $reviewCell = $packet['coverage'][2];
+        $content = $reviewCell['content'] ?? [];
+        $sectionCellContent = $packet['sections'][1]['rows'][0]['slots'][0]['content'] ?? [];
+
+        $t->same('Review sourceImage alt textResolve captions', $reviewCell['text'] ?? null);
+        $t->same(true, $content['hasBlockContent'] ?? null);
+        $t->same(false, $content['hasMixedInlineAndBlockContent'] ?? null);
+        $t->same(2, $content['blockCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $content['blockTypes'] ?? null);
+        $t->same('Review source' . "\n" . 'Image alt textResolve captions', $content['text'] ?? null);
+        $t->same('paragraph', $content['blocks'][0]['type'] ?? null);
+        $t->same(['text', 'emph'], array_map(static fn (array $inline): string => (string) ($inline['type'] ?? ''), $content['blocks'][0]['inlines'] ?? []));
+        $t->same('source', $content['blocks'][0]['inlines'][1]['children'][0]['text'] ?? null);
+        $t->same('bullet_list', $content['blocks'][1]['type'] ?? null);
+        $t->same('list_item', $content['blocks'][1]['children'][0]['type'] ?? null);
+        $t->same('Image alt text', $content['blocks'][1]['children'][0]['children'][0]['text'] ?? null);
+        $t->same('strong', $content['blocks'][1]['children'][1]['children'][0]['inlines'][0]['type'] ?? null);
+        $t->same($content, $sectionCellContent);
+
+        $t->same(true, $packet['summary']['hasBlockContentCells'] ?? null);
+        $t->same(1, $packet['summary']['blockContentCellCount'] ?? null);
+        $t->same(1, $packet['summary']['multiBlockCellCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $packet['summary']['cellBlockTypes'] ?? null);
+        $t->same(1, $packet['sections'][1]['summary']['blockContentCellCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $packet['sections'][1]['summary']['cellBlockTypes'] ?? null);
+
+        $t->same(['markdown-cell-blocks-flattened'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $markdownDiagnostics));
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('body', $markdownDiagnostics[0]['section'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['row'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['column'] ?? null);
+        $t->same('block-content', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('multiline-or-grid-table-cell', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['blockCount'] ?? null);
+        $t->same(['paragraph', 'bullet_list'], $markdownDiagnostics[0]['blockTypes'] ?? null);
+        $t->same(['asciidoc-block-cell-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
+        $t->same('asciidoc-block-cell', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same(2, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['markdown-cell-blocks-flattened', 'asciidoc-block-cell-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+
+        $t->contains('<td style="text-align:left"><p>Review <em>source</em></p><ul><li>Image alt text</li><li><strong>Resolve captions</strong></li></ul></td><td style="text-align:right">Ready</td>', $blocks);
+        $t->contains('| Review *source*<br /><br />- Image alt text<br />- **Resolve captions** | Ready |', $markdown);
+        $t->same(false, array_key_exists('node', $content['blocks'][0] ?? []));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports asciidoc nested table passthrough requirements for writer handoff' => static function (TestRunner $t): void {
         $innerTable = new AstNode('table', [
             'caption' => 'Nested source audit',
