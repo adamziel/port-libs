@@ -27,17 +27,19 @@ $destinationPdf = "%PDF-1.7\n"
     . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
     . "8 0 obj\n<< /Limits [(media-cleanup) (z-export)] /Kids [9 0 R 10 0 R 11 1 R] >>\nendobj\n"
     . "9 0 obj\n<< /Limits [(media-cleanup) (migration-start)] /Names [(migration-start) [3 0 R /Fit] (media-cleanup) [4 0 R /XYZ 72 650 1] (stale-secret) [4 0 R /Fit] (stale-page-generation) [4 1 R /Fit] 12 1 R [4 0 R /Fit]] >>\nendobj\n"
-    . "10 0 obj\n<< /Limits [(review-summary) (z-export)] /Names [(migration-start) [4 0 R /Fit] (review-summary) [3 0 R /FitBH 600] ({$pdfDocEncodedDestinationName}) [4 0 R /FitH 540]] >>\nendobj\n"
+    . "10 0 obj\n<< /Limits [(review-summary) (z-export)] /Names [(migration-start) [4 0 R /Fit] (review-summary) [3 0 R /FitBH 600] (section-indirect-review) [4 0 R 14 0 R 15 0 R] ({$pdfDocEncodedDestinationName}) [4 0 R /FitH 540]] >>\nendobj\n"
     . "11 0 obj\n<< /Limits [(review-summary) (z-export)] /Names [(stale-kid-generation) [4 0 R /Fit]] >>\nendobj\n"
     . "12 0 obj\n(stale-indirect-generation)\nendobj\n"
     . "13 0 obj\n<< /D [4 0 R /FitH 120] >>\nendobj\n"
+    . "14 0 obj\n/FitH\nendobj\n"
+    . "15 0 obj\n510\nendobj\n"
     . "%%EOF\n";
 
 $toc = (new PdfOutlineExtractor())->getPdfToc($outlinePdf);
 $destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($destinationPdf);
 $destinationNames = array_column($destinations, 'name');
 
-if ($destinationNames !== ['migration-start', 'media-cleanup', 'review-summary', 'wp' . "\u{2022}" . 'review', 'legacy-review']) {
+if ($destinationNames !== ['migration-start', 'media-cleanup', 'review-summary', 'section-indirect-review', 'wp' . "\u{2022}" . 'review', 'legacy-review']) {
     throw new RuntimeException('Expected name-tree /Limits to exclude stale named destinations before WordPress import metadata.');
 }
 if (in_array('stale-secret', $destinationNames, true)) {
@@ -53,7 +55,7 @@ echo '<!-- markerpdf-pdf-named-destinations ' . htmlspecialchars(json_encode([
     'support_component' => 'native-pdf-outline-and-named-destination-parser',
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'catalog /Names /Dests name-tree /Limits, generation, and PDFDocEncoding key boundaries before WordPress named-destination import metadata',
+    'native_boundary' => 'catalog /Names /Dests name-tree /Limits, generation, PDFDocEncoding key, and indirect view-operand boundaries before WordPress named-destination import metadata',
     'toc_count' => count($toc),
     'destination_count' => count($destinations),
     'outline_destination_names' => array_values(array_filter(array_column($toc, 'destination'), 'is_string')),
@@ -61,6 +63,8 @@ echo '<!-- markerpdf-pdf-named-destinations ' . htmlspecialchars(json_encode([
     'out_of_limits_destination_filtered' => true,
     'generation_mismatch_destinations_filtered' => true,
     'pdfdocencoded_destination_name_decoded' => in_array('wp' . "\u{2022}" . 'review', $destinationNames, true),
+    'indirect_destination_operands_resolved' => ($destinations[3]['fit'] ?? null) === 'FitH'
+        && ($destinations[3]['coordinates'] ?? null) === ['top' => 510.0],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 echo "<!-- wp:list -->\n<ul>\n";

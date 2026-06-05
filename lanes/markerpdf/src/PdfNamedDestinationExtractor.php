@@ -532,7 +532,7 @@ final class PdfNamedDestinationExtractor
             $pageIndex = $pageOperand >= 0 ? $pageOperand : null;
         }
 
-        $fit = $this->nameValue($destination[1]);
+        $fit = $this->nameValue($this->resolve($destination[1] ?? null, $objects, $cache));
         if ($fit === null || $fit === '') {
             return null;
         }
@@ -542,37 +542,49 @@ final class PdfNamedDestinationExtractor
             'page' => $pageIndex,
             'page_object_id' => $pageObjectId,
             'fit' => $fit,
-            'coordinates' => $this->destinationCoordinates($fit, $destination),
+            'coordinates' => $this->destinationCoordinates($fit, $destination, $objects, $cache),
             'source' => $source,
         ];
     }
 
     /**
      * @param list<mixed> $destination
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
      * @return array<string, float|null>
      */
-    private function destinationCoordinates(string $fit, array $destination): array
+    private function destinationCoordinates(string $fit, array $destination, array $objects, array &$cache): array
     {
         return match ($fit) {
             'XYZ' => [
-                'left' => $this->nullableNumber($destination[2] ?? null),
-                'top' => $this->nullableNumber($destination[3] ?? null),
-                'zoom' => $this->nullableNumber($destination[4] ?? null),
+                'left' => $this->destinationCoordinate($destination, 2, $objects, $cache),
+                'top' => $this->destinationCoordinate($destination, 3, $objects, $cache),
+                'zoom' => $this->destinationCoordinate($destination, 4, $objects, $cache),
             ],
             'FitH', 'FitBH' => [
-                'top' => $this->nullableNumber($destination[2] ?? null),
+                'top' => $this->destinationCoordinate($destination, 2, $objects, $cache),
             ],
             'FitV', 'FitBV' => [
-                'left' => $this->nullableNumber($destination[2] ?? null),
+                'left' => $this->destinationCoordinate($destination, 2, $objects, $cache),
             ],
             'FitR' => [
-                'left' => $this->nullableNumber($destination[2] ?? null),
-                'bottom' => $this->nullableNumber($destination[3] ?? null),
-                'right' => $this->nullableNumber($destination[4] ?? null),
-                'top' => $this->nullableNumber($destination[5] ?? null),
+                'left' => $this->destinationCoordinate($destination, 2, $objects, $cache),
+                'bottom' => $this->destinationCoordinate($destination, 3, $objects, $cache),
+                'right' => $this->destinationCoordinate($destination, 4, $objects, $cache),
+                'top' => $this->destinationCoordinate($destination, 5, $objects, $cache),
             ],
             default => [],
         };
+    }
+
+    /**
+     * @param list<mixed> $destination
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function destinationCoordinate(array $destination, int $index, array $objects, array &$cache): ?float
+    {
+        return $this->nullableNumber($this->resolve($destination[$index] ?? null, $objects, $cache));
     }
 
     private function nullableNumber(mixed $value): ?float

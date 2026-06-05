@@ -177,6 +177,37 @@ return [
         $t->same(['left' => 72.0, 'top' => 640.0, 'zoom' => 0.0], $destinations[1]['coordinates']);
         $t->same(['left' => 140.0], $destinations[2]['coordinates']);
     },
+    'resolves indirect destination view operands before WordPress named destination metadata' => static function (TestRunner $t): void {
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /Dests 8 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+            . "8 0 obj\n<< /Names [(Indirect FitH) [3 0 R 20 0 R 21 0 R] (Indirect XYZ) 22 0 R (Indirect FitR) [4 0 R 26 0 R 27 0 R 28 0 R 29 0 R 30 0 R] (Bad Indirect Fit) [4 0 R 31 0 R 80]] >>\nendobj\n"
+            . "20 0 obj\n/FitH\nendobj\n"
+            . "21 0 obj\n715\nendobj\n"
+            . "22 0 obj\n<< /D [4 0 R 23 0 R 24 0 R 25 0 R 0] >>\nendobj\n"
+            . "23 0 obj\n/XYZ\nendobj\n"
+            . "24 0 obj\n72\nendobj\n"
+            . "25 0 obj\n640\nendobj\n"
+            . "26 0 obj\n/FitR\nendobj\n"
+            . "27 0 obj\n10\nendobj\n"
+            . "28 0 obj\n20\nendobj\n"
+            . "29 0 obj\n300\nendobj\n"
+            . "30 0 obj\n740\nendobj\n"
+            . "31 0 obj\n(NotAViewName)\nendobj\n"
+            . "%%EOF\n";
+
+        $destinations = (new PdfNamedDestinationExtractor())->extractNamedDestinations($pdf);
+
+        $t->same(['Indirect FitH', 'Indirect XYZ', 'Indirect FitR'], array_column($destinations, 'name'));
+        $t->same([0, 1, 1], array_column($destinations, 'page'));
+        $t->same([3, 4, 4], array_column($destinations, 'page_object_id'));
+        $t->same(['FitH', 'XYZ', 'FitR'], array_column($destinations, 'fit'));
+        $t->same(['top' => 715.0], $destinations[0]['coordinates']);
+        $t->same(['left' => 72.0, 'top' => 640.0, 'zoom' => 0.0], $destinations[1]['coordinates']);
+        $t->same(['left' => 10.0, 'bottom' => 20.0, 'right' => 300.0, 'top' => 740.0], $destinations[2]['coordinates']);
+    },
     'skips malformed destination values and rejects non PDF bytes' => static function (TestRunner $t): void {
         $extractor = new PdfNamedDestinationExtractor();
         $pdf = "%PDF-1.7\n"
