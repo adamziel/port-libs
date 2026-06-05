@@ -261,6 +261,8 @@ final class PdfEngineHandoff
      *     pdfPageMode: string|null,
      *     pdfOpenAction: array<string, mixed>|null,
      *     pdfViewerPreferences: array<string, bool|int|string>,
+     *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     pdfActiveActionTypes: array<string, int>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
@@ -637,6 +639,8 @@ final class PdfEngineHandoff
         $pdfPageMode = null;
         $pdfOpenAction = null;
         $pdfViewerPreferences = [];
+        $pdfActiveActions = [];
+        $pdfActiveActionTypes = [];
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
@@ -671,6 +675,8 @@ final class PdfEngineHandoff
                 $pdfPageMode = $pdfInspection['pageMode'];
                 $pdfOpenAction = $pdfInspection['openAction'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
+                $pdfActiveActions = $pdfInspection['activeActions'];
+                $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
@@ -762,6 +768,15 @@ final class PdfEngineHandoff
                 }
                 if ($pdfViewerPreferences !== []) {
                     $diagnostics[] = 'pdf-byte-viewer-preferences:' . count($pdfViewerPreferences);
+                }
+                if ($pdfActiveActions !== []) {
+                    $diagnostics[] = 'pdf-byte-active-actions:' . count($pdfActiveActions);
+                }
+                if ($pdfActiveActionTypes !== []) {
+                    $diagnostics[] = 'pdf-byte-active-action-types:' . count($pdfActiveActionTypes);
+                    foreach ($pdfActiveActionTypes as $actionType => $actionCount) {
+                        $diagnostics[] = 'pdf-byte-active-action-type:' . $actionType . ':' . $actionCount;
+                    }
                 }
                 if ($pdfAnnotationTypes !== []) {
                     $diagnostics[] = 'pdf-byte-annotations:' . array_sum($pdfAnnotationTypes);
@@ -932,6 +947,8 @@ final class PdfEngineHandoff
             'pdfPageMode' => $pdfPageMode,
             'pdfOpenAction' => $pdfOpenAction,
             'pdfViewerPreferences' => $pdfViewerPreferences,
+            'pdfActiveActions' => $pdfActiveActions,
+            'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
@@ -987,6 +1004,8 @@ final class PdfEngineHandoff
      *     finalPdfPageMode: string|null,
      *     finalPdfOpenAction: array<string, mixed>|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
+     *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
@@ -1156,6 +1175,8 @@ final class PdfEngineHandoff
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
             'finalPdfOpenAction' => is_array($finalRun) && is_array($finalRun['pdfOpenAction'] ?? null) ? $finalRun['pdfOpenAction'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
+            'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
+            'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
@@ -2217,6 +2238,8 @@ final class PdfEngineHandoff
      *     pageMode:string|null,
      *     openAction:array<string, mixed>|null,
      *     viewerPreferences:array<string, bool|int|string>,
+     *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     activeActionTypes:array<string, int>,
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
@@ -2240,6 +2263,7 @@ final class PdfEngineHandoff
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
+        $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -2258,6 +2282,8 @@ final class PdfEngineHandoff
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
+            'activeActions' => $activeActions,
+            'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
             'embeddedFileNames' => $this->extractPdfEmbeddedFileNames($pdfBytes),
@@ -3213,6 +3239,293 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>
+     */
+    private function extractPdfActiveActions(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $actions = [];
+
+        if ($catalog !== null) {
+            $this->addPdfActiveActionFromNamedValue($actions, 'catalog.OpenAction', $catalog, 'OpenAction', $objects);
+            $this->collectPdfAdditionalActions($actions, 'catalog', $catalog, $objects);
+            $this->collectPdfNamedJavaScriptActions($actions, $catalog, $objects);
+        }
+
+        foreach ($objects as $reference => $body) {
+            if (preg_match('/\/Type\s*\/Catalog\b/s', $body) === 1) {
+                continue;
+            }
+
+            $source = $this->pdfActionContainerSource($reference, $body);
+            if ($source === null) {
+                continue;
+            }
+
+            $this->addPdfActiveActionFromNamedValue($actions, $source . '.A', $body, 'A', $objects);
+            $this->collectPdfAdditionalActions($actions, $source, $body, $objects);
+        }
+
+        $actions = array_values($actions);
+        usort($actions, static fn (array $a, array $b): int => [$a['source'], $a['type'], $a['target'] ?? ''] <=> [$b['source'], $b['type'], $b['target'] ?? '']);
+
+        return $actions;
+    }
+
+    private function pdfActionContainerSource(string $reference, string $body): ?string
+    {
+        $pdfReference = $reference . ' R';
+        $type = $this->extractPdfNameToken($body, 'Type');
+        $subtype = $this->extractPdfNameToken($body, 'Subtype');
+        if ($type === 'Page') {
+            return 'page:' . $pdfReference;
+        }
+        if ($type === 'Annot' || $subtype !== null) {
+            return 'annotation:' . $pdfReference;
+        }
+        if (str_contains($body, '/A') || str_contains($body, '/AA')) {
+            return 'object:' . $pdfReference;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     */
+    private function addPdfActiveActionFromNamedValue(array &$actions, string $source, string $dictionary, string $name, array $objects, ?string $nameHint = null): void
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return;
+        }
+
+        $this->addPdfActiveActionFromValue($actions, $source, $value, $objects, $nameHint);
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     * @param array{kind:string, value:string} $value
+     */
+    private function addPdfActiveActionFromValue(array &$actions, string $source, array $value, array $objects, ?string $nameHint = null): void
+    {
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return;
+            }
+
+            $summary = $this->summarizePdfActiveActionDictionary($body, $source, $objects, $nameHint);
+        } elseif ($value['kind'] === 'dictionary') {
+            $summary = $this->summarizePdfActiveActionDictionary($value['value'], $source, $objects, $nameHint);
+        } elseif ($value['kind'] === 'name' || $value['kind'] === 'literal' || $value['kind'] === 'hex') {
+            $target = trim($value['value']);
+            $summary = $target === ''
+                ? null
+                : [
+                    'source' => $source,
+                    'type' => 'Named',
+                    'target' => $target,
+                    'scriptBytes' => null,
+                    'scriptSha256' => null,
+                ];
+        } else {
+            $summary = null;
+        }
+
+        if ($summary === null) {
+            return;
+        }
+
+        $key = implode("\0", [
+            $summary['source'],
+            $summary['type'],
+            $summary['target'] ?? '',
+            (string) ($summary['scriptBytes'] ?? ''),
+            $summary['scriptSha256'] ?? '',
+        ]);
+        $actions[$key] = $summary;
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     */
+    private function collectPdfAdditionalActions(array &$actions, string $source, string $dictionary, array $objects): void
+    {
+        $additionalActions = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'AA', $objects);
+        if ($additionalActions === null) {
+            return;
+        }
+
+        foreach (['E', 'X', 'D', 'U', 'Fo', 'Bl', 'PO', 'PC', 'PV', 'PI', 'O', 'C', 'K', 'F', 'V', 'WC', 'WS', 'DS', 'WP', 'DP'] as $trigger) {
+            $this->addPdfActiveActionFromNamedValue($actions, $source . '.AA.' . $trigger, $additionalActions, $trigger, $objects);
+        }
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     */
+    private function collectPdfNamedJavaScriptActions(array &$actions, string $catalog, array $objects): void
+    {
+        $names = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Names', $objects);
+        if ($names === null) {
+            return;
+        }
+
+        $javaScript = $this->extractPdfDictionaryOrReferenceValue($names, 'JavaScript', $objects);
+        if ($javaScript === null) {
+            return;
+        }
+
+        $array = $this->extractPdfArrayValue($javaScript, 'Names');
+        if ($array === null) {
+            return;
+        }
+
+        $cursor = str_starts_with($array, '[') ? 1 : 0;
+        $length = strlen($array);
+        if (str_ends_with($array, ']')) {
+            $length--;
+        }
+        while ($cursor < $length) {
+            $name = $this->parsePdfValueAt($array, $cursor);
+            if ($name === null) {
+                $cursor++;
+                continue;
+            }
+            $cursor = $name['next'];
+            if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                continue;
+            }
+
+            $action = $this->parsePdfValueAt($array, $cursor);
+            if ($action === null) {
+                break;
+            }
+
+            $nameValue = trim($name['value']);
+            $source = 'catalog.Names.JavaScript' . ($nameValue === '' ? '' : '.' . $this->pdfActionSourceToken($nameValue));
+            $this->addPdfActiveActionFromValue($actions, $source, $action, $objects, $nameValue === '' ? null : $nameValue);
+            $cursor = $action['next'];
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}|null
+     */
+    private function summarizePdfActiveActionDictionary(string $dictionary, string $source, array $objects, ?string $nameHint = null): ?array
+    {
+        $type = $this->extractPdfNameToken($dictionary, 'S');
+        if ($type === null || !$this->isPdfActiveActionType($type)) {
+            return null;
+        }
+
+        $script = $type === 'JavaScript' ? $this->extractPdfJavaScriptActionBytes($dictionary, $objects) : null;
+
+        return [
+            'source' => $source,
+            'type' => $type,
+            'target' => $this->pdfActiveActionTarget($dictionary, $type, $nameHint),
+            'scriptBytes' => $script === null ? null : strlen($script),
+            'scriptSha256' => $script === null ? null : hash('sha256', $script),
+        ];
+    }
+
+    private function isPdfActiveActionType(string $type): bool
+    {
+        return in_array($type, [
+            'GoToR',
+            'Hide',
+            'ImportData',
+            'JavaScript',
+            'Launch',
+            'Movie',
+            'Named',
+            'Rendition',
+            'ResetForm',
+            'Sound',
+            'SubmitForm',
+        ], true);
+    }
+
+    /**
+     * @param list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @return array<string, int>
+     */
+    private function summarizePdfActiveActionTypes(array $actions): array
+    {
+        $types = [];
+        foreach ($actions as $action) {
+            $types[$action['type']] = ($types[$action['type']] ?? 0) + 1;
+        }
+
+        ksort($types);
+
+        return $types;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function extractPdfJavaScriptActionBytes(string $dictionary, array $objects): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'JS');
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value['kind'] === 'literal' || $value['kind'] === 'hex' || $value['kind'] === 'name') {
+            return $value['value'];
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return null;
+            }
+
+            return $this->extractPdfStreamBytes($body) ?? $this->extractPdfStringOrNameValue($body, 'JS');
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->extractPdfStreamBytes($value['value']) ?? $this->extractPdfStringOrNameValue($value['value'], 'JS');
+        }
+
+        return null;
+    }
+
+    private function pdfActiveActionTarget(string $dictionary, string $type, ?string $nameHint): ?string
+    {
+        if ($type === 'JavaScript') {
+            return $nameHint;
+        }
+        if ($type === 'Named') {
+            return $this->extractPdfStringOrNameValue($dictionary, 'N');
+        }
+        if (in_array($type, ['Launch', 'SubmitForm', 'GoToR', 'ImportData'], true)) {
+            return $this->extractPdfStringOrNameValue($dictionary, 'F');
+        }
+        if ($type === 'Hide') {
+            return $this->extractPdfStringOrNameValue($dictionary, 'T');
+        }
+
+        return null;
+    }
+
+    private function pdfActionSourceToken(string $value): string
+    {
+        $token = preg_replace('/[^A-Za-z0-9_.:-]+/', '-', trim($value)) ?? '';
+        $token = trim($token, '-');
+
+        return $token === '' ? 'unnamed' : $token;
+    }
+
+    /**
      * @return array<string, bool|int|string>
      */
     private function extractPdfViewerPreferences(string $pdfBytes, ?string $catalog): array
@@ -3285,6 +3598,152 @@ final class PdfEngineHandoff
             }
 
             $offset = $cursor + 2;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function extractPdfDictionaryOrReferenceValue(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $value['value'];
+        }
+        if ($value['kind'] === 'reference') {
+            return $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{kind:string, value:string, next:int}|null
+     */
+    private function extractPdfValueForName(string $dictionary, string $name): ?array
+    {
+        $length = strlen($dictionary);
+        $start = 0;
+        $end = $length;
+
+        while ($start < $length && ctype_space($dictionary[$start])) {
+            $start++;
+        }
+        if (substr($dictionary, $start, 2) === '<<') {
+            $parsed = $this->parsePdfDictionary($dictionary, $start);
+            if ($parsed !== null) {
+                $start += 2;
+                $end = max($start, $parsed['next'] - 2);
+            }
+        }
+
+        $cursor = $start;
+        while ($cursor < $end) {
+            while ($cursor < $end && ctype_space($dictionary[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor >= $end) {
+                break;
+            }
+
+            if ($dictionary[$cursor] !== '/') {
+                $value = $this->parsePdfValueAt($dictionary, $cursor);
+                $cursor = $value === null ? $cursor + 1 : min($end, $value['next']);
+                continue;
+            }
+
+            if (preg_match('/\A\/([A-Za-z0-9_.#-]+)/s', substr($dictionary, $cursor), $matches) !== 1) {
+                $cursor++;
+                continue;
+            }
+
+            $key = $this->decodePdfNameToken($matches[1]);
+            $cursor += strlen($matches[0]);
+            $value = $this->parsePdfValueAt($dictionary, $cursor);
+            if ($key === $name && $value !== null) {
+                return $value;
+            }
+
+            $cursor = $value === null ? $cursor + 1 : min($end, $value['next']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{kind:string, value:string, next:int}|null
+     */
+    private function parsePdfValueAt(string $bytes, int $offset): ?array
+    {
+        $length = strlen($bytes);
+        while ($offset < $length && ctype_space($bytes[$offset])) {
+            $offset++;
+        }
+        if ($offset >= $length) {
+            return null;
+        }
+
+        if (substr($bytes, $offset, 2) === '<<') {
+            $parsed = $this->parsePdfDictionary($bytes, $offset);
+
+            return $parsed === null ? null : ['kind' => 'dictionary', 'value' => $parsed['value'], 'next' => $parsed['next']];
+        }
+
+        if ($bytes[$offset] === '[') {
+            $parsed = $this->parsePdfArray($bytes, $offset);
+
+            return $parsed === null ? null : ['kind' => 'array', 'value' => $parsed['value'], 'next' => $parsed['next']];
+        }
+
+        if ($bytes[$offset] === '(') {
+            $parsed = $this->parsePdfLiteralString($bytes, $offset);
+
+            return $parsed === null ? null : ['kind' => 'literal', 'value' => $parsed['value'], 'next' => $parsed['next']];
+        }
+
+        if ($bytes[$offset] === '<' && ($offset + 1 >= $length || $bytes[$offset + 1] !== '<')) {
+            $parsed = $this->parsePdfHexString($bytes, $offset);
+
+            return $parsed === null ? null : ['kind' => 'hex', 'value' => $parsed['value'], 'next' => $parsed['next']];
+        }
+
+        $chunk = substr($bytes, $offset);
+        if (preg_match('/\A(\d+)\s+(\d+)\s+R\b/s', $chunk, $matches) === 1) {
+            return [
+                'kind' => 'reference',
+                'value' => $matches[1] . ' ' . $matches[2] . ' R',
+                'next' => $offset + strlen($matches[0]),
+            ];
+        }
+
+        if (preg_match('/\A\/([A-Za-z0-9_.#-]+)/s', $chunk, $matches) === 1) {
+            return [
+                'kind' => 'name',
+                'value' => $this->decodePdfNameToken($matches[1]),
+                'next' => $offset + strlen($matches[0]),
+            ];
+        }
+
+        if (preg_match('/\A(true|false|null)\b/si', $chunk, $matches) === 1) {
+            return [
+                'kind' => 'keyword',
+                'value' => strtolower($matches[1]),
+                'next' => $offset + strlen($matches[0]),
+            ];
+        }
+
+        if (preg_match('/\A[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[Ee][-+]?\d+)?\b/s', $chunk, $matches) === 1) {
+            return [
+                'kind' => 'number',
+                'value' => $matches[0],
+                'next' => $offset + strlen($matches[0]),
+            ];
         }
 
         return null;
@@ -3802,10 +4261,13 @@ final class PdfEngineHandoff
                 }
             }
             if (str_contains($body, '/EmbeddedFiles')) {
-                foreach ($this->extractPdfNamesArrayStrings($body) as $name) {
-                    $name = trim($name);
-                    if ($name !== '') {
-                        $names[] = $name;
+                $embeddedFiles = $this->extractPdfNestedDictionary($body, 'EmbeddedFiles');
+                if ($embeddedFiles !== null) {
+                    foreach ($this->extractPdfNamesArrayStrings($embeddedFiles) as $name) {
+                        $name = trim($name);
+                        if ($name !== '') {
+                            $names[] = $name;
+                        }
                     }
                 }
             }

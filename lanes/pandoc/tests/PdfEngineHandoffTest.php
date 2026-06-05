@@ -1283,6 +1283,118 @@ MARKDOWN);
         $t->same($result['pdfFormFieldTypes'], $sequence['finalPdfFormFieldTypes']);
     },
 
+    'fake runner extracts bounded pdf active actions and javascript hashes from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/active.pdf']);
+        $catalogScript = 'app.alert("Review packet requires active-content review")';
+        $pageScript = 'this.print({bUI:false});';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction 8 0 R /Names << /JavaScript << /Names [(ReviewOpen) 9 0 R] >> >> /AA << /WC 10 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /O 11 0 R >> /Annots [12 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /Named /N /Print >>',
+            'endobj',
+            '9 0 obj',
+            '<< /S /JavaScript /JS (' . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $catalogScript) . ') >>',
+            'endobj',
+            '10 0 obj',
+            '<< /S /Launch /F (review-helper.exe) >>',
+            'endobj',
+            '11 0 obj',
+            '<< /S /JavaScript /JS <' . strtoupper(bin2hex($pageScript)) . '> >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /Annot /Subtype /Screen /A << /S /Rendition /OP 4 >> /AA << /PO << /S /SubmitForm /F (https://example.test/review/submit) >> >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/active.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/active.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'annotation:12 0 R.A',
+                'type' => 'Rendition',
+                'target' => null,
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'annotation:12 0 R.AA.PO',
+                'type' => 'SubmitForm',
+                'target' => 'https://example.test/review/submit',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.AA.WC',
+                'type' => 'Launch',
+                'target' => 'review-helper.exe',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.Names.JavaScript.ReviewOpen',
+                'type' => 'JavaScript',
+                'target' => 'ReviewOpen',
+                'scriptBytes' => strlen($catalogScript),
+                'scriptSha256' => hash('sha256', $catalogScript),
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'type' => 'Named',
+                'target' => 'Print',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'page:3 0 R.AA.O',
+                'type' => 'JavaScript',
+                'target' => null,
+                'scriptBytes' => strlen($pageScript),
+                'scriptSha256' => hash('sha256', $pageScript),
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfActiveActions']);
+        $t->same([
+            'JavaScript' => 2,
+            'Launch' => 1,
+            'Named' => 1,
+            'Rendition' => 1,
+            'SubmitForm' => 1,
+        ], $result['pdfActiveActionTypes']);
+        $t->contains('pdf-byte-active-actions:6', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-types:5', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-type:JavaScript:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfActiveActions']);
+        $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
+    },
+
     'fake runner flags encrypted pdf output permission dictionaries without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/protected.pdf']);
