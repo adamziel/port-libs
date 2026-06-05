@@ -470,6 +470,25 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Supplementary East Asian wide wrapped line exceeds requested width');
         }
     },
+    'measures tangut and khitan supplementary east asian scripts as wide' => static function (TestRunner $t): void {
+        $tangut = "\u{17000}\u{187F7}\u{18D00}";
+        $components = "\u{18800}\u{18AFF}";
+        $khitan = "\u{18B00}\u{18CD5}";
+        $sample = "\u{17000}\u{18800}\u{18B00}\u{18D00}X";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Rare {$sample} tail", 10, '  ');
+
+        $t->same(6, UnicodeText::displayWidth($tangut));
+        $t->same(4, UnicodeText::displayWidth($components));
+        $t->same(4, UnicodeText::displayWidth($khitan));
+        $t->same(9, UnicodeText::displayWidth($sample));
+        $t->same(["\u{17000}", "\u{18800}", "\u{18B00}", "\u{18D00}", 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4, 6, 8]));
+        $t->same(["\u{17000}\u{18800}", "\u{18B00}\u{18D00}X"], UnicodeText::splitAtDisplayWidth($sample, 3));
+        $t->same("\u{18B00}  ", UnicodeText::padDisplay("\u{18B00}", 4));
+        $t->same(['Rare', "  \u{17000}\u{18800}\u{18B00}\u{18D00}", '  X tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Tangut/Khitan wrapped line exceeds requested width');
+        }
+    },
     'measures bmp east asian wide emoji symbols for display columns' => static function (TestRunner $t): void {
         $transport = "\u{231A}\u{231B}\u{23E9}\u{23F3}";
         $status = "\u{2705}\u{274C}\u{2757}\u{2B50}\u{2B55}";
