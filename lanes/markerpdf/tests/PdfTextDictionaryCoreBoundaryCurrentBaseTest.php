@@ -260,6 +260,11 @@ return [
         $t->true(!str_contains($encoded, 'raw_font_stream'));
         $t->true(!str_contains($encoded, 'debug_payload'));
     },
+    'requires pdftext span chars when keep chars is requested' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $missingChars = $pdftextCharsPage();
+        unset($missingChars['blocks'][0]['lines'][0]['spans'][0]['chars']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$missingChars], maxPages: 1, keepChars: true));
+    },
     'rejects malformed pdftext keep chars rows before WordPress rendering' => static function (TestRunner $t) use ($pdftextCharsPage): void {
         $missingChar = $pdftextCharsPage();
         unset($missingChar['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char']);

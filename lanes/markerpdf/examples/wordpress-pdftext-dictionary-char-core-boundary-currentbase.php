@@ -67,12 +67,22 @@ try {
     $malformedCharRejected = true;
 }
 
+$missingCharsPage = $page;
+unset($missingCharsPage['blocks'][0]['lines'][0]['spans'][0]['chars']);
+$missingCharsRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$missingCharsPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $missingCharsRejected = true;
+}
+
 if (array_key_exists('c', $span['chars'][0] ?? [])
     || str_contains($encoded, 'legacy alias should not cross the boundary')
     || str_contains($encoded, 'embedded_font_program')
     || str_contains($encoded, 'raw_font_stream')
     || str_contains($encoded, 'debug_payload')
     || !$malformedCharRejected
+    || !$missingCharsRejected
 ) {
     throw new RuntimeException('Expected pdftext keep_chars character dictionaries to keep only upstream-shaped keys.');
 }
@@ -94,6 +104,7 @@ echo '<!-- markerpdf-pdftext-dictionary-char-core-boundary-currentbase ' . htmls
         && !str_contains($encoded, 'raw_font_stream')
         && !str_contains($encoded, 'debug_payload'),
     'malformed_keep_chars_row_rejected' => $malformedCharRejected,
+    'missing_keep_chars_array_rejected' => $missingCharsRejected,
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

@@ -294,7 +294,10 @@ final class PdfTextDocumentExtractor
                 if (array_key_exists('text', $span) && is_string($span['text'])) {
                     $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
                 }
-                if ($keepChars && array_key_exists('chars', $span)) {
+                if ($keepChars) {
+                    if (!array_key_exists('chars', $span)) {
+                        throw new InvalidArgumentException('pdftext span chars are required when keep_chars=true.');
+                    }
                     $sanitizedSpan['chars'] = $this->sanitizeDictionaryOutputChars($span['chars'], $bboxScale);
                 }
                 $span = $sanitizedSpan;
