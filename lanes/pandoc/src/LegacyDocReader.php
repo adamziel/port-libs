@@ -1017,7 +1017,6 @@ final class LegacyDocReader
             $objects[$storagePath]['totalBytes'] += (int) $entry['size'];
             $objects[$storagePath]['hasNativeData'] = $objects[$storagePath]['hasNativeData'] || $role === 'native-data';
             $objects[$storagePath]['hasPresentationData'] = $objects[$storagePath]['hasPresentationData'] || $role === 'presentation-data';
-            $objects[$storagePath]['streams'][] = $stream;
 
             if ($role === 'object-info') {
                 $format = $this->embeddedObjectInfoFormat($compoundFile->readStream($path));
@@ -1025,10 +1024,44 @@ final class LegacyDocReader
                     $objects[$storagePath]['transmissionFormat'] = $format;
                 }
             }
+            if ($role === 'native-data') {
+                $oleNative = $this->embeddedOleNativeMetadata($compoundFile->readStream($path));
+                $stream['oleNative'] = $oleNative;
+                if (($oleNative['label'] ?? '') !== '') {
+                    $objects[$storagePath]['nativeLabels'][] = (string) $oleNative['label'];
+                }
+                if (($oleNative['sourcePath'] ?? '') !== '') {
+                    $objects[$storagePath]['nativeSourcePaths'][] = (string) $oleNative['sourcePath'];
+                }
+                if (($oleNative['temporaryPath'] ?? '') !== '') {
+                    $objects[$storagePath]['nativeTemporaryPaths'][] = (string) $oleNative['temporaryPath'];
+                }
+                if (isset($oleNative['nativeDataBytes']) && is_int($oleNative['nativeDataBytes'])) {
+                    $objects[$storagePath]['nativeDataBytes'] = (int) ($objects[$storagePath]['nativeDataBytes'] ?? 0)
+                        + $oleNative['nativeDataBytes'];
+                }
+                foreach (($oleNative['diagnostics'] ?? []) as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+                    $objects[$storagePath]['diagnostics'][] = ['stream' => $path] + $diagnostic;
+                }
+            }
+
+            $objects[$storagePath]['streams'][] = $stream;
         }
 
         $result = array_values($objects);
         foreach ($result as &$object) {
+            foreach (['nativeLabels', 'nativeSourcePaths', 'nativeTemporaryPaths'] as $field) {
+                if (!isset($object[$field]) || !is_array($object[$field])) {
+                    continue;
+                }
+                $object[$field] = array_values(array_unique(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $object[$field]
+                )));
+            }
             usort(
                 $object['streams'],
                 static fn (array $left, array $right): int => strcmp((string) $left['path'], (string) $right['path'])
@@ -1079,6 +1112,155 @@ final class LegacyDocReader
                 default => 'unknown',
             },
         ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function embeddedOleNativeMetadata(string $bytes): array
+    {
+        $metadata = ['canExposeBytes' => false];
+        $diagnostics = [];
+        $length = strlen($bytes);
+        if ($length < 4) {
+            $metadata['diagnostics'] = [[
+                'code' => 'truncated-ole-native-size',
+                'message' => 'Ole10Native stream is too short to contain the declared payload size',
+            ]];
+
+            return $metadata;
+        }
+
+        $declaredPayloadBytes = self::u32($bytes, 0);
+        $metadata['declaredPayloadBytes'] = $declaredPayloadBytes;
+        if ($declaredPayloadBytes > $length - 4) {
+            $diagnostics[] = [
+                'code' => 'ole-native-declared-size-exceeds-stream',
+                'message' => 'Ole10Native declared payload size exceeds the CFB stream length',
+                'declaredPayloadBytes' => $declaredPayloadBytes,
+                'availablePayloadBytes' => $length - 4,
+            ];
+        }
+
+        $cursor = 4;
+        if ($cursor + 2 > $length) {
+            $diagnostics[] = [
+                'code' => 'truncated-ole-native-flags',
+                'message' => 'Ole10Native stream is missing the native flags field',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+
+        $metadata['flags'] = self::u16($bytes, $cursor);
+        $cursor += 2;
+
+        $label = $this->readOleNativeAnsiString($bytes, $cursor);
+        if ($label === null) {
+            $diagnostics[] = [
+                'code' => 'truncated-ole-native-label',
+                'message' => 'Ole10Native stream is missing a null-terminated display label',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+        if ($label !== '') {
+            $metadata['label'] = $label;
+        }
+
+        $sourcePath = $this->readOleNativeAnsiString($bytes, $cursor);
+        if ($sourcePath === null) {
+            $diagnostics[] = [
+                'code' => 'truncated-ole-native-source-path',
+                'message' => 'Ole10Native stream is missing a null-terminated source path',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+        if ($sourcePath !== '') {
+            $metadata['sourcePath'] = $sourcePath;
+        }
+
+        if ($cursor + 4 > $length) {
+            $diagnostics[] = [
+                'code' => 'truncated-ole-native-secondary-flags',
+                'message' => 'Ole10Native stream is missing secondary flags before the command path',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+
+        $secondaryFlags = self::u16($bytes, $cursor);
+        $unknownFlags = self::u16($bytes, $cursor + 2);
+        if ($secondaryFlags !== 0) {
+            $metadata['secondaryFlags'] = $secondaryFlags;
+        }
+        if ($unknownFlags !== 0) {
+            $metadata['unknownFlags'] = $unknownFlags;
+        }
+        $cursor += 4;
+
+        $temporaryPath = $this->readOleNativeAnsiString($bytes, $cursor);
+        if ($temporaryPath === null) {
+            $diagnostics[] = [
+                'code' => 'truncated-ole-native-temporary-path',
+                'message' => 'Ole10Native stream is missing a null-terminated temporary path',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+        if ($temporaryPath !== '') {
+            $metadata['temporaryPath'] = $temporaryPath;
+        }
+
+        if ($cursor + 4 > $length) {
+            $diagnostics[] = [
+                'code' => 'truncated-ole-native-data-size',
+                'message' => 'Ole10Native stream is missing the embedded native-data size',
+            ];
+            $metadata['diagnostics'] = $diagnostics;
+
+            return $metadata;
+        }
+
+        $nativeDataBytes = self::u32($bytes, $cursor);
+        $cursor += 4;
+        $metadata['nativeDataBytes'] = $nativeDataBytes;
+        $availableNativeDataBytes = max(0, $length - $cursor);
+        if ($nativeDataBytes > $availableNativeDataBytes) {
+            $metadata['availableNativeDataBytes'] = $availableNativeDataBytes;
+            $diagnostics[] = [
+                'code' => 'ole-native-data-size-exceeds-stream',
+                'message' => 'Ole10Native embedded native-data size exceeds the remaining stream bytes',
+                'nativeDataBytes' => $nativeDataBytes,
+                'availableNativeDataBytes' => $availableNativeDataBytes,
+            ];
+        }
+
+        if ($diagnostics !== []) {
+            $metadata['diagnostics'] = $diagnostics;
+        }
+
+        return $metadata;
+    }
+
+    private function readOleNativeAnsiString(string $bytes, int &$cursor): ?string
+    {
+        $end = strpos($bytes, "\0", $cursor);
+        if ($end === false) {
+            return null;
+        }
+
+        $value = $this->decodeCodePageString(substr($bytes, $cursor, $end - $cursor), 1252);
+        $cursor = $end + 1;
+        $clean = preg_replace('/[\x00-\x08\x0e-\x1f]/u', '', $value);
+
+        return is_string($clean) ? $clean : $value;
     }
 
     /**

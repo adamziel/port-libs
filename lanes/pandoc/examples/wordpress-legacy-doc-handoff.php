@@ -223,10 +223,29 @@ $propertySet = static function (array $values) use ($typedLpstr, $typedPropertyS
 
     return $typedPropertySet($properties);
 };
+$ole10NativeStream = static function (
+    string $label,
+    string $sourcePath,
+    string $temporaryPath,
+    string $nativeData
+) use ($u16, $u32): string {
+    $ansi = static fn (string $value): string => $value . "\0";
+    $payload = $u16(0x0002)
+        . $ansi($label)
+        . $ansi($sourcePath)
+        . $u16(0)
+        . $u16(0)
+        . $ansi($temporaryPath)
+        . $u32(strlen($nativeData))
+        . $nativeData;
+
+    return $u32(strlen($payload)) . $payload;
+};
 
 $fieldBegin = "\x13";
 $fieldSeparator = "\x14";
 $fieldEnd = "\x15";
+$embeddedNativeData = 'opaque legacy embedded spreadsheet bytes';
 $firstPieceText = 'Legacy DOC import ΩЖ魚';
 $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . 'note ' . "\x02" . ' and endnote # while checking '
@@ -386,7 +405,12 @@ $streams = [
         ],
     ]),
     'ObjectPool/_42/' . "\x03" . 'ObjInfo' => "\0\0" . $u16(0x0014),
-    'ObjectPool/_42/' . "\x01" . 'Ole10Native' => 'opaque legacy embedded spreadsheet bytes',
+    'ObjectPool/_42/' . "\x01" . 'Ole10Native' => $ole10NativeStream(
+        'legacy-data.xlsx',
+        'C:\legacy\legacy-data.xlsx',
+        'C:\Temp\legacy-data.tmp',
+        $embeddedNativeData
+    ),
     'ObjectPool/_42/' . "\x02" . 'OlePres000' => 'opaque embedded object presentation preview',
     'Macros/PROJECT' => "ID=\"LegacyMacros\"\r\nDocument=ThisDocument/&H00000000\r\nModule=MigrationTools\r\n",
     'Macros/PROJECTwm' => "LegacyMacros\0ThisDocument\0MigrationTools\0",
@@ -724,6 +748,28 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['embeddedObjects'][0]['hasNativeData'] ?? null) !== true || ($summary['embeddedObjects'][0]['hasPresentationData'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing embedded object stream roles');
     }
+    if (($summary['embeddedObjects'][0]['nativeDataBytes'] ?? null) !== strlen($embeddedNativeData)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native native-data byte count');
+    }
+    if (($summary['embeddedObjects'][0]['nativeLabels'] ?? []) !== ['legacy-data.xlsx']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native display label');
+    }
+    if (($summary['embeddedObjects'][0]['nativeSourcePaths'] ?? []) !== ['C:\legacy\legacy-data.xlsx']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native source path');
+    }
+    if (($summary['embeddedObjects'][0]['nativeTemporaryPaths'] ?? []) !== ['C:\Temp\legacy-data.tmp']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native temporary path');
+    }
+    $nativeStream = null;
+    foreach (($summary['embeddedObjects'][0]['streams'] ?? []) as $stream) {
+        if (($stream['role'] ?? '') === 'native-data') {
+            $nativeStream = $stream;
+            break;
+        }
+    }
+    if (($nativeStream['oleNative']['nativeDataBytes'] ?? null) !== strlen($embeddedNativeData)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Ole10Native stream metadata');
+    }
     if (($summary['embeddedObjects'][0]['canExposeBytes'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed embedded object bytes');
     }
@@ -767,7 +813,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'HYPERLINK')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instructions');
     }
-    if (str_contains($blocks, 'opaque legacy embedded spreadsheet bytes') || str_contains($blocks, 'opaque embedded object presentation preview')) {
+    if (str_contains($blocks, $embeddedNativeData) || str_contains($blocks, 'opaque embedded object presentation preview')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered embedded object payload bytes');
     }
     if (str_contains($blocks, 'Document_Open') || str_contains($blocks, 'ImportPacket')) {

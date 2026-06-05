@@ -409,6 +409,24 @@ $typedVectorVariant = static function (array $variants): string {
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
 $objectInfo = static fn (int $clipboardFormat): string => "\0\0" . pack('v', $clipboardFormat);
+$ole10NativeStream = static function (
+    string $label,
+    string $sourcePath,
+    string $temporaryPath,
+    string $nativeData
+) use ($u16, $u32): string {
+    $ansi = static fn (string $value): string => $value . "\0";
+    $payload = $u16(0x0002)
+        . $ansi($label)
+        . $ansi($sourcePath)
+        . $u16(0)
+        . $u16(0)
+        . $ansi($temporaryPath)
+        . $u32(strlen($nativeData))
+        . $nativeData;
+
+    return $u32(strlen($payload)) . $payload;
+};
 $typedDictionary = static function (array $names): string {
     $raw = pack('V', count($names));
     foreach ($names as $propertyId => $name) {
@@ -1067,12 +1085,19 @@ return [
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
-    'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo): void {
+    'reports legacy DOC ObjectPool embedded OLE object streams without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream): void {
+        $nativeData = 'embedded spreadsheet bytes';
+        $nativeStreamBytes = $ole10NativeStream(
+            'legacy-sheet.xlsx',
+            'C:\legacy\legacy-sheet.xlsx',
+            'C:\Temp\legacy-sheet.tmp',
+            $nativeData
+        );
         $docBytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Embedded object review packet\r"),
             'ObjectPool/_42/' . "\x03" . 'ObjInfo' => $objectInfo(0x0014),
             'ObjectPool/_42/' . "\x01" . 'CompObj' => "compound display metadata",
-            'ObjectPool/_42/' . "\x01" . 'Ole10Native' => "native spreadsheet bytes",
+            'ObjectPool/_42/' . "\x01" . 'Ole10Native' => $nativeStreamBytes,
             'ObjectPool/_42/' . "\x02" . 'OlePres000' => "presentation preview bytes",
             'ObjectPool/_43/' . "\x03" . 'ObjInfo' => $objectInfo(0x000a),
             'ObjectPool/_43/Workbook' => "private workbook bytes",
@@ -1092,6 +1117,9 @@ return [
         $t->same(true, $objects[0]['hasNativeData']);
         $t->same(true, $objects[0]['hasPresentationData']);
         $t->same(false, $objects[0]['canExposeBytes']);
+        $t->same(strlen($nativeData), $objects[0]['nativeDataBytes']);
+        $t->same(['legacy-sheet.xlsx'], $objects[0]['nativeLabels']);
+        $t->same(['C:\legacy\legacy-sheet.xlsx'], $objects[0]['nativeSourcePaths']);
         $t->same(['code' => 0x0014, 'name' => 'unicode-text'], $objects[0]['transmissionFormat']);
         $t->same([
             'compound-object',
@@ -1100,14 +1128,51 @@ return [
             'object-info',
         ], array_map(static fn (array $stream): string => $stream['role'], $objects[0]['streams']));
         $t->same(false, $objects[0]['streams'][1]['canExposeBytes']);
-        $t->same(strlen('native spreadsheet bytes'), $objects[0]['streams'][1]['bytes']);
+        $t->same(strlen($nativeStreamBytes), $objects[0]['streams'][1]['bytes']);
+        $t->same([
+            'canExposeBytes' => false,
+            'declaredPayloadBytes' => strlen($nativeStreamBytes) - 4,
+            'flags' => 0x0002,
+            'label' => 'legacy-sheet.xlsx',
+            'sourcePath' => 'C:\legacy\legacy-sheet.xlsx',
+            'temporaryPath' => 'C:\Temp\legacy-sheet.tmp',
+            'nativeDataBytes' => strlen($nativeData),
+        ], $objects[0]['streams'][1]['oleNative']);
 
         $t->same('_43', $objects[1]['objectId']);
         $t->same(['code' => 0x000a, 'name' => 'html'], $objects[1]['transmissionFormat']);
         $t->same(['object-info', 'private-data'], array_map(static fn (array $stream): string => $stream['role'], $objects[1]['streams']));
         $t->contains('<p>Embedded object review packet</p>', $blocks);
-        $t->true(!str_contains($blocks, 'native spreadsheet bytes'), 'Embedded OLE native bytes should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, $nativeData), 'Embedded OLE native bytes should not render to WordPress blocks');
         $t->true(!str_contains($blocks, 'presentation preview bytes'), 'Embedded OLE presentation bytes should not render to WordPress blocks');
+    },
+    'reports malformed legacy DOC Ole10Native stream sizes without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16, $u32): void {
+        $payload = $u16(0x0002)
+            . "broken.bin\0"
+            . "C:\legacy\broken.bin\0"
+            . $u16(0)
+            . $u16(0)
+            . "C:\Temp\broken.tmp\0"
+            . $u32(128)
+            . 'abc';
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Malformed embedded object packet\r"),
+            'ObjectPool/_99/' . "\x01" . 'Ole10Native' => $u32(strlen($payload)) . $payload,
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $object = $result['embeddedObjects'][0];
+        $nativeStream = $object['streams'][0];
+
+        $t->same('ObjectPool/_99', $object['storagePath']);
+        $t->same(false, $object['canExposeBytes']);
+        $t->same('native-data', $nativeStream['role']);
+        $t->same(false, $nativeStream['canExposeBytes']);
+        $t->same('broken.bin', $nativeStream['oleNative']['label']);
+        $t->same(128, $nativeStream['oleNative']['nativeDataBytes']);
+        $t->same(3, $nativeStream['oleNative']['availableNativeDataBytes']);
+        $t->same('ole-native-data-size-exceeds-stream', $nativeStream['oleNative']['diagnostics'][0]['code']);
+        $t->same('ole-native-data-size-exceeds-stream', $object['diagnostics'][0]['code']);
     },
     'reports legacy DOC VBA macro project streams as disabled review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([
