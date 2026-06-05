@@ -4421,6 +4421,11 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($this->applyNonstrokingColorStateOperator($token, $operands, $currentStates)) {
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'gs') {
                 $resourceName = $this->xObjectNameOperand($operands);
                 if ($resourceName !== null && isset($graphicsStateResourceReviews[$resourceName])) {
@@ -4451,6 +4456,7 @@ final class PdfTextExtractor
                             'visible_bbox' => $visibleBbox,
                             'clipped' => $clipRectangle !== null
                                 && ($visibleBbox === null || !$this->pdfRectanglesEqual($bbox, $visibleBbox)),
+                            'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
                         ];
                         $graphicsState = $this->nonDefaultInvocationGraphicsState($state['graphics_state'] ?? null);
                         if ($graphicsState !== null) {
@@ -4642,6 +4648,10 @@ final class PdfTextExtractor
             'alpha_source' => null,
             'blend_modes' => [],
             'soft_mask' => null,
+            'nonstroking_color_space' => 'DeviceGray',
+            'nonstroking_color_components' => [0.0],
+            'nonstroking_pattern_name' => null,
+            'nonstroking_color_operator' => 'default',
             'review_only' => true,
         ];
     }
@@ -4679,8 +4689,180 @@ final class PdfTextExtractor
         if (is_array($state['soft_mask'] ?? null)) {
             $default['soft_mask'] = $state['soft_mask'];
         }
+        if (is_string($state['nonstroking_color_space'] ?? null) && $state['nonstroking_color_space'] !== '') {
+            $default['nonstroking_color_space'] = $state['nonstroking_color_space'];
+        }
+        if (is_array($state['nonstroking_color_components'] ?? null)) {
+            $components = [];
+            foreach ($state['nonstroking_color_components'] as $component) {
+                if (!is_int($component) && !is_float($component)) {
+                    $components = [];
+                    break;
+                }
+                $components[] = (float) $component;
+            }
+            if ($components !== []) {
+                $default['nonstroking_color_components'] = $components;
+            }
+        }
+        if (is_string($state['nonstroking_pattern_name'] ?? null) && $state['nonstroking_pattern_name'] !== '') {
+            $default['nonstroking_pattern_name'] = $state['nonstroking_pattern_name'];
+        }
+        if (is_string($state['nonstroking_color_operator'] ?? null) && $state['nonstroking_color_operator'] !== '') {
+            $default['nonstroking_color_operator'] = $state['nonstroking_color_operator'];
+        }
 
         return $default;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @param list<array<string, mixed>> $currentStates
+     */
+    private function applyNonstrokingColorStateOperator(string $operator, array $operands, array &$currentStates): bool
+    {
+        $colorSpace = null;
+        $components = null;
+        $patternName = null;
+        if ($operator === 'g') {
+            $components = $this->numericColorOperands($operands, 1);
+            $colorSpace = 'DeviceGray';
+        } elseif ($operator === 'rg') {
+            $components = $this->numericColorOperands($operands, 3);
+            $colorSpace = 'DeviceRGB';
+        } elseif ($operator === 'k') {
+            $components = $this->numericColorOperands($operands, 4);
+            $colorSpace = 'DeviceCMYK';
+        } elseif ($operator === 'cs') {
+            $name = $this->xObjectNameOperand($operands);
+            foreach ($currentStates as $index => $state) {
+                if ($name === null) {
+                    continue;
+                }
+                $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+                $graphicsState['nonstroking_color_space'] = $name;
+                $graphicsState['nonstroking_color_components'] = $this->defaultNonstrokingColorComponents($name);
+                $graphicsState['nonstroking_pattern_name'] = null;
+                $graphicsState['nonstroking_color_operator'] = 'cs';
+                $currentStates[$index]['graphics_state'] = $graphicsState;
+            }
+
+            return true;
+        } elseif ($operator === 'sc' || $operator === 'scn') {
+            [$components, $patternName] = $this->nonstrokingSpecialColorOperands($operands, $operator === 'scn');
+        } else {
+            return false;
+        }
+
+        if ($components === null) {
+            return true;
+        }
+
+        foreach ($currentStates as $index => $state) {
+            $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+            $graphicsState['nonstroking_color_space'] = $colorSpace ?? $graphicsState['nonstroking_color_space'];
+            $graphicsState['nonstroking_color_components'] = $components;
+            $graphicsState['nonstroking_pattern_name'] = $patternName;
+            $graphicsState['nonstroking_color_operator'] = $operator;
+            $currentStates[$index]['graphics_state'] = $graphicsState;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     * @return list<float>|null
+     */
+    private function numericColorOperands(array $operands, int $count): ?array
+    {
+        if (count($operands) !== $count) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($operands as $operand) {
+            $component = $this->numericOperand($operand);
+            if ($component === null) {
+                return null;
+            }
+            $components[] = $component;
+        }
+
+        return $this->normalizedPdfReviewNumbers($components);
+    }
+
+    /**
+     * @param list<string> $operands
+     * @return array{0: list<float>|null, 1: string|null}
+     */
+    private function nonstrokingSpecialColorOperands(array $operands, bool $allowPatternName): array
+    {
+        if ($operands === []) {
+            return [null, null];
+        }
+
+        $patternName = null;
+        $componentOperands = $operands;
+        $lastOperand = $componentOperands[count($componentOperands) - 1];
+        if ($allowPatternName && is_string($lastOperand) && str_starts_with($lastOperand, '/')) {
+            $patternName = $this->decodePdfName(substr($lastOperand, 1));
+            array_pop($componentOperands);
+        }
+        if ($componentOperands === []) {
+            return [[], $patternName];
+        }
+
+        $components = [];
+        foreach ($componentOperands as $operand) {
+            $component = $this->numericOperand($operand);
+            if ($component === null) {
+                return [null, null];
+            }
+            $components[] = $component;
+        }
+
+        return [$this->normalizedPdfReviewNumbers($components), $patternName];
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function defaultNonstrokingColorComponents(string $colorSpace): array
+    {
+        return match ($colorSpace) {
+            'DeviceRGB', 'RGB' => [0.0, 0.0, 0.0],
+            'DeviceCMYK', 'CMYK' => [0.0, 0.0, 0.0, 1.0],
+            default => [0.0],
+        };
+    }
+
+    /**
+     * @return array{color_space: string, components: list<float>, pattern_name: string|null, operator: string, review_only: true}
+     */
+    private function imageMaskPaintColorFromInvocationState(mixed $state): array
+    {
+        $graphicsState = $this->normalizeInvocationGraphicsState($state);
+        $components = [];
+        foreach ($graphicsState['nonstroking_color_components'] as $component) {
+            if (is_int($component) || is_float($component)) {
+                $components[] = (float) $component;
+            }
+        }
+
+        return [
+            'color_space' => is_string($graphicsState['nonstroking_color_space'] ?? null)
+                ? $graphicsState['nonstroking_color_space']
+                : 'DeviceGray',
+            'components' => $this->normalizedPdfReviewNumbers($components === [] ? [0.0] : $components),
+            'pattern_name' => is_string($graphicsState['nonstroking_pattern_name'] ?? null)
+                ? $graphicsState['nonstroking_pattern_name']
+                : null,
+            'operator' => is_string($graphicsState['nonstroking_color_operator'] ?? null)
+                ? $graphicsState['nonstroking_color_operator']
+                : 'default',
+            'review_only' => true,
+        ];
     }
 
     /**
@@ -5046,6 +5228,7 @@ final class PdfTextExtractor
         $invocationClipBboxes = [];
         $invocationVisibleBboxes = [];
         $invocationGraphicsStates = [];
+        $imageMaskPaintColors = [];
         $clipApplied = false;
         $clipReducesPaintedBbox = false;
         $clipExcludedInvocationCount = 0;
@@ -5075,6 +5258,9 @@ final class PdfTextExtractor
             }
             if ($graphicsState !== null) {
                 $invocationGraphicsStates[] = $graphicsState;
+            }
+            if ($imageMask) {
+                $imageMaskPaintColors[] = $this->imageMaskPaintColorFromInvocationState($detail['graphics_state'] ?? null);
             }
         }
         $imageUnitBbox = null;
@@ -5230,6 +5416,9 @@ final class PdfTextExtractor
             'image_decode_component_mismatch' => $imageDecode !== null
                 && ($imageDecode['valid_for_components'] ?? false) !== true,
             'image_mask' => $imageMask,
+            'image_mask_uses_current_nonstroking_color' => $imageMask,
+            'image_mask_paint_colors' => $imageMask ? $imageMaskPaintColors : [],
+            'image_mask_paint_color_review_only' => $imageMask,
             'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
             'rendering_intent' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Intent', $objects),
             'image_name' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Name', $objects),

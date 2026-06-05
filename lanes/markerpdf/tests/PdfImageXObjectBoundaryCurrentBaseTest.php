@@ -2306,6 +2306,80 @@ return [
         $t->true(!str_contains($encoded, $emptyPayload));
         $t->true(!str_contains($encoded, $visiblePayload));
     },
+    'records image mask stencil paint color at XObject invocation boundaries' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before image mask colors) Tj ET\n"
+            . "q 0.25 0.5 0.75 rg 14 0 0 7 72 690 cm /Rgb#20Stencil Do Q\n"
+            . "0.4 g q 12 0 0 6 104 690 cm /Gray#20Stencil Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After image mask colors) Tj ET';
+        $rgbPayload = 'BT /F1 12 Tf 72 720 Td (RGB Stencil Image Mask Payload Noise) Tj ET';
+        $grayPayload = 'BT /F1 12 Tf 72 720 Td (Gray Stencil Image Mask Payload Noise) Tj ET';
+        $rgbCompressed = gzcompress($rgbPayload);
+        $grayCompressed = gzcompress($grayPayload);
+        if (!is_string($rgbCompressed) || !is_string($grayCompressed)) {
+            throw new RuntimeException('Unable to compress image mask color fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Rgb#20Stencil 5 0 R /Gray#20Stencil 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [1 0] /Length " . strlen($rgbCompressed) . " >>\nstream\n{$rgbCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Decode [0 1] /Length " . strlen($grayCompressed) . " >>\nstream\n{$grayCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $rgb = $entriesByName['Rgb Stencil'];
+        $t->same(true, $rgb['image_mask']);
+        $t->same(true, $rgb['image_mask_uses_current_nonstroking_color']);
+        $t->same(true, $rgb['image_mask_paint_color_review_only']);
+        $t->same([
+            [
+                'color_space' => 'DeviceRGB',
+                'components' => [0.25, 0.5, 0.75],
+                'pattern_name' => null,
+                'operator' => 'rg',
+                'review_only' => true,
+            ],
+        ], $rgb['image_mask_paint_colors']);
+        $t->same([72.0, 690.0, 86.0, 697.0], $rgb['image_unit_bbox']);
+        $t->same(hash('sha256', $rgbPayload), $rgb['decoded_sha256']);
+
+        $gray = $entriesByName['Gray Stencil'];
+        $t->same(true, $gray['image_mask']);
+        $t->same([
+            [
+                'color_space' => 'DeviceGray',
+                'components' => [0.4],
+                'pattern_name' => null,
+                'operator' => 'g',
+                'review_only' => true,
+            ],
+        ], $gray['image_mask_paint_colors']);
+        $t->same([104.0, 690.0, 116.0, 696.0], $gray['image_unit_bbox']);
+        $t->same(hash('sha256', $grayPayload), $gray['decoded_sha256']);
+
+        $t->same(['Before image mask colors', 'After image mask colors'], $extractor->extractTextLines($pdf));
+        $t->same("Before image mask colors\nAfter image mask colors", $plainText);
+        $t->true(!str_contains($plainText, 'RGB Stencil Image Mask Payload Noise'));
+        $t->true(!str_contains($plainText, 'Gray Stencil Image Mask Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $rgbPayload));
+        $t->true(!str_contains($encoded, $grayPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
