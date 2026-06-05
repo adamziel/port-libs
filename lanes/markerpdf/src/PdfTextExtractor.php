@@ -7984,7 +7984,11 @@ final class PdfTextExtractor
             }
         }
 
-        $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
+        if ($this->pageLabelTopLevelValueAfterName($dictionary, 'Nums') !== null) {
+            return $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
+        }
+
+        $entries = [];
 
         foreach ($this->pageLabelKidObjectReferences($dictionary, $objects) as $kidReference) {
             $kidObjectNumber = $kidReference['objectNumber'];
@@ -8252,8 +8256,18 @@ final class PdfTextExtractor
      */
     private function pageLabelArrayValueAfterNameResolved(string $body, string $name, array $objects): ?string
     {
-        $value = $this->pdfValueAfterName($body, $name);
+        $value = $this->pageLabelTopLevelValueAfterName($body, $name);
         return $value === null ? null : $this->pageLabelArrayFromValue($value, $objects);
+    }
+
+    private function pageLabelTopLevelValueAfterName(string $dictionary, string $name): ?string
+    {
+        $dictionary = trim($dictionary);
+        if (str_starts_with($dictionary, '<<')) {
+            return $this->topLevelPdfValueAfterName($dictionary, $name);
+        }
+
+        return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
     }
 
     /**
@@ -8314,7 +8328,7 @@ final class PdfTextExtractor
      */
     private function pageLabelPrefix(string $dictionary, array $objects): string
     {
-        $value = $this->pdfValueAfterName($dictionary, 'P');
+        $value = $this->pageLabelTopLevelValueAfterName($dictionary, 'P');
         return $value === null ? '' : $this->pageLabelTextStringValue($value, $objects) ?? '';
     }
 
@@ -8323,7 +8337,7 @@ final class PdfTextExtractor
      */
     private function pageLabelNameValueAfterName(string $dictionary, string $name, array $objects): ?string
     {
-        $value = $this->pdfValueAfterName($dictionary, $name);
+        $value = $this->pageLabelTopLevelValueAfterName($dictionary, $name);
         return $value === null ? null : $this->pageLabelNameValue($value, $objects);
     }
 
@@ -8369,7 +8383,7 @@ final class PdfTextExtractor
      */
     private function pageLabelIntegerValueAfterName(string $dictionary, string $name, array $objects): ?int
     {
-        $value = $this->pdfValueAfterName($dictionary, $name);
+        $value = $this->pageLabelTopLevelValueAfterName($dictionary, $name);
         return $value === null ? null : $this->pageLabelIntegerValue($value, $objects);
     }
 

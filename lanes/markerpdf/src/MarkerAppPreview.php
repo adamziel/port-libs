@@ -1603,6 +1603,8 @@ final class MarkerAppPreview
             foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
                 $sections[] = $section;
             }
+
+            return $sections;
         }
 
         $kids = $this->valueAfterName($value, 'Kids');
