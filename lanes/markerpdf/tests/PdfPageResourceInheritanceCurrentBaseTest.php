@@ -193,6 +193,44 @@ $pageResourceParentGenerationCurrentBasePdf = static function () use ($pageResou
         . "%%EOF";
 };
 
+$pageResourceKidGenerationCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td <42> Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td <41> Tj ET';
+    $cmap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Current kid generation inherited text',
+        '42' => 'Stale kid generation resource leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 1 R 8 0 R] /Count 2 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /KidGenerationInherited /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 9 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 5 0 R >> >>\nendobj\n"
+        . "%%EOF";
+};
+
+$pageResourceKidGenerationAllStaleCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td <42> Tj ET';
+    $cmap = $pageResourceInheritanceCurrentBaseCMap([
+        '42' => 'All stale kid generation fallback leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 1 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /AllStaleKidGeneration /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 5 0 R >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 $pageResourceFormNullCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
     $content = 'q /DirectNullForm Do Q q /IndirectNullForm Do Q q /ExplicitEmptyForm Do Q';
     $directNullForm = 'q /InheritedNestedForm Do Q';
@@ -396,6 +434,35 @@ return [
         $t->same([], $boundary);
         $t->same(false, str_contains($plainText, 'Stale parent generation font leak'));
         $t->same(false, str_contains($plainText, 'Stale parent generation form leak'));
+    },
+    'skips generation-mismatched page tree Kids before inherited resource lookup' => static function (TestRunner $t) use ($pageResourceKidGenerationCurrentBasePdf): void {
+        $pdf = $pageResourceKidGenerationCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resourceMetadata = $boundary[0]['resources'] ?? [];
+
+        $t->same(['Current kid generation inherited text'], $extractor->extractTextLines($pdf));
+        $t->same(['Current kid generation inherited text'], $extractor->extractTextRuns($pdf));
+        $t->same('Current kid generation inherited text', $plainText);
+        $t->same("Current kid generation inherited text\n", $extractor->naiveGetText($pdf));
+        $t->same(1, count($boundary));
+        $t->same(true, $resourceMetadata['inherited'] ?? null);
+        $t->same(2, $resourceMetadata['resource_owner_object'] ?? null);
+        $t->same(10, $resourceMetadata['resource_object'] ?? null);
+        $t->same(['Font'], $resourceMetadata['categories'] ?? null);
+        $t->same(['F1'], $resourceMetadata['font_names'] ?? null);
+        $t->same(false, str_contains($plainText, 'Stale kid generation resource leak'));
+    },
+    'blocks fallback page scanning when page tree Kids all reference missing generations' => static function (TestRunner $t) use ($pageResourceKidGenerationAllStaleCurrentBasePdf): void {
+        $pdf = $pageResourceKidGenerationAllStaleCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+
+        $t->same([], $extractor->extractTextLines($pdf));
+        $t->same([], $extractor->extractTextRuns($pdf));
+        $t->same('', $extractor->extractPlainText($pdf));
+        $t->same('', $extractor->naiveGetText($pdf));
+        $t->same([], (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf));
     },
     'inherits invoking page resources for direct and indirect null Form XObject Resources while empty dictionaries stay explicit' => static function (TestRunner $t) use ($pageResourceFormNullCurrentBasePdf): void {
         $pdf = $pageResourceFormNullCurrentBasePdf();

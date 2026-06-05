@@ -2241,12 +2241,14 @@ final class PdfPagePropertyExtractor
      */
     private function orderedPageObjectNumbers(string $catalog, array $objects): array
     {
-        $pagesObjectNumber = $this->objectReferenceValueAfterName($catalog, 'Pages');
-        if ($pagesObjectNumber !== null) {
-            $pages = $this->pageObjectNumbersFromTree($pagesObjectNumber, $objects);
-            if ($pages !== []) {
-                return $pages;
-            }
+        $pagesValue = $this->dictionaryRawValue($catalog, 'Pages');
+        $pagesReference = $pagesValue === null ? null : $this->objectReferenceFromValue($pagesValue);
+        if ($pagesReference !== null) {
+            return $this->pageObjectNumbersFromTree(
+                $pagesReference['objectNumber'],
+                $pagesReference['generation'],
+                $objects
+            );
         }
 
         $pages = [];
@@ -2261,17 +2263,22 @@ final class PdfPagePropertyExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, true> $seen
+     * @param array<string, true> $seen
      * @return list<int>
      */
-    private function pageObjectNumbersFromTree(int $objectNumber, array $objects, array $seen = []): array
+    private function pageObjectNumbersFromTree(int $objectNumber, int $generation, array $objects, array $seen = []): array
     {
-        if (isset($seen[$objectNumber]) || !isset($objects[$objectNumber])) {
+        $referenceKey = $objectNumber . ':' . $generation;
+        if (isset($seen[$referenceKey])) {
             return [];
         }
 
-        $seen[$objectNumber] = true;
-        $body = $objects[$objectNumber];
+        $body = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return [];
+        }
+
+        $seen[$referenceKey] = true;
         if ($this->pdfObjectTypeName($body, $objects) === 'Page') {
             return [$objectNumber];
         }
@@ -2288,17 +2295,46 @@ final class PdfPagePropertyExtractor
 
         $pages = [];
         foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
-            $childObjectNumber = $this->objectNumberFromReference($kidValue);
-            if ($childObjectNumber === null) {
+            $childReference = $this->objectReferenceFromValue($kidValue);
+            if (
+                $childReference === null
+                || $this->objectBodyForPageTreeReference(
+                    $objects,
+                    $childReference['objectNumber'],
+                    $childReference['generation']
+                ) === null
+            ) {
                 continue;
             }
 
-            foreach ($this->pageObjectNumbersFromTree($childObjectNumber, $objects, $seen) as $pageObjectNumber) {
+            foreach ($this->pageObjectNumbersFromTree(
+                $childReference['objectNumber'],
+                $childReference['generation'],
+                $objects,
+                $seen
+            ) as $pageObjectNumber) {
                 $pages[] = $pageObjectNumber;
             }
         }
 
         return $pages;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForPageTreeReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        if (
+            $objectNumber <= 0
+            || $generation < 0
+            || !isset($objects[$objectNumber])
+            || ($this->currentObjectGenerations[$objectNumber] ?? null) !== $generation
+        ) {
+            return null;
+        }
+
+        return $objects[$objectNumber];
     }
 
     /**
