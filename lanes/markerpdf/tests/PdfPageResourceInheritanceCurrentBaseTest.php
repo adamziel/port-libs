@@ -104,6 +104,30 @@ $pageResourceTopLevelParentCurrentBasePdf = static function () use ($pageResourc
         . "%%EOF";
 };
 
+$pageResourceIndirectNullCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /InheritedNullForm Do Q';
+    $inheritedForm = 'BT /F1 12 Tf 12 24 Td (Indirect null inherited form text) Tj ET';
+    $emptyResourceContent = 'q /InheritedNullForm Do Q';
+    $inheritedCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Indirect null inherited font text',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources 12 0 R /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources 13 0 R /Contents 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($emptyResourceContent) . " >>\nstream\n{$emptyResourceContent}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IndirectNullInherited /Encoding /Identity-H /ToUnicode 8 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($inheritedCMap) . " >>\nstream\n{$inheritedCMap}\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($inheritedForm) . " >>\nstream\n{$inheritedForm}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 7 0 R >> /XObject << /InheritedNullForm 9 0 R >> >>\nendobj\n"
+        . "12 0 obj\nnull\nendobj\n"
+        . "13 0 obj\n<< >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -179,5 +203,28 @@ return [
         $t->same(['InheritedForm'], $resourceMetadata['xobject_names'] ?? null);
         $t->same(false, str_contains($plainText, 'Nested decoy parent font leak'));
         $t->same(false, str_contains($plainText, 'Nested decoy parent form leak'));
+    },
+    'inherits ancestor resources through indirect null page Resources but keeps indirect empty dictionaries explicit' => static function (TestRunner $t) use ($pageResourceIndirectNullCurrentBasePdf): void {
+        $pdf = $pageResourceIndirectNullCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+
+        $t->same([
+            'Indirect null inherited font text',
+            'Indirect null inherited form text',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Indirect null inherited font text\nIndirect null inherited form text", $plainText);
+        $t->same(1, substr_count($plainText, 'Indirect null inherited form text'));
+        $t->same(true, $boundary[0]['resources']['inherited'] ?? null);
+        $t->same(2, $boundary[0]['resources']['resource_owner_object'] ?? null);
+        $t->same(10, $boundary[0]['resources']['resource_object'] ?? null);
+        $t->same(['Font', 'XObject'], $boundary[0]['resources']['categories'] ?? null);
+        $t->same(['F1'], $boundary[0]['resources']['font_names'] ?? null);
+        $t->same(['InheritedNullForm'], $boundary[0]['resources']['xobject_names'] ?? null);
+        $t->same(false, $boundary[1]['resources']['inherited'] ?? null);
+        $t->same(4, $boundary[1]['resources']['resource_owner_object'] ?? null);
+        $t->same(13, $boundary[1]['resources']['resource_object'] ?? null);
+        $t->same([], $boundary[1]['resources']['categories'] ?? null);
     },
 ];

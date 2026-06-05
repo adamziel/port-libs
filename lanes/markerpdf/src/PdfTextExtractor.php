@@ -8275,6 +8275,10 @@ final class PdfTextExtractor
                 return ['state' => 'blocked'];
             }
 
+            if (trim($objects[$objectNumber]) === 'null') {
+                return ['state' => 'inherit'];
+            }
+
             $body = $this->dictionaryObjectBody($objects[$objectNumber]);
             return $body === null
                 ? ['state' => 'blocked']

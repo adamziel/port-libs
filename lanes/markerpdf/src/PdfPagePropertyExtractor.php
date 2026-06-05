@@ -1316,7 +1316,7 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
-            if ($this->pageResourceValueAllowsInheritance($resourceValue)) {
+            if ($this->pageResourceValueAllowsInheritance($resourceValue, $objects)) {
                 continue;
             }
 
@@ -1361,10 +1361,20 @@ final class PdfPagePropertyExtractor
         return null;
     }
 
-    private function pageResourceValueAllowsInheritance(string $value): bool
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageResourceValueAllowsInheritance(string $value, array $objects): bool
     {
         $trimmed = trim($value);
-        return $trimmed === '' || $trimmed === 'null';
+        if ($trimmed === '' || $trimmed === 'null') {
+            return true;
+        }
+
+        $objectNumber = $this->objectNumberFromReference($trimmed);
+        return $objectNumber !== null
+            && isset($objects[$objectNumber])
+            && trim($objects[$objectNumber]) === 'null';
     }
 
     /**
