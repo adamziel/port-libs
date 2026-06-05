@@ -63,8 +63,8 @@ final class LayoutAnnotator
         'output',
     ];
     private const LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS = [
-        ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index'],
-        ['selected_page_index', 'trimmed_page_index', 'relative_page_index'],
+        ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index', 'page_range', 'source_page_range', 'document_page_range', 'page_indices', 'source_page_indices', 'document_page_indices'],
+        ['selected_page_index', 'trimmed_page_index', 'relative_page_index', 'selected_page_range', 'trimmed_page_range', 'relative_page_range', 'selected_page_indices', 'trimmed_page_indices', 'relative_page_indices'],
         ['pnum', 'page', 'pdftext_page', 'source_page', 'document_page'],
         ['page_number'],
         ['selected_page_number', 'trimmed_page_number', 'relative_page_number'],
@@ -319,10 +319,7 @@ final class LayoutAnnotator
                 continue;
             }
 
-            $integer = $this->integerValue($artifact[$field]);
-            if ($integer !== null) {
-                $values[] = $integer;
-            }
+            array_push($values, ...$this->integerValues($artifact[$field]));
         }
 
         return array_values(array_unique($values, SORT_REGULAR));
@@ -362,6 +359,31 @@ final class LayoutAnnotator
         }
 
         return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerValues(mixed $value): array
+    {
+        $single = $this->integerValue($value);
+        if ($single !== null) {
+            return [$single];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($value as $item) {
+            $integer = $this->integerValue($item);
+            if ($integer !== null) {
+                $values[] = $integer;
+            }
+        }
+
+        return array_values(array_unique($values, SORT_REGULAR));
     }
 
     /**
