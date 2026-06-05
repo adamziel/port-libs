@@ -292,6 +292,18 @@ XML],
       <w:commentRangeEnd w:id="9"/>
       <w:r><w:commentReference w:id="9"/></w:r>
     </w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:p>
+            <w:bookmarkStart w:id="21" w:name="review_column_range" w:colFirst="0" w:colLast="1"/>
+            <w:r><w:t>Reviewed table scope</w:t></w:r>
+            <w:bookmarkEnd w:id="21"/>
+          </w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Needs column audit</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
     <w:altChunk r:id="rIdReviewChunk"/>
     <w:altChunk r:id="rIdPlainTextChunk"/>
     <w:p>
@@ -759,6 +771,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">continues here</span> for import review',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
+        '<span id="review_column_range" class="anchor docx-bookmark docx-bookmark-column-range" data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"></span>Reviewed table scope',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
         'and flag missing note references<sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup>/<sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>',

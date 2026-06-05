@@ -889,6 +889,18 @@ $bookmarkDocumentXml = <<<'XML'
       <w:bookmarkEnd w:id="7"/>
       <w:r><w:t xml:space="preserve"> keeps reviewer context.</w:t></w:r>
     </w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:p>
+            <w:bookmarkStart w:id="21" w:name="review_column_range" w:colFirst="0" w:colLast="1"/>
+            <w:r><w:t>Reviewed table scope</w:t></w:r>
+            <w:bookmarkEnd w:id="21"/>
+          </w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Needs column audit</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
   </w:body>
 </w:document>
 XML;
@@ -2983,6 +2995,30 @@ return [
         $t->contains('<a href="#source_packet">source packet</a>', $blocks);
         $t->contains('<span id="source_packet" class="anchor"></span>Source packet target keeps reviewer context.', $blocks);
         $t->true(!str_contains($blocks, '_GoBack'), 'Dummy Word return bookmarks should not render to WordPress blocks');
+    },
+    'preserves DOCX table bookmark column ranges as reviewer anchor metadata' => static function (TestRunner $t) use ($buildBookmarkPackage): void {
+        $document = (new DocxReader())->readDocument($buildBookmarkPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[3];
+        $t->same('table', $table->type);
+        $rangeCell = $table->children[0]->children[0]->children[0];
+        $rangeParagraph = $rangeCell->children[0];
+        $rangeAnchor = $rangeParagraph->children[0];
+        $t->same('span', $rangeAnchor->type);
+        $t->same('review_column_range', $rangeAnchor->attr('id'));
+        $t->same(['anchor', 'docx-bookmark', 'docx-bookmark-column-range'], $rangeAnchor->attr('classes'));
+        $rangeAttrs = $rangeAnchor->attr('attributes');
+        $t->same('21', $rangeAttrs['data-docx-bookmark-id']);
+        $t->same('review_column_range', $rangeAttrs['data-docx-bookmark-name']);
+        $t->same('0', $rangeAttrs['data-docx-bookmark-col-first']);
+        $t->same('1', $rangeAttrs['data-docx-bookmark-col-last']);
+        $t->same('Reviewed table scope', $rangeParagraph->children[1]->attr('text'));
+        $t->same('Needs column audit', $table->children[0]->children[0]->children[1]->children[0]->children[0]->attr('text'));
+
+        $t->contains('[]{#review_column_range .anchor .docx-bookmark .docx-bookmark-column-range data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"}Reviewed table scope', $markdown);
+        $t->contains('<span id="review_column_range" class="anchor docx-bookmark docx-bookmark-column-range" data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"></span>Reviewed table scope', $blocks);
     },
     'maps DOCX field-code hyperlinks to normal link AST nodes' => static function (TestRunner $t) use ($buildFieldHyperlinkPackage): void {
         $document = (new DocxReader())->readDocument($buildFieldHyperlinkPackage());

@@ -2081,10 +2081,32 @@ final class DocxReader
             return [];
         }
 
-        return [new AstNode('span', [
+        $attrs = [
             'id' => $name,
             'classes' => ['anchor'],
-        ])];
+        ];
+
+        $columnFirst = $this->wordAttr($bookmark, 'colFirst');
+        $columnLast = $this->wordAttr($bookmark, 'colLast');
+        if (($columnFirst !== null && $columnFirst !== '') || ($columnLast !== null && $columnLast !== '')) {
+            $attributes = [];
+            $bookmarkId = $this->wordAttr($bookmark, 'id');
+            if ($bookmarkId !== null && $bookmarkId !== '') {
+                $attributes['data-docx-bookmark-id'] = $bookmarkId;
+            }
+            $attributes['data-docx-bookmark-name'] = $name;
+            if ($columnFirst !== null && $columnFirst !== '') {
+                $attributes['data-docx-bookmark-col-first'] = $columnFirst;
+            }
+            if ($columnLast !== null && $columnLast !== '') {
+                $attributes['data-docx-bookmark-col-last'] = $columnLast;
+            }
+
+            $attrs['classes'] = ['anchor', 'docx-bookmark', 'docx-bookmark-column-range'];
+            $attrs['attributes'] = $attributes;
+        }
+
+        return [new AstNode('span', $attrs)];
     }
 
     /**
