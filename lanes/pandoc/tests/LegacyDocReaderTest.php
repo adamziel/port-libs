@@ -735,6 +735,45 @@ $buildSectionTableDocStreams = static function () use ($u16, $u32): array {
     ];
 };
 
+$buildFormattingTableDocStreams = static function () use ($buildSimpleWordDocument, $u32): array {
+    $text = "Styled first\rPlain second\r";
+    $wordDocument = $buildSimpleWordDocument($text);
+    $textStartFc = 512;
+    $textEndFc = $textStartFc + strlen($text);
+
+    $appendFkp = static function (string &$wordDocument, int $runCount): int {
+        $page = intdiv(strlen($wordDocument) + 511, 512);
+        $offset = $page * 512;
+        $wordDocument = str_pad($wordDocument, $offset, "\0")
+            . str_repeat("\0", 511)
+            . chr($runCount);
+
+        return $page;
+    };
+
+    $papxFkpPage = $appendFkp($wordDocument, 2);
+    $chpxFkpPage = $appendFkp($wordDocument, 3);
+    $papx = $u32($textStartFc)
+        . $u32($textEndFc)
+        . $u32($papxFkpPage);
+    $chpx = $u32($textStartFc)
+        . $u32($textStartFc + strlen('Styled'))
+        . $u32($textEndFc)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage);
+    $tableStream = $papx . $chpx;
+
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x0102, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($papx)), 0x0106, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($papx)), 0x00fa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($chpx)), 0x00fe, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
 return [
     'reads CFB directory streams including MiniFAT-backed legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
@@ -1644,6 +1683,63 @@ return [
         $t->same(1, $styles[2]['cupx']);
         $t->same(10 + 2 + strlen("Migration Emphasis") * 2 + 2, $styles[2]['cbStd']);
         $t->same($styles[2]['cbStd'], $styles[2]['bchUpe']);
+    },
+    'reports legacy DOC paragraph and character formatting table FKP ranges for review' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildFormattingTableDocStreams(), false));
+        $document = $result['document'];
+        $runs = $result['formattingRuns'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same($runs, $document->attr('formattingRuns'));
+        $t->same($runs, $metadata['formattingRuns']);
+        $t->same(3, $metadata['formattingRunCount']);
+        $t->same(1, $metadata['paragraphFormattingRunCount']);
+        $t->same(2, $metadata['characterFormattingRunCount']);
+
+        $t->same('paragraph', $runs[0]['kind']);
+        $t->same('PlcBtePapx', $runs[0]['table']);
+        $t->same(512, $runs[0]['startFc']);
+        $t->same(538, $runs[0]['endFc']);
+        $t->same(26, $runs[0]['byteLength']);
+        $t->same(2, $runs[0]['fkpPage']);
+        $t->same(1024, $runs[0]['fkpByteOffset']);
+        $t->same(512, $runs[0]['fkpByteCount']);
+        $t->same(2, $runs[0]['fkpRunCount']);
+        $t->same(false, $runs[0]['canApplyFormatting']);
+
+        $t->same('character', $runs[1]['kind']);
+        $t->same('PlcBteChpx', $runs[1]['table']);
+        $t->same(512, $runs[1]['startFc']);
+        $t->same(518, $runs[1]['endFc']);
+        $t->same(6, $runs[1]['byteLength']);
+        $t->same(3, $runs[1]['fkpPage']);
+        $t->same(1536, $runs[1]['fkpByteOffset']);
+        $t->same(3, $runs[1]['fkpRunCount']);
+
+        $t->same('character', $runs[2]['kind']);
+        $t->same(518, $runs[2]['startFc']);
+        $t->same(538, $runs[2]['endFc']);
+        $t->same(20, $runs[2]['byteLength']);
+        $t->same(3, $runs[2]['fkpPage']);
+        $t->true(!isset($runs[2]['unusedPnFkpBits']), 'Zero PnFkp unused bits should stay omitted');
+        $t->contains('<p>Styled first</p>', $blocks);
+        $t->contains('<p>Plain second</p>', $blocks);
+    },
+    'rejects malformed legacy DOC formatting table BTE ranges before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams, $u32): void {
+        $reader = new LegacyDocReader();
+
+        $badLength = $buildFormattingTableDocStreams();
+        $badLength['WordDocument'] = substr_replace($badLength['WordDocument'], $u32(8), 0x0106, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badLength, false)));
+
+        $unsortedFc = $buildFormattingTableDocStreams();
+        $unsortedFc['0Table'] = substr_replace($unsortedFc['0Table'], $u32(512), 4, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($unsortedFc, false)));
+
+        $badFkpPage = $buildFormattingTableDocStreams();
+        $badFkpPage['0Table'] = substr_replace($badFkpPage['0Table'], $u32(9999), 8, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badFkpPage, false)));
     },
     'rejects malformed legacy DOC stylesheet records before exposing style metadata' => static function (TestRunner $t) use ($buildCfb, $buildStyleSheetDocStreams, $styleDefinition, $u16, $u32): void {
         $reader = new LegacyDocReader();

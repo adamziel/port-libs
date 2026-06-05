@@ -332,6 +332,17 @@ $mainTextByteEnd = $secondPieceStart + strlen($secondPieceBytes);
 $wordDocument = str_repeat("\0", $firstPieceStart) . $firstPieceBytes . $secondPieceBytes;
 $sepxFc = strlen($wordDocument) + 64;
 $wordDocument = str_pad($wordDocument, $sepxFc, "\0") . $u16(4) . "\x34\x12\x00\x00";
+$appendFkp = static function (string &$wordDocument, int $runCount): int {
+    $page = intdiv(strlen($wordDocument) + 511, 512);
+    $offset = $page * 512;
+    $wordDocument = str_pad($wordDocument, $offset, "\0")
+        . str_repeat("\0", 511)
+        . chr($runCount);
+
+    return $page;
+};
+$papxFkpPage = $appendFkp($wordDocument, 2);
+$chpxFkpPage = $appendFkp($wordDocument, 3);
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x0409), 6, 2);
@@ -383,6 +394,14 @@ $plcfendTxt = $u32(0)
 $plcfSed = $u32(0)
     . $u32($totalPieceCharacters + 1)
     . $u16(0) . $u32($sepxFc) . $u16(0) . $u32(0);
+$plcBtePapx = $u32($firstPieceStart)
+    . $u32($mainTextByteEnd)
+    . $u32($papxFkpPage);
+$plcBteChpx = $u32($firstPieceStart)
+    . $u32($secondPieceStart)
+    . $u32($mainTextByteEnd)
+    . $u32($chpxFkpPage)
+    . $u32($chpxFkpPage);
 $stsh = $styleSheet([
     15 => $styleDefinition('Review Heading,Import Title', 1, 0x0fff, 16, 2),
     16 => $styleDefinition('Reviewer Body', 1, 15, 16, 2),
@@ -396,10 +415,16 @@ $fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
 $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
 $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
 $fcPlcfSed = $fcPlcfendTxt + strlen($plcfendTxt);
-$fcStshf = $fcPlcfSed + strlen($plcfSed);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfSed . $stsh;
+$fcPlcBtePapx = $fcPlcfSed + strlen($plcfSed);
+$fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
+$fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcBtePapx), 0x0102, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcBtePapx)), 0x0106, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfSed), 0x00ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfSed)), 0x00ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
@@ -719,6 +744,7 @@ $summary = [
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
     'styles' => $result['styles'],
+    'formattingRuns' => $result['formattingRuns'],
     'sections' => $result['sections'],
     'bookmarks' => $result['bookmarks'],
     'footnotes' => $result['footnotes'],
@@ -769,6 +795,27 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['styles'][1]['basedOnIstd'] ?? null) !== 15 || ($summary['styles'][2]['type'] ?? '') !== 'character') {
         throw new RuntimeException('Legacy DOC handoff self-test missing stylesheet relationship/type metadata');
+    }
+    if (($summary['metadata']['formattingRunCount'] ?? null) !== 3 || ($summary['metadata']['paragraphFormattingRunCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing formatting table run counts');
+    }
+    if (($summary['metadata']['characterFormattingRunCount'] ?? null) !== 2 || ($summary['formattingRuns'][0]['table'] ?? '') !== 'PlcBtePapx') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing character/paragraph formatting table split');
+    }
+    if (($summary['formattingRuns'][0]['startFc'] ?? null) !== $firstPieceStart || ($summary['formattingRuns'][0]['endFc'] ?? null) !== $mainTextByteEnd) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing paragraph formatting FC range');
+    }
+    if (($summary['formattingRuns'][0]['fkpPage'] ?? null) !== $papxFkpPage || ($summary['formattingRuns'][0]['fkpRunCount'] ?? null) !== 2) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing paragraph FKP page provenance');
+    }
+    if (($summary['formattingRuns'][1]['table'] ?? '') !== 'PlcBteChpx' || ($summary['formattingRuns'][1]['endFc'] ?? null) !== $secondPieceStart) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing character formatting first-piece range');
+    }
+    if (($summary['formattingRuns'][2]['startFc'] ?? null) !== $secondPieceStart || ($summary['formattingRuns'][2]['fkpRunCount'] ?? null) !== 3) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing character formatting second-piece range');
+    }
+    if (($summary['formattingRuns'][0]['canApplyFormatting'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test should keep full SPRM formatting expansion disabled');
     }
     if (($summary['metadata']['cfbStreamCount'] ?? null) !== 14 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');

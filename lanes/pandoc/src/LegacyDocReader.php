@@ -17,6 +17,10 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFFND_TXT = 0x00b6;
     private const FIB_FC_PLCF_SED = 0x00ca;
     private const FIB_LCB_PLCF_SED = 0x00ce;
+    private const FIB_FC_PLCF_BTE_CHPX = 0x00fa;
+    private const FIB_LCB_PLCF_BTE_CHPX = 0x00fe;
+    private const FIB_FC_PLCF_BTE_PAPX = 0x0102;
+    private const FIB_LCB_PLCF_BTE_PAPX = 0x0106;
     private const FIB_FC_STTBF_BKMK = 0x0142;
     private const FIB_LCB_STTBF_BKMK = 0x0146;
     private const FIB_FC_PLCF_BKF = 0x014a;
@@ -29,7 +33,7 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -37,7 +41,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -102,6 +106,19 @@ final class LegacyDocReader
             $metadata['styleCount'] = count($styles);
             $metadata['styles'] = $styles;
         }
+        $formattingRuns = $this->formattingRunReport($wordDocument, $tableStream);
+        if ($formattingRuns !== []) {
+            $metadata['formattingRunCount'] = count($formattingRuns);
+            $metadata['paragraphFormattingRunCount'] = count(array_filter(
+                $formattingRuns,
+                static fn (array $run): bool => ($run['kind'] ?? null) === 'paragraph'
+            ));
+            $metadata['characterFormattingRunCount'] = count(array_filter(
+                $formattingRuns,
+                static fn (array $run): bool => ($run['kind'] ?? null) === 'character'
+            ));
+            $metadata['formattingRuns'] = $formattingRuns;
+        }
         $sections = $this->sectionReport($wordDocument, $tableStream, $textResult['text']);
         if ($sections !== []) {
             $metadata['sectionCount'] = count($sections);
@@ -142,6 +159,7 @@ final class LegacyDocReader
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
             'styles' => $styles,
+            'formattingRuns' => $formattingRuns,
             'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -162,6 +180,7 @@ final class LegacyDocReader
             'directoryEntries' => $directoryEntries,
             'fib' => $fib + ['textSource' => $textResult['source']],
             'styles' => $styles,
+            'formattingRuns' => $formattingRuns,
             'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -3001,6 +3020,120 @@ final class LegacyDocReader
                 $cursor = $baseByIstd[$cursor];
             }
         }
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function formattingRunReport(string $wordDocument, ?string $tableStream): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_BTE_PAPX + 4) {
+            return [];
+        }
+
+        return array_merge(
+            $this->formattingTableReport(
+                'paragraph',
+                'PlcBtePapx',
+                $wordDocument,
+                $tableStream,
+                self::FIB_FC_PLCF_BTE_PAPX,
+                self::FIB_LCB_PLCF_BTE_PAPX
+            ),
+            $this->formattingTableReport(
+                'character',
+                'PlcBteChpx',
+                $wordDocument,
+                $tableStream,
+                self::FIB_FC_PLCF_BTE_CHPX,
+                self::FIB_LCB_PLCF_BTE_CHPX
+            )
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function formattingTableReport(
+        string $kind,
+        string $label,
+        string $wordDocument,
+        string $tableStream,
+        int $fcOffset,
+        int $lcbOffset
+    ): array {
+        $fc = self::u32($wordDocument, $fcOffset);
+        $lcb = self::u32($wordDocument, $lcbOffset);
+        if ($lcb === 0) {
+            return [];
+        }
+        return $this->parsePlcBte(
+            $this->tableStreamSlice($tableStream, $fc, $lcb, $label),
+            $kind,
+            $label,
+            $wordDocument
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parsePlcBte(string $bytes, string $kind, string $label, string $wordDocument): array
+    {
+        $length = strlen($bytes);
+        if ($length < 12 || (($length - 4) % 8) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $label . ' formatting table has an invalid length');
+        }
+
+        $runCount = intdiv($length - 4, 8);
+        $fcCount = $runCount + 1;
+        $fcs = [];
+        $previousFc = null;
+        for ($index = 0; $index < $fcCount; $index++) {
+            $fc = self::u32($bytes, $index * 4);
+            if ($previousFc !== null && $fc <= $previousFc) {
+                throw new \RuntimeException('Legacy DOC ' . $label . ' formatting table contains duplicate or unsorted file offsets');
+            }
+            if ($fc > strlen($wordDocument)) {
+                throw new \RuntimeException('Legacy DOC ' . $label . ' formatting table points outside WordDocument');
+            }
+
+            $previousFc = $fc;
+            $fcs[] = $fc;
+        }
+
+        $pnOffset = $fcCount * 4;
+        $runs = [];
+        for ($index = 0; $index < $runCount; $index++) {
+            $pnFkp = self::u32($bytes, $pnOffset + ($index * 4));
+            $fkpPage = $pnFkp & 0x003fffff;
+            $unusedBits = $pnFkp >> 22;
+            $fkpByteOffset = $fkpPage * 512;
+            if ($fkpByteOffset < 0 || $fkpByteOffset + 512 > strlen($wordDocument)) {
+                throw new \RuntimeException('Legacy DOC ' . $label . ' formatting table points to an FKP page outside WordDocument');
+            }
+
+            $run = [
+                'kind' => $kind,
+                'table' => $label,
+                'index' => $index + 1,
+                'startFc' => $fcs[$index],
+                'endFc' => $fcs[$index + 1],
+                'byteLength' => $fcs[$index + 1] - $fcs[$index],
+                'fkpPage' => $fkpPage,
+                'fkpByteOffset' => $fkpByteOffset,
+                'fkpByteCount' => 512,
+                'fkpRunCount' => ord($wordDocument[$fkpByteOffset + 511]),
+                'canApplyFormatting' => false,
+            ];
+            if ($unusedBits !== 0) {
+                $run['unusedPnFkpBits'] = $unusedBits;
+            }
+
+            $runs[] = $run;
+        }
+
+        return $runs;
     }
 
     /**
