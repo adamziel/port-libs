@@ -8212,8 +8212,9 @@ final class PdfTextExtractor
     private function pageLabelPageIndexOperand(string $value, array $objects, array $seen = []): ?int
     {
         $value = trim($value);
-        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
-            return (int) $value;
+        $integer = $this->pageLabelIntegerScalarValue($value);
+        if ($integer !== null) {
+            return $integer;
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -8269,8 +8270,9 @@ final class PdfTextExtractor
     private function pageLabelLimitOperand(string $value, array $objects, array $seen = []): ?int
     {
         $value = trim($value);
-        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
-            return (int) $value;
+        $integer = $this->pageLabelIntegerScalarValue($value);
+        if ($integer !== null) {
+            return $integer;
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -8514,8 +8516,9 @@ final class PdfTextExtractor
     private function pageLabelIntegerValue(string $value, array $objects, array $seen = []): ?int
     {
         $value = trim($value);
-        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
-            return (int) $value;
+        $integer = $this->pageLabelIntegerScalarValue($value);
+        if ($integer !== null) {
+            return $integer;
         }
 
         $reference = $this->pageLabelReferenceOperand($value);
@@ -8537,6 +8540,21 @@ final class PdfTextExtractor
 
         $seen[$objectKey] = true;
         return $this->pageLabelIntegerValue($body, $objects, $seen);
+    }
+
+    private function pageLabelIntegerScalarValue(string $value): ?int
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if (preg_match('/\G[+-]?\d+/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfWhitespace($value, $offset + strlen($match[0]));
+        if ($endOffset < strlen($value)) {
+            return null;
+        }
+
+        return (int) $match[0];
     }
 
     /**

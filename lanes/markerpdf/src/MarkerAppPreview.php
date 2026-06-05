@@ -1770,7 +1770,7 @@ final class MarkerAppPreview
 
         $styleValue = $this->resolvedPageLabelValueAfterName($dict, 'S', $objects, $seen);
         $style = null;
-        $styleValue = $styleValue === null ? null : trim($styleValue);
+        $styleValue = $styleValue === null ? null : $this->pageLabelSinglePdfToken($styleValue);
         if ($styleValue !== null && str_starts_with($styleValue, '/')) {
             $styleName = $this->decodePdfName(substr($styleValue, 1));
             $style = in_array($styleName, ['D', 'R', 'r', 'A', 'a'], true) ? $styleName : null;
@@ -1778,8 +1778,9 @@ final class MarkerAppPreview
 
         $start = 1;
         $startValue = $this->resolvedPageLabelValueAfterName($dict, 'St', $objects, $seen);
-        if ($startValue !== null && preg_match('/^[+-]?\d+$/', trim($startValue)) === 1) {
-            $start = max(1, (int) trim($startValue));
+        $startValue = $startValue === null ? null : $this->pageLabelSinglePdfToken($startValue);
+        if ($startValue !== null && preg_match('/^[+-]?\d+$/', $startValue) === 1) {
+            $start = max(1, (int) $startValue);
         }
 
         $prefix = '';
@@ -1858,6 +1859,21 @@ final class MarkerAppPreview
         ];
     }
 
+    private function pageLabelSinglePdfToken(string $value): ?string
+    {
+        $token = $this->readPdfValue($value, 0);
+        if ($token === null) {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfWhitespace($value, $token[1]);
+        if ($endOffset < strlen($value)) {
+            return null;
+        }
+
+        return trim($token[0]);
+    }
+
     private function formatPageLabel(string $prefix, ?string $style, int $number): string
     {
         return $prefix . match ($style) {
@@ -1916,6 +1932,7 @@ final class MarkerAppPreview
 
     private function decodePdfStringValue(string $value): string
     {
+        $value = $this->pageLabelSinglePdfToken($value) ?? '';
         if (str_starts_with($value, '(') && str_ends_with($value, ')')) {
             return $this->decodePdfByteString($this->decodeLiteralString(substr($value, 1, -1)));
         }
