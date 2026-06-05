@@ -19566,12 +19566,15 @@ final class PdfTextExtractor
                 if (
                     $incompletePreviewFallbackEnd !== null
                     && $incompletePreviewFallbackCanCloseBeforeNextImage
-                    && $this->contentSegmentContainsInlineImagePreamble(
-                        substr($stream, $incompletePreviewFallbackEnd + 2, $end - $incompletePreviewFallbackEnd - 2)
-                    )
                 ) {
-                    $index = $incompletePreviewFallbackEnd + 2;
-                    return true;
+                    $segmentAfterFallback = substr($stream, $incompletePreviewFallbackEnd + 2, $end - $incompletePreviewFallbackEnd - 2);
+                    if (
+                        $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
+                        || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
+                    ) {
+                        $index = $incompletePreviewFallbackEnd + 2;
+                        return true;
+                    }
                 }
 
                 $candidate = $this->inlineImageDataCandidate($stream, $dataStart, $end);
@@ -19659,6 +19662,103 @@ final class PdfTextExtractor
             if ($dictionary !== null && $this->inlineImageDictionaryHasImageKeys($dictionary)) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    private function contentSegmentContainsUnterminatedTextLiteralAfterTextObject(string $segment): bool
+    {
+        $index = 0;
+        $length = strlen($segment);
+        $insideTextObject = false;
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $literalClosed = $this->consumeLiteralTokenReportsClosed($segment, $index);
+                if ($insideTextObject && !$literalClosed) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($char === '<') {
+                if ($index + 1 < $length && $segment[$index + 1] === '<') {
+                    $this->readDictionaryToken($segment, $index);
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $this->readArrayToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($segment, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($segment[$index])) {
+                $index++;
+            }
+
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            $token = substr($segment, $start, $index - $start);
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $insideTextObject = false;
+            }
+        }
+
+        return false;
+    }
+
+    private function consumeLiteralTokenReportsClosed(string $stream, int &$index): bool
+    {
+        $depth = 0;
+        $length = strlen($stream);
+
+        while ($index < $length) {
+            $char = $stream[$index];
+            if ($char === '\\') {
+                $index += 2;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    $index++;
+                    return true;
+                }
+            }
+            $index++;
         }
 
         return false;
