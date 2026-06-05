@@ -826,6 +826,7 @@ final class PdfTextExtractor
      *     invalid_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
+     *     escaped_filter_name_operand_count: int,
      *     unsupported_filter_count: int,
      *     invalid_decodeparms_operand_count: int,
      *     malformed_decodeparms_operand_count: int,
@@ -853,6 +854,7 @@ final class PdfTextExtractor
             'invalid_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
+            'escaped_filter_name_operand_count' => 0,
             'unsupported_filter_count' => 0,
             'invalid_decodeparms_operand_count' => 0,
             'malformed_decodeparms_operand_count' => 0,
@@ -924,6 +926,7 @@ final class PdfTextExtractor
             $invalidFilterOperandCount = $this->invalidStreamFilterOperandCount($operandGroups['Filter']);
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
+            $escapedFilterNameOperandCount = $this->escapedStreamFilterNameOperandCount($operandGroups['Filter']);
             $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters, $decodeParms, $objects);
             $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters, $decodeParms);
             $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters, $decodeParms);
@@ -955,6 +958,7 @@ final class PdfTextExtractor
             $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
+            $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
             $review['unsupported_filter_count'] += $unsupportedFilterCount;
             $review['invalid_decodeparms_operand_count'] += $invalidDecodeParmsOperandCount;
             $review['malformed_decodeparms_operand_count'] += $malformedDecodeParmsOperandCount;
@@ -977,6 +981,7 @@ final class PdfTextExtractor
                 'invalid_filter_operand_count' => $invalidFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
+                'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
                 'unsupported_filter_count' => $unsupportedFilterCount,
                 'invalid_decodeparms_operand_count' => $invalidDecodeParmsOperandCount,
                 'malformed_decodeparms_operand_count' => $malformedDecodeParmsOperandCount,
@@ -19121,6 +19126,9 @@ final class PdfTextExtractor
             if ($name === 'Filter') {
                 $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType);
                 $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($item);
+                if ($tokenType === 'name') {
+                    $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($item);
+                }
             }
             if ($name === 'DecodeParms') {
                 $review['valid_decodeparms_operand'] = $this->decodeParmsOperandBodyIsValid($item, $objects);
@@ -19274,6 +19282,9 @@ final class PdfTextExtractor
             $body = trim($body);
             $review['token_type'] = $this->pdfOperandTokenType($body);
             $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($body);
+            if ($review['token_type'] === 'name') {
+                $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
+            }
             $review['valid_filter_operand'] = $this->filterNamesFromValue(
                 $body,
                 $objects,
@@ -19496,6 +19507,27 @@ final class PdfTextExtractor
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operands
+     */
+    private function escapedStreamFilterNameOperandCount(array $operands): int
+    {
+        $count = 0;
+        foreach ($operands as $operand) {
+            if (($operand['escaped_name_operand'] ?? false) === true) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function pdfNameTokenContainsHexEscape(string $token): bool
+    {
+        $token = trim($token);
+        return str_starts_with($token, '/') && preg_match('/#[\da-fA-F]{2}/', $token) === 1;
     }
 
     /**

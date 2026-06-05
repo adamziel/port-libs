@@ -1102,6 +1102,86 @@ $parserMalformedCMapCryptPrivateFilterBoundaryCurrentBasePdf = static function (
         . "%%EOF";
 };
 
+$parserEscapedCMapFilterNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $mappedText = 'Escaped Filter CMap Import';
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /EscapedFilterNameBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex($mappedText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused escaped-filter-name CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EscapedFilterNameBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /EscapedFilterNameBoundary-H /Filter [/Fl#61teDecode] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
+$parserEscapedUnsupportedCMapFilterNameBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Escaped Unsupported Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /EscapedUnsupportedFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Escaped Unsupported CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EscapedUnsupportedFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /EscapedUnsupportedFilterBoundary-H /Filter /DCT#44ecode /Length " . strlen($cMap) . " >>\nstream\n{$cMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'fails closed on malformed CMap Filter array operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapFilterBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -2102,6 +2182,99 @@ return [
         $t->same(false, $identityReview['executes_external_pdf_tools']);
         $t->same(false, $privateReview['executes_python_or_models']);
         $t->same(false, $privateReview['executes_external_pdf_tools']);
+    },
+    'decodes escaped valid CMap Filter names before current-base text extraction' => static function (TestRunner $t) use ($parserEscapedCMapFilterNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserEscapedCMapFilterNameBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Escaped Filter CMap Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Escaped Filter CMap Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Escaped Filter CMap Import', $text);
+        $t->same("Escaped Filter CMap Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'EscapedFilterNameBoundary-H'));
+        $t->true(!str_contains($text, '/Fl#61teDecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(1, $review['escaped_filter_name_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('EscapedFilterNameBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['escaped_filter_name_operand_count'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperand['kind'] ?? null);
+        $t->same('name', $filterOperand['token_type'] ?? null);
+        $t->same('FlateDecode', $filterOperand['value'] ?? null);
+        $t->same(true, $filterOperand['valid_filter_operand'] ?? null);
+        $t->same(true, $filterOperand['escaped_name_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'classifies escaped unsupported CMap Filter names as fail-closed before current-base text extraction' => static function (TestRunner $t) use ($parserEscapedUnsupportedCMapFilterNameBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserEscapedUnsupportedCMapFilterNameBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $filterOperand = $entry['filter_operands'][0] ?? [];
+
+        $t->same(['Escaped Unsupported Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Escaped Unsupported Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Escaped Unsupported Safe Import', $text);
+        $t->same("Escaped Unsupported Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Escaped Unsupported CMap Leak'));
+        $t->true(!str_contains($text, 'EscapedUnsupportedFilterBoundary-H'));
+        $t->true(!str_contains($text, 'DCTDecode'));
+        $t->true(!str_contains($text, '/DCT#44ecode'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->true($review['review_only']);
+        $t->same(false, $review['encrypted']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(1, $review['escaped_filter_name_operand_count']);
+        $t->same(1, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('EscapedUnsupportedFilterBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(1, $entry['escaped_filter_name_operand_count'] ?? null);
+        $t->same(1, $entry['unsupported_filter_count'] ?? null);
+        $t->same('reject_unsupported_filter_names', $entry['filter_operand_policy'] ?? null);
+        $t->same(null, $entry['decoded_cmap_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_operands'] ?? null);
+        $t->same('direct_operands', $entry['owner_policy'] ?? null);
+        $t->same('direct', $filterOperand['kind'] ?? null);
+        $t->same('name', $filterOperand['token_type'] ?? null);
+        $t->same('DCTDecode', $filterOperand['value'] ?? null);
+        $t->same(true, $filterOperand['valid_filter_operand'] ?? null);
+        $t->same(true, $filterOperand['escaped_name_operand'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
     },
     'classifies unsupported CMap Filter names as fail-closed before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
