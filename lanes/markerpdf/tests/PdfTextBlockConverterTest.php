@@ -177,6 +177,34 @@ return [
         $t->same(3, $span['char_start_idx']);
         $t->same(14, $span['char_end_idx']);
     },
+    'rejects inverted span character indexes at the converter boundary' => static function (TestRunner $t): void {
+        $converter = new PdfTextBlockConverter();
+        $page = [
+            'page' => 4,
+            'bbox' => [0.0, 0.0, 200.0, 300.0],
+            'rotation' => 0,
+            'blocks' => [[
+                'lines' => [[
+                    'bbox' => [20.0, 30.0, 180.0, 44.0],
+                    'spans' => [[
+                        'text' => 'Indexed text',
+                        'bbox' => [20.0, 30.0, 180.0, 44.0],
+                        'font' => ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0],
+                        'char_start_idx' => 12,
+                        'char_end_idx' => 11,
+                    ]],
+                ]],
+            ]],
+        ];
+
+        $t->throws(InvalidArgumentException::class, static fn () => $converter->pdftextFormatToPage($page, 0));
+
+        $page['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 12;
+        $span = $converter->pdftextFormatToPage($page, 0)['blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same(12, $span['char_start_idx']);
+        $t->same(12, $span['char_end_idx']);
+    },
     'rejects fractional pdftext font flags at the converter boundary' => static function (TestRunner $t) use ($pdftextPage): void {
         $converter = new PdfTextBlockConverter();
         $page = $pdftextPage();

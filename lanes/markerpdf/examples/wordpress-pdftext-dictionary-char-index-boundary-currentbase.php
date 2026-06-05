@@ -68,13 +68,48 @@ try {
     $fractionalCharRejected = true;
 }
 
-if (!$fractionalStartRejected || !$fractionalEndRejected || !$fractionalCharRejected) {
-    throw new RuntimeException('Expected fractional pdftext dictionary character indexes to be rejected.');
+$invertedRange = $page;
+$invertedRange['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 26;
+$invertedRange['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 25;
+$invertedRangeRejected = false;
+try {
+    $extractor->getTextBlocks([$invertedRange], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $invertedRangeRejected = true;
+}
+
+$charBeforeRange = $page;
+$charBeforeRange['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = 2;
+$charBeforeRangeRejected = false;
+try {
+    $extractor->getTextBlocks([$charBeforeRange], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $charBeforeRangeRejected = true;
+}
+
+$charAfterRange = $page;
+$charAfterRange['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['char_idx'] = 26;
+$charAfterRangeRejected = false;
+try {
+    $extractor->getTextBlocks([$charAfterRange], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $charAfterRangeRejected = true;
+}
+
+if (
+    !$fractionalStartRejected
+    || !$fractionalEndRejected
+    || !$fractionalCharRejected
+    || !$invertedRangeRejected
+    || !$charBeforeRangeRejected
+    || !$charAfterRangeRejected
+) {
+    throw new RuntimeException('Expected malformed pdftext dictionary character indexes to be rejected.');
 }
 
 echo '<!-- markerpdf-pdftext-dictionary-char-index-boundary-currentbase ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdftext-dictionary-char-index-boundary-currentbase',
-    'source_truth' => 'pdftext.schema.Span char_start_idx/char_end_idx and Char char_idx are integer dictionary fields before markerPDF page conversion',
+    'source_truth' => 'pdftext inference derives span char_start_idx/char_end_idx from the first and last kept character indexes before markerPDF page conversion',
     'support_component' => 'pdf-text-dictionary-core',
     'pdftext_options' => $document['metadata']['pdftext_options'],
     'visible_wordpress_text' => $blocks[0]['text'] ?? '',
@@ -89,6 +124,9 @@ echo '<!-- markerpdf-pdftext-dictionary-char-index-boundary-currentbase ' . html
     'fractional_span_start_rejected' => $fractionalStartRejected,
     'fractional_span_end_rejected' => $fractionalEndRejected,
     'fractional_char_index_rejected' => $fractionalCharRejected,
+    'inverted_span_range_rejected' => $invertedRangeRejected,
+    'char_before_span_range_rejected' => $charBeforeRangeRejected,
+    'char_after_span_range_rejected' => $charAfterRangeRejected,
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

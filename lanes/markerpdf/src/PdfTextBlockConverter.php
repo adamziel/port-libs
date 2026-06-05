@@ -221,6 +221,13 @@ final class PdfTextBlockConverter
                             $this->integerMetadata($span[$metadataKey], "span {$metadataKey}");
                         }
                     }
+                    if (array_key_exists('char_start_idx', $span) && array_key_exists('char_end_idx', $span)) {
+                        $startIndex = $this->integerMetadata($span['char_start_idx'], 'span char_start_idx');
+                        $endIndex = $this->integerMetadata($span['char_end_idx'], 'span char_end_idx');
+                        if ($startIndex > $endIndex) {
+                            throw new InvalidArgumentException('pdftext span char_start_idx must be less than or equal to char_end_idx.');
+                        }
+                    }
                     foreach (['superscript', 'subscript'] as $scriptKey) {
                         if (array_key_exists($scriptKey, $span) && !is_bool($span[$scriptKey])) {
                             throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} {$scriptKey} must be boolean when supplied.");

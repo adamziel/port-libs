@@ -316,6 +316,13 @@ final class PdfTextDocumentExtractor
                         $sanitizedSpan[$indexKey] = $this->dictionaryOutputIntegerMetadata($sanitizedSpan[$indexKey], "span.{$indexKey}");
                     }
                 }
+                if (
+                    array_key_exists('char_start_idx', $sanitizedSpan)
+                    && array_key_exists('char_end_idx', $sanitizedSpan)
+                    && $sanitizedSpan['char_start_idx'] > $sanitizedSpan['char_end_idx']
+                ) {
+                    throw new InvalidArgumentException('pdftext span.char_start_idx must be less than or equal to span.char_end_idx.');
+                }
                 if (array_key_exists('bbox', $sanitizedSpan)) {
                     $sanitizedSpan['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedSpan['bbox'], $bboxScale);
                 }
@@ -434,6 +441,13 @@ final class PdfTextDocumentExtractor
             $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($span['char_start_idx'], 'span.char_start_idx') + $index;
         }
         $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($char['char_idx'], "char {$index}.char_idx");
+        if (
+            array_key_exists('char_start_idx', $span)
+            && array_key_exists('char_end_idx', $span)
+            && ($char['char_idx'] < $span['char_start_idx'] || $char['char_idx'] > $span['char_end_idx'])
+        ) {
+            throw new InvalidArgumentException("pdftext char {$index}.char_idx must be within the parent span character range.");
+        }
 
         return $char;
     }

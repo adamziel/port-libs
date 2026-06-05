@@ -517,6 +517,38 @@ return [
         $t->same(7, $span['chars'][0]['char_idx']);
         $t->same(8, $charSpan['chars'][1]['char_idx']);
     },
+    'rejects impossible pdftext character index ranges before WordPress rendering' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $invertedRange = $pdftextCharsPage();
+        $invertedRange['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 9;
+        $invertedRange['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 8;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$invertedRange], maxPages: 1));
+
+        $charBeforeRange = $pdftextCharsPage();
+        $charBeforeRange['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = 6;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$charBeforeRange], maxPages: 1, keepChars: true));
+
+        $charAfterRange = $pdftextCharsPage();
+        $charAfterRange['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['char_idx'] = 9;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$charAfterRange], maxPages: 1, keepChars: true));
+
+        $singleCharRange = $pdftextCharsPage();
+        $singleCharRange['blocks'][0]['lines'][0]['spans'][0]['text'] = "Single\n";
+        $singleCharRange['blocks'][0]['lines'][0]['spans'][0]['char_start_idx'] = 11.0;
+        $singleCharRange['blocks'][0]['lines'][0]['spans'][0]['char_end_idx'] = 11.0;
+        $singleCharRange['blocks'][0]['lines'][0]['spans'][0]['chars'] = [[
+            'char' => 'S',
+            'bbox' => [0.10, 0.10, 0.11, 0.13],
+        ]];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$singleCharRange], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same(11, $span['char_start_idx']);
+        $t->same(11, $span['char_end_idx']);
+        $t->same(11, $span['chars'][0]['char_idx']);
+        $t->same(11, $charSpan['chars'][0]['char_idx']);
+    },
     'rejects missing pdftext font flags at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage): void {
         $missingSpanFlags = $pdftextLinkedPage();
         unset($missingSpanFlags['blocks'][0]['lines'][0]['spans'][0]['font']['flags']);
