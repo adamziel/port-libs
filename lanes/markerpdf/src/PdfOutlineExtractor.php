@@ -4156,9 +4156,10 @@ final class PdfOutlineExtractor
             ];
         }
 
-        if (is_int($resolved) && $resolved >= 0) {
+        $pageIndex = is_int($resolved) ? $this->boundedDestinationPageIndex($resolved, $pageIndexes) : null;
+        if ($pageIndex !== null) {
             return [
-                'page' => $resolved,
+                'page' => $pageIndex,
                 'destination' => $destinationName,
                 'view_mode' => null,
                 'view_position' => [],
@@ -4225,7 +4226,15 @@ final class PdfOutlineExtractor
             return $pageIndexes[$pageObjectNumber] ?? null;
         }
 
-        return is_int($resolved) && $resolved >= 0 ? $resolved : null;
+        return is_int($resolved) ? $this->boundedDestinationPageIndex($resolved, $pageIndexes) : null;
+    }
+
+    /**
+     * @param array<int, int> $pageIndexes
+     */
+    private function boundedDestinationPageIndex(int $pageIndex, array $pageIndexes): ?int
+    {
+        return $pageIndex >= 0 && $pageIndex < count($pageIndexes) ? $pageIndex : null;
     }
 
     /**
@@ -4333,8 +4342,8 @@ final class PdfOutlineExtractor
             return $pageIndexes[$pageObjectNumber] ?? null;
         }
 
-        if (is_int($first) && $first >= 0) {
-            return $first;
+        if (is_int($first)) {
+            return $this->boundedDestinationPageIndex($first, $pageIndexes);
         }
 
         return $this->destinationPageIndex($first, $objects, $pageIndexes, $destinations, $seenNames);
