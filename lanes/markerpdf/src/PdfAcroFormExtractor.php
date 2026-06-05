@@ -109,6 +109,7 @@ final class PdfAcroFormExtractor
     public function extractForm(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $objects = $this->withDirectObjectStreamMembers($objects);
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
         $permissions = $catalog === null ? $this->emptyPermissions() : $this->documentPermissions($catalog, $objects);
         $acroForm = $catalog === null ? null : $this->acroFormDictionaryBody($catalog, $objects);
@@ -10206,6 +10207,167 @@ final class PdfAcroFormExtractor
         }
 
         return $objects;
+    }
+
+    /**
+     * PDF 1.5 object streams carry ordinary generation-zero objects. AcroForm
+     * field trees often reference those dictionaries directly from /Fields and
+     * page /Annots; expand only missing dictionary members and never override a
+     * direct object selected by the scanner.
+     *
+     * @param array<int, string> $objects
+     * @return array<int, string>
+     */
+    private function withDirectObjectStreamMembers(array $objects): array
+    {
+        $expanded = $objects;
+
+        for ($pass = 0; $pass < 3; $pass++) {
+            $added = false;
+            foreach ($expanded as $objectBody) {
+                foreach ($this->directObjectStreamMemberBodies($objectBody, $expanded) as $objectNumber => $memberBody) {
+                    if (isset($expanded[$objectNumber])) {
+                        continue;
+                    }
+
+                    $memberBody = trim($memberBody);
+                    if ($memberBody === '' || !str_starts_with($memberBody, '<<') || $this->objectStreamMemberIsTopLevelStreamObject($memberBody)) {
+                        continue;
+                    }
+
+                    $expanded[$objectNumber] = $memberBody;
+                    $this->objectGenerations[$objectNumber] = 0;
+                    $added = true;
+                }
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        ksort($expanded, SORT_NUMERIC);
+        return $expanded;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<int, string>
+     */
+    private function directObjectStreamMemberBodies(string $objectBody, array $objects): array
+    {
+        if ($this->pdfNameValueAfterName($objectBody, 'Type') !== 'ObjStm') {
+            return [];
+        }
+
+        $count = $this->numberValueAfterNameResolvingObjects($objectBody, 'N', $objects);
+        $first = $this->numberValueAfterNameResolvingObjects($objectBody, 'First', $objects);
+        if ($count === null || $count < 1 || $first === null || $first < 0) {
+            return [];
+        }
+
+        $decoded = $this->decodeStreamObject($objectBody, $objects);
+        if ($decoded === null || $first > strlen($decoded)) {
+            return [];
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $first), $count);
+        if (count($members) !== $count) {
+            return [];
+        }
+
+        $objectDataLength = strlen($decoded) - $first;
+        $memberBodies = [];
+        foreach ($members as $member) {
+            $memberOffset = $member['offset'];
+            if ($memberOffset < 0 || $memberOffset >= $objectDataLength) {
+                continue;
+            }
+
+            $nextOffset = $this->objectStreamMemberEndOffset($members, $memberOffset, $objectDataLength);
+            if ($nextOffset === null || $nextOffset <= $memberOffset) {
+                continue;
+            }
+
+            $memberBody = trim(substr($decoded, $first + $memberOffset, $nextOffset - $memberOffset));
+            if ($memberBody === '' || !str_starts_with($memberBody, '<<')) {
+                continue;
+            }
+
+            $memberBodies[$member['object']] = $memberBody;
+        }
+
+        return $memberBodies;
+    }
+
+    /**
+     * @return list<array{object: int, offset: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $declaredCount): array
+    {
+        $members = [];
+        $seenObjects = [];
+        $seenOffsets = [];
+        $offset = 0;
+
+        for ($index = 0; $index < $declaredCount; $index++) {
+            $objectNumber = $this->nonNegativeIntegerAt($header, $offset);
+            $memberOffset = $this->nonNegativeIntegerAt($header, $offset);
+            if ($objectNumber === null || $objectNumber < 1 || $memberOffset === null || isset($seenObjects[$objectNumber]) || isset($seenOffsets[$memberOffset])) {
+                return [];
+            }
+
+            $seenObjects[$objectNumber] = true;
+            $seenOffsets[$memberOffset] = true;
+            $members[] = [
+                'object' => $objectNumber,
+                'offset' => $memberOffset,
+            ];
+        }
+
+        $this->skipWhitespace($header, $offset);
+        return $offset >= strlen($header) ? $members : [];
+    }
+
+    private function nonNegativeIntegerAt(string $body, int &$offset): ?int
+    {
+        $this->skipWhitespace($body, $offset);
+        if (preg_match('/\G\d+/s', $body, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[0]);
+        return (int) $match[0];
+    }
+
+    /**
+     * @param list<array{object: int, offset: int}> $members
+     */
+    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    {
+        $endOffset = $objectDataLength;
+        foreach ($members as $member) {
+            if ($member['offset'] <= $memberOffset) {
+                continue;
+            }
+
+            $endOffset = min($endOffset, $member['offset']);
+        }
+
+        return $endOffset;
+    }
+
+    private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
+    {
+        $offset = 0;
+        $this->skipWhitespace($memberBody, $offset);
+        $endOffset = null;
+        if ($this->readPdfDictionaryAt($memberBody, $offset, $endOffset) === null || $endOffset === null) {
+            return false;
+        }
+
+        $this->skipWhitespace($memberBody, $endOffset);
+        return $this->pdfKeywordAt($memberBody, $endOffset, 'stream');
     }
 
     private function pdfObjectEndOffset(string $pdfBytes, int $offset): ?int
