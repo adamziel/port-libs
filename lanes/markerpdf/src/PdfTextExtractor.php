@@ -956,6 +956,9 @@ final class PdfTextExtractor
             $decoded = $this->decodedCMapBody($body, $objects);
             $parserBoundedDecoded = $decoded === null ? null : $this->decodedCMapBodyForParsing($body, $objects);
             $boundedDecoded = $decoded === null ? null : $this->boundedCMapProgram($decoded);
+            $cMapName = $parserBoundedDecoded === null
+                ? $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects)
+                : $this->cMapName($parserBoundedDecoded);
             $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
             $generation = $owner['generation']
                 ?? ($xrefEntries[$objectNumber]['generation'] ?? null);
@@ -994,9 +997,7 @@ final class PdfTextExtractor
                 'object_number' => $objectNumber,
                 'generation' => is_int($generation) ? $generation : null,
                 'reference_usages' => $usages,
-                'cmap_name' => $decoded === null
-                    ? $this->pdfNameValueAfterNameResolvingObjects($dict, 'CMapName', $objects)
-                    : $this->cMapName($decoded),
+                'cmap_name' => $cMapName,
                 'declared_length' => $this->streamLength($dict, $objects),
                 'filters' => $filters ?? [],
                 'filter_resolution_failed' => $filters === null,
@@ -23105,11 +23106,8 @@ final class PdfTextExtractor
     {
         $named = [];
         foreach ($objects as $body) {
-            $rawCmap = $this->decodedCMapBody($body, $objects);
             $cmap = $this->decodedCMapBodyForParsing($body, $objects);
-            $name = is_string($rawCmap)
-                ? $this->cMapName($rawCmap)
-                : (is_string($cmap) ? $this->cMapName($cmap) : null);
+            $name = is_string($cmap) ? $this->cMapName($cmap) : null;
             if ($cmap === null || $name === null) {
                 continue;
             }
@@ -23132,8 +23130,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $rawDecoded = $this->decodedCMapBody($objectBody, $objects);
-        $currentName = is_string($rawDecoded) ? $this->cMapName($rawDecoded) : $this->cMapName($decoded);
+        $currentName = $this->cMapName($decoded);
 
         return $this->parseToUnicodeCMap($decoded, $namedCMapBodies, $currentName === null ? [] : [$currentName]);
     }
@@ -23482,7 +23479,7 @@ final class PdfTextExtractor
                 return $name;
             }
 
-            $decoded = $this->decodeCMapStream($entry['dict'], $entry['stream'], $objects);
+            $decoded = $this->decodedCMapBodyForParsing($objectBody, $objects);
             return $decoded === null ? null : $this->cMapName($decoded);
         }
 
