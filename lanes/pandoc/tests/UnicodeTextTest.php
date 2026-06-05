@@ -288,6 +288,23 @@ return [
         $t->same($tamilKai . '   ', UnicodeText::padDisplay($tamilKai, 4));
         $t->same(["Indic {$clusterRun}", '  tail'], UnicodeText::wrapByDisplayWidth("Indic {$clusterRun} tail", 10, '  '));
     },
+    'keeps thai and lao sara am grapheme clusters intact for display slicing' => static function (TestRunner $t): void {
+        $thai = "\u{0E01}\u{0E33}";
+        $lao = "\u{0EA5}\u{0EB3}";
+        $text = $thai . $lao . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Thai {$thai} {$lao} tail", 9, '  ');
+
+        $t->same(2, UnicodeText::displayWidth($thai));
+        $t->same(2, UnicodeText::displayWidth($lao));
+        $t->same([$thai, $lao, 'X'], UnicodeText::graphemes($text));
+        $t->same([$thai, $lao . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$thai, $lao, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [2, 4]));
+        $t->same($thai . '  ', UnicodeText::padDisplay($thai, 4));
+        $t->same(['Thai ' . $thai, '  ' . $lao . ' tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 9, 'Thai/Lao AM wrapped line exceeds requested width');
+        }
+    },
     'measures emoji presentation sequences as single display clusters' => static function (TestRunner $t): void {
         $checkbox = "\u{2611}\u{FE0F}";
         $keycap = "1\u{FE0F}\u{20E3}";

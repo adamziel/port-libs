@@ -335,11 +335,12 @@ final class UnicodeText
         foreach (self::characters($text) as $char) {
             $codepoint = self::codepoint($char);
             $combiningOrZeroWidth = self::isCombiningOrZeroWidth($codepoint);
+            $clusterExtender = $combiningOrZeroWidth || self::isBoundedGraphemeSpacingMark($codepoint);
             $regionalIndicator = self::isRegionalIndicator($codepoint);
             $append = $clusters !== []
                 && (
                     $joinNext
-                    || $combiningOrZeroWidth
+                    || $clusterExtender
                     || ($regionalIndicator && $regionalIndicatorRun === 1)
                 );
 
@@ -350,7 +351,7 @@ final class UnicodeText
                 $clusters[count($clusters) - 1] .= $char;
                 if ($regionalIndicator) {
                     $regionalIndicatorRun = min(2, $regionalIndicatorRun + 1);
-                } elseif (!$combiningOrZeroWidth && $codepoint !== 0x200d) {
+                } elseif (!$clusterExtender && $codepoint !== 0x200d) {
                     $regionalIndicatorRun = 0;
                 }
             }
@@ -1203,6 +1204,12 @@ final class UnicodeText
         }
 
         return self::isBoundedIndicSpacingMark($codepoint);
+    }
+
+    private static function isBoundedGraphemeSpacingMark(int $codepoint): bool
+    {
+        return $codepoint === 0x0e33
+            || $codepoint === 0x0eb3;
     }
 
     private static function isUnicodeFormatControl(int $codepoint): bool
