@@ -29,7 +29,7 @@ final class Html5Dom
      */
     public static function parseHtmlDocument(string $html): \DOMDocument
     {
-        self::assertNoNullByte($html, 'HTML document');
+        self::assertSafeHtmlDocumentSource($html, 'HTML document');
 
         return self::loadHtml($html, 'HTML document');
     }
@@ -274,6 +274,20 @@ final class Html5Dom
     private static function assertNoHtmlFragmentDeclarations(string $html, string $label): void
     {
         if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
+        }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+    }
+
+    private static function assertSafeHtmlDocumentSource(string $html, string $label): void
+    {
+        self::assertNoNullByte($html, $label);
+        if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
+        }
+        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
         if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {

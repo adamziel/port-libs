@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\Html5Dom;
 use PortLibs\Pandoc\Html5DomFragment;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -88,6 +89,24 @@ if (($argv[1] ?? '') === '--self-test') {
     ));
     if (count($tableFosterDiagnostics) !== 2) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report foster-parented table content');
+    }
+    $documentDom = Html5Dom::parseHtmlDocument('<!doctype html><html><body><article data-source="full-doc"><h1>Full packet</h1><p>Document<br>review</p></article></body></html>');
+    $documentBody = $documentDom->getElementsByTagName('body')->item(0);
+    if (!$documentBody instanceof DOMElement || !str_contains(Html5Dom::serializeHtmlChildren($documentBody), '<article data-source="full-doc"><h1>Full packet</h1><p>Document<br>review</p></article>')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not parse a simple doctype-bearing complete HTML document');
+    }
+    foreach ([
+        '<!DOCTYPE html [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]><html><body>&reviewer;</body></html>',
+        '<!ELEMENT html ANY><html><body>bad</body></html>',
+        '<?xml-stylesheet href="https://example.invalid/review.xsl"?><html><body>bad</body></html>',
+    ] as $unsafeDocument) {
+        try {
+            Html5Dom::parseHtmlDocument($unsafeDocument);
+        } catch (InvalidArgumentException) {
+            continue;
+        }
+
+        throw new RuntimeException('HTML5 DOM handoff self-test accepted unsafe complete HTML document input');
     }
     foreach ([
         '<!DOCTYPE html><p>legacy doctype</p>',

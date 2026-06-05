@@ -51,6 +51,30 @@ return [
         $t->same('/edit', Html5Dom::attributes($links[0])['href'] ?? null);
         $t->same('Edit & verify', Html5Dom::attributes($links[0])['title'] ?? null);
     },
+    'parses complete HTML documents with safe doctypes and rejects DTD or processing inputs' => static function (TestRunner $t): void {
+        $dom = Html5Dom::parseHtmlDocument(
+            '<!doctype html><html><head><title>Review</title></head><body><article data-source="export"><h1>Packet</h1><p>Imported<br>line</p></article></body></html>'
+        );
+        $body = $dom->getElementsByTagName('body')->item(0);
+        $article = $body instanceof DOMElement ? Html5Dom::firstChildElement($body, 'article') : null;
+
+        $t->true($dom->documentElement instanceof DOMElement, 'Expected complete HTML document to parse');
+        $t->same('html', strtolower($dom->documentElement?->tagName ?? ''));
+        $t->true($article instanceof DOMElement, 'Expected article body child from complete HTML document');
+        $t->same(['data-source' => 'export'], $article instanceof DOMElement ? Html5Dom::attributes($article) : []);
+        $t->same('PacketImported line', $article instanceof DOMElement ? Html5Dom::normalizedText($article) : null);
+        $t->same('<article data-source="export"><h1>Packet</h1><p>Imported<br>line</p></article>', $body instanceof DOMElement ? Html5Dom::serializeHtmlChildren($body) : '');
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!DOCTYPE html [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]><html><body>&reviewer;</body></html>'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!ELEMENT html ANY><html><body>bad</body></html>'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<?xml-stylesheet href="https://example.invalid/review.xsl"?><html><body>bad</body></html>'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument("<html><body>bad\0packet</body></html>"));
+    },
     'preserves bounded svg and mathml foreign content names for HTML reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<figure><svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg><math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math></figure>'
