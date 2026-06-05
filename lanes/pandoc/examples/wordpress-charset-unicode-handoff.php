@@ -50,6 +50,9 @@ $big5Text = (string) $big5Source->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gb18030');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
+$eucKrBytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
+$eucKrSource = (new MarkdownReader())->readBytes($eucKrBytes, 'ks_c_5601-1987');
+$eucKrText = (string) $eucKrSource->children[1]->attr('text');
 $hzGb2312Bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}";
 $hzGb2312Source = (new MarkdownReader())->readBytes($hzGb2312Bytes, 'hz-gb-2312');
 $hzGb2312Text = (string) $hzGb2312Source->children[1]->attr('text');
@@ -321,6 +324,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'EUC-KR source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $eucKrText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucKrText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'HZ-GB-2312 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $hzGb2312Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($hzGb2312Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($hzGb2312Text)])]),
@@ -502,6 +510,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>GBK source</td><td>中文 GBK 测试，北京。</td><td>gbk:21</td>')) {
         throw new RuntimeException('charset handoff self-test missing GBK decode audit row');
+    }
+    if (($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') !== 'euc-kr') {
+        throw new RuntimeException('charset handoff self-test missing EUC-KR source encoding');
+    }
+    if (!str_contains($blocks, '<td>EUC-KR source</td><td>한글 EUC-KR 테스트, 서울.</td><td>euc-kr:25</td>')) {
+        throw new RuntimeException('charset handoff self-test missing EUC-KR decode audit row');
     }
     if (($hzGb2312Source->attr('sourceEncoding')['encoding'] ?? '') !== 'hz-gb-2312') {
         throw new RuntimeException('charset handoff self-test missing HZ-GB-2312 source encoding');

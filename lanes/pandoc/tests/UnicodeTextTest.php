@@ -266,6 +266,31 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes bounded euc kr korean source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
+        $decoded = UnicodeText::decodeBytes($bytes, 'ks_c_5601-1987');
+        $document = (new MarkdownReader())->readBytes($bytes, 'windows-949');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedLead = UnicodeText::decodeBytes("\xC7\"A", 'euc-kr');
+        $unmappedPair = UnicodeText::decodeBytes("\x81\x41A", 'cseuckr');
+        $truncatedLead = UnicodeText::decodeBytes("\xC7", 'korean');
+
+        $t->same('euc-kr', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 한글\n\n한글 EUC-KR 테스트, 서울.", $decoded['text']);
+        $t->same(['encoding' => 'euc-kr', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('한글', $document->children[0]->attr('text'));
+        $t->same('한글 EUC-KR 테스트, 서울.', $document->children[1]->attr('text'));
+        $t->same(25, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="한글">한글</h1>', $blocks);
+        $t->contains('<p>한글 EUC-KR 테스트, 서울.</p>', $blocks);
+        $t->same("\u{FFFD}\"A", $malformedLead['text']);
+        $t->same(1, $malformedLead['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+        $t->same("\u{FFFD}", $truncatedLead['text']);
+        $t->same(1, $truncatedLead['repairs']);
+    },
     'decodes bounded hz gb 2312 escape states into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}\nEscaped ~~ tilde and line~\njoin.";
         $decoded = UnicodeText::decodeBytes($bytes, 'hz-gb-2312');

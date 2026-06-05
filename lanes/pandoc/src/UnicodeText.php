@@ -527,6 +527,17 @@ final class UnicodeText
         0xd6d0 => 0x4e2d,
     ];
 
+    /** @var array<int, int> */
+    private const EUC_KR_PAIRS = [
+        0xb1db => 0xae00,
+        0xbcad => 0xc11c,
+        0xbdba => 0xc2a4,
+        0xbfef => 0xc6b8,
+        0xc5d7 => 0xd14c,
+        0xc6ae => 0xd2b8,
+        0xc7d1 => 0xd55c,
+    ];
+
     /** @var list<int> */
     private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
         0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
@@ -633,6 +644,7 @@ final class UnicodeText
             || $normalized === 'iso-2022-jp'
             || $normalized === 'big5'
             || $normalized === 'gbk'
+            || $normalized === 'euc-kr'
             || $normalized === 'hz-gb-2312'
         ) {
             [$text, $repairs] = match ($normalized) {
@@ -641,6 +653,7 @@ final class UnicodeText
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
                 'big5' => self::decodeBig5($bytes),
                 'gbk' => self::decodeGbk($bytes),
+                'euc-kr' => self::decodeEucKr($bytes),
                 default => self::decodeHzGb2312($bytes),
             };
 
@@ -1092,6 +1105,8 @@ final class UnicodeText
             'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
             'gbk', 'gb18030', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
+            'euckr', 'cseuckr', 'csksc56011987', 'korean', 'isoir149', 'ksc5601', 'ksc56011987',
+            'ksc56011989', 'windows949', 'cp949', 'ms949', 'uhc' => 'euc-kr',
             'hzgb2312', 'hz' => 'hz-gb-2312',
             default => 'utf-8',
         };
@@ -1796,6 +1811,52 @@ final class UnicodeText
             }
 
             $out .= self::fromCodepoint(self::GBK_PAIRS[$pair]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeEucKr(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+
+            if ($byte < 0x81 || $byte > 0xfe || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail < 0x41 || $trail === 0x7f || $trail > 0xfe) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($trail > 0x7f) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $pair = ($byte << 8) | $trail;
+            if (!isset(self::EUC_KR_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::EUC_KR_PAIRS[$pair]);
             $offset++;
         }
 
