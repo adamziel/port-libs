@@ -631,7 +631,7 @@ final class CitationCslProcessor
             'shorthand' => self::firstStringField($item, ['shorthand']),
             'shorthandIntro' => self::firstStringField($item, ['shorthand-intro', 'shorthandIntro', 'shorthandintro']),
             'title' => self::stringField($item, 'title'),
-            'shortTitle' => self::stringField($item, 'short-title'),
+            'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::stringField($item, 'title-addon'),
             'containerTitle' => self::stringField($item, 'container-title'),
             'containerTitleShort' => $containerTitleShort,
@@ -3662,7 +3662,13 @@ final class CitationCslProcessor
         }
 
         if (array_key_exists('variable', $element)) {
-            return $this->renderVariableValue($item, (string) $element['variable'], $scope, $citation);
+            return $this->renderTextVariableValue(
+                $item,
+                (string) $element['variable'],
+                (string) ($element['form'] ?? 'long'),
+                $scope,
+                $citation
+            );
         }
 
         if (array_key_exists('term', $element)) {
@@ -4405,7 +4411,7 @@ final class CitationCslProcessor
             'shorthand' => (string) $item['shorthand'],
             'shorthand-intro' => (string) $item['shorthandIntro'],
             'title' => (string) $item['title'],
-            'short-title' => (string) $item['shortTitle'],
+            'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
             'container-title' => (string) $item['containerTitle'],
             'container-title-short' => (string) $item['containerTitleShort'],
@@ -4483,6 +4489,22 @@ final class CitationCslProcessor
             'afterword' => $this->renderNamesElement(['variable' => 'afterword'], $item, $scope),
             'editorial-role-summary' => implode(' ', $this->bibliographyRoleNameParts($item)),
             default => $this->rawVariableValue($item, $variable),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderTextVariableValue(array $item, string $variable, string $form, string $scope, ?AstNode $citation = null): string
+    {
+        if (strtolower(trim($form)) !== 'short') {
+            return $this->renderVariableValue($item, $variable, $scope, $citation);
+        }
+
+        return match (strtolower(trim($variable))) {
+            'title' => (string) ($item['shortTitle'] !== '' ? $item['shortTitle'] : $item['title']),
+            'container-title' => (string) ($item['containerTitleShort'] !== '' ? $item['containerTitleShort'] : $item['containerTitle']),
+            default => $this->renderVariableValue($item, $variable, $scope, $citation),
         };
     }
 

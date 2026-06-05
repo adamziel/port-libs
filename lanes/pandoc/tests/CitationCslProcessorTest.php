@@ -1176,6 +1176,73 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>', $blocks);
     },
+    'applies bounded csl short form text variables for titles and containers' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'reviewer-guide',
+                'type' => 'article-journal',
+                'title' => 'Migration Manual: Reviewer Packet Guide',
+                'title-short' => 'Reviewer Guide',
+                'container-title' => 'Journal of Imported Sources',
+                'container-title-short' => 'J. Import. Sources',
+                'author' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'fallback-title',
+                'type' => 'paper-conference',
+                'title' => 'Full Report Packet',
+                'container-title' => 'Migration Proceedings',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title" form="short"/>
+        <text variable="container-title" form="short"/>
+        <text variable="title-short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title" form="short"/>
+      <text variable="container-title" form="short"/>
+      <text variable="title"/>
+      <text variable="container-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('short', $summary['citationRendering'][0]['children'][0]['form'] ?? null);
+        $t->same('short', $summary['citationRendering'][0]['children'][1]['form'] ?? null);
+        $t->same('title-short', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('Reviewer Guide', $processor->item('reviewer-guide')['shortTitle'] ?? null);
+        $t->same('J. Import. Sources', $processor->item('reviewer-guide')['containerTitleShort'] ?? null);
+        $t->same('', $processor->item('fallback-title')['shortTitle'] ?? null);
+        $t->same('[Reviewer Guide | J. Import. Sources | Reviewer Guide; Full Report Packet | Migration Proceedings]', $processor->renderCitationCluster([
+            $citation('reviewer-guide', '[@reviewer-guide]'),
+            $citation('fallback-title', '[@fallback-title]'),
+        ]));
+        $t->same('Reviewer Guide :: J. Import. Sources :: Migration Manual: Reviewer Packet Guide :: Journal of Imported Sources', $processor->renderBibliographyEntry('reviewer-guide'));
+        $t->same('Full Report Packet :: Migration Proceedings :: Full Report Packet :: Migration Proceedings', $processor->renderBibliographyEntry('fallback-title'));
+
+        $document = (new MarkdownReader())->read('Short-form cite [@reviewer-guide] and fallback [@fallback-title] stay readable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Short-form cite [Reviewer Guide | J. Import. Sources | Reviewer Guide] and fallback [Full Report Packet | Migration Proceedings] stay readable.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Reviewer Guide :: J. Import. Sources :: Migration Manual: Reviewer Packet Guide :: Journal of Imported Sources</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Full Report Packet :: Migration Proceedings :: Full Report Packet :: Migration Proceedings</dd>', $blocks);
+    },
     'maps bounded biblatex publication details identifiers and eprint metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{journal-detail,

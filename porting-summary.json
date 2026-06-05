@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 14:31:37 UTC",
-    "sourceCommit": "0fa28860ad5c05bf6d08f13a4663bb5e9da97842",
-    "sourceCommitShort": "0fa28860ad5c",
+    "generated": "2026-06-05 14:31:57 UTC",
+    "sourceCommit": "9ca1d6a86e40cbbaba5386ad23fda7ac8cf4a38c",
+    "sourceCommitShort": "9ca1d6a86e40",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0fa28860ad5c05bf6d08f13a4663bb5e9da97842",
-    "dashboardCommitShort": "0fa28860ad5c",
+    "dashboardCommit": "9ca1d6a86e40cbbaba5386ad23fda7ac8cf4a38c",
+    "dashboardCommitShort": "9ca1d6a86e40",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "1,402 / 2,276 (61.6%)",
             "mapPercent": "61.6%",
             "unmapped": "874",
-            "php": "946 pass / 0 fail",
+            "php": "947 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC PDF engine page timing slice on accepted base e84d1d99...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit slice on accepted bas...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For PDF engine follow-up, keep full page-piece marked-content...",
+            "nextTarget": "For Citation/CSL follow-up, keep note-style citation output,...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
