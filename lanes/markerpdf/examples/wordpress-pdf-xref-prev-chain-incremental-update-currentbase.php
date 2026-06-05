@@ -497,6 +497,91 @@ $classicTablePdf .= "xref\n"
     . "trailer\n<< /Size 21 /Root 1 0 R /Info 6 0 R /Prev {$classicTablePreviousXrefOffset} >>\n"
     . "startxref\n{$classicTableCurrentXrefOffset}\n%%EOF";
 
+$sparseInfoStaleText = 'BT /F1 12 Tf 72 720 Td (Stale sparse latest smoke page) Tj ET';
+$sparseInfoCurrentText = 'BT /F1 12 Tf 72 720 Td (Current sparse latest Info smoke page) Tj T* (Latest xref stream omits Info) Tj ET';
+$sparseInfoStalePayload = '<wp-export><post id="stale-sparse-latest-info-smoke"/></wp-export>';
+$sparseInfoCurrentPayload = '<wp-export><post id="current-sparse-latest-info-smoke"/></wp-export>';
+$sparseInfoPdf = "%PDF-1.7\n";
+$sparseInfoOffsets = [];
+$addSparseInfoObject = static function (int $objectNumber, int $generation, string $body) use (&$sparseInfoPdf, &$sparseInfoOffsets): int {
+    $offset = strlen($sparseInfoPdf);
+    $sparseInfoOffsets[$objectNumber . ':' . $generation] = $offset;
+    $sparseInfoPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$addSparseInfoObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+$addSparseInfoObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addSparseInfoObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addSparseInfoObject(4, 0, "<< /Length " . strlen($sparseInfoStaleText) . " >>\nstream\n{$sparseInfoStaleText}\nendstream");
+$addSparseInfoObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$addSparseInfoObject(6, 0, '<< /Title (Stale Sparse Latest Smoke Info) /Author (Stale Sparse Smoke Author) >>');
+$addSparseInfoObject(8, 0, '<< /Names [(stale-sparse-latest-info-smoke.xml) 10 0 R] >>');
+$addSparseInfoObject(10, 0, '<< /Type /Filespec /F (stale-sparse-latest-info-smoke.xml) /Desc (Stale sparse latest Info smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addSparseInfoObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($sparseInfoStalePayload) . " >>\nstream\n{$sparseInfoStalePayload}\nendstream");
+
+$sparseInfoBaseXrefOffset = strlen($sparseInfoPdf);
+$sparseInfoPdf .= "xref\n"
+    . "0 12\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($sparseInfoOffsets['1:0'])
+    . $xrefTableRow($sparseInfoOffsets['2:0'])
+    . $xrefTableRow($sparseInfoOffsets['3:0'])
+    . $xrefTableRow($sparseInfoOffsets['4:0'])
+    . $xrefTableRow($sparseInfoOffsets['5:0'])
+    . $xrefTableRow($sparseInfoOffsets['6:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($sparseInfoOffsets['8:0'])
+    . $xrefTableRow(0, 0, 'f')
+    . $xrefTableRow($sparseInfoOffsets['10:0'])
+    . $xrefTableRow($sparseInfoOffsets['11:0'])
+    . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$sparseInfoBaseXrefOffset}\n%%EOF\n";
+
+$addSparseInfoObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+$addSparseInfoObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$addSparseInfoObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$addSparseInfoObject(4, 0, "<< /Length " . strlen($sparseInfoCurrentText) . " >>\nstream\n{$sparseInfoCurrentText}\nendstream");
+$addSparseInfoObject(6, 0, '<< /Title (Current Sparse Latest Smoke Info) /Author (Current Sparse Smoke Author) /Producer (Current Sparse Smoke Producer) >>');
+$addSparseInfoObject(8, 0, '<< /Names [(current-sparse-latest-info-smoke.xml) 10 0 R] >>');
+$addSparseInfoObject(10, 0, '<< /Type /Filespec /F (current-sparse-latest-info-smoke.xml) /Desc (Current sparse latest Info smoke attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+$addSparseInfoObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($sparseInfoCurrentPayload) . " >>\nstream\n{$sparseInfoCurrentPayload}\nendstream");
+
+$sparseInfoRows = ''
+    . $xrefStreamRow(1, $sparseInfoOffsets['1:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['2:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['3:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['4:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['5:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['6:0'], 0)
+    . $xrefStreamRow(0, 0, 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['8:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['10:0'], 0)
+    . $xrefStreamRow(1, $sparseInfoOffsets['11:0'], 0);
+$sparseInfoCompressedRows = gzcompress($sparseInfoRows);
+if (!is_string($sparseInfoCompressedRows)) {
+    throw new RuntimeException('Unable to compress sparse latest Info smoke xref rows.');
+}
+
+$sparseInfoMiddleXrefOffset = strlen($sparseInfoPdf);
+$sparseInfoPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 0 R /Info 6 0 R /Prev ' . $sparseInfoBaseXrefOffset . ' /Index [1 8 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($sparseInfoCompressedRows) . " >>\n"
+    . "stream\n{$sparseInfoCompressedRows}\nendstream\nendobj\n"
+    . "startxref\n{$sparseInfoMiddleXrefOffset}\n%%EOF\n";
+
+$sparseInfoLatestXrefOffset = strlen($sparseInfoPdf);
+$sparseInfoLatestRows = $xrefStreamRow(1, $sparseInfoLatestXrefOffset, 0);
+$sparseInfoCompressedLatestRows = gzcompress($sparseInfoLatestRows);
+if (!is_string($sparseInfoCompressedLatestRows)) {
+    throw new RuntimeException('Unable to compress sparse latest Info smoke trailing xref rows.');
+}
+
+$sparseInfoPdf .= "30 0 obj\n"
+    . '<< /Type /XRef /Size 31 /Prev ' . $sparseInfoMiddleXrefOffset . ' /Index [30 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($sparseInfoCompressedLatestRows) . " >>\n"
+    . "stream\n{$sparseInfoCompressedLatestRows}\nendstream\nendobj\n"
+    . "startxref\n{$sparseInfoLatestXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -538,6 +623,14 @@ $classicTableEncoded = json_encode([
     'metadata' => $classicTableMetadata,
     'text' => $classicTablePlainText,
     'files' => $classicTableFiles,
+], JSON_UNESCAPED_SLASHES);
+$sparseInfoMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($sparseInfoPdf);
+$sparseInfoPlainText = $extractor->extractPlainText($sparseInfoPdf);
+$sparseInfoFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($sparseInfoPdf);
+$sparseInfoEncoded = json_encode([
+    'metadata' => $sparseInfoMetadata,
+    'text' => $sparseInfoPlainText,
+    'files' => $sparseInfoFiles,
 ], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
@@ -585,6 +678,13 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'classic_table_same_generation_stale_prev_excluded' => is_string($classicTableEncoded)
         && !str_contains($classicTableEncoded, 'Stale Classic')
         && !str_contains($classicTableEncoded, 'stale-classic-prev-smoke'),
+    'sparse_latest_xref_stream_prev_info_selected' => ($sparseInfoMetadata['info']['Title'] ?? null) === 'Current Sparse Latest Smoke Info',
+    'sparse_latest_xref_stream_prev_language_selected' => ($sparseInfoMetadata['language'] ?? null) === 'en-US',
+    'sparse_latest_xref_stream_current_text_selected' => str_contains($sparseInfoPlainText, 'Current sparse latest Info smoke page'),
+    'sparse_latest_xref_stream_current_attachment_selected' => ($sparseInfoFiles[0]['filename'] ?? null) === 'current-sparse-latest-info-smoke.xml',
+    'sparse_latest_xref_stream_stale_prev_excluded' => is_string($sparseInfoEncoded)
+        && !str_contains($sparseInfoEncoded, 'Stale Sparse')
+        && !str_contains($sparseInfoEncoded, 'stale-sparse-latest-info-smoke'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

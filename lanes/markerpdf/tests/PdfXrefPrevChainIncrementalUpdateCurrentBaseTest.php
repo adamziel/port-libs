@@ -1096,6 +1096,98 @@ $xrefPrevChainDamagedMiddlePrevPdf = static function () use ($xrefPrevChainIncre
     return $pdf;
 };
 
+$xrefPrevChainLatestSparseTrailerInfoPdf = static function (): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale sparse latest trailer page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current carried Prev Info page) Tj T* (Latest xref omits Info) Tj ET';
+    $stalePayload = '<wp-export><post id="stale-sparse-latest-info"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-sparse-latest-info"/></wp-export>';
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber . ':' . $generation] = $offset;
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(6, 0, '<< /Title (Stale Sparse Latest Info Title) /Author (Stale Sparse Author) /Producer (Stale Sparse Producer) >>');
+    $addObject(8, 0, '<< /Names [(stale-sparse-latest-info.xml) 10 0 R] >>');
+    $addObject(10, 0, '<< /Type /Filespec /F (stale-sparse-latest-info.xml) /Desc (Stale sparse latest Info attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $baseXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($offsets['1:0'])
+        . $xrefTableRow($offsets['2:0'])
+        . $xrefTableRow($offsets['3:0'])
+        . $xrefTableRow($offsets['4:0'])
+        . $xrefTableRow($offsets['5:0'])
+        . $xrefTableRow($offsets['6:0'])
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($offsets['8:0'])
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($offsets['10:0'])
+        . $xrefTableRow($offsets['11:0'])
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$baseXrefOffset}\n%%EOF\n";
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $addObject(6, 0, '<< /Title (Current Carried Prev Info Title) /Author (Current Carried Prev Author) /Producer (Current Carried Prev Producer) >>');
+    $addObject(8, 0, '<< /Names [(current-sparse-latest-info.xml) 10 0 R] >>');
+    $addObject(10, 0, '<< /Type /Filespec /F (current-sparse-latest-info.xml) /Desc (Current sparse latest Info attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $middleRows = ''
+        . $xrefStreamRow(1, $offsets['1:0'], 0)
+        . $xrefStreamRow(1, $offsets['2:0'], 0)
+        . $xrefStreamRow(1, $offsets['3:0'], 0)
+        . $xrefStreamRow(1, $offsets['4:0'], 0)
+        . $xrefStreamRow(1, $offsets['5:0'], 0)
+        . $xrefStreamRow(1, $offsets['6:0'], 0)
+        . $xrefStreamRow(0, 0, 0)
+        . $xrefStreamRow(1, $offsets['8:0'], 0)
+        . $xrefStreamRow(1, $offsets['10:0'], 0)
+        . $xrefStreamRow(1, $offsets['11:0'], 0);
+    $compressedMiddleRows = gzcompress($middleRows);
+    if (!is_string($compressedMiddleRows)) {
+        throw new RuntimeException('Unable to compress sparse latest trailer middle xref rows.');
+    }
+
+    $middleXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 0 R /Info 6 0 R /Prev ' . $baseXrefOffset . ' /Index [1 8 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedMiddleRows) . " >>\n"
+        . "stream\n{$compressedMiddleRows}\nendstream\nendobj\n"
+        . "startxref\n{$middleXrefOffset}\n%%EOF\n";
+
+    $latestXrefOffset = strlen($pdf);
+    $latestRows = $xrefStreamRow(1, $latestXrefOffset, 0);
+    $compressedLatestRows = gzcompress($latestRows);
+    if (!is_string($compressedLatestRows)) {
+        throw new RuntimeException('Unable to compress sparse latest trailer xref rows.');
+    }
+
+    $pdf .= "30 0 obj\n"
+        . '<< /Type /XRef /Size 31 /Prev ' . $middleXrefOffset . ' /Index [30 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedLatestRows) . " >>\n"
+        . "stream\n{$compressedLatestRows}\nendstream\nendobj\n"
+        . "startxref\n{$latestXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 return [
     'repairs current metadata generation objects through damaged xref Prev chain offsets' => static function (
         TestRunner $t
@@ -1431,6 +1523,35 @@ return [
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Post Xref Damaged Middle Prev'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'post-xref-damaged-middle-prev-decoy'));
         $t->true(!str_contains($text, 'Post xref damaged middle Prev decoy page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'resolves current Info from previous xref section when latest xref stream omits Info' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainLatestSparseTrailerInfoPdf): void {
+        $pdf = $xrefPrevChainLatestSparseTrailerInfoPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current carried Prev Info page', 'Latest xref omits Info'], $extractor->extractTextLines($pdf));
+        $t->same("Current carried Prev Info page\nLatest xref omits Info", $text);
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same('Current Carried Prev Info Title', $metadata['title']);
+        $t->same('Current Carried Prev Info Title', $metadata['info']['Title']);
+        $t->same(['Current Carried Prev Author'], $metadata['authors']);
+        $t->same('Current Carried Prev Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-sparse-latest-info.xml', $files[0]['filename']);
+        $t->same('Current sparse latest Info attachment', $files[0]['description']);
+        $t->same('<wp-export><post id="current-sparse-latest-info"/></wp-export>', $files[0]['content']);
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Sparse'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-sparse-latest-info'));
+        $t->true(!str_contains($text, 'Stale sparse latest trailer page'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

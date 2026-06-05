@@ -747,12 +747,7 @@ final class PdfMetadataExtractor
      */
     private function extractInfoMetadata(string $pdfBytes, array $objects): array
     {
-        $trailer = $this->trailerDictionaryBody($pdfBytes);
-        if ($trailer === null) {
-            return [];
-        }
-
-        $infoDictionary = $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($trailer, 'Info'), $objects);
+        $infoDictionary = $this->trailerInfoDictionary($pdfBytes, $objects);
         if ($infoDictionary === null) {
             return [];
         }
@@ -772,6 +767,138 @@ final class PdfMetadataExtractor
         }
 
         return $fields;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null}|null
+     */
+    private function trailerInfoDictionary(string $pdfBytes, array $objects): ?array
+    {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions !== []) {
+            $reference = $this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $objects, $definitions)
+                ?? $this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $objects, $definitions);
+            if ($reference !== null) {
+                $infoDictionary = $this->resolveDictionaryFromValue(
+                    $reference['objectNumber'] . ' ' . $reference['generation'] . ' R',
+                    $objects
+                );
+                if ($infoDictionary !== null) {
+                    return $infoDictionary;
+                }
+            }
+        }
+
+        $trailer = $this->trailerDictionaryBody($pdfBytes);
+        return $trailer === null
+            ? null
+            : $this->resolveDictionaryFromValue($this->dictionaryTopLevelRawValue($trailer, 'Info'), $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerInfoReferenceFromStartxrefChain(string $pdfBytes, array $objects, array $definitions): ?array
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerInfoReferenceFromLatestClassicXrefTable(string $pdfBytes, array $objects, array $definitions): ?array
+    {
+        $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $offset = $this->latestClassicXrefTableOffset(
+            $pdfBytes,
+            $definitions,
+            $startxrefEntry['tokenOffset'] ?? null
+        );
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerInfoReferenceFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): ?array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return null;
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
+        if ($tableSection !== null) {
+            $info = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info'));
+            if ($info !== null) {
+                return $info;
+            }
+
+            $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm', $objects);
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                if ($streamSection !== null) {
+                    $info = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info'));
+                    if ($info !== null) {
+                        return $info;
+                    }
+                }
+            }
+
+            $previousOffset = $this->previousXrefOffsetForSectionBody(
+                $pdfBytes,
+                $tableSection['trailer'],
+                $offset,
+                $definitions,
+                $objects
+            );
+            return $previousOffset === null
+                ? null
+                : $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return null;
+        }
+
+        $info = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info'));
+        if ($info !== null) {
+            return $info;
+        }
+
+        $previousOffset = $this->previousXrefOffsetForSectionBody(
+            $pdfBytes,
+            $streamSection['body'],
+            $offset,
+            $definitions,
+            $objects
+        );
+        return $previousOffset === null
+            ? null
+            : $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
     }
 
     /**
