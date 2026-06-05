@@ -122,6 +122,27 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const EXTENSIBLE_ARROW_COMMANDS = [
+        'xleftarrow' => '←',
+        'xrightarrow' => '→',
+        'xleftrightarrow' => '↔',
+        'xLeftarrow' => '⇐',
+        'xRightarrow' => '⇒',
+        'xLeftrightarrow' => '⇔',
+        'xmapsto' => '↦',
+    ];
+
+    /** @var array<string, array{glyph: string, position: 'over'|'under'}> */
+    private const ARROW_ACCENT_COMMANDS = [
+        'overleftarrow' => ['glyph' => '←', 'position' => 'over'],
+        'overrightarrow' => ['glyph' => '→', 'position' => 'over'],
+        'overleftrightarrow' => ['glyph' => '↔', 'position' => 'over'],
+        'underleftarrow' => ['glyph' => '←', 'position' => 'under'],
+        'underrightarrow' => ['glyph' => '→', 'position' => 'under'],
+        'underleftrightarrow' => ['glyph' => '↔', 'position' => 'under'],
+    ];
+
+    /** @var array<string, string> */
     private const CANCEL_COMMANDS = [
         'bcancel' => 'downdiagonalstrike',
         'cancel' => 'updiagonalstrike',
@@ -933,6 +954,14 @@ final class MathTexConverter
             return '<mspace width="' . self::SPACING_COMMANDS[$command] . '"></mspace>';
         }
 
+        if (isset(self::EXTENSIBLE_ARROW_COMMANDS[$command])) {
+            return $this->parseExtensibleArrowCommand($source, $offset, $command);
+        }
+
+        if (isset(self::ARROW_ACCENT_COMMANDS[$command])) {
+            return $this->parseArrowAccentCommand($source, $offset, $command);
+        }
+
         if ($command === 'begin') {
             return $this->parseEnvironment($source, $offset);
         }
@@ -1303,6 +1332,32 @@ final class MathTexConverter
         return '<mspace width="' . $this->esc($width) . '"' . $attributes . '></mspace>';
     }
 
+    private function parseExtensibleArrowCommand(string $source, int &$offset, string $command): string
+    {
+        $below = $this->parseOptionalNonEmptyBracketArgument($source, $offset, $command . ' lower label');
+        $above = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' upper label');
+        $arrow = '<mo stretchy="true">' . $this->esc(self::EXTENSIBLE_ARROW_COMMANDS[$command]) . '</mo>';
+
+        if ($below !== null) {
+            return '<munderover>' . $arrow . $below . $above . '</munderover>';
+        }
+
+        return '<mover>' . $arrow . $above . '</mover>';
+    }
+
+    private function parseArrowAccentCommand(string $source, int &$offset, string $command): string
+    {
+        $spec = self::ARROW_ACCENT_COMMANDS[$command];
+        $base = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' base');
+        $arrow = '<mo stretchy="true">' . $this->esc($spec['glyph']) . '</mo>';
+
+        if ($spec['position'] === 'over') {
+            return '<mover accent="true">' . $base . $arrow . '</mover>';
+        }
+
+        return '<munder accentunder="true">' . $base . $arrow . '</munder>';
+    }
+
     private function normalizeMathSpaceDimension(string $dimension, string $command): string
     {
         $dimension = trim($dimension);
@@ -1614,6 +1669,40 @@ final class MathTexConverter
         }
 
         return implode('', $children);
+    }
+
+    private function parseOptionalNonEmptyBracketArgument(string $source, int &$offset, string $label): ?string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        $argument = $this->readTexBracketArgument($source, $offset);
+        if ($argument === null) {
+            return null;
+        }
+
+        if (trim($argument['value']) === '') {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' content at offset ' . $start);
+        }
+
+        $offset = $argument['next'];
+
+        return $this->parseTexFragment($argument['value'], $label);
+    }
+
+    private function parseTexFragment(string $fragment, string $label): string
+    {
+        $offset = 0;
+        $children = $this->parseExpression($fragment, $offset, null);
+        if ($children === []) {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' content');
+        }
+
+        $this->skipWhitespace($fragment, $offset);
+        if ($offset < strlen($fragment)) {
+            throw new \InvalidArgumentException('Unsupported TeX token in ' . $label . ' at offset ' . $offset);
+        }
+
+        return $this->row($children);
     }
 
     private function parseFenceCommand(string $source, int &$offset, string $command): string

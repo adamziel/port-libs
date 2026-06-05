@@ -298,6 +298,19 @@ return [
         $t->contains('<mover accent="true"><mi>x</mi><mo>˙</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>¨</mo></mover><mo>+</mo><mover accent="true"><mi>n</mi><mo>~</mo></mover>', $dotMathml);
         $t->contains('<munder accentunder="true"><mi>draft</mi><mo>_</mo></munder>', $underMathml);
     },
+    'converts bounded tex extensible arrows to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $xArrowMathml = $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i', true);
+        $mapArrowMathml = $converter->texToMathMl('A \\xleftrightarrow[n+1]{\\text{sync}} B + C \\xmapsto{f} D');
+        $accentArrowMathml = $converter->texToMathMl('\\overrightarrow{AB}_i + \\underleftarrow{\\operatorname{media}} + \\overleftrightarrow{x+y}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $xArrowMathml);
+        $t->contains('<munderover><mo stretchy="true">→</mo><mtext>review</mtext><mi>publish</mi></munderover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mover><mo stretchy="true">←</mo><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mover><msub><mi>m</mi><mi>i</mi></msub>', $xArrowMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i</annotation>', $xArrowMathml);
+        $t->contains('<mi>A</mi><munderover><mo stretchy="true">↔</mo><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow><mtext>sync</mtext></munderover><mi>B</mi><mo>+</mo><mi>C</mi><mover><mo stretchy="true">↦</mo><mi>f</mi></mover><mi>D</mi>', $mapArrowMathml);
+        $t->contains('<msub><mover accent="true"><mrow><mi>A</mi><mi>B</mi></mrow><mo stretchy="true">→</mo></mover><mi>i</mi></msub>', $accentArrowMathml);
+        $t->contains('<munder accentunder="true"><mi>media</mi><mo stretchy="true">←</mo></munder><mo>+</mo><mover accent="true"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo stretchy="true">↔</mo></mover>', $accentArrowMathml);
+    },
     'converts bounded tex matrix and aligned environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $matrixMathml = $converter->texToMathMl('\\begin{matrix}a & b \\\\ c & d\\end{matrix}');
@@ -496,6 +509,11 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\vec_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underline^2'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xrightarrow'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xrightarrow{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xleftarrow[]{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overrightarrow'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underrightarrow_1'));
     },
     'renders latex writer math and raw tex without dropping source content' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
