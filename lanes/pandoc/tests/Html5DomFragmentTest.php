@@ -425,6 +425,43 @@ return [
         $t->contains('xmlns:r="urn:rel"', $serialized);
         $t->contains('<plain xmlns="">fallback</plain>', $serialized);
     },
+    'preserves XML elements and attributes that overlap HTML sanitizer policy' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromXml(
+            '<packet>'
+            . '<link href="rId1" onload="review-source">media</link>'
+            . '<meta name="review" content="ok" style="source-style"/>'
+            . '<script type="text/source">if (a &lt; b) { source(); }</script>'
+            . '<style data-pandoc-fragment-root="source">.source &gt; note { color: red; }</style>'
+            . '</packet>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $serialized = $fragment->serialize();
+        $roundTrip = Html5DomFragment::fromXml($serialized);
+
+        $expected = '<packet>'
+            . '<link href="rId1" onload="review-source">media</link>'
+            . '<meta name="review" content="ok" style="source-style"/>'
+            . '<script type="text/source">if (a &lt; b) { source(); }</script>'
+            . '<style data-pandoc-fragment-root="source">.source &gt; note { color: red; }</style>'
+            . '</packet>';
+
+        $t->same($expected, $serialized);
+        $t->same($expected, $roundTrip->serialize());
+        $t->same('xml', $summary['mode']);
+        $t->same(['link', 'meta', 'packet', 'script', 'style'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same([], $fragment->diagnosticCodes());
+        $t->same('link', $nodes[0]['children'][0]['name']);
+        $t->same(['href' => 'rId1', 'onload' => 'review-source'], $nodes[0]['children'][0]['attrs']);
+        $t->same(['name' => 'review', 'content' => 'ok', 'style' => 'source-style'], $nodes[0]['children'][1]['attrs']);
+        $t->same('script', $nodes[0]['children'][2]['name']);
+        $t->same('if (a < b) { source(); }', $nodes[0]['children'][2]['children'][0]['text']);
+        $t->same(['data-pandoc-fragment-root' => 'source'], $nodes[0]['children'][3]['attrs']);
+        $t->true(str_contains($serialized, '<script type="text/source">'), 'Expected XML script-named element to survive as package markup');
+        $t->true(str_contains($serialized, 'onload="review-source"'), 'Expected XML onload-named attribute to remain package metadata');
+    },
     'normalizes svg and mathml foreign content for raw html review packets' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<aside><svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>'

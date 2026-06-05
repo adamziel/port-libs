@@ -36,6 +36,12 @@ $namespacedReviewFragment = Html5DomFragment::fromXml(
     . '<plain xmlns="">fallback</plain>'
     . '</w:p></review>'
 );
+$xmlPolicyReviewFragment = Html5DomFragment::fromXml(
+    '<packet><link href="rId1" onload="review-source">media</link>'
+    . '<meta name="review" content="ok" style="source-style"/>'
+    . '<script type="text/source">if (a &lt; b) { source(); }</script>'
+    . '<style data-pandoc-fragment-root="source">.source &gt; note { color: red; }</style></packet>'
+);
 $document = new AstNode('document', [], [
     new AstNode('raw_html', ['format' => 'html', 'html' => $html]),
 ]);
@@ -81,6 +87,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (Html5DomFragment::fromXml($namespacedXml)->serialize() !== $namespacedXml) {
         throw new RuntimeException('Expected namespaced XML fragment serialization to round-trip through the safe parser');
     }
+    $xmlPolicy = $xmlPolicyReviewFragment->serialize();
+    foreach ([
+        '<link href="rId1" onload="review-source">media</link>',
+        '<meta name="review" content="ok" style="source-style"/>',
+        '<script type="text/source">if (a &lt; b) { source(); }</script>',
+        '<style data-pandoc-fragment-root="source">.source &gt; note { color: red; }</style>',
+    ] as $expectedXml) {
+        if (!str_contains($xmlPolicy, $expectedXml)) {
+            throw new RuntimeException('Expected XML policy-overlap fragment to preserve package markup: ' . $expectedXml);
+        }
+    }
+    if ($xmlPolicyReviewFragment->diagnosticCodes() !== []) {
+        throw new RuntimeException('Expected XML policy-overlap fragment to remain outside HTML sanitizer diagnostics');
+    }
     try {
         XmlHtmlDom::loadXmlDocument(
             '<?xml-stylesheet href="https://example.invalid/review.xsl"?><review><item>bad</item></review>',
@@ -101,4 +121,5 @@ if (($argv[1] ?? '') === '--self-test') {
 echo "XML/HTML5 DOM handoff for WordPress import:\n";
 echo "fragmentHtml:\n" . $html . "\n";
 echo "namespacedReviewXml:\n" . $namespacedReviewFragment->serialize() . "\n";
+echo "xmlPolicyReviewXml:\n" . $xmlPolicyReviewFragment->serialize() . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

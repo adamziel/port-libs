@@ -399,7 +399,7 @@ final class Html5DomFragment
             );
         }
 
-        if (self::isBlockedElement($name)) {
+        if ($mode === 'html' && self::isBlockedElement($name)) {
             $diagnostics[] = [
                 'code' => 'blocked-tag',
                 'tag' => $name,
@@ -671,7 +671,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (self::isBlockedAttribute($name)) {
+            if ($mode === 'html' && self::isBlockedAttribute($name)) {
                 $diagnostics[] = [
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
@@ -680,7 +680,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (strtolower($name) === 'srcset') {
+            if ($mode === 'html' && strtolower($name) === 'srcset') {
                 $srcset = self::normalizeSrcsetAttribute($value, $tagName, $diagnostics, $baseUrl);
                 if ($srcset === null) {
                     continue;
@@ -690,7 +690,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (self::isUrlAttribute($name)) {
+            if ($mode === 'html' && self::isUrlAttribute($name)) {
                 if (!self::isSafeUrlAttributeValue($tagName, $name, $value, $foreignContext)) {
                     $diagnostics[] = [
                         'code' => 'unsafe-url',
