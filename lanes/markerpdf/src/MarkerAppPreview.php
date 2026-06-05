@@ -1610,8 +1610,6 @@ final class MarkerAppPreview
                 $seenPageIndexes[$pageIndex] = true;
                 $sections[] = $section;
             }
-
-            return $sections;
         }
 
         $kids = $this->valueAfterName($value, 'Kids');

@@ -8592,11 +8592,11 @@ final class PdfTextExtractor
             }
         }
 
+        $entries = [];
         if ($this->pageLabelTopLevelValueAfterName($dictionary, 'Nums') !== null) {
-            return $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
+            $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
         }
 
-        $entries = [];
         $kidNodes = [];
         $kidOrder = 0;
 
