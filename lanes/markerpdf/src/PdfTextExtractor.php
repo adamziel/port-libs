@@ -9667,7 +9667,7 @@ final class PdfTextExtractor
         while ($index < $length) {
             $char = $value[$index];
 
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -9727,7 +9727,7 @@ final class PdfTextExtractor
         while ($index < $length) {
             $char = $value[$index];
 
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -10861,7 +10861,7 @@ final class PdfTextExtractor
         $length = strlen($value);
         while ($index < $length) {
             $char = $value[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -11194,7 +11194,7 @@ final class PdfTextExtractor
     {
         $length = strlen($stream);
         for ($index = $offset; $index < $length; $index++) {
-            if (!ctype_space($stream[$index])) {
+            if (!$this->isPdfWhitespace($stream[$index])) {
                 return false;
             }
         }
@@ -15950,7 +15950,7 @@ final class PdfTextExtractor
     {
         $length = strlen($value);
         while ($offset < $length) {
-            if (ctype_space($value[$offset])) {
+            if ($this->isPdfWhitespace($value[$offset])) {
                 $offset++;
                 continue;
             }
@@ -25658,7 +25658,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $stream[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -25827,7 +25827,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $segment[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 if ($char === "\n" || $char === "\r") {
                     $lineSeparated = true;
                 }
@@ -26040,7 +26040,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $segment[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -26125,7 +26125,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $segment[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -26185,7 +26185,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $segment[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -26257,7 +26257,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $segment[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -26346,7 +26346,7 @@ final class PdfTextExtractor
 
         while ($index < $length) {
             $char = $segment[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 $index++;
                 continue;
             }
@@ -26699,7 +26699,7 @@ final class PdfTextExtractor
     private function inlineImageDataCandidate(string $stream, int $dataStart, int $markerOffset): string
     {
         $dataEnd = $markerOffset;
-        if ($dataEnd > $dataStart && ctype_space($stream[$dataEnd - 1])) {
+        if ($dataEnd > $dataStart && $this->isPdfWhitespace($stream[$dataEnd - 1])) {
             $dataEnd--;
             if ($dataEnd > $dataStart && $stream[$dataEnd - 1] === "\r" && ($stream[$dataEnd] ?? '') === "\n") {
                 $dataEnd--;
@@ -26827,7 +26827,7 @@ final class PdfTextExtractor
         $hexDigitCount = 0;
         for ($offset = 0; $offset < $eodOffset; $offset++) {
             $char = $candidate[$offset];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 continue;
             }
 
@@ -27765,7 +27765,7 @@ final class PdfTextExtractor
     {
         $length = strlen($stream);
         while ($index < $length) {
-            if (ctype_space($stream[$index])) {
+            if ($this->isPdfWhitespace($stream[$index])) {
                 $index++;
                 continue;
             }
@@ -27783,7 +27783,7 @@ final class PdfTextExtractor
     private function consumeInlineImageDataPrefixWhitespace(string $stream, int &$index): void
     {
         $length = strlen($stream);
-        if ($index >= $length || !ctype_space($stream[$index])) {
+        if ($index >= $length || !$this->isPdfWhitespace($stream[$index])) {
             return;
         }
 
@@ -27800,7 +27800,7 @@ final class PdfTextExtractor
 
     private function inlineImageDataSeparatorFollowsId(string $stream, int $index): bool
     {
-        return $index < strlen($stream) && ctype_space($stream[$index]);
+        return $index < strlen($stream) && $this->isPdfWhitespace($stream[$index]);
     }
 
     private function inlineImageDataCommentBoundaryFollowsId(string $stream, int $index): ?int
@@ -27833,7 +27833,7 @@ final class PdfTextExtractor
 
     private function inlineImageEndMarkerAt(string $stream, int $offset): bool
     {
-        if ($offset <= 0 || !ctype_space($stream[$offset - 1])) {
+        if ($offset <= 0 || !$this->isPdfWhitespace($stream[$offset - 1])) {
             return false;
         }
 
@@ -27843,7 +27843,7 @@ final class PdfTextExtractor
 
     private function inlineImageTightEndMarkerAt(string $stream, int $offset): bool
     {
-        if ($offset <= 0 || ctype_space($stream[$offset - 1])) {
+        if ($offset <= 0 || $this->isPdfWhitespace($stream[$offset - 1])) {
             return false;
         }
 
@@ -27963,7 +27963,7 @@ final class PdfTextExtractor
 
     private function isDelimiter(string $char): bool
     {
-        return ctype_space($char) || str_contains('[]()<>{}%', $char);
+        return $this->isPdfWhitespace($char) || str_contains('[]()<>{}%', $char);
     }
 
     private function isBareTokenDelimiter(string $char): bool
@@ -27973,7 +27973,12 @@ final class PdfTextExtractor
 
     private function isPdfNameDelimiter(string $char): bool
     {
-        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
+        return $this->isPdfWhitespace($char) || str_contains('[]()<>{}/%', $char);
+    }
+
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || ctype_space($char);
     }
 
     /**
@@ -29575,12 +29580,12 @@ final class PdfTextExtractor
 
     private function startsWithWhitespace(string $text): bool
     {
-        return $text !== '' && ctype_space($text[0]);
+        return $text !== '' && $this->isPdfWhitespace($text[0]);
     }
 
     private function endsWithWhitespace(string $text): bool
     {
-        return $text !== '' && ctype_space(substr($text, -1));
+        return $text !== '' && $this->isPdfWhitespace(substr($text, -1));
     }
 
     private function numericOperand(string $operand): ?float
