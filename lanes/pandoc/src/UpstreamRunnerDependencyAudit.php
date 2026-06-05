@@ -29,6 +29,10 @@ final class UpstreamRunnerDependencyAudit
         'test/markdown-reader-more.native' => 'file',
         'test/html-reader.html' => 'file',
         'test/html-reader.native' => 'file',
+        'pandoc-lua-engine/test/Tests/Lua.hs' => 'file',
+        'pandoc-lua-engine/test/Tests/Lua/Module.hs' => 'file',
+        'pandoc-lua-engine/test/Tests/Lua/Reader.hs' => 'file',
+        'pandoc-lua-engine/test/Tests/Lua/Writer.hs' => 'file',
         'pandoc-lua-engine/test' => 'directory',
         'data' => 'directory',
     ];

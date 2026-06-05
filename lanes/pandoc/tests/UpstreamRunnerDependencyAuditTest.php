@@ -701,6 +701,32 @@ return [
         $t->contains('runner source/golden fixtures', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks lua runner other-module source artifact drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        unset($files['pandoc-lua-engine/test/Tests/Lua/Reader.hs']);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
+        $t->same(['pandoc-lua-engine/test/Tests/Lua/Reader.hs'], $audit['runnerArtifactClosure']['missing']);
+        $t->same([], $audit['runnerArtifactClosure']['wrongType']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing upstream runner source/golden fixture artifacts: pandoc-lua-engine/test/Tests/Lua/Reader.hs', $blocked);
+        $t->contains('runner source/golden fixtures', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks runner entry point source semantic drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['test/test-pandoc.hs'] = implode("\n", [
