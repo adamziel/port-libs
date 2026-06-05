@@ -9052,16 +9052,49 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $dictionary, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $references = [];
-        foreach ($matches as $match) {
-            $references[$this->decodePdfName($match[1])] = [
-                'objectNumber' => (int) $match[2],
-                'generation' => (int) $match[3],
-            ];
+        $offset = 0;
+        $length = strlen($dictionary);
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $dictionary, $match, 0, $valueOffset) === 1) {
+                $references[$this->decodePdfName(substr($dictionary, $nameStart, $nameEnd - $nameStart))] = [
+                    'objectNumber' => (int) $match[1],
+                    'generation' => (int) $match[2],
+                ];
+                $offset = $valueOffset + strlen($match[0]);
+                continue;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
         }
 
         return $references;
