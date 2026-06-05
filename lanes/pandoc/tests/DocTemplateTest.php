@@ -263,6 +263,26 @@ TPL;
         ]), $output);
     },
 
+    'keeps pandoc doctemplate explicit nesting through literal prefixes' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->render(<<<'TPL'
+<p>$^$Note: $note$</p>
+<aside>$^$Partial: ${ note-block() }</aside>
+TPL, [
+            'note' => "First line\nSecond line",
+        ], [
+            'note-block' => "Imported block\nNeeds review\n",
+        ]);
+
+        $t->same(implode("\n", [
+            '<p>Note: First line',
+            '   Second line</p>',
+            '<aside>Partial: Imported block',
+            '       Needs review</aside>',
+        ]), $output);
+    },
+
     'automatically nests multiline pandoc doctemplate variables that stand alone on indented lines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <section class="wp-import-body">

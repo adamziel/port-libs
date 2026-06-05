@@ -1778,8 +1778,13 @@ final class DocTemplate
     private function appendRenderedChunk(string &$output, string $chunk, ?int &$pendingNestColumn): void
     {
         if ($pendingNestColumn !== null) {
-            $chunk = $this->nestMultiline($chunk, str_repeat(' ', $pendingNestColumn));
-            $pendingNestColumn = null;
+            if (str_contains($chunk, "\n")) {
+                $chunk = $this->nestMultiline($chunk, str_repeat(' ', $pendingNestColumn));
+                $pendingNestColumn = null;
+            }
+
+            $output .= $chunk;
+            return;
         }
 
         $output .= $chunk;
