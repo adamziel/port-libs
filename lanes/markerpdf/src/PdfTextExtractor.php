@@ -6545,7 +6545,8 @@ final class PdfTextExtractor
      */
     private function isImageStreamDictionary(string $dict, array $objects): bool
     {
-        if (preg_match('/\/Subtype\s*\/Image\b/', $dict) === 1) {
+        $subtype = $this->topLevelPdfValueAfterNameInDictionaryBody($dict, 'Subtype');
+        if ($subtype !== null && $this->pdfNameValueAt($subtype, 0, $objects) === 'Image') {
             return true;
         }
 
