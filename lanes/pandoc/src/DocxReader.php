@@ -218,6 +218,11 @@ final class DocxReader
             'imported' => false,
             'text' => null,
             'html' => null,
+            'encoding' => null,
+            'bom' => null,
+            'repairs' => null,
+            'lineEndings' => null,
+            'paragraphCount' => null,
             'issues' => [],
         ];
 
@@ -281,6 +286,23 @@ final class DocxReader
             return $item;
         }
 
+        if ($this->isPlainTextAlternativeFormatContentType($item['contentType'])) {
+            $decoded = UnicodeText::decodeBytes($bytes, $this->charsetForContentType($item['contentType']));
+            $blocks = $this->plainTextAlternativeFormatBlocks($decoded['text']);
+            $item['text'] = $decoded['text'];
+            $item['encoding'] = $decoded['encoding'];
+            $item['bom'] = $decoded['bom'];
+            $item['repairs'] = $decoded['repairs'];
+            $item['lineEndings'] = $decoded['lineEndings'];
+            $item['paragraphCount'] = count($blocks);
+            $item['imported'] = $blocks !== [];
+            if ($blocks === []) {
+                $item['issues'][] = 'empty-text';
+            }
+
+            return $item;
+        }
+
         try {
             $dom = XmlHtmlDom::loadHtmlFragment($bytes, 'DOCX altChunk HTML ' . $targetPart);
         } catch (\InvalidArgumentException) {
@@ -302,7 +324,25 @@ final class DocxReader
     private function alternativeFormatBlocks(\DOMElement $chunk, ZipPackage $package, ?OpcRelationships $relationships): array
     {
         $item = $this->alternativeFormatItem($chunk, $package, $relationships);
-        if ($item['imported'] !== true || !is_string($item['html']) || $item['html'] === '') {
+        if ($item['imported'] !== true) {
+            return [];
+        }
+
+        if (is_string($item['text']) && $this->isPlainTextAlternativeFormatContentType((string) $item['contentType'])) {
+            return $this->plainTextAlternativeFormatBlocks($item['text'], [
+                'sourceFormat' => 'docx-altChunk',
+                'id' => $item['id'],
+                'target' => $item['target'],
+                'targetPart' => $item['targetPart'],
+                'contentType' => $item['contentType'],
+                'bytes' => $item['bytes'],
+                'encoding' => $item['encoding'],
+                'bom' => $item['bom'],
+                'repairs' => $item['repairs'],
+            ]);
+        }
+
+        if (!is_string($item['html']) || $item['html'] === '') {
             return [];
         }
 
@@ -329,9 +369,68 @@ final class DocxReader
 
     private function isSupportedAlternativeFormatContentType(string $contentType): bool
     {
-        $contentType = strtolower(trim(explode(';', $contentType, 2)[0]));
+        $contentType = $this->alternativeFormatBaseContentType($contentType);
 
-        return in_array($contentType, ['text/html', 'application/xhtml+xml'], true);
+        return in_array($contentType, ['text/html', 'application/xhtml+xml', 'text/plain'], true);
+    }
+
+    private function isPlainTextAlternativeFormatContentType(string $contentType): bool
+    {
+        return $this->alternativeFormatBaseContentType($contentType) === 'text/plain';
+    }
+
+    private function alternativeFormatBaseContentType(string $contentType): string
+    {
+        return strtolower(trim(explode(';', $contentType, 2)[0]));
+    }
+
+    private function charsetForContentType(string $contentType): ?string
+    {
+        if (!preg_match('/;\s*charset=(?:"([^"]+)"|([^;]+))/i', $contentType, $matches)) {
+            return null;
+        }
+
+        $quoted = (string) ($matches[1] ?? '');
+        $unquoted = (string) ($matches[2] ?? '');
+        $charset = trim($quoted !== '' ? $quoted : $unquoted);
+
+        return $charset === '' ? null : $charset;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return list<AstNode>
+     */
+    private function plainTextAlternativeFormatBlocks(string $text, array $attrs = []): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return [];
+        }
+
+        $blocks = [];
+        foreach (preg_split('/\n{2,}/u', $text) ?: [] as $paragraph) {
+            $paragraph = trim($paragraph);
+            if ($paragraph === '') {
+                continue;
+            }
+
+            $inlines = [];
+            foreach (preg_split('/\n/u', $paragraph) ?: [] as $index => $line) {
+                if ($index > 0) {
+                    $inlines[] = new AstNode('linebreak');
+                }
+                if ($line !== '') {
+                    $inlines[] = new AstNode('text', ['text' => $line]);
+                }
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('paragraph', $attrs, $this->coalesceTextNodes($inlines));
+            }
+        }
+
+        return $blocks;
     }
 
     private function plainDomText(\DOMNode $node): string

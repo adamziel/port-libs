@@ -493,6 +493,7 @@ $altChunkContentTypesXml = <<<'XML'
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="html" ContentType="text/html"/>
+  <Default Extension="txt" ContentType="text/plain; charset=utf-8"/>
   <Default Extension="rtf" ContentType="application/rtf"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>
@@ -501,6 +502,7 @@ XML;
 $altChunkDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHtmlChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.html"/>
+  <Relationship Id="rIdTextChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.txt"/>
   <Relationship Id="rIdMissingChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/missing.html"/>
   <Relationship Id="rIdExternalChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="https://example.test/external-review.html" TargetMode="External"/>
   <Relationship Id="rIdUnsupportedChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/source.rtf"/>
@@ -511,12 +513,15 @@ $altChunkHtml = <<<'HTML'
 <section data-review="docx-alt"><h2>Embedded review HTML</h2><p>Imported <strong>chunk</strong> &amp; reviewer note.</p><ul><li>Media map</li></ul></section>
 HTML;
 
+$altChunkText = "\xEF\xBB\xBFPlain review note\r\nSecond line\r\n\r\nFinal checkpoint.";
+
 $altChunkDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
     <w:p><w:r><w:t>Before alternative chunk.</w:t></w:r></w:p>
     <w:altChunk r:id="rIdHtmlChunk"/>
+    <w:altChunk r:id="rIdTextChunk"/>
     <w:altChunk r:id="rIdMissingChunk"/>
     <w:altChunk r:id="rIdExternalChunk"/>
     <w:altChunk r:id="rIdUnsupportedChunk"/>
@@ -652,7 +657,8 @@ $buildAltChunkPackage = static function () use (
     $packageRelationshipsXml,
     $altChunkDocumentRelationshipsXml,
     $altChunkDocumentXml,
-    $altChunkHtml
+    $altChunkHtml,
+    $altChunkText
 ): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $altChunkContentTypesXml],
@@ -660,6 +666,7 @@ $buildAltChunkPackage = static function () use (
         ['name' => 'word/document.xml', 'data' => $altChunkDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $altChunkDocumentRelationshipsXml],
         ['name' => 'word/chunks/review.html', 'data' => $altChunkHtml],
+        ['name' => 'word/chunks/review.txt', 'data' => $altChunkText],
         ['name' => 'word/chunks/source.rtf', 'data' => '{\rtf1 unsupported reviewer chunk}'],
     ]);
 };
@@ -1270,14 +1277,14 @@ return [
         $t->contains('<p>Default header <a href="https://example.test/header-source">source link</a></p>', $headerBlocks);
         $t->contains('Default footer note', $footerMarkdown);
     },
-    'maps DOCX alternative-format HTML chunks into raw HTML blocks and reports skipped chunks' => static function (TestRunner $t) use ($buildAltChunkPackage): void {
+    'maps DOCX alternative-format HTML and plain-text chunks into AST blocks and reports skipped chunks' => static function (TestRunner $t) use ($buildAltChunkPackage): void {
         $reader = new DocxReader();
         $result = $reader->readPackage($buildAltChunkPackage());
         $document = $result['document'];
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->same(3, count($document->children));
+        $t->same(5, count($document->children));
         $t->same('Before alternative chunk.', $document->children[0]->children[0]->attr('text'));
 
         $chunk = $document->children[1];
@@ -1288,16 +1295,37 @@ return [
         $t->same('text/html', $chunk->attr('contentType'));
         $t->contains('<section data-review="docx-alt">', $chunk->attr('html'));
         $t->contains('<strong>chunk</strong>', $chunk->attr('html'));
-        $t->same('After alternative chunk.', $document->children[2]->children[0]->attr('text'));
+
+        $plainText = $document->children[2];
+        $t->same('paragraph', $plainText->type);
+        $t->same('docx-altChunk', $plainText->attr('sourceFormat'));
+        $t->same('rIdTextChunk', $plainText->attr('id'));
+        $t->same('/word/chunks/review.txt', $plainText->attr('targetPart'));
+        $t->same('text/plain; charset=utf-8', $plainText->attr('contentType'));
+        $t->same('utf-8', $plainText->attr('encoding'));
+        $t->same('utf-8', $plainText->attr('bom'));
+        $t->same(0, $plainText->attr('repairs'));
+        $t->same('Plain review note', $plainText->children[0]->attr('text'));
+        $t->same('linebreak', $plainText->children[1]->type);
+        $t->same('Second line', $plainText->children[2]->attr('text'));
+
+        $plainTextSecondParagraph = $document->children[3];
+        $t->same('paragraph', $plainTextSecondParagraph->type);
+        $t->same('Final checkpoint.', $plainTextSecondParagraph->children[0]->attr('text'));
+        $t->same('After alternative chunk.', $document->children[4]->children[0]->attr('text'));
 
         $t->contains('<section data-review="docx-alt"><h2>Embedded review HTML</h2><p>Imported <strong>chunk</strong> &amp; reviewer note.</p><ul><li>Media map</li></ul></section>', $markdown);
+        $t->contains("Plain review note\\\nSecond line", $markdown);
+        $t->contains('Final checkpoint.', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
         $t->contains('<section data-review="docx-alt"><h2>Embedded review HTML</h2><p>Imported <strong>chunk</strong> &amp; reviewer note.</p><ul><li>Media map</li></ul></section>', $blocks);
+        $t->contains('<p>Plain review note<br/>Second line</p>', $blocks);
+        $t->contains('<p>Final checkpoint.</p>', $blocks);
         $t->true(!str_contains($blocks, 'unsupported reviewer chunk'), 'Unsupported altChunk data should not render');
 
         $alternativeFormats = $result['importReport']['alternativeFormats'];
-        $t->same(4, $alternativeFormats['count']);
-        $t->same(1, $alternativeFormats['importedCount']);
+        $t->same(5, $alternativeFormats['count']);
+        $t->same(2, $alternativeFormats['importedCount']);
         $t->same(1, $alternativeFormats['missingCount']);
         $t->same(1, $alternativeFormats['externalCount']);
         $t->same(1, $alternativeFormats['unsupportedCount']);
@@ -1310,17 +1338,30 @@ return [
         $t->same('Embedded review HTML Imported chunk & reviewer note. Media map', $imported['text']);
         $t->same([], $imported['issues']);
 
-        $missing = $alternativeFormats['items'][1];
+        $text = $alternativeFormats['items'][1];
+        $t->same('rIdTextChunk', $text['id']);
+        $t->same('/word/chunks/review.txt', $text['targetPart']);
+        $t->same('text/plain; charset=utf-8', $text['contentType']);
+        $t->same(true, $text['imported']);
+        $t->same("Plain review note\nSecond line\n\nFinal checkpoint.", $text['text']);
+        $t->same('utf-8', $text['encoding']);
+        $t->same('utf-8', $text['bom']);
+        $t->same(0, $text['repairs']);
+        $t->same(['normalized' => true, 'crlf' => 3, 'cr' => 0, 'conversions' => 3], $text['lineEndings']);
+        $t->same(2, $text['paragraphCount']);
+        $t->same([], $text['issues']);
+
+        $missing = $alternativeFormats['items'][2];
         $t->same('rIdMissingChunk', $missing['id']);
         $t->same(false, $missing['exists']);
         $t->same(['missing-in-package'], $missing['issues']);
 
-        $external = $alternativeFormats['items'][2];
+        $external = $alternativeFormats['items'][3];
         $t->same('rIdExternalChunk', $external['id']);
         $t->same(true, $external['external']);
         $t->same(['external-altchunk'], $external['issues']);
 
-        $unsupported = $alternativeFormats['items'][3];
+        $unsupported = $alternativeFormats['items'][4];
         $t->same('rIdUnsupportedChunk', $unsupported['id']);
         $t->same('application/rtf', $unsupported['contentType']);
         $t->same(['unsupported-content-type'], $unsupported['issues']);

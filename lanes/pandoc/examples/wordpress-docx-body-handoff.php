@@ -13,6 +13,7 @@ $contentTypesXml = <<<'XML'
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="html" ContentType="text/html"/>
+  <Default Extension="txt" ContentType="text/plain; charset=utf-8"/>
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
@@ -44,6 +45,7 @@ XML],
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
   <Relationship Id="rIdFooterDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
   <Relationship Id="rIdReviewChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.html"/>
+  <Relationship Id="rIdPlainTextChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/plain-review.txt"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -112,6 +114,7 @@ XML],
       <w:r><w:commentReference w:id="9"/></w:r>
     </w:p>
     <w:altChunk r:id="rIdReviewChunk"/>
+    <w:altChunk r:id="rIdPlainTextChunk"/>
     <w:p>
       <w:r><w:t xml:space="preserve">Formula handoff </w:t></w:r>
       <m:oMath>
@@ -174,6 +177,7 @@ XML],
 </w:document>
 XML],
     ['name' => 'word/chunks/review.html', 'data' => '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>'],
+    ['name' => 'word/chunks/plain-review.txt', 'data' => "\xEF\xBB\xBFPlain text source note\r\nSecond imported line\r\n\r\nFinal plain-text checkpoint."],
     ['name' => 'word/styles.xml', 'data' => <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>
@@ -269,8 +273,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
         throw new RuntimeException('DOCX body handoff self-test missing section property report');
     }
-    if (($summary['importReport']['alternativeFormats']['importedCount'] ?? 0) !== 1) {
+    if (($summary['importReport']['alternativeFormats']['importedCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing alternative-format import report');
+    }
+    if (($summary['importReport']['alternativeFormats']['items'][1]['paragraphCount'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing plain-text altChunk paragraphs');
     }
     if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
         throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
@@ -318,6 +325,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
         '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
+        '<p>Plain text source note<br/>Second imported line</p>',
+        '<p>Final plain-text checkpoint.</p>',
         '<span class="math inline">\(x_{i} + \frac{1}{\sqrt{n}}\)</span>',
         '<div class="docx-content-control docx-content-control-rich-text" data-docx-sdt-id="99" data-docx-sdt-alias="Review Checklist" data-docx-sdt-tag="review_checklist"',
         'data-docx-sdt-xpath="/packet/review/checklist"',
