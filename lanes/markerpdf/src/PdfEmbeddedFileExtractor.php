@@ -270,15 +270,11 @@ final class PdfEmbeddedFileExtractor
             return null;
         }
 
-        $unicodeFilename = $this->dictionaryStringValue($body, 'UF', $objects);
-        $filename = $unicodeFilename
-            ?? $this->firstDictionaryString($body, ['F', 'DOS', 'Unix', 'Mac'], $objects)
-            ?? $name
-            ?? 'embedded-file';
+        [$filename, $filenameSource] = $this->fileSpecFilenameWithSource($body, $objects, $name);
         $attachmentName = ($name !== null && $name !== '') ? $name : $filename;
         $filenameReview = $this->filenamePathReview($filename);
 
-        foreach ($this->embeddedFileKeys($unicodeFilename !== null) as $efKey) {
+        foreach ($this->embeddedFileKeys($filenameSource) as $efKey) {
             $streamValue = $this->dictionaryRawValue($ef['body'], $efKey);
             if ($streamValue === null) {
                 continue;
@@ -304,8 +300,8 @@ final class PdfEmbeddedFileExtractor
                 $file[$key] = $metadataValue;
             }
 
-            if ($unicodeFilename !== null && $unicodeFilename !== '') {
-                $file['unicode_filename'] = $unicodeFilename;
+            if ($filenameSource === 'UF' && $filename !== '') {
+                $file['unicode_filename'] = $filename;
             }
 
             foreach ([
@@ -1178,15 +1174,39 @@ final class PdfEmbeddedFileExtractor
     }
 
     /**
-     * Prefer the Unicode file stream when the FileSpec advertises /UF.
+     * Prefer the embedded stream whose key matches the selected FileSpec
+     * filename entry, then fall back to the historical cross-platform order.
      *
      * @return list<string>
      */
-    private function embeddedFileKeys(bool $hasUnicodeFilename): array
+    private function embeddedFileKeys(string $filenameSource): array
     {
-        return $hasUnicodeFilename
-            ? ['UF', 'F', 'DOS', 'Unix', 'Mac']
-            : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+        $keys = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+        if (in_array($filenameSource, $keys, true)) {
+            return array_values(array_unique([$filenameSource, ...$keys]));
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{0: string, 1: string}
+     */
+    private function fileSpecFilenameWithSource(string $fileSpecBody, array $objects, ?string $name): array
+    {
+        foreach (['UF', 'F', 'DOS', 'Unix', 'Mac'] as $key) {
+            $filename = $this->dictionaryStringValue($fileSpecBody, $key, $objects);
+            if ($filename !== null && $filename !== '') {
+                return [$filename, $key];
+            }
+        }
+
+        if ($name !== null && $name !== '') {
+            return [$name, 'name_tree_key'];
+        }
+
+        return ['embedded-file', 'generated'];
     }
 
     /**
@@ -4139,22 +4159,6 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $inflated === false ? null : $inflated;
-    }
-
-    /**
-     * @param list<string> $keys
-     * @param array<int, string> $objects
-     */
-    private function firstDictionaryString(string $dictionary, array $keys, array $objects): ?string
-    {
-        foreach ($keys as $key) {
-            $value = $this->dictionaryStringValue($dictionary, $key, $objects);
-            if ($value !== null && $value !== '') {
-                return $value;
-            }
-        }
-
-        return null;
     }
 
     /**

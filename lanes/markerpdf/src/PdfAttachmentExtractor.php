@@ -872,16 +872,22 @@ final class PdfAttachmentExtractor
             return null;
         }
 
+        $nameKey = isset($context['name_key']) && is_string($context['name_key']) ? $context['name_key'] : null;
+        [$filename, $filenameSource] = $this->filenameWithSource($fileSpec, $objects, $nameKey, null);
         $streamReference = $this->embeddedFileStreamReference(
             $fileSpec['EF'] ?? null,
             $objects,
-            array_key_exists('UF', $fileSpec)
+            $filenameSource
         );
         if ($streamReference === null || !isset($objects[$streamReference['objectId']])) {
             return null;
         }
 
         $streamObjectId = $streamReference['objectId'];
+        if ($filename === '') {
+            $filename = 'attachment-' . $streamObjectId;
+            $filenameSource = 'generated';
+        }
         $streamObject = $objects[$streamObjectId];
         if ($streamObject['stream'] === null) {
             return null;
@@ -895,8 +901,6 @@ final class PdfAttachmentExtractor
 
         $streamDict = $this->dict($streamObject['value']) ?? [];
         $params = $this->dict($this->resolveValue($streamDict['Params'] ?? null, $objects)) ?? [];
-        $nameKey = isset($context['name_key']) && is_string($context['name_key']) ? $context['name_key'] : null;
-        [$filename, $filenameSource] = $this->filenameWithSource($fileSpec, $objects, $nameKey, $streamObjectId);
         $filenameReview = $this->filenamePathReview($filename);
         $filters = $this->filterNames($streamDict['Filter'] ?? null, $objects);
         $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
@@ -1506,14 +1510,14 @@ final class PdfAttachmentExtractor
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @return array{objectId: int, key: string}|null
      */
-    private function embeddedFileStreamReference(mixed $efValue, array $objects, bool $preferUnicode): ?array
+    private function embeddedFileStreamReference(mixed $efValue, array $objects, string $preferredKey): ?array
     {
         $ef = $this->dict($this->resolveValue($efValue, $objects));
         if ($ef === null) {
             return null;
         }
 
-        $keys = $preferUnicode ? ['UF', 'F', 'DOS', 'Unix', 'Mac'] : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+        $keys = $this->embeddedFileKeyOrder($preferredKey);
         foreach ($keys as $key) {
             $objectId = $this->refObjectId($ef[$key] ?? null);
             if ($objectId !== null && $this->objectForReference($ef[$key] ?? null, $objects) !== null) {
@@ -1532,11 +1536,28 @@ final class PdfAttachmentExtractor
     }
 
     /**
+     * FileSpec /EF dictionaries use the same F/UF/DOS/Unix/Mac keys as the
+     * filename entries. Prefer the embedded stream that corresponds to the
+     * filename source selected for review before falling back for malformed PDFs.
+     *
+     * @return list<string>
+     */
+    private function embeddedFileKeyOrder(string $preferredKey): array
+    {
+        $keys = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+        if (in_array($preferredKey, $keys, true)) {
+            return array_values(array_unique([$preferredKey, ...$keys]));
+        }
+
+        return $keys;
+    }
+
+    /**
      * @param array<string, mixed> $fileSpec
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @return array{0: string, 1: string}
      */
-    private function filenameWithSource(array $fileSpec, array $objects, ?string $nameKey, int $streamObjectId): array
+    private function filenameWithSource(array $fileSpec, array $objects, ?string $nameKey, ?int $streamObjectId): array
     {
         foreach (['UF', 'F', 'DOS', 'Unix', 'Mac'] as $key) {
             $filename = $this->stringValue($this->resolveValue($fileSpec[$key] ?? null, $objects));
@@ -1549,7 +1570,7 @@ final class PdfAttachmentExtractor
             return [$nameKey, 'name_tree_key'];
         }
 
-        return ['attachment-' . $streamObjectId, 'generated'];
+        return [$streamObjectId === null ? '' : 'attachment-' . $streamObjectId, 'generated'];
     }
 
     /**
