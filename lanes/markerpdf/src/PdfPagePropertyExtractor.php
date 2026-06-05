@@ -2205,9 +2205,23 @@ final class PdfPagePropertyExtractor
     {
         $trailer = $this->trailerDictionaryBody($pdfBytes);
         if ($trailer !== null) {
-            $root = $this->objectReferenceValueAfterName($trailer, 'Root');
-            if ($root !== null && isset($objects[$root])) {
-                return $this->dictionaryObjectBody($objects[$root]);
+            $rootValue = $this->dictionaryRawValue($trailer, 'Root');
+            $rootReference = $rootValue === null ? null : $this->objectReferenceFromValue($rootValue);
+            if ($rootReference !== null) {
+                $rootObjectNumber = $rootReference['objectNumber'];
+                if (
+                    isset($objects[$rootObjectNumber])
+                    && ($this->currentObjectGenerations[$rootObjectNumber] ?? null) === $rootReference['generation']
+                    && $this->pdfObjectTypeName($objects[$rootObjectNumber], $objects) === 'Catalog'
+                ) {
+                    return $this->dictionaryObjectBody($objects[$rootObjectNumber]);
+                }
+
+                return null;
+            }
+
+            if ($rootValue !== null) {
+                return null;
             }
         }
 

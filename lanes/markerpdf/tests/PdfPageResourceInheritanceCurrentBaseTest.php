@@ -231,6 +231,17 @@ $pageResourceKidGenerationAllStaleCurrentBasePdf = static function () use ($page
         . "%%EOF";
 };
 
+$pageResourceTrailerRootGenerationMismatchCurrentBasePdf = static function (): string {
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /StaleRootForm 6 0 R >> >>\nendobj\n"
+        . "trailer\n<< /Root 1 1 R >>\n%%EOF";
+};
+
 $pageResourceFormNullCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
     $content = 'q /DirectNullForm Do Q q /IndirectNullForm Do Q q /ExplicitEmptyForm Do Q';
     $directNullForm = 'q /InheritedNestedForm Do Q';
@@ -488,6 +499,12 @@ return [
         $t->same('', $extractor->extractPlainText($pdf));
         $t->same('', $extractor->naiveGetText($pdf));
         $t->same([], (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf));
+    },
+    'blocks page-resource review when trailer Root generation does not resolve to the current catalog' => static function (TestRunner $t) use ($pageResourceTrailerRootGenerationMismatchCurrentBasePdf): void {
+        $pdf = $pageResourceTrailerRootGenerationMismatchCurrentBasePdf();
+
+        $t->same([], (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf));
+        $t->same([], (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf));
     },
     'inherits invoking page resources for direct and indirect null Form XObject Resources while empty dictionaries stay explicit' => static function (TestRunner $t) use ($pageResourceFormNullCurrentBasePdf): void {
         $pdf = $pageResourceFormNullCurrentBasePdf();
