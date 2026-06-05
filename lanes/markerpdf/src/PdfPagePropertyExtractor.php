@@ -2542,6 +2542,7 @@ final class PdfPagePropertyExtractor
         if ($table !== null) {
             $entries = $table['entries'];
             $previousOffset = $this->dictionaryIntegerValue($table['trailer'], 'Prev');
+            $entries = $this->repairCurrentUpdateXrefRows($entries, $definitions, $previousOffset, $offset);
             if ($previousOffset !== null) {
                 foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                     $entries[$objectNumber] ??= $entry;
@@ -2558,6 +2559,7 @@ final class PdfPagePropertyExtractor
 
         $entries = $this->xrefStreamEntriesFromSection($stream);
         $previousOffset = $this->dictionaryIntegerValue($stream['dictionary'], 'Prev');
+        $entries = $this->repairCurrentUpdateXrefRows($entries, $definitions, $previousOffset, $offset);
         if ($previousOffset !== null) {
             foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry;
@@ -2565,6 +2567,154 @@ final class PdfPagePropertyExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Some producer incremental updates append current same-generation objects
+     * but leave zero or stale offsets in the latest xref rows. Repair only rows
+     * that the latest section explicitly owns, before inheriting /Prev rows.
+     *
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int}>
+     */
+    private function repairCurrentUpdateXrefRows(
+        array $entries,
+        array $definitions,
+        ?int $previousOffset,
+        int $xrefOffset
+    ): array {
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $entries;
+        }
+
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            $offset = $entry['offset'] ?? null;
+            $offsetOwner = is_int($offset) ? $this->directObjectDefinitionAtOffset($definitions, $offset) : null;
+            $updateOwner = $this->currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+                (int) $objectNumber,
+                (int) ($entry['generation'] ?? 0),
+                $offsetOwner,
+                $previousOffset,
+                $xrefOffset,
+                $definitions
+            );
+
+            if ($offsetOwner !== null && $updateOwner === null) {
+                continue;
+            }
+
+            if ($updateOwner === null) {
+                continue;
+            }
+
+            $entries[$objectNumber]['offset'] = $updateOwner['offset'];
+            $entries[$objectNumber]['generation'] = $updateOwner['generation'];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionAtOffset(array $definitions, int $offset): ?array
+    {
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if ($definition['offset'] !== $offset) {
+                    continue;
+                }
+
+                return [
+                    'objectNumber' => (int) $objectNumber,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'body' => $definition['body'],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int, offset: int, body: string}|null $offsetOwner
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+        int $objectNumber,
+        int $generation,
+        ?array $offsetOwner,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if (
+            $offsetOwner !== null
+            && $offsetOwner['offset'] > $previousOffset
+            && $offsetOwner['offset'] < $xrefOffset
+        ) {
+            if (
+                $offsetOwner['objectNumber'] === $objectNumber
+                && $offsetOwner['generation'] === $generation
+            ) {
+                return null;
+            }
+
+            return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                $objectNumber,
+                $generation,
+                $previousOffset,
+                $xrefOffset,
+                $definitions
+            );
+        }
+
+        return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+            $objectNumber,
+            $generation,
+            $previousOffset,
+            $xrefOffset,
+            $definitions
+        );
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForXrefRow(
+        int $objectNumber,
+        int $generation,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if ($objectNumber <= 0 || $previousOffset < 0 || $xrefOffset <= $previousOffset) {
+            return null;
+        }
+
+        $candidates = [];
+        foreach ($definitions[$objectNumber] ?? [] as $definition) {
+            if (
+                $definition['generation'] !== $generation
+                || $definition['offset'] <= $previousOffset
+                || $definition['offset'] >= $xrefOffset
+            ) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**
