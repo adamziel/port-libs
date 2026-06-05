@@ -7563,18 +7563,59 @@ final class PdfImageRenderer
         int $firstFilterIndex
     ): bool {
         $firstFilter = $filters[$firstFilterIndex] ?? null;
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $firstFilterIndex);
+        $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
+        if ($firstFilter === 'ASCII85Decode' || $firstFilter === 'A85') {
+            if (
+                $this->imageDecodeParmsValueIsMalformed($decodeParmsValue, $objects)
+                || !$this->canApplyImageDecodeParms($firstFilter, $resolvedDecodeParms, $objects)
+            ) {
+                return false;
+            }
+
+            return $this->dctPrefixAscii85MemberCompletesAtTerminator($payload);
+        }
+
         if ($firstFilter !== 'LZWDecode' && $firstFilter !== 'LZW') {
             return false;
         }
 
-        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
-        $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $firstFilterIndex);
-        $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
         if (!$this->canApplyImageDecodeParms($firstFilter, $resolvedDecodeParms, $objects)) {
             return false;
         }
 
         return $this->dctPrefixLzwMemberCompletesAtTerminator($payload, $resolvedDecodeParms, $objects);
+    }
+
+    private function dctPrefixAscii85MemberCompletesAtTerminator(string $payload): bool
+    {
+        $candidateStarts = [0];
+        $offset = 0;
+        while (($candidateStart = strpos($payload, '<~', $offset)) !== false) {
+            $candidateStarts[] = $candidateStart;
+            $offset = $candidateStart + 2;
+        }
+
+        foreach (array_values(array_unique($candidateStarts)) as $candidateStart) {
+            $tail = substr($payload, $candidateStart);
+            $eodOffset = strpos($tail, '~>');
+            if ($eodOffset === false) {
+                continue;
+            }
+
+            $endOffset = $eodOffset + 2;
+            if (!$this->streamHasOnlyWhitespaceAfterOffset($tail, $endOffset)) {
+                continue;
+            }
+
+            $decoded = $this->decodeAscii85Stream(substr($tail, 0, $endOffset));
+            if ($decoded !== null && $this->dctPreviewBytesAreCompleteJpeg($decoded)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
