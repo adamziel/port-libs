@@ -26,6 +26,25 @@ $outlineZeroCountChildBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$outlineLightweightZeroCountChildBoundaryPdf = static function (): string {
+    $chapterContent = 'BT /F1 12 Tf 72 720 Td (Lightweight zero count chapter body) Tj ET';
+    $appendixContent = 'BT /F1 12 Tf 72 720 Td (Lightweight zero count appendix body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 30 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 31 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Outlines /First 6 0 R /Last 7 0 R /Count 2 >>\nendobj\n"
+        . "6 0 obj\n<< /Title (Lightweight Zero Count Chapter) /Parent 5 0 R /Dest [3 0 R /FitH 720] /Next 7 0 R /First 8 0 R /Last 8 0 R /Count 0 >>\nendobj\n"
+        . "7 0 obj\n<< /Title (Lightweight Zero Count Appendix) /Parent 5 0 R /Prev 6 0 R /Dest [4 0 R /Fit] >>\nendobj\n"
+        . "8 0 obj\n<< /Title (Lightweight Zero Count Hidden Child) /Parent 6 0 R /Dest [4 0 R /FitR 1 2 3 4] /A 12 0 R >>\nendobj\n"
+        . "12 0 obj\n<< /S /GoToR /F (lightweight-zero-count-hidden-child.pdf) /D (hidden-child-target) >>\nendobj\n"
+        . "30 0 obj\n<< /Length " . strlen($chapterContent) . " >>\nstream\n{$chapterContent}\nendstream\nendobj\n"
+        . "31 0 obj\n<< /Length " . strlen($appendixContent) . " >>\nstream\n{$appendixContent}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'does not traverse outline children when item Count declares zero descendants in document metadata' => static function (
         TestRunner $t
@@ -92,5 +111,33 @@ return [
         $t->true(!str_contains($plainText, 'Zero Count Boundary Chapter'));
         $t->true(!str_contains($plainText, 'Zero Count Boundary Appendix'));
         $t->true(!str_contains($plainText, 'Zero Count Hidden Child'));
+    },
+    'applies zero Count child boundary to lightweight upstream pdf_toc metadata' => static function (
+        TestRunner $t
+    ) use ($outlineLightweightZeroCountChildBoundaryPdf): void {
+        $pdf = $outlineLightweightZeroCountChildBoundaryPdf();
+        $textExtractor = new PdfTextExtractor();
+        $metadata = $textExtractor->extractOutlineMetadata($pdf);
+        $plainText = $textExtractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+
+        $t->same(2, $metadata['pages']);
+        $t->same([
+            [
+                'title' => 'Lightweight Zero Count Chapter',
+                'level' => 1,
+                'page' => 0,
+            ],
+            [
+                'title' => 'Lightweight Zero Count Appendix',
+                'level' => 1,
+                'page' => 1,
+            ],
+        ], $metadata['pdf_toc']);
+        $t->same("Lightweight zero count chapter body\nLightweight zero count appendix body", $plainText);
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Lightweight Zero Count Hidden Child'));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'lightweight-zero-count-hidden-child.pdf'));
+        $t->true(!str_contains($plainText, 'Lightweight Zero Count Chapter'));
+        $t->true(!str_contains($plainText, 'Lightweight Zero Count Hidden Child'));
     },
 ];

@@ -1729,7 +1729,10 @@ final class PdfTextExtractor
             }
 
             $firstChildObject = $this->topLevelObjectReferenceValueAfterName($body, 'First');
-            if ($firstChildObject !== null) {
+            if (
+                $firstChildObject !== null
+                && $this->lightweightOutlineItemAllowsChildTraversal($body, $objects)
+            ) {
                 foreach ($this->outlineItemsFromLinkedList(
                     $firstChildObject,
                     $level + 1,
@@ -1813,6 +1816,18 @@ final class PdfTextExtractor
         }
 
         return $previous === $previousSiblingObject;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function lightweightOutlineItemAllowsChildTraversal(string $body, array $objects): bool
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        $countValue = $this->topLevelPdfValueAfterName($dictionary, 'Count');
+        $count = $countValue === null ? null : $this->streamLengthValueAt($countValue, 0, $objects);
+
+        return $count !== 0;
     }
 
     /**
