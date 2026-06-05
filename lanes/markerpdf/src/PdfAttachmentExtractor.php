@@ -3944,7 +3944,12 @@ final class PdfAttachmentExtractor
                             $objectNumber = $rowObjectNumber;
                             $fieldTwo = $updateOwner['offset'];
                             $generation = $updateOwner['generation'];
-                        } elseif ($offsetOwner !== null) {
+                        } elseif (
+                            $offsetOwner !== null
+                            && $previousOffset >= 0
+                            && $offsetOwner['offset'] > $previousOffset
+                            && $offsetOwner['offset'] < $xrefOffset
+                        ) {
                             $objectNumber = $offsetOwner['objectNumber'];
                             $generation = $offsetOwner['generation'];
                         }

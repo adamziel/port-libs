@@ -9268,7 +9268,7 @@ final class PdfMetadataExtractor
                 foreach ($previousEntries as $objectNumber => $entry) {
                     if (
                         !isset($entries[$objectNumber])
-                        && $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions)
+                        && $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)
                     ) {
                         continue;
                     }
@@ -9293,7 +9293,7 @@ final class PdfMetadataExtractor
             foreach ($previousEntries as $objectNumber => $entry) {
                 if (
                     !isset($entries[$objectNumber])
-                    && $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions)
+                    && $this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)
                 ) {
                     continue;
                 }
@@ -9406,7 +9406,9 @@ final class PdfMetadataExtractor
         array $entry,
         array $currentEntries,
         array $previousEntries,
-        array $definitions
+        array $definitions,
+        int $previousXrefOffset,
+        int $currentXrefOffset
     ): bool
     {
         if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
@@ -9421,7 +9423,16 @@ final class PdfMetadataExtractor
 
         $currentObjectStreamEntry = $currentEntries[$objectStreamNumber] ?? null;
         if ($currentObjectStreamEntry === null) {
-            return false;
+            $previousDefinition = $this->xrefEntrySelectedDirectDefinition($objectStreamNumber, $previousObjectStreamEntry, $definitions);
+            if ($previousDefinition === null) {
+                return true;
+            }
+
+            return $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definitions[$objectStreamNumber] ?? [],
+                max($previousXrefOffset, $previousDefinition['offset']),
+                $currentXrefOffset
+            ) !== null;
         }
 
         if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
@@ -9953,7 +9964,13 @@ final class PdfMetadataExtractor
                         $objectNumber = $rowObjectNumber;
                         $fieldTwo = $updateOwner['offset'];
                         $generation = $updateOwner['generation'];
-                    } elseif ($offsetOwner !== null) {
+                    } elseif (
+                        $offsetOwner !== null
+                        && $previousOffset !== null
+                        && $previousOffset >= 0
+                        && $offsetOwner['offset'] > $previousOffset
+                        && $offsetOwner['offset'] < $xrefOffset
+                    ) {
                         $objectNumber = $offsetOwner['objectNumber'];
                         $generation = $offsetOwner['generation'];
                     }

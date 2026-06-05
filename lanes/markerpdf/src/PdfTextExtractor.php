@@ -19561,7 +19561,7 @@ final class PdfTextExtractor
                         continue;
                     }
 
-                    if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions)) {
+                    if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)) {
                         continue;
                     }
 
@@ -19607,7 +19607,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions)) {
+                if ($this->previousCompressedEntryUsesUpdatedObjectStream($entry, $entries, $previousEntries, $definitions, $previousOffset, $offset)) {
                     continue;
                 }
 
@@ -19950,7 +19950,9 @@ final class PdfTextExtractor
         array $entry,
         array $currentEntries,
         array $previousEntries,
-        array $definitions
+        array $definitions,
+        int $previousXrefOffset,
+        int $currentXrefOffset
     ): bool
     {
         if (($entry['type'] ?? null) !== 2 || !isset($entry['objectStream'])) {
@@ -19968,7 +19970,16 @@ final class PdfTextExtractor
         }
 
         if (!isset($currentEntries[$objectStreamNumber])) {
-            return false;
+            $previousDefinition = $this->xrefEntrySelectedDirectDefinition((int) $objectStreamNumber, $previousObjectStreamEntry, $definitions);
+            if ($previousDefinition === null) {
+                return true;
+            }
+
+            return $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definitions[(int) $objectStreamNumber] ?? [],
+                max($previousXrefOffset, $previousDefinition['offset']),
+                $currentXrefOffset
+            ) !== null;
         }
 
         if ($this->currentCarrierEntryCanRecoverPreviousObjectStreamStorage(
@@ -21921,7 +21932,13 @@ final class PdfTextExtractor
                         $objectNumber = $rowObjectNumber;
                         $fieldTwo = $updateOwner['offset'];
                         $generation = $updateOwner['generation'];
-                    } elseif ($offsetOwner !== null) {
+                    } elseif (
+                        $offsetOwner !== null
+                        && $previousOffset !== null
+                        && $previousOffset >= 0
+                        && $offsetOwner['offset'] > $previousOffset
+                        && $offsetOwner['offset'] < $xrefOffset
+                    ) {
                         $objectNumber = $offsetOwner['objectNumber'];
                         $generation = $offsetOwner['generation'];
                     }

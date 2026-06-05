@@ -1505,6 +1505,86 @@ $xrefPrevChainLatestFreeRowsSuppressPrevPdf = static function () use ($xrefPrevC
     return $pdf;
 };
 
+$xrefPrevChainLatestMalformedRowsSuppressPrevPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale wrong-owner row Prev page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current wrong-owner row page) Tj T* (Malformed rows suppress Prev) Tj ET';
+    $stalePayload = '<wp-export><post id="stale-wrong-owner-row"/></wp-export>';
+    $staleXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Stale Wrong Owner Row XMP Title',
+        'Previous metadata must be suppressed by malformed current rows'
+    ));
+    if (!is_string($staleXmp)) {
+        throw new RuntimeException('Unable to compress wrong-owner-row xref Prev chain fixture stream.');
+    }
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $staleContentOffset = $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $staleInfoOffset = $addObject(6, 0, '<< /Title (Stale Wrong Owner Row Info Title) /Author (Stale Wrong Owner Row Author) /Producer (Stale Wrong Owner Row Producer) >>');
+    $staleMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+    $staleNameTreeOffset = $addObject(8, 0, '<< /Names [(stale-wrong-owner-row.xml) 10 0 R] >>');
+    $staleFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (stale-wrong-owner-row.xml) /Desc (Stale wrong-owner row attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $staleEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($staleInfoOffset)
+        . $xrefTableRow($staleMetadataOffset)
+        . $xrefTableRow($staleNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+
+    $currentRows = ''
+        . $xrefStreamRow(1, $currentCatalogOffset, 0)
+        . $xrefStreamRow(1, $currentPagesOffset, 0)
+        . $xrefStreamRow(1, $currentPageOffset, 0)
+        . $xrefStreamRow(1, $currentContentOffset, 0)
+        . $xrefStreamRow(1, $staleContentOffset, 0)
+        . $xrefStreamRow(1, $staleContentOffset, 0)
+        . $xrefStreamRow(1, $staleContentOffset, 0)
+        . $xrefStreamRow(1, $staleContentOffset, 0)
+        . $xrefStreamRow(1, $staleContentOffset, 0);
+    $compressedRows = gzcompress($currentRows);
+    if (!is_string($compressedRows)) {
+        throw new RuntimeException('Unable to compress wrong-owner-row current xref-stream fixture.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 0 R /Info 6 0 R /Prev ' . $previousXrefOffset . ' /Index [1 4 6 3 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
+        . "stream\n{$compressedRows}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainLatestRootFreeSuppressPrevPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale inherited root free row page) Tj ET';
     $stalePayload = '<wp-export><post id="stale-root-free-prev"/></wp-export>';
@@ -2293,6 +2373,41 @@ return [
         $t->true(!isset($metadata['producer']));
         $t->true(!isset($metadata['embedded_files']));
         $t->true(!str_contains($text, 'Stale latest free row Prev page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'suppresses previous metadata and attachments when latest xref-stream rows point at stale wrong owners' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainLatestMalformedRowsSuppressPrevPdf): void {
+        $pdf = $xrefPrevChainLatestMalformedRowsSuppressPrevPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current wrong-owner row page', 'Malformed rows suppress Prev'], $extractor->extractTextLines($pdf));
+        $t->same("Current wrong-owner row page\nMalformed rows suppress Prev", $text);
+        $t->same(['catalog'], $metadata['source']);
+        $t->same([], $metadata['info']);
+        $t->same('en-US', $metadata['language']);
+        $t->same([], $files);
+        $t->same([], $attachmentSummary['attachments']);
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(str_contains($pdf, '/Index [1 4 6 3 10 2]'));
+        $t->true(str_contains($pdf, '/Info 6 0 R'));
+        $t->true(str_contains($pdf, '/Metadata 7 0 R'));
+        $t->true(str_contains($pdf, '/EmbeddedFiles 8 0 R'));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Wrong Owner Row'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-wrong-owner-row'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-wrong-owner-row'));
+        $t->true(!isset($metadata['title']));
+        $t->true(!isset($metadata['authors']));
+        $t->true(!isset($metadata['producer']));
+        $t->true(!isset($metadata['embedded_files']));
+        $t->true(!str_contains($text, 'Stale wrong-owner row Prev page'));
         $t->true(!str_contains($text, "\0"));
     },
     'blocks previous trailer root fallback when latest xref-stream frees inherited catalog' => static function (
