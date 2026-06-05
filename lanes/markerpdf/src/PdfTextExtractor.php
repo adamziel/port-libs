@@ -28342,8 +28342,15 @@ final class PdfTextExtractor
             return count($operands) === 1 && $this->markedContentTagOperand($operands[0]);
         }
 
-        if (!in_array($operator, ['SC', 'sc', 'SCN', 'scn'], true) || $operands === [] || count($operands) > 8) {
+        if (!in_array($operator, ['SC', 'sc', 'SCN', 'scn'], true) || $operands === [] || count($operands) > 9) {
             return false;
+        }
+
+        if (in_array($operator, ['SCN', 'scn'], true) && $this->markedContentTagOperand($operands[count($operands) - 1])) {
+            array_pop($operands);
+            if ($operands === []) {
+                return true;
+            }
         }
 
         foreach ($operands as $operand) {
