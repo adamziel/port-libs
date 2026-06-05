@@ -639,6 +639,57 @@ $buildOverlappingLocalEntryBackedPackage = static function () use ($crc32): stri
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
 };
+$buildDuplicateLocalOffsetBackedPackage = static function () use ($crc32): string {
+    $firstName = 'word/media/review-one.png';
+    $secondName = 'word/media/review-two.png';
+    $data = "Duplicate local header offsets should stay blocked\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($firstName),
+        0
+    );
+    $body .= $firstName . $data;
+
+    $central = '';
+    foreach ([$firstName, $secondName] as $name) {
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0x81a40000,
+            0
+        );
+        $central .= $name;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
+};
 $buildEncryptedMetadataBackedPackage = static function (int $flags) use ($crc32): string {
     $name = 'word/media/encrypted-review.xml';
     $data = "Encrypted metadata should stay blocked\n";
@@ -895,6 +946,12 @@ try {
     ZipPackage::fromString($buildOverlappingLocalEntryBackedPackage());
 } catch (RuntimeException $exception) {
     $localEntryOverlapRejected = str_contains($exception->getMessage(), 'overlaps the next local header');
+}
+$duplicateLocalOffsetRejected = false;
+try {
+    ZipPackage::fromString($buildDuplicateLocalOffsetBackedPackage());
+} catch (RuntimeException $exception) {
+    $duplicateLocalOffsetRejected = str_contains($exception->getMessage(), 'Duplicate ZIP local header offset');
 }
 $strongEncryptionRejected = false;
 try {
@@ -1215,6 +1272,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP local entry overlap to be rejected before media import');
     }
 
+    if (!$duplicateLocalOffsetRejected) {
+        throw new RuntimeException('Expected duplicate ZIP local header offsets to be rejected before media import');
+    }
+
     if (!$strongEncryptionRejected) {
         throw new RuntimeException('Expected ZIP strong-encryption metadata to be rejected before media import');
     }
@@ -1295,6 +1356,7 @@ echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-reject
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";

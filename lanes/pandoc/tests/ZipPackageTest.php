@@ -162,6 +162,62 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         . $comment;
 };
 
+$buildDuplicateLocalOffsetPackage = static function () use ($crc32, $buildUnicodeExtra): string {
+    $rawName = 'word/media/review-image.bin';
+    $data = "shared local entry should not be exposed twice\n";
+    $crc = $crc32($data);
+    $firstUnicodePath = $buildUnicodeExtra(0x7075, $rawName, 'word/media/review-one.png');
+    $secondUnicodePath = $buildUnicodeExtra(0x7075, $rawName, 'word/media/review-two.png');
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($rawName),
+        strlen($firstUnicodePath)
+    );
+    $body .= $rawName . $firstUnicodePath . $data;
+
+    $central = '';
+    foreach ([
+        ['name' => $rawName, 'extra' => $firstUnicodePath],
+        ['name' => $rawName, 'extra' => $secondUnicodePath],
+    ] as $entry) {
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($entry['name']),
+            strlen($entry['extra']),
+            0,
+            0,
+            0,
+            0x81a40000,
+            0
+        );
+        $central .= $entry['name'] . $entry['extra'];
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
+};
+
 return [
     'reads current zip package central directory and stored deflated parts' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $zip = $buildZipPackage([
@@ -480,6 +536,10 @@ return [
         ], $package->names());
         $t->same('<w:document><w:p>ordinary layout</w:p></w:document>', $package->read('/word/document.xml'));
         $t->same('<w:comments/>', $package->read('/word/comments.xml'));
+    },
+
+    'rejects duplicate zip local header offsets before package import preflight' => static function (TestRunner $t) use ($buildDuplicateLocalOffsetPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildDuplicateLocalOffsetPackage()));
     },
 
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {

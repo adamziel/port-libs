@@ -76,6 +76,7 @@ final class ZipPackage
 
         $entries = [];
         $entriesByName = [];
+        $localHeaderOffsets = [];
         $cursor = $centralDirectoryOffset;
         for ($index = 0; $index < $entryCount; $index++) {
             if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
@@ -110,6 +111,11 @@ final class ZipPackage
             if ($compressedSize === 0xffffffff || $uncompressedSize === 0xffffffff || $localHeaderOffset === 0xffffffff) {
                 throw new \RuntimeException('ZIP64 entry sizes or offsets are not supported by this bounded package reader');
             }
+
+            if (isset($localHeaderOffsets[$localHeaderOffset])) {
+                throw new \RuntimeException("Duplicate ZIP local header offset {$localHeaderOffset} at central directory entry {$index}");
+            }
+            $localHeaderOffsets[$localHeaderOffset] = true;
 
             $rawName = substr($bytes, $variableStart, $nameLength);
             $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
