@@ -10818,6 +10818,10 @@ final class PdfTextExtractor
             }
 
             if ($this->isOperator($token)) {
+                if (!$this->type3CharProcAllowsPreMetricSetupOperator($token)) {
+                    return null;
+                }
+
                 $operands = [];
                 continue;
             }
@@ -10826,6 +10830,35 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function type3CharProcAllowsPreMetricSetupOperator(string $token): bool
+    {
+        return in_array($token, [
+            'q',
+            'Q',
+            'cm',
+            'w',
+            'J',
+            'j',
+            'M',
+            'd',
+            'ri',
+            'i',
+            'gs',
+            'CS',
+            'cs',
+            'SC',
+            'SCN',
+            'sc',
+            'scn',
+            'G',
+            'g',
+            'RG',
+            'rg',
+            'K',
+            'k',
+        ], true);
     }
 
     /**
