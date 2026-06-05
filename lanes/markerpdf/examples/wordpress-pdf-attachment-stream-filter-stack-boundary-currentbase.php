@@ -34,16 +34,22 @@ $ascii85Encode = static function (string $bytes): string {
     return $encoded . '~>';
 };
 
-$payload = "Title,Status\nStacked Attachment,Ready\n";
+$payload = "Title,Status\nIdentity Crypt Stacked Attachment,Ready\n";
 $encodedPayload = $ascii85Encode(gzcompress($payload));
 $checksum = md5($payload);
+$privatePayload = "Title,Status\nPrivate Crypt Stacked Attachment,Blocked\n";
+$privateEncodedPayload = $ascii85Encode(gzcompress($privatePayload));
+$privateChecksum = md5($privatePayload);
 
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>\nendobj\n"
-    . "2 0 obj\n<< /Names [(stacked.csv) 4 0 R] >>\nendobj\n"
-    . "4 0 obj\n<< /Type /Filespec /F (stacked.csv) /Desc (Stacked filter attachment) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
-    . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ null /ASCII85Decode /FlateDecode ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($encodedPayload) . " >>\n"
+    . "2 0 obj\n<< /Names [(stacked.csv) 4 0 R (private-stack.csv) 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Type /Filespec /F (stacked.csv) /Desc (Identity Crypt stacked filter attachment) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+    . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /Crypt /ASCII85Decode /FlateDecode ] /DecodeParms [ << /Name /Identity >> null null ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($encodedPayload) . " >>\n"
     . "stream\n{$encodedPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Filespec /F (private-stack.csv) /Desc (Private Crypt stacked filter attachment) /AFRelationship /Data /EF << /F 7 0 R >> >>\nendobj\n"
+    . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /Crypt /ASCII85Decode /FlateDecode ] /DecodeParms [ << /Name /PrivateCF >> null null ] /Params << /Size " . strlen($privatePayload) . " /CheckSum <{$privateChecksum}> >> /Length " . strlen($privateEncodedPayload) . " >>\n"
+    . "stream\n{$privateEncodedPayload}\nendstream\nendobj\n"
     . "%%EOF\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
@@ -59,10 +65,15 @@ $metadata = [
     'total_bytes' => $summary['total_bytes'] ?? null,
     'filename' => $attachment['filename'] ?? null,
     'filters' => $attachment['filters'] ?? [],
+    'identity_crypt_stage_applied' => in_array('Crypt', $attachment['filters'] ?? [], true)
+        && ($attachment['checksum_matches'] ?? false) === true,
+    'private_crypt_payload_suppressed' => !str_contains($summaryJson, 'private-stack.csv')
+        && !str_contains($summaryJson, 'Private Crypt Stacked Attachment'),
     'declared_size_matches' => $attachment['declared_size_matches'] ?? false,
     'checksum_matches' => $attachment['checksum_matches'] ?? false,
     'payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $attachment),
-    'payload_content_exposed' => str_contains($summaryJson, 'Stacked Attachment,Ready'),
+    'payload_content_exposed' => str_contains($summaryJson, 'Identity Crypt Stacked Attachment')
+        || str_contains($summaryJson, 'Private Crypt Stacked Attachment'),
     'executes_python_or_models' => $summary['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $summary['executes_external_pdf_tools'] ?? null,
 ];

@@ -2304,6 +2304,7 @@ final class PdfAttachmentExtractor
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($bytes),
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($bytes),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($bytes),
+                'Crypt' => $this->decodeCryptIdentityStream($bytes, $filterDecodeParms, $objects),
                 default => null,
             };
 
@@ -2515,6 +2516,10 @@ final class PdfAttachmentExtractor
     {
         if ($this->decodeParmsValueIsDefault($value, $objects)) {
             return true;
+        }
+
+        if ($filter === 'Crypt') {
+            return $this->decodeCryptIdentityStream('', $value, $objects) !== null;
         }
 
         if (!in_array($filter, ['FlateDecode', 'Fl'], true)) {
@@ -2777,6 +2782,35 @@ final class PdfAttachmentExtractor
 
         $decoded = hex2bin($hex);
         return $decoded === false ? null : $decoded;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function decodeCryptIdentityStream(string $bytes, mixed $decodeParms, array $objects): ?string
+    {
+        $resolved = $this->resolveValue($decodeParms, $objects);
+        if ($resolved === null) {
+            return $bytes;
+        }
+
+        $dict = $this->dict($resolved);
+        if ($dict === null) {
+            return null;
+        }
+
+        $name = $this->nameValue($this->resolveValue($dict['Name'] ?? null, $objects));
+        if ($name !== null) {
+            return $name === 'Identity' ? $bytes : null;
+        }
+
+        foreach (array_keys($dict) as $key) {
+            if ($key !== 'Type') {
+                return null;
+            }
+        }
+
+        return $bytes;
     }
 
     private function decodeAscii85Stream(string $bytes): ?string

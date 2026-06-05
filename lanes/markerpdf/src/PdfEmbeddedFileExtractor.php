@@ -4581,6 +4581,7 @@ final class PdfEmbeddedFileExtractor
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms, $objects),
                 default => null,
             };
             if ($decoded === null) {
@@ -4909,6 +4910,10 @@ final class PdfEmbeddedFileExtractor
             return true;
         }
 
+        if ($filter === 'Crypt') {
+            return $this->decodeCryptIdentityStream('', $decodeParms, $objects) !== null;
+        }
+
         if (!$this->decodeParmsHaveSupportedKeys($decodeParms)) {
             return false;
         }
@@ -5057,6 +5062,30 @@ final class PdfEmbeddedFileExtractor
 
         $decoded = hex2bin($hex);
         return $decoded === false ? null : $decoded;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeCryptIdentityStream(string $stream, ?string $decodeParms, array $objects): ?string
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return $stream;
+        }
+
+        $entries = $this->dictionaryEntries($decodeParms);
+        $name = $this->dictionaryNameValue($decodeParms, 'Name', $objects);
+        if ($name !== null) {
+            return $name === 'Identity' ? $stream : null;
+        }
+
+        foreach (array_keys($entries) as $key) {
+            if ($key !== 'Type') {
+                return null;
+            }
+        }
+
+        return $stream;
     }
 
     private function decodeAscii85Stream(string $stream): ?string
