@@ -5942,6 +5942,22 @@ final class PdfTextExtractor
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+        $hasDctPreviewFilter = in_array('DCTDecode', $resolvedFilters, true)
+            || in_array('DCT', $resolvedFilters, true);
+        $filterDetails = [];
+        $reviewStream = $stream['stream'];
+        if ($filters !== null && $hasDctPreviewFilter) {
+            $decodeParmsPresent = $this->topLevelNameValueOffset($stream['dict'], 'DecodeParms') !== null;
+            $decodeParms = $this->streamDecodeParmsForFilters($stream['dict'], $objects, $filters);
+            $filterDetails = $this->imageXObjectFilterDetails(
+                $filters,
+                $decodeParms,
+                $objects,
+                $decodeParmsPresent,
+                $stream['dict']
+            );
+            $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
+        }
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
             'BitsPerComponent',
@@ -5979,9 +5995,10 @@ final class PdfTextExtractor
             'image_mask' => $imageMask,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...($filterDetails === [] ? [] : ['filter_details' => $filterDetails]),
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
-            'raw_length' => strlen($stream['stream']),
+            'raw_length' => strlen($reviewStream),
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
