@@ -220,6 +220,7 @@ plain-key-items:
   - review label: Compact reviewer label
   - source url: https://example.test/exports/packet#plain-key
 flow-plain-key-review: {source owner: Flow Desk, source label: Flow metadata}
+flow-colon-key-review: {source:key: metadata value, dc:title: Source metadata title, source:uri: https://example.test/exports/packet#flow-colon-key}
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -588,6 +589,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-plain-key-review']['source owner'] ?? '') !== 'Flow Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow plain spaced key metadata');
     }
+    if (($meta['flow-colon-key-review']['source:key'] ?? '') !== 'metadata value') {
+        throw new RuntimeException('YAML metadata self-test missing flow plain colon key metadata');
+    }
+    if (($meta['flow-colon-key-review']['dc:title'] ?? '') !== 'Source metadata title') {
+        throw new RuntimeException('YAML metadata self-test missing flow dc title colon key metadata');
+    }
+    if (($meta['flow-colon-key-review']['source:uri'] ?? '') !== 'https://example.test/exports/packet#flow-colon-key') {
+        throw new RuntimeException('YAML metadata self-test missing flow source URI colon key metadata');
+    }
+    if (array_key_exists('source', $meta['flow-colon-key-review'] ?? []) || array_key_exists('dc', $meta['flow-colon-key-review'] ?? [])) {
+        throw new RuntimeException('YAML metadata self-test split a flow plain colon key too early');
+    }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
@@ -655,6 +668,7 @@ echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri
 echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') . ' / ' . ($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
+echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";

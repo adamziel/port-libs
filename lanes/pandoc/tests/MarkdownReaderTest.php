@@ -1019,6 +1019,43 @@ return [
         $t->same('plain-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="plain-key-yaml-body">Plain key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml plain colon keys inside flow metadata maps' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Flow colon key **Packet**',
+            'flow-colon-review: {source:key: metadata value, dc:title: Source Title, urn:source:id: packet-7, status: approved, source:uri: https://example.test/import#colon-key}',
+            'flow-json-review: {"source:key":"json-compatible", "status":"queued"}',
+            'references:',
+            '  - id: flow-colon-key-ref',
+            '    metadata: {source:key: reference metadata, dc:identifier: ref-7, source:uri: https://example.test/ref#colon-key}',
+            '...',
+            '',
+            '# Flow colon key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow colon key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('metadata value', $meta['flow-colon-review']['source:key']);
+        $t->same('Source Title', $meta['flow-colon-review']['dc:title']);
+        $t->same('packet-7', $meta['flow-colon-review']['urn:source:id']);
+        $t->same('approved', $meta['flow-colon-review']['status']);
+        $t->same('https://example.test/import#colon-key', $meta['flow-colon-review']['source:uri']);
+        $t->same(false, array_key_exists('source', $meta['flow-colon-review']));
+        $t->same(false, array_key_exists('dc', $meta['flow-colon-review']));
+        $t->same('json-compatible', $meta['flow-json-review']['source:key']);
+        $t->same('queued', $meta['flow-json-review']['status']);
+        $t->same('flow-colon-key-ref', $meta['references'][0]['id']);
+        $t->same('reference metadata', $meta['references'][0]['metadata']['source:key']);
+        $t->same('ref-7', $meta['references'][0]['metadata']['dc:identifier']);
+        $t->same('https://example.test/ref#colon-key', $meta['references'][0]['metadata']['source:uri']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-colon-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-colon-key-yaml-body">Flow colon key YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml multiline flow collections in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

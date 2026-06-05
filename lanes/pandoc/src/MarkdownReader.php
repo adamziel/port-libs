@@ -1899,11 +1899,26 @@ final class MarkdownReader
                     return null;
                 }
 
-                return [$key, trim(substr($item, $offset + 1))];
+                $afterColon = substr($item, $offset + 1);
+                if ($afterColon !== '' && preg_match('/^[ \t]/', $afterColon) !== 1 && !$this->isYamlQuotedFlowKey($key)) {
+                    continue;
+                }
+
+                return [$key, trim($afterColon)];
             }
         }
 
         return null;
+    }
+
+    private function isYamlQuotedFlowKey(string $key): bool
+    {
+        $key = trim($key);
+        if (preg_match('/^\?[ \t]+(.+)$/s', $key, $m) === 1) {
+            $key = trim($m[1]);
+        }
+
+        return $key !== '' && ($key[0] === '"' || $key[0] === "'");
     }
 
     private function normalizeYamlFlowKeyOnlyItem(string $item): string
