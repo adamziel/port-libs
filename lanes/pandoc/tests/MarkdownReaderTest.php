@@ -2430,6 +2430,46 @@ return [
         $t->same('sequence-explicit-item-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="sequence-explicit-item-yaml-body">Sequence explicit item YAML body</h1>', $blocks);
     },
+    'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Ambiguous field **Packet**',
+            'yes: boolean-looking source field',
+            'True: uppercase boolean-looking source field',
+            '15: numeric-looking source field',
+            '0x2A: hexadecimal-looking source field',
+            'review:',
+            '  true: nested reviewer boolean key is preserved',
+            '  15: nested reviewer numeric key is preserved',
+            '  status: queued',
+            'references:',
+            '  - id: ambiguous-field-ref',
+            '    title: Source metadata',
+            '...',
+            '',
+            '# Ambiguous YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Ambiguous field **Packet**', $meta['title']);
+        $t->same(false, array_key_exists('yes', $meta));
+        $t->same(false, array_key_exists('True', $meta));
+        $t->same(false, array_key_exists('15', $meta));
+        $t->same(false, array_key_exists('0x2A', $meta));
+        $t->same('nested reviewer boolean key is preserved', $meta['review']['true']);
+        $t->same('nested reviewer numeric key is preserved', $meta['review'][15]);
+        $t->same('queued', $meta['review']['status']);
+        $t->same('ambiguous-field-ref', $meta['references'][0]['id']);
+        $t->same(4, count($diagnostics));
+        $t->same(['yes', 'True', '15', '0x2A'], array_column($diagnostics, 'field'));
+        $t->same(['bool', 'bool', 'number', 'number'], array_column($diagnostics, 'interpretedAs'));
+        $t->same(['ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name'], array_column($diagnostics, 'reason'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('ambiguous-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="ambiguous-yaml-body">Ambiguous YAML body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

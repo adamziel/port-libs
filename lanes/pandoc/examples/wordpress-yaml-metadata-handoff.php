@@ -230,6 +230,14 @@ plain-key-items:
   - source url: https://example.test/exports/packet#plain-key
 flow-plain-key-review: {source owner: Flow Desk, source label: Flow metadata}
 flow-colon-key-review: {source:key: metadata value, dc:title: Source metadata title, source:uri: https://example.test/exports/packet#flow-colon-key}
+yes: boolean-looking source field
+True: uppercase boolean-looking source field
+15: numeric-looking source field
+0x2A: hexadecimal-looking source field
+ambiguous-field-review:
+  true: nested reviewer boolean key stays visible
+  15: nested reviewer numeric key stays visible
+  status: queued
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -653,6 +661,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('source', $meta['flow-colon-key-review'] ?? []) || array_key_exists('dc', $meta['flow-colon-key-review'] ?? [])) {
         throw new RuntimeException('YAML metadata self-test split a flow plain colon key too early');
     }
+    if (array_key_exists('yes', $meta) || array_key_exists('True', $meta) || array_key_exists('15', $meta) || array_key_exists('0x2A', $meta)) {
+        throw new RuntimeException('YAML metadata self-test promoted ambiguous top-level field names');
+    }
+    if (($meta['ambiguous-field-review']['true'] ?? '') !== 'nested reviewer boolean key stays visible') {
+        throw new RuntimeException('YAML metadata self-test dropped nested ambiguous reviewer key');
+    }
+    if (($meta['ambiguous-field-review'][15] ?? '') !== 'nested reviewer numeric key stays visible') {
+        throw new RuntimeException('YAML metadata self-test dropped nested numeric reviewer key');
+    }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
@@ -668,13 +685,22 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-alias-diagnostics']['owner'] ?? '') !== '*missing_flow_owner') {
         throw new RuntimeException('YAML metadata self-test missing flow unresolved alias audit value');
     }
-    if (count($yamlDiagnostics) !== 3) {
+    if (count($yamlDiagnostics) !== 7) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostics');
     }
-    if (array_column($yamlDiagnostics, 'reason') !== ['self-reference', 'unresolved-alias', 'unresolved-alias']) {
+    if (array_slice(array_column($yamlDiagnostics, 'reason'), 0, 4) !== ['ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name', 'ambiguous-field-name']) {
+        throw new RuntimeException('YAML metadata self-test missing ambiguous field-name diagnostics');
+    }
+    if (array_slice(array_column($yamlDiagnostics, 'field'), 0, 4) !== ['yes', 'True', '15', '0x2A']) {
+        throw new RuntimeException('YAML metadata self-test missing ambiguous field-name provenance');
+    }
+    if (array_slice(array_column($yamlDiagnostics, 'interpretedAs'), 0, 4) !== ['bool', 'bool', 'number', 'number']) {
+        throw new RuntimeException('YAML metadata self-test missing ambiguous field-name type provenance');
+    }
+    if (array_slice(array_column($yamlDiagnostics, 'reason'), 4) !== ['self-reference', 'unresolved-alias', 'unresolved-alias']) {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic reasons');
     }
-    if (($yamlDiagnostics[0]['definedAnchor'] ?? '') !== 'alias_diag_self') {
+    if (($yamlDiagnostics[4]['definedAnchor'] ?? '') !== 'alias_diag_self') {
         throw new RuntimeException('YAML metadata self-test missing alias diagnostic anchor provenance');
     }
     if (($meta['authors'][1] ?? '') !== 'WordPress #import editor') {
@@ -739,6 +765,7 @@ echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
+echo 'Ambiguous field diagnostics: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 0, 4), 'field')) . "\n";
 echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";

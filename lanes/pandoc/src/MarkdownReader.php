@@ -2751,20 +2751,32 @@ final class MarkdownReader
         $diagnostics = [];
         $tagProvenance = [];
         foreach ($metadata as $key => $value) {
-            if ($key === '__yamlMetadataDiagnostics') {
-                $diagnostics = $this->yamlMetadataDiagnosticList($value);
+            $fieldName = (string) $key;
+            if ($fieldName === '__yamlMetadataDiagnostics') {
+                $diagnostics = array_merge($diagnostics, $this->yamlMetadataDiagnosticList($value));
                 continue;
             }
-            if ($key === '__yamlMetadataTagProvenance') {
-                $tagProvenance = $this->yamlMetadataTagProvenanceList($value);
-                continue;
-            }
-
-            if (str_ends_with($key, '_')) {
+            if ($fieldName === '__yamlMetadataTagProvenance') {
+                $tagProvenance = array_merge($tagProvenance, $this->yamlMetadataTagProvenanceList($value));
                 continue;
             }
 
-            if ($key === 'title') {
+            if (str_ends_with($fieldName, '_')) {
+                continue;
+            }
+
+            $ambiguousFieldType = $this->yamlAmbiguousMetadataFieldNameType($fieldName);
+            if ($ambiguousFieldType !== null) {
+                $diagnostics[] = [
+                    'type' => 'yaml-field-name',
+                    'reason' => 'ambiguous-field-name',
+                    'field' => $fieldName,
+                    'interpretedAs' => $ambiguousFieldType,
+                ];
+                continue;
+            }
+
+            if ($fieldName === 'title') {
                 $lines = $this->metadataLinesFromYamlValue($value);
                 if ($this->metadataPlainText($lines) !== '') {
                     $meta['title'] = $this->metadataPlainText($lines);
@@ -2773,7 +2785,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($key === 'author' || $key === 'authors') {
+            if ($fieldName === 'author' || $fieldName === 'authors') {
                 $authors = $this->yamlMetadataAuthors($value);
                 if ($authors !== []) {
                     $meta['author'] = $authors;
@@ -2792,7 +2804,7 @@ final class MarkdownReader
                 continue;
             }
 
-            if ($key === 'date') {
+            if ($fieldName === 'date') {
                 $lines = $this->metadataLinesFromYamlValue($value);
                 if ($this->metadataPlainText($lines) !== '') {
                     $meta['date'] = $this->metadataPlainText($lines);
@@ -2801,7 +2813,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $meta[$key] = $value;
+            $meta[$fieldName] = $value;
         }
 
         $attrs = $meta === [] ? [] : ['meta' => $meta];
@@ -2813,6 +2825,28 @@ final class MarkdownReader
         }
 
         return $attrs;
+    }
+
+    private function yamlAmbiguousMetadataFieldNameType(string $fieldName): ?string
+    {
+        $normalized = trim($fieldName);
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (in_array(strtolower($normalized), ['true', 'false', 'yes', 'no', 'on', 'off'], true)) {
+            return 'bool';
+        }
+
+        if (
+            is_numeric($normalized)
+            || preg_match('/^[+-]?(?:0x[0-9a-f_]+|0o[0-7_]+|0b[01_]+)$/i', $normalized) === 1
+            || preg_match('/^[+-]?(?:\.(?:inf|nan)|(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?)$/i', $normalized) === 1
+        ) {
+            return 'number';
+        }
+
+        return null;
     }
 
     /**
