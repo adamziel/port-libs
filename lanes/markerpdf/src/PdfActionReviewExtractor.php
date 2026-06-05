@@ -1924,16 +1924,21 @@ final class PdfActionReviewExtractor
                 ? $limits
                 : $inheritedLimits;
 
-            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->stringValue($this->resolveValue($names[$index]));
+                if ($name === null) {
+                    $index++;
+                    continue;
+                }
+
                 if (
-                    $name !== null
-                    && $name !== ''
+                    $name !== ''
                     && $this->nameTreeNameWithinLimits($name, $entryLimits)
                     && $this->destinationValueAllowedForMap($names[$index + 1])
                 ) {
                     $destinations[$name] = $names[$index + 1];
                 }
+                $index += 2;
             }
         }
 
@@ -2038,11 +2043,17 @@ final class PdfActionReviewExtractor
             return true;
         }
 
-        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+        for ($index = 0, $count = count($items); $index + 1 < $count;) {
             $name = $this->stringValue($this->resolveValue($items[$index]));
-            if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
+            if ($name === null) {
+                $index++;
+                continue;
+            }
+
+            if ($this->nameTreeNameWithinLimits($name, $limits)) {
                 return true;
             }
+            $index += 2;
         }
 
         return false;

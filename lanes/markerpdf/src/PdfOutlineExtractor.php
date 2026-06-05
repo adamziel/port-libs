@@ -2845,15 +2845,20 @@ final class PdfOutlineExtractor
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if (($kids === null || $kids === []) && $names !== null) {
-            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects);
+                if ($name === null) {
+                    $index++;
+                    continue;
+                }
+
                 if (
-                    $name !== null
-                    && $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
+                    $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
                     && $this->destinationValueAllowedForMap($names[$index + 1], $objects, $pageIndexes)
                 ) {
                     $destinations[$name['text']] = $names[$index + 1];
                 }
+                $index += 2;
             }
         }
 
@@ -2895,15 +2900,20 @@ final class PdfOutlineExtractor
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if (($kids === null || $kids === []) && $names !== null) {
-            for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
+            for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects);
+                if ($name === null) {
+                    $index++;
+                    continue;
+                }
+
                 if (
-                    $name !== null
-                    && $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
+                    $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
                     && $this->destinationActionValueAllowedForMap($names[$index + 1], $objects)
                 ) {
                     $destinations[$name['text']] = $names[$index + 1];
                 }
+                $index += 2;
             }
         }
 

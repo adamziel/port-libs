@@ -1139,9 +1139,15 @@ final class PdfNamedDestinationExtractor
                 ? $limits
                 : $inheritedLimits;
 
-            for ($index = 0; $index + 1 < count($names); $index += 2) {
+            for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects, $cache);
-                if ($name === null || $name['text'] === '' || !$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])) {
+                if ($name === null || $name['text'] === '') {
+                    $index++;
+                    continue;
+                }
+
+                if (!$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])) {
+                    $index += 2;
                     continue;
                 }
 
@@ -1149,6 +1155,7 @@ final class PdfNamedDestinationExtractor
                     'name' => $name['text'],
                     'value' => $names[$index + 1],
                 ];
+                $index += 2;
             }
         }
 
@@ -1260,11 +1267,17 @@ final class PdfNamedDestinationExtractor
             return true;
         }
 
-        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+        for ($index = 0, $count = count($items); $index + 1 < $count;) {
             $name = $this->destinationNameDetails($items[$index], $objects, $cache);
-            if ($name !== null && $this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
+            if ($name === null) {
+                $index++;
+                continue;
+            }
+
+            if ($this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
+            $index += 2;
         }
 
         return false;
