@@ -265,6 +265,10 @@ XML],
       <w:r><w:footnoteReference w:id="404" w:customMarkFollows="1"/></w:r>
       <w:r><w:t xml:space="preserve">/</w:t></w:r>
       <w:r><w:endnoteReference w:id="405" w:customMarkFollows="true"/></w:r>
+      <w:r><w:t xml:space="preserve"> while automatic note labels remain auditable</w:t></w:r>
+      <w:r><w:footnoteReference w:id="3"/></w:r>
+      <w:r><w:t xml:space="preserve">/</w:t></w:r>
+      <w:r><w:endnoteReference w:id="6"/></w:r>
       <w:commentRangeStart w:id="9"/>
       <w:r><w:t xml:space="preserve"> and reviewer comment</w:t></w:r>
       <w:commentRangeEnd w:id="9"/>
@@ -442,11 +446,13 @@ XML],
     ['name' => 'word/footnotes.xml', 'data' => <<<'XML'
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:footnote w:id="2"><w:p><w:r><w:t>DOCX footnote import note.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="3"><w:p><w:r><w:t>DOCX automatic footnote label note.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 XML],
     ['name' => 'word/endnotes.xml', 'data' => <<<'XML'
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:endnote w:id="5"><w:p><w:r><w:t>DOCX endnote import note.</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="6"><w:p><w:r><w:t>DOCX automatic endnote label note.</w:t></w:r></w:p></w:endnote>
 </w:endnotes>
 XML],
     ['name' => 'word/comments.xml', 'data' => <<<'XML'
@@ -563,10 +569,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['embeddedObjects']['items'][0]['bytes'] ?? 0) !== 11) {
         throw new RuntimeException('DOCX body handoff self-test missing embedded OLE byte count');
     }
-    if (($summary['importReport']['notes']['count'] ?? 0) !== 6) {
+    if (($summary['importReport']['notes']['count'] ?? 0) !== 8) {
         throw new RuntimeException('DOCX body handoff self-test missing note-reference import report');
     }
-    if (($summary['importReport']['notes']['footnoteCount'] ?? 0) !== 2 || ($summary['importReport']['notes']['endnoteCount'] ?? 0) !== 2 || ($summary['importReport']['notes']['commentCount'] ?? 0) !== 2) {
+    if (($summary['importReport']['notes']['footnoteCount'] ?? 0) !== 3 || ($summary['importReport']['notes']['endnoteCount'] ?? 0) !== 3 || ($summary['importReport']['notes']['commentCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing typed note-reference counts');
     }
     if (($summary['importReport']['notes']['missingCount'] ?? 0) !== 2) {
@@ -588,6 +594,12 @@ if (($argv[1] ?? '') === '--self-test') {
         if (($noteItemsByKey[$key]['customMarkFollows'] ?? false) !== true) {
             throw new RuntimeException('DOCX body handoff self-test missing custom note marker report for ' . $key);
         }
+    }
+    if (($noteItemsByKey['footnote:3']['referenceLabel'] ?? '') !== 'c' || ($noteItemsByKey['footnote:3']['referenceNumber'] ?? 0) !== 3) {
+        throw new RuntimeException('DOCX body handoff self-test missing automatic footnote label report');
+    }
+    if (($noteItemsByKey['endnote:6']['referenceLabel'] ?? '') !== 'VIII' || ($noteItemsByKey['endnote:6']['referenceNumber'] ?? 0) !== 8) {
+        throw new RuntimeException('DOCX body handoff self-test missing automatic endnote label report');
     }
     if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
         throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
@@ -678,6 +690,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
         'and flag missing note references<sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup>/<sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>',
+        'while automatic note labels remain auditable<sup id="fnref-6"><a href="#fn-6" role="doc-noteref">6</a></sup>/<sup id="fnref-7"><a href="#fn-7" role="doc-noteref">7</a></sup>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
         '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
         '<p>Plain text source note<br/>Second imported line</p>',
@@ -705,10 +718,14 @@ if (($argv[1] ?? '') === '--self-test') {
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',
         'DOCX endnote import note.',
+        'DOCX automatic footnote label note.',
+        'DOCX automatic endnote label note.',
         'DOCX reviewer comment import note.',
         'DOCX multi-paragraph reviewer comment import note.',
         '<li id="fn-4"> <a href="#fnref-4" aria-label="Back to content">Back</a></li>',
         '<li id="fn-5"> <a href="#fnref-5" aria-label="Back to content">Back</a></li>',
+        '<li id="fn-6"><p>DOCX automatic footnote label note.</p> <a href="#fnref-6" aria-label="Back to content">Back</a></li>',
+        '<li id="fn-7"><p>DOCX automatic endnote label note.</p> <a href="#fnref-7" aria-label="Back to content">Back</a></li>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('DOCX body handoff self-test missing: ' . $needle);

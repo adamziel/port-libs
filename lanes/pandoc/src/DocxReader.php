@@ -69,10 +69,16 @@ final class DocxReader
     ];
 
     /**
+     * @var array<string, array{next:int, policy:array{numberFormat:string, numberStart:int, numberRestart:string}}>
+     */
+    private array $noteReferenceState = [];
+
+    /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
     {
+        $this->noteReferenceState = $this->newNoteReferenceState([]);
         $graph = OpcRelationshipGraph::fromPackage($package);
         $documentPart = $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
         if ($documentPart === null) {
@@ -179,7 +185,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}
+     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}
      */
     private function notesImportReport(AstNode $document): array
     {
@@ -197,17 +203,25 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}> $items
+     * @param list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}> $items
      */
     private function collectNoteImportReportItems(AstNode $node, array &$items): void
     {
         if ($node->type === 'note') {
             $sourceType = $node->attr('sourceType', 'note');
+            $referenceNumber = $node->attr('referenceNumber');
+            $referenceStart = $node->attr('referenceStart');
             $items[] = [
                 'id' => is_string($node->attr('id')) ? $node->attr('id') : null,
                 'sourceType' => is_string($sourceType) && $sourceType !== '' ? $sourceType : 'note',
                 'missing' => $node->attr('missing') === true,
                 'customMarkFollows' => $node->attr('customMarkFollows') === true,
+                'referenceNumber' => is_int($referenceNumber) ? $referenceNumber : null,
+                'referenceLabel' => is_string($node->attr('referenceLabel')) ? $node->attr('referenceLabel') : null,
+                'referenceFormat' => is_string($node->attr('referenceFormat')) ? $node->attr('referenceFormat') : null,
+                'referenceStart' => is_int($referenceStart) ? $referenceStart : null,
+                'referenceRestart' => is_string($node->attr('referenceRestart')) ? $node->attr('referenceRestart') : null,
+                'referenceNumberingSkipped' => $node->attr('referenceNumberingSkipped') === true,
                 'blockCount' => count($node->children),
                 'text' => $this->plainBlockText($node->children),
                 'author' => is_string($node->attr('author')) ? $node->attr('author') : null,
@@ -741,6 +755,7 @@ final class DocxReader
             throw new \InvalidArgumentException('DOCX document XML is missing w:body');
         }
 
+        $this->noteReferenceState = $this->newNoteReferenceState($this->bodyNoteNumberingPolicies($body));
         $blocks = $this->bodyChildren(
             $body,
             $package,
@@ -753,12 +768,87 @@ final class DocxReader
             'sourceFormat' => 'docx',
             'documentPart' => $documentPart,
         ];
+        $documentNoteReferenceState = $this->noteReferenceState;
         $sectionProperties = $this->sectionProperties($body, $package, $relationships, $referencedNotes, $styles, $numbering);
+        $this->noteReferenceState = $documentNoteReferenceState;
         if ($sectionProperties !== []) {
             $attrs['sectionProperties'] = $sectionProperties;
         }
 
         return new AstNode('document', $attrs, $blocks);
+    }
+
+    /**
+     * @return array{footnote?:array<string, int|string>, endnote?:array<string, int|string>}
+     */
+    private function bodyNoteNumberingPolicies(\DOMElement $body): array
+    {
+        $policies = [];
+        foreach ($body->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $sectionProperties = null;
+            if ($this->isWordElement($child, 'p')) {
+                $paragraphProperties = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'pPr');
+                $sectionProperties = $paragraphProperties instanceof \DOMElement
+                    ? $this->firstChildElement($paragraphProperties, self::WORDPROCESSINGML_NS, 'sectPr')
+                    : null;
+            } elseif ($this->isWordElement($child, 'sectPr')) {
+                $sectionProperties = $child;
+            }
+
+            if (!$sectionProperties instanceof \DOMElement) {
+                continue;
+            }
+
+            $footnoteProperties = $this->sectionNoteProperties($sectionProperties, 'footnotePr');
+            if ($footnoteProperties !== []) {
+                $policies['footnote'] = $footnoteProperties;
+            }
+
+            $endnoteProperties = $this->sectionNoteProperties($sectionProperties, 'endnotePr');
+            if ($endnoteProperties !== []) {
+                $policies['endnote'] = $endnoteProperties;
+            }
+        }
+
+        return $policies;
+    }
+
+    /**
+     * @param array{footnote?:array<string, int|string>, endnote?:array<string, int|string>} $policies
+     * @return array<string, array{next:int, policy:array{numberFormat:string, numberStart:int, numberRestart:string}}>
+     */
+    private function newNoteReferenceState(array $policies): array
+    {
+        $state = [];
+        foreach (['footnote', 'endnote'] as $sourceType) {
+            $policy = [
+                'numberFormat' => 'decimal',
+                'numberStart' => 1,
+                'numberRestart' => 'continuous',
+            ];
+
+            foreach (($policies[$sourceType] ?? []) as $key => $value) {
+                if ($key === 'numberStart') {
+                    $policy[$key] = is_int($value) ? max(1, $value) : 1;
+                    continue;
+                }
+
+                if (in_array($key, ['numberFormat', 'numberRestart'], true) && is_string($value) && $value !== '') {
+                    $policy[$key] = $value;
+                }
+            }
+
+            $state[$sourceType] = [
+                'next' => $policy['numberStart'],
+                'policy' => $policy,
+            ];
+        }
+
+        return $state;
     }
 
     /**
@@ -2795,6 +2885,10 @@ final class DocxReader
         }
 
         $referenceAttrs = $this->noteReferenceAttrs($reference);
+        $referenceAttrs += $this->noteReferenceNumberingAttrs(
+            $sourceType,
+            ($referenceAttrs['customMarkFollows'] ?? false) === true,
+        );
         $key = $sourceType . ':' . $id;
         if (isset($referencedNotes[$key])) {
             $nodes[] = $this->noteWithReferenceAttrs($referencedNotes[$key], $referenceAttrs);
@@ -2818,6 +2912,98 @@ final class DocxReader
         }
 
         return ['customMarkFollows' => true];
+    }
+
+    /**
+     * @return array{referenceFormat?:string, referenceStart?:int, referenceRestart?:string, referenceNumberingSkipped?:bool, referenceNumber?:int, referenceLabel?:string}
+     */
+    private function noteReferenceNumberingAttrs(string $sourceType, bool $customMarkFollows): array
+    {
+        if (!in_array($sourceType, ['footnote', 'endnote'], true)) {
+            return [];
+        }
+
+        $state = $this->noteReferenceState[$sourceType] ?? null;
+        if (!is_array($state)) {
+            return [];
+        }
+
+        $policy = $state['policy'];
+        $format = $policy['numberFormat'];
+        $attrs = [
+            'referenceFormat' => $format,
+            'referenceStart' => $policy['numberStart'],
+            'referenceRestart' => $policy['numberRestart'],
+        ];
+
+        if ($customMarkFollows) {
+            $attrs['referenceNumberingSkipped'] = true;
+
+            return $attrs;
+        }
+
+        $number = max(1, $state['next']);
+        $this->noteReferenceState[$sourceType]['next'] = $number + 1;
+
+        $attrs['referenceNumber'] = $number;
+        $attrs['referenceLabel'] = $this->noteReferenceLabel($number, $format);
+
+        return $attrs;
+    }
+
+    private function noteReferenceLabel(int $number, string $format): string
+    {
+        return match ($format) {
+            'decimalZero' => sprintf('%02d', $number),
+            'lowerLetter' => $this->letterReferenceLabel($number, false),
+            'upperLetter' => $this->letterReferenceLabel($number, true),
+            'lowerRoman' => strtolower($this->romanReferenceLabel($number)),
+            'upperRoman' => $this->romanReferenceLabel($number),
+            default => (string) $number,
+        };
+    }
+
+    private function letterReferenceLabel(int $number, bool $upper): string
+    {
+        $number = max(1, $number);
+        $label = '';
+        while ($number > 0) {
+            $number--;
+            $label = chr(($upper ? 65 : 97) + ($number % 26)) . $label;
+            $number = intdiv($number, 26);
+        }
+
+        return $label;
+    }
+
+    private function romanReferenceLabel(int $number): string
+    {
+        $number = max(1, min(3999, $number));
+        $map = [
+            1000 => 'M',
+            900 => 'CM',
+            500 => 'D',
+            400 => 'CD',
+            100 => 'C',
+            90 => 'XC',
+            50 => 'L',
+            40 => 'XL',
+            10 => 'X',
+            9 => 'IX',
+            5 => 'V',
+            4 => 'IV',
+            1 => 'I',
+        ];
+
+        $label = '';
+        foreach ($map as $value => $glyph) {
+            while ($number >= $value) {
+                $label .= $glyph;
+                $number -= $value;
+            }
+        }
+
+        return $label;
     }
 
     /**

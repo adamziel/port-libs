@@ -1080,6 +1080,13 @@ $noteReferencePropertiesDocumentXml = <<<'XML'
       <w:r><w:footnoteReference w:id="77" w:customMarkFollows="1"/></w:r>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Numbered note marker </w:t></w:r>
+      <w:r><w:footnoteReference w:id="3"/></w:r>
+      <w:r><w:t xml:space="preserve"> and numbered endnote marker </w:t></w:r>
+      <w:r><w:endnoteReference w:id="6"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
     <w:sectPr>
       <w:footnotePr>
         <w:pos w:val="beneathText"/>
@@ -1102,12 +1109,14 @@ $noteReferencePropertiesFootnotesXml = <<<'XML'
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
   <w:footnote w:id="2"><w:p><w:r><w:t>Custom-marked footnote body.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="3"><w:p><w:r><w:t>Auto-numbered footnote body.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 XML;
 
 $noteReferencePropertiesEndnotesXml = <<<'XML'
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:endnote w:id="5"><w:p><w:r><w:t>Custom-marked endnote body.</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="6"><w:p><w:r><w:t>Auto-numbered endnote body.</w:t></w:r></w:p></w:endnote>
 </w:endnotes>
 XML;
 
@@ -3031,6 +3040,7 @@ return [
         $t->same('2', $footnote->attr('id'));
         $t->same('footnote', $footnote->attr('sourceType'));
         $t->same(true, $footnote->attr('customMarkFollows'));
+        $t->same(null, $footnote->attr('referenceLabel'));
         $t->same('Custom-marked footnote body.', $footnote->children[0]->children[0]->attr('text'));
 
         $endnote = $paragraph->children[3];
@@ -3038,6 +3048,7 @@ return [
         $t->same('5', $endnote->attr('id'));
         $t->same('endnote', $endnote->attr('sourceType'));
         $t->same(true, $endnote->attr('customMarkFollows'));
+        $t->same(null, $endnote->attr('referenceLabel'));
         $t->same('Custom-marked endnote body.', $endnote->children[0]->children[0]->attr('text'));
 
         $missing = $paragraph->children[5];
@@ -3046,7 +3057,29 @@ return [
         $t->same('footnote', $missing->attr('sourceType'));
         $t->same(true, $missing->attr('missing'));
         $t->same(true, $missing->attr('customMarkFollows'));
+        $t->same(null, $missing->attr('referenceLabel'));
         $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $numbered = $document->children[1];
+        $t->same('paragraph', $numbered->type);
+        $t->same('Numbered note marker ', $numbered->children[0]->attr('text'));
+        $numberedFootnote = $numbered->children[1];
+        $t->same('note', $numberedFootnote->type);
+        $t->same('3', $numberedFootnote->attr('id'));
+        $t->same(3, $numberedFootnote->attr('referenceNumber'));
+        $t->same('c', $numberedFootnote->attr('referenceLabel'));
+        $t->same('lowerLetter', $numberedFootnote->attr('referenceFormat'));
+        $t->same('eachSect', $numberedFootnote->attr('referenceRestart'));
+        $t->same('Auto-numbered footnote body.', $numberedFootnote->children[0]->children[0]->attr('text'));
+        $numberedEndnote = $numbered->children[3];
+        $t->same('note', $numberedEndnote->type);
+        $t->same('6', $numberedEndnote->attr('id'));
+        $t->same(8, $numberedEndnote->attr('referenceNumber'));
+        $t->same('VIII', $numberedEndnote->attr('referenceLabel'));
+        $t->same('upperRoman', $numberedEndnote->attr('referenceFormat'));
+        $t->same('continuous', $numberedEndnote->attr('referenceRestart'));
+        $t->same('Auto-numbered endnote body.', $numberedEndnote->children[0]->children[0]->attr('text'));
+        $t->same('.', $numbered->children[4]->attr('text'));
 
         $sections = $document->attr('sectionProperties');
         $t->same(1, count($sections));
@@ -3060,24 +3093,39 @@ return [
         $t->same('docEnd', $sections[0]['endnoteProperties']['position']);
 
         $notes = $result['importReport']['notes'];
-        $t->same(3, $notes['count']);
-        $t->same(2, $notes['footnoteCount']);
-        $t->same(1, $notes['endnoteCount']);
+        $t->same(5, $notes['count']);
+        $t->same(3, $notes['footnoteCount']);
+        $t->same(2, $notes['endnoteCount']);
         $t->same(1, $notes['missingCount']);
         $t->same(true, $notes['items'][0]['customMarkFollows']);
         $t->same(true, $notes['items'][1]['customMarkFollows']);
         $t->same(true, $notes['items'][2]['customMarkFollows']);
+        $t->same(null, $notes['items'][0]['referenceLabel']);
+        $t->same(null, $notes['items'][1]['referenceLabel']);
+        $t->same(null, $notes['items'][2]['referenceLabel']);
+        $t->same('c', $notes['items'][3]['referenceLabel']);
+        $t->same(3, $notes['items'][3]['referenceNumber']);
+        $t->same('lowerLetter', $notes['items'][3]['referenceFormat']);
+        $t->same('VIII', $notes['items'][4]['referenceLabel']);
+        $t->same(8, $notes['items'][4]['referenceNumber']);
+        $t->same('upperRoman', $notes['items'][4]['referenceFormat']);
         $t->same($sections, $result['importReport']['sections']['items']);
 
         $t->contains('Custom note marker [^1] and endnote marker [^2] plus unresolved marker [^3].', $markdown);
+        $t->contains('Numbered note marker [^4] and numbered endnote marker [^5].', $markdown);
         $t->contains('[^1]: Custom-marked footnote body.', $markdown);
         $t->contains('[^2]: Custom-marked endnote body.', $markdown);
         $t->contains('[^3]:', $markdown);
+        $t->contains('[^4]: Auto-numbered footnote body.', $markdown);
+        $t->contains('[^5]: Auto-numbered endnote body.', $markdown);
 
         $t->contains('<p>Custom note marker <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and endnote marker <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> plus unresolved marker <sup id="fnref-3"><a href="#fn-3" role="doc-noteref">3</a></sup>.</p>', $blocks);
+        $t->contains('<p>Numbered note marker <sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup> and numbered endnote marker <sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>.</p>', $blocks);
         $t->contains('<li id="fn-1"><p>Custom-marked footnote body.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Custom-marked endnote body.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-3"> <a href="#fnref-3" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-4"><p>Auto-numbered footnote body.</p> <a href="#fnref-4" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-5"><p>Auto-numbered endnote body.</p> <a href="#fnref-5" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'maps DOCX alternative-format HTML and plain-text chunks into AST blocks and reports skipped chunks' => static function (TestRunner $t) use ($buildAltChunkPackage): void {
         $reader = new DocxReader();
