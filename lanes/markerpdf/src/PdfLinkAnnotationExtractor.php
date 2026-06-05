@@ -1119,13 +1119,7 @@ final class PdfLinkAnnotationExtractor
             return [];
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
-        $quads = [];
-        for ($offset = 0, $count = count($numbers); $offset + 7 < $count; $offset += 8) {
-            $quads[] = array_slice($numbers, $offset, 8);
-        }
-
-        return $quads;
+        return $this->quadPointGroupsFromPdfArray($arrayBody, $objects);
     }
 
     /**
@@ -2552,6 +2546,83 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $numbers;
+    }
+
+    /**
+     * Link /QuadPoints are flat groups of eight numeric coordinates. Treat a
+     * malformed token as a group boundary so later valid groups are preserved
+     * without recombining coordinates into a synthetic clickable rectangle.
+     *
+     * @param array<int, string> $objects
+     * @return list<list<float>>
+     */
+    private function quadPointGroupsFromPdfArray(string $arrayBody, array $objects = []): array
+    {
+        $groups = [];
+        $current = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $numberEnd = null;
+            $number = $this->numericArrayElementAtOffset($arrayBody, $offset, $objects, $numberEnd);
+            if ($numberEnd !== null && $numberEnd > $offset) {
+                if ($number === null) {
+                    $current = [];
+                    $offset = $numberEnd;
+                    continue;
+                }
+
+                $current[] = $number;
+                if (count($current) === 8) {
+                    $groups[] = $current;
+                    $current = [];
+                }
+                $offset = $numberEnd;
+                continue;
+            }
+
+            $current = [];
+            $valueEnd = null;
+            $value = $this->valueStartingAtOffsetWithEnd($arrayBody, $offset, $valueEnd);
+            if ($value !== null && $valueEnd !== null && $valueEnd > $offset) {
+                $offset = $valueEnd;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function numericArrayElementAtOffset(string $arrayBody, int $offset, array $objects, ?int &$endOffset): ?float
+    {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[0]);
+            $objectBody = $this->objectBodyForReference((int) $match[1], (int) $match[2], $objects);
+            if ($objectBody !== null && preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', trim($objectBody)) === 1) {
+                return (float) trim($objectBody);
+            }
+
+            return null;
+        }
+
+        if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?=$|[\s\[\]\(\)<>{}\/%])/s', $arrayBody, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[0]);
+            return (float) $match[0];
+        }
+
+        $endOffset = null;
+        return null;
     }
 
     /**
