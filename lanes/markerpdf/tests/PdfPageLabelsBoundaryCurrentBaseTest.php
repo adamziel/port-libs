@@ -634,6 +634,30 @@ $malformedPrefixScalarPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$malformedStyleScalarPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed style first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Valid style second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P (Bad-) /S 30 0 R /St 4 >> 1 << /P (Valid-) /S 31 0 R /St 8 >>] >>\nendobj\n"
+        . "30 0 obj\n/D /Private\nendobj\n"
+        . "31 0 obj\n/D % comment-only style tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
 $trailerRootPageLabelBoundaryPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Stale catalog page imported) Tj ET',
@@ -1104,6 +1128,25 @@ return [
         $t->true(!in_array('Malformed-4', $labels, true));
         $t->true(!in_array('Malformed-4', $previewLabels, true));
         $t->same('4', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
+    },
+    'rejects malformed PageLabels style scalar tokens before WordPress page metadata' => static function (TestRunner $t) use ($malformedStyleScalarPageLabelBoundaryPdf): void {
+        $pdf = $malformedStyleScalarPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Bad-', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed style first imported', 'Valid style second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('Bad-4', $labels, true));
+        $t->true(!in_array('Bad-4', $previewLabels, true));
+        $t->same('Bad-', $summary['pages'][0]['page_label'] ?? null);
         $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
     'keeps trailer Root catalog PageLabels before stale catalog scan' => static function (TestRunner $t) use ($trailerRootPageLabelBoundaryPdf): void {

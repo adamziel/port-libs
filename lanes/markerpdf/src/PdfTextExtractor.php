@@ -8814,7 +8814,17 @@ final class PdfTextExtractor
             $end++;
         }
 
-        return $this->decodePdfName(substr($value, 1, $end - 1));
+        $name = substr($value, 1, $end - 1);
+        if ($name === '') {
+            return null;
+        }
+
+        $afterOffset = $this->skipPdfWhitespace($value, $end);
+        if ($afterOffset < strlen($value)) {
+            return null;
+        }
+
+        return $this->decodePdfName($name);
     }
 
     /**
