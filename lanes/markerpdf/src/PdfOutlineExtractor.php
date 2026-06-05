@@ -11,6 +11,11 @@ final class PdfOutlineExtractor
      */
     private array $objectGenerations = [];
 
+    /**
+     * @var array<int, bool>
+     */
+    private array $objectSingleTopLevelValues = [];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -1403,7 +1408,12 @@ final class PdfOutlineExtractor
      */
     private function outlineTitleValue(array $outline, array $objects): ?string
     {
-        $title = $this->stringOrNameValue($this->resolveValue($outline['Title'] ?? null, $objects));
+        $titleValue = $outline['Title'] ?? null;
+        if ($this->isReferenceValue($titleValue) && !$this->referenceTargetsSingleTopLevelValue($titleValue, $objects)) {
+            return null;
+        }
+
+        $title = $this->stringOrNameValue($this->resolveValue($titleValue, $objects));
 
         return $title === null || trim($title) === '' ? null : $title;
     }
@@ -1925,6 +1935,7 @@ final class PdfOutlineExtractor
         $values = [];
         $selectedBodies = [];
         $this->objectGenerations = [];
+        $this->objectSingleTopLevelValues = [];
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return $values;
@@ -1973,6 +1984,7 @@ final class PdfOutlineExtractor
 
             $index = 0;
             $values[$objectNumber] = $this->parseValue($tokens, $index);
+            $this->objectSingleTopLevelValues[$objectNumber] = $index >= count($tokens);
             $selectedBodies[$objectNumber] = trim($candidate['body']);
             $this->objectGenerations[$objectNumber] = $candidate['generation'];
         }
@@ -2043,6 +2055,7 @@ final class PdfOutlineExtractor
 
                 $index = 0;
                 $expanded[$objectNumber] = $this->parseValue($tokens, $index);
+                $this->objectSingleTopLevelValues[$objectNumber] = $index >= count($tokens);
                 $this->objectGenerations[$objectNumber] = 0;
             }
         }
@@ -5040,6 +5053,16 @@ final class PdfOutlineExtractor
         return ($this->objectGenerations[$objectNumber] ?? 0) === $this->referenceGeneration($value)
             ? $objectNumber
             : null;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     */
+    private function referenceTargetsSingleTopLevelValue(mixed $value, array $objects): bool
+    {
+        $objectNumber = $this->validReferenceObjectNumber($value, $objects);
+
+        return $objectNumber !== null && ($this->objectSingleTopLevelValues[$objectNumber] ?? false);
     }
 
     private function referenceGeneration(mixed $value): int

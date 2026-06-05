@@ -3141,7 +3141,7 @@ final class PdfMetadataExtractor
                 break;
             }
 
-            $title = $this->reviewStringFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'Title'), $objects);
+            $title = $this->reviewOutlineTitleFromRaw($this->dictionaryTopLevelRawValue($dictionary, 'Title'), $objects);
             if ($title === null) {
                 if ($lastItemObject === null || $current === $lastItemObject) {
                     break;
@@ -12629,6 +12629,55 @@ final class PdfMetadataExtractor
         $reviewValue = $this->reviewValueFromRaw($value, $objects);
 
         return is_string($reviewValue) && $reviewValue !== '' ? $reviewValue : null;
+    }
+
+    /**
+     * Outline title strings may be indirect, but the referenced object must be
+     * one scalar token. Otherwise a malformed object like `(Title) /A ...`
+     * would leak a partial title while silently discarding action tokens.
+     *
+     * @param array<int, string> $objects
+     */
+    private function reviewOutlineTitleFromRaw(?string $value, array $objects): ?string
+    {
+        if ($value === null || !$this->rawValueIsSinglePdfStringOrNameToken($value, $objects)) {
+            return null;
+        }
+
+        return $this->reviewStringFromRaw($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function rawValueIsSinglePdfStringOrNameToken(string $value, array $objects): bool
+    {
+        $candidate = $value;
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $candidate = $this->objectBodyForReference($objects, $reference['objectNumber'], $reference['generation']);
+            if ($candidate === null) {
+                return false;
+            }
+        }
+
+        $offset = $this->skipPdfWhitespace($candidate, 0);
+        $token = $this->readPdfValueAt($candidate, $offset);
+        if ($token === null || $token === '') {
+            return false;
+        }
+
+        $first = $token[0];
+        $isStringOrName = $first === '('
+            || $first === '/'
+            || ($first === '<' && ($token[1] ?? '') !== '<');
+        if (!$isStringOrName) {
+            return false;
+        }
+
+        $after = $this->skipPdfWhitespace($candidate, $offset + strlen($token));
+
+        return $after >= strlen($candidate);
     }
 
     /**
