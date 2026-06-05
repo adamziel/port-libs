@@ -10950,6 +10950,20 @@ final class PdfMetadataExtractor
             $seen[$key] = true;
 
             if (isset($entries[$objectNumber])) {
+                $definition = $this->currentUpdateDirectObjectDefinitionForExistingGraphEntry(
+                    $objectNumber,
+                    $generation,
+                    $entries[$objectNumber],
+                    $previousOffset,
+                    $currentXrefOffset,
+                    $definitions
+                );
+                if ($definition !== null) {
+                    foreach ($this->objectReferencesInBody($definition['body']) as $nestedReference) {
+                        $pending[] = $nestedReference;
+                    }
+                }
+
                 continue;
             }
 
@@ -10977,6 +10991,44 @@ final class PdfMetadataExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool} $entry
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForExistingGraphEntry(
+        int $objectNumber,
+        int $generation,
+        array $entry,
+        int $previousOffset,
+        int $currentXrefOffset,
+        array $definitions
+    ): ?array {
+        if (($entry['type'] ?? null) !== 1 || ($entry['generation'] ?? null) !== $generation) {
+            return null;
+        }
+
+        $offset = $entry['offset'] ?? null;
+        if (!is_int($offset) || $offset <= $previousOffset || $offset >= $currentXrefOffset) {
+            return null;
+        }
+
+        $definition = $this->directObjectDefinitionAtOffset($definitions, $offset);
+        if (
+            $definition === null
+            || $definition['objectNumber'] !== $objectNumber
+            || $definition['generation'] !== $generation
+        ) {
+            return null;
+        }
+
+        return [
+            'generation' => $definition['generation'],
+            'offset' => $definition['offset'],
+            'body' => $definition['body'],
+        ];
     }
 
     /**

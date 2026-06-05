@@ -2655,14 +2655,15 @@ final class PdfOutlineExtractor
             }
         }
 
-        $trailerOffset = strpos($pdfBytes, 'trailer', $position);
-        if ($trailerOffset === false) {
+        $trailer = $this->classicXrefTrailerDictionary($pdfBytes, $offset);
+        if ($trailer === null) {
             return;
         }
 
-        $trailerBytes = substr($pdfBytes, $trailerOffset, 4096);
-        if (preg_match('/\/Prev\s+(\d+)\b/s', $trailerBytes, $prevMatch) === 1) {
-            $this->collectXrefEntries($pdfBytes, (int) $prevMatch[1], $entries, $seenOffsets);
+        $previousOffset = $this->integerOrNullValue($trailer['Prev'] ?? null);
+        $this->repairOmittedCurrentUpdateGraphRows($pdfBytes, $entries, $trailer, $previousOffset, $offset);
+        if ($previousOffset !== null) {
+            $this->collectXrefEntries($pdfBytes, $previousOffset, $entries, $seenOffsets);
         }
     }
 
@@ -2751,9 +2752,230 @@ final class PdfOutlineExtractor
         }
 
         $previousOffset = $this->integerOrNullValue($dictionary['Prev'] ?? null);
+        $this->repairOmittedCurrentUpdateGraphRows($pdfBytes, $entries, $dictionary, $previousOffset, $offset);
         if ($previousOffset !== null) {
             $this->collectXrefEntries($pdfBytes, $previousOffset, $entries, $seenOffsets);
         }
+    }
+
+    /**
+     * Some incremental writers append same-generation outline/page/name/action
+     * objects but omit their rows from the latest sparse xref section. Recover
+     * only the graph reachable from the latest trailer root before inheriting
+     * stale /Prev rows.
+     *
+     * @param array<int, array{offset: int, generation: int, state: string}> $entries
+     * @param array<string, mixed> $sectionDictionary
+     */
+    private function repairOmittedCurrentUpdateGraphRows(
+        string $pdfBytes,
+        array &$entries,
+        array $sectionDictionary,
+        ?int $previousOffset,
+        int $currentXrefOffset
+    ): void {
+        if ($previousOffset === null || $previousOffset < 0 || $currentXrefOffset <= $previousOffset) {
+            return;
+        }
+
+        $root = $sectionDictionary['Root'] ?? null;
+        if (!$this->isReferenceValue($root)) {
+            return;
+        }
+
+        $pending = [[
+            'object' => (int) $root['object'],
+            'generation' => $this->referenceGeneration($root),
+        ]];
+        $seen = [];
+        while ($pending !== [] && count($seen) < 128) {
+            $reference = array_shift($pending);
+            $objectNumber = $reference['object'];
+            $generation = $reference['generation'];
+            if ($objectNumber <= 0 || $generation < 0) {
+                continue;
+            }
+
+            $key = $objectNumber . ':' . $generation;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            if (isset($entries[$objectNumber])) {
+                $definition = $this->directObjectDefinitionForCurrentEntryBetweenOffsets(
+                    $pdfBytes,
+                    $objectNumber,
+                    $generation,
+                    $entries[$objectNumber],
+                    $previousOffset,
+                    $currentXrefOffset
+                );
+                if ($definition !== null) {
+                    foreach ($this->directObjectReferencePairs($definition['body']) as $nestedReference) {
+                        $pending[] = $nestedReference;
+                    }
+                }
+
+                continue;
+            }
+
+            $definition = $this->directObjectDefinitionForReferenceBetweenOffsets(
+                $pdfBytes,
+                $objectNumber,
+                $generation,
+                $previousOffset,
+                $currentXrefOffset
+            );
+            if ($definition === null) {
+                continue;
+            }
+
+            $entries[$objectNumber] = [
+                'offset' => $definition['offset'],
+                'generation' => $definition['generation'],
+                'state' => 'n',
+            ];
+
+            foreach ($this->directObjectReferencePairs($definition['body']) as $nestedReference) {
+                $pending[] = $nestedReference;
+            }
+        }
+    }
+
+    /**
+     * @return array{offset: int, generation: int, body: string}|null
+     */
+    private function directObjectDefinitionForReferenceBetweenOffsets(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        int $previousOffset,
+        int $currentXrefOffset
+    ): ?array {
+        $windowStart = max(0, $previousOffset);
+        $windowLength = max(0, $currentXrefOffset - $windowStart);
+        if ($windowLength === 0) {
+            return null;
+        }
+
+        $window = substr($pdfBytes, $windowStart, $windowLength);
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $window, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        $selected = null;
+        foreach ($matches as $match) {
+            if ((int) $match[1][0] !== $objectNumber || (int) $match[2][0] !== $generation) {
+                continue;
+            }
+
+            $offset = $windowStart + $match[0][1];
+            if ($selected !== null && $offset <= $selected['offset']) {
+                continue;
+            }
+
+            $selected = [
+                'offset' => $offset,
+                'generation' => (int) $match[2][0],
+                'body' => $match[3][0],
+            ];
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param array{offset: int, generation: int, state: string} $entry
+     * @return array{offset: int, generation: int, body: string}|null
+     */
+    private function directObjectDefinitionForCurrentEntryBetweenOffsets(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        array $entry,
+        int $previousOffset,
+        int $currentXrefOffset
+    ): ?array {
+        if (($entry['state'] ?? null) !== 'n' || $entry['generation'] !== $generation) {
+            return null;
+        }
+
+        $offset = $entry['offset'];
+        if ($offset <= $previousOffset || $offset >= $currentXrefOffset) {
+            return null;
+        }
+
+        $remaining = substr($pdfBytes, $offset, max(0, $currentXrefOffset - $offset));
+        $pattern = '/^' . preg_quote((string) $objectNumber, '/') . '\s+' . preg_quote((string) $generation, '/') . '\s+obj\b(.*?)\bendobj/s';
+        if (preg_match($pattern, $remaining, $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'offset' => $offset,
+            'generation' => $generation,
+            'body' => $match[1],
+        ];
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     */
+    private function directObjectReferencePairs(string $body): array
+    {
+        $dictionary = $this->objectBodyDictionary($body);
+        if ($dictionary !== null) {
+            return $this->referencePairsFromValue([
+                'pdfType' => 'dict',
+                'items' => $dictionary,
+            ]);
+        }
+
+        $tokens = $this->tokens(trim($body));
+        if ($tokens === []) {
+            return [];
+        }
+
+        $index = 0;
+        return $this->referencePairsFromValue($this->parseValue($tokens, $index));
+    }
+
+    /**
+     * @return list<array{object: int, generation: int}>
+     */
+    private function referencePairsFromValue(mixed $value, int $depth = 0): array
+    {
+        if ($depth > 32) {
+            return [];
+        }
+
+        if ($this->isReferenceValue($value)) {
+            return [[
+                'object' => (int) $value['object'],
+                'generation' => $this->referenceGeneration($value),
+            ]];
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $children = [];
+        if (($value['pdfType'] ?? null) === 'dict' && is_array($value['items'] ?? null)) {
+            $children = $value['items'];
+        } elseif (($value['pdfType'] ?? null) === 'array' && is_array($value['items'] ?? null)) {
+            $children = $value['items'];
+        }
+
+        $references = [];
+        foreach ($children as $child) {
+            foreach ($this->referencePairsFromValue($child, $depth + 1) as $reference) {
+                $references[] = $reference;
+            }
+        }
+
+        return $references;
     }
 
     /**
