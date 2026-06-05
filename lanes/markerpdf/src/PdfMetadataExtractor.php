@@ -8346,7 +8346,11 @@ final class PdfMetadataExtractor
             }
 
             $nextBegin = $this->xmpPacketInstructionOffset($xml, 'begin', $beginEnd);
-            if ($nextBegin !== null && $nextBegin < $end) {
+            if (
+                $nextBegin !== null
+                && $nextBegin < $end
+                && !$this->xmpPacketInstructionInsideBoundedXmlRoot($xml, $beginEnd, $nextBegin, $end)
+            ) {
                 $offset = $nextBegin;
                 continue;
             }
@@ -8365,6 +8369,38 @@ final class PdfMetadataExtractor
         }
 
         return $candidates;
+    }
+
+    private function xmpPacketInstructionInsideBoundedXmlRoot(
+        string $xml,
+        int $packetStart,
+        int $instructionOffset,
+        int $packetEnd
+    ): bool {
+        foreach (['xmpmeta', 'RDF'] as $localName) {
+            for ($offset = $packetStart; $offset < $instructionOffset;) {
+                $entry = $this->boundedXmlRootCandidateEntry($xml, $localName, $offset);
+                if ($entry === null || $entry['start_offset'] >= $packetEnd) {
+                    break;
+                }
+
+                if ($instructionOffset < $entry['start_offset']) {
+                    break;
+                }
+
+                if (
+                    $entry['end_offset'] <= $packetEnd
+                    && $instructionOffset > $entry['start_offset']
+                    && $instructionOffset < $entry['end_offset']
+                ) {
+                    return true;
+                }
+
+                $offset = max($entry['end_offset'], $entry['start_offset'] + 1);
+            }
+        }
+
+        return false;
     }
 
     private function xmpPacketInstructionOffset(string $xml, string $kind, int $offset): ?int
