@@ -36,6 +36,35 @@ $ascii85Encode = static function (string $bytes): string {
     return $encoded . '~>';
 };
 
+$lzwLiteralEncode = static function (string $bytes, bool $includeEndCode = true, string $suffix = ''): string {
+    if (strlen($bytes) > 240) {
+        throw new RuntimeException('Focused attachment LZW smoke fixture must keep 9-bit literal codes.');
+    }
+
+    $codes = array_merge([256], array_map('ord', str_split($bytes)));
+    if ($includeEndCode) {
+        $codes[] = 257;
+    }
+
+    $bits = '';
+    foreach ($codes as $code) {
+        for ($shift = 8; $shift >= 0; $shift--) {
+            $bits .= (($code >> $shift) & 1) === 1 ? '1' : '0';
+        }
+    }
+
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        if (strlen($byte) < 8) {
+            $byte = str_pad($byte, 8, '0');
+        }
+        $encoded .= chr(bindec($byte));
+    }
+
+    return $encoded . $suffix;
+};
+
 $payload = "Title,Status\nIdentity Crypt Stacked Attachment,Ready\n";
 $encodedPayload = $ascii85Encode(gzcompress($payload));
 $checksum = md5($payload);
@@ -83,6 +112,43 @@ if ($malformedSummaryJson === false) {
     throw new RuntimeException('Expected malformed attachment summary JSON.');
 }
 
+$lzwPayload = "Title,Status\nLZW Flate Stacked Attachment,Ready\n";
+$lzwCompressed = gzcompress($lzwPayload);
+$lzwSurplusPayload = "Title,Status\nLZW Surplus Stacked Attachment,Blocked\n";
+$lzwSurplusCompressed = gzcompress($lzwSurplusPayload);
+if (!is_string($lzwCompressed) || !is_string($lzwSurplusCompressed)) {
+    throw new RuntimeException('Unable to compress LZW attachment smoke payloads.');
+}
+$lzwEncodedPayload = $lzwLiteralEncode($lzwCompressed);
+$lzwSurplusEncodedPayload = $lzwLiteralEncode(
+    $lzwSurplusCompressed,
+    true,
+    'BT /F1 12 Tf 72 680 Td (LZW attachment surplus smoke bytes) Tj ET'
+);
+$lzwChecksum = md5($lzwPayload);
+$lzwSurplusChecksum = md5($lzwSurplusPayload);
+$lzwPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(lzw-stack.csv) 10 0 R (lzw-surplus.csv) 12 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (lzw-stack.csv) /Desc (LZW Flate stacked attachment) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /LZWDecode /FlateDecode ] /DecodeParms [ << /EarlyChange 0 >> null ] /Params << /Size " . strlen($lzwPayload) . " /CheckSum <{$lzwChecksum}> >> /Length " . strlen($lzwEncodedPayload) . " >>\nstream\n{$lzwEncodedPayload}\nendstream\nendobj\n"
+    . "12 0 obj\n<< /Type /Filespec /F (lzw-surplus.csv) /Desc (LZW surplus stacked attachment) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /LZWDecode /FlateDecode ] /DecodeParms [ << /EarlyChange 0 >> null ] /Params << /Size " . strlen($lzwSurplusPayload) . " /CheckSum <{$lzwSurplusChecksum}> >> /Length " . strlen($lzwSurplusEncodedPayload) . " >>\nstream\n{$lzwSurplusEncodedPayload}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$lzwSummary = (new PdfAttachmentExtractor())->attachmentSummary($lzwPdf);
+$lzwFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($lzwPdf);
+$lzwText = (new PdfTextExtractor())->extractPlainText($lzwPdf);
+$lzwSummaryJson = json_encode($lzwSummary, JSON_UNESCAPED_SLASHES);
+$lzwFilesJson = json_encode($lzwFiles, JSON_UNESCAPED_SLASHES);
+if ($lzwSummaryJson === false || $lzwFilesJson === false) {
+    throw new RuntimeException('Expected LZW attachment summary JSON.');
+}
+
 $metadata = [
     'native_boundary' => 'WordPress attachment preflight stream-filter stack decoding',
     'attachment_count' => $summary['attachment_count'] ?? null,
@@ -104,6 +170,19 @@ $metadata = [
     'dictionary_filter_payload_excluded' => !str_contains($malformedSummaryJson, 'Dictionary Filter Attachment Leak')
         && !str_contains(json_encode($malformedFiles, JSON_UNESCAPED_SLASHES) ?: '', 'Dictionary Filter Attachment Leak'),
     'dictionary_filter_visible_text_preserved' => $malformedText === 'Visible Attachment Malformed Filter Review',
+    'lzw_attachment_count' => $lzwSummary['attachment_count'] ?? null,
+    'lzw_filter_stack_decoded' => ($lzwSummary['attachment_count'] ?? null) === 1
+        && ($lzwSummary['attachments'][0]['filename'] ?? null) === 'lzw-stack.csv'
+        && ($lzwSummary['attachments'][0]['checksum_matches'] ?? false) === true
+        && (($lzwFiles[0]['content'] ?? null) === $lzwPayload),
+    'lzw_filters' => $lzwSummary['attachments'][0]['filters'] ?? [],
+    'lzw_payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $lzwSummary['attachments'][0] ?? []),
+    'lzw_surplus_attachment_rejected' => !str_contains($lzwSummaryJson, 'lzw-surplus.csv')
+        && !str_contains($lzwFilesJson, 'lzw-surplus.csv'),
+    'lzw_surplus_payload_excluded' => !str_contains($lzwSummaryJson, 'LZW Surplus Stacked Attachment')
+        && !str_contains($lzwFilesJson, 'LZW Surplus Stacked Attachment')
+        && !str_contains($lzwText, 'LZW Surplus Stacked Attachment')
+        && !str_contains($lzwText, 'LZW attachment surplus smoke bytes'),
     'executes_python_or_models' => $summary['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $summary['executes_external_pdf_tools'] ?? null,
 ];

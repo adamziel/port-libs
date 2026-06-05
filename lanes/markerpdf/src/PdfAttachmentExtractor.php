@@ -2468,6 +2468,7 @@ final class PdfAttachmentExtractor
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($bytes),
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($bytes),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($bytes),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($bytes, $filterDecodeParms, $objects),
                 'Crypt' => $this->decodeCryptIdentityStream($bytes, $filterDecodeParms, $objects),
                 default => null,
             };
@@ -2694,7 +2695,7 @@ final class PdfAttachmentExtractor
             return $this->decodeCryptIdentityStream('', $value, $objects) !== null;
         }
 
-        if (!in_array($filter, ['FlateDecode', 'Fl'], true)) {
+        if (!in_array($filter, ['FlateDecode', 'Fl', 'LZWDecode', 'LZW'], true)) {
             return false;
         }
 
@@ -2801,6 +2802,81 @@ final class PdfAttachmentExtractor
         }
 
         return $this->applyDecodeParmsPredictor($decoded, $decodeParms, $objects);
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function decodeLzwStream(string $bytes, mixed $decodeParms = null, array $objects = []): ?string
+    {
+        $earlyChange = ($this->decodeParmsIntValue($decodeParms, 'EarlyChange', $objects) ?? 1) === 0 ? 0 : 1;
+        $bitOffset = 0;
+        $dictionary = [];
+        $nextCode = 258;
+        $codeSize = 9;
+
+        $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+            $dictionary = [];
+            for ($code = 0; $code < 256; $code++) {
+                $dictionary[$code] = chr($code);
+            }
+            $nextCode = 258;
+            $codeSize = 9;
+        };
+        $resetDictionary();
+
+        $out = '';
+        $previous = null;
+        while (($code = $this->readLzwCode($bytes, $bitOffset, $codeSize)) !== null) {
+            if ($code === 256) {
+                $resetDictionary();
+                $previous = null;
+                continue;
+            }
+
+            if ($code === 257) {
+                return $this->applyDecodeParmsPredictor($out, $decodeParms, $objects);
+            }
+
+            if (isset($dictionary[$code])) {
+                $entry = $dictionary[$code];
+            } elseif ($code === $nextCode && $previous !== null) {
+                $entry = $previous . $previous[0];
+            } else {
+                return null;
+            }
+
+            $out .= $entry;
+            if ($previous !== null && $nextCode < 4096) {
+                $dictionary[$nextCode] = $previous . $entry[0];
+                $nextCode++;
+                if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                    $codeSize++;
+                }
+            }
+            $previous = $entry;
+        }
+
+        return null;
+    }
+
+    private function readLzwCode(string $bytes, int &$bitOffset, int $codeSize): ?int
+    {
+        $totalBits = strlen($bytes) * 8;
+        if ($bitOffset + $codeSize > $totalBits) {
+            return null;
+        }
+
+        $code = 0;
+        for ($index = 0; $index < $codeSize; $index++) {
+            $absoluteBit = $bitOffset + $index;
+            $byte = ord($bytes[intdiv($absoluteBit, 8)]);
+            $shift = 7 - ($absoluteBit % 8);
+            $code = ($code << 1) | (($byte >> $shift) & 1);
+        }
+        $bitOffset += $codeSize;
+
+        return $code;
     }
 
     /**
@@ -3108,6 +3184,8 @@ final class PdfAttachmentExtractor
                 'AHx',
                 'RunLengthDecode',
                 'RL',
+                'LZWDecode',
+                'LZW',
             ], true);
         }
 
@@ -3134,6 +3212,7 @@ final class PdfAttachmentExtractor
             'ASCIIHexDecode', 'AHx' => (($offset = strpos($bytes, '>')) !== false) ? $offset + 1 : null,
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($bytes)) !== null) ? $offset + 1 : null,
             'FlateDecode', 'Fl' => $this->flateExplicitEndByteOffset($bytes),
+            'LZWDecode', 'LZW' => (($offset = $this->lzwExplicitEndByteOffset($bytes, $decodeParms, $objects)) !== null) ? $offset : null,
             default => null,
         };
     }
@@ -3198,6 +3277,60 @@ final class PdfAttachmentExtractor
             if (is_int($readLength) && $readLength > 0) {
                 return $readLength;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function lzwExplicitEndByteOffset(string $bytes, mixed $decodeParms = null, array $objects = []): ?int
+    {
+        $earlyChange = ($this->decodeParmsIntValue($decodeParms, 'EarlyChange', $objects) ?? 1) === 0 ? 0 : 1;
+        $bitOffset = 0;
+        $dictionary = [];
+        $nextCode = 258;
+        $codeSize = 9;
+
+        $resetDictionary = static function () use (&$dictionary, &$nextCode, &$codeSize): void {
+            $dictionary = [];
+            for ($code = 0; $code < 256; $code++) {
+                $dictionary[$code] = chr($code);
+            }
+            $nextCode = 258;
+            $codeSize = 9;
+        };
+        $resetDictionary();
+
+        $previous = null;
+        while (($code = $this->readLzwCode($bytes, $bitOffset, $codeSize)) !== null) {
+            if ($code === 256) {
+                $resetDictionary();
+                $previous = null;
+                continue;
+            }
+
+            if ($code === 257) {
+                return intdiv($bitOffset + 7, 8);
+            }
+
+            if (isset($dictionary[$code])) {
+                $entry = $dictionary[$code];
+            } elseif ($code === $nextCode && $previous !== null) {
+                $entry = $previous . $previous[0];
+            } else {
+                return null;
+            }
+
+            if ($previous !== null && $nextCode < 4096) {
+                $dictionary[$nextCode] = $previous . $entry[0];
+                $nextCode++;
+                if ($codeSize < 12 && $nextCode + $earlyChange >= (1 << $codeSize)) {
+                    $codeSize++;
+                }
+            }
+            $previous = $entry;
         }
 
         return null;
