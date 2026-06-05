@@ -214,23 +214,7 @@ final class OdfReader
 
     private function assertOdtMimetype(ZipPackage $package): void
     {
-        if (!$package->has('mimetype')) {
-            throw new \RuntimeException('ODT package is missing the root mimetype entry');
-        }
-
-        $entries = $package->localEntries();
-        if ($entries === [] || $entries[0]->name !== 'mimetype') {
-            throw new \RuntimeException('ODT mimetype entry must be the first local ZIP entry');
-        }
-
-        $mimetype = $package->entry('mimetype');
-        if ($mimetype->compressionMethod !== 0) {
-            throw new \RuntimeException('ODT mimetype entry must be stored without compression');
-        }
-
-        if ($package->read('mimetype') !== self::MIMETYPE) {
-            throw new \RuntimeException('ODT mimetype entry must be application/vnd.oasis.opendocument.text');
-        }
+        $package->assertStoredFirstEntry('mimetype', self::MIMETYPE, 'ODT mimetype entry');
     }
 
     /**

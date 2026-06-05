@@ -524,6 +524,124 @@ return [
         $t->same('<container/>', $package->read('/META-INF/container.xml'));
     },
 
+    'preflights stored first mimetype entries for ODT and EPUB containers' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $odtMimetype = 'application/vnd.oasis.opendocument.text';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $odtMimetype,
+                'method' => 0,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => 'META-INF/manifest.xml',
+                'data' => '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>',
+                'method' => 8,
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>',
+                'method' => 8,
+                'centralIndex' => 1,
+            ],
+        ]));
+        $summary = $package->storedFirstEntryPreflight('/mimetype', $odtMimetype);
+
+        $t->same('mimetype', $summary['entryName']);
+        $t->same(true, $summary['exists']);
+        $t->same('mimetype', $summary['firstLocalEntryName']);
+        $t->same(true, $summary['isFirstLocalEntry']);
+        $t->same(0, $summary['compressionMethod']);
+        $t->same('stored', $summary['compressionMethodName']);
+        $t->same(true, $summary['isStored']);
+        $t->same([], $summary['centralExtraFieldIds']);
+        $t->same([], $summary['localExtraFieldIds']);
+        $t->same(false, $summary['hasCentralExtraFields']);
+        $t->same(false, $summary['hasLocalExtraFields']);
+        $t->same(strlen($odtMimetype), $summary['expectedBytes']);
+        $t->same(strlen($odtMimetype), $summary['contentBytes']);
+        $t->same(true, $summary['contentsMatch']);
+        $t->same(true, $summary['isValid']);
+        $t->same([], $summary['diagnostics']);
+        $t->same($summary, $package->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry'));
+
+        $extra = pack('vva*', 0xcafe, strlen('review'), 'review');
+        $extraFieldPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $odtMimetype,
+                'method' => 0,
+                'localExtra' => $extra,
+                'centralExtra' => $extra,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => '<office:document-content/>',
+                'method' => 8,
+            ],
+        ]));
+        $extraSummary = $extraFieldPackage->storedFirstEntryPreflight('mimetype', $odtMimetype);
+        $t->same([0xcafe], $extraSummary['centralExtraFieldIds']);
+        $t->same([0xcafe], $extraSummary['localExtraFieldIds']);
+        $t->same(true, $extraSummary['hasCentralExtraFields']);
+        $t->same(true, $extraSummary['hasLocalExtraFields']);
+        $t->same(false, $extraSummary['isValid']);
+        $t->contains('must not carry ZIP extra fields', implode('; ', $extraSummary['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): array => $extraFieldPackage->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry'));
+
+        $notFirstPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'META-INF/container.xml',
+                'data' => '<container/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'mimetype',
+                'data' => 'application/epub+zip',
+                'method' => 0,
+            ],
+        ]));
+        $notFirstSummary = $notFirstPackage->storedFirstEntryPreflight('mimetype', 'application/epub+zip');
+        $t->same('META-INF/container.xml', $notFirstSummary['firstLocalEntryName']);
+        $t->same(false, $notFirstSummary['isFirstLocalEntry']);
+        $t->contains('first local ZIP entry', implode('; ', $notFirstSummary['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): array => $notFirstPackage->assertStoredFirstEntry('mimetype', 'application/epub+zip', 'EPUB mimetype entry'));
+
+        $deflatedPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => $odtMimetype,
+                'method' => 8,
+            ],
+        ]));
+        $deflatedSummary = $deflatedPackage->storedFirstEntryPreflight('mimetype', $odtMimetype);
+        $t->same(8, $deflatedSummary['compressionMethod']);
+        $t->same('deflated', $deflatedSummary['compressionMethodName']);
+        $t->same(false, $deflatedSummary['isStored']);
+        $t->same(true, $deflatedSummary['contentsMatch']);
+        $t->contains('stored compression', implode('; ', $deflatedSummary['diagnostics']));
+
+        $wrongContentsPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => 'application/zip',
+                'method' => 0,
+            ],
+        ]));
+        $wrongContentsSummary = $wrongContentsPackage->storedFirstEntryPreflight('mimetype', $odtMimetype);
+        $t->same(false, $wrongContentsSummary['contentsMatch']);
+        $t->same(strlen('application/zip'), $wrongContentsSummary['contentBytes']);
+        $t->contains('expected bytes', implode('; ', $wrongContentsSummary['diagnostics']));
+
+        $missingSummary = $package->storedFirstEntryPreflight('missing-mimetype', $odtMimetype);
+        $t->same(false, $missingSummary['exists']);
+        $t->same(null, $missingSummary['compressionMethod']);
+        $t->same(null, $missingSummary['compressionMethodName']);
+        $t->same(false, $missingSummary['contentsMatch']);
+        $t->contains('missing entry missing-mimetype', implode('; ', $missingSummary['diagnostics']));
+    },
+
     'reads package entries whose local header uses a data descriptor' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [

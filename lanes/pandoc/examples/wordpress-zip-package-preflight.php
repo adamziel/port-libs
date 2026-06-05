@@ -1341,6 +1341,36 @@ $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
+$odtMimetype = 'application/vnd.oasis.opendocument.text';
+$odtMimetypePackage = ZipPackage::fromParts([
+    [
+        'name' => 'mimetype',
+        'data' => $odtMimetype,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'content.xml',
+        'data' => '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>',
+    ],
+]);
+$odtMimetypePreflight = $odtMimetypePackage->storedFirstEntryPreflight('mimetype', $odtMimetype);
+$odtMimetypeExtraFieldRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'mimetype',
+            'data' => $odtMimetype,
+            'compressionMethod' => 0,
+            'extraFieldData' => $documentReviewExtra,
+        ],
+        [
+            'name' => 'content.xml',
+            'data' => '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>',
+        ],
+    ])->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry');
+} catch (RuntimeException $exception) {
+    $odtMimetypeExtraFieldRejected = str_contains($exception->getMessage(), 'must not carry ZIP extra fields');
+}
 $packageCommentPolicyRejected = false;
 try {
     $package->assertNoPackageOrEntryComments();
@@ -2163,6 +2193,25 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($odtMimetypePreflight['entryName'] ?? null) !== 'mimetype'
+        || ($odtMimetypePreflight['firstLocalEntryName'] ?? null) !== 'mimetype'
+        || ($odtMimetypePreflight['isStored'] ?? null) !== true
+        || ($odtMimetypePreflight['hasCentralExtraFields'] ?? null) !== false
+        || ($odtMimetypePreflight['contentsMatch'] ?? null) !== true
+        || ($odtMimetypePreflight['isValid'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Expected ODT mimetype ZIP preflight to accept a stored first entry');
+    }
+
+    if ($odtMimetypePackage->assertStoredFirstEntry('mimetype', $odtMimetype, 'ODT mimetype entry') !== $odtMimetypePreflight) {
+        throw new RuntimeException('Expected ODT mimetype ZIP assertion to return the accepted summary');
+    }
+
+    if (!$odtMimetypeExtraFieldRejected) {
+        throw new RuntimeException('Expected ODT mimetype ZIP extra fields to be rejected before package import');
+    }
+
+    if (
         !$corruptPayloadRejected
         || ($corruptPayloadPreflight['failedEntryCount'] ?? null) !== 1
         || ($corruptPayloadPreflight['failedEntries'][0]['name'] ?? null) !== 'word/document.xml'
@@ -2890,6 +2939,9 @@ echo 'packageCommentEncoding=' . $packageCommentPreflight['packageCommentEncodin
 echo 'packageCommentedEntries=' . implode(',', array_map(static fn (array $entry): string => $entry['name'], $packageCommentPreflight['commentedEntries'])) . "\n";
 echo 'zipCommentPolicy=' . ($packageCommentPolicyRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'localOrder=' . implode(',', $package->localNames()) . "\n";
+echo 'odtMimetypeStoredFirst=' . ($odtMimetypePreflight['isValid'] ? 'yes' : 'no') . "\n";
+echo 'odtMimetypeLocalFirst=' . ($odtMimetypePreflight['firstLocalEntryName'] ?? 'none') . "\n";
+echo 'zipStoredFirstMimetypeExtraFieldPolicy=' . ($odtMimetypeExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 foreach ($package->entries() as $entry) {
     $modifiedAt = $entry->lastModifiedTimestamp();
     echo '- ' . $entry->name

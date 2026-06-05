@@ -2664,6 +2664,17 @@ XML;
             ['name' => 'content.xml', 'data' => $contentXml],
         ])));
 
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
+            [
+                'name' => 'mimetype',
+                'data' => OdfReader::MIMETYPE,
+                'compressionMethod' => 0,
+                'extraFieldData' => pack('vva*', 0xcafe, strlen('review'), 'review'),
+            ],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+        ])));
+
         $wrongContentRoot = '<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>';
         $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage($wrongContentRoot)));
 

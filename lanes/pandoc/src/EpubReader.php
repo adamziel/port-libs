@@ -161,27 +161,7 @@ final class EpubReader
 
     private function assertEpubMimetype(ZipPackage $package): void
     {
-        if (!$package->has('mimetype')) {
-            throw new \RuntimeException('EPUB package is missing the root mimetype entry');
-        }
-
-        $entries = $package->localEntries();
-        if ($entries === [] || $entries[0]->name !== 'mimetype') {
-            throw new \RuntimeException('EPUB mimetype entry must be the first local ZIP entry');
-        }
-
-        $mimetypeEntry = $package->entry('mimetype');
-        if ($mimetypeEntry->compressionMethod !== 0) {
-            throw new \RuntimeException('EPUB mimetype entry must be stored without compression');
-        }
-
-        if ($mimetypeEntry->centralExtraFields() !== [] || $package->localExtraFields('mimetype') !== []) {
-            throw new \RuntimeException('EPUB mimetype entry must not carry ZIP extra fields');
-        }
-
-        if ($package->read('mimetype') !== self::MIMETYPE) {
-            throw new \RuntimeException('EPUB mimetype entry must be application/epub+zip');
-        }
+        $package->assertStoredFirstEntry('mimetype', self::MIMETYPE, 'EPUB mimetype entry');
     }
 
     /**

@@ -2398,6 +2398,15 @@ XML;
             ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE],
             ['name' => 'META-INF/container.xml', 'data' => $containerXml],
         ])));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
+            [
+                'name' => 'mimetype',
+                'data' => EpubReader::MIMETYPE,
+                'compressionMethod' => 0,
+                'extraFieldData' => pack('vva*', 0xcafe, strlen('review'), 'review'),
+            ],
+            ['name' => 'META-INF/container.xml', 'data' => $containerXml],
+        ])));
         $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => '<container/>'],

@@ -492,6 +492,137 @@ final class ZipPackage
         return array_map(static fn (ZipPackageEntry $entry): string => $entry->name, $this->localEntries());
     }
 
+    /**
+     * @return array{
+     *     entryName:string,
+     *     exists:bool,
+     *     firstLocalEntryName:?string,
+     *     isFirstLocalEntry:bool,
+     *     compressionMethod:?int,
+     *     compressionMethodName:?string,
+     *     isStored:bool,
+     *     centralExtraFieldIds:list<int>,
+     *     localExtraFieldIds:list<int>,
+     *     hasCentralExtraFields:bool,
+     *     hasLocalExtraFields:bool,
+     *     expectedBytes:int,
+     *     contentBytes:?int,
+     *     contentsMatch:bool,
+     *     isValid:bool,
+     *     diagnostics:list<string>
+     * }
+     */
+    public function storedFirstEntryPreflight(string $partName, string $expectedContents): array
+    {
+        $name = $this->normalizeLookupPartName($partName);
+        $localEntries = $this->localEntries();
+        $firstLocalEntryName = $localEntries[0]->name ?? null;
+        $exists = isset($this->entriesByName[$name]);
+        $diagnostics = [];
+        $compressionMethod = null;
+        $compressionMethodName = null;
+        $isStored = false;
+        $centralExtraFieldIds = [];
+        $localExtraFieldIds = [];
+        $contentBytes = null;
+        $contentsMatch = false;
+
+        if (!$exists) {
+            $diagnostics[] = "missing entry {$name}";
+        }
+
+        if ($firstLocalEntryName !== $name) {
+            $diagnostics[] = "entry {$name} is not the first local ZIP entry";
+        }
+
+        if ($exists) {
+            $entry = $this->entriesByName[$name];
+            $compressionMethod = $entry->compressionMethod;
+            $compressionMethodName = self::compressionMethodName($compressionMethod);
+            $isStored = $compressionMethod === 0;
+            $centralExtraFieldIds = array_map(
+                static fn (array $field): int => $field['id'],
+                $entry->centralExtraFields()
+            );
+            $localExtraFieldIds = array_map(
+                static fn (array $field): int => $field['id'],
+                $this->localExtraFields($name)
+            );
+
+            if (!$isStored) {
+                $diagnostics[] = "entry {$name} must use stored compression";
+            }
+
+            if ($centralExtraFieldIds !== [] || $localExtraFieldIds !== []) {
+                $diagnostics[] = "entry {$name} must not carry ZIP extra fields";
+            }
+
+            try {
+                $contents = $this->read($name);
+                $contentBytes = strlen($contents);
+                $contentsMatch = $contents === $expectedContents;
+                if (!$contentsMatch) {
+                    $diagnostics[] = "entry {$name} contents do not match expected bytes";
+                }
+            } catch (\RuntimeException $exception) {
+                $diagnostics[] = "entry {$name} could not be read: " . $exception->getMessage();
+            }
+        }
+
+        return [
+            'entryName' => $name,
+            'exists' => $exists,
+            'firstLocalEntryName' => $firstLocalEntryName,
+            'isFirstLocalEntry' => $firstLocalEntryName === $name,
+            'compressionMethod' => $compressionMethod,
+            'compressionMethodName' => $compressionMethodName,
+            'isStored' => $isStored,
+            'centralExtraFieldIds' => $centralExtraFieldIds,
+            'localExtraFieldIds' => $localExtraFieldIds,
+            'hasCentralExtraFields' => $centralExtraFieldIds !== [],
+            'hasLocalExtraFields' => $localExtraFieldIds !== [],
+            'expectedBytes' => strlen($expectedContents),
+            'contentBytes' => $contentBytes,
+            'contentsMatch' => $contentsMatch,
+            'isValid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryName:string,
+     *     exists:bool,
+     *     firstLocalEntryName:?string,
+     *     isFirstLocalEntry:bool,
+     *     compressionMethod:?int,
+     *     compressionMethodName:?string,
+     *     isStored:bool,
+     *     centralExtraFieldIds:list<int>,
+     *     localExtraFieldIds:list<int>,
+     *     hasCentralExtraFields:bool,
+     *     hasLocalExtraFields:bool,
+     *     expectedBytes:int,
+     *     contentBytes:?int,
+     *     contentsMatch:bool,
+     *     isValid:bool,
+     *     diagnostics:list<string>
+     * }
+     */
+    public function assertStoredFirstEntry(string $partName, string $expectedContents, ?string $label = null): array
+    {
+        $summary = $this->storedFirstEntryPreflight($partName, $expectedContents);
+        if ($summary['isValid']) {
+            return $summary;
+        }
+
+        $label ??= $summary['entryName'];
+        throw new \RuntimeException(
+            "ZIP package stored-first entry preflight failed for {$label}: "
+            . implode('; ', $summary['diagnostics'])
+        );
+    }
+
     public function bytes(): string
     {
         return $this->bytes;
