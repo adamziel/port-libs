@@ -5842,10 +5842,28 @@ final class PdfEmbeddedFileExtractor
             ], true);
         }
 
-        for ($index = $offset, $length = strlen($stream); $index < $length; $index++) {
-            if (!in_array($stream[$index], ["\0", "\t", "\n", "\f", "\r", ' '], true)) {
-                return false;
+        return $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset);
+    }
+
+    private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
+    {
+        $length = strlen($stream);
+        for ($index = $offset; $index < $length;) {
+            if ($this->isPdfWhitespace($stream[$index])) {
+                $index++;
+                continue;
             }
+
+            if ($stream[$index] === '%') {
+                $lineLength = strcspn($stream, "\r\n", $index);
+                if ($index + $lineLength >= $length) {
+                    return false;
+                }
+                $index += $lineLength;
+                continue;
+            }
+
+            return false;
         }
 
         return true;

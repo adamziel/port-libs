@@ -3311,10 +3311,28 @@ final class PdfAttachmentExtractor
             ], true);
         }
 
-        for ($index = $offset, $length = strlen($bytes); $index < $length; $index++) {
-            if (!in_array($bytes[$index], ["\0", "\t", "\n", "\f", "\r", ' '], true)) {
-                return false;
+        return $this->streamHasOnlyWhitespaceAfterOffset($bytes, $offset);
+    }
+
+    private function streamHasOnlyWhitespaceAfterOffset(string $bytes, int $offset): bool
+    {
+        $length = strlen($bytes);
+        for ($index = $offset; $index < $length;) {
+            if ($this->isPdfWhitespace($bytes[$index])) {
+                $index++;
+                continue;
             }
+
+            if ($bytes[$index] === '%') {
+                $lineLength = strcspn($bytes, "\r\n", $index);
+                if ($index + $lineLength >= $length) {
+                    return false;
+                }
+                $index += $lineLength;
+                continue;
+            }
+
+            return false;
         }
 
         return true;

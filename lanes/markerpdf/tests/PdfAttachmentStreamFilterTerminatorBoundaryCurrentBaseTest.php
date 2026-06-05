@@ -57,18 +57,25 @@ $attachmentStreamFilterTerminatorBoundaryPdf = static function () use (
     $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Terminator Review) Tj ET';
     $boundedAscii85Payload = "Title,Status\nBounded ASCII85 Attachment,Ready\n";
     $boundedFlatePayload = "Title,Status\nBounded Flate Attachment,Ready\n";
+    $commentAscii85Payload = "Title,Status\nComment ASCII85 Attachment,Ready\n";
+    $commentAsciiHexPayload = "Title,Status\nComment ASCIIHex Attachment,Ready\n";
+    $commentRunLengthPayload = "Title,Status\nComment RunLength Attachment,Ready\n";
     $ascii85SurplusPayload = "Title,Status\nASCII85 Surplus Attachment,Blocked\n";
     $asciiHexSurplusPayload = "Title,Status\nASCIIHex Surplus Attachment,Blocked\n";
     $runLengthSurplusPayload = "Title,Status\nRunLength Surplus Attachment,Blocked\n";
     $flateSurplusPayload = "Title,Status\nFlate Surplus Attachment,Blocked\n";
 
     $compressedBoundedAscii85 = gzcompress($boundedAscii85Payload);
+    $compressedCommentAscii85 = gzcompress($commentAscii85Payload);
+    $compressedCommentAsciiHex = gzcompress($commentAsciiHexPayload);
     $compressedAscii85Surplus = gzcompress($ascii85SurplusPayload);
     $compressedAsciiHexSurplus = gzcompress($asciiHexSurplusPayload);
     $boundedFlateBytes = gzcompress($boundedFlatePayload);
     $flateSurplusBytes = gzcompress($flateSurplusPayload);
     if (
         !is_string($compressedBoundedAscii85)
+        || !is_string($compressedCommentAscii85)
+        || !is_string($compressedCommentAsciiHex)
         || !is_string($compressedAscii85Surplus)
         || !is_string($compressedAsciiHexSurplus)
         || !is_string($boundedFlateBytes)
@@ -92,6 +99,30 @@ $attachmentStreamFilterTerminatorBoundaryPdf = static function () use (
             'payload' => $boundedFlatePayload,
             'filter' => '/FlateDecode',
             'stream' => $boundedFlateBytes,
+            'relationship' => 'Data',
+        ],
+        [
+            'name' => 'comment-ascii85.csv',
+            'object' => 23,
+            'payload' => $commentAscii85Payload,
+            'filter' => '[ /ASCII85Decode /FlateDecode ]',
+            'stream' => $attachmentStreamFilterTerminatorBoundaryAscii85($compressedCommentAscii85, "\n% comment-only filter tail\n \t"),
+            'relationship' => 'Supplement',
+        ],
+        [
+            'name' => 'comment-asciihex.csv',
+            'object' => 25,
+            'payload' => $commentAsciiHexPayload,
+            'filter' => '[ /ASCIIHexDecode /FlateDecode ]',
+            'stream' => $attachmentStreamFilterTerminatorBoundaryAsciiHex($compressedCommentAsciiHex, "\r% hex terminator comment tail\r\n"),
+            'relationship' => 'Source',
+        ],
+        [
+            'name' => 'comment-runlength.csv',
+            'object' => 27,
+            'payload' => $commentRunLengthPayload,
+            'filter' => '/RunLengthDecode',
+            'stream' => $attachmentStreamFilterTerminatorBoundaryRunLength($commentRunLengthPayload, "\n% runlength terminator comment tail\n"),
             'relationship' => 'Data',
         ],
         [
@@ -156,14 +187,26 @@ $attachmentStreamFilterTerminatorBoundaryPdf = static function () use (
 
     return [
         'pdf' => $pdf,
-        'included_payloads' => [$boundedAscii85Payload, $boundedFlatePayload],
+        'included_payloads' => [
+            $boundedAscii85Payload,
+            $boundedFlatePayload,
+            $commentAscii85Payload,
+            $commentAsciiHexPayload,
+            $commentRunLengthPayload,
+        ],
         'excluded_payloads' => [
             $ascii85SurplusPayload,
             $asciiHexSurplusPayload,
             $runLengthSurplusPayload,
             $flateSurplusPayload,
         ],
-        'included_names' => ['bounded-ascii85.csv', 'bounded-flate.csv'],
+        'included_names' => [
+            'bounded-ascii85.csv',
+            'bounded-flate.csv',
+            'comment-ascii85.csv',
+            'comment-asciihex.csv',
+            'comment-runlength.csv',
+        ],
         'excluded_names' => ['ascii85-surplus.csv', 'asciihex-surplus.csv', 'runlength-surplus.csv', 'flate-surplus.csv'],
     ];
 };
@@ -181,15 +224,15 @@ return [
         $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
         $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
 
-        $t->same(2, $summary['attachment_count']);
+        $t->same(5, $summary['attachment_count']);
         $t->same($fixture['included_names'], $summary['filenames']);
         $t->same(
-            strlen($fixture['included_payloads'][0]) + strlen($fixture['included_payloads'][1]),
+            array_sum(array_map('strlen', $fixture['included_payloads'])),
             $summary['total_bytes']
         );
         $t->same(false, $summary['executes_python_or_models']);
         $t->same(false, $summary['executes_external_pdf_tools']);
-        $t->same(2, count($files));
+        $t->same(5, count($files));
         $t->same($fixture['included_names'], array_column($files, 'filename'));
 
         foreach ($fixture['included_payloads'] as $index => $payload) {
@@ -219,5 +262,56 @@ return [
 
         $t->true(str_contains($plainText, 'Visible Attachment Terminator Review'));
         $t->true(!str_contains($plainText, 'attachment surplus bytes'));
+        $t->true(!str_contains($plainText, 'comment-only bytes'));
+        $t->true(!str_contains($plainText, 'terminator comment'));
+    },
+    'accepts PDF comments after explicit attachment filter terminators before WordPress review' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterTerminatorBoundaryPdf): void {
+        $fixture = $attachmentStreamFilterTerminatorBoundaryPdf();
+        $pdf = $fixture['pdf'];
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $commentNames = ['comment-ascii85.csv', 'comment-asciihex.csv', 'comment-runlength.csv'];
+        $commentPayloads = array_slice($fixture['included_payloads'], 2, 3);
+        $commentSummaryRows = array_slice($summary['attachments'], 2, 3);
+        $commentFileRows = array_slice($files, 2, 3);
+
+        $t->same($commentNames, array_column($commentSummaryRows, 'filename'));
+        $t->same($commentNames, array_column($commentFileRows, 'filename'));
+        $t->same(['Supplement', 'Source', 'Data'], array_column($commentSummaryRows, 'relationship'));
+        $t->same(['supplemental_representation', 'original_source', 'base_data_for_visual_presentation'], array_column($commentSummaryRows, 'relationship_role'));
+        $t->same([
+            ['ASCII85Decode', 'FlateDecode'],
+            ['ASCIIHexDecode', 'FlateDecode'],
+            ['RunLengthDecode'],
+        ], array_column($commentSummaryRows, 'filters'));
+        $t->same($commentPayloads, array_column($commentFileRows, 'content'));
+
+        foreach ($commentPayloads as $index => $payload) {
+            $t->same(strlen($payload), $commentSummaryRows[$index]['byte_length'] ?? null);
+            $t->same(strlen($payload), $commentFileRows[$index]['size'] ?? null);
+            $t->same(md5($payload), $commentSummaryRows[$index]['computed_checksum_hex'] ?? null);
+            $t->same(md5($payload), $commentFileRows[$index]['computed_checksum'] ?? null);
+            $t->same(true, $commentSummaryRows[$index]['checksum_matches'] ?? null);
+            $t->same(true, $commentFileRows[$index]['checksum_matches'] ?? null);
+            $t->same(false, array_key_exists('bytes', $commentSummaryRows[$index]));
+            $t->true(!str_contains($encodedSummary, $payload));
+        }
+
+        $t->true(!str_contains($plainText, 'Comment ASCII85 Attachment'));
+        $t->true(!str_contains($plainText, 'Comment ASCIIHex Attachment'));
+        $t->true(!str_contains($plainText, 'Comment RunLength Attachment'));
+        $t->true(!str_contains($plainText, 'comment-only filter tail'));
+        $t->true(!str_contains($plainText, 'terminator comment tail'));
+        $t->true(!str_contains($encodedSummary, 'comment-only filter tail'));
+        $t->true(!str_contains($encodedFiles, 'comment-only filter tail'));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
     },
 ];

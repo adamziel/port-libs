@@ -45,19 +45,30 @@ $runLength = static function (string $bytes, string $suffix = ''): string {
     return $encoded . chr(128) . $suffix;
 };
 
+$asciiHex = static function (string $bytes, string $suffix = ''): string {
+    return strtoupper(bin2hex($bytes)) . '>' . $suffix;
+};
+
 $visible = 'BT /F1 12 Tf 72 720 Td (Attachment terminator boundary review) Tj ET';
 $sourcePayload = "Title,Status\nTerminator Boundary Source,Ready\n";
 $supplementPayload = "Title,Status\nTerminator Boundary Supplement,Ready\n";
+$commentAscii85Payload = "Title,Status\nTerminator Comment ASCII85,Ready\n";
+$commentAsciiHexPayload = "Title,Status\nTerminator Comment ASCIIHex,Ready\n";
+$commentRunLengthPayload = "Title,Status\nTerminator Comment RunLength,Ready\n";
 $ascii85Payload = "Title,Status\nASCII85 Surplus Source,Blocked\n";
 $runLengthPayload = "Title,Status\nRunLength Surplus Source,Blocked\n";
 $flatePayload = "Title,Status\nFlate Surplus Source,Blocked\n";
 
 $sourceCompressed = gzcompress($sourcePayload);
+$commentAscii85Compressed = gzcompress($commentAscii85Payload);
+$commentAsciiHexCompressed = gzcompress($commentAsciiHexPayload);
 $ascii85Compressed = gzcompress($ascii85Payload);
 $supplementCompressed = gzcompress($supplementPayload);
 $flateCompressed = gzcompress($flatePayload);
 if (
     !is_string($sourceCompressed)
+    || !is_string($commentAscii85Compressed)
+    || !is_string($commentAsciiHexCompressed)
     || !is_string($ascii85Compressed)
     || !is_string($supplementCompressed)
     || !is_string($flateCompressed)
@@ -81,6 +92,30 @@ $files = [
         'payload' => $supplementPayload,
         'filter' => '/FlateDecode',
         'stream' => $supplementCompressed,
+    ],
+    [
+        'name' => 'terminator-comment-ascii85.csv',
+        'object' => 23,
+        'relationship' => 'Supplement',
+        'payload' => $commentAscii85Payload,
+        'filter' => '[ /ASCII85Decode /FlateDecode ]',
+        'stream' => $ascii85($commentAscii85Compressed, "\n% comment-only filter tail\n \t"),
+    ],
+    [
+        'name' => 'terminator-comment-asciihex.csv',
+        'object' => 25,
+        'relationship' => 'Source',
+        'payload' => $commentAsciiHexPayload,
+        'filter' => '[ /ASCIIHexDecode /FlateDecode ]',
+        'stream' => $asciiHex($commentAsciiHexCompressed, "\r% hex terminator comment tail\r\n"),
+    ],
+    [
+        'name' => 'terminator-comment-runlength.csv',
+        'object' => 27,
+        'relationship' => 'Data',
+        'payload' => $commentRunLengthPayload,
+        'filter' => '/RunLengthDecode',
+        'stream' => $runLength($commentRunLengthPayload, "\n% runlength terminator comment tail\n"),
     ],
     [
         'name' => 'terminator-ascii85-decoy.csv',
@@ -140,12 +175,27 @@ $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 $summaryJson = json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 $embeddedJson = json_encode($embedded, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 $attachmentNames = $summary['filenames'] ?? [];
+$expectedNames = [
+    'terminator-source.csv',
+    'terminator-supplement.csv',
+    'terminator-comment-ascii85.csv',
+    'terminator-comment-asciihex.csv',
+    'terminator-comment-runlength.csv',
+];
+$expectedPayloads = [
+    $sourcePayload,
+    $supplementPayload,
+    $commentAscii85Payload,
+    $commentAsciiHexPayload,
+    $commentRunLengthPayload,
+];
 
 $smoke = [
     'native_boundary' => 'EmbeddedFiles filter-stack terminators must consume only whitespace before WordPress attachment review',
     'attachment_count' => $summary['attachment_count'] ?? null,
-    'valid_attachments_selected' => $attachmentNames === ['terminator-source.csv', 'terminator-supplement.csv'],
-    'embedded_payloads_available_to_review' => array_column($embedded, 'content') === [$sourcePayload, $supplementPayload],
+    'valid_attachments_selected' => $attachmentNames === $expectedNames,
+    'comment_tail_attachments_selected' => array_slice($attachmentNames, 2, 3) === array_slice($expectedNames, 2, 3),
+    'embedded_payloads_available_to_review' => array_column($embedded, 'content') === $expectedPayloads,
     'ascii85_surplus_attachment_excluded' => !str_contains($summaryJson, 'terminator-ascii85-decoy.csv')
         && !str_contains($embeddedJson, $ascii85Payload),
     'runlength_surplus_attachment_excluded' => !str_contains($summaryJson, 'terminator-runlength-decoy.csv')
@@ -153,15 +203,21 @@ $smoke = [
     'flate_surplus_attachment_excluded' => !str_contains($summaryJson, 'terminator-flate-decoy.csv')
         && !str_contains($embeddedJson, $flatePayload),
     'payload_bytes_omitted_from_summary' => !str_contains($summaryJson, $sourcePayload)
-        && !str_contains($summaryJson, $supplementPayload),
+        && !str_contains($summaryJson, $supplementPayload)
+        && !str_contains($summaryJson, $commentAscii85Payload)
+        && !str_contains($summaryJson, $commentAsciiHexPayload)
+        && !str_contains($summaryJson, $commentRunLengthPayload),
     'visible_text_kept_clean' => str_contains($plainText, 'Attachment terminator boundary review')
-        && !str_contains($plainText, 'decoy surplus'),
+        && !str_contains($plainText, 'decoy surplus')
+        && !str_contains($plainText, 'comment-only filter tail')
+        && !str_contains($plainText, 'terminator comment tail'),
     'executes_python_or_models' => $summary['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $summary['executes_external_pdf_tools'] ?? null,
 ];
 
 foreach ([
     'valid_attachments_selected',
+    'comment_tail_attachments_selected',
     'embedded_payloads_available_to_review',
     'ascii85_surplus_attachment_excluded',
     'runlength_surplus_attachment_excluded',
