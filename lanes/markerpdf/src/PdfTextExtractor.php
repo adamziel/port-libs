@@ -18460,7 +18460,7 @@ final class PdfTextExtractor
                 'source' => 'xref_table',
                 'offset' => $offset,
                 'entries' => $entries,
-                'previousOffset' => $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects),
+                'previousOffset' => $this->previousXrefOffsetForSectionBody($pdfBytes, $trailer, $offset, $definitions, $objects),
                 'rootPresent' => $rootPresent,
             ];
         }
