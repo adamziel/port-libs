@@ -7,6 +7,20 @@ namespace PortLibs\MarkerPDF;
 final class PdfLinkAnnotationExtractor
 {
     private const DEFAULT_PAGE_BBOX = [0.0, 0.0, 612.0, 792.0];
+    private const BORDER_STYLE_NAMES = [
+        'S' => 'solid',
+        'D' => 'dashed',
+        'B' => 'beveled',
+        'I' => 'inset',
+        'U' => 'underline',
+    ];
+    private const HIGHLIGHT_MODE_LABELS = [
+        'N' => 'none',
+        'I' => 'invert',
+        'O' => 'outline',
+        'P' => 'push',
+        'T' => 'toggle',
+    ];
 
     /** @var array<int, array<int, string>> */
     private array $objectBodiesByGeneration = [];
@@ -166,6 +180,18 @@ final class PdfLinkAnnotationExtractor
                             'target_outline_titles' => 'link_target_outline_titles',
                             'target_outline_levels' => 'link_target_outline_levels',
                             'document_metadata_dates' => 'link_document_metadata_dates',
+                        ] as $sourceKey => $spanKey) {
+                            if (array_key_exists($sourceKey, $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
+                            }
+                        }
+                        foreach ([
+                            'contents' => 'link_annotation_contents',
+                            'title' => 'link_annotation_title',
+                            'border_color' => 'link_annotation_border_color',
+                            'highlight_mode' => 'link_annotation_highlight_mode',
+                            'highlight_mode_label' => 'link_annotation_highlight_mode_label',
+                            'border' => 'link_annotation_border',
                         ] as $sourceKey => $spanKey) {
                             if (array_key_exists($sourceKey, $link)) {
                                 $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
@@ -434,7 +460,7 @@ final class PdfLinkAnnotationExtractor
             'actions' => $review['actions'],
             'additional_actions' => $review['additional_actions'],
             'executes_on_import' => false,
-        ];
+        ] + $this->presentationReviewFromAnnotation($annotationBody, $objects);
         if ($quadPoints !== []) {
             $link['quad_points'] = $quadPoints;
             $link['quad_rects'] = $quadRects;
@@ -870,6 +896,186 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $quads;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function presentationReviewFromAnnotation(string $annotationBody, array $objects): array
+    {
+        $review = [];
+
+        $contents = $this->stringValueAfterName($annotationBody, 'Contents', $objects);
+        if ($contents !== null) {
+            $review['contents'] = $contents;
+        }
+
+        $title = $this->stringValueAfterName($annotationBody, 'T', $objects);
+        if ($title !== null) {
+            $review['title'] = $title;
+        }
+
+        $color = $this->colorValueAfterName($annotationBody, 'C', $objects);
+        if ($color !== null) {
+            $review['border_color'] = $color;
+        }
+
+        $highlightMode = $this->highlightModeFromAnnotation($annotationBody);
+        if ($highlightMode !== null) {
+            $review['highlight_mode'] = $highlightMode;
+            $review['highlight_mode_label'] = self::HIGHLIGHT_MODE_LABELS[$highlightMode] ?? 'unknown';
+        }
+
+        $border = $this->borderFromAnnotation($annotationBody, $objects);
+        if ($border !== null) {
+            $review['border'] = $border;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{space: string, components: list<float>, hex: string|null}|null
+     */
+    private function colorValueAfterName(string $body, string $name, array $objects): ?array
+    {
+        $arrayBody = $this->arrayBodyValueAfterName($body, $name, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $components = array_map(fn (float $component): float => $this->clamp($component), $this->numbersFromPdfArray($arrayBody));
+        $count = count($components);
+        if ($count === 0) {
+            return [
+                'space' => 'transparent',
+                'components' => [],
+                'hex' => null,
+            ];
+        }
+
+        if ($count === 1) {
+            return [
+                'space' => 'DeviceGray',
+                'components' => $components,
+                'hex' => $this->rgbHex([$components[0], $components[0], $components[0]]),
+            ];
+        }
+
+        if ($count === 3) {
+            return [
+                'space' => 'DeviceRGB',
+                'components' => $components,
+                'hex' => $this->rgbHex($components),
+            ];
+        }
+
+        if ($count === 4) {
+            [$cyan, $magenta, $yellow, $black] = $components;
+
+            return [
+                'space' => 'DeviceCMYK',
+                'components' => $components,
+                'hex' => $this->rgbHex([
+                    (1.0 - $cyan) * (1.0 - $black),
+                    (1.0 - $magenta) * (1.0 - $black),
+                    (1.0 - $yellow) * (1.0 - $black),
+                ]),
+            ];
+        }
+
+        return [
+            'space' => 'DeviceN',
+            'components' => $components,
+            'hex' => null,
+        ];
+    }
+
+    private function highlightModeFromAnnotation(string $annotationBody): ?string
+    {
+        $value = $this->valueAfterName($annotationBody, 'H');
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed[0] !== '/') {
+            return null;
+        }
+
+        $end = $this->skipPdfName($trimmed, 0);
+        return $this->decodePdfName(substr($trimmed, 1, $end - 1));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function borderFromAnnotation(string $annotationBody, array $objects): ?array
+    {
+        $bs = $this->valueAfterName($annotationBody, 'BS');
+        if ($bs !== null) {
+            $dictionary = $this->dictionaryBodyFromValue($bs, $objects);
+            if ($dictionary !== null) {
+                $width = $this->floatValueAfterName($dictionary, 'W', $objects) ?? 1.0;
+                $styleCode = $this->nameValueAfterName($dictionary, 'S') ?? 'S';
+                $dashPattern = $this->arrayNumbersAfterName($dictionary, 'D', $objects) ?? [];
+
+                return [
+                    'source' => 'BS',
+                    'width' => $width,
+                    'style' => $width <= 0.0 ? 'none' : (self::BORDER_STYLE_NAMES[$styleCode] ?? strtolower($styleCode)),
+                    'style_code' => $styleCode,
+                    'dash_pattern' => $dashPattern,
+                    'horizontal_corner_radius' => null,
+                    'vertical_corner_radius' => null,
+                ];
+            }
+        }
+
+        $arrayBody = $this->arrayBodyValueAfterName($annotationBody, 'Border', $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        if (count($numbers) < 3) {
+            return null;
+        }
+
+        $dashPattern = $this->dashPatternFromBorderArrayBody($arrayBody);
+        $width = (float) $numbers[2];
+
+        return [
+            'source' => 'Border',
+            'width' => $width,
+            'style' => $width <= 0.0 ? 'none' : ($dashPattern === [] ? 'solid' : 'dashed'),
+            'style_code' => $dashPattern === [] ? 'S' : 'D',
+            'dash_pattern' => $dashPattern,
+            'horizontal_corner_radius' => (float) $numbers[0],
+            'vertical_corner_radius' => (float) $numbers[1],
+        ];
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function dashPatternFromBorderArrayBody(string $arrayBody): array
+    {
+        $offset = 0;
+        while (($start = strpos($arrayBody, '[', $offset)) !== false) {
+            $endOffset = null;
+            $body = $this->readPdfArrayAt($arrayBody, $start, $endOffset);
+            if ($body === null || $endOffset === null) {
+                break;
+            }
+
+            return $this->numbersFromPdfArray($body);
+        }
+
+        return [];
     }
 
     /**
@@ -1423,6 +1629,113 @@ final class PdfLinkAnnotationExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function stringValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($this->resolveIndirectObjectValue($value, $objects));
+        if ($value === '') {
+            return null;
+        }
+
+        if ($value[0] === '(') {
+            $endOffset = $this->skipLiteralString($value, 0);
+            return $this->decodePdfStringBytes($this->decodeLiteralString(substr($value, 1, $endOffset - 2)));
+        }
+
+        if ($value[0] === '<' && substr($value, 0, 2) !== '<<') {
+            $endOffset = $this->skipHexString($value, 0);
+            $hex = preg_replace('/\s+/', '', substr($value, 1, $endOffset - 2)) ?? '';
+            if ($hex === '') {
+                return null;
+            }
+            if (strlen($hex) % 2 === 1) {
+                $hex .= '0';
+            }
+
+            $bytes = hex2bin($hex);
+            return $bytes === false ? null : $this->decodePdfStringBytes($bytes);
+        }
+
+        if ($value[0] === '/') {
+            $endOffset = $this->skipPdfName($value, 0);
+            return $this->decodePdfName(substr($value, 1, $endOffset - 1));
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function arrayBodyValueAfterName(string $body, string $name, array $objects): ?string
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($this->resolveIndirectObjectValue($value, $objects));
+        if (!str_starts_with($value, '[')) {
+            return null;
+        }
+
+        return $this->arrayBodyFromValue($value);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryBodyFromValue(string $value, array $objects): ?string
+    {
+        $value = trim($this->resolveIndirectObjectValue($value, $objects));
+        if (str_starts_with($value, '<<')) {
+            return $this->readPdfDictionaryAt($value, 0);
+        }
+
+        return $this->dictionaryObjectBody($value);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function floatValueAfterName(string $body, string $name, array $objects): ?float
+    {
+        return $this->numberValueAfterName($body, $name, $objects);
+    }
+
+    private function nameValueAfterName(string $body, string $name): ?string
+    {
+        $value = $this->valueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed[0] !== '/') {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfName($trimmed, 0);
+        return $this->decodePdfName(substr($trimmed, 1, $endOffset - 1));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<float>|null
+     */
+    private function arrayNumbersAfterName(string $body, string $name, array $objects): ?array
+    {
+        $arrayBody = $this->arrayBodyValueAfterName($body, $name, $objects);
+        return $arrayBody === null ? null : $this->numbersFromPdfArray($arrayBody);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function integerAfterName(string $body, string $name, array $objects = []): ?int
     {
         $value = $this->valueAfterName($body, $name);
@@ -1833,6 +2146,24 @@ final class PdfLinkAnnotationExtractor
     {
         return min($left[2], $right[2]) - max($left[0], $right[0]) > 0.0
             && min($left[3], $right[3]) - max($left[1], $right[1]) > 0.0;
+    }
+
+    /**
+     * @param list<float> $components
+     */
+    private function rgbHex(array $components): string
+    {
+        $parts = [];
+        foreach (array_slice($components, 0, 3) as $component) {
+            $parts[] = str_pad(dechex((int) round($this->clamp((float) $component) * 255)), 2, '0', STR_PAD_LEFT);
+        }
+
+        return '#' . implode('', $parts);
+    }
+
+    private function clamp(float $value): float
+    {
+        return max(0.0, min(1.0, $value));
     }
 
     private function decodePdfStringBytes(string $bytes): string
