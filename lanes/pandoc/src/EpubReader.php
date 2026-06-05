@@ -288,15 +288,17 @@ final class EpubReader
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
         $prefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
         $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier);
-        $manifestById = $this->readManifest($package, $opfPart, $manifestElement);
+        $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
+        $packageId = self::nullableAttribute($root, 'id');
+        $manifestById = $this->readManifest($package, $opfPart, $manifestElement, $refinementsById);
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $metadata = $this->resolveMetadataLinks($package, $opfPart, $metadata, $manifestById);
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
-        $spineProperties = self::readSpineProperties($spineElement);
-        $spine = $this->readSpine($spineElement, $manifestById, $bindings);
+        $spineProperties = self::readSpineProperties($spineElement, $refinementsById);
+        $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById);
         $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $mediaDurations = self::mediaDurationReport($metadata, $manifestById);
         $metadata['mediaDurations'] = $mediaDurations;
@@ -313,10 +315,12 @@ final class EpubReader
         return [
             'metadata' => $metadata,
             'package' => [
+                'id' => $packageId,
                 'version' => trim($root->getAttribute('version')),
                 'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
                 'opfPart' => $opfPart,
                 'language' => self::xmlLang($root),
+                'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
                 'prefix' => $prefixReport['raw'],
                 'prefixes' => $prefixReport['bindingsByPrefix'],
                 'prefixBindings' => $prefixReport['bindings'],
@@ -787,6 +791,20 @@ final class EpubReader
         return $refinements;
     }
 
+    /**
+     * @param array<string, array<string, list<array<string, mixed>>>> $refinementsById
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataRefinementsForId(array $refinementsById, ?string $id): array
+    {
+        if ($id === null || $id === '') {
+            return [];
+        }
+
+        return is_array($refinementsById[$id] ?? null) ? $refinementsById[$id] : [];
+    }
+
     private static function metadataRefinementSubject(mixed $refines): ?string
     {
         if (!is_string($refines)) {
@@ -1175,7 +1193,12 @@ final class EpubReader
     /**
      * @return array<string, array<string, mixed>>
      */
-    private function readManifest(ZipPackage $package, string $opfPart, \DOMElement $manifestElement): array
+    private function readManifest(
+        ZipPackage $package,
+        string $opfPart,
+        \DOMElement $manifestElement,
+        array $refinementsById
+    ): array
     {
         $manifest = [];
         foreach (self::childElements($manifestElement, 'item', self::OPF_NS) as $item) {
@@ -1204,6 +1227,7 @@ final class EpubReader
                     'properties' => $properties,
                     'resourceFlags' => $resourceFlags,
                     'resourceReviewFlags' => $resourceReviewFlags,
+                    'refinements' => self::metadataRefinementsForId($refinementsById, $id),
                     'fallback' => self::nullableAttribute($item, 'fallback'),
                     'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
                     'exists' => false,
@@ -1235,6 +1259,7 @@ final class EpubReader
                 'properties' => $properties,
                 'resourceFlags' => $resourceFlags,
                 'resourceReviewFlags' => $resourceReviewFlags,
+                'refinements' => self::metadataRefinementsForId($refinementsById, $id),
                 'fallback' => self::nullableAttribute($item, 'fallback'),
                 'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
                 'exists' => $exists,
@@ -1717,10 +1742,16 @@ final class EpubReader
      *
      * @return list<array<string, mixed>>
      */
-    private function readSpine(\DOMElement $spineElement, array $manifestById, array $bindings): array
+    private function readSpine(
+        \DOMElement $spineElement,
+        array $manifestById,
+        array $bindings,
+        array $refinementsById
+    ): array
     {
         $spine = [];
         foreach (self::childElements($spineElement, 'itemref', self::OPF_NS) as $index => $itemref) {
+            $itemrefId = self::nullableAttribute($itemref, 'id');
             $idref = trim($itemref->getAttribute('idref'));
             if ($idref === '') {
                 throw new \RuntimeException('EPUB spine itemref is missing idref');
@@ -1741,6 +1772,7 @@ final class EpubReader
             $itemProperties = self::spineItemPropertyReport($properties);
             $spine[] = [
                 'index' => $index,
+                'id' => $itemrefId,
                 'idref' => $idref,
                 'target' => $manifestItem['target'],
                 'part' => $manifestItem['part'],
@@ -1748,6 +1780,7 @@ final class EpubReader
                 'mediaType' => $manifestItem['mediaType'],
                 'linear' => strtolower(trim($itemref->getAttribute('linear'))) !== 'no',
                 'properties' => $properties,
+                'refinements' => self::metadataRefinementsForId($refinementsById, $itemrefId),
                 'spineItemProperties' => $itemProperties,
                 'spineItemDiagnostics' => $itemProperties['diagnostics'],
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
@@ -1786,8 +1819,9 @@ final class EpubReader
      *     diagnostics:list<array<string, mixed>>
      * }
      */
-    private static function readSpineProperties(\DOMElement $spineElement): array
+    private static function readSpineProperties(\DOMElement $spineElement, array $refinementsById): array
     {
+        $spineId = self::nullableAttribute($spineElement, 'id');
         $rawDirection = trim($spineElement->getAttribute('page-progression-direction'));
         $specified = $rawDirection !== '';
         $normalized = strtolower($rawDirection);
@@ -1809,7 +1843,9 @@ final class EpubReader
         }
 
         return [
+            'id' => $spineId,
             'toc' => self::nullableAttribute($spineElement, 'toc'),
+            'refinements' => self::metadataRefinementsForId($refinementsById, $spineId),
             'pageProgressionDirection' => $direction,
             'pageProgressionDirectionRaw' => $specified ? $rawDirection : null,
             'pageProgressionDirectionSpecified' => $specified,
@@ -3571,7 +3607,9 @@ final class EpubReader
                 'html' => $asset['html'],
                 'part' => $asset['part'],
                 'id' => $item['idref'],
+                'spineItemId' => $item['id'] ?? null,
                 'linear' => $item['linear'],
+                'refinements' => $item['refinements'] ?? [],
                 'pageProgressionDirection' => $spineProperties['pageProgressionDirection'] ?? 'default',
                 'pageSpread' => $item['pageSpread'] ?? null,
                 'pageSpreadProperties' => $item['pageSpreadProperties'] ?? [],

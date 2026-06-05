@@ -18,7 +18,7 @@ $containerXml = <<<'XML'
 XML;
 
 $opfXml = <<<'XML'
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/">
+<package xmlns="http://www.idpf.org/2007/opf" id="source-package" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title>WordPress EPUB source packet</dc:title>
@@ -42,6 +42,10 @@ $opfXml = <<<'XML'
     <meta refines="#creator" property="file-as">Desk, Migration</meta>
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta refines="#creator" property="display-seq">1</meta>
+    <meta refines="#source-package" property="schema:name">WordPress source package record</meta>
+    <meta refines="#chapter" property="schema:name">Source chapter publication resource</meta>
+    <meta refines="#source-spine" property="schema:position">primary reading order</meta>
+    <meta refines="#chapter-spine" property="rendition:viewport">width=1024,height=768</meta>
     <meta name="cover" content="cover-image"/>
     <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
@@ -61,8 +65,8 @@ $opfXml = <<<'XML'
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
-  <spine toc="toc" page-progression-direction="rtl">
-    <itemref idref="chapter" properties="rendition:page-spread-right page-spread-right"/>
+  <spine id="source-spine" toc="toc" page-progression-direction="rtl">
+    <itemref id="chapter-spine" idref="chapter" properties="rendition:page-spread-right page-spread-right"/>
     <itemref idref="slideshow" linear="no" properties="page-spread-left"/>
   </spine>
   <guide>
@@ -330,6 +334,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['scheme'] ?? null) !== 'marc:relators') {
         throw new RuntimeException('Expected EPUB OPF creator role scheme to stay reviewable');
     }
+    if (($result['package']['id'] ?? null) !== 'source-package' || ($result['package']['refinements']['schema:name'][0]['text'] ?? null) !== 'WordPress source package record') {
+        throw new RuntimeException('Expected EPUB OPF package-level refinements to remain reviewable');
+    }
+    if (($result['manifest'][1]['refinements']['schema:name'][0]['text'] ?? null) !== 'Source chapter publication resource') {
+        throw new RuntimeException('Expected EPUB manifest resource refinements to attach to publication resources');
+    }
+    if (($result['spineProperties']['id'] ?? null) !== 'source-spine' || ($result['spineProperties']['refinements']['schema:position'][0]['text'] ?? null) !== 'primary reading order') {
+        throw new RuntimeException('Expected EPUB spine-level refinements to remain reviewable');
+    }
+    if (($result['spine'][0]['id'] ?? null) !== 'chapter-spine' || ($result['spine'][0]['refinements']['rendition:viewport'][0]['text'] ?? null) !== 'width=1024,height=768') {
+        throw new RuntimeException('Expected EPUB spine itemref refinements to remain attached to the reading-order item');
+    }
+    if (($result['document']->children[0]->attr('spineItemId') ?? null) !== 'chapter-spine' || ($result['document']->children[0]->attr('refinements')['rendition:viewport'][0]['text'] ?? null) !== 'width=1024,height=768') {
+        throw new RuntimeException('Expected WordPress spine block to expose EPUB itemref refinements');
+    }
     if (($result['accessibility']['accessModes'] ?? []) !== ['textual', 'visual']) {
         throw new RuntimeException('Expected EPUB accessibility access modes to be summarized');
     }
@@ -521,6 +540,10 @@ echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? fa
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";
 echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
+echo 'packageRefinement=' . ($result['package']['refinements']['schema:name'][0]['text'] ?? '') . "\n";
+echo 'chapterResourceRefinement=' . ($result['manifest'][1]['refinements']['schema:name'][0]['text'] ?? '') . "\n";
+echo 'spineRefinement=' . ($result['spineProperties']['refinements']['schema:position'][0]['text'] ?? '') . "\n";
+echo 'spineItemRefinement=' . ($result['spine'][0]['refinements']['rendition:viewport'][0]['text'] ?? '') . "\n";
 echo 'accessibilityModes=' . implode(',', $result['accessibility']['accessModes'] ?? []) . "\n";
 echo 'accessibilityFeatures=' . implode(',', $result['accessibility']['accessibilityFeatures'] ?? []) . "\n";
 echo 'accessibilityHazards=' . implode(',', $result['accessibility']['accessibilityHazards'] ?? []) . "\n";

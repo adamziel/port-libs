@@ -998,6 +998,62 @@ XML;
         $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
         $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
     },
+    'attaches OPF metadata refinements to package resources and spine itemrefs' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithResourceRefinements = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="schema: https://schema.org/">',
+            $opfXml
+        );
+        $opfWithResourceRefinements = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#package-record" property="schema:name">Reviewer package record</meta>'
+            . '<meta refines="#chapter-1" property="schema:name">Chapter one review resource</meta>'
+            . '<meta refines="#style" property="schema:encodingFormat">text/css</meta>'
+            . '<meta refines="#reading-order" property="schema:position">default reading order</meta>'
+            . '<meta refines="#chapter-entry" property="rendition:viewport">width=768,height=1024</meta>',
+            $opfWithResourceRefinements
+        );
+        $opfWithResourceRefinements = str_replace(
+            '<spine toc="toc">',
+            '<spine id="reading-order" toc="toc">',
+            $opfWithResourceRefinements
+        );
+        $opfWithResourceRefinements = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="chapter-entry" idref="chapter-1"/>',
+            $opfWithResourceRefinements
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithResourceRefinements));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $t->same('package-record', $result['package']['id']);
+        $t->same('Reviewer package record', $result['package']['refinements']['schema:name'][0]['text']);
+        $t->same('#package-record', $result['package']['refinements']['schema:name'][0]['refines']);
+        $t->same('Chapter one review resource', $manifestById['chapter-1']['refinements']['schema:name'][0]['text']);
+        $t->same('#chapter-1', $manifestById['chapter-1']['refinements']['schema:name'][0]['refines']);
+        $t->same('text/css', $manifestById['style']['refinements']['schema:encodingFormat'][0]['text']);
+        $t->same($manifestById['chapter-1']['refinements'], $result['importReport']['manifest']['items'][1]['refinements']);
+        $t->same($manifestById['style']['refinements'], $result['importReport']['manifest']['items'][3]['refinements']);
+
+        $t->same('reading-order', $result['spineProperties']['id']);
+        $t->same('default reading order', $result['spineProperties']['refinements']['schema:position'][0]['text']);
+        $t->same($result['spineProperties'], $result['importReport']['spine']['properties']);
+        $t->same($result['spineProperties'], $result['document']->attr('spineProperties'));
+
+        $t->same('chapter-entry', $result['spine'][0]['id']);
+        $t->same('chapter-1', $result['spine'][0]['idref']);
+        $t->same('width=768,height=1024', $result['spine'][0]['refinements']['rendition:viewport'][0]['text']);
+        $t->same('#chapter-entry', $result['spine'][0]['refinements']['rendition:viewport'][0]['refines']);
+        $t->same('chapter-entry', $result['document']->children[0]->attr('spineItemId'));
+        $t->same($result['spine'][0]['refinements'], $result['document']->children[0]->attr('refinements'));
+        $t->same($manifestById['chapter-1']['refinements'], $result['metadata']['refinementsById']['chapter-1']);
+        $t->same($result['spine'][0]['refinements'], $result['metadata']['refinementsById']['chapter-entry']);
+    },
     'reports EPUB accessibility metadata and linked records for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $a11yRecordBytes = '{"@context":"https://schema.org","accessibilitySummary":"Reviewer accessibility record"}';
         $opfWithAccessibility = str_replace(
