@@ -788,6 +788,7 @@ final class PdfTextExtractor
      *     invalid_filter_operand_count: int,
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
+     *     unsupported_filter_count: int,
      *     invalid_decodeparms_operand_count: int,
      *     malformed_decodeparms_operand_count: int,
      *     invalid_decodeparms_parameter_count: int,
@@ -814,6 +815,7 @@ final class PdfTextExtractor
             'invalid_filter_operand_count' => 0,
             'dictionary_filter_operand_count' => 0,
             'malformed_filter_operand_count' => 0,
+            'unsupported_filter_count' => 0,
             'invalid_decodeparms_operand_count' => 0,
             'malformed_decodeparms_operand_count' => 0,
             'invalid_decodeparms_parameter_count' => 0,
@@ -882,6 +884,7 @@ final class PdfTextExtractor
             $dictionaryFilterOperandCount = $this->dictionaryStreamFilterOperandCount($operandGroups['Filter']);
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
             $filters = $this->streamFilters($dict, $objects);
+            $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters);
             $decodeParms = $this->streamDecodeParms($dict, $objects);
             $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
             $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
@@ -913,6 +916,7 @@ final class PdfTextExtractor
             $review['invalid_filter_operand_count'] += $invalidFilterOperandCount;
             $review['dictionary_filter_operand_count'] += $dictionaryFilterOperandCount;
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
+            $review['unsupported_filter_count'] += $unsupportedFilterCount;
             $review['invalid_decodeparms_operand_count'] += $invalidDecodeParmsOperandCount;
             $review['malformed_decodeparms_operand_count'] += $malformedDecodeParmsOperandCount;
             $review['invalid_decodeparms_parameter_count'] += $invalidDecodeParmsParameterCount;
@@ -934,6 +938,7 @@ final class PdfTextExtractor
                 'invalid_filter_operand_count' => $invalidFilterOperandCount,
                 'dictionary_filter_operand_count' => $dictionaryFilterOperandCount,
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
+                'unsupported_filter_count' => $unsupportedFilterCount,
                 'invalid_decodeparms_operand_count' => $invalidDecodeParmsOperandCount,
                 'malformed_decodeparms_operand_count' => $malformedDecodeParmsOperandCount,
                 'invalid_decodeparms_parameter_count' => $invalidDecodeParmsParameterCount,
@@ -941,7 +946,8 @@ final class PdfTextExtractor
                     $filters,
                     $invalidFilterOperandCount,
                     $dictionaryFilterOperandCount,
-                    $malformedFilterOperandCount
+                    $malformedFilterOperandCount,
+                    $unsupportedFilterCount
                 ),
                 'decodeparms_operand_policy' => $this->streamDecodeParmsOperandPolicy(
                     $decodeParms,
@@ -16856,6 +16862,38 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<string|null>|null $filters
+     */
+    private function unsupportedTextStreamFilterCount(?array $filters): int
+    {
+        if ($filters === null) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ($filters as $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            if (!$this->textStreamFilterIsSupported($filter)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function textStreamFilterIsSupported(string $filter): bool
+    {
+        return in_array(
+            $filter,
+            ['ASCIIHexDecode', 'AHx', 'ASCII85Decode', 'A85', 'RunLengthDecode', 'RL', 'LZWDecode', 'LZW', 'FlateDecode', 'Fl'],
+            true
+        );
+    }
+
+    /**
      * @param list<array<string, mixed>> $operands
      */
     private function malformedStreamFilterOperandCount(array $operands): int
@@ -17058,7 +17096,8 @@ final class PdfTextExtractor
         ?array $filters,
         int $invalidCount,
         int $dictionaryCount,
-        int $malformedCount = 0
+        int $malformedCount = 0,
+        int $unsupportedCount = 0
     ): string
     {
         if ($dictionaryCount > 0) {
@@ -17071,6 +17110,10 @@ final class PdfTextExtractor
 
         if ($invalidCount > 0) {
             return 'reject_unresolved_filter_operands';
+        }
+
+        if ($unsupportedCount > 0) {
+            return 'reject_unsupported_filter_names';
         }
 
         if ($filters === null) {
