@@ -9,15 +9,23 @@ final class LegacyDocReader
     private const SUMMARY_INFORMATION = "\x05SummaryInformation";
     private const DOCUMENT_SUMMARY_INFORMATION = "\x05DocumentSummaryInformation";
     private const FMTID_USER_DEFINED_PROPERTIES = '05d5cdd59c2e1b10939708002b2cf9ae';
+    private const FIB_FC_PLCFFND_REF = 0x00aa;
+    private const FIB_LCB_PLCFFND_REF = 0x00ae;
+    private const FIB_FC_PLCFFND_TXT = 0x00b2;
+    private const FIB_LCB_PLCFFND_TXT = 0x00b6;
     private const FIB_FC_STTBF_BKMK = 0x0142;
     private const FIB_LCB_STTBF_BKMK = 0x0146;
     private const FIB_FC_PLCF_BKF = 0x014a;
     private const FIB_LCB_PLCF_BKF = 0x014e;
     private const FIB_FC_PLCF_BKL = 0x0152;
     private const FIB_LCB_PLCF_BKL = 0x0156;
+    private const FIB_FC_PLCFEND_REF = 0x020a;
+    private const FIB_LCB_PLCFEND_REF = 0x020e;
+    private const FIB_FC_PLCFEND_TXT = 0x0212;
+    private const FIB_LCB_PLCFEND_TXT = 0x0216;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -25,7 +33,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -58,6 +66,16 @@ final class LegacyDocReader
             $metadata['bookmarkCount'] = count($bookmarks);
             $metadata['bookmarks'] = $bookmarks;
         }
+        $footnotes = $this->noteReferenceReport('footnote', $wordDocument, $tableStream, $textResult['text']);
+        if ($footnotes !== []) {
+            $metadata['footnoteReferenceCount'] = count($footnotes);
+            $metadata['footnotes'] = $footnotes;
+        }
+        $endnotes = $this->noteReferenceReport('endnote', $wordDocument, $tableStream, $textResult['text']);
+        if ($endnotes !== []) {
+            $metadata['endnoteReferenceCount'] = count($endnotes);
+            $metadata['endnotes'] = $endnotes;
+        }
         $embeddedObjects = $this->embeddedObjectReport($compoundFile);
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
@@ -76,16 +94,24 @@ final class LegacyDocReader
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
             'bookmarks' => $bookmarks,
+            'footnotes' => $footnotes,
+            'endnotes' => $endnotes,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
         ];
 
         return [
-            'document' => new AstNode('document', $attrs, $this->paragraphNodes($textResult['text'], $bookmarks)),
+            'document' => new AstNode('document', $attrs, $this->paragraphNodes(
+                $textResult['text'],
+                $bookmarks,
+                array_merge($footnotes, $endnotes)
+            )),
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
             'fib' => $fib + ['textSource' => $textResult['source']],
             'bookmarks' => $bookmarks,
+            'footnotes' => $footnotes,
+            'endnotes' => $endnotes,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
         ];
@@ -284,9 +310,10 @@ final class LegacyDocReader
 
     /**
      * @param list<array<string,mixed>> $bookmarks
+     * @param list<array<string,mixed>> $noteReferences
      * @return list<AstNode>
      */
-    private function paragraphNodes(string $text, array $bookmarks = []): array
+    private function paragraphNodes(string $text, array $bookmarks = [], array $noteReferences = []): array
     {
         $normalized = str_replace(["\r\n", "\n"], "\r", $text);
         $paragraphs = explode("\r", $normalized);
@@ -299,7 +326,12 @@ final class LegacyDocReader
                 $paragraphStartCp += $paragraphLength + 1;
                 continue;
             }
-            $nodes[] = new AstNode('paragraph', [], $this->inlineNodesWithBookmarks($paragraph, $paragraphStartCp, $bookmarks));
+            $nodes[] = new AstNode('paragraph', [], $this->inlineNodesWithBookmarks(
+                $paragraph,
+                $paragraphStartCp,
+                $bookmarks,
+                $noteReferences
+            ));
             $paragraphStartCp += $paragraphLength + 1;
         }
 
@@ -605,12 +637,17 @@ final class LegacyDocReader
 
     /**
      * @param list<array<string,mixed>> $bookmarks
+     * @param list<array<string,mixed>> $noteReferences
      * @return list<AstNode>
      */
-    private function inlineNodesWithBookmarks(string $text, int $paragraphStartCp, array $bookmarks): array
-    {
+    private function inlineNodesWithBookmarks(
+        string $text,
+        int $paragraphStartCp,
+        array $bookmarks,
+        array $noteReferences = []
+    ): array {
         if ($bookmarks === []) {
-            return $this->inlineNodes($text);
+            return $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences);
         }
 
         $chars = $this->unicodeCharacters($text);
@@ -631,7 +668,7 @@ final class LegacyDocReader
             $candidates[] = $bookmark;
         }
         if ($candidates === []) {
-            return $this->inlineNodes($text);
+            return $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences);
         }
 
         usort(
@@ -655,16 +692,97 @@ final class LegacyDocReader
                 continue;
             }
             if ($start > $cursor) {
-                array_push($nodes, ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor, $start - $cursor))));
+                array_push(
+                    $nodes,
+                    ...$this->inlineNodesWithNoteReferences(
+                        $this->charactersToString(array_slice($chars, $cursor, $start - $cursor)),
+                        $paragraphStartCp + $cursor,
+                        $noteReferences
+                    )
+                );
             }
 
             $bookmarkText = $this->charactersToString(array_slice($chars, $start, $end - $start));
-            $bookmarkNodes = $bookmarkText === '' ? [] : $this->inlineNodes($bookmarkText);
+            $bookmarkNodes = $bookmarkText === ''
+                ? []
+                : $this->inlineNodesWithNoteReferences($bookmarkText, $paragraphStartCp + $start, $noteReferences);
             $nodes[] = new AstNode('span', $this->bookmarkSpanAttrs($bookmark), $bookmarkNodes);
             $cursor = $end;
         }
 
         if ($cursor < $paragraphLength) {
+            array_push(
+                $nodes,
+                ...$this->inlineNodesWithNoteReferences(
+                    $this->charactersToString(array_slice($chars, $cursor)),
+                    $paragraphStartCp + $cursor,
+                    $noteReferences
+                )
+            );
+        }
+
+        return $nodes === [] ? $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences) : $nodes;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $noteReferences
+     * @return list<AstNode>
+     */
+    private function inlineNodesWithNoteReferences(string $text, int $segmentStartCp, array $noteReferences): array
+    {
+        if ($noteReferences === []) {
+            return $this->inlineNodes($text);
+        }
+
+        $chars = $this->unicodeCharacters($text);
+        $segmentLength = count($chars);
+        $segmentEndCp = $segmentStartCp + $segmentLength;
+        $candidates = [];
+        foreach ($noteReferences as $noteReference) {
+            if (($noteReference['canAnchor'] ?? false) !== true) {
+                continue;
+            }
+
+            $referenceCp = (int) ($noteReference['referenceCp'] ?? -1);
+            if ($referenceCp < $segmentStartCp || $referenceCp >= $segmentEndCp) {
+                continue;
+            }
+
+            $candidates[] = $noteReference;
+        }
+        if ($candidates === []) {
+            return $this->inlineNodes($text);
+        }
+
+        usort(
+            $candidates,
+            static fn (array $left, array $right): int => ((int) $left['referenceCp']) <=> ((int) $right['referenceCp'])
+        );
+
+        $nodes = [];
+        $cursor = 0;
+        foreach ($candidates as $noteReference) {
+            $localCp = (int) $noteReference['referenceCp'] - $segmentStartCp;
+            if ($localCp < $cursor || $localCp >= $segmentLength) {
+                continue;
+            }
+
+            if ($localCp > $cursor) {
+                array_push(
+                    $nodes,
+                    ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor, $localCp - $cursor)))
+                );
+            }
+
+            $nodes[] = new AstNode('span', $this->noteReferenceSpanAttrs($noteReference), [
+                new AstNode('superscript', [], [
+                    new AstNode('text', ['text' => (string) ($noteReference['marker'] ?? '')]),
+                ]),
+            ]);
+            $cursor = $localCp + 1;
+        }
+
+        if ($cursor < $segmentLength) {
             array_push($nodes, ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor))));
         }
 
@@ -689,6 +807,27 @@ final class LegacyDocReader
                 'data-legacy-doc-bookmark' => (string) ($bookmark['name'] ?? ''),
                 'data-legacy-doc-bookmark-start-cp' => (string) ((int) ($bookmark['startCp'] ?? 0)),
                 'data-legacy-doc-bookmark-end-cp' => (string) ((int) ($bookmark['endCp'] ?? 0)),
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $noteReference
+     * @return array{classes:list<string>,attributes:array<string,string>}
+     */
+    private function noteReferenceSpanAttrs(array $noteReference): array
+    {
+        $type = (string) ($noteReference['type'] ?? 'footnote');
+
+        return [
+            'classes' => ['legacy-doc-note-ref', 'legacy-doc-' . $type . '-ref'],
+            'attributes' => [
+                'data-legacy-doc-note-type' => $type,
+                'data-legacy-doc-note-index' => (string) ((int) ($noteReference['referenceIndex'] ?? 0)),
+                'data-legacy-doc-note-reference-cp' => (string) ((int) ($noteReference['referenceCp'] ?? 0)),
+                'data-legacy-doc-note-text-start-cp' => (string) ((int) ($noteReference['textStartCp'] ?? 0)),
+                'data-legacy-doc-note-text-end-cp' => (string) ((int) ($noteReference['textEndCp'] ?? 0)),
+                'data-legacy-doc-note-auto-numbered' => ($noteReference['autoNumbered'] ?? false) === true ? 'true' : 'false',
             ],
         ];
     }
@@ -1693,6 +1832,181 @@ final class LegacyDocReader
         }
 
         return $pairs;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function noteReferenceReport(string $type, string $wordDocument, ?string $tableStream, string $text): array
+    {
+        if ($tableStream === null) {
+            return [];
+        }
+
+        if ($type === 'footnote') {
+            $fcRefOffset = self::FIB_FC_PLCFFND_REF;
+            $lcbRefOffset = self::FIB_LCB_PLCFFND_REF;
+            $fcTxtOffset = self::FIB_FC_PLCFFND_TXT;
+            $lcbTxtOffset = self::FIB_LCB_PLCFFND_TXT;
+        } else {
+            $fcRefOffset = self::FIB_FC_PLCFEND_REF;
+            $lcbRefOffset = self::FIB_LCB_PLCFEND_REF;
+            $fcTxtOffset = self::FIB_FC_PLCFEND_TXT;
+            $lcbTxtOffset = self::FIB_LCB_PLCFEND_TXT;
+        }
+        if (strlen($wordDocument) < $lcbTxtOffset + 4) {
+            return [];
+        }
+
+        $fib = $this->readFib($wordDocument);
+        if ((int) $fib['fcMin'] > 0 && $lcbTxtOffset + 4 > (int) $fib['fcMin']) {
+            return [];
+        }
+
+        $fcRef = self::u32($wordDocument, $fcRefOffset);
+        $lcbRef = self::u32($wordDocument, $lcbRefOffset);
+        $fcTxt = self::u32($wordDocument, $fcTxtOffset);
+        $lcbTxt = self::u32($wordDocument, $lcbTxtOffset);
+        if ($lcbRef === 0 && $lcbTxt === 0) {
+            return [];
+        }
+        if ($lcbRef === 0 || $lcbTxt === 0) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' reference PLC is present without matching text-range PLC');
+        }
+
+        $references = $this->parseNoteReferencePlc(
+            $this->tableStreamSlice($tableStream, $fcRef, $lcbRef, $type . ' reference PLC'),
+            $type
+        );
+        $ranges = $this->parseNoteTextPlc(
+            $this->tableStreamSlice($tableStream, $fcTxt, $lcbTxt, $type . ' text PLC'),
+            $type
+        );
+        if (count($references) !== count($ranges)) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' reference and text PLCs do not contain parallel counts');
+        }
+
+        $characters = $this->unicodeCharacters($text);
+        $textLength = count($characters);
+        $result = [];
+        foreach ($references as $index => $reference) {
+            $referenceCp = (int) $reference['referenceCp'];
+            if ($referenceCp < 0 || $referenceCp >= $textLength) {
+                throw new \RuntimeException('Legacy DOC ' . $type . ' reference CP points outside the extracted main text');
+            }
+
+            $referenceIndex = (int) $reference['referenceIndex'];
+            $autoNumbered = $referenceIndex !== 0;
+            $referenceCharacter = $characters[$referenceCp] ?? '';
+            if ($autoNumbered && $referenceCharacter !== "\x02") {
+                throw new \RuntimeException('Legacy DOC auto-numbered ' . $type . ' reference is missing the special reference character');
+            }
+
+            $range = $ranges[$index];
+            $result[] = [
+                'type' => $type,
+                'index' => $index + 1,
+                'referenceCp' => $referenceCp,
+                'referenceIndex' => $referenceIndex,
+                'autoNumbered' => $autoNumbered,
+                'marker' => $this->noteReferenceMarker($autoNumbered, $index, $referenceCharacter),
+                'textStartCp' => (int) $range['startCp'],
+                'textEndCp' => (int) $range['endCp'],
+                'canAnchor' => true,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<array{referenceCp:int,referenceIndex:int}>
+     */
+    private function parseNoteReferencePlc(string $bytes, string $type): array
+    {
+        $length = strlen($bytes);
+        if ($length < 10 || (($length - 4) % 6) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' reference PLC has an invalid length');
+        }
+
+        $count = intdiv($length - 4, 6);
+        $dataOffset = ($count + 1) * 4;
+        $entries = [];
+        $previousCp = null;
+        $seenCps = [];
+        for ($index = 0; $index < $count; $index++) {
+            $referenceCp = self::u32($bytes, $index * 4);
+            if ($previousCp !== null && $referenceCp <= $previousCp) {
+                throw new \RuntimeException('Legacy DOC ' . $type . ' reference PLC contains duplicate or unsorted CPs');
+            }
+            if (isset($seenCps[$referenceCp])) {
+                throw new \RuntimeException('Legacy DOC ' . $type . ' reference PLC contains duplicate CPs');
+            }
+            $previousCp = $referenceCp;
+            $seenCps[$referenceCp] = true;
+            $entries[] = [
+                'referenceCp' => $referenceCp,
+                'referenceIndex' => self::u16($bytes, $dataOffset + ($index * 2)),
+            ];
+        }
+
+        $ignoredCp = self::u32($bytes, $count * 4);
+        if ($previousCp !== null && $ignoredCp <= $previousCp) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' reference PLC final CP is not after the last reference CP');
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<array{startCp:int,endCp:int}>
+     */
+    private function parseNoteTextPlc(string $bytes, string $type): array
+    {
+        $length = strlen($bytes);
+        if ($length < 12 || ($length % 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC ' . $type . ' text PLC has an invalid length');
+        }
+
+        $cpCount = intdiv($length, 4);
+        $noteCount = $cpCount - 2;
+        $cps = [];
+        $previousCp = null;
+        for ($index = 0; $index < $cpCount; $index++) {
+            $cp = self::u32($bytes, $index * 4);
+            if ($previousCp !== null && $cp <= $previousCp) {
+                throw new \RuntimeException('Legacy DOC ' . $type . ' text PLC contains duplicate or unsorted CPs');
+            }
+            $previousCp = $cp;
+            $cps[] = $cp;
+        }
+
+        $ranges = [];
+        for ($index = 0; $index < $noteCount; $index++) {
+            $startCp = $cps[$index];
+            $endCp = $cps[$index + 1];
+            if ($startCp >= $endCp) {
+                throw new \RuntimeException('Legacy DOC ' . $type . ' text PLC contains an empty note range');
+            }
+            $ranges[] = [
+                'startCp' => $startCp,
+                'endCp' => $endCp,
+            ];
+        }
+
+        return $ranges;
+    }
+
+    private function noteReferenceMarker(bool $autoNumbered, int $index, string $referenceCharacter): string
+    {
+        if ($autoNumbered) {
+            return (string) ($index + 1);
+        }
+        if ($referenceCharacter !== '' && preg_match('/[\x00-\x1f]/u', $referenceCharacter) !== 1) {
+            return $referenceCharacter;
+        }
+
+        return '*';
     }
 
     /**

@@ -18,6 +18,15 @@ $utf16le = static function (string $text): string {
 
     return $encoded;
 };
+$characterLength = static function (string $text): int {
+    if ($text === '') {
+        return 0;
+    }
+
+    $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+
+    return is_array($characters) ? count($characters) : strlen($text);
+};
 $padTo = static function (string $bytes, int $size): string {
     $remainder = strlen($bytes) % $size;
 
@@ -185,6 +194,7 @@ $fieldSeparator = "\x14";
 $fieldEnd = "\x15";
 $firstPieceText = 'Legacy DOC import ΩЖ魚';
 $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
+    . 'note ' . "\x02" . ' and endnote # while checking '
     . $fieldBegin . ' HYPERLINK "https://example.test/legacy-doc?source=42" \o "Source packet" '
     . $fieldSeparator . 'source dossier' . $fieldEnd
     . ' and '
@@ -226,10 +236,37 @@ $plcfBkf = $u32(0)
     . $u16(0) . $u16(0);
 $plcfBkl = $u32($firstPieceCharacters)
     . $u32($totalPieceCharacters + 1);
+$footnoteReferenceOffset = strpos($secondPieceText, "\x02");
+$endnoteReferenceOffset = strpos($secondPieceText, '#');
+if ($footnoteReferenceOffset === false || $endnoteReferenceOffset === false) {
+    throw new RuntimeException('Unable to locate legacy DOC note reference fixture characters');
+}
+$footnoteReferenceCp = $firstPieceCharacters + $characterLength(substr($secondPieceText, 0, $footnoteReferenceOffset));
+$endnoteReferenceCp = $firstPieceCharacters + $characterLength(substr($secondPieceText, 0, $endnoteReferenceOffset));
+$plcffndRef = $u32($footnoteReferenceCp)
+    . $u32($totalPieceCharacters + 1)
+    . $u16(1);
+$plcffndTxt = $u32(0)
+    . $u32(35)
+    . $u32(36);
+$plcfendRef = $u32($endnoteReferenceCp)
+    . $u32($totalPieceCharacters + 1)
+    . $u16(0);
+$plcfendTxt = $u32(0)
+    . $u32(29)
+    . $u32(30);
 $fcSttbfBkmk = strlen($clx);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl;
+$fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
+$fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
+$fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
+$fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt;
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndRef)), 0x00ae, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcffndTxt), 0x00b2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndTxt)), 0x00b6, 4);
 $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
@@ -238,6 +275,10 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfBkf)), 0x014e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkl), 0x0152, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfBkl)), 0x0156, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfendRef), 0x020a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendRef)), 0x020e, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfendTxt), 0x0212, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendTxt)), 0x0216, 4);
 $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
 $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
 if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
@@ -502,6 +543,8 @@ $summary = [
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
     'bookmarks' => $result['bookmarks'],
+    'footnotes' => $result['footnotes'],
+    'endnotes' => $result['endnotes'],
     'embeddedObjects' => $result['embeddedObjects'],
     'macroProjects' => $result['macroProjects'],
     'blockCount' => count($result['document']->children),
@@ -546,6 +589,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['bookmarks'][0]['name'] ?? '') !== 'legacy_anchor' || ($summary['bookmarks'][0]['canAnchor'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing standard bookmark anchor metadata');
     }
+    if (($summary['metadata']['footnoteReferenceCount'] ?? null) !== 1 || ($summary['metadata']['endnoteReferenceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing footnote/endnote reference counts');
+    }
+    if (($summary['footnotes'][0]['marker'] ?? '') !== '1' || ($summary['footnotes'][0]['autoNumbered'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing auto-numbered footnote metadata');
+    }
+    if (($summary['endnotes'][0]['marker'] ?? '') !== '#' || ($summary['endnotes'][0]['autoNumbered'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing custom endnote metadata');
+    }
     if (($summary['metadata']['embeddedObjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing embedded object count');
     }
@@ -587,7 +639,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<p><span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="0" data-legacy-doc-bookmark-end-cp="21">Legacy DOC import ΩЖ魚</span></p>',
-        '<p>Reviewer notes keep hard<br/>breaks for block review with <a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a> and <a href="#legacy_anchor">opening bookmark</a> on page <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>.</p>',
+        '<p>Reviewer notes keep hard<br/>breaks for block review with note ',
+        '<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="' . (string) ($summary['footnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="35" data-legacy-doc-note-auto-numbered="true"><sup>1</sup></span>',
+        '<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="' . (string) ($summary['endnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="29" data-legacy-doc-note-auto-numbered="false"><sup>#</sup></span>',
+        '<a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a>',
+        '<a href="#legacy_anchor">opening bookmark</a>',
+        '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);

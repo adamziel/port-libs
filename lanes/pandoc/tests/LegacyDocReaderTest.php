@@ -494,6 +494,52 @@ $buildBookmarkTableDocStreams = static function () use ($buildSimpleWordDocument
     ];
 };
 
+$buildNoteTableDocStreams = static function () use ($u16, $u32): array {
+    $text = "Alpha \x02 beta * end\r";
+    $fibSize = 1024;
+    $wordDocument = str_repeat("\0", $fibSize) . $text;
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u32($fibSize), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fibSize + strlen($text)), 28, 4);
+
+    $footnoteReferenceCp = 6;
+    $endnoteReferenceCp = 13;
+    $textEndCp = strlen($text);
+    $plcffndRef = $u32($footnoteReferenceCp)
+        . $u32($textEndCp)
+        . $u16(1);
+    $plcffndTxt = $u32(0)
+        . $u32(17)
+        . $u32(18);
+    $plcfendRef = $u32($endnoteReferenceCp)
+        . $u32($textEndCp)
+        . $u16(0);
+    $plcfendTxt = $u32(0)
+        . $u32(11)
+        . $u32(12);
+
+    $fcPlcffndRef = 0;
+    $fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
+    $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
+    $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
+    $tableStream = $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt;
+
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndRef)), 0x00ae, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndTxt), 0x00b2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndTxt)), 0x00b6, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfendRef), 0x020a, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendRef)), 0x020e, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcPlcfendTxt), 0x0212, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfendTxt)), 0x0216, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
 return [
     'reads CFB directory streams including MiniFAT-backed legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
@@ -1046,6 +1092,71 @@ return [
 
         $t->contains('[target text]{#legacy_anchor .legacy-doc-bookmark data-legacy-doc-bookmark="legacy_anchor"', $markdown);
         $t->contains('<span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="6" data-legacy-doc-bookmark-end-cp="17">target text</span>', $blocks);
+    },
+    'extracts legacy DOC footnote and endnote reference PLCs as review anchors' => static function (TestRunner $t) use ($buildCfb, $buildNoteTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildNoteTableDocStreams()));
+        $document = $result['document'];
+        $footnotes = $result['footnotes'];
+        $endnotes = $result['endnotes'];
+        $paragraph = $document->children[0];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($footnotes));
+        $t->same(1, count($endnotes));
+        $t->same($footnotes, $document->attr('footnotes'));
+        $t->same($endnotes, $document->attr('endnotes'));
+        $t->same(1, $result['metadata']['footnoteReferenceCount']);
+        $t->same(1, $result['metadata']['endnoteReferenceCount']);
+        $t->same('footnote', $footnotes[0]['type']);
+        $t->same(6, $footnotes[0]['referenceCp']);
+        $t->same(1, $footnotes[0]['referenceIndex']);
+        $t->same(true, $footnotes[0]['autoNumbered']);
+        $t->same('1', $footnotes[0]['marker']);
+        $t->same(0, $footnotes[0]['textStartCp']);
+        $t->same(17, $footnotes[0]['textEndCp']);
+        $t->same('endnote', $endnotes[0]['type']);
+        $t->same(13, $endnotes[0]['referenceCp']);
+        $t->same(0, $endnotes[0]['referenceIndex']);
+        $t->same(false, $endnotes[0]['autoNumbered']);
+        $t->same('*', $endnotes[0]['marker']);
+        $t->same(0, $endnotes[0]['textStartCp']);
+        $t->same(11, $endnotes[0]['textEndCp']);
+
+        $t->same('Alpha ', $paragraph->children[0]->attr('text'));
+        $footnoteRef = $paragraph->children[1];
+        $t->same('span', $footnoteRef->type);
+        $t->same(['legacy-doc-note-ref', 'legacy-doc-footnote-ref'], $footnoteRef->attr('classes'));
+        $t->same('footnote', $footnoteRef->attr('attributes')['data-legacy-doc-note-type']);
+        $t->same('1', $footnoteRef->attr('attributes')['data-legacy-doc-note-index']);
+        $t->same('6', $footnoteRef->attr('attributes')['data-legacy-doc-note-reference-cp']);
+        $t->same('true', $footnoteRef->attr('attributes')['data-legacy-doc-note-auto-numbered']);
+        $t->same('superscript', $footnoteRef->children[0]->type);
+        $t->same('1', $footnoteRef->children[0]->children[0]->attr('text'));
+        $t->same(' beta ', $paragraph->children[2]->attr('text'));
+        $endnoteRef = $paragraph->children[3];
+        $t->same('endnote', $endnoteRef->attr('attributes')['data-legacy-doc-note-type']);
+        $t->same('0', $endnoteRef->attr('attributes')['data-legacy-doc-note-index']);
+        $t->same('13', $endnoteRef->attr('attributes')['data-legacy-doc-note-reference-cp']);
+        $t->same('false', $endnoteRef->attr('attributes')['data-legacy-doc-note-auto-numbered']);
+        $t->same('*', $endnoteRef->children[0]->children[0]->attr('text'));
+        $t->same(' end', $paragraph->children[4]->attr('text'));
+
+        $t->contains('[^1^]{.legacy-doc-note-ref .legacy-doc-footnote-ref data-legacy-doc-note-type="footnote"', $markdown);
+        $t->contains('[^\*^]{.legacy-doc-note-ref .legacy-doc-endnote-ref data-legacy-doc-note-type="endnote"', $markdown);
+        $t->contains('<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="6" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="17" data-legacy-doc-note-auto-numbered="true"><sup>1</sup></span>', $blocks);
+        $t->contains('<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="13" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="11" data-legacy-doc-note-auto-numbered="false"><sup>*</sup></span>', $blocks);
+        $t->true(!str_contains($blocks, "\x02"), 'Legacy DOC special footnote reference character should not render directly');
+    },
+    'rejects malformed legacy DOC footnote and endnote PLCs before rendering references' => static function (TestRunner $t) use ($buildCfb, $buildNoteTableDocStreams, $u32): void {
+        $reader = new LegacyDocReader();
+        $missingFootnoteText = $buildNoteTableDocStreams();
+        $missingFootnoteText['WordDocument'] = substr_replace($missingFootnoteText['WordDocument'], $u32(0), 0x00b6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($missingFootnoteText)));
+
+        $badAutoReference = $buildNoteTableDocStreams();
+        $badAutoReference['WordDocument'] = substr_replace($badAutoReference['WordDocument'], 'x', 1024 + 6, 1);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badAutoReference)));
     },
     'preserves legacy DOC non-hyperlink field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
