@@ -9093,6 +9093,7 @@ final class PdfTextExtractor
         $type3CharProcsDictionaryObjectGenerations = $this->type3CharProcsDictionaryObjectGenerationSet($objects);
         $type3CharProcObjectGenerations = $this->type3CharProcObjectGenerationSet($objects);
         $type3CharProcResourceObjectGenerations = $this->type3CharProcResourceObjectGenerationSet($objects);
+        $cMapStreamReferenceUsages = $this->cMapStreamReferenceUsages($objects);
         foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
             $streamObjectNumber = $definition['objectNumber'];
             if (
@@ -9119,6 +9120,8 @@ final class PdfTextExtractor
                 || $this->isXrefStreamDictionary($entry['dict'], $objects)
                 || $this->isImageStreamDictionary($entry['dict'], $objects)
                 || $this->isEmbeddedFileStreamDictionary($entry['dict'])
+                || isset($cMapStreamReferenceUsages[$streamObjectNumber])
+                || $this->cMapStreamDictionaryLooksLikeCMap($entry['dict'], $objects)
             ) {
                 continue;
             }
