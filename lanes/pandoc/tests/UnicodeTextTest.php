@@ -596,6 +596,24 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 9, 'Indic virama wrapped line exceeds requested width');
         }
     },
+    'keeps myanmar and khmer conjuncts intact for display slicing' => static function (TestRunner $t): void {
+        $myanmarKka = "\u{1000}\u{1039}\u{1000}";
+        $khmerKka = "\u{1780}\u{17D2}\u{1780}";
+        $text = $myanmarKka . $khmerKka . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("SEA {$myanmarKka}{$khmerKka} tail", 8, '  ');
+
+        $t->same(1, UnicodeText::displayWidth($myanmarKka));
+        $t->same(1, UnicodeText::displayWidth($khmerKka));
+        $t->same(3, UnicodeText::displayWidth($text));
+        $t->same([$myanmarKka, $khmerKka, 'X'], UnicodeText::graphemes($text));
+        $t->same([$myanmarKka, $khmerKka . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$myanmarKka, $khmerKka, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [1, 2]));
+        $t->same($khmerKka . '   ', UnicodeText::padDisplay($khmerKka, 4));
+        $t->same(['SEA ' . $myanmarKka . $khmerKka, '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 8, 'Myanmar/Khmer conjunct wrapped line exceeds requested width');
+        }
+    },
     'keeps thai and lao sara am grapheme clusters intact for display slicing' => static function (TestRunner $t): void {
         $thai = "\u{0E01}\u{0E33}";
         $lao = "\u{0EA5}\u{0EB3}";
