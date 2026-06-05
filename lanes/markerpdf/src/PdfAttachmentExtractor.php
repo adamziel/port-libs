@@ -909,6 +909,7 @@ final class PdfAttachmentExtractor
         $fileSystem = $this->nameOrStringValue($fileSpec['FS'] ?? null, $objects);
         $fileIdentifier = $this->fileSpecIdentifierReview($fileSpec['ID'] ?? null, $objects);
         $volatile = $this->boolValue($this->resolveValue($fileSpec['V'] ?? null, $objects));
+        $portfolioItem = $this->collectionItemReview($fileSpec['CI'] ?? null, $objects);
 
         $attachment = [
             ...$context,
@@ -966,6 +967,10 @@ final class PdfAttachmentExtractor
             $attachment['volatile_status'] = $volatile
                 ? 'volatile_file_spec_review'
                 : 'stable_file_spec_review';
+        }
+        if ($portfolioItem !== []) {
+            $attachment['portfolio_item'] = $portfolioItem;
+            $attachment['portfolio_item_count'] = count($portfolioItem);
         }
 
         $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects, $encryptionPolicy);
@@ -1102,6 +1107,8 @@ final class PdfAttachmentExtractor
                 'description',
                 'annotation_contents',
                 'file_identifier',
+                'portfolio_item',
+                'portfolio_item_count',
             ] as $key) {
                 unset($attachment[$key]);
             }
@@ -1384,6 +1391,121 @@ final class PdfAttachmentExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * FileSpec /CI collection item dictionaries are PDF Portfolio metadata.
+     * Keep scalar/subitem values as review-only attachment metadata and ignore
+     * references to streams or arbitrary dictionaries so payload bytes stay out
+     * of WordPress preflight summaries.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionItemReview(mixed $value, array $objects): array
+    {
+        $item = $this->dict($this->resolveValue($value, $objects));
+        if ($item === null) {
+            return [];
+        }
+
+        $review = [];
+        foreach ($item as $name => $fieldValue) {
+            if (!is_string($name) || $name === 'Type') {
+                continue;
+            }
+
+            $subitem = $this->collectionSubitemReview($fieldValue, $objects);
+            if ($subitem !== null) {
+                $review[$name] = $subitem;
+                continue;
+            }
+
+            $scalar = $this->collectionReviewScalar($fieldValue, $objects);
+            if ($scalar !== null && $scalar !== '') {
+                $review[$name] = $scalar;
+            }
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>|null
+     */
+    private function collectionSubitemReview(mixed $value, array $objects): ?array
+    {
+        $subitem = $this->dict($this->resolveValue($value, $objects));
+        if ($subitem === null || (!array_key_exists('D', $subitem) && !array_key_exists('P', $subitem))) {
+            return null;
+        }
+
+        $review = [];
+        $data = $this->collectionReviewScalar($subitem['D'] ?? null, $objects);
+        if ($data !== null && $data !== '') {
+            $review['value'] = $data;
+        }
+
+        $prefix = $this->collectionReviewScalar($subitem['P'] ?? null, $objects);
+        if ($prefix !== null && $prefix !== '') {
+            $review['prefix'] = $prefix;
+        }
+
+        $display = $this->collectionDisplayValue($review['value'] ?? null, $review['prefix'] ?? null);
+        if ($display !== null && $display !== '') {
+            $review['display_value'] = $display;
+        }
+
+        return $review === [] ? null : $review;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function collectionReviewScalar(mixed $value, array $objects): mixed
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        if (is_string($resolved) || is_int($resolved) || is_float($resolved) || is_bool($resolved)) {
+            return $resolved;
+        }
+
+        $name = $this->nameValue($resolved);
+        if ($name !== null && $name !== '') {
+            return $name;
+        }
+
+        $string = $this->stringValue($resolved);
+        if ($string !== null && $string !== '') {
+            return $string;
+        }
+
+        return null;
+    }
+
+    private function collectionDisplayValue(mixed $value, mixed $prefix = null): ?string
+    {
+        $displayValue = $this->collectionScalarDisplayValue($value);
+        if ($displayValue === null) {
+            return null;
+        }
+
+        return ($this->collectionScalarDisplayValue($prefix) ?? '') . $displayValue;
+    }
+
+    private function collectionScalarDisplayValue(mixed $value): ?string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return null;
     }
 
     /**
