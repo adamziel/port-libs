@@ -395,6 +395,26 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Supplementary East Asian wide wrapped line exceeds requested width');
         }
     },
+    'measures bmp east asian wide emoji symbols for display columns' => static function (TestRunner $t): void {
+        $transport = "\u{231A}\u{231B}\u{23E9}\u{23F3}";
+        $status = "\u{2705}\u{274C}\u{2757}\u{2B50}\u{2B55}";
+        $weatherSport = "\u{2614}\u{2615}\u{26BD}\u{26C4}\u{26FD}";
+        $zodiac = "\u{2648}\u{2653}";
+        $sample = "\u{231A}\u{2705}\u{2B50}X";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Emoji {$sample} tail", 10, '  ');
+
+        $t->same(8, UnicodeText::displayWidth($transport));
+        $t->same(10, UnicodeText::displayWidth($status));
+        $t->same(10, UnicodeText::displayWidth($weatherSport));
+        $t->same(4, UnicodeText::displayWidth($zodiac));
+        $t->same(["\u{231A}", "\u{2705}", "\u{2B50}", 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4, 6]));
+        $t->same(["\u{231A}\u{2705}", "\u{2B50}X"], UnicodeText::splitAtDisplayWidth($sample, 3));
+        $t->same("\u{2B50}  ", UnicodeText::padDisplay("\u{2B50}", 4));
+        $t->same(['Emoji', "  {$sample}", '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'BMP East Asian wide emoji wrapped line exceeds requested width');
+        }
+    },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
         $combining = "A\u{0301}\u{00B7}";

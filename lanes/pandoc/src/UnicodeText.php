@@ -1288,9 +1288,42 @@ final class UnicodeText
     private static function isWideCodepoint(int $codepoint): bool
     {
         return ($codepoint >= 0x1100 && $codepoint <= 0x115f)
+            || ($codepoint >= 0x231a && $codepoint <= 0x231b)
             || $codepoint === 0x2329
             || $codepoint === 0x232a
+            || ($codepoint >= 0x23e9 && $codepoint <= 0x23ec)
+            || $codepoint === 0x23f0
+            || $codepoint === 0x23f3
+            || ($codepoint >= 0x25fd && $codepoint <= 0x25fe)
+            || ($codepoint >= 0x2614 && $codepoint <= 0x2615)
+            || ($codepoint >= 0x2648 && $codepoint <= 0x2653)
+            || $codepoint === 0x267f
+            || $codepoint === 0x2693
+            || $codepoint === 0x26a1
+            || ($codepoint >= 0x26aa && $codepoint <= 0x26ab)
+            || ($codepoint >= 0x26bd && $codepoint <= 0x26be)
+            || ($codepoint >= 0x26c4 && $codepoint <= 0x26c5)
+            || $codepoint === 0x26ce
+            || $codepoint === 0x26d4
+            || $codepoint === 0x26ea
+            || ($codepoint >= 0x26f2 && $codepoint <= 0x26f3)
+            || $codepoint === 0x26f5
+            || $codepoint === 0x26fa
+            || $codepoint === 0x26fd
+            || $codepoint === 0x2705
+            || ($codepoint >= 0x270a && $codepoint <= 0x270b)
+            || $codepoint === 0x2728
+            || $codepoint === 0x274c
+            || $codepoint === 0x274e
+            || ($codepoint >= 0x2753 && $codepoint <= 0x2755)
+            || $codepoint === 0x2757
+            || ($codepoint >= 0x2795 && $codepoint <= 0x2797)
+            || $codepoint === 0x27b0
+            || $codepoint === 0x27bf
             || ($codepoint >= 0x2e80 && $codepoint <= 0xa4cf && $codepoint !== 0x303f)
+            || ($codepoint >= 0x2b1b && $codepoint <= 0x2b1c)
+            || $codepoint === 0x2b50
+            || $codepoint === 0x2b55
             || ($codepoint >= 0xa960 && $codepoint <= 0xa97c)
             || ($codepoint >= 0xac00 && $codepoint <= 0xd7a3)
             || ($codepoint >= 0xf900 && $codepoint <= 0xfaff)

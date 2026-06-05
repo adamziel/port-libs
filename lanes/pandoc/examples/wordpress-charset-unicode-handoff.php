@@ -49,6 +49,8 @@ $ambiguousText = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
 $ambiguousWideSlices = UnicodeText::splitByDisplayBreakpoints($ambiguousText, [2, 4, 6, 8], 'wide');
 $supplementaryWideText = "\u{16FE0}\u{1B000}\u{1F200}\u{1F18E}";
 $supplementaryWideSlices = UnicodeText::splitByDisplayBreakpoints($supplementaryWideText, [2, 4, 6]);
+$bmpWideEmojiText = "\u{231A}\u{2705}\u{2B50}\u{26FD}";
+$bmpWideEmojiSlices = UnicodeText::splitByDisplayBreakpoints($bmpWideEmojiText, [2, 4, 6]);
 $defaultIgnorableText = "soft\u{00AD}hyphen / \u{FEFF}Title";
 $defaultIgnorableWidth = UnicodeText::displayWidth("soft\u{00AD}hyphen") . ',' . UnicodeText::displayWidth("\u{FEFF}Title");
 $formatControlText = "\u{0600}رقم \u{070F}ܣܘܪܝܝܐ \u{110BD}kaithi";
@@ -167,6 +169,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $supplementaryWideSlices))])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'BMP emoji wide'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $bmpWideEmojiSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $bmpWideEmojiSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Default ignorables'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $defaultIgnorableText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $defaultIgnorableWidth])]),
@@ -270,6 +277,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Supplementary wide</td><td>\u{16FE0} / \u{1B000} / \u{1F200} / \u{1F18E}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing supplementary East Asian wide audit');
+    }
+    if (!str_contains($blocks, "<td>BMP emoji wide</td><td>\u{231A} / \u{2705} / \u{2B50} / \u{26FD}</td><td>2,2,2,2</td>")) {
+        throw new RuntimeException('charset handoff self-test missing BMP East Asian wide emoji audit');
     }
     if (!str_contains($blocks, "<td>Default ignorables</td><td>soft\u{00AD}hyphen / \u{FEFF}Title</td><td>10,5</td>")) {
         throw new RuntimeException('charset handoff self-test missing default-ignorable width audit');
