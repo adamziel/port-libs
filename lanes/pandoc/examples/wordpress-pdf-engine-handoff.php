@@ -101,6 +101,10 @@ $fakeFirstRun = [
     ],
 ];
 $fakeResult = $handoff->fakeRun($plan, $fakeFirstRun);
+$fakeMissingProgram = $handoff->fakeRun($plan, [
+    'exitCode' => 127,
+    'stderr' => "xelatex: command not found\n",
+]);
 $fakeFinalPdfBytes = "%PDF-1.7\n% fake WordPress import review packet final pass\n%%EOF\n";
 $fakeFinalLog = implode("\n", [
     'This is XeTeX, Version 3.141592653',
@@ -182,6 +186,13 @@ $summary = [
         'declaredOutputBytes' => $fakeResult['declaredOutputBytes'],
         'pdfTrailerComplete' => $fakeResult['pdfTrailerComplete'],
         'diagnostics' => $fakeResult['diagnostics'],
+    ],
+    'fakeMissingProgram' => [
+        'ok' => $fakeMissingProgram['ok'],
+        'reason' => $fakeMissingProgram['reason'],
+        'engineMissingProgram' => $fakeMissingProgram['engineMissingProgram'],
+        'engineMissingProgramName' => $fakeMissingProgram['engineMissingProgramName'],
+        'diagnostics' => $fakeMissingProgram['diagnostics'],
     ],
     'fakeRunSequence' => [
         'ok' => $fakeSequence['ok'],
@@ -269,6 +280,10 @@ if (in_array('--self-test', $argv, true)) {
         'pdfTrailerComplete',
         'migration-log',
         'fake-runner-no-execution',
+        'fakeMissingProgram',
+        'engine-program-missing:xelatex',
+        '"engineMissingProgram":true',
+        '"engineMissingProgramName":"xelatex"',
         'fakeRunSequence',
         'fake-runner-attempts:2',
         'fake-runner-attempt-rerun-needed:1',

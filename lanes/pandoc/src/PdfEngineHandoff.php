@@ -198,12 +198,14 @@ final class PdfEngineHandoff
 
     /**
      * @param array<string, mixed> $plan
-     * @param array{exitCode?: int, stdout?: string, stderr?: string, files?: array<string, string>} $result
+     * @param array{exitCode?: int, stdout?: string, stderr?: string, missingProgram?: bool|string, files?: array<string, string>} $result
      * @return array{
      *     ok: bool,
      *     status: string,
      *     reason: string|null,
      *     engine: string,
+     *     engineMissingProgram: bool,
+     *     engineMissingProgramName: string|null,
      *     outputFile: string,
      *     exitCode: int,
      *     bytes: int,
@@ -247,6 +249,9 @@ final class PdfEngineHandoff
         $sourceFile = $this->requirePlanString($plan, 'sourceFile');
         $outputFile = $this->requirePlanString($plan, 'outputFile');
         $engine = $this->requirePlanString($plan, 'engine');
+        $engineProgram = isset($plan['engineProgram']) && is_string($plan['engineProgram']) && $plan['engineProgram'] !== ''
+            ? $plan['engineProgram']
+            : $engine;
         $exitCode = (int) ($result['exitCode'] ?? 0);
         $files = $this->normalizeFileMap($result['files'] ?? []);
         $planDiagnostics = $plan['diagnostics'] ?? [];
@@ -497,6 +502,15 @@ final class PdfEngineHandoff
             [(string) ($result['stdout'] ?? ''), (string) ($result['stderr'] ?? '')],
             $engineLogTexts
         );
+        $missingProgram = $this->extractMissingEngineProgram(
+            $engineProgram,
+            $exitCode,
+            $engineTexts,
+            $result['missingProgram'] ?? null
+        );
+        if ($missingProgram['missing']) {
+            $diagnostics[] = 'engine-program-missing:' . $missingProgram['program'];
+        }
         $engineMessages = $this->extractEngineMessages($engineTexts);
         $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
         $declaredOutput = $this->extractDeclaredOutput($engineTexts);
@@ -549,6 +563,10 @@ final class PdfEngineHandoff
         if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') && !$pdfTrailerComplete) {
             $diagnostics[] = 'pdf-output-truncated';
         }
+        if ($reason === null && $missingProgram['missing']) {
+            $status = 'failed';
+            $reason = 'engine-program-missing';
+        }
         if ($reason === null && $engineMessages['errors'] !== []) {
             $status = 'failed';
             $reason = 'engine-log-error';
@@ -596,6 +614,8 @@ final class PdfEngineHandoff
             'status' => $status,
             'reason' => $reason,
             'engine' => $engine,
+            'engineMissingProgram' => $missingProgram['missing'],
+            'engineMissingProgramName' => $missingProgram['program'],
             'outputFile' => $outputFile,
             'exitCode' => $exitCode,
             'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
@@ -669,6 +689,8 @@ final class PdfEngineHandoff
      *     finalSourceMapLineRanges: list<array{tag:int, path:string, minLine:int, maxLine:int, references:int}>,
      *     missingResourceFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
+     *     engineMissingProgram: bool,
+     *     engineMissingProgramName: string|null,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
      *     bibliographyWarnings: list<string>,
@@ -804,6 +826,8 @@ final class PdfEngineHandoff
             'finalSourceMapLineRanges' => is_array($finalRun) && is_array($finalRun['sourceMapLineRanges'] ?? null) ? $finalRun['sourceMapLineRanges'] : [],
             'missingResourceFiles' => is_array($finalRun) && is_array($finalRun['missingResourceFiles'] ?? null) ? $finalRun['missingResourceFiles'] : [],
             'missingEngineInputFiles' => is_array($finalRun) && is_array($finalRun['missingEngineInputFiles'] ?? null) ? $finalRun['missingEngineInputFiles'] : [],
+            'engineMissingProgram' => is_array($finalRun) && ($finalRun['engineMissingProgram'] ?? false) === true,
+            'engineMissingProgramName' => is_array($finalRun) && is_string($finalRun['engineMissingProgramName'] ?? null) ? $finalRun['engineMissingProgramName'] : null,
             'engineWarnings' => array_values(array_unique($warnings)),
             'engineErrors' => array_values(array_unique($errors)),
             'bibliographyWarnings' => array_values(array_unique($bibliographyWarnings)),
@@ -1528,6 +1552,50 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return array{missing:bool, program:string|null}
+     */
+    private function extractMissingEngineProgram(string $engineProgram, int $exitCode, array $texts, mixed $explicit): array
+    {
+        $program = $this->engineName($engineProgram);
+        if ($explicit !== null) {
+            if (is_bool($explicit)) {
+                return ['missing' => $explicit, 'program' => $explicit ? $program : null];
+            }
+            if (is_string($explicit)) {
+                return ['missing' => true, 'program' => $this->engineName($explicit)];
+            }
+
+            throw new \InvalidArgumentException('PDF fake runner missingProgram must be a boolean or string');
+        }
+
+        $engineProgramLower = strtolower(str_replace('\\', '/', $engineProgram));
+        $programLower = strtolower($program);
+        foreach ($texts as $text) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+
+                $lineLower = strtolower(str_replace('\\', '/', $line));
+                $looksMissing = preg_match('/command not found|executable file not found|not recognized as an internal or external command|no such file or directory|\benoent\b|could not find executable|\bnot found\b/i', $line) === 1;
+                if (!$looksMissing) {
+                    continue;
+                }
+
+                $mentionsProgram = str_contains($lineLower, $programLower)
+                    || str_contains($lineLower, $engineProgramLower);
+                if ($mentionsProgram || $exitCode === 126 || $exitCode === 127) {
+                    return ['missing' => true, 'program' => $program];
+                }
+            }
+        }
+
+        return ['missing' => false, 'program' => null];
     }
 
     /**

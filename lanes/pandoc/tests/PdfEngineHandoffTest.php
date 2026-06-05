@@ -613,6 +613,37 @@ MARKDOWN);
         $t->contains('engine-log-errors:2', implode(',', $result['diagnostics']));
     },
 
+    'fake runner records missing pdf engine executable diagnostics without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => '/opt/texlive/bin/xelatex',
+            'outputPath' => 'review.pdf',
+        ]);
+        $missing = $handoff->fakeRun($plan, [
+            'exitCode' => 127,
+            'stderr' => "sh: 1: /opt/texlive/bin/xelatex: not found\n",
+        ]);
+        $explicit = $handoff->fakeRun($plan, [
+            'missingProgram' => 'xelatex',
+        ]);
+        $notMissing = $handoff->fakeRun($plan, [
+            'exitCode' => 2,
+            'stderr' => "xelatex exited after reading review.tex\n",
+        ]);
+
+        $t->same(false, $missing['ok']);
+        $t->same('engine-program-missing', $missing['reason']);
+        $t->same(true, $missing['engineMissingProgram']);
+        $t->same('xelatex', $missing['engineMissingProgramName']);
+        $t->contains('engine-program-missing:xelatex', implode(',', $missing['diagnostics']));
+        $t->same('engine-exit-2', $notMissing['reason']);
+        $t->same(false, $notMissing['engineMissingProgram']);
+        $t->same(false, $explicit['ok']);
+        $t->same('engine-program-missing', $explicit['reason']);
+        $t->same(true, $explicit['engineMissingProgram']);
+        $t->same('xelatex', $explicit['engineMissingProgramName']);
+    },
+
     'fake runner sequence records multipass rerun clearing without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);
