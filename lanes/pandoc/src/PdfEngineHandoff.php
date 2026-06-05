@@ -10,6 +10,7 @@ final class PdfEngineHandoff
     private const MAX_DEPENDENCY_FILE_BYTES = 1048576;
     private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
     private const MAX_XMP_METADATA_BYTES = 262144;
+    private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
 
     /**
@@ -254,6 +255,7 @@ final class PdfEngineHandoff
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
+     *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
      *     pdfPageMode: string|null,
@@ -629,6 +631,7 @@ final class PdfEngineHandoff
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
+        $pdfOutputIntents = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
         $pdfPageMode = null;
@@ -662,6 +665,7 @@ final class PdfEngineHandoff
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
+                $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
                 $pdfPageMode = $pdfInspection['pageMode'];
@@ -723,6 +727,25 @@ final class PdfEngineHandoff
                                 $diagnostics[] = 'pdf-byte-pdfa:' . $part . ':' . $conformance;
                             }
                         }
+                    }
+                }
+                if ($pdfOutputIntents !== []) {
+                    $diagnostics[] = 'pdf-byte-output-intents:' . count($pdfOutputIntents);
+                    $profileCount = 0;
+                    $profileSkips = [];
+                    foreach ($pdfOutputIntents as $intent) {
+                        if (($intent['destOutputProfile'] ?? null) !== null) {
+                            $profileCount++;
+                        }
+                        if (is_string($intent['profileSkipped'] ?? null) && $intent['profileSkipped'] !== '') {
+                            $profileSkips[$intent['profileSkipped']] = true;
+                        }
+                    }
+                    if ($profileCount > 0) {
+                        $diagnostics[] = 'pdf-byte-output-profiles:' . $profileCount;
+                    }
+                    foreach (array_keys($profileSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-output-profile-skipped:' . $skipReason;
                     }
                 }
                 if ($pdfLanguage !== null) {
@@ -903,6 +926,7 @@ final class PdfEngineHandoff
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
+            'pdfOutputIntents' => $pdfOutputIntents,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
             'pdfPageMode' => $pdfPageMode,
@@ -957,6 +981,7 @@ final class PdfEngineHandoff
      *     finalPdfOutlineTitles: list<string>,
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfXmpMetadata: array<string, mixed>,
+     *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
      *     finalPdfPageMode: string|null,
@@ -1125,6 +1150,7 @@ final class PdfEngineHandoff
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
+            'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
             'finalPdfPageMode' => is_array($finalRun) && is_string($finalRun['pdfPageMode'] ?? null) ? $finalRun['pdfPageMode'] : null,
@@ -2226,6 +2252,7 @@ final class PdfEngineHandoff
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
+            'outputIntents' => $this->extractPdfOutputIntents($pdfBytes, $catalog),
             'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
             'pageMode' => $this->extractPdfCatalogName($catalog, 'PageMode'),
@@ -2541,6 +2568,175 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    /**
+     * @return list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>
+     */
+    private function extractPdfOutputIntents(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/OutputIntents')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $array = $this->extractPdfOutputIntentArrayValue($catalog, $objects);
+        if ($array === null) {
+            return [];
+        }
+
+        $intents = [];
+        $cursor = 0;
+        $length = strlen($array);
+        while ($cursor < $length && count($intents) < 16) {
+            while ($cursor < $length && ctype_space($array[$cursor])) {
+                $cursor++;
+            }
+
+            if ($cursor >= $length) {
+                break;
+            }
+
+            if (substr($array, $cursor, 2) === '<<') {
+                $parsed = $this->parsePdfDictionary($array, $cursor);
+                if ($parsed !== null) {
+                    $intent = $this->summarizePdfOutputIntent($parsed['value'], $objects);
+                    if ($intent !== null) {
+                        $intents[] = $intent;
+                    }
+                    $cursor = $parsed['next'];
+                    continue;
+                }
+            }
+
+            if (preg_match('/\A(\d+)\s+(\d+)\s+R\b/s', substr($array, $cursor), $matches) === 1) {
+                $reference = $matches[1] . ' ' . $matches[2];
+                if (isset($objects[$reference])) {
+                    $intent = $this->summarizePdfOutputIntent($objects[$reference], $objects);
+                    if ($intent !== null) {
+                        $intents[] = $intent;
+                    }
+                }
+                $cursor += strlen($matches[0]);
+                continue;
+            }
+
+            $cursor++;
+        }
+
+        return $intents;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function extractPdfOutputIntentArrayValue(string $catalog, array $objects): ?string
+    {
+        $array = $this->extractPdfArrayValue($catalog, 'OutputIntents');
+        if ($array !== null) {
+            return $array;
+        }
+
+        $reference = $this->extractPdfReferenceToken($catalog, 'OutputIntents');
+        if ($reference === null) {
+            return null;
+        }
+
+        $body = $objects[$this->pdfReferenceKey($reference)] ?? null;
+        if ($body === null) {
+            return null;
+        }
+
+        $offset = strpos($body, '[');
+        if ($offset === false) {
+            return null;
+        }
+
+        $parsed = $this->parsePdfArray($body, $offset);
+
+        return $parsed === null ? null : $parsed['value'];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}|null
+     */
+    private function summarizePdfOutputIntent(string $dictionary, array $objects): ?array
+    {
+        if (
+            !str_contains($dictionary, '/OutputIntent')
+            && !str_contains($dictionary, '/OutputConditionIdentifier')
+            && !str_contains($dictionary, '/DestOutputProfile')
+        ) {
+            return null;
+        }
+
+        $profileReference = $this->extractPdfReferenceToken($dictionary, 'DestOutputProfile');
+        $profile = $profileReference === null
+            ? [
+                'components' => null,
+                'alternate' => null,
+                'bytes' => null,
+                'sha256' => null,
+                'skipped' => null,
+            ]
+            : $this->summarizePdfOutputProfile($objects[$this->pdfReferenceKey($profileReference)] ?? null);
+
+        return [
+            'type' => $this->extractPdfNameToken($dictionary, 'Type'),
+            'subtype' => $this->extractPdfNameToken($dictionary, 'S'),
+            'outputConditionIdentifier' => $this->extractPdfStringOrNameValue($dictionary, 'OutputConditionIdentifier'),
+            'outputCondition' => $this->extractPdfStringOrNameValue($dictionary, 'OutputCondition'),
+            'registryName' => $this->extractPdfStringOrNameValue($dictionary, 'RegistryName'),
+            'info' => $this->extractPdfStringOrNameValue($dictionary, 'Info'),
+            'destOutputProfile' => $profileReference,
+            'profileComponents' => $profile['components'],
+            'profileAlternate' => $profile['alternate'],
+            'profileBytes' => $profile['bytes'],
+            'profileSha256' => $profile['sha256'],
+            'profileSkipped' => $profile['skipped'],
+        ];
+    }
+
+    /**
+     * @return array{components:int|null, alternate:string|null, bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function summarizePdfOutputProfile(?string $profileObject): array
+    {
+        $profile = [
+            'components' => null,
+            'alternate' => null,
+            'bytes' => null,
+            'sha256' => null,
+            'skipped' => null,
+        ];
+
+        if ($profileObject === null) {
+            return $profile;
+        }
+
+        $profile['components'] = $this->extractPdfIntegerToken($profileObject, 'N');
+        $profile['alternate'] = $this->extractPdfNameToken($profileObject, 'Alternate');
+        $bytes = $this->extractPdfStreamBytes($profileObject);
+        if ($bytes === null) {
+            return $profile;
+        }
+
+        $profile['bytes'] = strlen($bytes);
+        if (preg_match('/\/Filter\b/s', $profileObject) === 1) {
+            $profile['skipped'] = 'filtered';
+
+            return $profile;
+        }
+        if (strlen($bytes) > self::MAX_OUTPUT_INTENT_PROFILE_BYTES) {
+            $profile['skipped'] = 'too-large';
+
+            return $profile;
+        }
+
+        $profile['sha256'] = hash('sha256', $bytes);
+
+        return $profile;
     }
 
     private function extractPdfStreamBytes(string $objectBody): ?string
