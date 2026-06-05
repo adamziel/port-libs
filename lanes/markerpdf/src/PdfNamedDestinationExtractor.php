@@ -126,23 +126,239 @@ final class PdfNamedDestinationExtractor
     private function pdfObjects(string $pdfBytes): array
     {
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        $definitions = $this->pdfObjectDefinitions($pdfBytes);
+        if ($definitions === []) {
             return [];
         }
 
-        $objects = [];
-        foreach ($matches as $match) {
-            $objectId = (int) $match[1];
-            $generation = (int) $match[2];
-            $body = $match[3];
+        $objects = $this->objectsFromDefinitions($definitions);
+        $xrefEntries = $this->classicXrefEntriesFromLatestStartxref($pdfBytes);
+        if ($xrefEntries === []) {
+            return $objects;
+        }
 
-            $objects[$objectId]['generation'] = $generation;
-            $objects[$objectId]['body'] = $body;
-            $objects[$objectId]['generations'][$generation] = $body;
+        $selectedObjects = $this->objectsFromClassicXrefEntries($definitions, $xrefEntries);
+        if ($selectedObjects === []) {
+            return $objects;
+        }
+
+        foreach ($definitions as $definition) {
+            if (array_key_exists($definition['object_id'], $xrefEntries)) {
+                continue;
+            }
+
+            $this->addObjectDefinition($selectedObjects, $definition);
+        }
+        ksort($selectedObjects, SORT_NUMERIC);
+
+        return $selectedObjects;
+    }
+
+    /**
+     * @return list<array{object_id: int, generation: int, body: string, offset: int}>
+     */
+    private function pdfObjectDefinitions(string $pdfBytes): array
+    {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            return [];
+        }
+
+        $definitions = [];
+        foreach ($matches as $match) {
+            $definitions[] = [
+                'object_id' => (int) $match[1][0],
+                'generation' => (int) $match[2][0],
+                'body' => $match[3][0],
+                'offset' => (int) $match[0][1],
+            ];
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * @param list<array{object_id: int, generation: int, body: string, offset: int}> $definitions
+     * @return array<int, array{generation: int, body: string, generations: array<int, string>}>
+     */
+    private function objectsFromDefinitions(array $definitions): array
+    {
+        $objects = [];
+        foreach ($definitions as $definition) {
+            $this->addObjectDefinition($objects, $definition);
         }
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array{object_id: int, generation: int, body: string, offset: int} $definition
+     */
+    private function addObjectDefinition(array &$objects, array $definition): void
+    {
+        $objectId = $definition['object_id'];
+        $generation = $definition['generation'];
+        $body = $definition['body'];
+
+        $objects[$objectId]['generation'] = $generation;
+        $objects[$objectId]['body'] = $body;
+        $objects[$objectId]['generations'][$generation] = $body;
+    }
+
+    /**
+     * @param list<array{object_id: int, generation: int, body: string, offset: int}> $definitions
+     * @param array<int, array{offset: int, generation: int, state: string}> $xrefEntries
+     * @return array<int, array{generation: int, body: string, generations: array<int, string>}>
+     */
+    private function objectsFromClassicXrefEntries(array $definitions, array $xrefEntries): array
+    {
+        $definitionsByOffset = [];
+        foreach ($definitions as $definition) {
+            $definitionsByOffset[$definition['offset']] = $definition;
+        }
+
+        $objects = [];
+        foreach ($xrefEntries as $objectId => $entry) {
+            if ($entry['state'] !== 'n') {
+                continue;
+            }
+
+            $definition = $definitionsByOffset[$entry['offset']] ?? null;
+            if ($definition === null
+                || $definition['object_id'] !== $objectId
+                || $definition['generation'] !== $entry['generation']
+            ) {
+                continue;
+            }
+
+            $this->addObjectDefinition($objects, $definition);
+        }
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * @return array<int, array{offset: int, generation: int, state: string}>
+     */
+    private function classicXrefEntriesFromLatestStartxref(string $pdfBytes): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->classicXrefEntriesFromOffsetChain($pdfBytes, $offset);
+    }
+
+    /**
+     * @param list<int> $seenOffsets
+     * @return array<int, array{offset: int, generation: int, state: string}>
+     */
+    private function classicXrefEntriesFromOffsetChain(string $pdfBytes, int $offset, array $seenOffsets = []): array
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes) || in_array($offset, $seenOffsets, true)) {
+            return [];
+        }
+
+        $seenOffsets[] = $offset;
+        $section = $this->classicXrefSectionAtOffset($pdfBytes, $offset);
+        if ($section === null) {
+            return [];
+        }
+
+        $entries = $section['entries'];
+        $previousOffset = $section['previous_offset'];
+        if ($previousOffset !== null) {
+            foreach ($this->classicXrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $seenOffsets) as $objectId => $entry) {
+                if (!array_key_exists($objectId, $entries)) {
+                    $entries[$objectId] = $entry;
+                }
+            }
+        }
+        ksort($entries, SORT_NUMERIC);
+
+        return $entries;
+    }
+
+    /**
+     * @return array{entries: array<int, array{offset: int, generation: int, state: string}>, previous_offset: int|null}|null
+     */
+    private function classicXrefSectionAtOffset(string $pdfBytes, int $offset): ?array
+    {
+        if (substr($pdfBytes, $offset, 4) !== 'xref') {
+            return null;
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', substr($pdfBytes, $offset));
+        if (!is_array($lines) || trim($lines[0] ?? '') !== 'xref') {
+            return null;
+        }
+
+        $entries = [];
+        $index = 1;
+        $count = count($lines);
+        while ($index < $count) {
+            $line = trim($lines[$index]);
+            $index++;
+            if ($line === '' || str_starts_with($line, '%')) {
+                continue;
+            }
+            if ($line === 'trailer') {
+                $index--;
+                break;
+            }
+            if (preg_match('/^(\d+)\s+(\d+)$/', $line, $subsection) !== 1) {
+                continue;
+            }
+
+            $startObject = (int) $subsection[1];
+            $rowCount = (int) $subsection[2];
+            $rowsRead = 0;
+            while ($index < $count && $rowsRead < $rowCount) {
+                $row = trim($lines[$index]);
+                $index++;
+                if ($row === '' || str_starts_with($row, '%')) {
+                    continue;
+                }
+                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $xrefRow) !== 1) {
+                    continue;
+                }
+
+                $entries[$startObject + $rowsRead] = [
+                    'offset' => (int) $xrefRow[1],
+                    'generation' => (int) $xrefRow[2],
+                    'state' => $xrefRow[3],
+                ];
+                $rowsRead++;
+            }
+        }
+
+        $trailerSource = implode("\n", array_slice($lines, $index));
+        $trailer = $this->trailerDictionaryFromXrefSection($trailerSource);
+        $previousOffset = $this->xrefPreviousOffset($trailer);
+
+        return [
+            'entries' => $entries,
+            'previous_offset' => $previousOffset,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $trailer
+     */
+    private function xrefPreviousOffset(?array $trailer): ?int
+    {
+        $previous = $trailer['Prev'] ?? null;
+        if (!is_int($previous) && !is_float($previous)) {
+            return null;
+        }
+        if ($previous < 0) {
+            return null;
+        }
+
+        return (int) $previous;
     }
 
     private function bytesThroughCurrentEof(string $pdfBytes): string
