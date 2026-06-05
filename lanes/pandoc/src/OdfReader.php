@@ -174,6 +174,7 @@ final class OdfReader
                 'content' => [
                     'blockCount' => count($content['blocks']),
                     'automaticStyleCount' => $content['automaticStyleCount'],
+                    'blockquoteCount' => $contentStats['blockquoteCount'],
                     'noteCount' => $contentStats['noteCount'],
                     'bookmarkCount' => $contentStats['bookmarkCount'],
                     'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
@@ -707,7 +708,15 @@ final class OdfReader
             return new AstNode('heading', $attrs, $inlines);
         }
 
-        return new AstNode('paragraph', $attrs, $inlines);
+        $node = new AstNode('paragraph', $attrs, $inlines);
+        if ($this->isBlockquoteParagraphStyle($style)) {
+            $quoteAttrs = $attrs;
+            $quoteAttrs['classes'] = ['odf-blockquote'];
+
+            return new AstNode('blockquote', $quoteAttrs, [$node]);
+        }
+
+        return $node;
     }
 
     /**
@@ -3591,13 +3600,7 @@ final class OdfReader
 
         $paragraphProperties = self::firstChildElement($style, 'paragraph-properties', self::STYLE_NS);
         if ($paragraphProperties instanceof \DOMElement) {
-            $definition['paragraphProperties'] = self::withoutEmpty([
-                'textAlign' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'text-align')),
-                'breakBefore' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'break-before')),
-                'breakAfter' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'break-after')),
-                'keepTogether' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'keep-together')),
-                'keepWithNext' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'keep-with-next')),
-            ]);
+            $definition['paragraphProperties'] = $this->paragraphProperties($paragraphProperties);
         }
 
         $columnProperties = self::firstChildElement($style, 'table-column-properties', self::STYLE_NS);
@@ -3608,6 +3611,44 @@ final class OdfReader
         }
 
         return $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function paragraphProperties(\DOMElement $properties): array
+    {
+        $result = self::withoutEmpty([
+            'textAlign' => self::nullable(self::attr($properties, self::FO_NS, 'text-align')),
+            'breakBefore' => self::nullable(self::attr($properties, self::FO_NS, 'break-before')),
+            'breakAfter' => self::nullable(self::attr($properties, self::FO_NS, 'break-after')),
+            'keepTogether' => self::nullable(self::attr($properties, self::FO_NS, 'keep-together')),
+            'keepWithNext' => self::nullable(self::attr($properties, self::FO_NS, 'keep-with-next')),
+            'autoTextIndent' => self::nullableBool(self::attr($properties, self::STYLE_NS, 'auto-text-indent')),
+        ]);
+
+        foreach ([
+            'textIndent' => [self::FO_NS, 'text-indent'],
+            'marginLeft' => [self::FO_NS, 'margin-left'],
+        ] as $target => [$namespace, $attribute]) {
+            $value = self::attr($properties, $namespace, $attribute);
+            if ($value === '') {
+                continue;
+            }
+
+            $result[$target] = $value;
+            if (str_ends_with($value, '%')) {
+                $result[$target . 'Percent'] = (float) rtrim($value, '%');
+                continue;
+            }
+
+            $points = $this->lengthToPoints($value);
+            if ($points !== null) {
+                $result[$target . 'Points'] = $points;
+            }
+        }
+
+        return self::withoutEmpty($result);
     }
 
     /**
@@ -3891,6 +3932,78 @@ final class OdfReader
     }
 
     /**
+     * @param array<string, mixed> $style
+     */
+    private function isBlockquoteParagraphStyle(array $style): bool
+    {
+        $properties = $style['paragraphProperties'] ?? [];
+        if (!is_array($properties)) {
+            return false;
+        }
+
+        return $this->isQuoteWidth(
+            (string) ($properties['textIndent'] ?? ''),
+            (string) ($properties['marginLeft'] ?? '')
+        );
+    }
+
+    private function isQuoteWidth(string $textIndent, string $marginLeft): bool
+    {
+        $indent = $this->quoteMeasure($textIndent);
+        $margin = $this->quoteMeasure($marginLeft);
+        $pointThreshold = 5.0 * 2.83464567;
+        $percentThreshold = 5.0;
+
+        if (($indent['unit'] ?? '') === 'pt' && $indent['value'] > $pointThreshold) {
+            return true;
+        }
+        if (($margin['unit'] ?? '') === 'pt' && $margin['value'] > $pointThreshold) {
+            return true;
+        }
+        if (($indent['unit'] ?? '') === 'pt' && ($margin['unit'] ?? '') === 'pt' && $indent['value'] + $margin['value'] > $pointThreshold) {
+            return true;
+        }
+        if (($indent['unit'] ?? '') === 'percent' && $indent['value'] > $percentThreshold) {
+            return true;
+        }
+        if (($margin['unit'] ?? '') === 'percent' && $margin['value'] > $percentThreshold) {
+            return true;
+        }
+        if (($indent['unit'] ?? '') === 'percent' && ($margin['unit'] ?? '') === 'percent' && $indent['value'] + $margin['value'] > $percentThreshold) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{unit:'pt'|'percent', value:float}|null
+     */
+    private function quoteMeasure(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        if (preg_match('/^([0-9]+(?:\.[0-9]+)?)%$/', $value, $matches) === 1) {
+            return [
+                'unit' => 'percent',
+                'value' => (float) $matches[1],
+            ];
+        }
+
+        $points = $this->lengthToPoints($value);
+        if ($points === null) {
+            return null;
+        }
+
+        return [
+            'unit' => 'pt',
+            'value' => $points,
+        ];
+    }
+
+    /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      * @return array<string, mixed>
      */
@@ -4018,11 +4131,12 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
         $stats = [
+            'blockquoteCount' => 0,
             'noteCount' => 0,
             'bookmarkCount' => 0,
             'bookmarkReferenceCount' => 0,
@@ -4052,6 +4166,9 @@ final class OdfReader
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
                 $stats['noteCount']++;
+            }
+            if ($node->type === 'blockquote' && $this->nodeHasClass($node, 'odf-blockquote')) {
+                $stats['blockquoteCount']++;
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-section')) {
                 $stats['sectionCount']++;

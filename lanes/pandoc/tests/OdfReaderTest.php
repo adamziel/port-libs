@@ -346,6 +346,69 @@ XML;
         $t->same(1, $result['importReport']['styles']['pageLayoutCount']);
         $t->same(2, $result['importReport']['styles']['masterPageCount']);
     },
+    'maps ODT indented paragraph styles into Pandoc block quotes' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithQuoteIndent = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="ReviewQuote" style:family="paragraph" style:display-name="Review Quote">
+      <style:paragraph-properties fo:margin-left="6mm"/>
+    </style:style>
+    <style:style style:name="InheritedQuote" style:family="paragraph" style:parent-style-name="ReviewQuote" style:display-name="Inherited Review Quote">
+      <style:paragraph-properties fo:text-indent="1mm"/>
+    </style:style>
+    <style:style style:name="SmallIndent" style:family="paragraph" style:display-name="Small Indent">
+      <style:paragraph-properties fo:margin-left="3mm"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithQuoteIndent = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="ReviewQuote">Quoted migration decision.</text:p>
+      <text:p text:style-name="InheritedQuote">Inherited quoted detail.</text:p>
+      <text:p text:style-name="SmallIndent">Indented but not quoted.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithQuoteIndent, null, $stylesWithQuoteIndent));
+        $blocks = $result['document']->children;
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(3, count($blocks));
+        $t->same('blockquote', $blocks[0]->type);
+        $t->same(['odf-blockquote'], $blocks[0]->attr('classes'));
+        $t->same('ReviewQuote', $blocks[0]->attr('styleName'));
+        $t->same('6mm', $blocks[0]->attr('style')['paragraphProperties']['marginLeft']);
+        $t->true(abs(($blocks[0]->attr('style')['paragraphProperties']['marginLeftPoints'] ?? 0.0) - 17.00787402) < 0.000001);
+        $t->same('paragraph', $blocks[0]->children[0]->type);
+        $t->same('Quoted migration decision.', $blocks[0]->children[0]->attr('text'));
+        $t->same('blockquote', $blocks[1]->type);
+        $t->same('InheritedQuote', $blocks[1]->attr('styleName'));
+        $t->same('ReviewQuote', $blocks[1]->attr('style')['parentName']);
+        $t->same('1mm', $blocks[1]->attr('style')['paragraphProperties']['textIndent']);
+        $t->same('paragraph', $blocks[1]->children[0]->type);
+        $t->same('Inherited quoted detail.', $blocks[1]->children[0]->attr('text'));
+        $t->same('paragraph', $blocks[2]->type);
+        $t->same('Indented but not quoted.', $blocks[2]->attr('text'));
+        $t->same(2, $result['importReport']['content']['blockquoteCount']);
+
+        $t->contains('> Quoted migration decision.', $markdown);
+        $t->contains('> Inherited quoted detail.', $markdown);
+        $t->contains('Indented but not quoted.', $markdown);
+        $t->contains('<blockquote class="wp-block-quote"><p>Quoted migration decision.</p></blockquote>', $blocksHtml);
+        $t->contains('<blockquote class="wp-block-quote"><p>Inherited quoted detail.</p></blockquote>', $blocksHtml);
+        $t->contains('<p>Indented but not quoted.</p>', $blocksHtml);
+    },
     'maps ODT content XML blocks to the shared Pandoc-like AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage());
         $document = $result['document'];
