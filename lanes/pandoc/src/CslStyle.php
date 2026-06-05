@@ -105,6 +105,7 @@ final class CslStyle
             'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'first',
             'sortSeparator' => ', ',
+            'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
         ],
         'bibliography' => [
@@ -128,6 +129,7 @@ final class CslStyle
             'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'all',
             'sortSeparator' => ', ',
+            'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
         ],
     ];
@@ -203,6 +205,7 @@ final class CslStyle
         }
 
         $defaultLocale = trim($root->getAttribute('default-locale'));
+        $globalNameRenderingOverrides = self::globalNameRenderingOverrides($root);
         $macros = self::parseMacros($root);
         $terms = self::DEFAULT_TERMS;
         $localeOptions = self::DEFAULT_LOCALE_OPTIONS;
@@ -265,6 +268,8 @@ final class CslStyle
                     : (self::nameRenderingOptionsForRenderingElements($bibliographyRenderingElements, 'bibliography', $macros) ?? self::DEFAULT_NAME_RENDERING['bibliography'])
             )
             : self::DEFAULT_NAME_RENDERING['bibliography'];
+        $citationNameRendering = self::mergeNameRenderingOptions($citationNameRendering, $globalNameRenderingOverrides);
+        $bibliographyNameRendering = self::mergeNameRenderingOptions($bibliographyNameRendering, $globalNameRenderingOverrides);
 
         return new self(
             self::layoutAttributes($layout, '; '),
@@ -753,7 +758,27 @@ final class CslStyle
             'initializeWithHyphen' => is_bool($overrides['initializeWithHyphen'] ?? null) ? $overrides['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
             'sortSeparator' => is_string($overrides['sortSeparator'] ?? null) ? $overrides['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
+            'demoteNonDroppingParticle' => is_string($overrides['demoteNonDroppingParticle'] ?? null) ? $overrides['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function globalNameRenderingOverrides(\DOMElement $style): array
+    {
+        $demote = trim($style->getAttribute('demote-non-dropping-particle'));
+        if ($demote === '') {
+            return [];
+        }
+
+        if (!in_array($demote, ['never', 'sort-only', 'display-and-sort'], true)) {
+            throw new \InvalidArgumentException('CSL style demote-non-dropping-particle must be never, sort-only, or display-and-sort');
+        }
+
+        return [
+            'demoteNonDroppingParticle' => $demote,
         ];
     }
 

@@ -3812,6 +3812,160 @@ XML
         $t->contains('<p>Sort separator source Source and Reviewer (2026) keeps reviewer names readable.</p>', $blocks);
         $t->contains('<dt>Source and Reviewer 2026</dt><dd>Source | A. M.; Reviewer | N. Sort Separator Packet.</dd>', $blocks);
     },
+    'applies bounded csl demote non dropping particle display and sort behavior' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'van-gogh-source',
+                'type' => 'report',
+                'title' => 'Van Gogh Packet',
+                'author' => [
+                    ['family' => 'Gogh', 'given' => 'Vincent', 'non-dropping-particle' => 'van', 'suffix' => 'III', 'comma-suffix' => true],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/van-gogh',
+            ],
+            [
+                'id' => 'garcia-source',
+                'type' => 'report',
+                'title' => 'Garcia Packet',
+                'author' => [
+                    ['family' => 'García', 'given' => 'Gia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'never-demote-source',
+                'type' => 'report',
+                'title' => 'Never Demote Packet',
+                'author' => [
+                    ['family' => 'Wal', 'given' => 'Wim', 'non-dropping-particle' => 'van der'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US" demote-non-dropping-particle="display-and-sort">
+  <info>
+    <title>Bounded Demote Particle Review Style</title>
+    <id>https://example.test/styles/bounded-demote-particle-review</id>
+    <updated>2026-06-05T16:04:20+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Demote Particle Review Style', $summary['title'] ?? null);
+        $t->same('display-and-sort', $summary['nameRendering']['citation']['demoteNonDroppingParticle'] ?? null);
+        $t->same('display-and-sort', $summary['nameRendering']['bibliography']['demoteNonDroppingParticle'] ?? null);
+        $t->same('[García 2024; van Gogh 2026; van der Wal 2025]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'never-demote-source', 'text' => '[@never-demote-source]']),
+            new AstNode('citation', ['id' => 'van-gogh-source', 'text' => '[@van-gogh-source]']),
+            new AstNode('citation', ['id' => 'garcia-source', 'text' => '[@garcia-source]']),
+        ]));
+        $t->same('Gogh, V. van, III. Van Gogh Packet. https://example.test/van-gogh.', $processor->renderBibliographyEntry('van-gogh-source'));
+        $t->same('Wal, W. van der. Never Demote Packet.', $processor->renderBibliographyEntry('never-demote-source'));
+
+        $never = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" demote-non-dropping-particle="never">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('van Gogh, V., III. Van Gogh Packet.', $never->renderBibliographyEntry('van-gogh-source'));
+
+        $sortOnly = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" demote-non-dropping-particle="sort-only">
+  <citation>
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('[van Gogh 2026; van der Wal 2025]', $sortOnly->renderCitationCluster([
+            new AstNode('citation', ['id' => 'never-demote-source', 'text' => '[@never-demote-source]']),
+            new AstNode('citation', ['id' => 'van-gogh-source', 'text' => '[@van-gogh-source]']),
+        ]));
+        $t->same('van Gogh, V., III. Van Gogh Packet.', $sortOnly->renderBibliographyEntry('van-gogh-source'));
+
+        $document = (new MarkdownReader())->read('Particle source @van-gogh-source and local source [@never-demote-source] keep reviewer sort keys visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Particle source van Gogh (2026) and local source [van der Wal 2025] keep reviewer sort keys visible.</p>', $blocks);
+        $goghPosition = strpos($blocks, '<dt>van Gogh 2026</dt><dd>Gogh, V. van, III. Van Gogh Packet. https://example.test/van-gogh.</dd>');
+        $walPosition = strpos($blocks, '<dt>van der Wal 2025</dt><dd>Wal, W. van der. Never Demote Packet.</dd>');
+        $t->true(is_int($goghPosition) && is_int($walPosition) && $goghPosition < $walPosition, 'Demoted particles should sort bibliography entries by family name');
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" demote-non-dropping-particle="sometimes">
+  <citation><layout><names variable="author"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl et al element term formatting and delimiter policy' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

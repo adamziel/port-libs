@@ -2178,16 +2178,35 @@ final class CitationCslProcessor
                 continue;
             }
 
-            $parts[] = trim(implode(' ', array_filter([
+            $parts[] = $this->nameSortValue($name);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $name
+     */
+    private function nameSortValue(array $name): string
+    {
+        $demote = (string) ($this->style->bibliographyNameRendering()['demoteNonDroppingParticle'] ?? 'never');
+        $sortParts = in_array($demote, ['sort-only', 'display-and-sort'], true)
+            ? [
+                (string) ($name['family'] ?? ''),
+                (string) ($name['droppingParticle'] ?? ''),
+                (string) ($name['nonDroppingParticle'] ?? ''),
+                (string) ($name['given'] ?? ''),
+                (string) ($name['suffix'] ?? ''),
+            ]
+            : [
                 (string) ($name['nonDroppingParticle'] ?? ''),
                 (string) ($name['family'] ?? ''),
                 (string) ($name['given'] ?? ''),
                 (string) ($name['droppingParticle'] ?? ''),
                 (string) ($name['suffix'] ?? ''),
-            ], static fn (string $part): bool => $part !== '')));
-        }
+            ];
 
-        return implode(' ', $parts);
+        return trim(implode(' ', array_filter($sortParts, static fn (string $part): bool => $part !== '')));
     }
 
     /**
@@ -4196,6 +4215,7 @@ final class CitationCslProcessor
             'initializeWithHyphen' => is_bool($options['initializeWithHyphen'] ?? null) ? $options['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
             'sortSeparator' => is_string($options['sortSeparator'] ?? null) ? $options['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
+            'demoteNonDroppingParticle' => is_string($options['demoteNonDroppingParticle'] ?? null) ? $options['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
         ];
     }
@@ -5250,12 +5270,27 @@ final class CitationCslProcessor
             return $name['literal'];
         }
 
-        $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
-        $family = $this->formatNamePart('family', $family, $options);
-        $given = $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
-        $droppingParticle = (string) $name['droppingParticle'];
-        $suffix = (string) $name['suffix'];
+        $nonDroppingParticle = (string) $name['nonDroppingParticle'];
         $sortOrdered = $options['nameAsSortOrder'] === 'all' || ($options['nameAsSortOrder'] === 'first' && $index === 0);
+        $demoteForDisplay = $sortOrdered && (string) ($options['demoteNonDroppingParticle'] ?? 'never') === 'display-and-sort';
+        $family = trim($demoteForDisplay
+            ? (string) $name['family']
+            : trim($nonDroppingParticle . ' ' . (string) $name['family']));
+        $family = $this->formatNamePart('family', $family, $options);
+        $givenParts = [];
+        $given = $this->renderGivenName((string) $name['given'], $options);
+        if ($given !== '') {
+            $givenParts[] = $given;
+        }
+        $droppingParticle = (string) $name['droppingParticle'];
+        if ($demoteForDisplay && $droppingParticle !== '') {
+            $givenParts[] = $droppingParticle;
+        }
+        if ($demoteForDisplay && $nonDroppingParticle !== '') {
+            $givenParts[] = $nonDroppingParticle;
+        }
+        $given = $this->formatNamePart('given', implode(' ', $givenParts), $options);
+        $suffix = (string) $name['suffix'];
 
         if ($sortOrdered) {
             if ($family !== '' && $given !== '') {
@@ -5267,7 +5302,7 @@ final class CitationCslProcessor
             $entry = trim(($given !== '' ? $given . ' ' : '') . $family);
         }
 
-        if ($droppingParticle !== '') {
+        if (!$demoteForDisplay && $droppingParticle !== '') {
             $entry = trim($entry . ' ' . $droppingParticle);
         }
 
