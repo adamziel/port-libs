@@ -244,6 +244,10 @@ audit-note: |+ # keep final newline for audit packets
 
 aliases:
   labels: *review_labels
+alias-diagnostics:
+  self: &alias_diag_self *alias_diag_self
+  missing: *missing_alias
+flow-alias-diagnostics: {owner: *missing_flow_owner, status: queued}
 source-revision: !!str 007
 references:
   - &source_reference
@@ -271,6 +275,7 @@ MARKDOWN;
 
 $document = (new MarkdownReader())->read($markdown);
 $meta = $document->attr('meta', []);
+$yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -607,6 +612,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['aliases']['labels'] ?? []) !== ['front-matter', 'wordpress']) {
         throw new RuntimeException('YAML metadata self-test missing anchor alias labels');
     }
+    if (($meta['alias-diagnostics']['self'] ?? '') !== '*alias_diag_self') {
+        throw new RuntimeException('YAML metadata self-test missing self-referential alias audit value');
+    }
+    if (($meta['alias-diagnostics']['missing'] ?? '') !== '*missing_alias') {
+        throw new RuntimeException('YAML metadata self-test missing unresolved alias audit value');
+    }
+    if (($meta['flow-alias-diagnostics']['owner'] ?? '') !== '*missing_flow_owner') {
+        throw new RuntimeException('YAML metadata self-test missing flow unresolved alias audit value');
+    }
+    if (count($yamlDiagnostics) !== 3) {
+        throw new RuntimeException('YAML metadata self-test missing alias diagnostics');
+    }
+    if (array_column($yamlDiagnostics, 'reason') !== ['self-reference', 'unresolved-alias', 'unresolved-alias']) {
+        throw new RuntimeException('YAML metadata self-test missing alias diagnostic reasons');
+    }
+    if (($yamlDiagnostics[0]['definedAnchor'] ?? '') !== 'alias_diag_self') {
+        throw new RuntimeException('YAML metadata self-test missing alias diagnostic anchor provenance');
+    }
     if (($meta['authors'][1] ?? '') !== 'WordPress #import editor') {
         throw new RuntimeException('YAML metadata self-test stripped quoted author hash');
     }
@@ -669,6 +692,7 @@ echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0
 echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
+echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";

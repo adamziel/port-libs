@@ -26,6 +26,9 @@ final class MarkdownReader
     /** @var array<string, mixed> */
     private array $yamlMetadataAnchors = [];
 
+    /** @var list<array<string, string>> */
+    private array $yamlMetadataDiagnostics = [];
+
     private bool $resolveFootnoteReferences = true;
 
     /**
@@ -338,7 +341,7 @@ final class MarkdownReader
 
             $block = $this->tryReadYamlMetadataBlock($lines, $index);
             if ($block !== null) {
-                $metadata = array_replace($metadata, $block['metadata']);
+                $metadata = $this->mergeYamlMetadataBlock($metadata, $block['metadata']);
                 $hasMetadata = true;
                 $index = $block['end'];
                 continue;
@@ -400,11 +403,17 @@ final class MarkdownReader
         for ($cursor = $start + 1; $cursor < $count; $cursor++) {
             if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
                 $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
+                $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
                 $this->yamlMetadataAnchors = [];
+                $this->yamlMetadataDiagnostics = [];
                 try {
                     $metadata = $this->parseYamlMetadataLines($yamlLines);
+                    if ($this->yamlMetadataDiagnostics !== []) {
+                        $metadata['__yamlMetadataDiagnostics'] = $this->yamlMetadataDiagnostics;
+                    }
                 } finally {
                     $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
+                    $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
                 }
                 if ($metadata === []) {
                     return null;
@@ -417,6 +426,48 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $current
+     * @param array<string, mixed> $next
+     * @return array<string, mixed>
+     */
+    private function mergeYamlMetadataBlock(array $current, array $next): array
+    {
+        $currentDiagnostics = $this->yamlMetadataDiagnosticList($current['__yamlMetadataDiagnostics'] ?? []);
+        $nextDiagnostics = $this->yamlMetadataDiagnosticList($next['__yamlMetadataDiagnostics'] ?? []);
+        unset($current['__yamlMetadataDiagnostics'], $next['__yamlMetadataDiagnostics']);
+
+        $merged = array_replace($current, $next);
+        $diagnostics = array_merge($currentDiagnostics, $nextDiagnostics);
+        if ($diagnostics !== []) {
+            $merged['__yamlMetadataDiagnostics'] = $diagnostics;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataDiagnosticList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $diagnostics = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $diagnostics[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**
@@ -704,7 +755,7 @@ final class MarkdownReader
             if ($multiline !== null) {
                 $value = $multiline;
             } else {
-                $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+                $value = $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags);
                 $tagsApplied = true;
             }
         }
@@ -970,7 +1021,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+            $value = $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags);
             $this->rememberYamlAnchor($anchorName, $value);
             $items[] = $value;
         }
@@ -1266,7 +1317,7 @@ final class MarkdownReader
         }
 
         if ($this->isYamlAliasScalar($value)) {
-            $parsed = $this->yamlAliasValue(substr($value, 1));
+            $parsed = $this->yamlAliasValue(substr($value, 1), $anchorName);
             $this->rememberYamlAnchor($anchorName, $parsed);
             return $parsed;
         }
@@ -2472,13 +2523,54 @@ final class MarkdownReader
         return preg_match('/^\*[A-Za-z0-9_.-]+$/', $value) === 1;
     }
 
-    private function yamlAliasValue(string $anchorName): mixed
+    private function yamlAliasValue(string $aliasName, ?string $currentAnchorName): mixed
     {
-        if (!array_key_exists($anchorName, $this->yamlMetadataAnchors)) {
-            return '*' . $anchorName;
+        if (!array_key_exists($aliasName, $this->yamlMetadataAnchors)) {
+            $this->recordYamlAliasDiagnostic(
+                $aliasName,
+                $currentAnchorName,
+                $currentAnchorName === $aliasName ? 'self-reference' : 'unresolved-alias'
+            );
+
+            return '*' . $aliasName;
         }
 
-        return $this->cloneYamlMetadataValue($this->yamlMetadataAnchors[$anchorName]);
+        $value = $this->cloneYamlMetadataValue($this->yamlMetadataAnchors[$aliasName]);
+        if (is_string($value) && $this->isYamlAliasScalar($value)) {
+            $resolvedAliasName = substr($value, 1);
+            $this->recordYamlAliasDiagnostic(
+                $aliasName,
+                $currentAnchorName,
+                $currentAnchorName !== null && $resolvedAliasName === $currentAnchorName
+                    ? 'alias-cycle'
+                    : 'chained-unresolved-alias',
+                $resolvedAliasName
+            );
+        }
+
+        return $value;
+    }
+
+    private function recordYamlAliasDiagnostic(
+        string $aliasName,
+        ?string $currentAnchorName,
+        string $reason,
+        ?string $resolvedAliasName = null
+    ): void {
+        $diagnostic = [
+            'type' => 'yaml-alias',
+            'reason' => $reason,
+            'alias' => '*' . $aliasName,
+            'anchor' => $aliasName,
+        ];
+        if ($currentAnchorName !== null && $currentAnchorName !== '') {
+            $diagnostic['definedAnchor'] = $currentAnchorName;
+        }
+        if ($resolvedAliasName !== null && $resolvedAliasName !== '') {
+            $diagnostic['resolvedAlias'] = '*' . $resolvedAliasName;
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
 
     private function rememberYamlAnchor(?string $anchorName, mixed $value): void
@@ -2536,7 +2628,13 @@ final class MarkdownReader
     private function buildYamlMetadataAttrs(array $metadata): array
     {
         $meta = [];
+        $diagnostics = [];
         foreach ($metadata as $key => $value) {
+            if ($key === '__yamlMetadataDiagnostics') {
+                $diagnostics = $this->yamlMetadataDiagnosticList($value);
+                continue;
+            }
+
             if (str_ends_with($key, '_')) {
                 continue;
             }
@@ -2581,7 +2679,12 @@ final class MarkdownReader
             $meta[$key] = $value;
         }
 
-        return $meta === [] ? [] : ['meta' => $meta];
+        $attrs = $meta === [] ? [] : ['meta' => $meta];
+        if ($diagnostics !== []) {
+            $attrs['yamlMetadataDiagnostics'] = $diagnostics;
+        }
+
+        return $attrs;
     }
 
     /**

@@ -1365,6 +1365,60 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-anchor-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml alias diagnostics without hiding metadata values' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Alias diagnostic **Packet**',
+            'review:',
+            '  self: &review_self *review_self',
+            '  missing: *missing_review',
+            '  valid-defaults: &valid_defaults {status: queued, priority: 2}',
+            '  applied: *valid_defaults',
+            'flow-review: {owner: *missing_owner, status: queued, defaults: *valid_defaults}',
+            'chain-a_: &chain_a *chain_b',
+            'chain-b: &chain_b *chain_a',
+            'references:',
+            '  - id: alias-diagnostic-ref',
+            '    metadata: {source: *missing_source, status: kept}',
+            '...',
+            '',
+            '# Alias diagnostic YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Alias diagnostic **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('*review_self', $meta['review']['self']);
+        $t->same('*missing_review', $meta['review']['missing']);
+        $t->same(['status' => 'queued', 'priority' => 2], $meta['review']['applied']);
+        $t->same('*missing_owner', $meta['flow-review']['owner']);
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same(['status' => 'queued', 'priority' => 2], $meta['flow-review']['defaults']);
+        $t->same('*chain_b', $meta['chain-b']);
+        $t->same('alias-diagnostic-ref', $meta['references'][0]['id']);
+        $t->same('*missing_source', $meta['references'][0]['metadata']['source']);
+        $t->same('kept', $meta['references'][0]['metadata']['status']);
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(6, count($diagnostics));
+        $t->same(['self-reference', 'unresolved-alias', 'unresolved-alias', 'unresolved-alias', 'alias-cycle', 'unresolved-alias'], array_column($diagnostics, 'reason'));
+        $t->same('*review_self', $diagnostics[0]['alias']);
+        $t->same('review_self', $diagnostics[0]['definedAnchor']);
+        $t->same('*missing_review', $diagnostics[1]['alias']);
+        $t->same(false, array_key_exists('definedAnchor', $diagnostics[1]));
+        $t->same('*missing_owner', $diagnostics[2]['alias']);
+        $t->same('*chain_b', $diagnostics[3]['alias']);
+        $t->same('chain_a', $diagnostics[3]['definedAnchor']);
+        $t->same('*chain_a', $diagnostics[4]['alias']);
+        $t->same('chain_b', $diagnostics[4]['definedAnchor']);
+        $t->same('*chain_b', $diagnostics[4]['resolvedAlias']);
+        $t->same('*missing_source', $diagnostics[5]['alias']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('alias-diagnostic-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="alias-diagnostic-yaml-body">Alias diagnostic YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml merge sequences with earlier map precedence' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
