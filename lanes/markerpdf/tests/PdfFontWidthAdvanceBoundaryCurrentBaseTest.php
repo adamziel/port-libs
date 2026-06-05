@@ -116,6 +116,17 @@ $fontWidthRotatedTextMatrixBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthTextObjectResetBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Freset 12 Tf 0.5 0 0 1 72 720 Tm <4142> Tj ET '
+        . 'BT /Freset 12 Tf 72 704 Td [(CD) -1000 (EF)] TJ ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Freset 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TextObjectResetAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 70 /Widths [1000 1000 1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F] >>\nendobj\n%%EOF";
+};
+
 $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
     $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -367,6 +378,37 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 1.0, 12.0], [1.0, 0.0, 15.4, 12.0]]);
         $t->true(!str_contains($plainText, 'RotatedAdvance'));
         $t->true(!str_contains($plainText, 'Frot'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'resets text matrix horizontal scale between text objects before styled TJ word gaps on current base' => static function (TestRunner $t) use ($fontWidthTextObjectResetBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthTextObjectResetBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $secondLine = $styledLines[1] ?? [];
+        $secondSpans = $secondLine['spans'] ?? [];
+
+        $t->same(['AB', 'CD EF'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD EF'], $extractor->extractTextRuns($pdf));
+        $t->same("AB\nCD EF", $plainText);
+        $t->same("AB\nCD EF\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD EF'], array_map(
+            static fn (array $line): string => implode('', array_column($line['spans'] ?? [], 'text')),
+            $styledLines
+        ));
+        $t->same(['CD EF'], array_column($secondSpans, 'text'));
+        $t->same([[0.0, 0.0, 60.0, 12.0]], array_column($secondSpans, 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(array_column($secondSpans, 'bbox') !== [[0.0, 0.0, 30.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'CDEF'));
+        $t->true(!str_contains($plainText, 'TextObjectResetAdvance'));
+        $t->true(!str_contains($plainText, 'Freset'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses vertical CIDFont W2 advances for native styled span bboxes on current base' => static function (TestRunner $t) use ($fontVerticalWidthAdvanceBoundaryCurrentBasePdf): void {

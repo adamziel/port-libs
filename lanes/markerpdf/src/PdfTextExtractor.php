@@ -19063,6 +19063,7 @@ final class PdfTextExtractor
                 } else {
                     $currentTextX = null;
                     $currentTextY = null;
+                    $currentTextMatrixHorizontalScale = 1.0;
                     $currentTextMatrixHorizontalExtentScale = 1.0;
                     $currentTextMatrixVerticalScale = 1.0;
                 }
@@ -19073,6 +19074,7 @@ final class PdfTextExtractor
             if ($token === 'BT') {
                 $currentTextX = 0.0;
                 $currentTextY = null;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $currentTextMatrixHorizontalExtentScale = 1.0;
                 $currentTextMatrixVerticalScale = 1.0;
                 $operands = [];
