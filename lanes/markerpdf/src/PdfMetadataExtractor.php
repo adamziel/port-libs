@@ -8499,11 +8499,16 @@ final class PdfMetadataExtractor
             }
 
             if ($values !== []) {
-                return $this->cleanList($values);
+                $cleanValues = $this->cleanList($values);
+                if ($cleanValues !== []) {
+                    return $cleanValues;
+                }
             }
 
             $value = $this->xmpQualifiedTextValue($element);
-            return $value === null ? [] : [$value];
+            if ($value !== null) {
+                return [$value];
+            }
         }
 
         foreach ($this->xmpTopLevelDescriptions($document) as $description) {
@@ -8520,7 +8525,10 @@ final class PdfMetadataExtractor
                 return [$value];
             }
 
-            return $this->splitKeywords($value);
+            $values = $this->splitKeywords($value);
+            if ($values !== []) {
+                return $values;
+            }
         }
 
         return [];
