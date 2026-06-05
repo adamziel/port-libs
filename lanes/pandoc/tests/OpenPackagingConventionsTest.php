@@ -1245,6 +1245,73 @@ XML;
         $t->same(['relationship-source-not-loaded', 'unmatched-source-id'], $missingSource['issues']);
         $t->same(null, $missingSource['relationshipXml']);
     },
+    'accepts singular OPC relationship group reference selectors in signature transforms' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-alias.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/2006/12/xml-c14n11"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-alias.xml', 'data' => $signatureXml],
+        ]));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-alias.xml');
+
+        $t->same(1, count($transforms));
+        $t->same('/word/_rels/document.xml.rels', $transforms[0]['relationshipPartName']);
+        $t->same('/word/document.xml', $transforms[0]['source']);
+        $t->same([], $transforms[0]['sourceIds']);
+        $t->same(['http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'], $transforms[0]['sourceTypes']);
+        $t->same('http://www.w3.org/2006/12/xml-c14n11', $transforms[0]['followingCanonicalizationAlgorithm']);
+        $t->same(true, $transforms[0]['followedByCanonicalization']);
+        $t->same(['rIdReviewer'], $transforms[0]['relationshipIds']);
+        $t->same(1, $transforms[0]['relationshipCount']);
+        $t->same(true, $transforms[0]['selectorValid']);
+        $t->same(true, $transforms[0]['relationshipTargetsValid']);
+        $t->same(true, $transforms[0]['valid']);
+        $t->same([], $transforms[0]['issues']);
+        $t->contains('TargetMode="External"', $transforms[0]['relationshipXml']);
+        $t->contains('Id="rIdReviewer"', $transforms[0]['relationshipXml']);
+        $t->same(false, str_contains((string) $transforms[0]['relationshipXml'], 'rIdHero'));
+    },
     'preflights XML signature relationship transform declarations from signature parts' => static function (TestRunner $t): void {
         $signatureContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

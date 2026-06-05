@@ -1263,7 +1263,7 @@ final class OpcRelationshipGraph
                 continue;
             }
 
-            if ($child->localName === 'RelationshipsGroupReference') {
+            if ($child->localName === 'RelationshipGroupReference' || $child->localName === 'RelationshipsGroupReference') {
                 $sourceType = $child->getAttribute('SourceType');
                 if ($sourceType === '') {
                     $issues[] = 'missing-source-type';

@@ -89,7 +89,7 @@ $signatureXml = <<<'XML'
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero"/>
           <mdssi:RelationshipReference SourceId="rIdReviewer"/>
-          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
