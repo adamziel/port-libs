@@ -441,13 +441,14 @@ $package = ZipPackage::fromParts([
         'extraFieldData' => $documentReviewExtra,
     ],
 ], 'wordpress import package');
+$gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
 $compressedPackage = GzipStream::build($package->bytes(), [
     'modifiedAt' => $documentModifiedAt,
-    'extraFieldData' => 'WP',
+    'extraFieldData' => $gzipReviewExtra,
     'filename' => 'wordpress-import-package.zip',
     'comment' => 'Data Liberation package fixture',
     'headerCrc' => true,
@@ -646,8 +647,16 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip original filename metadata to round-trip');
     }
 
-    if (($compressedPackageMembers[0]['extraFieldData'] ?? '') !== 'WP') {
+    if (($compressedPackageMembers[0]['extraFieldData'] ?? '') !== $gzipReviewExtra) {
         throw new RuntimeException('Expected gzip extra field metadata to round-trip');
+    }
+
+    if (($compressedPackageMembers[0]['extraFields'][0]['identifier'] ?? null) !== 'WP') {
+        throw new RuntimeException('Expected gzip extra field subfield identifier to be inspectable');
+    }
+
+    if (($compressedPackageMembers[0]['extraFields'][0]['data'] ?? null) !== 'review:v1') {
+        throw new RuntimeException('Expected gzip extra field subfield payload to be inspectable');
     }
 
     if (!$tarPacketRoundTrip->has('/packet/word/document.xml')) {
@@ -794,6 +803,7 @@ echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
+echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): string => $field['identifier'], $compressedPackageMembers[0]['extraFields'])) . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";

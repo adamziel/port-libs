@@ -997,11 +997,12 @@ return [
                 'data' => '<w:document><w:p>GZip wrapped import source</w:p></w:document>',
             ],
         ]);
+        $extraFieldData = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
         $gzip = GzipStream::build($package->bytes(), [
             'modifiedAt' => 1780479017,
             'extraFlags' => 2,
             'operatingSystem' => 3,
-            'extraFieldData' => 'WP',
+            'extraFieldData' => $extraFieldData,
             'filename' => 'wordpress-package.zip',
             'comment' => 'migration source package',
             'headerCrc' => true,
@@ -1015,7 +1016,9 @@ return [
         $t->same(1780479017, $members[0]['modifiedAt']);
         $t->same(2, $members[0]['extraFlags']);
         $t->same(3, $members[0]['operatingSystem']);
-        $t->same('WP', $members[0]['extraFieldData']);
+        $t->same($extraFieldData, $members[0]['extraFieldData']);
+        $t->same('WP', $members[0]['extraFields'][0]['identifier']);
+        $t->same('review:v1', $members[0]['extraFields'][0]['data']);
         $t->same('wordpress-package.zip', $members[0]['filename']);
         $t->same('migration source package', $members[0]['comment']);
         $t->true(is_int($members[0]['headerCrc16']));

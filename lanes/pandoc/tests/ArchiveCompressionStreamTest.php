@@ -256,6 +256,79 @@ return [
         $t->same("# Imported archive\n\nReady for block review.\n", $roundTrip->read('/packet/content.md'));
     },
 
+    'parses gzip extra subfields for package handoff metadata' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-extra","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP extra metadata\n\nReady for review.\n",
+            ],
+        ]);
+        $extraFieldData = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1'
+            . pack('CCv', ord('P'), ord('D'), strlen('packet=docx')) . 'packet=docx';
+        $gzip = GzipStream::build($archive->bytes(), [
+            'extraFieldData' => $extraFieldData,
+            'filename' => 'wordpress-import-packet.tar',
+            'comment' => 'gzip extra metadata',
+        ]);
+        $members = GzipStream::members($gzip);
+        $roundTrip = TarArchive::fromString(GzipStream::decode($gzip));
+
+        $t->same(1, count($members));
+        $t->same($extraFieldData, $members[0]['extraFieldData']);
+        $t->same([
+            [
+                'identifier' => 'WP',
+                'id1' => ord('W'),
+                'id2' => ord('P'),
+                'length' => strlen('review:v1'),
+                'data' => 'review:v1',
+            ],
+            [
+                'identifier' => 'PD',
+                'id1' => ord('P'),
+                'id2' => ord('D'),
+                'length' => strlen('packet=docx'),
+                'data' => 'packet=docx',
+            ],
+        ], $members[0]['extraFields']);
+        $t->same('{"source":"gzip-extra","target":"wordpress"}', $roundTrip->read('/packet/manifest.json'));
+        $t->same("# GZIP extra metadata\n\nReady for review.\n", $roundTrip->read('/packet/content.md'));
+    },
+
+    'rejects malformed gzip extra subfields before package bytes are exposed' => static function (TestRunner $t): void {
+        $valid = GzipStream::build('review packet', [
+            'filename' => 'packet.txt',
+        ]);
+        $injectExtra = static function (string $gzip, string $extraFieldData): string {
+            return substr_replace(
+                substr_replace($gzip, chr(ord($gzip[3]) | 0x04), 3, 1),
+                pack('v', strlen($extraFieldData)) . $extraFieldData,
+                10,
+                0
+            );
+        };
+        $truncatedSubfield = $injectExtra(
+            $valid,
+            pack('CCv', ord('W'), ord('P'), 4) . 'x'
+        );
+        $duplicateSubfield = $injectExtra(
+            $valid,
+            pack('CCv', ord('W'), ord('P'), 1) . 'a'
+                . pack('CCv', ord('W'), ord('P'), 1) . 'b'
+        );
+
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($truncatedSubfield));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode($truncatedSubfield));
+        $t->throws(\RuntimeException::class, static fn (): array => GzipStream::members($duplicateSubfield));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::build('review packet', [
+            'extraFieldData' => pack('CCv', ord('W'), ord('P'), 4) . 'x',
+        ]));
+    },
+
     'opens tar package fixtures through explicit compression stream formats' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

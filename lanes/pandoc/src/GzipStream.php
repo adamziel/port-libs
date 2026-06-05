@@ -49,6 +49,10 @@ final class GzipStream
             throw new \RuntimeException('GZIP extra field data is too long for a bounded stream');
         }
 
+        if (is_string($extraFieldData)) {
+            self::extraFieldsFromData($extraFieldData, 'generated extra field data');
+        }
+
         $filename = $options['filename'] ?? null;
         if ($filename !== null) {
             self::assertTerminatedStringInput($filename, 'GZIP filename');
@@ -131,6 +135,7 @@ final class GzipStream
      *     extraFlags:int,
      *     operatingSystem:int,
      *     extraFieldData:?string,
+     *     extraFields:list<array{identifier:string,id1:int,id2:int,length:int,data:string}>,
      *     filename:?string,
      *     comment:?string,
      *     headerCrc16:?int,
@@ -179,12 +184,14 @@ final class GzipStream
             $cursor += 10;
 
             $extraFieldData = null;
+            $extraFields = [];
             if (($flags & self::FLAG_EXTRA) !== 0) {
                 self::assertRange($bytes, $cursor, 2, 'extra field length');
                 $extraLength = self::readUInt16($bytes, $cursor);
                 $cursor += 2;
                 self::assertRange($bytes, $cursor, $extraLength, 'extra field data');
                 $extraFieldData = substr($bytes, $cursor, $extraLength);
+                $extraFields = self::extraFieldsFromData($extraFieldData, 'member extra field data');
                 $cursor += $extraLength;
             }
 
@@ -242,6 +249,7 @@ final class GzipStream
                 'extraFlags' => $extraFlags,
                 'operatingSystem' => $operatingSystem,
                 'extraFieldData' => $extraFieldData,
+                'extraFields' => $extraFields,
                 'filename' => $filename,
                 'comment' => $comment,
                 'headerCrc16' => $headerCrc16,
@@ -253,6 +261,46 @@ final class GzipStream
         }
 
         return $members;
+    }
+
+    /**
+     * @return list<array{identifier:string,id1:int,id2:int,length:int,data:string}>
+     */
+    public static function extraFieldsFromData(string $bytes, string $label = 'extra field data'): array
+    {
+        $fields = [];
+        $seen = [];
+        $cursor = 0;
+        $length = strlen($bytes);
+
+        while ($cursor < $length) {
+            self::assertRange($bytes, $cursor, 4, "{$label} subfield header");
+            $id1 = ord($bytes[$cursor]);
+            $id2 = ord($bytes[$cursor + 1]);
+            $identifier = $bytes[$cursor] . $bytes[$cursor + 1];
+            if ($id1 === 0 || $id2 === 0) {
+                throw new \RuntimeException('GZIP extra subfield identifiers must not contain NUL bytes');
+            }
+
+            $fieldLength = self::readUInt16($bytes, $cursor + 2);
+            $cursor += 4;
+            self::assertRange($bytes, $cursor, $fieldLength, "{$label} subfield {$identifier}");
+            if (isset($seen[$identifier])) {
+                throw new \RuntimeException("Duplicate GZIP extra subfield identifier: {$identifier}");
+            }
+            $seen[$identifier] = true;
+
+            $fields[] = [
+                'identifier' => $identifier,
+                'id1' => $id1,
+                'id2' => $id2,
+                'length' => $fieldLength,
+                'data' => substr($bytes, $cursor, $fieldLength),
+            ];
+            $cursor += $fieldLength;
+        }
+
+        return $fields;
     }
 
     /**
