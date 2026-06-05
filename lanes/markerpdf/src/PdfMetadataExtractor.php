@@ -6315,13 +6315,13 @@ final class PdfMetadataExtractor
 
     private function boundedXmlRootCandidate(string $xml, string $localName): ?string
     {
-        $pattern = '/<((?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($localName, '/') . ')(?![A-Za-z0-9_.:-])/s';
-        if (preg_match($pattern, $xml, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        $root = $this->xmlRootStartForLocalName($xml, $localName);
+        if ($root === null) {
             return null;
         }
 
-        $tagName = $match[1][0];
-        $start = $match[0][1];
+        $tagName = $root['tag_name'];
+        $start = $root['offset'];
         $openEnd = $this->xmlTagEndOffset($xml, $start);
         if ($openEnd === null) {
             return null;
@@ -6339,6 +6339,93 @@ final class PdfMetadataExtractor
 
         $bounded = substr($xml, $start, $end - $start);
         return $bounded === $xml ? null : $bounded;
+    }
+
+    /**
+     * Raw regex root selection can accidentally select XMP-looking tags inside
+     * packet comments or declarations. Walk XML markup tokens before deciding
+     * which root fallback DOMDocument should receive.
+     *
+     * @return array{offset: int, tag_name: string}|null
+     */
+    private function xmlRootStartForLocalName(string $xml, string $localName): ?array
+    {
+        $offset = 0;
+        $length = strlen($xml);
+        while ($offset < $length) {
+            $tagStart = strpos($xml, '<', $offset);
+            if ($tagStart === false) {
+                return null;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 4), '<!--')) {
+                $end = strpos($xml, '-->', $tagStart + 4);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 9), '<![CDATA[')) {
+                $end = strpos($xml, ']]>', $tagStart + 9);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<?')) {
+                $end = strpos($xml, '?>', $tagStart + 2);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 2;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '</')) {
+                $end = $this->xmlTagEndOffset($xml, $tagStart);
+                if ($end === null) {
+                    return null;
+                }
+                $offset = $end;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<!')) {
+                $end = $this->xmlMarkupDeclarationEndOffset($xml, $tagStart)
+                    ?? $this->xmlTagEndOffset($xml, $tagStart);
+                if ($end === null) {
+                    return null;
+                }
+                $offset = $end;
+                continue;
+            }
+
+            $tagName = $this->xmlTagNameAt($xml, $tagStart + 1);
+            $end = $this->xmlTagEndOffset($xml, $tagStart);
+            if ($tagName !== null && $this->xmlTagLocalName($tagName) === $localName) {
+                return [
+                    'offset' => $tagStart,
+                    'tag_name' => $tagName,
+                ];
+            }
+
+            if ($end === null) {
+                return null;
+            }
+            $offset = $end;
+        }
+
+        return null;
+    }
+
+    private function xmlTagLocalName(string $tagName): string
+    {
+        $colon = strrpos($tagName, ':');
+        return $colon === false ? $tagName : substr($tagName, $colon + 1);
     }
 
     private function matchingXmlRootEndOffset(string $xml, int $offset, string $tagName): ?int
@@ -6396,7 +6483,8 @@ final class PdfMetadataExtractor
             }
 
             if (str_starts_with(substr($xml, $tagStart, 2), '<!')) {
-                $end = $this->xmlTagEndOffset($xml, $tagStart);
+                $end = $this->xmlMarkupDeclarationEndOffset($xml, $tagStart)
+                    ?? $this->xmlTagEndOffset($xml, $tagStart);
                 if ($end === null) {
                     return null;
                 }
@@ -6414,6 +6502,42 @@ final class PdfMetadataExtractor
                 $depth++;
             }
             $index = $end;
+        }
+
+        return null;
+    }
+
+    private function xmlMarkupDeclarationEndOffset(string $xml, int $offset): ?int
+    {
+        $quote = null;
+        $bracketDepth = 0;
+        for ($index = $offset + 2, $length = strlen($xml); $index < $length; $index++) {
+            $char = $xml[$index];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+
+            if ($char === '>' && $bracketDepth === 0) {
+                return $index + 1;
+            }
         }
 
         return null;
