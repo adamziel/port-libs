@@ -17596,6 +17596,13 @@ final class PdfTextExtractor
      */
     private function currentTrailerRootReferenceResolution(string $pdfBytes, array $definitions): array
     {
+        if ($this->trailerRootClearedByStartxrefChain($pdfBytes, $definitions)) {
+            return [
+                'present' => true,
+                'reference' => null,
+            ];
+        }
+
         if ($this->currentXrefSectionFreesInheritedTrailerRoot($pdfBytes, $definitions)) {
             return [
                 'present' => true,
@@ -17609,6 +17616,13 @@ final class PdfTextExtractor
             return [
                 'present' => true,
                 'reference' => $reference,
+            ];
+        }
+
+        if ($this->trailerRootClearedByLatestClassicXrefTable($pdfBytes, $definitions)) {
+            return [
+                'present' => true,
+                'reference' => null,
             ];
         }
 
@@ -17659,6 +17673,106 @@ final class PdfTextExtractor
         }
 
         return $this->hasCatalogObject($objects);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function trailerRootClearedByStartxrefChain(string $pdfBytes, array $definitions): bool
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->trailerRootClearedByOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function trailerRootClearedByLatestClassicXrefTable(string $pdfBytes, array $definitions): bool
+    {
+        $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $offset = $this->latestClassicXrefTableOffset(
+            $pdfBytes,
+            $definitions,
+            $startxrefEntry['tokenOffset'] ?? null
+        );
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->trailerRootClearedByOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     */
+    private function trailerRootClearedByOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): bool {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return false;
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            if ($this->trailerExplicitlyClearsRoot($tableSection['trailer'])) {
+                return true;
+            }
+
+            if ($this->objectReferenceAfterName($tableSection['trailer'], 'Root') !== null) {
+                return false;
+            }
+
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
+                if ($streamSection !== null) {
+                    if ($this->trailerExplicitlyClearsRoot($streamSection['body'])) {
+                        return true;
+                    }
+
+                    if ($this->objectReferenceAfterName($streamSection['body'], 'Root') !== null) {
+                        return false;
+                    }
+                }
+            }
+
+            $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $tableSection['trailer'], $offset, $definitions);
+            return $previousOffset !== null
+                && $this->trailerRootClearedByOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
+        if ($streamSection === null) {
+            return false;
+        }
+
+        if ($this->trailerExplicitlyClearsRoot($streamSection['body'])) {
+            return true;
+        }
+
+        if ($this->objectReferenceAfterName($streamSection['body'], 'Root') !== null) {
+            return false;
+        }
+
+        $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions);
+        return $previousOffset !== null
+            && $this->trailerRootClearedByOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+    }
+
+    private function trailerExplicitlyClearsRoot(string $body): bool
+    {
+        $root = $this->topLevelPdfValueAfterName($body, 'Root');
+
+        return $root !== null && trim($root) === 'null';
     }
 
     /**
