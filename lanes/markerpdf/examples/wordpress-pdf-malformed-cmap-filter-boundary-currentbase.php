@@ -57,6 +57,46 @@ $buildMalformedCMapFilterPdf = static function (
         . "%%EOF";
 };
 
+$buildDirectExtraScalarCMapFilterPdf = static function (
+    string $cMapName,
+    string $baseFont,
+    string $safeText,
+    string $leakingText,
+    string $extraOperand
+) use ($utf16beHex): string {
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /{$cMapName} def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<{$sourceCode}> <" . $utf16beHex($leakingText) . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress direct extra scalar CMap filter-boundary fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /{$baseFont} /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /{$cMapName} /Filter /FlateDecode {$extraOperand} /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $buildIndirectLiteralCMapFilterPdf = static function () use ($utf16beHex): string {
     $leakingText = 'Indirect Literal Filter Leak';
     $safeText = 'Indirect Literal Safe Import';
@@ -892,6 +932,47 @@ $literalPdf = $buildMalformedCMapFilterPdf(
     'Literal Filter Leak',
     '(literal filter is not a decoder)'
 );
+$directExtraScalarFilterCases = [
+    'null' => [
+        'pdf' => $buildDirectExtraScalarCMapFilterPdf(
+            'WPDirectExtraNullFilterBoundary-H',
+            'WPDirectExtraNullFilterBoundary',
+            'Direct Null Safe Import',
+            'Direct Null CMap Leak',
+            'null'
+        ),
+        'safe_text' => 'Direct Null Safe Import',
+        'leaking_text' => 'Direct Null CMap Leak',
+        'cmap_name' => 'WPDirectExtraNullFilterBoundary-H',
+        'extra_operand_type' => 'null',
+    ],
+    'array' => [
+        'pdf' => $buildDirectExtraScalarCMapFilterPdf(
+            'WPDirectExtraArrayFilterBoundary-H',
+            'WPDirectExtraArrayFilterBoundary',
+            'Direct Array Safe Import',
+            'Direct Array CMap Leak',
+            '[ /ASCIIHexDecode ]'
+        ),
+        'safe_text' => 'Direct Array Safe Import',
+        'leaking_text' => 'Direct Array CMap Leak',
+        'cmap_name' => 'WPDirectExtraArrayFilterBoundary-H',
+        'extra_operand_type' => 'array',
+    ],
+    'literal' => [
+        'pdf' => $buildDirectExtraScalarCMapFilterPdf(
+            'WPDirectExtraLiteralFilterBoundary-H',
+            'WPDirectExtraLiteralFilterBoundary',
+            'Direct Literal Safe Import',
+            'Direct Literal CMap Leak',
+            '(literal extra filter operand)'
+        ),
+        'safe_text' => 'Direct Literal Safe Import',
+        'leaking_text' => 'Direct Literal CMap Leak',
+        'cmap_name' => 'WPDirectExtraLiteralFilterBoundary-H',
+        'extra_operand_type' => 'literal',
+    ],
+];
 $indirectLiteralPdf = $buildIndirectLiteralCMapFilterPdf();
 $indirectArrayDictionaryPdf = $buildIndirectArrayDictionaryCMapFilterPdf();
 $generationPdf = $buildGenerationCMapFilterPdf();
@@ -915,6 +996,19 @@ $cryptPrivatePdf = $buildCryptPrivateCMapFilterPdf();
 $extractor = new PdfTextExtractor();
 $dictionaryLines = $extractor->extractTextLines($dictionaryPdf);
 $literalLines = $extractor->extractTextLines($literalPdf);
+$directExtraScalarFilterLines = [];
+$directExtraScalarFilterPlainTexts = [];
+$directExtraScalarFilterReviews = [];
+$directExtraScalarFilterEntries = [];
+$directExtraScalarParagraphLines = [];
+foreach ($directExtraScalarFilterCases as $caseName => $case) {
+    $caseLines = $extractor->extractTextLines($case['pdf']);
+    $directExtraScalarFilterLines[$caseName] = $caseLines;
+    $directExtraScalarFilterPlainTexts[$caseName] = implode("\n", $caseLines);
+    $directExtraScalarFilterReviews[$caseName] = $extractor->extractCMapStreamFilterLengthOwnerReview($case['pdf']);
+    $directExtraScalarFilterEntries[$caseName] = $directExtraScalarFilterReviews[$caseName]['entries'][0] ?? [];
+    $directExtraScalarParagraphLines = array_merge($directExtraScalarParagraphLines, $caseLines);
+}
 $indirectLiteralLines = $extractor->extractTextLines($indirectLiteralPdf);
 $indirectArrayDictionaryLines = $extractor->extractTextLines($indirectArrayDictionaryPdf);
 $generationLines = $extractor->extractTextLines($generationPdf);
@@ -1012,6 +1106,40 @@ if ($dictionaryLines !== ['Safe Import']) {
 
 if ($literalLines !== ['Literal Safe Import']) {
     throw new RuntimeException('Expected malformed literal CMap filter fallback text.');
+}
+
+foreach ($directExtraScalarFilterCases as $caseName => $case) {
+    $entry = $directExtraScalarFilterEntries[$caseName] ?? [];
+    $filterOperand = $entry['filter_operands'][0] ?? [];
+    $plainText = $directExtraScalarFilterPlainTexts[$caseName] ?? '';
+
+    if (($directExtraScalarFilterLines[$caseName] ?? null) !== [$case['safe_text']]) {
+        throw new RuntimeException('Expected direct scalar extra CMap filter fallback text.');
+    }
+
+    if (str_contains($plainText, $case['leaking_text']) || str_contains($plainText, $case['cmap_name'])) {
+        throw new RuntimeException('Expected direct scalar extra CMap filter payload to stay excluded.');
+    }
+
+    if (($directExtraScalarFilterReviews[$caseName]['decoded_cmap_count'] ?? null) !== 0) {
+        throw new RuntimeException('Expected direct scalar extra CMap stream not to decode.');
+    }
+
+    if (($entry['filter_operand_policy'] ?? null) !== 'reject_malformed_filter_operands') {
+        throw new RuntimeException('Expected direct scalar extra CMap filter operand review metadata.');
+    }
+
+    if (($directExtraScalarFilterReviews[$caseName]['malformed_filter_operand_count'] ?? null) !== 1) {
+        throw new RuntimeException('Expected direct scalar extra CMap filter operand to be classified as malformed.');
+    }
+
+    if (($filterOperand['extra_filter_operand'] ?? null) !== true) {
+        throw new RuntimeException('Expected direct scalar extra CMap filter operand metadata.');
+    }
+
+    if (($filterOperand['extra_filter_operand_type'] ?? null) !== $case['extra_operand_type']) {
+        throw new RuntimeException('Expected direct scalar extra CMap filter operand type metadata.');
+    }
 }
 
 if ($indirectLiteralLines !== ['Indirect Literal Safe Import']) {
@@ -1496,6 +1624,7 @@ if (($cryptPrivateEntry['decodeparms_operands'][0]['value'] ?? null) !== '<< /Na
 $lines = array_merge(
     $dictionaryLines,
     $literalLines,
+    $directExtraScalarParagraphLines,
     $indirectLiteralLines,
     $indirectArrayDictionaryLines,
     $generationLines,
@@ -1517,10 +1646,25 @@ $lines = array_merge(
     $unsupportedFilterLines
 );
 
+$directExtraScalarMetadata = [];
+foreach ($directExtraScalarFilterCases as $caseName => $case) {
+    $entry = $directExtraScalarFilterEntries[$caseName] ?? [];
+    $filterOperand = $entry['filter_operands'][0] ?? [];
+    $directExtraScalarMetadata[$caseName] = [
+        'decoded_cmap_count' => $directExtraScalarFilterReviews[$caseName]['decoded_cmap_count'] ?? null,
+        'invalid_filter_operand_count' => $directExtraScalarFilterReviews[$caseName]['invalid_filter_operand_count'] ?? null,
+        'malformed_filter_operand_count' => $directExtraScalarFilterReviews[$caseName]['malformed_filter_operand_count'] ?? null,
+        'filter_operand_policy' => $entry['filter_operand_policy'] ?? null,
+        'extra_filter_operand_type' => $filterOperand['extra_filter_operand_type'] ?? null,
+        'payload_excluded' => !str_contains($directExtraScalarFilterPlainTexts[$caseName] ?? '', $case['leaking_text'])
+            && !str_contains($directExtraScalarFilterPlainTexts[$caseName] ?? '', $case['cmap_name']),
+    ];
+}
+
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, all-null and mixed null-filter DecodeParms slots, post-endcmap decoded operators, overdeclared literal-string mapping rows, nested bfrange target arrays, nested bfchar arrays, and literal CMapName decoys stay bounded before WordPress text import',
+    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, direct scalar extra filter operands, all-null and mixed null-filter DecodeParms slots, post-endcmap decoded operators, overdeclared literal-string mapping rows, nested bfrange target arrays, nested bfchar arrays, and literal CMapName decoys stay bounded before WordPress text import',
     'fallback_text' => implode(' | ', $lines),
     'dictionary_decoded_cmap_count' => $dictionaryReview['decoded_cmap_count'] ?? null,
     'dictionary_invalid_filter_operand_count' => $dictionaryReview['invalid_filter_operand_count'] ?? null,
@@ -1529,6 +1673,7 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'literal_invalid_filter_operand_count' => $literalReview['invalid_filter_operand_count'] ?? null,
     'literal_malformed_filter_operand_count' => $literalReview['malformed_filter_operand_count'] ?? null,
     'literal_filter_operand_policy' => $literalEntry['filter_operand_policy'] ?? null,
+    'direct_extra_scalar_filter_operands' => $directExtraScalarMetadata,
     'indirect_literal_decoded_cmap_count' => $indirectLiteralReview['decoded_cmap_count'] ?? null,
     'indirect_literal_invalid_filter_operand_count' => $indirectLiteralReview['invalid_filter_operand_count'] ?? null,
     'indirect_literal_malformed_filter_operand_count' => $indirectLiteralReview['malformed_filter_operand_count'] ?? null,
@@ -1692,6 +1837,9 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($cryptPrivatePlainText, 'PrivateCF'),
     'leaking_cmap_text_excluded' => !str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
         && !str_contains($literalPlainText, 'Literal Filter Leak')
+        && !str_contains($directExtraScalarFilterPlainTexts['null'] ?? '', 'Direct Null CMap Leak')
+        && !str_contains($directExtraScalarFilterPlainTexts['array'] ?? '', 'Direct Array CMap Leak')
+        && !str_contains($directExtraScalarFilterPlainTexts['literal'] ?? '', 'Direct Literal CMap Leak')
         && !str_contains($indirectLiteralPlainText, 'Indirect Literal Filter Leak')
         && !str_contains($indirectArrayDictionaryPlainText, 'Indirect Array Dictionary Leak')
         && !str_contains($generationPlainText, 'Stale Generation CMap Leak')

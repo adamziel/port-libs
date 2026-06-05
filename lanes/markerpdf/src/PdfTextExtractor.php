@@ -12033,7 +12033,7 @@ final class PdfTextExtractor
 
         if ($dict[$offset] === '/') {
             $end = $this->pdfNameTokenEndOffset($dict, $offset);
-            if ($this->directScalarFilterExtraNameOperand($dict, $offset) !== null) {
+            if ($this->directScalarFilterExtraOperand($dict, $offset) !== null) {
                 return null;
             }
 
@@ -12068,7 +12068,10 @@ final class PdfTextExtractor
         return $end;
     }
 
-    private function directScalarFilterExtraNameOperand(string $dict, int $offset): ?string
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function directScalarFilterExtraOperand(string $dict, int $offset): ?array
     {
         $offset = $this->skipPdfWhitespace($dict, $offset);
         if ($offset >= strlen($dict) || $dict[$offset] !== '/') {
@@ -12077,8 +12080,20 @@ final class PdfTextExtractor
 
         $end = $this->pdfNameTokenEndOffset($dict, $offset);
         $next = $this->skipPdfWhitespace($dict, $end);
-        if ($next >= strlen($dict) || $dict[$next] !== '/') {
+        if ($next >= strlen($dict)) {
             return null;
+        }
+
+        if ($dict[$next] !== '/') {
+            $token = $this->pdfValueAtOffset($dict, $next);
+            if ($token === null) {
+                return null;
+            }
+
+            return [
+                'type' => $this->pdfOperandTokenType($token),
+                'preview' => $this->xrefStreamOperandValuePreview($token),
+            ];
         }
 
         $nextEnd = $this->pdfNameTokenEndOffset($dict, $next);
@@ -12087,7 +12102,13 @@ final class PdfTextExtractor
         }
 
         $name = $this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1));
-        return $this->streamFilterNameLooksLikeDecoder($name) ? $name : null;
+        return $this->streamFilterNameLooksLikeDecoder($name)
+            ? [
+                'type' => 'name',
+                'preview' => substr($dict, $next, $nextEnd - $next),
+                'name' => $name,
+            ]
+            : null;
     }
 
     private function streamFilterNameLooksLikeDecoder(string $name): bool
@@ -22349,18 +22370,23 @@ final class PdfTextExtractor
                 'owner_policy' => 'direct_operand',
             ];
             if ($name === 'Filter') {
-                $extraFilterName = $tokenType === 'name'
-                    ? $this->directScalarFilterExtraNameOperand($dict, $offset)
+                $extraFilterOperand = $tokenType === 'name'
+                    ? $this->directScalarFilterExtraOperand($dict, $offset)
                     : null;
                 $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType)
-                    && $extraFilterName === null;
+                    && $extraFilterOperand === null;
                 $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($item);
                 if ($tokenType === 'name') {
                     $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($item);
                 }
-                if ($extraFilterName !== null) {
-                    $review['extra_filter_name_operand'] = true;
-                    $review['extra_filter_name'] = $extraFilterName;
+                if ($extraFilterOperand !== null) {
+                    $review['extra_filter_operand'] = true;
+                    $review['extra_filter_operand_type'] = $extraFilterOperand['type'];
+                    $review['extra_filter_operand_preview'] = $extraFilterOperand['preview'];
+                    if (($extraFilterOperand['type'] ?? null) === 'name' && isset($extraFilterOperand['name'])) {
+                        $review['extra_filter_name_operand'] = true;
+                        $review['extra_filter_name'] = $extraFilterOperand['name'];
+                    }
                 }
             }
             if ($name === 'DecodeParms') {
