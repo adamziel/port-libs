@@ -659,6 +659,50 @@ HTML,
         ]), $output);
     },
 
+    'swallows standalone empty pandoc doctemplate partial lines without changing inline partials' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same(implode("\n", [
+            '<ul>',
+            '  <li>Kept</li>',
+            '</ul>',
+        ]), $renderer->render(<<<'TPL'
+<ul>
+  ${ maybe-warning() }
+  <li>Kept</li>
+</ul>
+TPL, [], [
+            'maybe-warning' => '',
+        ]));
+
+        $t->same(implode("\n", [
+            '<ul>',
+            '  <li>Visible</li>',
+            '  <li>Kept</li>',
+            '</ul>',
+        ]), $renderer->render(<<<'TPL'
+<ul>
+  ${ warning-row() }
+  <li>Kept</li>
+</ul>
+TPL, [], [
+            'warning-row' => '<li>Visible</li>' . "\n",
+        ]));
+
+        $t->same(implode("\n", [
+            'Before',
+            '  <span>One</span>',
+            '<span>Two</span> tail',
+            'After',
+        ]), $renderer->render(<<<'TPL'
+Before
+  ${ inline() } tail
+After
+TPL, [], [
+            'inline' => '<span>One</span>' . "\n" . '<span>Two</span>' . "\n",
+        ]));
+    },
+
     'uses pandoc user data template fallback only for relative template resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

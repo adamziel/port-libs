@@ -449,10 +449,16 @@ final class DocTemplate
                 throw new \UnexpectedValueException("Unexpected doctemplate control directive {$directive}");
             }
 
+            $isBarePartial = $this->parsePartialDirective($directive) !== null;
             $rendered = $this->renderDirective($directive, $context, $partials, $partialStack);
             if ($pendingNestColumn === null) {
                 $autoNestPrefix = $this->automaticNestPrefix($tokens, $index, $end, $output);
                 if ($autoNestPrefix !== null) {
+                    if ($isBarePartial && $rendered === '') {
+                        $this->dropStandaloneDirectiveLine($tokens, $index + 1, $end, $output, $autoNestPrefix);
+                        continue;
+                    }
+
                     $rendered = $this->nestMultiline($rendered, $autoNestPrefix);
                 }
             }
@@ -721,6 +727,26 @@ final class DocTemplate
         }
 
         $tokens[$index]['value'] = substr($tokens[$index]['value'], $length);
+    }
+
+    /**
+     * @param list<array{type:string, value:string}> $tokens
+     */
+    private function dropStandaloneDirectiveLine(array &$tokens, int $index, int $end, string &$output, string $prefix): void
+    {
+        if ($prefix !== '' && str_ends_with($output, $prefix)) {
+            $output = substr($output, 0, -strlen($prefix));
+        }
+
+        if ($index >= $end || !isset($tokens[$index]) || $tokens[$index]['type'] !== 'text') {
+            return;
+        }
+
+        if (preg_match('/^[ \t]*(?:\r\n|\n|\r)/', $tokens[$index]['value'], $matches) !== 1) {
+            return;
+        }
+
+        $tokens[$index]['value'] = substr($tokens[$index]['value'], strlen($matches[0]));
     }
 
     private function leadingLineEndingLength(string $value): ?int

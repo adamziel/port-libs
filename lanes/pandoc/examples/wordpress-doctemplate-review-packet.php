@@ -11,6 +11,7 @@ $resources = [
     $templatePath => <<<'HTML'
 <article class="wp-import-review">
 ${ components/review-header() }
+${ components/admin-note() }
 ${ components/résumé() }
 ${ components/warning-list() }
 ${ review-body() }
@@ -25,6 +26,9 @@ HTML,
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
+HTML,
+    'review-packets/components/admin-note.html' => <<<'HTML'
+$if(adminNote)$<aside class="admin-note">$adminNote$</aside>$endif$
 HTML,
     'review-packets/components/résumé.html' => <<<'HTML'
 <p class="source-summary" data-état="$révision.état$">$révision.titre$</p>
@@ -108,6 +112,11 @@ if (in_array('--self-test', $argv, true)) {
 
     if (str_contains($output, "</p>\n\n<ul class=\"warnings\">") || str_contains($output, "<ul class=\"warnings\">\n\n<li")) {
         fwrite(STDERR, "Unexpected blank line from multiline doctemplate warning-list controls\n");
+        exit(1);
+    }
+
+    if (str_contains($output, "</header>\n\n<p class=\"source-summary\"")) {
+        fwrite(STDERR, "Unexpected blank line from empty standalone doctemplate partial\n");
         exit(1);
     }
 
