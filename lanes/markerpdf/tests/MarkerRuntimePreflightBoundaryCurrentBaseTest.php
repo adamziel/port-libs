@@ -36,6 +36,31 @@ $removeTree = static function (string $path) use (&$removeTree): void {
     rmdir($path);
 };
 
+$runtimeDirectoryOrder = static function (string $path, bool $filesOnly = false): array {
+    $handle = opendir($path);
+    if ($handle === false) {
+        throw new RuntimeException('Unable to inspect temporary runtime preflight directory order.');
+    }
+
+    $entries = [];
+    try {
+        while (($entry = readdir($handle)) !== false) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if ($filesOnly && !is_file($path . DIRECTORY_SEPARATOR . $entry)) {
+                continue;
+            }
+
+            $entries[] = $entry;
+        }
+    } finally {
+        closedir($handle);
+    }
+
+    return $entries;
+};
+
 return [
     'records convert_single runtime preflight before model loading without executing models' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $output = $makeTempDir();
@@ -147,16 +172,19 @@ return [
             $removeTree($output);
         }
     },
-    'records convert.py main runtime admission before task pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records convert.py main runtime admission before task pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['alpha.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedSelected = array_slice($fileOrder, 2, 2);
+            $metadataFilename = $expectedSelected[0];
             $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
             file_put_contents($metadataFile, json_encode([
-                'gamma.pdf' => ['title' => 'Gamma Import', 'languages' => ['English']],
+                $metadataFilename => ['title' => 'Selected Import', 'languages' => ['English']],
                 'unselected.pdf' => ['title' => 'Unselected Import'],
             ], JSON_THROW_ON_ERROR));
 
@@ -201,12 +229,12 @@ return [
             $t->same(2, $plan['chunking']['start_index']);
             $t->same(4, $plan['chunking']['end_index']);
             $t->same(2, $plan['chunking']['selected_count']);
-            $t->same(['gamma.pdf', 'omega.pdf'], $plan['chunking']['selected_filenames']);
+            $t->same($expectedSelected, $plan['chunking']['selected_filenames']);
             $t->same('metadata_file json.load keyed by basename', $plan['metadata']['source']);
             $t->same($metadataFile, $plan['metadata']['metadata_file']);
-            $t->same(['gamma.pdf', 'unselected.pdf'], $plan['metadata']['metadata_filenames']);
-            $t->same(['gamma.pdf'], $plan['metadata']['selected_metadata_filenames']);
-            $t->same(['omega.pdf'], $plan['metadata']['missing_metadata_filenames']);
+            $t->same([$metadataFilename, 'unselected.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same([$metadataFilename], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(array_values(array_diff($expectedSelected, [$metadataFilename])), $plan['metadata']['missing_metadata_filenames']);
             $t->same(5, $plan['worker_pool']['requested_workers']);
             $t->same(2, $plan['worker_pool']['total_processes']);
             $t->same(true, $plan['worker_pool']['pool_launchable']);
@@ -214,9 +242,9 @@ return [
             $t->same('spawn', $plan['worker_pool']['start_method']);
             $t->same('process_single_pdf', $plan['worker_pool']['process_function']);
             $t->same(2, $plan['worker_pool']['task_args_count']);
-            $t->same('gamma.pdf', basename($plan['worker_pool']['task_args'][0]['filepath']));
+            $t->same($expectedSelected[0], basename($plan['worker_pool']['task_args'][0]['filepath']));
             $t->same($output, $plan['worker_pool']['task_args'][0]['out_folder']);
-            $t->same(['title' => 'Gamma Import', 'languages' => ['English']], $plan['worker_pool']['task_args'][0]['metadata']);
+            $t->same(['title' => 'Selected Import', 'languages' => ['English']], $plan['worker_pool']['task_args'][0]['metadata']);
             $t->same(null, $plan['worker_pool']['task_args'][1]['metadata']);
             $t->same(80, $plan['worker_pool']['task_args'][1]['min_length']);
             $t->same('tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")', $plan['worker_pool']['progress_iterator']);
@@ -317,16 +345,18 @@ return [
             $removeTree($blockedRoot);
         }
     },
-    'records repeated spawn start method failure after metadata and before model handoff' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records repeated spawn start method failure after metadata and before model handoff' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['first.pdf', 'second.pdf'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataFilename = $fileOrder[0];
             $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
             file_put_contents($metadataFile, json_encode([
-                'first.pdf' => ['title' => 'First Import'],
+                $metadataFilename => ['title' => 'Selected Import'],
             ], JSON_THROW_ON_ERROR));
 
             $plan = (new BatchConverter())->runtimeMainPreflightPlan(
@@ -339,12 +369,12 @@ return [
                 spawnStartMethodAlreadySet: true
             );
 
-            $t->same(['first.pdf', 'second.pdf'], $plan['chunking']['selected_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
             $t->same(true, $plan['metadata']['metadata_load_reached']);
             $t->same(true, $plan['metadata']['metadata_load_success']);
-            $t->same(['first.pdf'], $plan['metadata']['metadata_filenames']);
-            $t->same(['first.pdf'], $plan['metadata']['selected_metadata_filenames']);
-            $t->same(['second.pdf'], $plan['metadata']['missing_metadata_filenames']);
+            $t->same([$metadataFilename], $plan['metadata']['metadata_filenames']);
+            $t->same([$metadataFilename], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(array_values(array_diff($fileOrder, [$metadataFilename])), $plan['metadata']['missing_metadata_filenames']);
 
             $spawn = $plan['spawn_start_method'];
             $t->same('convert.py torch.multiprocessing set_start_method boundary', $spawn['source']);
@@ -602,7 +632,7 @@ return [
             $removeTree($output);
         }
     },
-    'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
@@ -610,6 +640,7 @@ return [
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
             file_put_contents($input . DIRECTORY_SEPARATOR . 'archive.pdf', "PK\x03\x04not really a pdf");
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
 
             $batch = new BatchConverter();
             $zeroMax = $batch->runtimeMainPreflightPlan($input, $output, maxFiles: 0);
@@ -638,10 +669,10 @@ return [
 
             $t->same(false, $zeroMax['chunking']['max_files_limit_active']);
             $t->same(5, $zeroMax['chunking']['selected_count']);
-            $t->same(['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'], $zeroMax['chunking']['selected_filenames']);
+            $t->same($fileOrder, $zeroMax['chunking']['selected_filenames']);
             $t->same(true, $negativeMax['chunking']['max_files_limit_active']);
             $t->same(4, $negativeMax['chunking']['selected_count']);
-            $t->same(['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf'], $negativeMax['chunking']['selected_filenames']);
+            $t->same(array_slice($fileOrder, 0, -1), $negativeMax['chunking']['selected_filenames']);
 
             $t->same(false, $zeroMinLength['min_length_gate_active']);
             $t->same(false, $zeroMinLength['filetype_checked']);
@@ -662,19 +693,22 @@ return [
             $removeTree($output);
         }
     },
-    'matches convert.py negative chunk index slicing before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'matches convert.py negative chunk index slicing before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['alpha.pdf', 'archive.pdf', 'beta.pdf', 'gamma.pdf', 'omega.pdf'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
-            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
-            file_put_contents($metadataFile, json_encode([
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedHead = array_slice($fileOrder, 0, 2);
+            $metadataByFilename = [
                 'alpha.pdf' => ['title' => 'Alpha Import'],
                 'beta.pdf' => ['title' => 'Beta Import'],
                 'omega.pdf' => ['title' => 'Omega Import'],
-            ], JSON_THROW_ON_ERROR));
+            ];
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
 
             $batch = new BatchConverter();
             $negativeHead = $batch->runtimeMainPreflightPlan(
@@ -694,7 +728,7 @@ return [
                 metadataFile: $metadataFile
             );
 
-            $t->same(['alpha.pdf', 'archive.pdf'], $negativeHead['chunking']['selected_filenames']);
+            $t->same($expectedHead, $negativeHead['chunking']['selected_filenames']);
             $t->same(true, $negativeHead['chunking']['negative_chunk_index_active']);
             $t->same(3, $negativeHead['chunking']['chunk_size']);
             $t->same(-6, $negativeHead['chunking']['start_index']);
@@ -704,8 +738,14 @@ return [
             $t->same(2, $negativeHead['worker_pool']['task_args_count']);
             $t->same(2, $negativeHead['worker_pool']['total_processes']);
             $t->same(true, $negativeHead['worker_pool']['pool_launchable']);
-            $t->same(['alpha.pdf'], $negativeHead['metadata']['selected_metadata_filenames']);
-            $t->same(['archive.pdf'], $negativeHead['metadata']['missing_metadata_filenames']);
+            $t->same(array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            )), $negativeHead['metadata']['selected_metadata_filenames']);
+            $t->same(array_values(array_filter(
+                $expectedHead,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            )), $negativeHead['metadata']['missing_metadata_filenames']);
             $t->same(false, $negativeHead['executes_python_or_models']);
 
             $t->same([], $negativeEmpty['chunking']['selected_filenames']);
@@ -906,13 +946,14 @@ return [
             $removeTree($output);
         }
     },
-    'records output-folder file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records output-folder file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $root = $makeTempDir();
         try {
             foreach (['queued.pdf', 'sidecar.txt'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
             $blockedOutput = $root . DIRECTORY_SEPARATOR . 'marker-output';
             $missingMetadata = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
             file_put_contents($blockedOutput, 'not a directory');
@@ -933,8 +974,7 @@ return [
             $t->same(true, $plan['paths']['output_folder_creation_blocked']);
             $t->same('FileExistsError', $plan['paths']['output_folder_creation_error_class']);
             $t->contains('File exists', (string) $plan['paths']['output_folder_creation_error_message']);
-            $t->same('queued.pdf', $plan['input_listing']['file_basenames'][0]);
-            $t->same('sidecar.txt', $plan['input_listing']['file_basenames'][1]);
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
             $t->same('output-folder-create-failed', $plan['chunking']['chunk_error_boundary']);
             $t->same(false, $plan['chunking']['chunking_reached']);
             $t->same(0, $plan['chunking']['selected_count']);
@@ -1005,13 +1045,18 @@ return [
             $removeTree($root);
         }
     },
-    'records malformed metadata json before model handoff and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records malformed metadata json before model handoff and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['alpha.pdf', 'beta.pdf', 'notes.txt'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedNonPdf = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !str_ends_with(strtolower($filename), '.pdf')
+            ));
             $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata.json';
             file_put_contents($metadataFile, '{"alpha.pdf": {"title": "Alpha Import",}');
 
@@ -1025,8 +1070,8 @@ return [
             $t->same(true, $plan['chunking']['chunking_reached']);
             $t->same(null, $plan['chunking']['chunk_error_boundary']);
             $t->same(3, $plan['chunking']['selected_count']);
-            $t->same(['alpha.pdf', 'beta.pdf', 'notes.txt'], $plan['chunking']['selected_filenames']);
-            $t->same(['notes.txt'], $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same($selectedNonPdf, $plan['input_listing']['selected_non_pdf_filenames']);
             $t->same('metadata_file json.load keyed by basename', $plan['metadata']['source']);
             $t->same($metadataFile, $plan['metadata']['metadata_file']);
             $t->same(true, $plan['metadata']['metadata_load_reached']);
@@ -1054,13 +1099,14 @@ return [
             $removeTree($output);
         }
     },
-    'records metadata json shape errors at task-args boundary after summary' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records metadata json shape errors at task-args boundary after summary' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
             $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-list.json';
             file_put_contents($metadataFile, json_encode([
                 ['title' => 'List-shaped metadata cannot answer get()'],
@@ -1075,7 +1121,7 @@ return [
                 torchDeviceModel: 'cpu'
             );
 
-            $t->same(['alpha.pdf', 'beta.pdf'], $plan['chunking']['selected_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
             $t->same(true, $plan['metadata']['metadata_load_reached']);
             $t->same(true, $plan['metadata']['metadata_load_success']);
             $t->same(null, $plan['metadata']['metadata_error_boundary']);
@@ -1086,7 +1132,7 @@ return [
             $t->contains("object has no attribute 'get'", (string) $plan['metadata']['metadata_shape_error_message']);
             $t->same([], $plan['metadata']['metadata_filenames']);
             $t->same([], $plan['metadata']['selected_metadata_filenames']);
-            $t->same(['alpha.pdf', 'beta.pdf'], $plan['metadata']['missing_metadata_filenames']);
+            $t->same($fileOrder, $plan['metadata']['missing_metadata_filenames']);
 
             $t->same(true, $plan['spawn_start_method']['start_method_success']);
             $t->same(true, $plan['model_handoff']['model_handoff_reached']);
@@ -1115,21 +1161,57 @@ return [
             $removeTree($output);
         }
     },
-    'records per-file metadata value boundaries without blocking task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records per-file metadata value boundaries without blocking task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['dict-meta.pdf', 'list-meta.pdf', 'missing-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
-            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-values.json';
-            file_put_contents($metadataFile, json_encode([
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataByFilename = [
                 'dict-meta.pdf' => ['languages' => ['English'], 'title' => 'Dict Metadata'],
                 'list-meta.pdf' => ['English'],
                 'null-meta.pdf' => null,
                 'scalar-meta.pdf' => 'English',
                 'zero-meta.pdf' => 0,
-            ], JSON_THROW_ON_ERROR));
+            ];
+            $metadataValueTypes = [
+                'dict-meta.pdf' => 'dict',
+                'list-meta.pdf' => 'list',
+                'null-meta.pdf' => 'NoneType',
+                'scalar-meta.pdf' => 'str',
+                'zero-meta.pdf' => 'int',
+            ];
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            ));
+            $selectedMetadataValueTypes = [];
+            $truthyNonMappingMetadataFilenames = [];
+            $falsyNonMappingMetadataFilenames = [];
+            foreach ($selectedMetadataFilenames as $filename) {
+                $selectedMetadataValueTypes[$filename] = $metadataValueTypes[$filename];
+                $metadataValue = $metadataByFilename[$filename];
+                if (is_array($metadataValue) && array_is_list($metadataValue)) {
+                    $truthyNonMappingMetadataFilenames[] = $filename;
+                    continue;
+                }
+                if (is_array($metadataValue)) {
+                    continue;
+                }
+                if ($metadataValue) {
+                    $truthyNonMappingMetadataFilenames[] = $filename;
+                } else {
+                    $falsyNonMappingMetadataFilenames[] = $filename;
+                }
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-values.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
 
             $plan = (new BatchConverter())->runtimeMainPreflightPlan(
                 $input,
@@ -1145,28 +1227,16 @@ return [
             $t->same(true, $plan['metadata']['metadata_get_available']);
             $t->same(null, $plan['metadata']['metadata_shape_error_boundary']);
             $t->same(['dict-meta.pdf', 'list-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'], $plan['metadata']['metadata_filenames']);
-            $t->same(['dict-meta.pdf', 'list-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'], $plan['metadata']['selected_metadata_filenames']);
-            $t->same(['missing-meta.pdf'], $plan['metadata']['missing_metadata_filenames']);
-            $t->same([
-                'dict-meta.pdf' => 'dict',
-                'list-meta.pdf' => 'list',
-                'null-meta.pdf' => 'NoneType',
-                'scalar-meta.pdf' => 'str',
-                'zero-meta.pdf' => 'int',
-            ], $plan['metadata']['metadata_value_types']);
+            $t->same($selectedMetadataFilenames, $plan['metadata']['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $plan['metadata']['missing_metadata_filenames']);
+            $t->same($metadataValueTypes, $plan['metadata']['metadata_value_types']);
 
             $review = $plan['metadata']['metadata_value_review'];
             $t->same('convert.py metadata.get basename + convert_single_pdf metadata truthiness', $review['source']);
             $t->same(true, $review['review_reached']);
-            $t->same([
-                'dict-meta.pdf' => 'dict',
-                'list-meta.pdf' => 'list',
-                'null-meta.pdf' => 'NoneType',
-                'scalar-meta.pdf' => 'str',
-                'zero-meta.pdf' => 'int',
-            ], $review['selected_metadata_value_types']);
-            $t->same(['list-meta.pdf', 'scalar-meta.pdf'], $review['truthy_non_mapping_metadata_filenames']);
-            $t->same(['null-meta.pdf', 'zero-meta.pdf'], $review['falsy_non_mapping_metadata_filenames']);
+            $t->same($selectedMetadataValueTypes, $review['selected_metadata_value_types']);
+            $t->same($truthyNonMappingMetadataFilenames, $review['truthy_non_mapping_metadata_filenames']);
+            $t->same($falsyNonMappingMetadataFilenames, $review['falsy_non_mapping_metadata_filenames']);
             $t->same('convert-single-pdf-metadata-get-failed', $review['conversion_error_boundary']);
             $t->same('AttributeError', $review['conversion_error_class']);
             $t->same("'{type}' object has no attribute 'get'", $review['conversion_error_message_template']);
@@ -1187,8 +1257,8 @@ return [
             $t->same('English', $taskArgsByName['scalar-meta.pdf']['metadata']);
             $t->same(0, $taskArgsByName['zero-meta.pdf']['metadata']);
             $t->same(null, $taskArgsByName['missing-meta.pdf']['metadata']);
-            $t->same(['list-meta.pdf', 'scalar-meta.pdf'], $plan['worker_pool']['truthy_non_mapping_metadata_filenames']);
-            $t->same(['null-meta.pdf', 'zero-meta.pdf'], $plan['worker_pool']['falsy_non_mapping_metadata_filenames']);
+            $t->same($truthyNonMappingMetadataFilenames, $plan['worker_pool']['truthy_non_mapping_metadata_filenames']);
+            $t->same($falsyNonMappingMetadataFilenames, $plan['worker_pool']['falsy_non_mapping_metadata_filenames']);
             $t->same('convert-single-pdf-metadata-get-failed', $plan['worker_pool']['per_file_metadata_error_boundary']);
             $t->same('convert-single-pdf-metadata-get-failed', $plan['conversion_boundary']['per_file_metadata_error_boundary']);
             $t->same('AttributeError', $plan['conversion_boundary']['per_file_metadata_error_class']);
@@ -1205,19 +1275,29 @@ return [
             $removeTree($output);
         }
     },
-    'keeps numeric-string metadata filenames addressable like Python json dict keys' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'keeps numeric-string metadata filenames addressable like Python json dict keys' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
             foreach (['0', '01', '2.pdf', 'missing'] as $filename) {
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
-            $metadataFile = $output . DIRECTORY_SEPARATOR . 'numeric-filename-metadata.json';
-            file_put_contents($metadataFile, json_encode([
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $metadataByFilename = [
                 '0' => ['title' => 'Zero Basename Import', 'languages' => ['English']],
                 '01' => ['title' => 'Leading Zero Basename Import'],
                 '2.pdf' => ['title' => 'Numeric Prefix PDF Import'],
-            ], JSON_THROW_ON_ERROR));
+            ];
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => array_key_exists($filename, $metadataByFilename)
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !array_key_exists($filename, $metadataByFilename)
+            ));
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'numeric-filename-metadata.json';
+            file_put_contents($metadataFile, json_encode($metadataByFilename, JSON_THROW_ON_ERROR));
 
             $plan = (new BatchConverter())->runtimeMainPreflightPlan(
                 $input,
@@ -1228,14 +1308,14 @@ return [
                 torchDeviceModel: 'cpu'
             );
 
-            $t->same(['0', '01', '2.pdf', 'missing'], $plan['chunking']['selected_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
             $t->same(true, $plan['metadata']['metadata_load_success']);
             $t->same('object', $plan['metadata']['metadata_json_type']);
             $t->same(true, $plan['metadata']['metadata_get_available']);
             $t->same(null, $plan['metadata']['metadata_shape_error_boundary']);
             $t->same(['0', '01', '2.pdf'], $plan['metadata']['metadata_filenames']);
-            $t->same(['0', '01', '2.pdf'], $plan['metadata']['selected_metadata_filenames']);
-            $t->same(['missing'], $plan['metadata']['missing_metadata_filenames']);
+            $t->same($selectedMetadataFilenames, $plan['metadata']['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $plan['metadata']['missing_metadata_filenames']);
             $t->same('dict', $plan['metadata']['metadata_value_types']['0']);
             $t->same('dict', $plan['metadata']['metadata_value_types']['01']);
             $t->same('dict', $plan['metadata']['metadata_value_types']['2.pdf']);
@@ -1259,7 +1339,7 @@ return [
             $removeTree($output);
         }
     },
-    'resolves relative metadata_file paths against process cwd before json load' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'resolves relative metadata_file paths against process cwd before json load' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $root = $makeTempDir();
         $previousCwd = getcwd();
         if (!is_string($previousCwd)) {
@@ -1283,6 +1363,15 @@ return [
             file_put_contents($input . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
                 'beta.pdf' => ['title' => 'Input Folder Decoy'],
             ], JSON_THROW_ON_ERROR));
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename === 'alpha.pdf'
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename !== 'alpha.pdf'
+            ));
             file_put_contents($output . DIRECTORY_SEPARATOR . 'relative-metadata.json', '{"beta.pdf": {"title": "Output folder decoy",}');
 
             if (!chdir($root)) {
@@ -1315,9 +1404,9 @@ return [
             $t->same(true, $metadata['metadata_file_output_folder_candidate_exists']);
             $t->same(true, $metadata['metadata_load_success']);
             $t->same(['alpha.pdf'], $metadata['metadata_filenames']);
-            $t->same(['alpha.pdf'], $metadata['selected_metadata_filenames']);
-            $t->same(['beta.pdf', 'relative-metadata.json'], $metadata['missing_metadata_filenames']);
-            $t->same(['alpha.pdf', 'beta.pdf', 'relative-metadata.json'], $plan['chunking']['selected_filenames']);
+            $t->same($selectedMetadataFilenames, $metadata['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $metadata['missing_metadata_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
 
             $taskArgsByName = [];
             foreach ($plan['worker_pool']['task_args'] as $taskArg) {
@@ -1337,7 +1426,7 @@ return [
             $removeTree($root);
         }
     },
-    'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
@@ -1346,6 +1435,16 @@ return [
             }
             mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
             mkdir($input . DIRECTORY_SEPARATOR . 'preview-assets');
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $skippedNonFiles = array_values(array_filter(
+                $entryOrder,
+                static fn (string $filename): bool => !is_file($input . DIRECTORY_SEPARATOR . $filename)
+            ));
+            $nonPdfFiles = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !str_ends_with(strtolower($filename), '.pdf')
+            ));
 
             $plan = (new BatchConverter())->runtimeMainPreflightPlan(
                 $input,
@@ -1355,18 +1454,24 @@ return [
 
             $listing = $plan['input_listing'];
             $t->same('os.listdir + os.path.isfile', $listing['source']);
-            $t->same(['alpha.pdf', 'metadata.json', 'nested.pdf', 'omega.PDF', 'preview-assets', 'wp-upload.txt'], $listing['entry_basenames']);
+            $t->same($entryOrder, $listing['entry_basenames']);
             $t->same(6, $listing['entry_count']);
-            $t->same(['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'], $listing['file_basenames']);
+            $t->same($fileOrder, $listing['file_basenames']);
             $t->same(4, $listing['file_count']);
-            $t->same(['nested.pdf', 'preview-assets'], $listing['skipped_non_file_basenames']);
+            $t->same($skippedNonFiles, $listing['skipped_non_file_basenames']);
             $t->same(2, $listing['skipped_non_file_count']);
             $t->same('os.path.isfile', $listing['file_filter']);
+            $t->same('os.listdir filesystem order', $listing['entry_order_source']);
+            $t->same(false, $listing['sort_applied_before_chunking']);
+            $t->same(true, $listing['preserves_os_listdir_order']);
             $t->same(false, $listing['extension_filter_active']);
             $t->same(true, $listing['non_pdf_files_are_task_candidates']);
-            $t->same(['metadata.json', 'wp-upload.txt'], $listing['non_pdf_file_basenames']);
-            $t->same(['metadata.json', 'wp-upload.txt'], $listing['selected_non_pdf_filenames']);
-            $t->same(['alpha.pdf', 'metadata.json', 'omega.PDF', 'wp-upload.txt'], $plan['chunking']['selected_filenames']);
+            $t->same($nonPdfFiles, $listing['non_pdf_file_basenames']);
+            $t->same($nonPdfFiles, $listing['selected_non_pdf_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same('os.listdir filesystem order after os.path.isfile', $plan['chunking']['input_order_source']);
+            $t->same(false, $plan['chunking']['sorts_before_chunking']);
+            $t->same(true, $plan['chunking']['preserves_input_listing_order']);
             $t->same(4, $plan['worker_pool']['task_args_count']);
             $t->same(4, $plan['worker_pool']['total_processes']);
             $t->same(
@@ -1379,7 +1484,49 @@ return [
             $removeTree($output);
         }
     },
-    'records non-pdf task candidates rejected by process_single_pdf min_length preflight' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'preserves convert.py os.listdir order through chunk and max slicing' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['03-tail.pdf', '01-head.pdf', '02-middle.pdf', '04-final.pdf', 'wp-sidecar.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            mkdir($input . DIRECTORY_SEPARATOR . '00-folder.pdf');
+
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $expectedChunk = array_slice($fileOrder, 0, (int) ceil(count($fileOrder) / 2));
+            $expectedMax = array_slice($expectedChunk, 0, 1);
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                chunkIndex: 0,
+                numChunks: 2,
+                maxFiles: 1,
+                workers: 4
+            );
+
+            $t->same($entryOrder, $plan['input_listing']['entry_basenames']);
+            $t->same($fileOrder, $plan['input_listing']['file_basenames']);
+            $t->same('os.listdir filesystem order', $plan['input_listing']['entry_order_source']);
+            $t->same(false, $plan['input_listing']['sort_applied_before_chunking']);
+            $t->same(true, $plan['input_listing']['preserves_os_listdir_order']);
+            $t->same($expectedMax, $plan['chunking']['selected_filenames']);
+            $t->same('os.listdir filesystem order after os.path.isfile', $plan['chunking']['input_order_source']);
+            $t->same(false, $plan['chunking']['sorts_before_chunking']);
+            $t->same(true, $plan['chunking']['preserves_input_listing_order']);
+            $t->same(1, $plan['worker_pool']['task_args_count']);
+            $t->same($expectedMax[0], basename($plan['worker_pool']['task_args'][0]['filepath']));
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
+    'records non-pdf task candidates rejected by process_single_pdf min_length preflight' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
@@ -1387,6 +1534,11 @@ return [
                 file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
             }
             file_put_contents($input . DIRECTORY_SEPARATOR . 'wp-upload-notes.txt', 'WordPress sidecar notes selected by convert.py before worker preflight.');
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedNonPdf = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => !str_ends_with(strtolower($filename), '.pdf')
+            ));
 
             (new OutputWriter())->saveMarkdown(
                 $output,
@@ -1403,8 +1555,8 @@ return [
                 workers: 4
             );
 
-            $t->same(['already-imported.pdf', 'ready.pdf', 'wp-upload-notes.txt'], $plan['chunking']['selected_filenames']);
-            $t->same(['wp-upload-notes.txt'], $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same($fileOrder, $plan['chunking']['selected_filenames']);
+            $t->same($selectedNonPdf, $plan['input_listing']['selected_non_pdf_filenames']);
             $t->same(3, $plan['worker_pool']['task_args_count']);
             $t->same(true, $plan['worker_pool']['pool_launchable']);
 
@@ -1414,16 +1566,19 @@ return [
             $t->same(true, $preflight['review_reached']);
             $t->same(null, $preflight['blocked_by']);
             $t->same(3, $preflight['task_args_count']);
-            $t->same(['already-imported.pdf', 'ready.pdf', 'wp-upload-notes.txt'], $preflight['task_arg_filenames']);
+            $t->same($fileOrder, $preflight['task_arg_filenames']);
             $t->same(false, $preflight['extension_filter_before_task_args']);
             $t->same(true, $preflight['filetype_gate_requires_min_length']);
             $t->same(true, $preflight['sidecar_reaches_task_args_before_preflight']);
-            $t->same(['wp-upload-notes.txt'], $preflight['selected_non_pdf_filenames']);
-            $t->same(['wp-upload-notes.txt'], $preflight['sidecar_rejected_by_process_single_pdf_filenames']);
+            $t->same($selectedNonPdf, $preflight['selected_non_pdf_filenames']);
+            $t->same($selectedNonPdf, $preflight['sidecar_rejected_by_process_single_pdf_filenames']);
             $t->same('unsupported-filetype-return-zero', $preflight['sidecar_rejection_boundary']);
             $t->same(['already-imported.pdf'], $preflight['existing_markdown_filenames']);
-            $t->same(['wp-upload-notes.txt'], $preflight['unsupported_filetype_filenames']);
-            $t->same(['ready.pdf', 'wp-upload-notes.txt'], $preflight['filetype_checked_filenames']);
+            $t->same($selectedNonPdf, $preflight['unsupported_filetype_filenames']);
+            $t->same(array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename !== 'already-imported.pdf'
+            )), $preflight['filetype_checked_filenames']);
             $t->same(['ready.pdf'], $preflight['text_length_checked_filenames']);
             $t->same('skipped-existing', $preflight['status_by_filename']['already-imported.pdf']);
             $t->same('skipped-unsupported-filetype', $preflight['status_by_filename']['wp-upload-notes.txt']);

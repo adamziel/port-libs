@@ -431,7 +431,7 @@ final class BatchConverter
     ): array {
         $absoluteInputFolder = $this->absolutePath($inputFolder);
         $absoluteOutputFolder = $this->absolutePath($outputFolder);
-        $inputListing = $this->inputDirectoryListing($absoluteInputFolder);
+        $inputListing = $this->inputDirectoryListing($absoluteInputFolder, preserveDirectoryOrder: true);
         $inputFiles = $inputListing['file_paths'];
         $outputCreation = $this->outputFolderCreationPlan($absoluteOutputFolder);
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
@@ -1027,6 +1027,9 @@ final class BatchConverter
             ],
             'input_listing' => [
                 'source' => 'os.listdir + os.path.isfile',
+                'entry_order_source' => $inputListing['entry_order_source'],
+                'sort_applied_before_chunking' => $inputListing['sort_applied_before_chunking'],
+                'preserves_os_listdir_order' => $inputListing['preserves_os_listdir_order'],
                 'entry_count' => count($inputListing['entry_basenames']),
                 'entry_basenames' => $inputListing['entry_basenames'],
                 'file_count' => count($inputListing['file_basenames']),
@@ -1045,6 +1048,9 @@ final class BatchConverter
                 'chunk_size' => $chunkSize,
                 'start_index' => $startIndex,
                 'end_index' => $endIndex,
+                'input_order_source' => 'os.listdir filesystem order after os.path.isfile',
+                'sorts_before_chunking' => false,
+                'preserves_input_listing_order' => true,
                 'python_slice_start_index' => $pythonSliceStartIndex,
                 'python_slice_end_index' => $pythonSliceEndIndex,
                 'negative_chunk_index_active' => $chunkIndex < 0,
@@ -1876,9 +1882,9 @@ final class BatchConverter
     }
 
     /**
-     * @return array{entry_basenames: list<string>, file_paths: list<string>, file_basenames: list<string>, skipped_non_file_basenames: list<string>, non_pdf_file_basenames: list<string>}
+     * @return array{entry_order_source: string, sort_applied_before_chunking: bool, preserves_os_listdir_order: bool, entry_basenames: list<string>, file_paths: list<string>, file_basenames: list<string>, skipped_non_file_basenames: list<string>, non_pdf_file_basenames: list<string>}
      */
-    private function inputDirectoryListing(string $inputFolder): array
+    private function inputDirectoryListing(string $inputFolder, bool $preserveDirectoryOrder = false): array
     {
         if (!is_dir($inputFolder)) {
             if (file_exists($inputFolder)) {
@@ -1895,7 +1901,9 @@ final class BatchConverter
         $filePathsByBasename = [];
         $skippedNonFileBasenames = [];
 
-        $entries = @scandir($inputFolder);
+        $entries = $preserveDirectoryOrder
+            ? $this->directoryEntriesInFilesystemOrder($inputFolder)
+            : @scandir($inputFolder);
         if ($entries === false) {
             throw new InvalidArgumentException('Batch input folder cannot be listed: ' . $inputFolder);
         }
@@ -1915,18 +1923,47 @@ final class BatchConverter
             $skippedNonFileBasenames[] = $entry;
         }
 
-        sort($entryBasenames, SORT_STRING);
-        ksort($filePathsByBasename, SORT_STRING);
-        sort($skippedNonFileBasenames, SORT_STRING);
+        if (!$preserveDirectoryOrder) {
+            sort($entryBasenames, SORT_STRING);
+            ksort($filePathsByBasename, SORT_STRING);
+            sort($skippedNonFileBasenames, SORT_STRING);
+        }
         $fileBasenames = array_keys($filePathsByBasename);
 
         return [
+            'entry_order_source' => $preserveDirectoryOrder
+                ? 'os.listdir filesystem order'
+                : 'php.scandir sorted order',
+            'sort_applied_before_chunking' => !$preserveDirectoryOrder,
+            'preserves_os_listdir_order' => $preserveDirectoryOrder,
             'entry_basenames' => array_values($entryBasenames),
             'file_paths' => array_values($filePathsByBasename),
             'file_basenames' => array_values($fileBasenames),
             'skipped_non_file_basenames' => array_values($skippedNonFileBasenames),
             'non_pdf_file_basenames' => $this->nonPdfBasenames($fileBasenames),
         ];
+    }
+
+    /**
+     * @return list<string>|false
+     */
+    private function directoryEntriesInFilesystemOrder(string $inputFolder): array|false
+    {
+        $handle = @opendir($inputFolder);
+        if ($handle === false) {
+            return false;
+        }
+
+        $entries = [];
+        try {
+            while (($entry = readdir($handle)) !== false) {
+                $entries[] = $entry;
+            }
+        } finally {
+            closedir($handle);
+        }
+
+        return $entries;
     }
 
     /**

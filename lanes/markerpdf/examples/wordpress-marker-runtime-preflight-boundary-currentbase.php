@@ -45,6 +45,31 @@ $writePdf = static function (string $path, string $text): void {
     file_put_contents($path, $pdf);
 };
 
+$runtimeDirectoryOrder = static function (string $path, bool $filesOnly = false): array {
+    $handle = opendir($path);
+    if ($handle === false) {
+        throw new RuntimeException('Unable to inspect runtime directory order.');
+    }
+
+    $entries = [];
+    try {
+        while (($entry = readdir($handle)) !== false) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if ($filesOnly && !is_file($path . DIRECTORY_SEPARATOR . $entry)) {
+                continue;
+            }
+
+            $entries[] = $entry;
+        }
+    } finally {
+        closedir($handle);
+    }
+
+    return $entries;
+};
+
 try {
     $writePdf($input . DIRECTORY_SEPARATOR . 'already-imported.pdf', 'Already imported WordPress PDF');
     $writePdf($input . DIRECTORY_SEPARATOR . 'short-text.pdf', 'Short text PDF');
@@ -52,6 +77,8 @@ try {
     file_put_contents($input . DIRECTORY_SEPARATOR . 'extension-spoof.pdf', "PK\x03\x04not really a pdf");
     file_put_contents($input . DIRECTORY_SEPARATOR . 'upload-notes.txt', 'WordPress sidecar notes queued by upstream before per-file preflight.');
     mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
+    $runtimeEntryOrder = $runtimeDirectoryOrder($input);
+    $runtimeFileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
 
     (new OutputWriter())->saveMarkdown(
         $output,
@@ -188,13 +215,35 @@ try {
         torchDeviceModel: 'cpu'
     );
     $valueMetadata = $output . DIRECTORY_SEPARATOR . 'metadata-values.json';
-    file_put_contents($valueMetadata, json_encode([
+    $valueMetadataByFilename = [
         'already-imported.pdf' => ['title' => 'Already Imported'],
         'ready-for-marker.pdf' => 'English',
         'short-text.pdf' => null,
         'upload-notes.txt' => ['English'],
         'extension-spoof.pdf' => 0,
-    ], JSON_THROW_ON_ERROR));
+    ];
+    $expectedTruthyNonMappingMetadata = [];
+    $expectedFalsyNonMappingMetadata = [];
+    foreach ($runtimeFileOrder as $filename) {
+        if (!array_key_exists($filename, $valueMetadataByFilename)) {
+            continue;
+        }
+
+        $metadataValue = $valueMetadataByFilename[$filename];
+        if (is_array($metadataValue) && array_is_list($metadataValue)) {
+            $expectedTruthyNonMappingMetadata[] = $filename;
+            continue;
+        }
+        if (is_array($metadataValue)) {
+            continue;
+        }
+        if ($metadataValue) {
+            $expectedTruthyNonMappingMetadata[] = $filename;
+        } else {
+            $expectedFalsyNonMappingMetadata[] = $filename;
+        }
+    }
+    file_put_contents($valueMetadata, json_encode($valueMetadataByFilename, JSON_THROW_ON_ERROR));
     $metadataValuePlan = $batch->runtimeMainPreflightPlan(
         $input,
         $output,
@@ -217,6 +266,15 @@ try {
     file_put_contents($relativeInput . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
         'beta.pdf' => ['title' => 'Input Folder Decoy'],
     ], JSON_THROW_ON_ERROR));
+    $relativeFileOrder = $runtimeDirectoryOrder($relativeInput, filesOnly: true);
+    $relativeSelectedMetadataFilenames = array_values(array_filter(
+        $relativeFileOrder,
+        static fn (string $filename): bool => $filename === 'alpha.pdf'
+    ));
+    $relativeMissingMetadataFilenames = array_values(array_filter(
+        $relativeFileOrder,
+        static fn (string $filename): bool => $filename !== 'alpha.pdf'
+    ));
     file_put_contents($relativeOutput . DIRECTORY_SEPARATOR . 'relative-metadata.json', '{"beta.pdf": {"title": "Output Folder Decoy",}');
     $previousCwd = getcwd();
     if (!is_string($previousCwd)) {
@@ -492,8 +550,8 @@ try {
         $metadataValuePlan['metadata']['metadata_load_success'] !== true
         || $metadataValuePlan['metadata']['metadata_json_type'] !== 'object'
         || $metadataValuePlan['metadata']['metadata_get_available'] !== true
-        || $metadataValuePlan['metadata']['metadata_value_review']['truthy_non_mapping_metadata_filenames'] !== ['ready-for-marker.pdf', 'upload-notes.txt']
-        || $metadataValuePlan['metadata']['metadata_value_review']['falsy_non_mapping_metadata_filenames'] !== ['extension-spoof.pdf', 'short-text.pdf']
+        || $metadataValuePlan['metadata']['metadata_value_review']['truthy_non_mapping_metadata_filenames'] !== $expectedTruthyNonMappingMetadata
+        || $metadataValuePlan['metadata']['metadata_value_review']['falsy_non_mapping_metadata_filenames'] !== $expectedFalsyNonMappingMetadata
         || $metadataValuePlan['metadata']['metadata_value_review']['conversion_error_boundary'] !== 'convert-single-pdf-metadata-get-failed'
         || $metadataValuePlan['worker_pool']['pool_launchable'] !== true
         || $metadataValuePlan['worker_pool']['task_args_count'] !== 5
@@ -507,19 +565,35 @@ try {
         || $relativeMetadataPlan['metadata']['metadata_file_relative_to_input_folder'] !== false
         || $relativeMetadataPlan['metadata']['metadata_file_relative_to_output_folder'] !== false
         || $relativeMetadataPlan['metadata']['metadata_filenames'] !== ['alpha.pdf']
-        || $relativeMetadataPlan['metadata']['selected_metadata_filenames'] !== ['alpha.pdf']
-        || $relativeMetadataPlan['metadata']['missing_metadata_filenames'] !== ['beta.pdf', 'relative-metadata.json']
-        || $relativeMetadataPlan['worker_pool']['task_args'][0]['metadata'] !== ['title' => 'Process CWD Metadata']
-        || $relativeMetadataPlan['worker_pool']['task_args'][1]['metadata'] !== null
-        || $relativeMetadataPlan['worker_pool']['task_args'][2]['metadata'] !== null
+        || $relativeMetadataPlan['metadata']['selected_metadata_filenames'] !== $relativeSelectedMetadataFilenames
+        || $relativeMetadataPlan['metadata']['missing_metadata_filenames'] !== $relativeMissingMetadataFilenames
     ) {
         throw new RuntimeException('Expected relative metadata_file paths to resolve against process cwd after chunking, not input/output folders.');
+    }
+    $relativeTaskArgsByName = [];
+    foreach ($relativeMetadataPlan['worker_pool']['task_args'] as $taskArg) {
+        $relativeTaskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+    }
+    if (
+        $relativeTaskArgsByName['alpha.pdf']['metadata'] !== ['title' => 'Process CWD Metadata']
+        || $relativeTaskArgsByName['beta.pdf']['metadata'] !== null
+        || $relativeTaskArgsByName['relative-metadata.json']['metadata'] !== null
+    ) {
+        throw new RuntimeException('Expected relative metadata task tuples to keep process-cwd metadata keyed by basename after runtime ordering.');
     }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
     }
     if (
-        $runtimePlan['input_listing']['skipped_non_file_basenames'] !== ['nested.pdf']
+        $runtimePlan['input_listing']['entry_basenames'] !== $runtimeEntryOrder
+        || $runtimePlan['input_listing']['file_basenames'] !== $runtimeFileOrder
+        || $runtimePlan['input_listing']['entry_order_source'] !== 'os.listdir filesystem order'
+        || $runtimePlan['input_listing']['sort_applied_before_chunking'] !== false
+        || $runtimePlan['input_listing']['preserves_os_listdir_order'] !== true
+        || $runtimePlan['chunking']['input_order_source'] !== 'os.listdir filesystem order after os.path.isfile'
+        || $runtimePlan['chunking']['sorts_before_chunking'] !== false
+        || $runtimePlan['chunking']['preserves_input_listing_order'] !== true
+        || $runtimePlan['input_listing']['skipped_non_file_basenames'] !== ['nested.pdf']
         || $runtimePlan['input_listing']['extension_filter_active'] !== false
         || $runtimePlan['input_listing']['selected_non_pdf_filenames'] !== ['upload-notes.txt']
     ) {
@@ -543,7 +617,7 @@ try {
         $negativeChunkPlan['chunking']['negative_chunk_index_active'] !== true
         || $negativeChunkPlan['chunking']['python_slice_start_index'] !== 0
         || $negativeChunkPlan['chunking']['python_slice_end_index'] !== 2
-        || $negativeChunkPlan['chunking']['selected_filenames'] !== ['already-imported.pdf', 'extension-spoof.pdf']
+        || $negativeChunkPlan['chunking']['selected_filenames'] !== array_slice($runtimeFileOrder, 0, 2)
     ) {
         throw new RuntimeException('Expected negative --chunk_idx to follow upstream Python slice normalization before task tuples are built.');
     }
@@ -644,6 +718,12 @@ try {
         'runtime_selected_filenames' => $runtimePlan['chunking']['selected_filenames'],
         'runtime_input_entries' => $runtimePlan['input_listing']['entry_basenames'],
         'runtime_file_candidates' => $runtimePlan['input_listing']['file_basenames'],
+        'runtime_input_order_source' => $runtimePlan['input_listing']['entry_order_source'],
+        'runtime_sort_applied_before_chunking' => $runtimePlan['input_listing']['sort_applied_before_chunking'],
+        'runtime_preserves_os_listdir_order' => $runtimePlan['input_listing']['preserves_os_listdir_order'],
+        'runtime_chunk_input_order_source' => $runtimePlan['chunking']['input_order_source'],
+        'runtime_sorts_before_chunking' => $runtimePlan['chunking']['sorts_before_chunking'],
+        'runtime_preserves_input_listing_order' => $runtimePlan['chunking']['preserves_input_listing_order'],
         'runtime_skipped_non_file_entries' => $runtimePlan['input_listing']['skipped_non_file_basenames'],
         'runtime_extension_filter_active' => $runtimePlan['input_listing']['extension_filter_active'],
         'runtime_selected_non_pdf_filenames' => $runtimePlan['input_listing']['selected_non_pdf_filenames'],
@@ -754,7 +834,7 @@ try {
         'relative_metadata_selected_metadata_filenames' => $relativeMetadataPlan['metadata']['selected_metadata_filenames'],
         'relative_metadata_missing_metadata_filenames' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'],
         'relative_metadata_loaded_from_process_cwd' => $relativeMetadataPlan['metadata']['metadata_filenames'] === ['alpha.pdf'],
-        'relative_metadata_ignored_input_output_decoys' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'] === ['beta.pdf', 'relative-metadata.json'],
+        'relative_metadata_ignored_input_output_decoys' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'] === $relativeMissingMetadataFilenames,
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
