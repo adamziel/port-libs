@@ -8215,6 +8215,7 @@ final class PdfMetadataExtractor
             $tokenOffset = $match[0][1] ?? null;
             if (
                 !is_int($tokenOffset)
+                || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
                 || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
                 || (
                     $definitions !== null
