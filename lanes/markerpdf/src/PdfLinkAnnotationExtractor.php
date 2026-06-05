@@ -159,6 +159,9 @@ final class PdfLinkAnnotationExtractor
                             }
                         }
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_object'] = $link['annotation_object'];
+                        if (array_key_exists('annotation_generation', $link)) {
+                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_generation'] = $link['annotation_generation'];
+                        }
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_subtype'] = $link['annotation_subtype'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_flags'] = $link['annotation_flags'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_flag_names'] = $link['annotation_flag_names'];
@@ -292,7 +295,7 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @param array<int, array<string, mixed>> $structureReviewsByAnnotationObject
+     * @param array<int|string, array<string, mixed>> $structureReviewsByAnnotationObject
      * @param array<string, mixed> $context
      * @param array{bbox: list<float>, rotation: int, user_unit: float, display_bbox: list<float>} $pageGeometry
      * @return list<array<string, mixed>>
@@ -314,6 +317,7 @@ final class PdfLinkAnnotationExtractor
                 $objects,
                 $actionReviewer,
                 $annotation['object'],
+                $annotation['generation'] ?? null,
                 $structureReviewsByAnnotationObject,
                 $context,
                 $pageGeometry
@@ -328,7 +332,7 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
     private function annotationBodiesForPage(string $pageBody, array $objects): array
     {
@@ -352,7 +356,7 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
     private function annotationBodiesFromValue(string $value, array $objects): array
     {
@@ -374,7 +378,11 @@ final class PdfLinkAnnotationExtractor
             }
 
             $dictionary = $this->dictionaryObjectBody($objectBody);
-            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => $objectNumber]];
+            return $dictionary === null ? [] : [[
+                'body' => $dictionary,
+                'object' => $objectNumber,
+                'generation' => $reference['generation'],
+            ]];
         }
 
         if (str_starts_with($value, '[')) {
@@ -383,7 +391,7 @@ final class PdfLinkAnnotationExtractor
 
         if (str_starts_with($value, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($value, 0);
-            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => null]];
+            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => null, 'generation' => null]];
         }
 
         return [];
@@ -391,7 +399,7 @@ final class PdfLinkAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
     private function annotationBodiesFromArray(?string $arrayBody, array $objects): array
     {
@@ -420,7 +428,7 @@ final class PdfLinkAnnotationExtractor
             if (str_starts_with($value, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($value, 0);
                 if ($dictionary !== null) {
-                    $annotations[] = ['body' => $dictionary, 'object' => null];
+                    $annotations[] = ['body' => $dictionary, 'object' => null, 'generation' => null];
                 }
                 $offset = $endOffset;
                 continue;
@@ -431,7 +439,11 @@ final class PdfLinkAnnotationExtractor
                 $objectBody = $this->objectBodyForReference($objectNumber, (int) $match[2], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null) {
-                    $annotations[] = ['body' => $dictionary, 'object' => $objectNumber];
+                    $annotations[] = [
+                        'body' => $dictionary,
+                        'object' => $objectNumber,
+                        'generation' => (int) $match[2],
+                    ];
                 }
                 $offset = $endOffset;
                 continue;
@@ -462,6 +474,7 @@ final class PdfLinkAnnotationExtractor
         array $objects,
         PdfActionReviewExtractor $actionReviewer,
         ?int $annotationObject,
+        ?int $annotationGeneration,
         array $structureReviewsByAnnotationObject,
         array $context,
         array $pageGeometry
@@ -544,6 +557,7 @@ final class PdfLinkAnnotationExtractor
             'rect_inside_page_bbox' => $this->rectsApproximatelyEqual($rect, $visibleRect),
             'rect_clipped_to_page' => !$this->rectsApproximatelyEqual($rect, $visibleRect),
             'annotation_object' => $annotationObject,
+            'annotation_generation' => $annotationGeneration,
             'annotation_subtype' => $subtype,
             'widget_annotation' => $subtype === 'Widget',
             'actions' => $review['actions'],
@@ -577,8 +591,26 @@ final class PdfLinkAnnotationExtractor
             $link['widget_link_field_sources'] = $effectiveAnnotation['field_sources'];
         }
 
-        if ($annotationObject !== null && isset($structureReviewsByAnnotationObject[$annotationObject])) {
-            $link += $structureReviewsByAnnotationObject[$annotationObject];
+        $structureReview = null;
+        if ($annotationObject !== null) {
+            if ($annotationGeneration !== null) {
+                $structureReview = $structureReviewsByAnnotationObject[
+                    $this->annotationReferenceKey($annotationObject, $annotationGeneration)
+                ] ?? null;
+            }
+
+            if ($structureReview === null && isset($structureReviewsByAnnotationObject[$annotationObject])) {
+                $candidate = $structureReviewsByAnnotationObject[$annotationObject];
+                $hasExactReferences = is_array($candidate['structure_parent']['annotation_references'] ?? null)
+                    && $candidate['structure_parent']['annotation_references'] !== [];
+                if ($annotationGeneration === null || !$hasExactReferences) {
+                    $structureReview = $candidate;
+                }
+            }
+        }
+
+        if ($annotationObject !== null && $structureReview !== null) {
+            $link += $structureReview;
             if (is_int($link['struct_parent'] ?? null) && is_array($link['structure_parent'] ?? null)) {
                 $link['actions'] = PdfActionReviewExtractor::actionsWithAnnotationStructureParentContext(
                     $link['actions'],
@@ -859,7 +891,7 @@ final class PdfLinkAnnotationExtractor
      * ParentTree review so promoted Link/Widget link rows keep tagged-PDF
      * context without making structure text visible content.
      *
-     * @return array<int, array<string, mixed>>
+     * @return array<int|string, array<string, mixed>>
      */
     private function annotationStructureReviewsByObject(string $pdfBytes): array
     {
@@ -871,6 +903,7 @@ final class PdfLinkAnnotationExtractor
                 }
 
                 $object = $annotation['annotation_object'] ?? null;
+                $generation = $annotation['annotation_generation'] ?? null;
                 $structureParent = $annotation['structure_parent'] ?? null;
                 if (!is_int($object) || !is_array($structureParent)) {
                     continue;
@@ -888,11 +921,20 @@ final class PdfLinkAnnotationExtractor
                     }
                 }
 
-                $reviews[$object] = $review;
+                if (is_int($generation)) {
+                    $reviews[$this->annotationReferenceKey($object, $generation)] = $review;
+                } else {
+                    $reviews[$object] = $review;
+                }
             }
         }
 
         return $reviews;
+    }
+
+    private function annotationReferenceKey(int $objectNumber, int $generation): string
+    {
+        return $objectNumber . ':' . $generation;
     }
 
     private function annotationSubtype(string $annotationBody): ?string

@@ -149,7 +149,7 @@ final class PdfAnnotationExtractor
     }
 
     /**
-     * @param array{body: string, object: int|null} $record
+     * @param array{body: string, object: int|null, generation?: int|null} $record
      * @param array<int, string> $objects
      * @param array<int, array{body: string, object: int|null}> $reversePopups
      * @return array<string, mixed>
@@ -181,22 +181,44 @@ final class PdfAnnotationExtractor
             $actionReview['previous_uri_actions'] ?? [],
             $actionTargetContext
         );
+        $annotationGeneration = is_int($record['generation'] ?? null) ? $record['generation'] : null;
         $structParent = $this->intValueAfterName($body, 'StructParent', $objects);
         $inheritedStructParent = $subtype === 'Widget' && $structParent === null
-            ? $this->widgetStructParentFromFieldChain($body, $objects, $record['object'], $structureParentReviewByKey)
+            ? $this->widgetStructParentFromFieldChain(
+                $body,
+                $objects,
+                $record['object'],
+                $annotationGeneration,
+                $structureParentReviewByKey
+            )
             : null;
         if ($inheritedStructParent !== null) {
             $structParent = $inheritedStructParent['key'];
         }
-        $structTreeReview = $record['object'] === null
-            ? null
-            : ($structureReviewByAnnotationObject[$record['object']] ?? null);
+        $structTreeReview = null;
+        if ($record['object'] !== null) {
+            if ($annotationGeneration !== null) {
+                $structTreeReview = $structureReviewByAnnotationObject[
+                    $this->annotationReferenceKey($record['object'], $annotationGeneration)
+                ] ?? null;
+            }
+
+            if ($structTreeReview === null && isset($structureReviewByAnnotationObject[$record['object']])) {
+                $candidate = $structureReviewByAnnotationObject[$record['object']];
+                $hasExactReferences = is_array($candidate['annotation_references'] ?? null)
+                    && $candidate['annotation_references'] !== [];
+                if ($annotationGeneration === null || !$hasExactReferences) {
+                    $structTreeReview = $candidate;
+                }
+            }
+        }
         $structureParent = null;
         $annotationFlags = $this->intValueAfterName($body, 'F', $objects) ?? 0;
 
         $row = [
             'subtype' => $subtype,
             'annotation_object' => $record['object'],
+            'annotation_generation' => $annotationGeneration,
             'rect' => $rect,
             'annotation_flags' => $annotationFlags,
             'annotation_flag_names' => $this->annotationFlagNames($annotationFlags),
@@ -229,7 +251,8 @@ final class PdfAnnotationExtractor
                     'review_only' => true,
                     'visible_text_source' => false,
                 ],
-                $record['object']
+                $record['object'],
+                $annotationGeneration
             );
             if (
                 is_array($structTreeReview)
@@ -244,7 +267,11 @@ final class PdfAnnotationExtractor
                 if (!$parentTreeReviewExists) {
                     $structTreeReview['parent_tree_key_missing'] = true;
                 }
-                $structureParent = $this->structureParentReviewForAnnotation($structTreeReview, $record['object']);
+                $structureParent = $this->structureParentReviewForAnnotation(
+                    $structTreeReview,
+                    $record['object'],
+                    $annotationGeneration
+                );
             }
             if ($inheritedStructParent !== null) {
                 $row['struct_parent_source'] = $inheritedStructParent['source'];
@@ -255,7 +282,11 @@ final class PdfAnnotationExtractor
                 $structureParent['field_chain'] = $inheritedStructParent['field_chain'];
             }
         } elseif (is_array($structTreeReview)) {
-            $structureParent = $this->structureParentReviewForAnnotation($structTreeReview, $record['object']);
+            $structureParent = $this->structureParentReviewForAnnotation(
+                $structTreeReview,
+                $record['object'],
+                $annotationGeneration
+            );
         }
 
         if ($structureParent !== null) {
@@ -452,7 +483,7 @@ final class PdfAnnotationExtractor
      * visible document text.
      *
      * @param array<int, string> $objects
-     * @return array<int, array<string, mixed>>
+     * @return array<int|string, array<string, mixed>>
      */
     private function annotationStructTreeReviewByAnnotationObject(string $pdfBytes, array $objects): array
     {
@@ -468,10 +499,11 @@ final class PdfAnnotationExtractor
                 continue;
             }
 
-            $annotationObjects = $this->structureAnnotationObjectsFromKidValue(
+            $annotationReferences = $this->structureAnnotationReferencesFromKidValue(
                 $this->dictionaryRawValue($dictionary, 'K'),
                 $objects
             );
+            $annotationObjects = $this->annotationObjectsFromReferences($annotationReferences);
             if ($annotationObjects === []) {
                 continue;
             }
@@ -485,11 +517,17 @@ final class PdfAnnotationExtractor
             $this->copyStructureElementMetadata($row, $metadata);
             $row['struct_object'] = $structObject;
             $row['annotation_objects'] = $annotationObjects;
+            $row['annotation_references'] = $annotationReferences;
+            $row['annotation_reference_keys'] = array_map(
+                fn (array $reference): string => $this->annotationReferenceKey($reference['object'], $reference['generation']),
+                $annotationReferences
+            );
             $row['object_reference_count'] = count($annotationObjects);
 
-            foreach ($annotationObjects as $annotationObject) {
-                if (!isset($reviews[$annotationObject])) {
-                    $reviews[$annotationObject] = $row;
+            foreach ($annotationReferences as $reference) {
+                $key = $this->annotationReferenceKey($reference['object'], $reference['generation']);
+                if (!isset($reviews[$key])) {
+                    $reviews[$key] = $row;
                 }
             }
         }
@@ -623,12 +661,18 @@ final class PdfAnnotationExtractor
             $row['page_object'] = $pageObject;
         }
 
-        $annotationObjects = $this->structureAnnotationObjectsFromKidValue(
+        $annotationReferences = $this->structureAnnotationReferencesFromKidValue(
             $this->dictionaryRawValue($body, 'K'),
             $objects
         );
+        $annotationObjects = $this->annotationObjectsFromReferences($annotationReferences);
         if ($annotationObjects !== []) {
             $row['annotation_objects'] = $annotationObjects;
+            $row['annotation_references'] = $annotationReferences;
+            $row['annotation_reference_keys'] = array_map(
+                fn (array $reference): string => $this->annotationReferenceKey($reference['object'], $reference['generation']),
+                $annotationReferences
+            );
             $row['object_reference_count'] = count($annotationObjects);
         }
 
@@ -672,7 +716,11 @@ final class PdfAnnotationExtractor
      * @param array<string, mixed> $review
      * @return array<string, mixed>
      */
-    private function structureParentReviewForAnnotation(array $review, ?int $annotationObject): array
+    private function structureParentReviewForAnnotation(
+        array $review,
+        ?int $annotationObject,
+        ?int $annotationGeneration = null
+    ): array
     {
         $review['current_page_annotation'] = true;
         $review['review_only'] = true;
@@ -680,13 +728,44 @@ final class PdfAnnotationExtractor
 
         if ($annotationObject !== null) {
             $review['annotation_object'] = $annotationObject;
+            if ($annotationGeneration !== null) {
+                $review['annotation_generation'] = $annotationGeneration;
+            }
             $annotationObjects = $review['annotation_objects'] ?? [];
             if (is_array($annotationObjects) && $annotationObjects !== []) {
-                $review['current_annotation_object_ref_matched'] = in_array($annotationObject, $annotationObjects, true);
+                $review['current_annotation_object_ref_matched'] = $this->structureReviewMatchesAnnotation(
+                    $review,
+                    $annotationObject,
+                    $annotationGeneration
+                );
             }
         }
 
         return $review;
+    }
+
+    private function structureReviewMatchesAnnotation(
+        array $review,
+        int $annotationObject,
+        ?int $annotationGeneration
+    ): bool {
+        $annotationReferences = $review['annotation_references'] ?? [];
+        if ($annotationGeneration !== null && is_array($annotationReferences) && $annotationReferences !== []) {
+            foreach ($annotationReferences as $reference) {
+                if (
+                    is_array($reference)
+                    && ($reference['object'] ?? null) === $annotationObject
+                    && ($reference['generation'] ?? null) === $annotationGeneration
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        $annotationObjects = $review['annotation_objects'] ?? [];
+        return is_array($annotationObjects) && in_array($annotationObject, $annotationObjects, true);
     }
 
     /**
@@ -703,6 +782,7 @@ final class PdfAnnotationExtractor
         string $body,
         array $objects,
         ?int $widgetObject,
+        ?int $widgetGeneration,
         array $structureParentReviewByKey
     ): ?array {
         if ($widgetObject === null) {
@@ -722,10 +802,10 @@ final class PdfAnnotationExtractor
             }
 
             $review = $structureParentReviewByKey[$structParent] ?? null;
-            $annotationObjects = is_array($review) && is_array($review['annotation_objects'] ?? null)
-                ? $review['annotation_objects']
-                : [];
-            if (!in_array($widgetObject, $annotationObjects, true)) {
+            if (
+                !is_array($review)
+                || !$this->structureReviewMatchesAnnotation($review, $widgetObject, $widgetGeneration)
+            ) {
                 continue;
             }
 
@@ -803,6 +883,21 @@ final class PdfAnnotationExtractor
         array $seenObjects = [],
         int $depth = 0
     ): array {
+        return $this->annotationObjectsFromReferences(
+            $this->structureAnnotationReferencesFromKidValue($value, $objects, $seenObjects, $depth)
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{object: int, generation: int}>
+     */
+    private function structureAnnotationReferencesFromKidValue(
+        ?string $value,
+        array $objects,
+        array $seenObjects = [],
+        int $depth = 0
+    ): array {
         if ($value === null || $depth > 12) {
             return [];
         }
@@ -812,9 +907,10 @@ final class PdfAnnotationExtractor
             return [];
         }
 
-        $objectNumber = $this->objectNumberFromReference($value);
-        if ($objectNumber !== null) {
-            if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+        $reference = $this->objectReferenceWithGenerationFromValue($value);
+        if ($reference !== null) {
+            $referenceKey = $this->annotationReferenceKey($reference['object'], $reference['generation']);
+            if (isset($seenObjects[$referenceKey]) || !isset($objects[$reference['object']])) {
                 return [];
             }
 
@@ -824,8 +920,8 @@ final class PdfAnnotationExtractor
             }
 
             $nextSeen = $seenObjects;
-            $nextSeen[$objectNumber] = true;
-            return $this->structureAnnotationObjectsFromDictionary($dictionary['body'], $objects, $nextSeen, $depth + 1);
+            $nextSeen[$referenceKey] = true;
+            return $this->structureAnnotationReferencesFromDictionary($dictionary['body'], $objects, $nextSeen, $depth + 1);
         }
 
         if (str_starts_with($value, '[')) {
@@ -834,21 +930,24 @@ final class PdfAnnotationExtractor
                 return [];
             }
 
-            $objectsByNumber = [];
+            $referencesByKey = [];
             foreach ($this->arrayItemsFromBody($body) as $item) {
-                foreach ($this->structureAnnotationObjectsFromKidValue($item, $objects, $seenObjects, $depth + 1) as $annotationObject) {
-                    $objectsByNumber[$annotationObject] = $annotationObject;
+                foreach ($this->structureAnnotationReferencesFromKidValue($item, $objects, $seenObjects, $depth + 1) as $annotationReference) {
+                    $referencesByKey[$this->annotationReferenceKey(
+                        $annotationReference['object'],
+                        $annotationReference['generation']
+                    )] = $annotationReference;
                 }
             }
 
-            return array_values($objectsByNumber);
+            return array_values($referencesByKey);
         }
 
         if (str_starts_with($value, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($value, 0);
             return $dictionary === null
                 ? []
-                : $this->structureAnnotationObjectsFromDictionary($dictionary, $objects, $seenObjects, $depth + 1);
+                : $this->structureAnnotationReferencesFromDictionary($dictionary, $objects, $seenObjects, $depth + 1);
         }
 
         return [];
@@ -856,9 +955,9 @@ final class PdfAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<int>
+     * @return list<array{object: int, generation: int}>
      */
-    private function structureAnnotationObjectsFromDictionary(
+    private function structureAnnotationReferencesFromDictionary(
         string $dictionary,
         array $objects,
         array $seenObjects,
@@ -867,16 +966,35 @@ final class PdfAnnotationExtractor
         $type = $this->pdfNameValueAfterName($dictionary, 'Type');
         $objectValue = $this->dictionaryRawValue($dictionary, 'Obj');
         if ($type === 'OBJR' || $objectValue !== null) {
-            $objectNumber = $objectValue === null ? null : $this->objectNumberFromReference($objectValue);
-            return $objectNumber === null ? [] : [$objectNumber];
+            $reference = $objectValue === null ? null : $this->objectReferenceWithGenerationFromValue($objectValue);
+            return $reference === null ? [] : [$reference];
         }
 
-        return $this->structureAnnotationObjectsFromKidValue(
+        return $this->structureAnnotationReferencesFromKidValue(
             $this->dictionaryRawValue($dictionary, 'K'),
             $objects,
             $seenObjects,
             $depth + 1
         );
+    }
+
+    /**
+     * @param list<array{object: int, generation: int}> $references
+     * @return list<int>
+     */
+    private function annotationObjectsFromReferences(array $references): array
+    {
+        $objectsByNumber = [];
+        foreach ($references as $reference) {
+            $objectsByNumber[$reference['object']] = $reference['object'];
+        }
+
+        return array_values($objectsByNumber);
+    }
+
+    private function annotationReferenceKey(int $objectNumber, int $generation): string
+    {
+        return $objectNumber . ':' . $generation;
     }
 
     /**
@@ -1666,7 +1784,7 @@ final class PdfAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
     private function annotationRecordsForPage(string $pageBody, array $objects): array
     {
@@ -1690,7 +1808,7 @@ final class PdfAnnotationExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
     private function annotationRecordsFromValue(string $value, array $objects): array
     {
@@ -1706,7 +1824,7 @@ final class PdfAnnotationExtractor
 
         if (str_starts_with($value, '<<')) {
             $dictionary = $this->readPdfDictionaryAt($value, 0);
-            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => null]];
+            return $dictionary === null ? [] : [['body' => $dictionary, 'object' => null, 'generation' => null]];
         }
 
         $reference = $this->objectReferenceWithGenerationFromValue($value);
@@ -1725,12 +1843,16 @@ final class PdfAnnotationExtractor
         }
 
         $dictionary = $this->dictionaryObjectBody($objectBody);
-        return $dictionary === null ? [] : [['body' => $dictionary, 'object' => $reference['object']]];
+        return $dictionary === null ? [] : [[
+            'body' => $dictionary,
+            'object' => $reference['object'],
+            'generation' => $reference['generation'],
+        ]];
     }
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      */
     private function annotationRecordsFromArrayBody(string $body, array $objects): array
     {
@@ -1755,7 +1877,7 @@ final class PdfAnnotationExtractor
             if (str_starts_with($value, '<<')) {
                 $dictionary = $this->readPdfDictionaryAt($value, 0);
                 if ($dictionary !== null) {
-                    $records[] = ['body' => $dictionary, 'object' => null];
+                    $records[] = ['body' => $dictionary, 'object' => null, 'generation' => null];
                 }
                 $offset = $endOffset;
                 continue;
@@ -1766,7 +1888,11 @@ final class PdfAnnotationExtractor
                 $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null) {
-                    $records[] = ['body' => $dictionary, 'object' => $reference['object']];
+                    $records[] = [
+                        'body' => $dictionary,
+                        'object' => $reference['object'],
+                        'generation' => $reference['generation'],
+                    ];
                 }
                 $offset = $endOffset;
                 continue;
