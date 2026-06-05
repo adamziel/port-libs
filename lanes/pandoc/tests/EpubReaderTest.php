@@ -1389,6 +1389,54 @@ XML;
         $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
         $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
     },
+    'summarizes OPF title-type refinements and direction metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithTitleMetadata = str_replace(
+            '<dc:title>WordPress Import EPUB</dc:title>',
+            '<dc:title id="main-title" dir="ltr">WordPress Import EPUB</dc:title>'
+            . '<dc:title id="subtitle-title" xml:lang="ar-Latn" dir="rtl">Murajaat al-hijra</dc:title>'
+            . '<dc:title id="short-title">WP EPUB packet</dc:title>',
+            $opfXml
+        );
+        $opfWithTitleMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#main-title" property="title-type">main</meta>'
+            . '<meta refines="#main-title" property="file-as">WordPress EPUB source packet</meta>'
+            . '<meta refines="#main-title" property="display-seq">1</meta>'
+            . '<meta refines="#subtitle-title" property="title-type">subtitle</meta>'
+            . '<meta refines="#subtitle-title" property="display-seq">2</meta>'
+            . '<meta refines="#subtitle-title" property="alternate-script" xml:lang="en" dir="ltr">Migration review subtitle</meta>'
+            . '<meta refines="#short-title" property="title-type">short</meta>',
+            $opfWithTitleMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithTitleMetadata));
+        $metadata = $result['metadata'];
+
+        $t->same('WordPress Import EPUB', $metadata['title']);
+        $t->same(3, count($metadata['titleDetails']));
+        $t->same('WordPress Import EPUB', $metadata['mainTitle']['text']);
+        $t->same('main', $metadata['mainTitle']['titleType']);
+        $t->same('ltr', $metadata['mainTitle']['direction']);
+        $t->same('WordPress EPUB source packet', $metadata['mainTitle']['fileAs']);
+        $t->same('1', $metadata['mainTitle']['displaySeq']);
+
+        $t->same('Murajaat al-hijra', $metadata['subtitle']['text']);
+        $t->same('subtitle', $metadata['subtitle']['titleType']);
+        $t->same('ar-Latn', $metadata['subtitle']['language']);
+        $t->same('rtl', $metadata['subtitle']['direction']);
+        $t->same('Migration review subtitle', $metadata['subtitle']['alternateScripts'][0]['text']);
+        $t->same('en', $metadata['subtitle']['alternateScripts'][0]['language']);
+        $t->same('ltr', $metadata['subtitle']['alternateScripts'][0]['direction']);
+
+        $t->same('WP EPUB packet', $metadata['shortTitle']['text']);
+        $t->same(['main', 'subtitle', 'short'], array_keys($metadata['titlesByType']));
+        $t->same('Murajaat al-hijra', $metadata['titlesByType']['subtitle'][0]['text']);
+        $t->same('rtl', $metadata['dc']['title'][1]['direction']);
+        $t->same('ltr', $metadata['refinementsById']['subtitle-title']['alternate-script'][0]['direction']);
+        $t->same($metadata['titleDetails'], $result['importReport']['metadata']['titleDetails']);
+        $t->same($metadata['titlesByType'], $result['document']->attr('metadata')['titlesByType']);
+    },
     'reports OPF contributor role metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithContributors = str_replace(
             '<dc:language>en</dc:language>',

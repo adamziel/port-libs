@@ -857,6 +857,7 @@ final class EpubReader
                     'id' => self::nullableAttribute($child, 'id'),
                     'scheme' => self::nullableAttribute($child, 'opf:scheme') ?? self::nullableAttribute($child, 'scheme'),
                     'language' => self::xmlLang($child),
+                    'direction' => self::direction($child),
                 ];
                 $dc[$name][] = $entry;
                 $raw[] = ['type' => 'dc'] + $entry;
@@ -877,6 +878,7 @@ final class EpubReader
                     'properties' => self::spaceDelimited($child->getAttribute('properties')),
                     'refines' => self::nullableAttribute($child, 'refines'),
                     'hreflang' => self::nullableAttribute($child, 'hreflang'),
+                    'direction' => self::direction($child),
                 ];
                 $links[] = $entry;
                 $raw[] = ['type' => 'link'] + $entry;
@@ -897,6 +899,7 @@ final class EpubReader
                 'id' => self::nullableAttribute($child, 'id'),
                 'scheme' => self::nullableAttribute($child, 'scheme'),
                 'language' => self::xmlLang($child),
+                'direction' => self::direction($child),
                 'text' => $text,
             ];
 
@@ -916,11 +919,21 @@ final class EpubReader
             $dc['identifier'] ?? []
         );
         $uniqueIdentifierReport = self::uniqueIdentifierReport($uniqueIdentifier, $dc, $requireUniqueIdentifier);
+        $titleDetails = self::metadataTitleDetails($dc['title'] ?? []);
+        $titlesByType = self::metadataTitlesByType($titleDetails);
+        $mainTitle = self::firstMetadataTitleByType($titleDetails, 'main') ?? ($titleDetails[0] ?? null);
         $creatorDetails = self::metadataAgentDetails($dc['creator'] ?? [], 'creator');
         $contributorDetails = self::metadataAgentDetails($dc['contributor'] ?? [], 'contributor');
 
         $metadata = [
             'title' => $dc['title'][0]['text'] ?? '',
+            'titleDetails' => $titleDetails,
+            'titlesByType' => $titlesByType,
+            'mainTitle' => $mainTitle,
+            'subtitle' => self::firstMetadataTitleByType($titleDetails, 'subtitle'),
+            'shortTitle' => self::firstMetadataTitleByType($titleDetails, 'short'),
+            'collectionTitle' => self::firstMetadataTitleByType($titleDetails, 'collection'),
+            'sortTitle' => is_array($mainTitle) ? $mainTitle['fileAs'] : null,
             'creators' => array_map(static fn (array $entry): string => $entry['text'], $dc['creator'] ?? []),
             'creatorDetails' => $creatorDetails,
             'creatorsByRole' => self::metadataAgentsByRole($creatorDetails),
@@ -1050,6 +1063,7 @@ final class EpubReader
             'text' => (string) ($entry['text'] ?? ''),
             'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
             'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+            'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
             'refinements' => is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [],
         ];
     }
@@ -1086,6 +1100,7 @@ final class EpubReader
                     'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
                     'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
                     'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                    'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
                 ];
             }
         }
@@ -1167,6 +1182,75 @@ final class EpubReader
      *
      * @return list<array<string, mixed>>
      */
+    private static function metadataTitleDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+
+            $details[] = [
+                'kind' => 'title',
+                'index' => (int) $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'titleType' => self::firstMetadataRefinementValue($refinements, 'title-type'),
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataTitlesByType(array $details): array
+    {
+        $byType = [];
+        foreach ($details as $detail) {
+            $titleType = $detail['titleType'] ?? null;
+            if (!is_string($titleType) || $titleType === '') {
+                continue;
+            }
+
+            $byType[$titleType][] = $detail;
+        }
+
+        return $byType;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function firstMetadataTitleByType(array $details, string $type): ?array
+    {
+        foreach ($details as $detail) {
+            if (($detail['titleType'] ?? null) === $type) {
+                return $detail;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
     private static function metadataAgentDetails(array $entries, string $kind): array
     {
         $details = [];
@@ -1227,6 +1311,7 @@ final class EpubReader
                 'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
                 'subjectId' => is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null,
                 'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
             ];
         }
 
@@ -6380,6 +6465,13 @@ final class EpubReader
         }
 
         return $lang === '' ? null : $lang;
+    }
+
+    private static function direction(\DOMElement $element): ?string
+    {
+        $direction = trim($element->getAttribute('dir'));
+
+        return $direction === '' ? null : $direction;
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument

@@ -26,12 +26,21 @@ $opfXml = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" id="source-package" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
-    <dc:title>WordPress EPUB source packet</dc:title>
+    <dc:title id="main-title" dir="ltr">WordPress EPUB source packet</dc:title>
+    <dc:title id="subtitle-title" xml:lang="ar-Latn" dir="rtl">Murajaat al-hijra</dc:title>
+    <dc:title id="short-title">WP EPUB packet</dc:title>
     <dc:creator id="creator">Migration Desk</dc:creator>
     <dc:contributor id="editor">Review Editor</dc:contributor>
     <dc:contributor id="translator" xml:lang="fr">Translation Desk</dc:contributor>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
+    <meta refines="#main-title" property="title-type">main</meta>
+    <meta refines="#main-title" property="file-as">WordPress EPUB source packet</meta>
+    <meta refines="#main-title" property="display-seq">1</meta>
+    <meta refines="#subtitle-title" property="title-type">subtitle</meta>
+    <meta refines="#subtitle-title" property="display-seq">2</meta>
+    <meta refines="#subtitle-title" property="alternate-script" xml:lang="en" dir="ltr">Migration review subtitle</meta>
+    <meta refines="#short-title" property="title-type">short</meta>
     <meta property="media:duration">0:00:08.000</meta>
     <meta property="media:duration" refines="#mo-chapter">0:00:08.000</meta>
     <meta property="schema:accessMode">textual</meta>
@@ -305,6 +314,21 @@ $blocks = (new WordPressBlockWriter())->write($result['document']);
 if (($argv[1] ?? '') === '--self-test') {
     if ($result['metadata']['title'] !== 'WordPress EPUB source packet') {
         throw new RuntimeException('Expected EPUB OPF title metadata');
+    }
+    if (($result['metadata']['mainTitle']['titleType'] ?? null) !== 'main' || ($result['metadata']['mainTitle']['fileAs'] ?? null) !== 'WordPress EPUB source packet') {
+        throw new RuntimeException('Expected EPUB OPF main title refinements to be summarized');
+    }
+    if (($result['metadata']['subtitle']['text'] ?? null) !== 'Murajaat al-hijra' || ($result['metadata']['subtitle']['direction'] ?? null) !== 'rtl') {
+        throw new RuntimeException('Expected EPUB OPF subtitle direction metadata to be summarized');
+    }
+    if (($result['metadata']['subtitle']['alternateScripts'][0]['text'] ?? null) !== 'Migration review subtitle' || ($result['metadata']['subtitle']['alternateScripts'][0]['direction'] ?? null) !== 'ltr') {
+        throw new RuntimeException('Expected EPUB OPF subtitle alternate-script metadata to be summarized');
+    }
+    if (($result['metadata']['shortTitle']['text'] ?? null) !== 'WP EPUB packet' || !isset($result['metadata']['titlesByType']['short'])) {
+        throw new RuntimeException('Expected EPUB OPF short title metadata to be grouped by title-type');
+    }
+    if (($result['document']->attr('metadata')['titlesByType']['subtitle'][0]['text'] ?? null) !== 'Murajaat al-hijra') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose title-type metadata');
     }
     if (($result['metadata']['uniqueIdentifier']['id'] ?? null) !== 'source-id' || ($result['metadata']['uniqueIdentifier']['value'] ?? null) !== 'urn:uuid:wordpress-epub-source') {
         throw new RuntimeException('Expected EPUB OPF unique identifier binding to be preserved');
@@ -755,6 +779,10 @@ if (($argv[1] ?? '') === '--self-test') {
 
 echo "EPUB3 package handoff for WordPress import:\n";
 echo 'title=' . $result['metadata']['title'] . "\n";
+echo 'mainTitleType=' . ($result['metadata']['mainTitle']['titleType'] ?? '') . "\n";
+echo 'subtitleTitle=' . ($result['metadata']['subtitle']['text'] ?? '') . "\n";
+echo 'subtitleDirection=' . ($result['metadata']['subtitle']['direction'] ?? '') . "\n";
+echo 'titleTypes=' . implode(',', array_keys($result['metadata']['titlesByType'] ?? [])) . "\n";
 echo 'identifier=' . $result['metadata']['identifier'] . "\n";
 echo 'uniqueIdentifierId=' . ($result['metadata']['uniqueIdentifier']['id'] ?? '') . "\n";
 echo 'uniqueIdentifierSelectedBy=' . ($result['metadata']['uniqueIdentifier']['selectedBy'] ?? '') . "\n";
