@@ -444,6 +444,32 @@ TPL;
         ]), $output);
     },
 
+    'applies pandoc doctemplate pipes after missing and null lookups' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->render(<<<'TPL'
+Missing length: <$missing/length$>
+Null length: <$nullish/length$>
+Missing block: <$missing/left 6 "[" "]"$>
+Null block: <$nullish/right 4 "{" "}"$>
+Upper missing: <$missing/uppercase$>
+$if(missing/length)$missing length truthy$endif$
+Loop: <$for(missing/rest)$unexpected$endfor$>
+TPL, [
+            'nullish' => null,
+        ]);
+
+        $t->same(implode("\n", [
+            'Missing length: <0>',
+            'Null length: <0>',
+            'Missing block: <[      ]>',
+            'Null block: <{    }>',
+            'Upper missing: <>',
+            'missing length truthy',
+            'Loop: <>',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate partials nested partials and strips final newlines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 ${ review-header() }

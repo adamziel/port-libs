@@ -796,16 +796,16 @@ final class DocTemplate
     private function resolveParsedExpression(array $expression, array $context): array
     {
         $resolved = $this->resolve($expression['name'], $context);
-        if (!$resolved['exists']) {
+        if (!$resolved['exists'] && $expression['pipes'] === []) {
             return $resolved;
         }
 
-        $value = $resolved['value'];
+        $value = $resolved['exists'] ? $resolved['value'] : null;
         foreach ($expression['pipes'] as $pipe) {
             $value = $this->applyPipe($pipe, $value);
         }
 
-        return ['exists' => true, 'value' => $value];
+        return ['exists' => $resolved['exists'] || $expression['pipes'] !== [], 'value' => $value];
     }
 
     /**

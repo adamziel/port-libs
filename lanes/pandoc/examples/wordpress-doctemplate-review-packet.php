@@ -20,6 +20,7 @@ HTML,
 <h1>$title/uppercase$</h1>
 <p class="summary">$~$$warnings/length$ warnings queued for $title$$~$</p>
 <p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
+<p class="ticket">Ticket: ${ review-id/left 8 "[" "]" }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
@@ -77,6 +78,7 @@ if (in_array('--self-test', $argv, true)) {
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
         '<p class="next-warning">LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
+        '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
