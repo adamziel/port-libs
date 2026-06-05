@@ -1531,11 +1531,21 @@ final class PdfLinkAnnotationExtractor
     {
         $ancestors = [];
         $seen = [];
-        $parent = $this->referenceAfterName($pageBody, 'Parent');
-        while ($parent !== null && !isset($seen[$parent]) && isset($objects[$parent])) {
-            $seen[$parent] = true;
-            $ancestors[] = $objects[$parent];
-            $parent = $this->referenceAfterName($objects[$parent], 'Parent');
+        $parent = $this->referenceValueAfterName($pageBody, 'Parent');
+        while ($parent !== null) {
+            $parentKey = $this->annotationReferenceKey($parent['object'], $parent['generation']);
+            if (isset($seen[$parentKey])) {
+                break;
+            }
+
+            $parentBody = $this->objectBodyForReference($parent['object'], $parent['generation'], $objects);
+            if ($parentBody === null) {
+                break;
+            }
+
+            $seen[$parentKey] = true;
+            $ancestors[] = $parentBody;
+            $parent = $this->referenceValueAfterName($parentBody, 'Parent');
         }
 
         $inherited = [];
@@ -1647,6 +1657,15 @@ final class PdfLinkAnnotationExtractor
     {
         $value = $this->valueAfterName($body, $name);
         return $value === null ? null : $this->indirectObjectNumberFromValue($value);
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function referenceValueAfterName(string $body, string $name): ?array
+    {
+        $value = $this->valueAfterName($body, $name);
+        return $value === null ? null : $this->objectReferenceFromValue($value);
     }
 
     /**
