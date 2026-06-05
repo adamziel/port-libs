@@ -963,9 +963,169 @@ final class PdfAttachmentExtractor
                 'stream' => $stream,
             ];
         }
+        if ($xrefEntries !== []) {
+            $objects = $this->withCompressedObjectStreamObjects($objects, $xrefEntries);
+        }
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    /**
+     * PDF 1.5 object streams carry ordinary non-stream objects. Lightweight
+     * attachment preflight needs the selected FileSpec dictionaries but must
+     * keep stream payloads attached only to direct EmbeddedFile stream objects.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, array{generation: int, body: string, value: mixed, stream: string|null}>
+     */
+    private function withCompressedObjectStreamObjects(array $objects, array $xrefEntries): array
+    {
+        $expanded = $objects;
+        for ($pass = 0; $pass < 4; $pass++) {
+            $added = false;
+            foreach ($xrefEntries as $objectNumber => $entry) {
+                if (($entry['type'] ?? null) !== 2 || isset($expanded[$objectNumber])) {
+                    continue;
+                }
+
+                $body = $this->objectStreamMemberBody($expanded, $entry, (int) $objectNumber);
+                if ($body === null) {
+                    continue;
+                }
+
+                $index = 0;
+                $value = $this->parseValue($body, $index);
+                if ($value === null) {
+                    continue;
+                }
+
+                if ($this->streamBytesFromBody($body, $index, $value) !== null) {
+                    continue;
+                }
+
+                $expanded[$objectNumber] = [
+                    'generation' => 0,
+                    'body' => $body,
+                    'value' => $value,
+                    'stream' => null,
+                ];
+                $added = true;
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        ksort($expanded, SORT_NUMERIC);
+
+        return $expanded;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array{type: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $xrefEntry
+     */
+    private function objectStreamMemberBody(array $objects, array $xrefEntry, int $requestedObjectNumber): ?string
+    {
+        $objectStreamId = $xrefEntry['objectStream'] ?? null;
+        if (!is_int($objectStreamId) || !isset($objects[$objectStreamId])) {
+            return null;
+        }
+
+        $objectStream = $objects[$objectStreamId];
+        $dict = $this->dict($objectStream['value']);
+        if ($dict === null || $this->nameValue($dict['Type'] ?? null) !== 'ObjStm') {
+            return null;
+        }
+
+        $declaredCount = $this->intValue($this->resolveValue($dict['N'] ?? null, $objects));
+        $firstOffset = $this->intValue($this->resolveValue($dict['First'] ?? null, $objects));
+        if ($declaredCount === null || $declaredCount < 1 || $firstOffset === null || $firstOffset < 0) {
+            return null;
+        }
+
+        $decoded = $this->decodedStreamBytes($objectStream, $objects);
+        if ($decoded === null || $firstOffset > strlen($decoded)) {
+            return null;
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $firstOffset), $declaredCount);
+        if ($members === []) {
+            return null;
+        }
+
+        $memberIndex = $this->objectStreamSelectedMemberIndex($members, $xrefEntry, $requestedObjectNumber);
+        if ($memberIndex === null) {
+            return null;
+        }
+
+        $data = substr($decoded, $firstOffset);
+        $start = $members[$memberIndex]['offset'];
+        if ($start < 0 || $start >= strlen($data)) {
+            return null;
+        }
+
+        $end = strlen($data);
+        foreach ($members as $index => $member) {
+            if ($index === $memberIndex || $member['offset'] <= $start) {
+                continue;
+            }
+            $end = min($end, $member['offset']);
+        }
+
+        if ($end <= $start) {
+            return null;
+        }
+
+        return substr($data, $start, $end - $start);
+    }
+
+    /**
+     * @return list<array{objectNumber: int, offset: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $declaredCount): array
+    {
+        if (preg_match_all('/\d+/', $header, $matches) < 1) {
+            return [];
+        }
+
+        $members = [];
+        $tokens = $matches[0];
+        for ($index = 0, $count = count($tokens); $index + 1 < $count && count($members) < $declaredCount; $index += 2) {
+            $members[] = [
+                'objectNumber' => (int) $tokens[$index],
+                'offset' => (int) $tokens[$index + 1],
+            ];
+        }
+
+        return $members;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int}> $members
+     * @param array{type: int, index?: int, indexIsExplicit?: bool} $xrefEntry
+     */
+    private function objectStreamSelectedMemberIndex(array $members, array $xrefEntry, int $requestedObjectNumber): ?int
+    {
+        $requestedIndex = $xrefEntry['index'] ?? null;
+        if (is_int($requestedIndex) && ($xrefEntry['indexIsExplicit'] ?? true) === true) {
+            if (!isset($members[$requestedIndex]) || $members[$requestedIndex]['objectNumber'] !== $requestedObjectNumber) {
+                return null;
+            }
+
+            return $requestedIndex;
+        }
+
+        foreach ($members as $index => $member) {
+            if ($member['objectNumber'] === $requestedObjectNumber) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1272,6 +1432,16 @@ final class PdfAttachmentExtractor
                         'type' => 1,
                         'offset' => $fieldTwo,
                         'generation' => $fieldThree,
+                    ];
+                    continue;
+                }
+
+                if ($type === 2 && $fieldTwo > 0) {
+                    $entries[$objectNumber] = [
+                        'type' => 2,
+                        'objectStream' => $fieldTwo,
+                        'index' => $fieldThree,
+                        'indexIsExplicit' => $widths[2] > 0,
                     ];
                     continue;
                 }
