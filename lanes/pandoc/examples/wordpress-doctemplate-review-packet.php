@@ -40,6 +40,7 @@ for $title$$~$</p>
   $-- indented reviewer comments preserve their line ending upstream
 <p class="comment-spacing">After preserved comment whitespace</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
+${ components/crlf-note() }
 ${ components/trailing-note() }
 </header>
 HTML,
@@ -50,6 +51,7 @@ HTML,
 <p class="source-summary" data-état="$révision.état$">$révision.titre$ $^$$révision.note$</p>
 HTML,
     'review-packets/components/next-warning.html' => '$warnings.source$/$it.source$: $warnings.message$',
+    'review-packets/components/crlf-note.html' => '<p class="crlf-note">CRLF partial final line ending stripped</p>' . "\r\n",
     'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
     'review-packets/components/warning-list.html' => <<<'HTML'
 $if(warnings)$
@@ -142,6 +144,7 @@ if (in_array('--self-test', $argv, true)) {
         "<p>Ready for import\n   Owner: Migration desk</p>",
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
+        "<p class=\"crlf-note\">CRLF partial final line ending stripped</p>\n<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>",
         "<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>\n\n</header>",
         $sourceSummaryPrefix . 'Première ligne' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($sourceSummaryPrefix))
@@ -172,6 +175,11 @@ if (in_array('--self-test', $argv, true)) {
 
     if (str_contains($output, "</header>\n\n<p class=\"source-summary\"")) {
         fwrite(STDERR, "Unexpected blank line from empty standalone doctemplate partial\n");
+        exit(1);
+    }
+
+    if (str_contains($output, "\r")) {
+        fwrite(STDERR, "Unexpected CR byte from included doctemplate partial final line ending\n");
         exit(1);
     }
 

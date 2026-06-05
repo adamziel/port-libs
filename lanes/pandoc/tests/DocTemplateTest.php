@@ -768,7 +768,7 @@ TPL;
         ]), $output);
     },
 
-    'removes exactly one upstream LF from included pandoc doctemplate partials' => static function (TestRunner $t): void {
+    'removes exactly one upstream final line ending from included pandoc doctemplate partials' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 One:<${ one() }>
 Double:<${ double() }>
@@ -787,7 +787,12 @@ TPL;
             'row' => '$it$' . "\n\n",
         ]);
 
-        $t->same("One:<alpha>\nDouble:<alpha\n>\nCrlf:<alpha\r>\nCr:<alpha\r>\nApplied:<media\n|links\n>", $output);
+        $t->same("One:<alpha>\nDouble:<alpha\n>\nCrlf:<alpha>\nCr:<alpha>\nApplied:<media\n|links\n>", $output);
+        $t->same('AppliedCrlf:<media|links>', (new DocTemplate())->render('AppliedCrlf:<${ items:crlf-row()[|] }>', [
+            'items' => ['media', 'links'],
+        ], [
+            'crlf-row' => '$it$' . "\r\n",
+        ]));
     },
 
     'applies pandoc doctemplate partials to variables arrays and pipes' => static function (TestRunner $t): void {

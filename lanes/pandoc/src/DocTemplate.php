@@ -973,7 +973,7 @@ final class DocTemplate
 
     private function stripIncludedPartialFinalNewline(string $value): string
     {
-        return str_ends_with($value, "\n") ? substr($value, 0, -1) : $value;
+        return $this->stripSingleFinalNewline($value);
     }
 
     /**
