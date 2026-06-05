@@ -1038,6 +1038,48 @@ return [
         $t->same('multiline-flow-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="multiline-flow-yaml-body">Multiline flow YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml comments inside multiline flow collections' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Flow comments **Packet**',
+            'keywords: [',
+            '  migration, # source label',
+            '  "WordPress #import",',
+            '  wordpress',
+            ']',
+            'review: {',
+            '  status: queued, # reviewer state',
+            '  labels: [front-matter, # imported source',
+            '    wordpress],',
+            '  source-uri: https://example.test/export#front,',
+            '  note: "Keep # quoted hash"',
+            '}',
+            'references:',
+            '  - id: flow-comment-ref',
+            '    keywords: [',
+            '      yaml, # ignored inside flow sequence',
+            '      metadata',
+            '    ]',
+            '...',
+            '',
+            '# Flow comment YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow comments **Packet**', $meta['title']);
+        $t->same(['migration', 'WordPress #import', 'wordpress'], $meta['keywords']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['front-matter', 'wordpress'], $meta['review']['labels']);
+        $t->same('https://example.test/export#front', $meta['review']['source-uri']);
+        $t->same('Keep # quoted hash', $meta['review']['note']);
+        $t->same(false, array_key_exists("# reviewer state\n  labels", $meta['review']));
+        $t->same('flow-comment-ref', $meta['references'][0]['id']);
+        $t->same(['yaml', 'metadata'], $meta['references'][0]['keywords']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-comment-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-comment-yaml-body">Flow comment YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml quoted multiline scalars inside flow collections' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

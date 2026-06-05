@@ -1144,7 +1144,9 @@ final class MarkdownReader
             return null;
         }
 
-        $candidate = $this->stripYamlTrailingComment(trim($sourceValue . "\n" . implode("\n", $continuationLines)));
+        $candidate = $this->stripYamlTrailingComment(
+            trim($this->stripYamlFlowComments($sourceValue . "\n" . implode("\n", $continuationLines)))
+        );
         if ($candidate === '') {
             return null;
         }
@@ -1155,6 +1157,50 @@ final class MarkdownReader
         }
 
         return $this->parseYamlScalarValue($candidate);
+    }
+
+    private function stripYamlFlowComments(string $source): string
+    {
+        $clean = '';
+        $quote = null;
+        $length = strlen($source);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($quote !== null) {
+                $clean .= $char;
+                if ($quote === "'" && $char === "'" && ($source[$offset + 1] ?? '') === "'") {
+                    $offset++;
+                    $clean .= $source[$offset];
+                    continue;
+                }
+
+                if ($char === $quote && ($quote === "'" || $source[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $clean .= $char;
+                continue;
+            }
+
+            if ($char === '#' && ($offset === 0 || ctype_space($source[$offset - 1]))) {
+                $clean = rtrim($clean, " \t");
+                while ($offset < $length && $source[$offset] !== "\n") {
+                    $offset++;
+                }
+                if ($offset < $length) {
+                    $clean .= "\n";
+                }
+                continue;
+            }
+
+            $clean .= $char;
+        }
+
+        return $clean;
     }
 
     private function isBalancedYamlFlowCollection(string $source): bool

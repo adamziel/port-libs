@@ -68,6 +68,19 @@ flow-quoted-review: {
   source-uri: "https://example.test/\
     exports/packet#flow-quoted"
 }
+flow-comment-labels: [
+  migration, # source label
+  wordpress
+]
+flow-comment-review: {
+  status: queued, # reviewer queue state
+  labels: [
+    front-matter, # reviewer import tag
+    wordpress
+  ],
+  source-uri: /exports/packet#commented-flow,
+  note: "Keep # quoted hash"
+}
 review-notes:
   - |-
     Preserve original front matter.
@@ -223,6 +236,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-quoted-review']['source-uri'] ?? '') !== 'https://example.test/exports/packet#flow-quoted') {
         throw new RuntimeException('YAML metadata self-test missing flow quoted escaped continuation URI');
     }
+    if (($meta['flow-comment-labels'] ?? []) !== ['migration', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing flow comment label stripping');
+    }
+    if (($meta['flow-comment-review']['status'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing flow comment map status');
+    }
+    if (($meta['flow-comment-review']['labels'] ?? []) !== ['front-matter', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing flow comment nested labels');
+    }
+    if (($meta['flow-comment-review']['source-uri'] ?? '') !== '/exports/packet#commented-flow') {
+        throw new RuntimeException('YAML metadata self-test stripped flow comment source URI fragment');
+    }
+    if (($meta['flow-comment-review']['note'] ?? '') !== 'Keep # quoted hash') {
+        throw new RuntimeException('YAML metadata self-test stripped quoted flow comment hash');
+    }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
     }
@@ -345,6 +373,7 @@ echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";
+echo 'Flow comment labels: ' . implode(', ', $meta['flow-comment-labels'] ?? []) . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
 echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";
 echo 'Single quoted source note: ' . ($meta['single-quoted-source-note'] ?? '') . "\n";
