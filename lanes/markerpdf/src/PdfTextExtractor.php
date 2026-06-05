@@ -7845,6 +7845,7 @@ final class PdfTextExtractor
      */
     private function ccittFaxDecodeParmsReview(string $decodeParms, array $objects): array
     {
+        $duplicateFields = $this->duplicateCcittDecodeParmsFields($decodeParms);
         $details = [
             'type' => 'CCITTFaxDecode',
             'k' => $this->decodeParmsInt($decodeParms, 'K', $objects),
@@ -7893,6 +7894,10 @@ final class PdfTextExtractor
             }
         }
 
+        foreach ($duplicateFields as $field) {
+            $invalidFields[$field] = true;
+        }
+
         if ($invalidFields !== []) {
             $details['valid_decode_parms'] = false;
             $details['invalid_decode_parms_fields'] = array_values(array_filter(
@@ -7908,10 +7913,39 @@ final class PdfTextExtractor
                 ],
                 static fn (string $field): bool => isset($invalidFields[$field])
             ));
-            $details['decode_parms_review'] = 'invalid_ccitt_decodeparms_fail_closed';
+            if ($duplicateFields !== []) {
+                $details['duplicate_decode_parms_fields'] = $duplicateFields;
+            }
+            $details['decode_parms_review'] = $duplicateFields !== []
+                ? 'duplicate_ccitt_decodeparms_parameter_fail_closed'
+                : 'invalid_ccitt_decodeparms_fail_closed';
         }
 
         return $details;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function duplicateCcittDecodeParmsFields(string $decodeParms): array
+    {
+        $duplicates = [];
+        foreach ([
+            'K' => 'k',
+            'Columns' => 'columns',
+            'Rows' => 'rows',
+            'BlackIs1' => 'black_is_1',
+            'EncodedByteAlign' => 'encoded_byte_align',
+            'EndOfLine' => 'end_of_line',
+            'EndOfBlock' => 'end_of_block',
+            'DamagedRowsBeforeError' => 'damaged_rows_before_error',
+        ] as $pdfName => $field) {
+            if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($decodeParms, $pdfName)) > 1) {
+                $duplicates[] = $field;
+            }
+        }
+
+        return $duplicates;
     }
 
     /**

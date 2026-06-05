@@ -4677,6 +4677,7 @@ final class PdfImageRenderer
      */
     private function ccittFaxDecodeParmsReview(string $decodeParms, array $objects): array
     {
+        $duplicateFields = $this->duplicateCcittDecodeParmsFields($decodeParms);
         $details = [
             'type' => 'CCITTFaxDecode',
             'k' => $this->decodeParmsInt($decodeParms, 'K', $objects),
@@ -4725,6 +4726,10 @@ final class PdfImageRenderer
             }
         }
 
+        foreach ($duplicateFields as $field) {
+            $invalidFields[$field] = true;
+        }
+
         if ($invalidFields !== []) {
             $details['valid_decode_parms'] = false;
             $details['invalid_decode_parms_fields'] = array_values(array_filter(
@@ -4740,10 +4745,39 @@ final class PdfImageRenderer
                 ],
                 static fn (string $field): bool => isset($invalidFields[$field])
             ));
-            $details['decode_parms_review'] = 'invalid_ccitt_decodeparms_fail_closed';
+            if ($duplicateFields !== []) {
+                $details['duplicate_decode_parms_fields'] = $duplicateFields;
+            }
+            $details['decode_parms_review'] = $duplicateFields !== []
+                ? 'duplicate_ccitt_decodeparms_parameter_fail_closed'
+                : 'invalid_ccitt_decodeparms_fail_closed';
         }
 
         return $details;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function duplicateCcittDecodeParmsFields(string $decodeParms): array
+    {
+        $duplicates = [];
+        foreach ([
+            'K' => 'k',
+            'Columns' => 'columns',
+            'Rows' => 'rows',
+            'BlackIs1' => 'black_is_1',
+            'EncodedByteAlign' => 'encoded_byte_align',
+            'EndOfLine' => 'end_of_line',
+            'EndOfBlock' => 'end_of_block',
+            'DamagedRowsBeforeError' => 'damaged_rows_before_error',
+        ] as $pdfName => $field) {
+            if (count($this->pdfDictionaryValuesForName($decodeParms, $pdfName)) > 1) {
+                $duplicates[] = $field;
+            }
+        }
+
+        return $duplicates;
     }
 
     /**
@@ -8180,6 +8214,14 @@ final class PdfImageRenderer
 
     private function pdfDictionaryValueForName(string $dictionary, string $name): ?string
     {
+        return $this->pdfDictionaryValuesForName($dictionary, $name)[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfDictionaryValuesForName(string $dictionary, string $name): array
+    {
         $body = trim($dictionary);
         if (str_starts_with($body, '<<') && str_ends_with($body, '>>')) {
             $body = trim(substr($body, 2, -2));
@@ -8187,6 +8229,7 @@ final class PdfImageRenderer
 
         $offset = 0;
         $length = strlen($body);
+        $values = [];
         while ($offset < $length) {
             $key = $this->readPdfValueWithOffset($body, $offset);
             if ($key === null || !str_starts_with(trim($key['value']), '/')) {
@@ -8199,13 +8242,13 @@ final class PdfImageRenderer
             }
 
             if ($this->pdfNameValue($key['value']) === $name) {
-                return $value['value'];
+                $values[] = $value['value'];
             }
 
             $offset = $value['next'];
         }
 
-        return null;
+        return $values;
     }
 
     private function readPdfValueAt(string $source, int $offset): ?string
