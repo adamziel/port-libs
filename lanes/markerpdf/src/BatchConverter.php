@@ -1208,6 +1208,7 @@ final class BatchConverter
                 'falsy_non_mapping_metadata_filenames' => $metadataValueReview['falsy_non_mapping_metadata_filenames'],
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
+                'pool_context_manager' => $this->convertMainPoolContextManagerPlan($totalProcesses, $modelHandoff),
                 'task_arg_identity_review' => $taskArgIdentityReview,
                 'process_single_pdf_preflight' => $processSinglePdfPreflight,
                 'pool_result_drain' => $poolResultDrain,
@@ -2961,6 +2962,57 @@ final class BatchConverter
             'pool_imap_reached' => $success,
             'progress_iterator_reached' => $success,
             'executes_multiprocessing' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $modelHandoff
+     * @return array{
+     *     source: string,
+     *     order: string,
+     *     context_manager_reached: true,
+     *     context_enter_success: bool,
+     *     blocked_by: string|null,
+     *     context_manager_call: string,
+     *     pool_variable: string,
+     *     processes: int,
+     *     worker_init_argument: string|null,
+     *     wraps_pool_imap: bool,
+     *     result_drain_inside_context: bool,
+     *     worker_handler_override_inside_context: bool,
+     *     context_exit_reached: bool,
+     *     context_exit_after_worker_handler_override: bool,
+     *     model_list_delete_after_context_exit: bool,
+     *     executes_python_or_models: false,
+     *     executes_multiprocessing: false,
+     *     executes_external_pdf_tools: false
+     * }
+     */
+    private function convertMainPoolContextManagerPlan(int $totalProcesses, array $modelHandoff): array
+    {
+        $entered = $totalProcesses >= 1;
+
+        return [
+            'source' => 'convert.py with mp.Pool context manager boundary',
+            'order' => 'after_task_args_wraps_pool_imap_until_before_del_model_lst',
+            'context_manager_reached' => true,
+            'context_enter_success' => $entered,
+            'blocked_by' => $entered ? null : 'pool-process-count-failed',
+            'context_manager_call' => 'with mp.Pool(processes=total_processes, initializer=worker_init, initargs=(model_lst,)) as pool',
+            'pool_variable' => 'pool',
+            'processes' => $totalProcesses,
+            'worker_init_argument' => $entered && is_string($modelHandoff['worker_init_argument'] ?? null)
+                ? $modelHandoff['worker_init_argument']
+                : null,
+            'wraps_pool_imap' => $entered,
+            'result_drain_inside_context' => $entered,
+            'worker_handler_override_inside_context' => $entered,
+            'context_exit_reached' => $entered,
+            'context_exit_after_worker_handler_override' => $entered,
+            'model_list_delete_after_context_exit' => $entered,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
         ];
     }
 
