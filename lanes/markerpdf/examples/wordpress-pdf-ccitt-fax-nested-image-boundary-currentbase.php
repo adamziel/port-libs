@@ -31,12 +31,20 @@ $plainText = $extractor->extractPlainText($pdf);
 $entry = $review['entries'][0] ?? [];
 $softBoundary = $entry['soft_mask_review']['ccitt_fax_decode_boundary'] ?? [];
 $maskBoundary = $entry['mask_review']['ccitt_fax_decode_boundary'] ?? [];
+$maskPolarity = $entry['mask_review']['ccitt_fax_imagemask_polarity_boundary'] ?? [];
 $alternateBoundary = $entry['alternate_images'][0]['ccitt_fax_decode_boundary'] ?? [];
+$alternatePolarity = $entry['alternate_images'][0]['ccitt_fax_imagemask_polarity_boundary'] ?? [];
 
 if (
     ($softBoundary['effective_decode_parms']['k'] ?? null) !== -1
     || ($maskBoundary['effective_width'] ?? null) !== 8
+    || ($maskPolarity['image_mask_decode_source'] ?? null) !== 'explicit'
+    || ($maskPolarity['black_sample_opacity'] ?? null) !== 1.0
+    || ($maskPolarity['white_sample_opacity'] ?? null) !== 0.0
     || ($alternateBoundary['effective_decode_parms']['encoded_byte_align'] ?? null) !== true
+    || ($alternatePolarity['image_mask_decode_source'] ?? null) !== 'default'
+    || ($alternatePolarity['black_sample_opacity'] ?? null) !== 0.0
+    || ($alternatePolarity['white_sample_opacity'] ?? null) !== 1.0
     || str_contains($plainText, 'Nested WordPress SMask CCITT Payload Noise')
     || str_contains($plainText, 'Nested WordPress Mask CCITT Payload Noise')
     || str_contains($plainText, 'Nested WordPress Alternate CCITT Payload Noise')
@@ -52,8 +60,22 @@ $metadata = [
     'soft_mask_ccitt_k' => $softBoundary['effective_decode_parms']['k'] ?? null,
     'explicit_mask_preview_filters' => $entry['mask_review']['preview_only_filters'] ?? [],
     'explicit_mask_effective_width' => $maskBoundary['effective_width'] ?? null,
+    'explicit_mask_imagemask_polarity' => [
+        'black_sample_value' => $maskPolarity['black_sample_value'] ?? null,
+        'white_sample_value' => $maskPolarity['white_sample_value'] ?? null,
+        'decode_source' => $maskPolarity['image_mask_decode_source'] ?? null,
+        'black_sample_opacity' => $maskPolarity['black_sample_opacity'] ?? null,
+        'white_sample_opacity' => $maskPolarity['white_sample_opacity'] ?? null,
+    ],
     'alternate_preview_filters' => $entry['alternate_images'][0]['preview_only_filters'] ?? [],
     'alternate_encoded_byte_align' => $alternateBoundary['effective_decode_parms']['encoded_byte_align'] ?? null,
+    'alternate_imagemask_polarity' => [
+        'black_sample_value' => $alternatePolarity['black_sample_value'] ?? null,
+        'white_sample_value' => $alternatePolarity['white_sample_value'] ?? null,
+        'decode_source' => $alternatePolarity['image_mask_decode_source'] ?? null,
+        'black_sample_opacity' => $alternatePolarity['black_sample_opacity'] ?? null,
+        'white_sample_opacity' => $alternatePolarity['white_sample_opacity'] ?? null,
+    ],
     'nested_payload_in_visible_text' => false,
     'native_raster_decode' => false,
     'executes_python_or_models' => false,

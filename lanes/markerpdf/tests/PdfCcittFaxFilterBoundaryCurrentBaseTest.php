@@ -1142,6 +1142,74 @@ return [
         $t->same(false, str_contains($encodedReview, $maskPayload));
         $t->same(false, str_contains($encodedReview, $alternatePayload));
     },
+    'records nested CCITT Fax ImageMask polarity for explicit masks and alternates' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before nested polarity masks) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After nested polarity masks) Tj ET';
+        $basePayload = "\x00\x01\x02";
+        $softPayload = 'BT /F1 12 Tf 72 700 Td (Nested polarity SMask CCITT Payload Noise) Tj ET';
+        $maskPayload = 'BT /F1 12 Tf 72 700 Td (Nested polarity Mask CCITT Payload Noise) Tj ET';
+        $alternatePayload = 'BT /F1 12 Tf 72 700 Td (Nested polarity Alternate CCITT Payload Noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /BaseImage 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 7 0 R /Mask 8 0 R /Alternates [<< /Image 9 0 R /DefaultForPrinting true >>] /Length " . strlen($basePayload) . " >>\nstream\n{$basePayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock true >> /Length " . strlen($softPayload) . " >>\nstream\n{$softPayload}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 8 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 8 /Rows 1 /BlackIs1 true /EndOfBlock true >> /Decode [1 0] /Length " . strlen($maskPayload) . " >>\nstream\n{$maskPayload}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /XObject /Subtype /Image /Width 12 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K 0 /Columns 12 /Rows 1 /BlackIs1 false /EndOfBlock true >> /Length " . strlen($alternatePayload) . " >>\nstream\n{$alternatePayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $softMask = $entry['soft_mask_review'] ?? [];
+        $explicitMask = $entry['mask_review'] ?? [];
+        $alternate = $entry['alternate_images'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before nested polarity masks', 'After nested polarity masks'], $extractor->extractTextLines($pdf));
+        $t->same("Before nested polarity masks\nAfter nested polarity masks", $plainText);
+        $t->same(false, str_contains($plainText, 'Nested polarity SMask CCITT Payload Noise'));
+        $t->same(false, str_contains($plainText, 'Nested polarity Mask CCITT Payload Noise'));
+        $t->same(false, str_contains($plainText, 'Nested polarity Alternate CCITT Payload Noise'));
+        $t->same(false, array_key_exists('ccitt_fax_imagemask_polarity_boundary', $softMask));
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => true,
+            'black_sample_value' => 1,
+            'white_sample_value' => 0,
+            'image_mask_decode_source' => 'explicit',
+            'decode_inverts_stencil' => true,
+            'black_sample_opacity' => 0.0,
+            'white_sample_opacity' => 1.0,
+            'black_sample_is_visible' => false,
+            'white_sample_is_visible' => true,
+        ], $explicitMask['ccitt_fax_imagemask_polarity_boundary'] ?? null);
+        $t->same([
+            'filter' => 'CCF',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => false,
+            'black_sample_value' => 0,
+            'white_sample_value' => 1,
+            'image_mask_decode_source' => 'default',
+            'decode_inverts_stencil' => false,
+            'black_sample_opacity' => 0.0,
+            'white_sample_opacity' => 1.0,
+            'black_sample_is_visible' => false,
+            'white_sample_is_visible' => true,
+        ], $alternate['ccitt_fax_imagemask_polarity_boundary'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->same(false, str_contains($encodedReview, $softPayload));
+        $t->same(false, str_contains($encodedReview, $maskPayload));
+        $t->same(false, str_contains($encodedReview, $alternatePayload));
+    },
     'records CCITT Fax coding mode and terminal marker boundaries without raster decode' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $defaultPlan = $renderer->inlineImageReviewPlan(

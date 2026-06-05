@@ -5066,13 +5066,6 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
-        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
-            $filters,
-            $stream['dict'],
-            $objects,
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects)
-        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
@@ -5087,6 +5080,16 @@ final class PdfTextExtractor
             $objects,
             $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace),
             true
+        );
+        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
+            $filters,
+            $stream['dict'],
+            $objects,
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            $imageMask,
+            $decode,
+            $effectiveBits ?? 1
         );
         $maxSample = (2 ** min($effectiveBits ?? 1, 30)) - 1;
 
@@ -5205,13 +5208,6 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
-        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
-            $filters,
-            $stream['dict'],
-            $objects,
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects)
-        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
@@ -5222,6 +5218,16 @@ final class PdfTextExtractor
         $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
         $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
         $decode = $this->imageXObjectDecodeReview($stream['dict'], $objects, $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace), $imageMask);
+        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
+            $filters,
+            $stream['dict'],
+            $objects,
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            $imageMask,
+            $decode,
+            $effectiveBits ?? 1
+        );
 
         return [
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
@@ -5413,13 +5419,6 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
-        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
-            $filters,
-            $stream['dict'],
-            $objects,
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects)
-        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
@@ -5427,6 +5426,24 @@ final class PdfTextExtractor
             $objects
         );
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+        $effectiveBits = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
+        $colorSpace = $this->imageColorSpaceFamily($stream['dict'], $objects);
+        $decode = $this->imageXObjectDecodeReview(
+            $stream['dict'],
+            $objects,
+            $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace),
+            $imageMask
+        );
+        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
+            $filters,
+            $stream['dict'],
+            $objects,
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            $imageMask,
+            $decode,
+            $effectiveBits ?? 1
+        );
 
         return [
             'object_number' => $objectNumber,
@@ -5435,8 +5452,8 @@ final class PdfTextExtractor
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
             'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
-            'color_space' => $this->imageColorSpaceFamily($stream['dict'], $objects),
-            'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
+            'color_space' => $colorSpace,
+            'bits_per_component' => $effectiveBits,
             'image_mask' => $imageMask,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
@@ -5534,7 +5551,10 @@ final class PdfTextExtractor
         string $dictionary,
         array $objects,
         ?int $width,
-        ?int $height
+        ?int $height,
+        bool $imageMask = false,
+        ?array $decode = null,
+        int $bitsPerComponent = 1
     ): array {
         if ($filters === null || $filters === []) {
             return [];
@@ -5553,12 +5573,18 @@ final class PdfTextExtractor
             return [];
         }
 
-        return [
+        $review = [
             'filter_details' => $filterDetails,
             'ccitt_fax_filter_boundary' => $this->ccittFaxFilterBoundaryReview($filterDetails),
             'ccitt_fax_decode_boundary' => $boundary,
             'ccitt_fax_coding_boundary' => $this->ccittFaxCodingBoundaryReview($filterDetails),
         ];
+        $polarity = $this->ccittFaxImageMaskPolarityBoundary($boundary, $imageMask, $decode, $bitsPerComponent);
+        if ($polarity !== null) {
+            $review['ccitt_fax_imagemask_polarity_boundary'] = $polarity;
+        }
+
+        return $review;
     }
 
     /**
