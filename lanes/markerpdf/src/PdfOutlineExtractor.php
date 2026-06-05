@@ -1760,23 +1760,146 @@ final class PdfOutlineExtractor
         $values = [];
         $this->objectGenerations = [];
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+        if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             return $values;
         }
 
+        $xrefEntries = $this->currentClassicXrefEntries($pdfBytes);
+        $candidates = [];
         foreach ($matches as $match) {
-            $tokens = $this->tokens(trim($match[3]));
+            $objectNumber = (int) $match[1][0];
+            $candidates[$objectNumber][] = [
+                'offset' => $match[0][1],
+                'generation' => (int) $match[2][0],
+                'body' => $match[3][0],
+            ];
+        }
+
+        foreach ($candidates as $objectNumber => $objectCandidates) {
+            $candidate = null;
+            if ($xrefEntries !== [] && isset($xrefEntries[$objectNumber])) {
+                $entry = $xrefEntries[$objectNumber];
+                if ($entry['state'] !== 'n') {
+                    continue;
+                }
+
+                foreach ($objectCandidates as $objectCandidate) {
+                    if (
+                        $objectCandidate['offset'] === $entry['offset']
+                        && $objectCandidate['generation'] === $entry['generation']
+                    ) {
+                        $candidate = $objectCandidate;
+                        break;
+                    }
+                }
+
+                if ($candidate === null) {
+                    continue;
+                }
+            } else {
+                $candidate = $objectCandidates[array_key_last($objectCandidates)];
+            }
+
+            $tokens = $this->tokens(trim($candidate['body']));
             if ($tokens === []) {
                 continue;
             }
 
-            $objectNumber = (int) $match[1];
             $index = 0;
             $values[$objectNumber] = $this->parseValue($tokens, $index);
-            $this->objectGenerations[$objectNumber] = (int) $match[2];
+            $this->objectGenerations[$objectNumber] = $candidate['generation'];
         }
 
         return $values;
+    }
+
+    /**
+     * @return array<int, array{offset: int, generation: int, state: string}>
+     */
+    private function currentClassicXrefEntries(string $pdfBytes): array
+    {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $latest = end($matches);
+        if (!is_array($latest)) {
+            return [];
+        }
+
+        $offset = (int) $latest[1];
+        $entries = [];
+        $seenOffsets = [];
+        $this->collectClassicXrefEntries($pdfBytes, $offset, $entries, $seenOffsets);
+
+        return $entries;
+    }
+
+    /**
+     * @param array<int, array{offset: int, generation: int, state: string}> $entries
+     * @param array<int, true> $seenOffsets
+     */
+    private function collectClassicXrefEntries(string $pdfBytes, int $offset, array &$entries, array &$seenOffsets): void
+    {
+        if ($offset < 0 || isset($seenOffsets[$offset]) || substr($pdfBytes, $offset, 4) !== 'xref') {
+            return;
+        }
+        $seenOffsets[$offset] = true;
+
+        $position = $offset + 4;
+        $length = strlen($pdfBytes);
+        while ($position < $length) {
+            $position = $this->skipWhitespace($pdfBytes, $position);
+            if (substr($pdfBytes, $position, 7) === 'trailer') {
+                break;
+            }
+
+            $remaining = substr($pdfBytes, $position);
+            if (preg_match('/(\d+)\s+(\d+)/A', $remaining, $sectionMatch) !== 1) {
+                break;
+            }
+
+            $firstObject = (int) $sectionMatch[1];
+            $count = (int) $sectionMatch[2];
+            $position += strlen($sectionMatch[0]);
+            for ($index = 0; $index < $count; $index++) {
+                $position = $this->skipWhitespace($pdfBytes, $position);
+                $row = substr($pdfBytes, $position);
+                if (preg_match('/(\d{10})\s+(\d{5})\s+([nf])\b/A', $row, $rowMatch) !== 1) {
+                    break 2;
+                }
+
+                $objectNumber = $firstObject + $index;
+                if (!isset($entries[$objectNumber])) {
+                    $entries[$objectNumber] = [
+                        'offset' => (int) $rowMatch[1],
+                        'generation' => (int) $rowMatch[2],
+                        'state' => $rowMatch[3],
+                    ];
+                }
+                $position += strlen($rowMatch[0]);
+            }
+        }
+
+        $trailerOffset = strpos($pdfBytes, 'trailer', $position);
+        if ($trailerOffset === false) {
+            return;
+        }
+
+        $trailerBytes = substr($pdfBytes, $trailerOffset, 4096);
+        if (preg_match('/\/Prev\s+(\d+)\b/s', $trailerBytes, $prevMatch) === 1) {
+            $this->collectClassicXrefEntries($pdfBytes, (int) $prevMatch[1], $entries, $seenOffsets);
+        }
+    }
+
+    private function skipWhitespace(string $bytes, int $offset): int
+    {
+        $length = strlen($bytes);
+        while ($offset < $length && ctype_space($bytes[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     private function bytesThroughCurrentEof(string $pdfBytes): string
