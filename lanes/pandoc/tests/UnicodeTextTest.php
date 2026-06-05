@@ -212,6 +212,31 @@ return [
         $t->same(["\u{1E0D}\u{0307}", ' ', 'C', 'a', 'f', 'é', ' ', 'Å'], UnicodeText::graphemes($nfc['text']));
         $t->throws(\InvalidArgumentException::class, static fn (): array => UnicodeText::normalize('text', 'nfc', 'remote'));
     },
+    'normalizes latin extended reviewer names with fallback unicode data' => static function (TestRunner $t): void {
+        $polishDecomposed = "Zaz\u{0307}o\u{0301}łc\u{0301} ge\u{0328}s\u{0301}la\u{0328} jaz\u{0301}n\u{0301}";
+        $polishComposed = "Zażółć gęślą jaźń";
+        $centralDecomposed = "C\u{030C}esky\u{0301} S\u{030C}te\u{030C}pa\u{0301}n, ku\u{030A}n\u{030C}, o\u{030B}u\u{030B}, s\u{0326}t\u{0326}";
+        $centralComposed = "Český Štěpán, kůň, őű, șț";
+        $fallbackNfc = UnicodeText::normalize($polishDecomposed . ' / ' . $centralDecomposed, 'nfc', 'fallback');
+        $fallbackNfd = UnicodeText::normalize($polishComposed . ' / ' . $centralComposed, 'nfd', 'fallback');
+        $decoded = UnicodeText::decodeBytes("# {$polishDecomposed}\n\n{$centralDecomposed}", 'utf-8', 'nfc');
+        $document = (new MarkdownReader())->readBytes("# {$polishDecomposed}\n\n{$centralDecomposed}", 'utf-8', 'nfc');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same($polishComposed . ' / ' . $centralComposed, $fallbackNfc['text']);
+        $t->same('nfc', $fallbackNfc['form']);
+        $t->same('fallback', $fallbackNfc['implementation']);
+        $t->same(true, $fallbackNfc['changed']);
+        $t->same($polishDecomposed . ' / ' . $centralDecomposed, $fallbackNfd['text']);
+        $t->same('nfd', $fallbackNfd['form']);
+        $t->same('fallback', $fallbackNfd['implementation']);
+        $t->same(true, $fallbackNfd['changed']);
+        $t->same(UnicodeText::displayWidth($fallbackNfc['text']), UnicodeText::displayWidth($fallbackNfd['text']));
+        $t->same("# {$polishComposed}\n\n{$centralComposed}", $decoded['text']);
+        $t->same($polishComposed, $document->children[0]->attr('text'));
+        $t->same($centralComposed, $document->children[1]->attr('text'));
+        $t->contains("<p>{$centralComposed}</p>", $blocks);
+    },
     'measures display width for cjk combining emoji and zero width marks' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $persian = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";
