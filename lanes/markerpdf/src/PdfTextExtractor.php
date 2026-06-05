@@ -21942,7 +21942,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
+        $decoded = $this->decodeCMapStream($entry['dict'], $entry['stream'], $objects);
         if ($decoded === null) {
             return null;
         }
@@ -21960,7 +21960,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
+        $decoded = $this->decodeCMapStream($entry['dict'], $entry['stream'], $objects);
         if ($decoded === null) {
             return null;
         }
@@ -22017,6 +22017,14 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
+    private function decodeCMapStream(string $dict, string $stream, array $objects): ?string
+    {
+        return $this->decodeStream($dict, $stream, $objects, true, true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
     private function cMapUseCMapNameFromDictionary(string $dict, array $objects): ?string
     {
         $name = $this->pdfNameValueAfterNameResolvingObjects($dict, 'UseCMap', $objects);
@@ -22044,7 +22052,7 @@ final class PdfTextExtractor
                 return $name;
             }
 
-            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
+            $decoded = $this->decodeCMapStream($entry['dict'], $entry['stream'], $objects);
             return $decoded === null ? null : $this->cMapName($decoded);
         }
 
