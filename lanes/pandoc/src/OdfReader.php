@@ -155,6 +155,7 @@ final class OdfReader
                     'referenceMarkCount' => $contentStats['referenceMarkCount'],
                     'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
+                    'citationCount' => $contentStats['citationCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
                     'sectionCount' => $contentStats['sectionCount'],
@@ -1059,6 +1060,13 @@ final class OdfReader
                 }
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'bibliography-mark')) {
+                $citation = $this->bibliographyMarkNode($child, $catalog, $package);
+                if ($citation instanceof AstNode) {
+                    $nodes[] = $citation;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::DRAW_NS, 'frame')) {
                 $image = $this->frameImageNode($child, $package);
                 if ($image instanceof AstNode) {
@@ -1146,6 +1154,42 @@ final class OdfReader
             'classes' => ['odf-sequence'],
             'attributes' => $attributes,
         ], $children);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function bibliographyMarkNode(\DOMElement $mark, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $identifier = trim(self::attr($mark, self::TEXT_NS, 'identifier'));
+        if ($identifier === '') {
+            return null;
+        }
+
+        $children = $this->coalesceTextNodes($this->inlineNodes($mark, $catalog, $package));
+        $displayText = $this->plainInlineText($children);
+        if ($displayText === '') {
+            $displayText = self::normalizedText($mark);
+        }
+
+        $sourceText = '[@' . $identifier . ']';
+        if ($children === []) {
+            $children = [new AstNode('text', ['text' => $displayText === '' ? $sourceText : $displayText])];
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'id' => $identifier,
+            'text' => $sourceText,
+            'mode' => 'normal',
+            'displayText' => $displayText === '' ? $sourceText : $displayText,
+        ];
+        $number = self::nullableInt(self::attr($mark, self::TEXT_NS, 'number'));
+        if ($number !== null) {
+            $attrs['citationNumber'] = $number;
+        }
+
+        return new AstNode('citation', $attrs, $children);
     }
 
     /**
@@ -2094,7 +2138,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, citationCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2105,6 +2149,7 @@ final class OdfReader
             'referenceMarkCount' => 0,
             'referenceReferenceCount' => 0,
             'sequenceCount' => 0,
+            'citationCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
             'sectionCount' => 0,
@@ -2139,6 +2184,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-sequence')) {
                 $stats['sequenceCount']++;
+            }
+            if ($node->type === 'citation') {
+                $stats['citationCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-change')) {
                 $stats['trackedChangeCount']++;

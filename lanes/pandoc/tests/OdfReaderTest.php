@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\OdfReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -589,6 +590,59 @@ XML;
         $t->contains('## Appendix [A]{.odf-sequence data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1"}', $markdown);
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
         $t->contains('<h2>Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
+    },
+    'maps ODT bibliography marks into citation handoff nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithBibliographyMarks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Source cites <text:bibliography-mark text:identifier="smith1899" text:number="4">Smith source packet</text:bibliography-mark> and <text:bibliography-mark text:identifier="missing-source" text:number="5">missing source packet</text:bibliography-mark>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithBibliographyMarks));
+        $paragraph = $result['document']->children[0];
+        $knownCitation = $paragraph->children[1];
+        $missingCitation = $paragraph->children[3];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Source cites Smith source packet and missing source packet.', $paragraph->attr('text'));
+        $t->same('citation', $knownCitation->type);
+        $t->same('smith1899', $knownCitation->attr('id'));
+        $t->same('[@smith1899]', $knownCitation->attr('text'));
+        $t->same('normal', $knownCitation->attr('mode'));
+        $t->same('odt', $knownCitation->attr('sourceFormat'));
+        $t->same('Smith source packet', $knownCitation->attr('displayText'));
+        $t->same(4, $knownCitation->attr('citationNumber'));
+        $t->same('Smith source packet', $knownCitation->children[0]->attr('text'));
+        $t->same('citation', $missingCitation->type);
+        $t->same('missing-source', $missingCitation->attr('id'));
+        $t->same('missing source packet', $missingCitation->attr('displayText'));
+        $t->same(5, $missingCitation->attr('citationNumber'));
+        $t->same(2, $result['importReport']['content']['citationCount']);
+
+        $processor = CitationCslProcessor::fromItems([[
+            'id' => 'smith1899',
+            'title' => 'Source Packet',
+            'author' => [['family' => 'Smith', 'given' => 'Ada']],
+            'issued' => ['date-parts' => [[1899]]],
+        ]]);
+        $processed = $processor->apply($result['document']);
+        $t->same('(Smith 1899)', $processed->children[0]->children[1]->attr('rendered'));
+        $t->same('[@missing-source]', $processed->children[0]->children[3]->attr('rendered'));
+        $t->same(['smith1899', 'missing-source'], $processor->citationIds($result['document']));
+        $t->same(['missing-source'], $processor->missingCitationIds($result['document']));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $processedBlocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('Source cites [@smith1899] and [@missing-source].', $markdown);
+        $t->contains('<p>Source cites [@smith1899] and [@missing-source].</p>', $blocksHtml);
+        $t->contains('<p>Source cites (Smith 1899) and [@missing-source].</p>', $processedBlocks);
     },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedSections = <<<'XML'
