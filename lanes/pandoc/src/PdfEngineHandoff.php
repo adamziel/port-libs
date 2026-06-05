@@ -254,6 +254,8 @@ final class PdfEngineHandoff
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
+     *     pdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
+     *     pdfFormFieldTypes: array<string, int>,
      *     pdfEncrypted: bool,
      *     pdfEncryptionFilter: string|null,
      *     pdfEncryptionVersion: int|null,
@@ -620,6 +622,8 @@ final class PdfEngineHandoff
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
+        $pdfFormFields = [];
+        $pdfFormFieldTypes = [];
         $pdfEncrypted = false;
         $pdfEncryptionFilter = null;
         $pdfEncryptionVersion = null;
@@ -644,6 +648,8 @@ final class PdfEngineHandoff
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
+                $pdfFormFields = $pdfInspection['formFields'];
+                $pdfFormFieldTypes = $pdfInspection['formFieldTypes'];
                 $pdfEncryption = $pdfInspection['encryption'];
                 $pdfEncrypted = $pdfEncryption['encrypted'];
                 $pdfEncryptionFilter = $pdfEncryption['filter'];
@@ -685,6 +691,12 @@ final class PdfEngineHandoff
                 }
                 if ($pdfEmbeddedFileNames !== []) {
                     $diagnostics[] = 'pdf-byte-embedded-files:' . count($pdfEmbeddedFileNames);
+                }
+                if ($pdfFormFields !== []) {
+                    $diagnostics[] = 'pdf-byte-form-fields:' . count($pdfFormFields);
+                }
+                if ($pdfFormFieldTypes !== []) {
+                    $diagnostics[] = 'pdf-byte-form-field-types:' . count($pdfFormFieldTypes);
                 }
                 if ($pdfEncrypted) {
                     $diagnostics[] = 'pdf-output-encrypted';
@@ -835,6 +847,8 @@ final class PdfEngineHandoff
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
+            'pdfFormFields' => $pdfFormFields,
+            'pdfFormFieldTypes' => $pdfFormFieldTypes,
             'pdfEncrypted' => $pdfEncrypted,
             'pdfEncryptionFilter' => $pdfEncryptionFilter,
             'pdfEncryptionVersion' => $pdfEncryptionVersion,
@@ -880,6 +894,8 @@ final class PdfEngineHandoff
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
+     *     finalPdfFormFields: list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
+     *     finalPdfFormFieldTypes: array<string, int>,
      *     finalPdfEncrypted: bool,
      *     finalPdfEncryptionFilter: string|null,
      *     finalPdfEncryptionVersion: int|null,
@@ -1039,6 +1055,8 @@ final class PdfEngineHandoff
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
+            'finalPdfFormFields' => is_array($finalRun) && is_array($finalRun['pdfFormFields'] ?? null) ? $finalRun['pdfFormFields'] : [],
+            'finalPdfFormFieldTypes' => is_array($finalRun) && is_array($finalRun['pdfFormFieldTypes'] ?? null) ? $finalRun['pdfFormFieldTypes'] : [],
             'finalPdfEncrypted' => is_array($finalRun) && ($finalRun['pdfEncrypted'] ?? false) === true,
             'finalPdfEncryptionFilter' => is_array($finalRun) && is_string($finalRun['pdfEncryptionFilter'] ?? null) ? $finalRun['pdfEncryptionFilter'] : null,
             'finalPdfEncryptionVersion' => is_array($finalRun) && is_int($finalRun['pdfEncryptionVersion'] ?? null) ? $finalRun['pdfEncryptionVersion'] : null,
@@ -2091,6 +2109,8 @@ final class PdfEngineHandoff
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
+     *     formFields:list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
+     *     formFieldTypes:array<string, int>,
      *     encryption:array{
      *         encrypted:bool,
      *         filter:string|null,
@@ -2106,6 +2126,7 @@ final class PdfEngineHandoff
     private function inspectPdfOutput(string $pdfBytes): array
     {
         $catalog = $this->extractPdfCatalogDictionary($pdfBytes);
+        $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
 
         return [
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
@@ -2119,6 +2140,8 @@ final class PdfEngineHandoff
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
             'embeddedFileNames' => $this->extractPdfEmbeddedFileNames($pdfBytes),
+            'formFields' => $formFields,
+            'formFieldTypes' => $this->summarizePdfFormFieldTypes($formFields),
             'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
         ];
     }
@@ -2889,6 +2912,294 @@ final class PdfEngineHandoff
         }
 
         return array_values(array_unique($names));
+    }
+
+    /**
+     * @return list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>
+     */
+    private function extractPdfFormFields(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $fieldBodies = [];
+        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
+
+        if ($acroForm !== null) {
+            foreach ($this->extractPdfReferenceArray($acroForm, 'Fields') as $reference) {
+                if (isset($objects[$reference])) {
+                    $fieldBodies[$reference] = $objects[$reference];
+                }
+            }
+        }
+
+        if ($fieldBodies === []) {
+            foreach ($this->pdfObjectBodies($pdfBytes) as $index => $body) {
+                if (!str_contains($body, '/FT') || !preg_match('/\/(?:T|TU|TM)\b/s', $body)) {
+                    continue;
+                }
+
+                $fieldBodies[(string) $index] = $body;
+            }
+        }
+
+        $fields = [];
+        foreach ($fieldBodies as $body) {
+            $field = $this->summarizePdfFormField($body);
+            if ($field === null) {
+                continue;
+            }
+
+            $fields[$field['name'] . "\0" . $field['type']] = $field;
+        }
+
+        $fields = array_values($fields);
+        usort($fields, static fn (array $a, array $b): int => [$a['name'], $a['type']] <=> [$b['name'], $b['type']]);
+
+        return $fields;
+    }
+
+    private function extractPdfAcroFormDictionary(string $pdfBytes, ?string $catalog): ?string
+    {
+        if ($catalog !== null) {
+            if (preg_match('/\/AcroForm\s+(\d+)\s+(\d+)\s+R\b/s', $catalog, $matches) === 1) {
+                $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+                $key = $matches[1] . ' ' . $matches[2];
+                if (isset($objects[$key])) {
+                    return $objects[$key];
+                }
+            }
+
+            $nested = $this->extractPdfNestedDictionary($catalog, 'AcroForm');
+            if ($nested !== null) {
+                return $nested;
+            }
+        }
+
+        foreach ($this->pdfObjectBodies($pdfBytes) as $body) {
+            if (
+                str_contains($body, '/Fields')
+                && (
+                    str_contains($body, '/NeedAppearances')
+                    || str_contains($body, '/SigFlags')
+                    || str_contains($body, '/DR')
+                )
+            ) {
+                return $body;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfReferenceArray(string $dictionary, string $name): array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, $name);
+        if ($array === null || preg_match_all('/\b(\d+)\s+(\d+)\s+R\b/s', $array, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($matches as $match) {
+            $references[] = $match[1] . ' ' . $match[2];
+        }
+
+        return array_values(array_unique($references));
+    }
+
+    /**
+     * @return array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}|null
+     */
+    private function summarizePdfFormField(string $fieldDictionary): ?array
+    {
+        $type = $this->extractPdfNameToken($fieldDictionary, 'FT') ?? 'unknown';
+        $name = $this->extractPdfStringOrNameValue($fieldDictionary, 'T');
+        if ($name === null) {
+            $name = $this->extractPdfStringOrNameValue($fieldDictionary, 'TU')
+                ?? $this->extractPdfStringOrNameValue($fieldDictionary, 'TM');
+        }
+        if ($name === null || $name === '') {
+            return null;
+        }
+
+        $flags = $this->extractPdfIntegerToken($fieldDictionary, 'Ff') ?? 0;
+
+        return [
+            'name' => $name,
+            'type' => $type,
+            'typeLabel' => $this->pdfFormFieldTypeLabel($type),
+            'alternateName' => $this->extractPdfStringOrNameValue($fieldDictionary, 'TU'),
+            'mappingName' => $this->extractPdfStringOrNameValue($fieldDictionary, 'TM'),
+            'value' => $this->extractPdfStringOrNameValue($fieldDictionary, 'V'),
+            'defaultValue' => $this->extractPdfStringOrNameValue($fieldDictionary, 'DV'),
+            'flags' => $flags,
+            'flagNames' => $this->pdfFormFieldFlagNames($type, $flags),
+            'options' => $this->extractPdfStringArrayValue($fieldDictionary, 'Opt'),
+        ];
+    }
+
+    private function pdfFormFieldTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'Btn' => 'button',
+            'Ch' => 'choice',
+            'Sig' => 'signature',
+            'Tx' => 'text',
+            default => $type === '' ? 'unknown' : $type,
+        };
+    }
+
+    /**
+     * @param list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}> $fields
+     * @return array<string, int>
+     */
+    private function summarizePdfFormFieldTypes(array $fields): array
+    {
+        $types = [];
+        foreach ($fields as $field) {
+            $label = $field['typeLabel'];
+            $types[$label] = ($types[$label] ?? 0) + 1;
+        }
+
+        ksort($types);
+
+        return $types;
+    }
+
+    private function extractPdfStringOrNameValue(string $dictionary, string $name): ?string
+    {
+        foreach ($this->extractPdfNamedStrings($dictionary, $name) as $value) {
+            $value = trim($value);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        $value = $this->extractPdfNameToken($dictionary, $name);
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfStringArrayValue(string $dictionary, string $name): array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, $name);
+        if ($array === null) {
+            return [];
+        }
+
+        $values = [];
+        $cursor = 0;
+        $length = strlen($array);
+        while ($cursor < $length) {
+            $parsed = null;
+            if ($array[$cursor] === '(') {
+                $parsed = $this->parsePdfLiteralString($array, $cursor);
+            } elseif (
+                $array[$cursor] === '<'
+                && ($cursor + 1 >= $length || $array[$cursor + 1] !== '<')
+            ) {
+                $parsed = $this->parsePdfHexString($array, $cursor);
+            }
+
+            if ($parsed !== null) {
+                $value = trim($parsed['value']);
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+                $cursor = $parsed['next'];
+                continue;
+            }
+
+            $cursor++;
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    private function extractPdfArrayValue(string $dictionary, string $name): ?string
+    {
+        $needle = '/' . $name;
+        $offset = 0;
+        $length = strlen($dictionary);
+        while (($position = strpos($dictionary, $needle, $offset)) !== false) {
+            $cursor = $position + strlen($needle);
+            if ($cursor < $length && preg_match('/[A-Za-z0-9_.-]/', $dictionary[$cursor]) === 1) {
+                $offset = $cursor;
+                continue;
+            }
+            while ($cursor < $length && ctype_space($dictionary[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor >= $length || $dictionary[$cursor] !== '[') {
+                $offset = $cursor + 1;
+                continue;
+            }
+
+            $parsed = $this->parsePdfArray($dictionary, $cursor);
+            if ($parsed !== null) {
+                return $parsed['value'];
+            }
+
+            $offset = $cursor + 1;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfFormFieldFlagNames(string $type, int $flags): array
+    {
+        if ($flags === 0) {
+            return [];
+        }
+
+        $definitions = [
+            0x000001 => 'readOnly',
+            0x000002 => 'required',
+            0x000004 => 'noExport',
+        ];
+        if ($type === 'Btn') {
+            $definitions += [
+                0x004000 => 'noToggleToOff',
+                0x008000 => 'radio',
+                0x010000 => 'pushbutton',
+                0x2000000 => 'radiosInUnison',
+            ];
+        } elseif ($type === 'Tx') {
+            $definitions += [
+                0x001000 => 'multiline',
+                0x002000 => 'password',
+                0x100000 => 'fileSelect',
+                0x400000 => 'doNotSpellCheck',
+                0x800000 => 'doNotScroll',
+                0x1000000 => 'comb',
+                0x2000000 => 'richText',
+            ];
+        } elseif ($type === 'Ch') {
+            $definitions += [
+                0x020000 => 'combo',
+                0x040000 => 'edit',
+                0x080000 => 'sort',
+                0x200000 => 'multiSelect',
+                0x400000 => 'doNotSpellCheck',
+                0x4000000 => 'commitOnSelChange',
+            ];
+        }
+
+        $names = [];
+        foreach ($definitions as $bit => $name) {
+            if (($flags & $bit) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
     }
 
     /**

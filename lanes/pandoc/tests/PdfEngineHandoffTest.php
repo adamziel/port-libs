@@ -859,6 +859,98 @@ MARKDOWN);
         $t->same(['review-assets.zip'], $sequence['finalPdfEmbeddedFileNames']);
     },
 
+    'fake runner extracts bounded pdf acroform field metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 6 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /TU (Reviewer name) /TM (reviewer_name) /V <FEFF004D006900670072006100740069006F006E0020004400650073006B> /DV () /Ff 4098 >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (approved) /V /Yes /DV /Off /Ff 2 >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Ch /T (routing.queue) /V (Archive) /Opt [(Migration) (Archive)] /Ff 131072 >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /NeedAppearances true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/forms.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/forms.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['button' => 1, 'choice' => 1, 'text' => 1], $result['pdfFormFieldTypes']);
+        $t->same([
+            [
+                'name' => 'approved',
+                'type' => 'Btn',
+                'typeLabel' => 'button',
+                'alternateName' => null,
+                'mappingName' => null,
+                'value' => 'Yes',
+                'defaultValue' => 'Off',
+                'flags' => 2,
+                'flagNames' => ['required'],
+                'options' => [],
+            ],
+            [
+                'name' => 'reviewer.name',
+                'type' => 'Tx',
+                'typeLabel' => 'text',
+                'alternateName' => 'Reviewer name',
+                'mappingName' => 'reviewer_name',
+                'value' => 'Migration Desk',
+                'defaultValue' => null,
+                'flags' => 4098,
+                'flagNames' => ['required', 'multiline'],
+                'options' => [],
+            ],
+            [
+                'name' => 'routing.queue',
+                'type' => 'Ch',
+                'typeLabel' => 'choice',
+                'alternateName' => null,
+                'mappingName' => null,
+                'value' => 'Archive',
+                'defaultValue' => null,
+                'flags' => 131072,
+                'flagNames' => ['combo'],
+                'options' => ['Migration', 'Archive'],
+            ],
+        ], $result['pdfFormFields']);
+        $t->contains('pdf-byte-form-fields:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-types:3', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($result['pdfFormFields'], $sequence['finalPdfFormFields']);
+        $t->same($result['pdfFormFieldTypes'], $sequence['finalPdfFormFieldTypes']);
+    },
+
     'fake runner flags encrypted pdf output permission dictionaries without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/protected.pdf']);
