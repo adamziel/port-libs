@@ -1861,4 +1861,54 @@ return [
         $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encodedReview, $payload));
     },
+    'keeps RunLength literal EOD bytes from closing CCITT prefix streams early' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before RunLength CCITT prefix) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After RunLength CCITT prefix) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (RL CCITT leak) Tj ET';
+        $ccittEofb = "\x00\x10\x01";
+        $literal = "\x80\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\x00{$ccittEofb}";
+        $literalLength = strlen($literal);
+        if ($literalLength > 128) {
+            throw new RuntimeException('Focused RunLength CCITT fixture literal must fit one literal packet.');
+        }
+        $runLengthPayload = chr($literalLength - 1) . $literal . chr(128);
+        $staleTerminatorOffset = strpos($runLengthPayload, "\nendstream\n");
+        if ($staleTerminatorOffset === false) {
+            throw new RuntimeException('Focused RunLength CCITT fixture must expose a stale endstream marker.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxRunLength 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/RunLengthDecode /CCITTFaxDecode] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length {$staleTerminatorOffset} >>\nstream\n{$runLengthPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before RunLength CCITT prefix', 'After RunLength CCITT prefix'], $extractor->extractTextLines($pdf));
+        $t->same("Before RunLength CCITT prefix\nAfter RunLength CCITT prefix", $plainText);
+        $t->true(!str_contains($plainText, 'RL CCITT leak'));
+        $t->true(!str_contains($plainText, 'endstream'));
+        $t->same(['RunLengthDecode', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+        $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(strlen($runLengthPayload), $entry['raw_length'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(['RunLengthDecode'], $entry['ccitt_fax_filter_boundary']['native_prefix_filters'] ?? null);
+        $t->same(-1, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+        $t->same('eofb', $entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, 'RL CCITT leak'));
+        $t->true(!str_contains($encodedReview, $runLengthPayload));
+    },
 ];

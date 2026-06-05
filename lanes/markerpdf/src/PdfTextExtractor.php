@@ -10555,12 +10555,7 @@ final class PdfTextExtractor
             );
         }
 
-        $payloadEnd = match ($firstFilter) {
-            'ASCIIHexDecode', 'AHx' => $this->firstFilterEndMarkerOffset($value, $streamStart, '>'),
-            'ASCII85Decode', 'A85' => $this->firstFilterEndMarkerOffset($value, $streamStart, '~>'),
-            'RunLengthDecode', 'RL' => $this->firstFilterEndMarkerOffset($value, $streamStart, chr(128)),
-            default => null,
-        };
+        $payloadEnd = $this->firstFilterEndByteOffset($value, $streamStart, $firstFilter);
 
         if ($payloadEnd !== null) {
             $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
@@ -10758,6 +10753,25 @@ final class PdfTextExtractor
     {
         $offset = strpos($value, $marker, $streamStart);
         return $offset === false ? null : $offset + strlen($marker);
+    }
+
+    private function firstFilterEndByteOffset(string $value, int $streamStart, string $filter): ?int
+    {
+        if ($filter === 'ASCIIHexDecode' || $filter === 'AHx') {
+            return $this->firstFilterEndMarkerOffset($value, $streamStart, '>');
+        }
+
+        if ($filter === 'ASCII85Decode' || $filter === 'A85') {
+            return $this->firstFilterEndMarkerOffset($value, $streamStart, '~>');
+        }
+
+        if ($filter === 'RunLengthDecode' || $filter === 'RL') {
+            $offset = $this->runLengthExplicitEndOffset(substr($value, $streamStart));
+
+            return $offset === null ? null : $streamStart + $offset + 1;
+        }
+
+        return null;
     }
 
     /**
