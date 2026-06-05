@@ -5832,7 +5832,7 @@ final class PdfMetadataExtractor
      */
     private function encryptedPermissionValidationMetadata(string $dictionary, array $objects): ?array
     {
-        $value = $this->dictionaryRawValue($dictionary, 'Perms');
+        $value = $this->dictionaryTopLevelRawValue($dictionary, 'Perms');
         if ($value === null) {
             return null;
         }
@@ -5991,7 +5991,7 @@ final class PdfMetadataExtractor
         ?int $expectedBytes,
         bool $required
     ): array {
-        $value = $this->dictionaryRawValue($dictionary, $pdfName);
+        $value = $this->dictionaryTopLevelRawValue($dictionary, $pdfName);
         $bytes = $value === null ? null : $this->pdfStringBytesFromValue($value, $objects);
         $length = $bytes === null ? null : strlen($bytes);
         $lengthValid = $length !== null && $expectedBytes !== null ? $length === $expectedBytes : ($length === null ? null : true);
