@@ -65,7 +65,7 @@ final class OpcContentTypes
 
     public function addOverride(string $partName, string $contentType): void
     {
-        $partName = OpcPackagePath::canonicalPartName($partName);
+        $partName = OpcPackagePath::canonicalPartNameFromUri($partName);
         self::assertContentType($contentType);
 
         if (isset($this->overrides[$partName])) {
@@ -77,7 +77,7 @@ final class OpcContentTypes
 
     public function contentTypeForPart(string $partName): ?string
     {
-        $partName = OpcPackagePath::canonicalPartName(OpcPackagePath::stripQueryAndFragment($partName));
+        $partName = OpcPackagePath::canonicalPartNameFromUri(OpcPackagePath::stripQueryAndFragment($partName));
         if (isset($this->overrides[$partName])) {
             return $this->overrides[$partName];
         }
@@ -130,7 +130,7 @@ final class OpcContentTypes
 
         foreach ($this->overrides as $partName => $contentType) {
             $override = $dom->createElementNS(self::NAMESPACE_URI, 'Override');
-            $override->setAttribute('PartName', $partName);
+            $override->setAttribute('PartName', OpcPackagePath::partNameToUri($partName));
             $override->setAttribute('ContentType', $contentType);
             $root->appendChild($override);
         }

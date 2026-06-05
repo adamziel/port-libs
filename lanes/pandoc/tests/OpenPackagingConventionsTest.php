@@ -85,6 +85,73 @@ return [
             '/docProps/core.xml' => 'application/vnd.openxmlformats-package.core-properties+xml',
         ], $roundTrip->overrides());
     },
+    'normalizes percent encoded OPC content type override part names' => static function (TestRunner $t): void {
+        $encodedContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/media/source%20diagram.svg" ContentType="image/svg+xml; role=reviewer"/>
+  <Override PartName="/customXml/%C3%A9preuve.xml" ContentType="application/xml; role=reviewer"/>
+</Types>
+XML;
+
+        $types = OpcContentTypes::fromXml($encodedContentTypesXml);
+        $utf8Name = "\u{00E9}" . 'preuve.xml';
+
+        $t->same('image/svg+xml; role=reviewer', $types->contentTypeForPart('/word/media/source diagram.svg'));
+        $t->same('image/svg+xml; role=reviewer', $types->contentTypeForPart('/word/media/source%20diagram.svg'));
+        $t->same('application/xml; role=reviewer', $types->contentTypeForPart('/customXml/' . $utf8Name));
+        $t->same([
+            '/word/document.xml' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            '/word/media/source diagram.svg' => 'image/svg+xml; role=reviewer',
+            '/customXml/' . $utf8Name => 'application/xml; role=reviewer',
+        ], $types->overrides());
+
+        $xml = $types->toXml();
+        $t->contains('PartName="/word/media/source%20diagram.svg"', $xml);
+        $t->contains('PartName="/customXml/%C3%A9preuve.xml"', $xml);
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDiagram" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source%20diagram.svg"/>
+  <Relationship Id="rIdReviewXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/%C3%A9preuve.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $encodedContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/source diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
+            ['name' => 'customXml/' . $utf8Name, 'data' => '<audit/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('/word/media/source diagram.svg', $preflight['rIdDiagram']['target']);
+        $t->same('image/svg+xml; role=reviewer', $preflight['rIdDiagram']['contentType']);
+        $t->same(true, $preflight['rIdDiagram']['valid']);
+        $t->same('/customXml/' . $utf8Name, $preflight['rIdReviewXml']['target']);
+        $t->same('application/xml; role=reviewer', $preflight['rIdReviewXml']['contentType']);
+        $t->same(true, $preflight['rIdReviewXml']['valid']);
+
+        foreach ([
+            '/word/media/source%2Fdiagram.svg',
+            '/word/media/source%5Cdiagram.svg',
+            '/word/media/source%00diagram.svg',
+            '/word/media/source%ZZdiagram.svg',
+            '/word/media/source%20diagram.svg?variant=review',
+            '/word/media/source%20diagram.svg#review',
+        ] as $partName) {
+            $badXml = '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="' . $partName . '" ContentType="application/xml"/></Types>';
+            $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($badXml));
+        }
+    },
     'validates OPC content type media type grammar including parameters' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('xml', 'application/xml');

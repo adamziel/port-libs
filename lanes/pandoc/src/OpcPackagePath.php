@@ -49,6 +49,40 @@ final class OpcPackagePath
         return '/' . implode('/', $segments);
     }
 
+    public static function canonicalPartNameFromUri(string $partName, bool $allowRoot = false): string
+    {
+        if ($partName === '') {
+            throw new \InvalidArgumentException('OPC part name must not be empty');
+        }
+
+        if (str_contains($partName, '?') || str_contains($partName, '#')) {
+            throw new \InvalidArgumentException('OPC part names must not include URI query or fragment components');
+        }
+
+        if (str_contains($partName, "\0") || str_contains($partName, '\\')) {
+            throw new \InvalidArgumentException('OPC part names must use slash-separated package paths');
+        }
+
+        $path = str_starts_with($partName, '/') ? $partName : '/' . $partName;
+
+        return self::canonicalPartName(self::decodeUriPath($path, 'OPC part name'), $allowRoot);
+    }
+
+    public static function partNameToUri(string $partName, bool $allowRoot = false): string
+    {
+        $partName = self::canonicalPartName($partName, $allowRoot);
+        if ($partName === '/') {
+            return '/';
+        }
+
+        $segments = array_map(
+            static fn (string $segment): string => rawurlencode($segment),
+            explode('/', ltrim($partName, '/')),
+        );
+
+        return '/' . implode('/', $segments);
+    }
+
     public static function resolveInternalTarget(string $sourcePartName, string $target): string
     {
         if ($target === '') {
