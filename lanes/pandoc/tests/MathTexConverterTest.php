@@ -136,6 +136,21 @@ return [
         $t->contains('<mo fence="true" stretchy="true">{</mo><mi>a</mi><mo fence="true" stretchy="true">}</mo>', $fencedMathml);
         $t->contains('<mi>x</mi><msubsup><mo fence="true" stretchy="true">|</mo><mn>0</mn><mn>1</mn></msubsup>', $invisibleFenceMathml);
     },
+    'converts bounded tex sized delimiter commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $sizedMathml = $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\big|x\\big|', true);
+        $middleMathml = $converter->texToMathMl('\\left\\{x \\bigm| x \\in S\\right\\} + \\Bigg/ y \\Bigg/');
+        $invisibleMathml = $converter->texToMathMl('\\big. x \\Biggr]');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><msub><mi>p</mi><mi>i</mi></msub><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo>', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⟨</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⟩</mo>', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">|</mo><mi>x</mi><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">|</mo>', $sizedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\big|x\\big|</annotation>', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><mi>x</mi><mo fence="true" stretchy="true" separator="true" minsize="1.2em" maxsize="1.2em">|</mo><mi>x</mi><mo>∈</mo><mi>S</mi><mo fence="true" stretchy="true">}</mo>', $middleMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="3em" maxsize="3em">/</mo><mi>y</mi><mo fence="true" stretchy="true" minsize="3em" maxsize="3em">/</mo>', $middleMathml);
+        $t->contains('<mi>x</mi><mo fence="true" stretchy="true" minsize="3em" maxsize="3em">]</mo>', $invisibleMathml);
+    },
     'converts bounded tex large operators functions and operator names to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $operatorMathml = $converter->texToMathMl('\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\int_{0}^{1} f(x) dx', true);
@@ -389,6 +404,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a \\\\ }'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\big'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\big\\unknown{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\Bigg a'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\hat'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\vec_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underline^2'));

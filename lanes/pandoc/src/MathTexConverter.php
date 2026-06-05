@@ -154,6 +154,26 @@ final class MathTexConverter
         'Vert' => '‖',
     ];
 
+    /** @var array<string, array{size: string, separator?: bool}> */
+    private const SIZED_DELIMITER_COMMANDS = [
+        'big' => ['size' => '1.2em'],
+        'bigl' => ['size' => '1.2em'],
+        'bigr' => ['size' => '1.2em'],
+        'bigm' => ['size' => '1.2em', 'separator' => true],
+        'Big' => ['size' => '1.8em'],
+        'Bigl' => ['size' => '1.8em'],
+        'Bigr' => ['size' => '1.8em'],
+        'Bigm' => ['size' => '1.8em', 'separator' => true],
+        'bigg' => ['size' => '2.4em'],
+        'biggl' => ['size' => '2.4em'],
+        'biggr' => ['size' => '2.4em'],
+        'biggm' => ['size' => '2.4em', 'separator' => true],
+        'Bigg' => ['size' => '3em'],
+        'Biggl' => ['size' => '3em'],
+        'Biggr' => ['size' => '3em'],
+        'Biggm' => ['size' => '3em', 'separator' => true],
+    ];
+
     /** @var array<string, array{open?: string, close?: string, columnalign?: string}> */
     private const MATRIX_ENVIRONMENTS = [
         'aligned' => ['columnalign' => 'right left'],
@@ -638,6 +658,10 @@ final class MathTexConverter
 
         if ($command === 'left' || $command === 'right') {
             return $this->parseFenceCommand($source, $offset);
+        }
+
+        if (isset(self::SIZED_DELIMITER_COMMANDS[$command])) {
+            return $this->parseSizedDelimiterCommand($source, $offset, $command);
         }
 
         if (isset(self::OVER_ACCENT_COMMANDS[$command])) {
@@ -1251,6 +1275,23 @@ final class MathTexConverter
         }
 
         return '<mo fence="true" stretchy="true">' . $this->esc($delimiter) . '</mo>';
+    }
+
+    private function parseSizedDelimiterCommand(string $source, int &$offset, string $command): string
+    {
+        $delimiter = $this->readFenceDelimiter($source, $offset);
+        if ($delimiter === '') {
+            return '';
+        }
+
+        $spec = self::SIZED_DELIMITER_COMMANDS[$command];
+        $attributes = ' fence="true" stretchy="true"';
+        if (($spec['separator'] ?? false) === true) {
+            $attributes .= ' separator="true"';
+        }
+        $attributes .= ' minsize="' . $this->esc($spec['size']) . '" maxsize="' . $this->esc($spec['size']) . '"';
+
+        return '<mo' . $attributes . '>' . $this->esc($delimiter) . '</mo>';
     }
 
     private function parseStyleCommand(string $source, int &$offset, string $command): string
