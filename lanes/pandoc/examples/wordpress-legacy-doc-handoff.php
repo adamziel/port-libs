@@ -178,7 +178,8 @@ $streams = [
         19 => $typedI4(0x00000002),
     ]),
     "\x05DocumentSummaryInformation" => $typedPropertySet([
-        2 => $typedLpstr('Data Liberation import queue'),
+        1 => $typedI2(65001),
+        2 => $typedLpstr('Data Liberation import queue - legacy обзор'),
         5 => $typedI4(2),
         6 => $typedI4(2),
         11 => $typedBool(false),
@@ -356,6 +357,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['pageCount'] ?? null) !== 2 || ($summary['metadata']['wordCount'] ?? null) !== 12) {
         throw new RuntimeException('Legacy DOC handoff self-test missing SummaryInformation counts');
+    }
+    if (($summary['metadata']['category'] ?? '') !== 'Data Liberation import queue - legacy обзор') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing codepage-decoded review category');
     }
     if (($summary['metadata']['documentSecurityFlags'] ?? []) !== ['readOnlyRecommended']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing document security flags');

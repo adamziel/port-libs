@@ -282,6 +282,12 @@ $typedLpstr = static function (string $value): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$typedLpstrBytes = static function (string $bytes): string {
+    $bytes .= "\0";
+    $raw = pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedLpwstr = static function (string $value) use ($utf16le): string {
     $bytes = $utf16le($value . "\0");
     $raw = pack('v', 0x001f) . "\0\0" . pack('V', intdiv(strlen($bytes), 2)) . $bytes;
@@ -553,6 +559,34 @@ return [
         $t->same(3, $metadata['documentSecurity']);
         $t->same(['passwordProtected', 'readOnlyRecommended'], $metadata['documentSecurityFlags']);
         $t->same('Unicode Legacy Packet Ω', $result['document']->attr('meta')['title']);
+    },
+    'decodes legacy DOC LPSTR metadata using the property-set code page' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstrBytes, $typedI2): void {
+        $titleBytes = hex2bin('c8ecefeef0f220eef2e7fbe2eee2');
+        $creatorBytes = hex2bin('d0e5e4e0eaf2eef0');
+        if (!is_string($titleBytes) || !is_string($creatorBytes)) {
+            throw new RuntimeException('Unable to build Windows-1251 metadata fixture');
+        }
+
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Codepage metadata review packet\r"),
+            "\x05SummaryInformation" => $typedPropertySet([
+                1 => $typedI2(1251),
+                2 => $typedLpstrBytes($titleBytes),
+                4 => $typedLpstrBytes($creatorBytes),
+            ]),
+            "\x05DocumentSummaryInformation" => $typedPropertySet([
+                1 => $typedI2(65001),
+                2 => $typedLpstrBytes('Очередь импорта'),
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same('Импорт отзывов', $metadata['title']);
+        $t->same('Редактор', $metadata['creator']);
+        $t->same('Очередь импорта', $metadata['category']);
+        $t->same('Импорт отзывов', $result['document']->attr('meta')['title']);
     },
     'extracts legacy DOC DocumentSummaryInformation counters and booleans' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $typedI4, $typedBool): void {
         $docBytes = $buildCfb([
