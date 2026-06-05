@@ -1564,6 +1564,137 @@ XML
 XML
         ));
     },
+    'applies bounded csl name-part formatting for family and given names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'name-part-source',
+                'type' => 'report',
+                'title' => 'Name Part Source',
+                'author' => [
+                    [
+                        'family' => 'Cruz',
+                        'given' => 'Ana Maria',
+                        'non-dropping-particle' => 'de la',
+                        'suffix' => 'Jr.',
+                        'comma-suffix' => true,
+                    ],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+            ],
+            [
+                'id' => 'given-only-source',
+                'type' => 'report',
+                'title' => 'Given Only Source',
+                'author' => [
+                    ['given' => 'Single Name'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'literal-source',
+                'type' => 'webpage',
+                'title' => 'Literal Source',
+                'author' => [
+                    ['literal' => 'Review Desk Inc.'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Part Review Style</title>
+    <id>https://example.test/styles/bounded-name-part-review</id>
+    <updated>2026-06-05T06:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", ">
+          <name initialize-with=". ">
+            <name-part name="family" text-case="uppercase"/>
+            <name-part name="given" prefix="[" suffix="]" strip-periods="true" text-case="uppercase"/>
+          </name>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <names variable="author" delimiter="; ">
+          <name initialize-with=". " name-as-sort-order="all">
+            <name-part name="family" text-case="uppercase"/>
+            <name-part name="given" prefix="given " strip-periods="true"/>
+          </name>
+        </names>
+        <text variable="title"/>
+        <text variable="publisher"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationNameParts = $summary['citationRendering'][0]['children'][0]['nameRendering']['nameParts'] ?? [];
+        $bibliographyNameParts = $summary['bibliographyRendering'][0]['children'][0]['nameRendering']['nameParts'] ?? [];
+        $t->same('Bounded Name Part Review Style', $summary['title'] ?? null);
+        $t->same('uppercase', $citationNameParts['family']['textCase'] ?? null);
+        $t->same('[', $citationNameParts['given']['prefix'] ?? null);
+        $t->same(']', $citationNameParts['given']['suffix'] ?? null);
+        $t->same(true, $citationNameParts['given']['stripPeriods'] ?? null);
+        $t->same('given ', $bibliographyNameParts['given']['prefix'] ?? null);
+        $t->same('uppercase', $summary['nameRendering']['citation']['nameParts']['family']['textCase'] ?? null);
+
+        $t->same('(DE LA CRUZ 2026; [S N] 2025; Review Desk Inc. 2024)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'name-part-source', 'text' => '[@name-part-source]']),
+            new AstNode('citation', ['id' => 'given-only-source', 'text' => '[@given-only-source]']),
+            new AstNode('citation', ['id' => 'literal-source', 'text' => '[@literal-source]']),
+        ]));
+        $t->same('DE LA CRUZ, given A M, Jr. Name Part Source. Review Press.', $processor->renderBibliographyEntry('name-part-source'));
+        $t->same('given S N. Given Only Source.', $processor->renderBibliographyEntry('given-only-source'));
+        $t->same('Review Desk Inc. Literal Source.', $processor->renderBibliographyEntry('literal-source'));
+
+        $document = (new MarkdownReader())->read('Name part source @name-part-source, given-only [@given-only-source], and literal @literal-source.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Name part source DE LA CRUZ (2026), given-only ([S N] 2025), and literal Review Desk Inc. (2024).</p>', $blocks);
+        $t->contains('<dt>DE LA CRUZ 2026</dt><dd>DE LA CRUZ, given A M, Jr. Name Part Source. Review Press.</dd>', $blocks);
+        $t->contains('<dt>[S N] 2025</dt><dd>given S N. Given Only Source.</dd>', $blocks);
+        $t->contains('<dt>Review Desk Inc. 2024</dt><dd>Review Desk Inc. Literal Source.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <names variable="author"><name><name-part name="suffix"/></name></names>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <names variable="author"><name><name-part name="family"/><name-part name="family"/></name></names>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

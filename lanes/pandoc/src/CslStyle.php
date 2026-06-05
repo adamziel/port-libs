@@ -51,7 +51,7 @@ final class CslStyle
         'long-ordinal-10|long' => ['single' => 'tenth', 'multiple' => 'tenth'],
     ];
 
-    /** @var array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} */
+    /** @var array{citation:array<string, mixed>, bibliography:array<string, mixed>} */
     private const DEFAULT_NAME_RENDERING = [
         'citation' => [
             'delimiter' => ', ',
@@ -60,6 +60,7 @@ final class CslStyle
             'etAlUseFirst' => 1,
             'initializeWith' => null,
             'nameAsSortOrder' => 'first',
+            'nameParts' => [],
         ],
         'bibliography' => [
             'delimiter' => '; ',
@@ -68,6 +69,7 @@ final class CslStyle
             'etAlUseFirst' => 1,
             'initializeWith' => null,
             'nameAsSortOrder' => 'all',
+            'nameParts' => [],
         ],
     ];
 
@@ -80,7 +82,7 @@ final class CslStyle
      * @param list<array<string, mixed>> $citationRenderingElements
      * @param list<array<string, mixed>> $bibliographyRenderingElements
      * @param array<string, list<array<string, mixed>>> $macros
-     * @param array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} $nameRendering
+     * @param array{citation:array<string, mixed>, bibliography:array<string, mixed>} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
      */
@@ -320,7 +322,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     * @return array<string, mixed>
      */
     public function citationNameRendering(): array
     {
@@ -328,7 +330,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     * @return array<string, mixed>
      */
     public function bibliographyNameRendering(): array
     {
@@ -341,7 +343,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -502,7 +504,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     * @return array<string, mixed>
      */
     private static function nameRenderingOptions(\DOMElement $layout, string $scope): array
     {
@@ -515,7 +517,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     * @return array<string, mixed>
      */
     private static function nameRenderingOptionsFromNames(\DOMElement $names, string $scope): array
     {
@@ -529,7 +531,7 @@ final class CslStyle
      * @param list<array<string, mixed>> $elements
      * @param array<string, list<array<string, mixed>>> $macros
      * @param list<string> $stack
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}|null
+     * @return array<string, mixed>|null
      */
     private static function nameRenderingOptionsForRenderingElements(array $elements, string $scope, array $macros, array $stack = []): ?array
     {
@@ -602,9 +604,9 @@ final class CslStyle
     }
 
     /**
-     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $defaults
+     * @param array<string, mixed> $defaults
      * @param array<string, mixed> $overrides
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     * @return array<string, mixed>
      */
     private static function mergeNameRenderingOptions(array $defaults, array $overrides): array
     {
@@ -615,11 +617,12 @@ final class CslStyle
             'etAlUseFirst' => is_int($overrides['etAlUseFirst'] ?? null) ? $overrides['etAlUseFirst'] : $defaults['etAlUseFirst'],
             'initializeWith' => is_string($overrides['initializeWith'] ?? null) ? $overrides['initializeWith'] : $defaults['initializeWith'],
             'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+            'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
         ];
     }
 
     /**
-     * @return array{delimiter?:string, and?:string, etAlMin?:int, etAlUseFirst?:int, initializeWith?:string, nameAsSortOrder?:string}
+     * @return array<string, mixed>
      */
     private static function nameRenderingOverridesFromNames(\DOMElement $names, string $scope): array
     {
@@ -658,8 +661,42 @@ final class CslStyle
         if ($name instanceof \DOMElement && $name->hasAttribute('initialize-with')) {
             $overrides['initializeWith'] = $name->getAttribute('initialize-with');
         }
+        if ($name instanceof \DOMElement) {
+            $nameParts = self::namePartRenderingOptions($name, $scope);
+            if ($nameParts !== []) {
+                $overrides['nameParts'] = $nameParts;
+            }
+        }
 
         return $overrides;
+    }
+
+    /**
+     * @return array<string, array{prefix:string, suffix:string, textCase:string, stripPeriods:bool, quotes:bool}>
+     */
+    private static function namePartRenderingOptions(\DOMElement $name, string $scope): array
+    {
+        $parts = [];
+        foreach (self::directChildren($name, 'name-part') as $namePart) {
+            $partName = strtolower(trim($namePart->getAttribute('name')));
+            if (!in_array($partName, ['family', 'given'], true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' name-part name must be family or given');
+            }
+
+            if (array_key_exists($partName, $parts)) {
+                throw new \InvalidArgumentException('Duplicate CSL ' . $scope . ' name-part formatter: ' . $partName);
+            }
+
+            $parts[$partName] = [
+                'prefix' => self::optionalAttribute($namePart, 'prefix'),
+                'suffix' => self::optionalAttribute($namePart, 'suffix'),
+                'textCase' => self::textCaseAttribute($namePart, $scope),
+                'stripPeriods' => self::booleanRenderingAttribute($namePart, 'strip-periods', false, $scope),
+                'quotes' => self::booleanRenderingAttribute($namePart, 'quotes', false, $scope),
+            ];
+        }
+
+        return $parts;
     }
 
     private static function optionalNameAttribute(?\DOMElement $name, \DOMElement $names, string $attribute): ?string

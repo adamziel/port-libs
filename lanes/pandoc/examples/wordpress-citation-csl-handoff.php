@@ -25,6 +25,8 @@ The title-case style reviews @title-case-source source titles.
 
 The quoted style checks @quoted-source title punctuation.
 
+The name-part style checks @name-part-source reviewer names.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -100,6 +102,16 @@ $cslJson = <<<'JSON'
       {"literal": "Quote Desk"}
     ],
     "issued": {"date-parts": [[2026, 6, 3]]},
+    "publisher": "Review Press"
+  },
+  {
+    "id": "name-part-source",
+    "type": "manuscript",
+    "title": "Name Part Packet",
+    "author": [
+      {"family": "Cruz", "given": "Ana Maria", "non-dropping-particle": "de la", "suffix": "Jr.", "comma-suffix": true}
+    ],
+    "issued": {"date-parts": [[1998]]},
     "publisher": "Review Press"
   },
   {
@@ -185,6 +197,18 @@ $cslStyleXml = <<<'XML'
   <macro name="review-quoted-title">
     <text variable="title" quotes="true" strip-periods="true" text-case="title"/>
   </macro>
+  <macro name="review-name-part-bibliography-entry">
+    <group delimiter=". " suffix=".">
+      <names variable="author editor" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all">
+          <name-part name="family" text-case="uppercase"/>
+          <name-part name="given" prefix="given " strip-periods="true"/>
+        </name>
+      </names>
+      <text variable="title"/>
+      <text macro="review-publication"/>
+    </group>
+  </macro>
   <macro name="review-source-locator">
     <choose>
       <if variable="DOI" match="any">
@@ -241,7 +265,14 @@ $cslStyleXml = <<<'XML'
       <key variable="title"/>
     </sort>
     <layout prefix="[" suffix="]" delimiter=" ">
-      <text macro="review-bibliography-entry"/>
+      <choose>
+        <if type="manuscript" match="any">
+          <text macro="review-name-part-bibliography-entry"/>
+        </if>
+        <else>
+          <text macro="review-bibliography-entry"/>
+        </else>
+      </choose>
     </layout>
   </bibliography>
 </style>
@@ -281,11 +312,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['macros']['review-quoted-title'][0]['stripPeriods'] ?? null) !== true) {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the strip-periods transform');
     }
+    $namePartFormatting = $summary['macros']['review-name-part-bibliography-entry'][0]['children'][0]['nameRendering']['nameParts'] ?? [];
+    if (($namePartFormatting['family']['textCase'] ?? null) !== 'uppercase') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve family name-part casing');
+    }
+    if (($namePartFormatting['given']['prefix'] ?? null) !== 'given ') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve given name-part prefix');
+    }
+    if (($namePartFormatting['given']['stripPeriods'] ?? null) !== true) {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve given name-part strip-periods');
+    }
     if (($summary['macros']['review-bibliography-entry'][0]['children'][1]['branches'][0]['types'][0] ?? null) !== 'dataset') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the quoted dataset branch');
     }
-    if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
-        throw new RuntimeException('Citation CSL handoff self-test did not preserve the bibliography macro reference');
+    if (($summary['bibliographyRendering'][0]['branches'][0]['children'][0]['macro'] ?? null) !== 'review-name-part-bibliography-entry') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the name-part bibliography branch');
+    }
+    if (($summary['bibliographyRendering'][0]['else'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the fallback bibliography macro reference');
     }
     $queueCitation = $parsed->children[1]->children[3]->children[0] ?? null;
     if (!$queueCitation instanceof PortLibs\Pandoc\AstNode || $queueCitation->attr('locatorLabel') !== 'section' || $queueCitation->attr('locatorValue') !== '2') {
@@ -300,10 +344,12 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The numbered style preserves Review Board (2025) issue ranges for reviewer packets.</p>',
         '<p>The title-case style reviews Migration Desk (2026) source titles.</p>',
         '<p>The quoted style checks Quote Desk (2026) title punctuation.</p>',
+        '<p>The name-part style checks de la Cruz (1998) reviewer names.</p>',
         '<dt>Migration Desk 2026</dt><dd>[Migration Desk. Migration Review: Source Import and API. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>Quote Desk 2026</dt><dd>[Quote Desk. “Source Packet”. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
         '<dt>Review Board 2025</dt><dd>[Review Board. Numbered Review Packet. 2025. nos. 2nd-4th. No stable source locator.]</dd>',
+        '<dt>de la Cruz 1998</dt><dd>[DE LA CRUZ, given A M, Jr. Name Part Packet. Review Press, 1998.]</dd>',
         '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
         '<p>The source archive keeps (see @missing-source; URL Key Source 2000, p. 33) visible for reviewer follow-up.</p>',
     ] as $snippet) {
@@ -319,6 +365,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Review Board 2025</dt>',
         '<dt>WordPress Migration Team 2024</dt>',
         '<dt>URL Key Source 2000</dt>',
+        '<dt>de la Cruz 1998</dt>',
         '<dt>Smith 1899</dt>',
         '<dt>Adams, Baker, and others undated</dt>',
     ];

@@ -2537,7 +2537,7 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $options
-     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     * @return array<string, mixed>
      */
     private function normalizedNameRenderingOptions(array $options, string $scope): array
     {
@@ -2552,6 +2552,7 @@ final class CitationCslProcessor
             'etAlUseFirst' => is_int($options['etAlUseFirst'] ?? null) ? $options['etAlUseFirst'] : $defaults['etAlUseFirst'],
             'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
+            'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
         ];
     }
 
@@ -3001,7 +3002,7 @@ final class CitationCslProcessor
 
     /**
      * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
-     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     * @param array<string, mixed> $options
      */
     private function renderNameList(array $names, array $options, bool $bibliography): string
     {
@@ -3038,7 +3039,7 @@ final class CitationCslProcessor
 
     /**
      * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
-     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     * @param array<string, mixed> $options
      */
     private function renderCitationName(array $name, array $options): string
     {
@@ -3048,15 +3049,15 @@ final class CitationCslProcessor
 
         $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
         if ($family !== '') {
-            return $family;
+            return $this->formatNamePart('family', $family, $options);
         }
 
-        return $this->renderGivenName((string) $name['given'], $options['initializeWith']);
+        return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options['initializeWith']), $options);
     }
 
     /**
      * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
-     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     * @param array<string, mixed> $options
      */
     private function renderBibliographyName(array $name, array $options, int $index): string
     {
@@ -3065,7 +3066,8 @@ final class CitationCslProcessor
         }
 
         $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
-        $given = $this->renderGivenName((string) $name['given'], $options['initializeWith']);
+        $family = $this->formatNamePart('family', $family, $options);
+        $given = $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options['initializeWith']), $options);
         $droppingParticle = (string) $name['droppingParticle'];
         $suffix = (string) $name['suffix'];
         $sortOrdered = $options['nameAsSortOrder'] === 'all' || ($options['nameAsSortOrder'] === 'first' && $index === 0);
@@ -3092,8 +3094,55 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $options
+     */
+    private function formatNamePart(string $part, string $value, array $options): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        $nameParts = $options['nameParts'] ?? [];
+        $format = is_array($nameParts) && is_array($nameParts[$part] ?? null) ? $nameParts[$part] : null;
+        if ($format === null) {
+            return $value;
+        }
+
+        if (($format['stripPeriods'] ?? false) === true) {
+            $value = str_replace('.', '', $value);
+        }
+
+        $value = $this->applyNamePartTextCase($value, $format);
+
+        if (($format['quotes'] ?? false) === true) {
+            $value = $this->style->term('open-quote') . $value . $this->style->term('close-quote');
+        }
+
+        return (string) ($format['prefix'] ?? '') . $value . (string) ($format['suffix'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $format
+     */
+    private function applyNamePartTextCase(string $value, array $format): string
+    {
+        $textCase = strtolower(trim((string) ($format['textCase'] ?? '')));
+
+        return match ($textCase) {
+            'lowercase' => mb_strtolower($value, 'UTF-8'),
+            'uppercase' => mb_strtoupper($value, 'UTF-8'),
+            'capitalize-first' => $this->capitalizeFirstLowercaseWord($value),
+            'capitalize-all' => $this->capitalizeAllLowercaseWords($value),
+            'sentence' => $this->sentenceCaseText($value),
+            'title' => $this->titleCaseText($value, []),
+            default => $value,
+        };
+    }
+
+    /**
      * @param list<string> $names
-     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     * @param array<string, mixed> $options
      */
     private function joinCitationNames(array $names, array $options): string
     {
@@ -3123,7 +3172,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     * @param array<string, mixed> $options
      */
     private function andJoiner(array $options): string
     {
