@@ -477,6 +477,53 @@ return [
         $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
         $t->contains('image_decode_applied_before_rgb', implode(',', $preview['notes']));
     },
+    'treats direct null inline Filter operands as absent before raw sample boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $rawSamples = 'A EI BT Z';
+        $dictionary = '/W ' . strlen($rawSamples) . ' /H 1 /CS /G /BPC 8 /F null /DP << /Predictor 12 /Columns 0 >> /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Direct Null Filter Inline) Tj ET\n"
+            . "BI {$dictionary} ID {$rawSamples}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Direct Null Filter Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Direct Null Filter Inline',
+            'After Direct Null Filter Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            $dictionary,
+            $rawSamples,
+            [],
+            strlen($rawSamples)
+        );
+
+        $t->true(str_contains($rawSamples, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'A EI BT Z'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same([], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(strlen($rawSamples), $preview['image_stream']['raw_length']);
+        $t->same(strlen($rawSamples), $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $rawSamples), $preview['image_stream']['decoded_sha256']);
+        $t->same(strtoupper(bin2hex($rawSamples)), $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(strlen($rawSamples), $preview['preview_pixel_count']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same(
+            array_map(static fn (string $char): array => [(float) ord($char)], str_split($rawSamples)),
+            array_column($preview['pixels'], 'raw_sample')
+        );
+        $t->same(0, $preview['image_sample_boundary']['surplus_byte_count']);
+        $t->same(false, $preview['image_sample_boundary']['truncated_to_declared_samples']);
+    },
     'accepts filtered inline image EI after decoded sample floor is reached' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payloadText = "X EI BT /F1 12 Tf 72 690 Td (Oversized Flate Inline Noise) Tj ET";

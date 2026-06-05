@@ -4215,6 +4215,9 @@ final class PdfImageRenderer
         }
 
         $name = $this->pdfNameValue($resolved);
+        if ($name === null && $resolved === 'null') {
+            return [];
+        }
 
         return $name === null ? [$this->imageFilterOperandFallbackName($resolved)] : [$name];
     }
