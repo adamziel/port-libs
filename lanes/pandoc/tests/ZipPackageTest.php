@@ -33,7 +33,11 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     name:string,
  *     data?:string,
  *     method?:int,
+ *     localMethod?:int,
+ *     centralMethod?:int,
  *     flags?:int,
+ *     localFlags?:int,
+ *     centralFlags?:int,
  *     descriptor?:bool,
  *     descriptorSignature?:bool,
  *     centralCrc?:int,
@@ -77,6 +81,10 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             $flags |= 0x0008;
         }
 
+        $localMethod = $entry['localMethod'] ?? $method;
+        $centralMethod = $entry['centralMethod'] ?? $method;
+        $localFlags = $entry['localFlags'] ?? $flags;
+        $centralFlags = $entry['centralFlags'] ?? $flags;
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $compressedSize = strlen($compressed);
         $uncompressedSize = strlen($data);
@@ -101,8 +109,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             'VvvvvvVVVvv',
             0x04034b50,
             $localVersionNeeded,
-            $flags,
-            $method,
+            $localFlags,
+            $localMethod,
             $localModifiedTime,
             $localModifiedDate,
             $localCrc,
@@ -130,8 +138,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             0x02014b50,
             $entry['versionMadeBy'] ?? 0x0314,
             $centralVersionNeeded,
-            $flags,
-            $method,
+            $centralFlags,
+            $centralMethod,
             $modifiedTime,
             $modifiedDate,
             $centralCrc,
@@ -748,7 +756,7 @@ return [
             ],
         ])));
 
-        $package = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => $rawName,
                 'data' => 'bad local unicode path value',
@@ -756,9 +764,7 @@ return [
                 'localExtra' => $badLocalPathExtra,
                 'centralExtra' => $centralPathExtra,
             ],
-        ]));
-
-        $t->throws(\RuntimeException::class, static fn (): string => $package->read($unicodeName));
+        ])));
     },
 
     'writes zip entry modification metadata for generated package parts' => static function (TestRunner $t): void {
@@ -910,10 +916,10 @@ return [
         $t->same('source packet audit timestamp', $package->read('word/media/audit-source.txt'));
     },
 
-    'rejects local extended timestamp mismatches before returning package bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+    'rejects local extended timestamp mismatches before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
         $localTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479018);
-        $package = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document><w:p>mismatch</w:p></w:document>',
@@ -921,10 +927,7 @@ return [
                 'localExtra' => $localTimestampExtra,
                 'centralExtra' => $centralTimestampExtra,
             ],
-        ]));
-
-        $t->throws(\RuntimeException::class, static fn (): array => $package->localExtraFields('word/document.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $package->read('word/document.xml'));
+        ])));
     },
 
     'writes extended timestamp extra fields for generated package parts' => static function (TestRunner $t): void {
@@ -1014,7 +1017,7 @@ return [
     'rejects malformed and mismatched ntfs zip extra field metadata' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $centralNtfsExtra = $buildNtfsExtra(1780479017, 1780479018, 1780479019);
         $localNtfsExtra = $buildNtfsExtra(1780479020, 1780479018, 1780479019);
-        $mismatched = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document><w:p>ntfs mismatch</w:p></w:document>',
@@ -1022,10 +1025,8 @@ return [
                 'centralExtra' => $centralNtfsExtra,
                 'localExtra' => $localNtfsExtra,
             ],
-        ]));
+        ])));
 
-        $t->throws(\RuntimeException::class, static fn (): array => $mismatched->localNtfsTimestamps('word/document.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $mismatched->read('word/document.xml'));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/settings.xml',
@@ -1034,7 +1035,7 @@ return [
                 'centralExtra' => pack('vvVvv', 0x000a, 12, 0, 0x0001, 20) . str_repeat("\0", 20),
             ],
         ])));
-        $localMalformed = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/footnotes.xml',
                 'data' => '<w:footnotes/>',
@@ -1042,23 +1043,13 @@ return [
                 'centralExtra' => $centralNtfsExtra,
                 'localExtra' => pack('vvC', 0x000a, 4, 0),
             ],
-        ]));
-        $t->throws(\RuntimeException::class, static fn (): array => $localMalformed->localExtraFields('word/footnotes.xml'));
+        ])));
     },
 
     'rejects malformed central and local zip extra fields' => static function (TestRunner $t) use ($buildZipPackage): void {
         $truncatedCentralExtra = pack('vvC', 0x5455, 5, 0x01);
         $truncatedLocalExtra = pack('vvC', 0x5455, 5, 0x01);
         $validCentralExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
-        $localExtraMismatch = ZipPackage::fromString($buildZipPackage([
-            [
-                'name' => 'word/document.xml',
-                'data' => '<w:document/>',
-                'method' => 0,
-                'centralExtra' => $validCentralExtra,
-                'localExtra' => $truncatedLocalExtra,
-            ],
-        ]));
 
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
@@ -1076,8 +1067,16 @@ return [
                 'centralExtra' => pack('vvC', 0x5455, 5, 0x02),
             ],
         ])));
-        $t->throws(\RuntimeException::class, static fn (): string => $localExtraMismatch->read('word/document.xml'));
-        $localAccessCreatedMismatch = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document/>',
+                'method' => 0,
+                'centralExtra' => $validCentralExtra,
+                'localExtra' => $truncatedLocalExtra,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/reviewer-note.txt',
                 'data' => 'truncated local creation timestamp',
@@ -1085,8 +1084,7 @@ return [
                 'centralExtra' => '',
                 'localExtra' => pack('vvCVV', 0x5455, 9, 0x07, 1780479017, 1780479022),
             ],
-        ]));
-        $t->throws(\RuntimeException::class, static fn (): string => $localAccessCreatedMismatch->read('word/media/reviewer-note.txt'));
+        ])));
     },
 
     'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {
@@ -1204,46 +1202,43 @@ return [
         ])));
     },
 
-    'verifies crc and local file header names before returning part bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $crcMismatch = ZipPackage::fromString($buildZipPackage([
+    'rejects crc and local file header names before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document>changed</w:document>',
                 'method' => 8,
                 'centralCrc' => 0,
             ],
-        ]));
-        $localNameMismatch = ZipPackage::fromString($buildZipPackage([
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'localName' => 'word/other.xml',
                 'data' => '<w:document/>',
                 'method' => 0,
             ],
-        ]));
-
-        $t->throws(\RuntimeException::class, static fn (): string => $crcMismatch->read('word/document.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $localNameMismatch->read('word/document.xml'));
+        ])));
     },
 
     'rejects local header and data descriptor integrity mismatches' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $localCrcMismatch = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => '<w:document>local crc mismatch</w:document>',
                 'method' => 8,
                 'localCrc' => 0,
             ],
-        ]));
-        $localSizeMismatch = ZipPackage::fromString($buildZipPackage([
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/styles.xml',
                 'data' => '<w:styles/>',
                 'method' => 0,
                 'localCompressedSize' => 1,
             ],
-        ]));
-        $localModifiedTimeMismatch = ZipPackage::fromString($buildZipPackage([
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/settings.xml',
                 'data' => '<w:settings/>',
@@ -1252,8 +1247,8 @@ return [
                 'modifiedDate' => 23747,
                 'localModifiedTime' => 19401,
             ],
-        ]));
-        $descriptorSizeMismatch = ZipPackage::fromString($buildZipPackage([
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/comments.xml',
                 'data' => '<w:comments/>',
@@ -1261,8 +1256,8 @@ return [
                 'descriptor' => true,
                 'descriptorUncompressedSize' => 999,
             ],
-        ]));
-        $descriptorCrcMismatch = ZipPackage::fromString($buildZipPackage([
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/footnotes.xml',
                 'data' => '<w:footnotes/>',
@@ -1270,13 +1265,38 @@ return [
                 'descriptor' => true,
                 'descriptorCrc' => 0,
             ],
-        ]));
+        ])));
+    },
 
-        $t->throws(\RuntimeException::class, static fn (): string => $localCrcMismatch->read('word/document.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $localSizeMismatch->read('word/styles.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $localModifiedTimeMismatch->read('word/settings.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $descriptorSizeMismatch->read('word/comments.xml'));
-        $t->throws(\RuntimeException::class, static fn (): string => $descriptorCrcMismatch->read('word/footnotes.xml'));
+    'rejects local header flags and methods before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments/>',
+                'method' => 8,
+                'descriptor' => true,
+                'localFlags' => 0x0800,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>method mismatch</w:p></w:document>',
+                'method' => 8,
+                'localMethod' => 0,
+            ],
+        ])));
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>matching local header</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]));
+        $t->same(['word/document.xml'], $package->names());
+        $t->same(['word/document.xml'], $package->localNames());
+        $t->same(8, $package->entry('word/document.xml')->compressionMethod);
+        $t->same('<w:document><w:p>matching local header</w:p></w:document>', $package->read('word/document.xml'));
     },
 
     'rejects unsupported compression methods and malformed package endings' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -1300,18 +1320,14 @@ return [
             ],
         ])));
 
-        $localOnly = ZipPackage::fromString($buildZipPackage([
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/reviewer-note.txt',
                 'data' => 'local zip64 metadata must not be exposed',
                 'localExtra' => $zip64Extra,
                 'centralExtra' => '',
             ],
-        ]));
-
-        $t->same(['word/media/reviewer-note.txt'], $localOnly->names());
-        $t->throws(\RuntimeException::class, static fn (): array => $localOnly->localExtraFields('word/media/reviewer-note.txt'));
-        $t->throws(\RuntimeException::class, static fn (): string => $localOnly->read('word/media/reviewer-note.txt'));
+        ])));
     },
 
     'bounds zip part reads before exposing oversized package media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {

@@ -727,11 +727,7 @@ final class ZipPackage
 
     private function validateEntryLocalLayout(ZipPackageEntry $entry): void
     {
-        $localHeader = $this->scanLocalHeaderLayout($entry);
-        if ($localHeader['versionNeededToExtract'] !== $entry->versionNeededToExtract) {
-            throw new \RuntimeException("ZIP local header version needed to extract does not match central directory entry {$entry->name}");
-        }
-
+        $localHeader = $this->readLocalHeader($entry);
         $dataEnd = $localHeader['dataStart'] + $entry->compressedSize;
         if ($dataEnd > strlen($this->bytes)) {
             throw new \RuntimeException("ZIP compressed data for {$entry->name} extends beyond available bytes");
@@ -743,6 +739,7 @@ final class ZipPackage
 
         $recordEnd = $dataEnd;
         if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+            $this->validateDataDescriptor($entry, $dataEnd);
             $recordEnd += $this->dataDescriptorLengthAt($dataEnd);
             if ($recordEnd > strlen($this->bytes)) {
                 throw new \RuntimeException("ZIP data descriptor for {$entry->name} extends beyond available bytes");
@@ -783,29 +780,6 @@ final class ZipPackage
 
         return $nextOffset;
     }
-
-    /**
-     * @return array{versionNeededToExtract:int, dataStart:int}
-     */
-    private function scanLocalHeaderLayout(ZipPackageEntry $entry): array
-    {
-        self::assertRange($this->bytes, $entry->localHeaderOffset, 30, 'local file header');
-        if (substr($this->bytes, $entry->localHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
-            throw new \RuntimeException("Invalid ZIP local file header for entry {$entry->name}");
-        }
-
-        $versionNeededToExtract = self::readUInt16($this->bytes, $entry->localHeaderOffset + 4);
-        $nameLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 26);
-        $extraLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 28);
-        $nameStart = $entry->localHeaderOffset + 30;
-        self::assertRange($this->bytes, $nameStart, $nameLength + $extraLength, 'local file header variable fields');
-
-        return [
-            'versionNeededToExtract' => $versionNeededToExtract,
-            'dataStart' => $nameStart + $nameLength + $extraLength,
-        ];
-    }
-
     private function dataDescriptorLengthAt(int $offset): int
     {
         return substr($this->bytes, $offset, 4) === "PK\x07\x08" ? 16 : 12;

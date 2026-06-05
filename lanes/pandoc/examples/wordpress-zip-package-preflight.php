@@ -842,6 +842,54 @@ $buildVersionNeededMismatchBackedPackage = static function () use ($crc32): stri
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): string {
+    $centralName = 'word/document.xml';
+    $localName = 'word/other.xml';
+    $data = '<w:document><w:body><w:p>Local header mismatch should stay blocked</w:p></w:body></w:document>';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($localName),
+        0
+    );
+    $body .= $localName . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($centralName),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $centralName;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -1121,7 +1169,8 @@ $localEntryOverlapRejected = false;
 try {
     ZipPackage::fromString($buildOverlappingLocalEntryBackedPackage());
 } catch (RuntimeException $exception) {
-    $localEntryOverlapRejected = str_contains($exception->getMessage(), 'overlaps the next local header');
+    $localEntryOverlapRejected = str_contains($exception->getMessage(), 'overlaps the next local header')
+        || str_contains($exception->getMessage(), 'local header sizes');
 }
 $duplicateLocalOffsetRejected = false;
 try {
@@ -1152,6 +1201,12 @@ try {
     ZipPackage::fromString($buildVersionNeededMismatchBackedPackage());
 } catch (RuntimeException $exception) {
     $versionNeededMismatchRejected = str_contains($exception->getMessage(), 'version needed to extract');
+}
+$localHeaderNameMismatchRejected = false;
+try {
+    ZipPackage::fromString($buildLocalHeaderNameMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $localHeaderNameMismatchRejected = str_contains($exception->getMessage(), 'local header name');
 }
 $missingTarEndMarkerRejected = false;
 try {
@@ -1589,6 +1644,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP local version-needed mismatches to be rejected before media import');
     }
 
+    if (!$localHeaderNameMismatchRejected) {
+        throw new RuntimeException('Expected ZIP local header name mismatches to be rejected before media import');
+    }
+
     if (!$missingTarEndMarkerRejected) {
         throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
     }
@@ -1679,6 +1738,7 @@ echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureRejected
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";
