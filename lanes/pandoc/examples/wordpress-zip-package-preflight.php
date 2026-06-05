@@ -503,6 +503,93 @@ $buildDirectoryPayloadBackedPackage = static function () use ($crc32): string {
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildOverlappingLocalEntryBackedPackage = static function () use ($crc32): string {
+    $documentName = 'word/document.xml';
+    $documentData = '<w:document><w:body><w:p>Overlapping layout should stay blocked</w:p></w:body></w:document>';
+    $documentCrc = $crc32($documentData);
+    $stylesName = 'word/styles.xml';
+    $stylesData = '<w:styles/>';
+    $stylesCrc = $crc32($stylesData);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $documentCrc,
+        strlen($documentData),
+        strlen($documentData),
+        strlen($documentName),
+        0
+    );
+    $body .= $documentName . $documentData;
+    $stylesOffset = strlen($body);
+    $body .= pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $stylesCrc,
+        strlen($stylesData),
+        strlen($stylesData),
+        strlen($stylesName),
+        0
+    );
+    $body .= $stylesName . $stylesData;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $documentCrc,
+        strlen($documentData) + 12,
+        strlen($documentData) + 12,
+        strlen($documentName),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $documentName;
+    $central .= pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $stylesCrc,
+        strlen($stylesData),
+        strlen($stylesData),
+        strlen($stylesName),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        $stylesOffset
+    );
+    $central .= $stylesName;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
+};
 $buildEncryptedMetadataBackedPackage = static function (int $flags) use ($crc32): string {
     $name = 'word/media/encrypted-review.xml';
     $data = "Encrypted metadata should stay blocked\n";
@@ -713,6 +800,12 @@ try {
     ZipPackage::fromString($buildDirectoryPayloadBackedPackage());
 } catch (RuntimeException $exception) {
     $directoryPayloadRejected = str_contains($exception->getMessage(), 'directory entry');
+}
+$localEntryOverlapRejected = false;
+try {
+    ZipPackage::fromString($buildOverlappingLocalEntryBackedPackage());
+} catch (RuntimeException $exception) {
+    $localEntryOverlapRejected = str_contains($exception->getMessage(), 'overlaps the next local header');
 }
 $strongEncryptionRejected = false;
 try {
@@ -951,6 +1044,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP directory entries with payload bytes to be rejected before media import');
     }
 
+    if (!$localEntryOverlapRejected) {
+        throw new RuntimeException('Expected ZIP local entry overlap to be rejected before media import');
+    }
+
     if (!$strongEncryptionRejected) {
         throw new RuntimeException('Expected ZIP strong-encryption metadata to be rejected before media import');
     }
@@ -1012,6 +1109,7 @@ echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";

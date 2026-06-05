@@ -174,6 +174,7 @@ final class ZipPackage
 
         $package = new self($bytes, $entriesByName, $entries, $centralDirectoryOffset, $packageComment);
         foreach ($entries as $entry) {
+            $package->validateEntryLocalLayout($entry);
             if ($entry->isDirectory()) {
                 $package->validateDirectoryLocalHeader($entry);
             }
@@ -528,6 +529,36 @@ final class ZipPackage
         }
     }
 
+    private function validateEntryLocalLayout(ZipPackageEntry $entry): void
+    {
+        $localHeader = $this->scanLocalHeaderLayout($entry);
+        $dataEnd = $localHeader['dataStart'] + $entry->compressedSize;
+        if ($dataEnd > strlen($this->bytes)) {
+            throw new \RuntimeException("ZIP compressed data for {$entry->name} extends beyond available bytes");
+        }
+
+        if ($dataEnd > $this->centralDirectoryOffset) {
+            throw new \RuntimeException("ZIP compressed data for {$entry->name} overlaps the central directory");
+        }
+
+        $recordEnd = $dataEnd;
+        if (($entry->generalPurposeFlags & 0x0008) !== 0) {
+            $recordEnd += $this->dataDescriptorLengthAt($dataEnd);
+            if ($recordEnd > strlen($this->bytes)) {
+                throw new \RuntimeException("ZIP data descriptor for {$entry->name} extends beyond available bytes");
+            }
+
+            if ($recordEnd > $this->centralDirectoryOffset) {
+                throw new \RuntimeException("ZIP data descriptor for {$entry->name} overlaps the central directory");
+            }
+        }
+
+        $nextOffset = $this->nextEntryOrCentralDirectoryOffset($entry);
+        if ($recordEnd > $nextOffset) {
+            throw new \RuntimeException("ZIP local entry data for {$entry->name} overlaps the next local header");
+        }
+    }
+
     private function validateDirectoryLocalHeader(ZipPackageEntry $entry): void
     {
         $localHeader = $this->readLocalHeader($entry);
@@ -551,6 +582,31 @@ final class ZipPackage
         }
 
         return $nextOffset;
+    }
+
+    /**
+     * @return array{dataStart:int}
+     */
+    private function scanLocalHeaderLayout(ZipPackageEntry $entry): array
+    {
+        self::assertRange($this->bytes, $entry->localHeaderOffset, 30, 'local file header');
+        if (substr($this->bytes, $entry->localHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
+            throw new \RuntimeException("Invalid ZIP local file header for entry {$entry->name}");
+        }
+
+        $nameLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 26);
+        $extraLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 28);
+        $nameStart = $entry->localHeaderOffset + 30;
+        self::assertRange($this->bytes, $nameStart, $nameLength + $extraLength, 'local file header variable fields');
+
+        return [
+            'dataStart' => $nameStart + $nameLength + $extraLength,
+        ];
+    }
+
+    private function dataDescriptorLengthAt(int $offset): int
+    {
+        return substr($this->bytes, $offset, 4) === "PK\x07\x08" ? 16 : 12;
     }
 
     private static function findEndOfCentralDirectory(string $bytes): int

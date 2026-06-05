@@ -37,6 +37,8 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     descriptor?:bool,
  *     descriptorSignature?:bool,
  *     centralCrc?:int,
+ *     centralCompressedSize?:int,
+ *     centralUncompressedSize?:int,
  *     descriptorCrc?:int,
  *     descriptorCompressedSize?:int,
  *     descriptorUncompressedSize?:int,
@@ -76,6 +78,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $uncompressedSize = strlen($data);
         $actualCrc = $crc32($data);
         $centralCrc = $entry['centralCrc'] ?? $actualCrc;
+        $centralCompressedSize = $entry['centralCompressedSize'] ?? $compressedSize;
+        $centralUncompressedSize = $entry['centralUncompressedSize'] ?? $uncompressedSize;
         $offset = strlen($body);
         $modifiedTime = $entry['modifiedTime'] ?? 0;
         $modifiedDate = $entry['modifiedDate'] ?? 0;
@@ -125,8 +129,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             $modifiedTime,
             $modifiedDate,
             $centralCrc,
-            $compressedSize,
-            $uncompressedSize,
+            $centralCompressedSize,
+            $centralUncompressedSize,
             strlen($name),
             strlen($centralExtra),
             strlen($entryComment),
@@ -379,6 +383,58 @@ return [
 
         $t->true($directoryPackage->entry('word/media/')->isDirectory());
         $t->same('', $directoryPackage->read('word/media/'));
+    },
+
+    'rejects zip local entry layout overlap before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>overlap</w:p></w:document>',
+                'method' => 0,
+                'centralCompressedSize' => strlen('<w:document><w:p>overlap</w:p></w:document>') + 12,
+                'centralUncompressedSize' => strlen('<w:document><w:p>overlap</w:p></w:document>') + 12,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 0,
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments/>',
+                'method' => 0,
+                'flags' => 0x0808,
+            ],
+            [
+                'name' => 'word/footnotes.xml',
+                'data' => '<w:footnotes/>',
+                'method' => 0,
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ordinary layout</w:p></w:document>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => '<w:comments/>',
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]));
+
+        $t->same([
+            'word/document.xml',
+            'word/comments.xml',
+        ], $package->names());
+        $t->same('<w:document><w:p>ordinary layout</w:p></w:document>', $package->read('/word/document.xml'));
+        $t->same('<w:comments/>', $package->read('/word/comments.xml'));
     },
 
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {
