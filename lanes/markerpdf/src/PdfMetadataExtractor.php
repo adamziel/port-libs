@@ -8429,7 +8429,15 @@ final class PdfMetadataExtractor
             }
 
             $value = $this->cleanText($description->getAttributeNS($namespace, $localName));
-            return $value === null ? [] : $this->splitKeywords($value);
+            if ($value === null) {
+                return [];
+            }
+
+            if ($namespace === self::NS_DC && $localName === 'creator') {
+                return [$value];
+            }
+
+            return $this->splitKeywords($value);
         }
 
         return [];
