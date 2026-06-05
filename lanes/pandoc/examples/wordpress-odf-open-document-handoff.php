@@ -32,8 +32,13 @@ $stylesXml = <<<'XML'
   xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
   xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:automatic-styles>
+    <style:page-layout style:name="pmReview" style:page-usage="all">
+      <style:page-layout-properties fo:page-width="8.5in" fo:page-height="11in" fo:margin-top="1in" fo:margin-bottom="1in" fo:margin-left="0.75in" fo:margin-right="0.75in" style:print-orientation="portrait" style:writing-mode="lr-tb"/>
+    </style:page-layout>
+  </office:automatic-styles>
   <office:styles>
-    <style:style style:name="ImportHeading" style:family="paragraph" style:display-name="Import Heading" style:default-outline-level="1"/>
+    <style:style style:name="ImportHeading" style:family="paragraph" style:display-name="Import Heading" style:default-outline-level="1" style:master-page-name="ReviewPage"/>
     <style:style style:name="StrongSource" style:family="text">
       <style:text-properties fo:font-weight="bold" fo:font-style="italic"/>
     </style:style>
@@ -41,6 +46,12 @@ $stylesXml = <<<'XML'
       <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1"/>
     </text:list-style>
   </office:styles>
+  <office:master-styles>
+    <style:master-page style:name="ReviewPage" style:display-name="Review Page" style:page-layout-name="pmReview">
+      <style:header><text:p>WordPress import review packet</text:p></style:header>
+      <style:footer><text:p>Source page <text:page-number>1</text:page-number></text:p></style:footer>
+    </style:master-page>
+  </office:master-styles>
 </office:document-styles>
 XML;
 
@@ -176,6 +187,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['content']['protectedSectionCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT protected section to be counted in the import report');
     }
+    if (($result['importReport']['styles']['pageLayoutCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT page layout metadata to be counted in the import report');
+    }
+    if (($result['importReport']['styles']['masterPageCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT master page metadata to be counted in the import report');
+    }
+    if (($result['pageLayouts']['pmReview']['properties']['pageWidth'] ?? '') !== '8.5in') {
+        throw new RuntimeException('Expected ODT page width to survive style parsing');
+    }
+    if (($result['masterPages']['ReviewPage']['headerText'][0] ?? '') !== 'WordPress import review packet') {
+        throw new RuntimeException('Expected ODT master-page header text to survive style parsing');
+    }
+    if (($result['styles']['ImportHeading']['masterPageName'] ?? '') !== 'ReviewPage') {
+        throw new RuntimeException('Expected ODT paragraph style to retain its master-page link');
+    }
     if (!str_contains($blocks, '<div id="linked-policy-appendix" class="odf-section odf-linked-section odf-protected-section" data-odf-section-name="Linked Policy Appendix"')) {
         throw new RuntimeException('Expected ODT linked section metadata to render in WordPress blocks');
     }
@@ -250,4 +276,6 @@ echo 'creator=' . ($result['metadata']['creator'] ?? '') . "\n";
 echo 'manifestItems=' . count($result['manifest']) . "\n";
 echo 'mediaItems=' . count($result['media']) . "\n";
 echo 'styleCount=' . count($result['styles']) . "\n";
+echo 'pageLayoutCount=' . count($result['pageLayouts']) . "\n";
+echo 'masterPageCount=' . count($result['masterPages']) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

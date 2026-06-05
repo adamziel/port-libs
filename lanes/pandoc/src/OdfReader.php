@@ -33,6 +33,8 @@ final class OdfReader
      *     manifest:list<array<string, mixed>>,
      *     styles:array<string, mixed>,
      *     listStyles:array<string, mixed>,
+     *     pageLayouts:array<string, mixed>,
+     *     masterPages:array<string, mixed>,
      *     media:list<array<string, mixed>>,
      *     trackedChanges:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
@@ -68,6 +70,14 @@ final class OdfReader
                 'count' => count($styleCatalog['listStyles']),
                 'items' => array_values($styleCatalog['listStyles']),
             ],
+            'pageLayouts' => [
+                'count' => count($styleCatalog['pageLayouts']),
+                'items' => array_values($styleCatalog['pageLayouts']),
+            ],
+            'masterPages' => [
+                'count' => count($styleCatalog['masterPages']),
+                'items' => array_values($styleCatalog['masterPages']),
+            ],
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -80,6 +90,8 @@ final class OdfReader
             'manifest' => $manifest,
             'styles' => $styleCatalog['styles'],
             'listStyles' => $styleCatalog['listStyles'],
+            'pageLayouts' => $styleCatalog['pageLayouts'],
+            'masterPages' => $styleCatalog['masterPages'],
             'media' => $media,
             'trackedChanges' => $content['trackedChanges'],
             'importReport' => [
@@ -98,10 +110,20 @@ final class OdfReader
                 'styles' => [
                     'count' => count($styleCatalog['styles']),
                     'items' => array_values($styleCatalog['styles']),
+                    'pageLayoutCount' => count($styleCatalog['pageLayouts']),
+                    'masterPageCount' => count($styleCatalog['masterPages']),
                 ],
                 'listStyles' => [
                     'count' => count($styleCatalog['listStyles']),
                     'items' => array_values($styleCatalog['listStyles']),
+                ],
+                'pageLayouts' => [
+                    'count' => count($styleCatalog['pageLayouts']),
+                    'items' => array_values($styleCatalog['pageLayouts']),
+                ],
+                'masterPages' => [
+                    'count' => count($styleCatalog['masterPages']),
+                    'items' => array_values($styleCatalog['masterPages']),
                 ],
                 'media' => [
                     'count' => count($media),
@@ -260,13 +282,15 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function readStyles(ZipPackage $package): array
     {
         $catalog = [
             'styles' => [],
             'listStyles' => [],
+            'pageLayouts' => [],
+            'masterPages' => [],
         ];
 
         if (!$package->has('styles.xml')) {
@@ -285,8 +309,8 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $styleCatalog
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>}
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog): array
     {
@@ -313,7 +337,7 @@ final class OdfReader
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
             'styleCatalog' => $styleCatalog,
-            'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']),
+            'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
             'trackedChanges' => array_values($this->trackedChanges),
         ];
     }
@@ -1561,7 +1585,7 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function styleCollectionsFromRoot(\DOMElement $root): array
     {
@@ -1589,9 +1613,35 @@ final class OdfReader
             $listStyles[$name] = $this->listStyleDefinition($listStyle);
         }
 
+        $pageLayouts = [];
+        foreach ($root->getElementsByTagNameNS(self::STYLE_NS, 'page-layout') as $pageLayout) {
+            if (!$pageLayout instanceof \DOMElement) {
+                continue;
+            }
+            $name = self::attr($pageLayout, self::STYLE_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+            $pageLayouts[$name] = $this->pageLayoutDefinition($pageLayout);
+        }
+
+        $masterPages = [];
+        foreach ($root->getElementsByTagNameNS(self::STYLE_NS, 'master-page') as $masterPage) {
+            if (!$masterPage instanceof \DOMElement) {
+                continue;
+            }
+            $name = self::attr($masterPage, self::STYLE_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+            $masterPages[$name] = $this->masterPageDefinition($masterPage);
+        }
+
         return [
             'styles' => $styles,
             'listStyles' => $listStyles,
+            'pageLayouts' => $pageLayouts,
+            'masterPages' => $masterPages,
         ];
     }
 
@@ -1606,6 +1656,7 @@ final class OdfReader
             'displayName' => self::nullable(self::attr($style, self::STYLE_NS, 'display-name')),
             'parentName' => self::nullable(self::attr($style, self::STYLE_NS, 'parent-style-name')),
             'listStyleName' => self::nullable(self::attr($style, self::STYLE_NS, 'list-style-name')),
+            'masterPageName' => self::nullable(self::attr($style, self::STYLE_NS, 'master-page-name')),
             'headingLevel' => self::nullableInt(self::attr($style, self::STYLE_NS, 'default-outline-level')),
             'textProperties' => [],
             'paragraphProperties' => [],
@@ -1619,9 +1670,13 @@ final class OdfReader
 
         $paragraphProperties = self::firstChildElement($style, 'paragraph-properties', self::STYLE_NS);
         if ($paragraphProperties instanceof \DOMElement) {
-            $definition['paragraphProperties'] = [
+            $definition['paragraphProperties'] = self::withoutEmpty([
                 'textAlign' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'text-align')),
-            ];
+                'breakBefore' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'break-before')),
+                'breakAfter' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'break-after')),
+                'keepTogether' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'keep-together')),
+                'keepWithNext' => self::nullable(self::attr($paragraphProperties, self::FO_NS, 'keep-with-next')),
+            ]);
         }
 
         $columnProperties = self::firstChildElement($style, 'table-column-properties', self::STYLE_NS);
@@ -1632,6 +1687,104 @@ final class OdfReader
         }
 
         return $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pageLayoutDefinition(\DOMElement $pageLayout): array
+    {
+        $definition = self::withoutEmpty([
+            'name' => self::attr($pageLayout, self::STYLE_NS, 'name'),
+            'pageUsage' => self::nullable(self::attr($pageLayout, self::STYLE_NS, 'page-usage')),
+            'properties' => [],
+        ]);
+
+        $properties = self::firstChildElement($pageLayout, 'page-layout-properties', self::STYLE_NS);
+        if ($properties instanceof \DOMElement) {
+            $definition['properties'] = $this->pageLayoutProperties($properties);
+        }
+
+        return $definition;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pageLayoutProperties(\DOMElement $properties): array
+    {
+        $lengthAttributes = [
+            'pageWidth' => [self::FO_NS, 'page-width'],
+            'pageHeight' => [self::FO_NS, 'page-height'],
+            'margin' => [self::FO_NS, 'margin'],
+            'marginTop' => [self::FO_NS, 'margin-top'],
+            'marginRight' => [self::FO_NS, 'margin-right'],
+            'marginBottom' => [self::FO_NS, 'margin-bottom'],
+            'marginLeft' => [self::FO_NS, 'margin-left'],
+        ];
+        $result = [];
+        foreach ($lengthAttributes as $target => [$namespace, $attribute]) {
+            $value = self::attr($properties, $namespace, $attribute);
+            if ($value === '') {
+                continue;
+            }
+
+            $result[$target] = $value;
+            $points = $this->lengthToPoints($value);
+            if ($points !== null) {
+                $result[$target . 'Points'] = $points;
+            }
+        }
+
+        return self::withoutEmpty($result + [
+            'printOrientation' => self::nullable(self::attr($properties, self::STYLE_NS, 'print-orientation')),
+            'writingMode' => self::nullable(self::attr($properties, self::STYLE_NS, 'writing-mode')),
+            'numFormat' => self::nullable(self::attr($properties, self::STYLE_NS, 'num-format')),
+            'firstPageNumber' => self::nullable(self::attr($properties, self::STYLE_NS, 'first-page-number')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function masterPageDefinition(\DOMElement $masterPage): array
+    {
+        return self::withoutEmpty([
+            'name' => self::attr($masterPage, self::STYLE_NS, 'name'),
+            'displayName' => self::nullable(self::attr($masterPage, self::STYLE_NS, 'display-name')),
+            'pageLayoutName' => self::nullable(self::attr($masterPage, self::STYLE_NS, 'page-layout-name')),
+            'nextStyleName' => self::nullable(self::attr($masterPage, self::STYLE_NS, 'next-style-name')),
+            'drawStyleName' => self::nullable(self::attr($masterPage, self::DRAW_NS, 'style-name')),
+            'headerText' => $this->masterPageTextBlocks($masterPage, 'header'),
+            'headerLeftText' => $this->masterPageTextBlocks($masterPage, 'header-left'),
+            'footerText' => $this->masterPageTextBlocks($masterPage, 'footer'),
+            'footerLeftText' => $this->masterPageTextBlocks($masterPage, 'footer-left'),
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function masterPageTextBlocks(\DOMElement $masterPage, string $containerName): array
+    {
+        $container = self::firstChildElement($masterPage, $containerName, self::STYLE_NS);
+        if (!$container instanceof \DOMElement) {
+            return [];
+        }
+
+        $texts = [];
+        foreach ($container->getElementsByTagNameNS(self::TEXT_NS, 'p') as $paragraph) {
+            if (!$paragraph instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::normalizedText($paragraph);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return $texts;
     }
 
     /**
@@ -1695,8 +1848,8 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $target
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $source
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
      */
     private function mergeStyleCollections(array &$target, array $source): void
     {
@@ -1705,6 +1858,12 @@ final class OdfReader
         }
         foreach ($source['listStyles'] as $name => $style) {
             $target['listStyles'][$name] = $style;
+        }
+        foreach ($source['pageLayouts'] as $name => $layout) {
+            $target['pageLayouts'][$name] = $layout;
+        }
+        foreach ($source['masterPages'] as $name => $page) {
+            $target['masterPages'][$name] = $page;
         }
     }
 

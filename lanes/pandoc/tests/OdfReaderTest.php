@@ -188,6 +188,94 @@ return [
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
     },
+    'maps ODT page layouts and master pages into import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithPageLayout = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:automatic-styles>
+    <style:page-layout style:name="pmReview" style:page-usage="all">
+      <style:page-layout-properties
+        fo:page-width="8.5in"
+        fo:page-height="11in"
+        fo:margin-top="1in"
+        fo:margin-right="0.75in"
+        fo:margin-bottom="1in"
+        fo:margin-left="0.75in"
+        style:print-orientation="portrait"
+        style:writing-mode="lr-tb"/>
+    </style:page-layout>
+  </office:automatic-styles>
+  <office:styles>
+    <style:style style:name="AppendixBreak" style:family="paragraph" style:master-page-name="AppendixPage">
+      <style:paragraph-properties fo:break-before="page"/>
+    </style:style>
+  </office:styles>
+  <office:master-styles>
+    <style:master-page style:name="ReviewPage" style:display-name="Review Page" style:page-layout-name="pmReview" style:next-style-name="AppendixPage">
+      <style:header><text:p>Confidential import packet</text:p></style:header>
+      <style:footer><text:p>Page <text:page-number>1</text:page-number></text:p></style:footer>
+    </style:master-page>
+    <style:master-page style:name="AppendixPage" style:page-layout-name="pmReview"/>
+  </office:master-styles>
+</office:document-styles>
+XML;
+        $contentWithMasterPageStyle = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="AppendixBreak">Appendix starts here.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithMasterPageStyle, null, $stylesWithPageLayout));
+        $document = $result['document'];
+        $pageLayout = $result['pageLayouts']['pmReview'];
+        $reviewPage = $result['masterPages']['ReviewPage'];
+        $appendixStyle = $result['styles']['AppendixBreak'];
+        $paragraph = $document->children[0];
+
+        $t->same(1, $document->attr('pageLayouts')['count']);
+        $t->same(2, $document->attr('masterPages')['count']);
+        $t->same('pmReview', $pageLayout['name']);
+        $t->same('all', $pageLayout['pageUsage']);
+        $t->same('8.5in', $pageLayout['properties']['pageWidth']);
+        $t->same('11in', $pageLayout['properties']['pageHeight']);
+        $t->same('portrait', $pageLayout['properties']['printOrientation']);
+        $t->same('lr-tb', $pageLayout['properties']['writingMode']);
+        $t->same('1in', $pageLayout['properties']['marginTop']);
+        $t->same('0.75in', $pageLayout['properties']['marginRight']);
+        $t->true(abs($pageLayout['properties']['pageWidthPoints'] - 612.0) < 0.000001);
+        $t->true(abs($pageLayout['properties']['marginLeftPoints'] - 54.0) < 0.000001);
+
+        $t->same('ReviewPage', $reviewPage['name']);
+        $t->same('Review Page', $reviewPage['displayName']);
+        $t->same('pmReview', $reviewPage['pageLayoutName']);
+        $t->same('AppendixPage', $reviewPage['nextStyleName']);
+        $t->same(['Confidential import packet'], $reviewPage['headerText']);
+        $t->same(['Page 1'], $reviewPage['footerText']);
+        $t->same('AppendixPage', $result['masterPages']['AppendixPage']['name']);
+
+        $t->same('AppendixPage', $appendixStyle['masterPageName']);
+        $t->same('page', $appendixStyle['paragraphProperties']['breakBefore']);
+        $t->same('paragraph', $paragraph->type);
+        $t->same('AppendixBreak', $paragraph->attr('styleName'));
+        $t->same('AppendixPage', $paragraph->attr('style')['masterPageName']);
+        $t->same('page', $paragraph->attr('style')['paragraphProperties']['breakBefore']);
+        $t->same('Appendix starts here.', $paragraph->attr('text'));
+
+        $t->same(1, $result['importReport']['pageLayouts']['count']);
+        $t->same(2, $result['importReport']['masterPages']['count']);
+        $t->same('Confidential import packet', $result['importReport']['masterPages']['items'][0]['headerText'][0]);
+        $t->same(1, $result['importReport']['styles']['pageLayoutCount']);
+        $t->same(2, $result['importReport']['styles']['masterPageCount']);
+    },
     'maps ODT content XML blocks to the shared Pandoc-like AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage());
         $document = $result['document'];
