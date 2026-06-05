@@ -119,6 +119,25 @@ $encryptionXml = <<<'XML'
 </encryption>
 XML;
 
+$smilXml = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <seq id="chapter-1-overlay" epub:textref="../text/chapter1.xhtml">
+      <par id="intro-audio" epub:type="bodymatter">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter1.mp3" clipBegin="0:00:01.000" clipEnd="0:00:05.500"/>
+      </par>
+      <seq id="nested-review">
+        <par id="page-audio">
+          <text src="../text/chapter1.xhtml#page-1"/>
+          <audio src="../audio/chapter1.mp3" clipBegin="00:00:05.500" clipEnd="00:00:07.000"/>
+        </par>
+      </seq>
+    </seq>
+  </body>
+</smil>
+XML;
+
 $buildEpubPackage = static function (
     ?string $overrideOpfXml = null,
     ?string $overrideContainerXml = null,
@@ -302,6 +321,43 @@ return [
         $t->same([], $result['importReport']['encryption']['diagnostics']);
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
+    'parses EPUB3 SMIL media overlays for spine audio review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
+        $opfWithOverlay = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter-1"/><item id="mo-chapter-1" href="overlays/chapter1.smil" media-type="application/smil+xml"/><item id="audio-chapter-1" href="audio/chapter1.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithOverlay,
+            null,
+            [
+                ['name' => 'OEBPS/overlays/chapter1.smil', 'data' => $smilXml],
+                ['name' => 'OEBPS/audio/chapter1.mp3', 'data' => 'MP3-DATA'],
+            ]
+        ));
+
+        $overlay = $result['mediaOverlays']['mo-chapter-1'];
+        $t->same('/OEBPS/overlays/chapter1.smil', $overlay['part']);
+        $t->same(['chapter-1'], $overlay['referencedBy']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $overlay['textRefTarget']);
+        $t->same(2, count($overlay['items']));
+        $t->same('intro-audio', $overlay['items'][0]['id']);
+        $t->same(['bodymatter'], $overlay['items'][0]['types']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $overlay['items'][0]['textTarget']);
+        $t->same('/OEBPS/audio/chapter1.mp3', $overlay['items'][0]['audioTarget']);
+        $t->same(true, $overlay['items'][0]['audioExists']);
+        $t->same('0:00:01.000', $overlay['items'][0]['clipBegin']);
+        $t->same('0:00:05.500', $overlay['items'][0]['clipEnd']);
+        $t->same('page-audio', $overlay['items'][1]['id']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $overlay['items'][1]['textTarget']);
+        $t->same('/OEBPS/audio/chapter1.mp3', $overlay['items'][1]['audioTarget']);
+        $t->same([], $overlay['diagnostics']);
+        $t->same('mo-chapter-1', $result['spine'][0]['mediaOverlay']);
+        $t->same('mo-chapter-1', $result['xhtmlAssets'][1]['mediaOverlay']);
+        $t->same('mo-chapter-1', $result['document']->children[0]->attr('mediaOverlay'));
+        $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
     },
     'rejects malformed EPUB packages before conversion handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $opfXml): void {
         $reader = new EpubReader();

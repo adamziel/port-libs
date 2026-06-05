@@ -28,7 +28,9 @@ $opfXml = <<<'XML'
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>
+    <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
+    <item id="audio-chapter" href="audio/chapter.mp3" media-type="audio/mpeg"/>
     <item id="style" href="styles/review.css" media-type="text/css"/>
     <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
@@ -72,6 +74,23 @@ $chapterXhtml = <<<'XML'
 </html>
 XML;
 
+$smilXml = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <seq id="chapter-overlay" epub:textref="../text/chapter.xhtml">
+      <par id="source-audio" epub:type="bodymatter">
+        <text src="../text/chapter.xhtml#source"/>
+        <audio src="../audio/chapter.mp3" clipBegin="0:00:00.000" clipEnd="0:00:04.250"/>
+      </par>
+      <par id="page-audio" epub:type="pagebreak">
+        <text src="../text/chapter.xhtml#page-1"/>
+        <audio src="../audio/chapter.mp3" clipBegin="0:00:04.250" clipEnd="0:00:05.000"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+
 $ncxXml = <<<'XML'
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
   <navMap>
@@ -101,6 +120,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
+    ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smilXml],
+    ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3-DATA'],
     ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
     ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
     ['name' => 'EPUB/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
@@ -133,6 +154,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
+    if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? null) !== '/EPUB/audio/chapter.mp3') {
+        throw new RuntimeException('Expected EPUB media-overlay audio target to resolve relative to the SMIL part');
+    }
+    if (($result['mediaOverlays']['mo-chapter']['items'][1]['textTarget'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
+        throw new RuntimeException('Expected EPUB media-overlay page marker to stay addressable for review');
+    }
     $foundEncryptedFont = false;
     foreach ($result['assets'] as $asset) {
         if ($asset['id'] === 'font-main' && (($asset['encrypted'] ?? false) !== true || ($asset['canExposeBytes'] ?? true) !== false)) {
@@ -162,5 +189,7 @@ echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
+echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
+echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

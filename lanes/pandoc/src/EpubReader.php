@@ -14,9 +14,11 @@ final class EpubReader
     public const EPUB_OPS_NS = 'http://www.idpf.org/2007/ops';
     public const NCX_NS = 'http://www.daisy.org/z3986/2005/ncx/';
     public const XMLENC_NS = 'http://www.w3.org/2001/04/xmlenc#';
+    public const SMIL_NS = 'http://www.w3.org/ns/SMIL';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
+    public const SMIL_MEDIA_TYPE = 'application/smil+xml';
     public const IDPF_FONT_OBFUSCATION_ALGORITHM = 'http://www.idpf.org/2008/embedding';
 
     /**
@@ -31,6 +33,7 @@ final class EpubReader
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     encryption:array<string, mixed>,
+     *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
@@ -61,6 +64,7 @@ final class EpubReader
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
             'encryption' => $opf['encryption'],
+            'mediaOverlays' => $opf['mediaOverlays'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'assets' => $opf['assets'],
             'importReport' => [
@@ -82,6 +86,7 @@ final class EpubReader
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
                 'encryption' => $opf['encryption'],
+                'mediaOverlays' => $opf['mediaOverlays'],
                 'assets' => [
                     'count' => count($opf['assets']),
                     'items' => $opf['assets'],
@@ -192,6 +197,7 @@ final class EpubReader
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     encryption:array<string, mixed>,
+     *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>
      * }
@@ -223,6 +229,7 @@ final class EpubReader
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $spine = $this->readSpine($spineElement, $manifestById);
+        $mediaOverlays = $this->readMediaOverlays($package, $manifestById);
         $manifest = array_values($manifestById);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
@@ -241,6 +248,7 @@ final class EpubReader
             'nav' => $navItem === null ? null : $this->readNavDocument($package, $navItem),
             'ncx' => $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem),
             'encryption' => $encryption,
+            'mediaOverlays' => $mediaOverlays,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
             'assets' => $this->assetReport($manifest),
         ];
@@ -550,6 +558,7 @@ final class EpubReader
                 'mediaType' => $manifestItem['mediaType'],
                 'linear' => strtolower(trim($itemref->getAttribute('linear'))) !== 'no',
                 'properties' => self::spaceDelimited($itemref->getAttribute('properties')),
+                'mediaOverlay' => $manifestItem['mediaOverlay'],
                 'encrypted' => self::isEncryptedManifestItem($manifestItem),
                 'canExposeBytes' => (bool) ($manifestItem['canExposeBytes'] ?? true),
                 'encryption' => $manifestItem['encryption'] ?? null,
@@ -779,6 +788,253 @@ final class EpubReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function readMediaOverlays(ZipPackage $package, array $manifestById): array
+    {
+        $references = [];
+        foreach ($manifestById as $item) {
+            $mediaOverlay = $item['mediaOverlay'] ?? null;
+            if (!is_string($mediaOverlay) || $mediaOverlay === '') {
+                continue;
+            }
+
+            $references[$mediaOverlay][] = (string) $item['id'];
+        }
+
+        $overlays = [];
+        foreach ($references as $id => $referencedBy) {
+            $item = $manifestById[$id] ?? null;
+            if (!is_array($item)) {
+                $overlays[$id] = [
+                    'id' => $id,
+                    'href' => null,
+                    'target' => null,
+                    'part' => null,
+                    'mediaType' => null,
+                    'exists' => false,
+                    'referencedBy' => $referencedBy,
+                    'encrypted' => false,
+                    'canExposeBytes' => false,
+                    'textRef' => null,
+                    'textRefTarget' => null,
+                    'items' => [],
+                    'diagnostics' => [[
+                        'type' => 'missing-media-overlay-manifest-item',
+                        'id' => $id,
+                        'message' => 'EPUB spine item references a media-overlay id that is not in the OPF manifest',
+                    ]],
+                ];
+                continue;
+            }
+
+            $overlays[$id] = $this->readMediaOverlayItem($package, $item, $referencedBy);
+        }
+
+        return $overlays;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $referencedBy
+     *
+     * @return array<string, mixed>
+     */
+    private function readMediaOverlayItem(ZipPackage $package, array $item, array $referencedBy): array
+    {
+        $diagnostics = [];
+        if (($item['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
+            $diagnostics[] = [
+                'type' => 'unexpected-media-overlay-type',
+                'id' => $item['id'],
+                'mediaType' => $item['mediaType'] ?? null,
+                'message' => 'EPUB media-overlay manifest item should be application/smil+xml',
+            ];
+        }
+
+        if (($item['exists'] ?? false) !== true) {
+            $diagnostics[] = [
+                'type' => 'missing-media-overlay-part',
+                'id' => $item['id'],
+                'part' => $item['part'],
+                'message' => 'EPUB media-overlay SMIL part is missing from the package',
+            ];
+        }
+
+        if (self::isEncryptedManifestItem($item)) {
+            $diagnostics[] = [
+                'type' => 'encrypted-media-overlay',
+                'id' => $item['id'],
+                'part' => $item['part'],
+                'message' => 'EPUB media-overlay SMIL part is encrypted and cannot be exposed as reviewer timing data',
+            ];
+        }
+
+        $textRef = null;
+        $textRefTarget = null;
+        $items = [];
+        if (
+            ($item['exists'] ?? false) === true
+            && !self::isEncryptedManifestItem($item)
+            && ($item['mediaType'] ?? null) === self::SMIL_MEDIA_TYPE
+        ) {
+            $dom = self::loadXml($package->read((string) $item['part']), 'EPUB SMIL media overlay XML');
+            $root = $dom->documentElement;
+            if (!$root instanceof \DOMElement || $root->localName !== 'smil' || $root->namespaceURI !== self::SMIL_NS) {
+                throw new \InvalidArgumentException('EPUB SMIL media overlay must use the SMIL namespace');
+            }
+
+            $body = self::firstChildElement($root, 'body', self::SMIL_NS) ?? $root;
+            $textRef = self::firstSmilTextRef($body);
+            if ($textRef !== null) {
+                $textRefTarget = $this->smilReference($package, (string) $item['part'], $textRef)['target'];
+            }
+            $items = $this->readSmilOverlayItems($package, $body, (string) $item['part'], $textRefTarget);
+        }
+
+        return [
+            'id' => $item['id'],
+            'href' => $item['href'],
+            'target' => $item['target'],
+            'part' => $item['part'],
+            'mediaType' => $item['mediaType'],
+            'exists' => $item['exists'],
+            'referencedBy' => $referencedBy,
+            'encrypted' => self::isEncryptedManifestItem($item),
+            'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? true),
+            'textRef' => $textRef,
+            'textRefTarget' => $textRefTarget,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function readSmilOverlayItems(
+        ZipPackage $package,
+        \DOMElement $element,
+        string $smilPart,
+        ?string $inheritedTextTarget
+    ): array {
+        $currentTextTarget = $inheritedTextTarget;
+        $textRef = self::smilTextRef($element);
+        if ($textRef !== null) {
+            $currentTextTarget = $this->smilReference($package, $smilPart, $textRef)['target'];
+        }
+
+        $items = [];
+        if ($element->localName === 'par' && $element->namespaceURI === self::SMIL_NS) {
+            $items[] = $this->readSmilPar($package, $element, $smilPart, $currentTextTarget);
+        }
+
+        foreach (self::childElements($element) as $child) {
+            if ($child->namespaceURI !== self::SMIL_NS || !in_array($child->localName, ['body', 'seq', 'par'], true)) {
+                continue;
+            }
+
+            array_push($items, ...$this->readSmilOverlayItems($package, $child, $smilPart, $currentTextTarget));
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSmilPar(ZipPackage $package, \DOMElement $par, string $smilPart, ?string $textTarget): array
+    {
+        $text = self::firstChildElement($par, 'text', self::SMIL_NS);
+        $audio = self::firstChildElement($par, 'audio', self::SMIL_NS);
+        $textSrc = $text instanceof \DOMElement ? self::nullableAttribute($text, 'src') : null;
+        $audioSrc = $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'src') : null;
+        $textReference = $textSrc === null ? self::emptySmilReference($textTarget) : $this->smilReference($package, $smilPart, $textSrc);
+        $audioReference = $this->smilReference($package, $smilPart, $audioSrc);
+
+        return [
+            'id' => self::nullableAttribute($par, 'id'),
+            'types' => self::epubTypes($par),
+            'textSrc' => $textSrc,
+            'textTarget' => $textReference['target'],
+            'textPart' => $textReference['part'],
+            'textExists' => $textReference['exists'],
+            'audioSrc' => $audioSrc,
+            'audioTarget' => $audioReference['target'],
+            'audioPart' => $audioReference['part'],
+            'audioExists' => $audioReference['exists'],
+            'audioByteLength' => $audioReference['byteLength'],
+            'audioCrc32' => $audioReference['crc32'],
+            'clipBegin' => $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipBegin') : null,
+            'clipEnd' => $audio instanceof \DOMElement ? self::nullableAttribute($audio, 'clipEnd') : null,
+            'diagnostics' => array_merge($textReference['diagnostics'], $audioReference['diagnostics']),
+        ];
+    }
+
+    /**
+     * @return array{target:?string, part:?string, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     */
+    private function smilReference(ZipPackage $package, string $basePart, ?string $src): array
+    {
+        $src = trim((string) $src);
+        if ($src === '') {
+            return self::emptySmilReference(null);
+        }
+
+        try {
+            $target = OpcPackagePath::resolveInternalTarget($basePart, $src);
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'part' => null,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'diagnostics' => [[
+                    'type' => 'invalid-media-overlay-reference',
+                    'src' => $src,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $part = OpcPackagePath::stripQueryAndFragment($target);
+        $exists = $package->has($part);
+        $entry = $exists ? $package->entry($part) : null;
+
+        return [
+            'target' => $target,
+            'part' => $part,
+            'exists' => $exists,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'diagnostics' => $exists ? [] : [[
+                'type' => 'missing-media-overlay-reference',
+                'src' => $src,
+                'part' => $part,
+                'message' => 'EPUB media-overlay reference target is missing from the package',
+            ]],
+        ];
+    }
+
+    /**
+     * @return array{target:?string, part:?string, exists:bool, byteLength:?int, crc32:?string, diagnostics:list<array<string, mixed>>}
+     */
+    private static function emptySmilReference(?string $target): array
+    {
+        return [
+            'target' => $target,
+            'part' => $target === null ? null : OpcPackagePath::stripQueryAndFragment($target),
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $manifest
      *
      * @return list<array<string, mixed>>
@@ -801,6 +1057,7 @@ final class EpubReader
                 'target' => $item['target'],
                 'part' => $item['part'],
                 'properties' => $item['properties'],
+                'mediaOverlay' => $item['mediaOverlay'],
                 'html' => $package->read((string) $item['part']),
             ];
         }
@@ -868,6 +1125,7 @@ final class EpubReader
                 'part' => $item['part'],
                 'id' => $item['idref'],
                 'linear' => $item['linear'],
+                'mediaOverlay' => $item['mediaOverlay'],
                 'source' => 'epub3-spine',
             ]);
         }
@@ -946,6 +1204,40 @@ final class EpubReader
         }
 
         return self::spaceDelimited($type);
+    }
+
+    private static function smilTextRef(\DOMElement $element): ?string
+    {
+        $textRef = trim($element->getAttributeNS(self::EPUB_OPS_NS, 'textref'));
+        if ($textRef === '') {
+            $textRef = trim($element->getAttribute('epub:textref'));
+        }
+        if ($textRef === '') {
+            $textRef = trim($element->getAttribute('textref'));
+        }
+
+        return $textRef === '' ? null : $textRef;
+    }
+
+    private static function firstSmilTextRef(\DOMElement $element): ?string
+    {
+        $textRef = self::smilTextRef($element);
+        if ($textRef !== null) {
+            return $textRef;
+        }
+
+        foreach (self::childElements($element) as $child) {
+            if ($child->namespaceURI !== self::SMIL_NS) {
+                continue;
+            }
+
+            $textRef = self::firstSmilTextRef($child);
+            if ($textRef !== null) {
+                return $textRef;
+            }
+        }
+
+        return null;
     }
 
     /**
