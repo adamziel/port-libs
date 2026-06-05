@@ -13873,11 +13873,23 @@ final class PdfTextExtractor
             'W',
             'W*',
             'n',
+            'MP',
+            'DP',
             'BMC',
             'BDC',
             'EMC',
         ], true)) {
             return false;
+        }
+
+        if ($token === 'MP') {
+            return count($operands) === 1 && $this->markedContentTagOperand($operands[0]);
+        }
+
+        if ($token === 'DP') {
+            return count($operands) === 2
+                && $this->markedContentTagOperand($operands[0])
+                && $this->markedContentPropertyOperand($operands[1]);
         }
 
         if ($token === 'BMC') {
