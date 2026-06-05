@@ -90,6 +90,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 635 Td (Marked ActualText Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "/Span << /ActualText (Visible EI ActualText) >> BDC BT /F1 12 Tf 72 635 Td (Hidden ActualText Source) Tj ET EMC\n"
+    . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x80 EI\n/Span << /ActualText (Visible Sample Floor ActualText) >> BDC BT /F1 12 Tf 72 635 Td (Hidden Sample Floor Text) Tj ET EMC\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 635 Td (After Sample Floor ActualText) Tj ET\n"
     . "BT /F1 12 Tf 72 634 Td (Before Comment EI Boundary) Tj ET\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 633 Td (Comment EI Payload Noise) Tj ET rawtail\n"
@@ -163,7 +167,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, tight EI sample terminators, nested modifier-dictionary decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, post-terminator comment EI, later stray EI operator, and graphics-state wrapped stray EI inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, tight EI sample terminators, nested modifier-dictionary decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, and graphics-state wrapped stray EI inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -217,6 +221,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && !str_contains($plainText, 'Hidden ActualText Source')
         && !str_contains($plainText, 'Marked ActualText Payload Noise')
         && !str_contains($plainText, 'rawtail'),
+    'sample_floor_marked_actualtext_preserved_after_inline_ei' => str_contains($plainText, 'Visible Sample Floor ActualText')
+        && str_contains($plainText, 'After Sample Floor ActualText')
+        && !str_contains($plainText, 'Hidden Sample Floor Text')
+        && !str_contains($plainText, "\x80 EI"),
     'post_inline_image_comment_ei_excluded' => str_contains($plainText, 'Before Comment EI Boundary')
         && str_contains($plainText, 'After Comment EI Boundary')
         && !str_contains($plainText, 'Comment EI Payload Noise')

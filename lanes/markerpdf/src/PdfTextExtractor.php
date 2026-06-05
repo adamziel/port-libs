@@ -24660,6 +24660,8 @@ final class PdfTextExtractor
         $textObjectHasText = false;
         $closedTextObject = false;
         $graphicsStateDepth = 0;
+        $markedContentDepth = 0;
+        $outsideTextOperands = [];
 
         while ($index < $length) {
             $char = $segment[$index];
@@ -24691,7 +24693,16 @@ final class PdfTextExtractor
 
             if ($char === '<') {
                 if (!$insideTextObject) {
-                    return false;
+                    if (($segment[$index + 1] ?? '') !== '<') {
+                        return false;
+                    }
+
+                    $token = $this->readDictionaryToken($segment, $index);
+                    if (!$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)) {
+                        return false;
+                    }
+
+                    continue;
                 }
                 if (($segment[$index + 1] ?? '') === '<') {
                     $this->readDictionaryToken($segment, $index);
@@ -24712,7 +24723,12 @@ final class PdfTextExtractor
 
             if ($char === '/') {
                 if (!$insideTextObject) {
-                    return false;
+                    $token = $this->readNameToken($segment, $index);
+                    if (!$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)) {
+                        return false;
+                    }
+
+                    continue;
                 }
                 $this->readNameToken($segment, $index);
                 continue;
@@ -24729,6 +24745,37 @@ final class PdfTextExtractor
 
             $token = substr($segment, $start, $index - $start);
             if (!$insideTextObject) {
+                if ($token === 'BMC') {
+                    if (
+                        count($outsideTextOperands) !== 1
+                        || !$this->markedContentTagOperand($outsideTextOperands[0])
+                    ) {
+                        return false;
+                    }
+
+                    $outsideTextOperands = [];
+                    $markedContentDepth++;
+                    continue;
+                }
+
+                if ($token === 'BDC') {
+                    if (
+                        count($outsideTextOperands) !== 2
+                        || !$this->markedContentTagOperand($outsideTextOperands[0])
+                        || !$this->markedContentPropertyOperand($outsideTextOperands[1])
+                    ) {
+                        return false;
+                    }
+
+                    $outsideTextOperands = [];
+                    $markedContentDepth++;
+                    continue;
+                }
+
+                if ($outsideTextOperands !== []) {
+                    return false;
+                }
+
                 if ($token === 'q') {
                     $graphicsStateDepth++;
                     continue;
@@ -24736,6 +24783,11 @@ final class PdfTextExtractor
 
                 if ($token === 'Q' && $graphicsStateDepth > 0) {
                     $graphicsStateDepth--;
+                    continue;
+                }
+
+                if ($token === 'EMC' && $markedContentDepth > 0) {
+                    $markedContentDepth--;
                     continue;
                 }
 
@@ -24761,7 +24813,44 @@ final class PdfTextExtractor
             }
         }
 
-        return $closedTextObject && !$insideTextObject && $graphicsStateDepth === 0;
+        return $closedTextObject
+            && !$insideTextObject
+            && $outsideTextOperands === []
+            && $graphicsStateDepth === 0
+            && $markedContentDepth === 0;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function queueMarkedContentBoundaryOperand(array &$operands, string $token): bool
+    {
+        $count = count($operands);
+        if ($count === 0) {
+            if (!$this->markedContentTagOperand($token)) {
+                return false;
+            }
+
+            $operands[] = $token;
+            return true;
+        }
+
+        if ($count === 1 && $this->markedContentPropertyOperand($token)) {
+            $operands[] = $token;
+            return true;
+        }
+
+        return false;
+    }
+
+    private function markedContentTagOperand(string $token): bool
+    {
+        return str_starts_with($token, '/') && strlen($token) > 1;
+    }
+
+    private function markedContentPropertyOperand(string $token): bool
+    {
+        return str_starts_with($token, '<<') || $this->markedContentTagOperand($token);
     }
 
     private function contentSegmentContainsInlineImagePreamble(string $segment): bool

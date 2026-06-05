@@ -212,6 +212,22 @@ $inlineImageTokenizerMarkedActualTextEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerSampleFloorMarkedActualTextPdf = static function (): string {
+    $payload = "\x80 EI\n/Span << /ActualText (Visible Sample Floor ActualText) >> BDC BT /F1 12 Tf 72 704 Td (Hidden Sample Floor Text) Tj ET EMC\nEI";
+    $content = "BT /F1 12 Tf 72 720 Td (Before Sample Floor ActualText) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . $payload . "\n"
+        . "BT /F1 12 Tf 72 688 Td (After Sample Floor ActualText) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerCommentEiPdf = static function (): string {
     $payload = "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Comment EI Payload Noise) Tj ET rawtail\nEI";
     $content = "BT /F1 12 Tf 72 720 Td (Before Comment EI Boundary) Tj ET\n"
@@ -678,6 +694,27 @@ return [
         $t->true(!str_contains($plainText, 'Hidden ActualText Source'));
         $t->true(!str_contains($plainText, 'Marked ActualText Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'closes sample-floor preview fallback before marked ActualText spans after EI' => static function (TestRunner $t) use ($inlineImageTokenizerSampleFloorMarkedActualTextPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerSampleFloorMarkedActualTextPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Sample Floor ActualText',
+            'Visible Sample Floor ActualText',
+            'After Sample Floor ActualText',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Sample Floor ActualText'));
+        $t->true(!str_contains($plainText, 'Hidden Sample Floor Text'));
+        $t->true(!str_contains($plainText, 'Sample Floor Text) Tj'));
+        $t->true(!str_contains($plainText, "\x80 EI"));
     },
     'ignores EI bytes inside comments after preview-only inline image terminators' => static function (TestRunner $t) use ($inlineImageTokenizerCommentEiPdf): void {
         $extractor = new PdfTextExtractor();
