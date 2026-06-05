@@ -8071,6 +8071,26 @@ final class PdfEngineHandoff
         }
 
         foreach ($objects as $reference => $body) {
+            $associatedFileSource = $this->pdfAssociatedFileSource($reference, $body);
+            if ($associatedFileSource !== null) {
+                foreach ($this->extractPdfReferenceArray($body, 'AF') as $associatedFileReference) {
+                    if (!isset($objects[$associatedFileReference])) {
+                        continue;
+                    }
+
+                    $this->addPdfEmbeddedFileEntry(
+                        $files,
+                        $this->summarizePdfFileSpec(
+                            $objects[$associatedFileReference],
+                            $objects,
+                            $associatedFileSource,
+                            $associatedFileReference . ' R',
+                            null
+                        )
+                    );
+                }
+            }
+
             if (preg_match('/\/Subtype\s*\/FileAttachment\b/s', $body) === 1) {
                 $value = $this->extractPdfValueForName($body, 'FS');
                 if ($value !== null) {
@@ -8109,6 +8129,38 @@ final class PdfEngineHandoff
         );
 
         return $files;
+    }
+
+    private function pdfAssociatedFileSource(string $reference, string $body): ?string
+    {
+        if (!str_contains($body, '/AF')) {
+            return null;
+        }
+
+        $references = $this->extractPdfReferenceArray($body, 'AF');
+        if ($references === []) {
+            return null;
+        }
+
+        $type = $this->extractPdfNameToken($body, 'Type');
+        $pdfReference = $reference . ' R';
+        if ($type === 'Catalog' || $type === 'Filespec') {
+            return null;
+        }
+        if ($type === 'Page') {
+            return 'page:' . $pdfReference . '.AF';
+        }
+        if ($type === 'StructElem') {
+            return 'structure:' . $pdfReference . '.AF';
+        }
+        if ($type === 'Annot') {
+            return 'annotation:' . $pdfReference . '.AF';
+        }
+        if ($type === 'XObject') {
+            return 'xobject:' . $pdfReference . '.AF';
+        }
+
+        return 'object:' . $pdfReference . '.AF';
     }
 
     /**

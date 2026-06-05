@@ -2317,6 +2317,110 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner preserves bounded pdf page and structure associated file sources from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/associated-files.pdf']);
+        $pageAttachmentBytes = "page reviewer notes\n";
+        $structureAttachmentBytes = '{"source":"chart"}';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AF [6 0 R] >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Filespec /F (page-note.txt) /Desc (Page review note) /AFRelationship /Supplement /EF << /F 7 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /text#2Fplain /Params << /Size ' . strlen($pageAttachmentBytes) . ' >> /Length ' . strlen($pageAttachmentBytes) . ' >>',
+            'stream',
+            $pageAttachmentBytes,
+            'endstream',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /StructTreeRoot /K [9 0 R] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructElem /S /Figure /P 8 0 R /Pg 3 0 R /AF [10 0 R] /Alt (Review chart) >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Filespec /F (figure-source.json) /Desc (Figure source data) /AFRelationship /Source /EF << /F 11 0 R >> >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size ' . strlen($structureAttachmentBytes) . ' /ModDate (D:20260605211500Z) >> /Length ' . strlen($structureAttachmentBytes) . ' >>',
+            'stream',
+            $structureAttachmentBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/associated-files.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/associated-files.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'name' => 'figure-source.json',
+                'unicodeName' => null,
+                'description' => 'Figure source data',
+                'afRelationship' => 'Source',
+                'filespec' => '10 0 R',
+                'embeddedFile' => '11 0 R',
+                'subtype' => 'application/json',
+                'size' => strlen($structureAttachmentBytes),
+                'modDate' => 'D:20260605211500Z',
+                'checksum' => null,
+                'streamBytes' => strlen($structureAttachmentBytes),
+                'streamSha256' => hash('sha256', $structureAttachmentBytes),
+                'streamSkipped' => null,
+                'source' => 'structure:9 0 R.AF',
+            ],
+            [
+                'name' => 'page-note.txt',
+                'unicodeName' => null,
+                'description' => 'Page review note',
+                'afRelationship' => 'Supplement',
+                'filespec' => '6 0 R',
+                'embeddedFile' => '7 0 R',
+                'subtype' => 'text/plain',
+                'size' => strlen($pageAttachmentBytes),
+                'modDate' => null,
+                'checksum' => null,
+                'streamBytes' => strlen($pageAttachmentBytes),
+                'streamSha256' => hash('sha256', $pageAttachmentBytes),
+                'streamSkipped' => null,
+                'source' => 'page:3 0 R.AF',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(['figure-source.json', 'page-note.txt'], $result['pdfEmbeddedFileNames']);
+        $t->same($expected, $result['pdfEmbeddedFiles']);
+        $t->contains('pdf-byte-embedded-files:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-file-streams:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfEmbeddedFiles']);
+    },
+
     'fake runner extracts bounded pdf collection portfolio metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio.pdf']);
