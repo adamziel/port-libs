@@ -1096,6 +1096,56 @@ return [
         $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
         $t->contains('inline_image_decoded_surplus_samples_review_only', implode(',', $preview['stream_notes']));
     },
+    'keeps Identity Crypt Flate post-stream surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $imageByte = 'K';
+        $compressedImage = gzcompress($imageByte, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build Identity Crypt Flate inline image fixture.');
+        }
+
+        $postStreamSurplus = 'ZZ EI BT /F1 12 Tf 72 660 Td (Identity Crypt Flate Inline Noise) Tj ET rawtail';
+        $payload = $compressedImage . $postStreamSurplus;
+        $dictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/Crypt /Fl] /DP [<< /Name /Identity >> null] /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Identity Crypt Flate Inline) Tj ET\n"
+            . "BI {$dictionary} ID "
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Identity Crypt Flate Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before Identity Crypt Flate Inline',
+            'After Identity Crypt Flate Inline',
+        ];
+        $t->true(str_contains($postStreamSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Identity Crypt Flate Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
+        );
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $compressedImage, [], 1);
+        $t->same(['Crypt', 'FlateDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(strlen($compressedImage), $preview['image_stream']['raw_length']);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $imageByte), $preview['image_stream']['decoded_sha256']);
+        $t->same('4B', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same([75.0], $preview['pixels'][0]['raw_sample']);
+    },
     'closes malformed inline image filter fallbacks before the next inline image preamble' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $malformedPayload = 'abcdefgh EI BT /F1 12 Tf 72 660 Td (First Malformed Inline Noise) Tj ET rawtail';

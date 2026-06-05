@@ -28465,6 +28465,12 @@ final class PdfTextExtractor
                         $candidate,
                         $expectedLength
                     )
+                    || $this->inlineIdentityCryptPrefixCandidateReachesSampleFloorBeforeFilterSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        $expectedLength
+                    )
                 );
         }
 
@@ -28782,6 +28788,91 @@ final class PdfTextExtractor
         );
 
         return $nativePrefix !== null && strlen($nativePrefix) >= $expectedLength;
+    }
+
+    /**
+     * Identity Crypt is byte-preserving, so a bounded native filter after it can
+     * still define the original inline-image ownership boundary.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineIdentityCryptPrefixCandidateReachesSampleFloorBeforeFilterSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $sawIdentityCryptPrefix = false;
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if ($filter === 'Crypt') {
+                if (
+                    !$this->canApplyDecodeParms($filter, $filterDecodeParms, [])
+                    || $this->decodeCryptIdentityStream('', $filterDecodeParms, []) === null
+                ) {
+                    return false;
+                }
+
+                $sawIdentityCryptPrefix = true;
+                continue;
+            }
+
+            if (!$sawIdentityCryptPrefix || !$this->canApplyDecodeParms($filter, $filterDecodeParms, [])) {
+                return false;
+            }
+
+            $filterEnd = $this->streamFilterInputEndByteOffset($filter, $candidate, $filterDecodeParms, []);
+            if ($filterEnd === null) {
+                return false;
+            }
+
+            $postFilter = substr($candidate, $filterEnd);
+            if (
+                $postFilter === ''
+                || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $filterEnd)
+                || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postFilter) !== 1
+            ) {
+                return false;
+            }
+
+            $boundedCandidate = substr($candidate, 0, $filterEnd);
+            $decoded = $this->decodeStream(
+                $dictionary,
+                $boundedCandidate,
+                [],
+                true,
+                false,
+                true
+            );
+            if ($decoded !== null) {
+                return strlen($decoded) >= $expectedLength;
+            }
+
+            $nativePrefix = $this->decodeInlineImageNativePrefixBeforePreviewFilter(
+                $filters,
+                $decodeParms,
+                $dictionary,
+                $boundedCandidate
+            );
+
+            return $nativePrefix !== null && strlen($nativePrefix) >= $expectedLength;
+        }
+
+        return false;
     }
 
     /**
