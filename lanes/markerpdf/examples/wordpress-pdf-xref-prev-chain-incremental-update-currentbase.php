@@ -582,6 +582,60 @@ $sparseInfoPdf .= "30 0 obj\n"
     . "stream\n{$sparseInfoCompressedLatestRows}\nendstream\nendobj\n"
     . "startxref\n{$sparseInfoLatestXrefOffset}\n%%EOF";
 
+$infoNullStaleText = 'BT /F1 12 Tf 72 720 Td (Stale Info null smoke page) Tj ET';
+$infoNullCurrentText = 'BT /F1 12 Tf 72 720 Td (Current Info null smoke page) Tj ET';
+$infoNullPdf = "%PDF-1.7\n";
+$infoNullOffsets = [];
+$addInfoNullObject = static function (int $objectNumber, int $generation, string $body) use (&$infoNullPdf, &$infoNullOffsets): int {
+    $offset = strlen($infoNullPdf);
+    $infoNullOffsets[$objectNumber . ':' . $generation . ':' . count($infoNullOffsets)] = $offset;
+    $infoNullPdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+    return $offset;
+};
+
+$infoNullStaleCatalogOffset = $addInfoNullObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) >>');
+$infoNullStalePagesOffset = $addInfoNullObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$infoNullStalePageOffset = $addInfoNullObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$infoNullStaleContentOffset = $addInfoNullObject(4, 0, "<< /Length " . strlen($infoNullStaleText) . " >>\nstream\n{$infoNullStaleText}\nendstream");
+$infoNullFontOffset = $addInfoNullObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+$infoNullStaleInfoOffset = $addInfoNullObject(6, 0, '<< /Title (Stale Info Null Smoke Title) /Author (Stale Info Null Smoke Author) /Producer (Stale Info Null Smoke Producer) >>');
+
+$infoNullPreviousXrefOffset = strlen($infoNullPdf);
+$infoNullPdf .= "xref\n"
+    . "0 7\n"
+    . $xrefTableRow(0, 65535, 'f')
+    . $xrefTableRow($infoNullStaleCatalogOffset)
+    . $xrefTableRow($infoNullStalePagesOffset)
+    . $xrefTableRow($infoNullStalePageOffset)
+    . $xrefTableRow($infoNullStaleContentOffset)
+    . $xrefTableRow($infoNullFontOffset)
+    . $xrefTableRow($infoNullStaleInfoOffset)
+    . "trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\n"
+    . "startxref\n{$infoNullPreviousXrefOffset}\n%%EOF\n";
+
+$infoNullCurrentCatalogOffset = $addInfoNullObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /ViewerPreferences << /DisplayDocTitle true >> >>');
+$infoNullCurrentPagesOffset = $addInfoNullObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+$infoNullCurrentPageOffset = $addInfoNullObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+$infoNullCurrentContentOffset = $addInfoNullObject(4, 0, "<< /Length " . strlen($infoNullCurrentText) . " >>\nstream\n{$infoNullCurrentText}\nendstream");
+
+$infoNullRows = ''
+    . $xrefStreamRow(1, $infoNullCurrentCatalogOffset, 0)
+    . $xrefStreamRow(1, $infoNullCurrentPagesOffset, 0)
+    . $xrefStreamRow(1, $infoNullCurrentPageOffset, 0)
+    . $xrefStreamRow(1, $infoNullCurrentContentOffset, 0)
+    . $xrefStreamRow(1, $infoNullFontOffset, 0);
+$infoNullCompressedRows = gzcompress($infoNullRows);
+if (!is_string($infoNullCompressedRows)) {
+    throw new RuntimeException('Unable to compress Info-null smoke xref rows.');
+}
+
+$infoNullCurrentXrefOffset = strlen($infoNullPdf);
+$infoNullPdf .= "20 0 obj\n"
+    . '<< /Type /XRef /Size 21 /Root 1 0 R /Info null /Prev ' . $infoNullPreviousXrefOffset . ' /Index [1 5] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($infoNullCompressedRows) . " >>\n"
+    . "stream\n{$infoNullCompressedRows}\nendstream\nendobj\n"
+    . "startxref\n{$infoNullCurrentXrefOffset}\n%%EOF";
+
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $extractor = new PdfTextExtractor();
 $plainText = $extractor->extractPlainText($pdf);
@@ -631,6 +685,12 @@ $sparseInfoEncoded = json_encode([
     'metadata' => $sparseInfoMetadata,
     'text' => $sparseInfoPlainText,
     'files' => $sparseInfoFiles,
+], JSON_UNESCAPED_SLASHES);
+$infoNullMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($infoNullPdf);
+$infoNullPlainText = $extractor->extractPlainText($infoNullPdf);
+$infoNullEncoded = json_encode([
+    'metadata' => $infoNullMetadata,
+    'text' => $infoNullPlainText,
 ], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
@@ -685,6 +745,14 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'sparse_latest_xref_stream_stale_prev_excluded' => is_string($sparseInfoEncoded)
         && !str_contains($sparseInfoEncoded, 'Stale Sparse')
         && !str_contains($sparseInfoEncoded, 'stale-sparse-latest-info-smoke'),
+    'info_null_latest_xref_stream_stops_prev_info' => ($infoNullMetadata['source'] ?? null) === ['catalog']
+        && ($infoNullMetadata['info'] ?? null) === [],
+    'info_null_latest_xref_stream_current_catalog_selected' => ($infoNullMetadata['language'] ?? null) === 'en-US'
+        && (($infoNullMetadata['viewer_preferences']['display_doc_title'] ?? null) === true),
+    'info_null_latest_xref_stream_current_text_selected' => str_contains($infoNullPlainText, 'Current Info null smoke page'),
+    'info_null_latest_xref_stream_stale_prev_excluded' => is_string($infoNullEncoded)
+        && !str_contains($infoNullEncoded, 'Stale Info Null')
+        && !str_contains($infoNullEncoded, 'Stale Info null smoke page'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

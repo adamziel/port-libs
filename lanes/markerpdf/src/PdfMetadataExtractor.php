@@ -865,9 +865,13 @@ final class PdfMetadataExtractor
 
         $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
         if ($tableSection !== null) {
-            $info = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info'));
+            $infoValue = $this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info');
+            $info = $this->objectReferenceFromValue($infoValue);
             if ($info !== null) {
                 return $info;
+            }
+            if ($this->trailerExplicitlyClearsInfo($tableSection['trailer'])) {
+                return null;
             }
 
             $hybridStreamOffset = $this->dictionaryIntegerValue($tableSection['trailer'], 'XRefStm', $objects);
@@ -877,6 +881,9 @@ final class PdfMetadataExtractor
                     $info = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info'));
                     if ($info !== null) {
                         return $info;
+                    }
+                    if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+                        return null;
                     }
                 }
             }
@@ -905,6 +912,9 @@ final class PdfMetadataExtractor
         $info = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info'));
         if ($info !== null) {
             return $info;
+        }
+        if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+            return null;
         }
 
         if ($this->trailerExplicitlyClearsEncryption($streamSection['body'])) {
@@ -937,7 +947,7 @@ final class PdfMetadataExtractor
         $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
         if ($tableSection !== null) {
             if ($this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info') !== null) {
-                return false;
+                return $this->trailerExplicitlyClearsInfo($tableSection['trailer']);
             }
 
             return $this->trailerExplicitlyClearsEncryption($tableSection['trailer']);
@@ -949,10 +959,17 @@ final class PdfMetadataExtractor
         }
 
         if ($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info') !== null) {
-            return false;
+            return $this->trailerExplicitlyClearsInfo($streamSection['body']);
         }
 
         return $this->trailerExplicitlyClearsEncryption($streamSection['body']);
+    }
+
+    private function trailerExplicitlyClearsInfo(string $body): bool
+    {
+        $info = $this->dictionaryTopLevelRawValue($body, 'Info');
+
+        return $info !== null && trim($info) === 'null';
     }
 
     private function trailerExplicitlyClearsEncryption(string $body): bool
