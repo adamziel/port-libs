@@ -153,10 +153,22 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases}</annotation>', $casesMathml);
         $t->contains('<mo fence="true" stretchy="true">{</mo><mtable columnalign="left left"><mtr><mtd><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd><mtd><mi>a</mi><mo>≥</mo><mi>b</mi></mtd></mtr><mtr><mtd><mroot><mi>x</mi><mi>n</mi></mroot></mtd><mtd><mi>a</mi><mo>&lt;</mo><mi>b</mi></mtd></mtr></mtable>', $nestedCasesMathml);
     },
+    'converts bounded tex array environments with column specs to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $arrayMathml = $converter->texToMathMl('\\begin{array}{rl}x_i &= p_i \\\\ y_i &= \\frac{a_i}{b_i}\\end{array}', true);
+        $ruledArrayMathml = $converter->texToMathMl('\\begin{array}{l|c|r}\\alpha & \\beta & \\omega \\\\ 1 & 2 & 3\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $arrayMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mfrac><msub><mi>a</mi><mi>i</mi></msub><msub><mi>b</mi><mi>i</mi></msub></mfrac></mtd></mtr></mtable>', $arrayMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{rl}x_i &amp;= p_i \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{array}</annotation>', $arrayMathml);
+        $t->contains('<mtable columnalign="left center right"><mtr><mtd><mi>α</mi></mtd><mtd><mi>β</mi></mtd><mtd><mi>ω</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $ruledArrayMathml);
+    },
     'rejects malformed bounded tex matrix environments without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{p{2cm}}a & b\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}a & b'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\frac{a}{b & c\\end{matrix}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{matrix}\\end{matrix}'));

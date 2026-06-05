@@ -519,6 +519,10 @@ final class MathTexConverter
     private function parseEnvironment(string $source, int &$offset): string
     {
         $environment = $this->readRequiredGroupText($source, $offset);
+        if ($environment === 'array') {
+            return $this->parseArrayEnvironment($source, $offset);
+        }
+
         if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
@@ -531,15 +535,7 @@ final class MathTexConverter
             $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
         }
 
-        $table = '<mtable' . $attributes . '>';
-        foreach ($rows as $row) {
-            $table .= '<mtr>';
-            foreach ($row as $cell) {
-                $table .= '<mtd>' . $this->parseEnvironmentCell($cell) . '</mtd>';
-            }
-            $table .= '</mtr>';
-        }
-        $table .= '</mtable>';
+        $table = $this->environmentTable($rows, $attributes);
 
         if (isset($spec['open']) || isset($spec['close'])) {
             $wrapped = '<mrow>';
@@ -555,6 +551,66 @@ final class MathTexConverter
         }
 
         return $table;
+    }
+
+    private function parseArrayEnvironment(string $source, int &$offset): string
+    {
+        $columnAlign = $this->arrayColumnAlign($this->readRequiredGroupText($source, $offset));
+        $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
+
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($columnAlign) . '"');
+    }
+
+    private function arrayColumnAlign(string $columnSpec): string
+    {
+        $alignments = [];
+        $length = strlen($columnSpec);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $columnSpec[$offset];
+            if ($char === '|' || ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === 'l') {
+                $alignments[] = 'left';
+                continue;
+            }
+
+            if ($char === 'c') {
+                $alignments[] = 'center';
+                continue;
+            }
+
+            if ($char === 'r') {
+                $alignments[] = 'right';
+                continue;
+            }
+
+            throw new \InvalidArgumentException('Unsupported TeX array column specifier ' . $char . ' at offset ' . $offset);
+        }
+
+        if ($alignments === []) {
+            throw new \InvalidArgumentException('Expected TeX array column specifier');
+        }
+
+        return implode(' ', $alignments);
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function environmentTable(array $rows, string $attributes): string
+    {
+        $table = '<mtable' . $attributes . '>';
+        foreach ($rows as $row) {
+            $table .= '<mtr>';
+            foreach ($row as $cell) {
+                $table .= '<mtd>' . $this->parseEnvironmentCell($cell) . '</mtd>';
+            }
+            $table .= '</mtr>';
+        }
+
+        return $table . '</mtable>';
     }
 
     private function readEnvironmentContent(string $source, int &$offset, string $environment): string
