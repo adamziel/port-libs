@@ -356,6 +356,39 @@ $fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf = static function (): str
         . "7 0 obj\n[-500 500 880 -500 500 880 -500 500 880 -500 500 880]\nendobj\n%%EOF";
 };
 
+$fontWidthType3FontMatrixWidthsBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<41> <0041>\n"
+        . "<42> <0042>\n"
+        . "<43> <0043>\n"
+        . "<44> <0044>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Ft3 12 Tf '
+        . '1 0 0 1 72 720 Tm <4142> Tj '
+        . '1 0 0 1 96 720 Tm <4344> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <4142> Tj '
+        . '1 0 0 1 108 704 Tm <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ft3 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type3 /Name /T3MatrixWidths /BaseFont /T3MatrixWidths "
+        . "/FontBBox [0 0 500 700] /FontMatrix [0.002 0 0 0.001 0 0] "
+        . "/FirstChar 65 /LastChar 68 /Widths [500 500 500 500] "
+        . "/Encoding /WinAnsiEncoding /CharProcs << >> /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+};
+
 return [
     'uses simple-font average positive width fallback for missing glyph advances on current base' => static function (TestRunner $t) use ($fontWidthAdvanceBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -730,6 +763,27 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 48.0], [12.0, 0.0, 24.0, 72.0]]);
         $t->true(!str_contains($plainText, 'Vert Import'));
         $t->true(!str_contains($plainText, 'IndirectVerticalArrayCID'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'normalizes Type3 Widths through FontMatrix before current advance gaps on current base' => static function (TestRunner $t) use ($fontWidthType3FontMatrixWidthsBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthType3FontMatrixWidthsBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstLine = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+
+        $t->same(['ABCD', 'AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("ABCD\nAB CD", $plainText);
+        $t->same("ABCD\nAB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'AB CD' . "\n" . 'AB CD'));
+        $t->true(str_contains($plainText, 'AB CD'));
+        $t->true(!str_contains($plainText, 'T3MatrixWidths'));
+        $t->true(!str_contains($plainText, 'Ft3'));
         $t->true(!str_contains($plainText, "\0"));
     },
 ];

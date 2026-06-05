@@ -12308,6 +12308,13 @@ final class PdfTextExtractor
             }
         }
 
+        if ($widths !== [] && $this->isType3FontBody($fontBody)) {
+            $fontMatrix = $this->type3FontMatrix($fontBody, $objects);
+            foreach ($widths as $code => $width) {
+                $widths[$code] = $this->type3FontMatrixWidthVectorAdvance([$width, 0.0], $fontMatrix);
+            }
+        }
+
         return $widths;
     }
 
