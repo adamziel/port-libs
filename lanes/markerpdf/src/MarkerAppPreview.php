@@ -865,20 +865,32 @@ final class MarkerAppPreview
      */
     private function trailerRootReference(string $pdfBytes): ?array
     {
-        $startxrefOffset = strrpos($pdfBytes, 'startxref');
-        $candidateBytes = $startxrefOffset === false ? $pdfBytes : substr($pdfBytes, 0, $startxrefOffset);
-        if (preg_match_all('/\btrailer\b/s', $candidateBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+        $bodyRanges = $this->directObjectBodyRanges($pdfBytes);
+        $startxrefOffset = $this->latestStartxrefTokenOffset($pdfBytes, $bodyRanges);
+        $beforeOffset = $startxrefOffset ?? strlen($pdfBytes);
+        if (preg_match_all('/\btrailer\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
         for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
-            $offset = $matches[0][$index][1] + strlen($matches[0][$index][0]);
-            $offset = $this->skipPdfWhitespace($candidateBytes, $offset);
-            if (substr($candidateBytes, $offset, 2) !== '<<') {
+            $tokenOffset = $matches[0][$index][1];
+            if (
+                $tokenOffset >= $beforeOffset
+                || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'trailer')
+                || $this->offsetInRanges($tokenOffset, $bodyRanges)
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $bodyRanges)
+            ) {
                 continue;
             }
 
-            $dictionary = $this->readBalancedDictionary($candidateBytes, $offset);
+            $offset = $tokenOffset + strlen($matches[0][$index][0]);
+            $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
+            if (substr($pdfBytes, $offset, 2) !== '<<') {
+                continue;
+            }
+
+            $dictionary = $this->readBalancedDictionary($pdfBytes, $offset);
             if ($dictionary === null) {
                 continue;
             }
@@ -892,6 +904,175 @@ final class MarkerAppPreview
                 'object_id' => (int) $match[1],
                 'generation' => (int) $match[2],
             ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $bodyRanges
+     */
+    private function latestStartxrefTokenOffset(string $pdfBytes, array $bodyRanges): ?int
+    {
+        if (preg_match_all('/\bstartxref\s+\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1];
+            if (
+                !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || $this->offsetInRanges($tokenOffset, $bodyRanges)
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $bodyRanges)
+            ) {
+                continue;
+            }
+
+            return $tokenOffset;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{start: int, end: int}>
+     */
+    private function directObjectBodyRanges(string $pdfBytes): array
+    {
+        if (preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+            return [];
+        }
+
+        $ranges = [];
+        foreach ($matches as $match) {
+            $body = $match[2][0];
+            $start = $match[2][1];
+            $ranges[] = [
+                'start' => $start,
+                'end' => $start + strlen($body),
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $ranges
+     */
+    private function offsetInRanges(int $offset, array $ranges): bool
+    {
+        foreach ($ranges as $range) {
+            if ($offset >= $range['start'] && $offset <= $range['end']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function pdfKeywordAt(string $value, int $offset, string $keyword): bool
+    {
+        $keywordLength = strlen($keyword);
+        if (substr($value, $offset, $keywordLength) !== $keyword) {
+            return false;
+        }
+
+        if ($offset > 0) {
+            $before = $value[$offset - 1];
+            if ($before === '/' || (!ctype_space($before) && !str_contains('[]()<>{}%', $before))) {
+                return false;
+            }
+        }
+
+        $afterOffset = $offset + $keywordLength;
+        if ($afterOffset >= strlen($value)) {
+            return true;
+        }
+
+        $after = $value[$afterOffset];
+        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
+    }
+
+    private function tokenStartsInPdfCommentLine(string $pdfBytes, int $tokenOffset): bool
+    {
+        $before = substr($pdfBytes, 0, $tokenOffset);
+        $lastLineFeed = strrpos($before, "\n");
+        $lastCarriageReturn = strrpos($before, "\r");
+        $lineStart = max($lastLineFeed === false ? -1 : $lastLineFeed, $lastCarriageReturn === false ? -1 : $lastCarriageReturn) + 1;
+        $commentOffset = strpos($pdfBytes, '%', $lineStart);
+
+        return $commentOffset !== false && $commentOffset < $tokenOffset;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $bodyRanges
+     */
+    private function tokenStartsInsidePdfCompositeToken(string $pdfBytes, int $tokenOffset, array $bodyRanges): bool
+    {
+        $length = strlen($pdfBytes);
+        $index = 0;
+        while ($index < $tokenOffset && $index < $length) {
+            foreach ($bodyRanges as $range) {
+                if ($index >= $range['start'] && $index <= $range['end']) {
+                    $index = $range['end'] + 1;
+                    continue 2;
+                }
+            }
+
+            $char = $pdfBytes[$index];
+            if ($char === '%') {
+                while ($index < $length && $pdfBytes[$index] !== "\n" && $pdfBytes[$index] !== "\r") {
+                    $index++;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                $literal = $this->readBalancedLiteralString($pdfBytes, $index);
+                if ($literal !== null) {
+                    if ($tokenOffset > $index && $tokenOffset < $literal[1]) {
+                        return true;
+                    }
+                    $index = $literal[1];
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $index);
+            if ($compositeEnd !== null) {
+                if ($tokenOffset > $index && $tokenOffset < $compositeEnd) {
+                    return true;
+                }
+                $index = $compositeEnd;
+                continue;
+            }
+
+            $index++;
+        }
+
+        return false;
+    }
+
+    private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        if ($pdfBytes[$offset] === '[') {
+            $array = $this->readBalancedArray($pdfBytes, $offset);
+            return $array[1] ?? null;
+        }
+
+        if (substr($pdfBytes, $offset, 2) === '<<') {
+            $dictionary = $this->readBalancedDictionary($pdfBytes, $offset);
+            return $dictionary[1] ?? null;
+        }
+
+        if ($pdfBytes[$offset] === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+            $hex = $this->readHexString($pdfBytes, $offset);
+            return $hex[1] ?? null;
         }
 
         return null;
