@@ -3490,7 +3490,7 @@ final class PdfAcroFormExtractor
         }
         $widgetRefs = $this->widgetReferencesForField($objectNumber, $widgetRefs, $objects, $pageWidgets);
 
-        $fieldType = $this->fieldType($effective);
+        $fieldType = $this->fieldType($effective, $objects);
         if ($fieldType === null && $partialName === null && $mappingName === null) {
             return [];
         }
@@ -4582,19 +4582,15 @@ final class PdfAcroFormExtractor
 
     /**
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
+     * @param array<int, string> $objects
      */
-    private function fieldType(array $effective): ?string
+    private function fieldType(array $effective, array $objects): ?string
     {
         if (!isset($effective['FT'])) {
             return null;
         }
 
-        $value = trim($effective['FT']['value']);
-        if (!str_starts_with($value, '/')) {
-            return null;
-        }
-
-        return $this->decodePdfName($value);
+        return $this->pdfNameFromValueResolvingObjects($effective['FT']['value'], $objects);
     }
 
     private function fieldTypeLabel(?string $fieldType): string
@@ -9258,6 +9254,34 @@ final class PdfAcroFormExtractor
     {
         $value = $this->valueAfterName($body, $name);
         if ($value === null || !str_starts_with(trim($value), '/')) {
+            return null;
+        }
+
+        return $this->decodePdfName($value);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfNameFromValueResolvingObjects(string $value, array $objects, array $seen = []): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['object'];
+            if (isset($seen[$objectNumber]) || !$this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)) {
+                return null;
+            }
+
+            $seen[$objectNumber] = true;
+            return $this->pdfNameFromValueResolvingObjects(trim($objects[$objectNumber]), $objects, $seen);
+        }
+
+        if (!str_starts_with($value, '/')) {
             return null;
         }
 
