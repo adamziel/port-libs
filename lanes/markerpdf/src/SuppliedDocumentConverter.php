@@ -265,6 +265,10 @@ final class SuppliedDocumentConverter
             if ($coordinateSpaceReviews !== []) {
                 $metadata['table_coordinate_space_reviews'] = $coordinateSpaceReviews;
             }
+            $assignedBandBoundaryReviews = $this->tableAssignedBandBoundaryReviews($recognition['assigned_band_boundary_reviews'] ?? []);
+            if ($assignedBandBoundaryReviews !== []) {
+                $metadata['table_assigned_band_boundary_reviews'] = $assignedBandBoundaryReviews;
+            }
             $markdownTables = $recognition['markdown_tables'];
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
@@ -505,6 +509,31 @@ final class SuppliedDocumentConverter
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param mixed $reviews
+     * @return list<array<string, mixed>|null>
+     */
+    private function tableAssignedBandBoundaryReviews(mixed $reviews): array
+    {
+        if (!is_array($reviews)) {
+            return [];
+        }
+
+        $normalized = [];
+        $hasReview = false;
+        foreach ($reviews as $review) {
+            if (is_array($review)) {
+                $normalized[] = $review;
+                $hasReview = true;
+                continue;
+            }
+
+            $normalized[] = null;
+        }
+
+        return $hasReview ? $normalized : [];
     }
 
     /**

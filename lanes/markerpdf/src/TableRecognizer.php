@@ -1007,7 +1007,7 @@ final class TableRecognizer
     /**
      * @param list<array<string, mixed>> $recognizedTables
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
-     * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>, recognized_tables: list<array<string, mixed>>, coordinate_space_reviews: list<array<string, mixed>|null>}
+     * @return array{assigned_cells: list<list<array<string, mixed>>>, markdown_tables: list<string>, recognized_tables: list<array<string, mixed>>, coordinate_space_reviews: list<array<string, mixed>|null>, assigned_band_boundary_reviews: list<array<string, mixed>|null>}
      */
     public function formatRecognizedTables(array $recognizedTables, array $imageSizes): array
     {
@@ -1028,12 +1028,20 @@ final class TableRecognizer
 
         $assigned = [];
         $markdown = [];
+        $assignedBandBoundaryReviews = [];
         foreach ($recognizedTables as $idx => $table) {
             $assignedCells = $this->assignedCellsFromRecognizedTable($table);
             if ($assignedCells !== null) {
-                $tableCells = $this->boundedAssignmentCells($assignedCells, $this->imageSize($imageSizes[$idx]));
+                $bounded = $this->boundedAssignedCellsWithActiveBands(
+                    $this->boundedAssignmentCells($assignedCells, $this->imageSize($imageSizes[$idx])),
+                    $table,
+                    $imageSizes[$idx]
+                );
+                $tableCells = $bounded['cells'];
+                $assignedBandBoundaryReviews[] = $bounded['review'];
             } else {
                 $tableCells = $this->assignRowsColumns($table, $imageSizes[$idx]);
+                $assignedBandBoundaryReviews[] = null;
             }
             $assigned[] = $tableCells;
             $markdown[] = $this->markdownFormat($tableCells);
@@ -1044,6 +1052,126 @@ final class TableRecognizer
             'markdown_tables' => $markdown,
             'recognized_tables' => $recognizedTables,
             'coordinate_space_reviews' => $coordinateSpaceReviews,
+            'assigned_band_boundary_reviews' => $assignedBandBoundaryReviews,
+        ];
+    }
+
+    /**
+     * Bound saved SpanTableCell assignments to the row/column bands that still
+     * exist inside the cropped table image. Upstream assignment normally runs
+     * after cropping, so off-crop row/column ids from serialized fixtures must
+     * not create ghost Markdown columns or rows.
+     *
+     * @param list<array<string, mixed>> $cells
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array{cells: list<array<string, mixed>>, review: array<string, mixed>|null}
+     */
+    private function boundedAssignedCellsWithActiveBands(array $cells, array $table, array $imageSize): array
+    {
+        if ($cells === [] || !isset($table['rows'], $table['cols']) || !is_array($table['rows']) || !is_array($table['cols'])) {
+            return [
+                'cells' => $cells,
+                'review' => null,
+            ];
+        }
+
+        $geometry = $this->tableGridGeometryBoundary(
+            $this->normalizeRowsOrCols($table['rows'], 'row_id'),
+            $this->normalizeRowsOrCols($table['cols'], 'col_id'),
+            $imageSize
+        );
+        $rowOrder = $this->bandOrderMap($geometry['rows'], 'row_id');
+        $colOrder = $this->bandOrderMap($geometry['cols'], 'col_id');
+        $activeRowIds = array_keys($rowOrder);
+        $activeColIds = array_keys($colOrder);
+        $activeRows = array_fill_keys($activeRowIds, true);
+        $activeCols = array_fill_keys($activeColIds, true);
+
+        $boundedCells = [];
+        $reviewRows = [];
+        foreach ($cells as $cellIndex => $cell) {
+            $originalRowIds = $this->integerList($cell['row_ids'] ?? []);
+            $originalColIds = $this->integerList($cell['col_ids'] ?? []);
+            $boundedRowIds = $this->orderIdsByMap(
+                array_values(array_filter($originalRowIds, static fn (int $rowId): bool => isset($activeRows[$rowId]))),
+                $rowOrder
+            );
+            $boundedColIds = $this->orderIdsByMap(
+                array_values(array_filter($originalColIds, static fn (int $colId): bool => isset($activeCols[$colId]))),
+                $colOrder
+            );
+
+            $missingRows = array_values(array_diff($originalRowIds, $boundedRowIds));
+            $missingCols = array_values(array_diff($originalColIds, $boundedColIds));
+            $active = $boundedRowIds !== [] && $boundedColIds !== [];
+            $status = 'within_active_bands';
+            if (!$active && $boundedRowIds === [] && $boundedColIds === []) {
+                $status = 'excluded_inactive_row_and_column_bands';
+            } elseif (!$active && $boundedRowIds === []) {
+                $status = 'excluded_inactive_row_band';
+            } elseif (!$active) {
+                $status = 'excluded_inactive_column_band';
+            } elseif ($missingRows !== [] || $missingCols !== []) {
+                $status = 'trimmed_to_active_bands';
+            }
+
+            $reviewRow = [
+                'cell_index' => $cellIndex,
+                'text' => (string) ($cell['text'] ?? ''),
+                'original_row_ids' => $originalRowIds,
+                'original_col_ids' => $originalColIds,
+                'bounded_row_ids' => $boundedRowIds,
+                'bounded_col_ids' => $boundedColIds,
+                'missing_row_ids' => $missingRows,
+                'missing_col_ids' => $missingCols,
+                'bbox' => $cell['bbox'],
+                'status' => $status,
+                'active' => $active,
+                'upstream_assignment_retained' => $active && $status === 'within_active_bands',
+            ];
+            if ($active && $status === 'trimmed_to_active_bands') {
+                $reviewRow['upstream_assignment_trimmed'] = true;
+            }
+            $reviewRows[] = $reviewRow;
+
+            if (!$active) {
+                continue;
+            }
+
+            $cell['row_ids'] = $boundedRowIds;
+            $cell['col_ids'] = $boundedColIds;
+            $cell['row_geometry_orders'] = array_map(
+                static fn (int $rowId): ?int => $rowOrder[$rowId] ?? null,
+                $boundedRowIds
+            );
+            $cell['col_geometry_orders'] = array_map(
+                static fn (int $colId): ?int => $colOrder[$colId] ?? null,
+                $boundedColIds
+            );
+            $boundedCells[] = $cell;
+        }
+
+        return [
+            'cells' => $boundedCells,
+            'review' => [
+                'review_target' => 'table_assigned_band_geometry_boundary',
+                'upstream_boundary' => 'tabled.schema.SpanTableCell.row_ids_col_ids_after_table_crop',
+                'image_size' => $this->imageSize($imageSize),
+                'active_row_ids' => $activeRowIds,
+                'active_col_ids' => $activeColIds,
+                'cell_count' => count($reviewRows),
+                'active_cell_count' => count($boundedCells),
+                'trimmed_cell_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => ($row['status'] ?? null) === 'trimmed_to_active_bands'
+                )),
+                'excluded_cell_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_')
+                )),
+                'cells' => $reviewRows,
+            ],
         ];
     }
 
