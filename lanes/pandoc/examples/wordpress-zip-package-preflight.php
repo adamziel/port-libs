@@ -31,15 +31,16 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
 
     return pack('vv', 0x000a, strlen($payload)) . $payload;
 };
-$buildRawTarRecord = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0): string {
+$buildRawTarRecord = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, ?int $headerSize = null): string {
     $octal = static fn (int $value, int $length): string => str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
     $field = static fn (string $value, int $length): string => str_pad($value, $length, "\0");
+    $headerSize ??= strlen($data);
 
     $header = $field($name, 100)
         . $octal(0644, 8)
         . $octal(0, 8)
         . $octal(0, 8)
-        . $octal(strlen($data), 12)
+        . $octal($headerSize, 12)
         . $octal($modifiedAt, 12)
         . str_repeat(' ', 8)
         . $typeFlag
@@ -61,6 +62,23 @@ $buildRawTarRecord = static function (string $name, string $typeFlag, string $da
     $padding = strlen($data) % 512 === 0 ? '' : str_repeat("\0", 512 - (strlen($data) % 512));
 
     return substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8) . $data . $padding;
+};
+$buildPaxPayload = static function (array $headers): string {
+    $payload = '';
+    foreach ($headers as $key => $value) {
+        $body = " {$key}={$value}\n";
+        $recordLength = strlen($body) + 1;
+        do {
+            $nextLength = strlen((string) $recordLength) + strlen($body);
+            if ($nextLength === $recordLength) {
+                $payload .= $recordLength . $body;
+                break;
+            }
+            $recordLength = $nextLength;
+        } while (true);
+    }
+
+    return $payload;
 };
 
 $buildDescriptorBackedPackage = static function () use ($crc32): string {
@@ -275,6 +293,20 @@ $gnuLongNameTar = $buildRawTarRecord('././@LongLink', 'L', $gnuLongDocumentName 
     )
     . str_repeat("\0", 1024);
 $gnuLongNamePacket = TarArchive::fromString($gnuLongNameTar);
+$paxDocumentName = 'packet/pax/document.xml';
+$paxDocumentBytes = '<w:document><w:body><w:p>PAX metadata tar source</w:p></w:body></w:document>';
+$paxMetadataTar = $buildRawTarRecord('PaxHeaders/pax-document', 'x', $buildPaxPayload([
+    'path' => $paxDocumentName,
+    'size' => (string) strlen($paxDocumentBytes),
+    'mtime' => (string) ($documentModifiedAt + 11) . '.25',
+    'uid' => '1001',
+    'gid' => '1002',
+    'uname' => 'wp-reviewer',
+    'gname' => 'import-team',
+]), $documentModifiedAt)
+    . $buildRawTarRecord('placeholder-document.xml', '0', $paxDocumentBytes, 0, 0)
+    . str_repeat("\0", 1024);
+$paxMetadataPacket = TarArchive::fromString($paxMetadataTar);
 $lz4ReviewPacket = Lz4Frame::skippableFrame('wordpress import archive metadata', 2)
     . Lz4Frame::build($tarPacket->bytes(), [
         'blockChecksum' => true,
@@ -397,6 +429,23 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected GNU long-name tar document bytes to be addressable by the metadata path');
     }
 
+    $paxEntry = $paxMetadataPacket->entry('/' . $paxDocumentName);
+    if ($paxEntry->size !== strlen($paxDocumentBytes)) {
+        throw new RuntimeException('Expected PAX size metadata to define the tar document payload length');
+    }
+
+    if ($paxEntry->modifiedAt !== $documentModifiedAt + 11) {
+        throw new RuntimeException('Expected PAX mtime metadata to define the tar document modified time');
+    }
+
+    if ($paxEntry->uid !== 1001 || $paxEntry->gid !== 1002 || $paxEntry->userName !== 'wp-reviewer' || $paxEntry->groupName !== 'import-team') {
+        throw new RuntimeException('Expected PAX owner metadata to round-trip for review packets');
+    }
+
+    if ($paxMetadataPacket->read('/' . $paxDocumentName) !== $paxDocumentBytes) {
+        throw new RuntimeException('Expected PAX metadata tar document bytes to round-trip');
+    }
+
     if (!$tarPacketRoundTrip->entry('packet/')->isDirectory()) {
         throw new RuntimeException('Expected tar packet directory metadata to round-trip');
     }
@@ -450,6 +499,8 @@ echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
+echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
+echo 'tar.paxOwner=' . $paxMetadataPacket->entry('/' . $paxDocumentName)->userName . ':' . $paxMetadataPacket->entry('/' . $paxDocumentName)->groupName . "\n";
 echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
 echo 'lz4.skippable=' . $lz4ReviewFrames[0]['data'] . "\n";
 echo 'lz4.blockTypes=' . implode(',', $lz4ReviewFrames[1]['blockTypes']) . "\n";

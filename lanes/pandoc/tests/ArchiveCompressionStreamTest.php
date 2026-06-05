@@ -7,17 +7,18 @@ use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
 use PortLibs\Pandoc\TarArchiveEntry;
 
-$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, bool $withEndMarker = true): string {
+$rawTarHeader = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, bool $withEndMarker = true, ?int $headerSize = null): string {
     $octal = static function (int $value, int $length): string {
         return str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
     };
     $field = static fn (string $value, int $length): string => str_pad($value, $length, "\0");
+    $headerSize ??= strlen($data);
 
     $header = $field($name, 100)
         . $octal(0644, 8)
         . $octal(0, 8)
         . $octal(0, 8)
-        . $octal(strlen($data), 12)
+        . $octal($headerSize, 12)
         . $octal($modifiedAt, 12)
         . str_repeat(' ', 8)
         . $typeFlag
@@ -40,6 +41,24 @@ $rawTarHeader = static function (string $name, string $typeFlag, string $data = 
     $padding = strlen($data) % 512 === 0 ? '' : str_repeat("\0", 512 - (strlen($data) % 512));
 
     return $header . $data . $padding . ($withEndMarker ? str_repeat("\0", 1024) : '');
+};
+
+$paxPayload = static function (array $headers): string {
+    $payload = '';
+    foreach ($headers as $key => $value) {
+        $body = " {$key}={$value}\n";
+        $recordLength = strlen($body) + 1;
+        do {
+            $nextLength = strlen((string) $recordLength) + strlen($body);
+            if ($nextLength === $recordLength) {
+                $payload .= $recordLength . $body;
+                break;
+            }
+            $recordLength = $nextLength;
+        } while (true);
+    }
+
+    return $payload;
 };
 
 $lz4HeaderChecksum = static fn (string $descriptor): string => chr((intval(hash('xxh32', $descriptor), 16) >> 8) & 0xff);
@@ -117,6 +136,38 @@ return [
         $t->same('<w:document><w:p>pax path metadata</w:p></w:document>', $roundTrip->read('/' . $paxName));
     },
 
+    'reads pax size and owner metadata for tar package fixture entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $documentName = 'packet/pax/document.xml';
+        $documentBytes = '<w:document><w:body><w:p>PAX metadata tar source</w:p></w:body></w:document>';
+        $extendedHeaders = $paxPayload([
+            'path' => $documentName,
+            'size' => (string) strlen($documentBytes),
+            'mtime' => '1780479028.75',
+            'uid' => '1001',
+            'gid' => '1002',
+            'uname' => 'wp-reviewer',
+            'gname' => 'import-team',
+        ]);
+        $archive = $rawTarHeader('PaxHeaders/pax-document', 'x', $extendedHeaders, 0, false)
+            . $rawTarHeader('placeholder.xml', '0', $documentBytes, 0, false, 0)
+            . str_repeat("\0", 1024);
+
+        $roundTrip = TarArchive::fromString($archive);
+        $entry = $roundTrip->entry($documentName);
+
+        $t->same([$documentName], $roundTrip->names());
+        $t->true($entry->isRegularFile());
+        $t->same(strlen($documentBytes), $entry->size);
+        $t->same(1780479028, $entry->modifiedAt);
+        $t->same(1001, $entry->uid);
+        $t->same(1002, $entry->gid);
+        $t->same('wp-reviewer', $entry->userName);
+        $t->same('import-team', $entry->groupName);
+        $t->same($documentName, $entry->paxHeaders['path'] ?? null);
+        $t->same((string) strlen($documentBytes), $entry->paxHeaders['size'] ?? null);
+        $t->same($documentBytes, $roundTrip->read('/' . $documentName));
+    },
+
     'reads gnu long name metadata for tar package fixture entries' => static function (TestRunner $t) use ($rawTarHeader): void {
         $longDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
         $longDirectoryName = 'packet/' . str_repeat('review-directory-', 6) . 'assets/';
@@ -141,7 +192,7 @@ return [
         $t->same('', $roundTrip->read($longDirectoryName));
     },
 
-    'rejects unsafe or unsupported tar archive entries' => static function (TestRunner $t) use ($rawTarHeader): void {
+    'rejects unsafe or unsupported tar archive entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $valid = TarArchive::build([
             ['name' => 'packet/document.xml', 'data' => '<w:document/>'],
         ]);
@@ -154,6 +205,9 @@ return [
             . str_repeat("\0", 1024);
         $danglingGnuLongName = $rawTarHeader('././@LongLink', 'L', 'packet/missing.xml' . "\0", 0, false)
             . str_repeat("\0", 1024);
+        $badPaxSize = $rawTarHeader('PaxHeaders/bad-size', 'x', $paxPayload(['size' => 'not-a-number']), 0, false)
+            . $rawTarHeader('packet/bad-size.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
 
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
             ['name' => '../packet/document.xml', 'data' => 'unsafe'],
@@ -165,6 +219,7 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($directoryWithPayload));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($unsafeGnuLongName));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($danglingGnuLongName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($badPaxSize));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($valid, 1));
     },
 

@@ -68,10 +68,10 @@ final class TarArchive
                 $typeFlag = self::TYPE_REGULAR;
             }
 
-            $size = self::readOctalField(substr($header, 124, 12), 'TAR entry size');
+            $headerSize = self::readOctalField(substr($header, 124, 12), 'TAR entry size');
             $dataOffset = $cursor + self::BLOCK_SIZE;
-            self::assertRange($bytes, $dataOffset, $size, 'entry payload');
-            $nextCursor = $dataOffset + self::paddedSize($size);
+            self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($headerSize);
             if ($nextCursor > $length) {
                 throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
             }
@@ -81,13 +81,13 @@ final class TarArchive
                     throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
                 }
 
-                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $size));
+                $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
                 $cursor = $nextCursor;
                 continue;
             }
 
             if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
-                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $size));
+                $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
                 if ($typeFlag === self::TYPE_PAX_EXTENDED) {
                     $pendingPaxHeaders = $headers;
                 } else {
@@ -100,6 +100,12 @@ final class TarArchive
             $metadataHeaders = array_merge($globalPaxHeaders, $pendingPaxHeaders);
             $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
             self::assertSafePath($name, 'TAR entry name');
+            $size = self::resolvedSizeFromHeader($header, $metadataHeaders);
+            self::assertRange($bytes, $dataOffset, $size, 'entry payload');
+            $nextCursor = $dataOffset + self::paddedSize($size);
+            if ($nextCursor > $length) {
+                throw new \RuntimeException('TAR entry payload extends beyond archive bytes');
+            }
 
             if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
                 throw new \RuntimeException("TAR link entries are not supported by the pandoc archive reader: {$name}");
@@ -133,11 +139,11 @@ final class TarArchive
                 $size,
                 self::resolvedModifiedAtFromHeader($header, $metadataHeaders),
                 self::readOctalField(substr($header, 100, 8), "TAR mode for {$name}"),
-                self::readOctalField(substr($header, 108, 8), "TAR uid for {$name}"),
-                self::readOctalField(substr($header, 116, 8), "TAR gid for {$name}"),
+                self::resolvedUidFromHeader($header, $metadataHeaders, $name),
+                self::resolvedGidFromHeader($header, $metadataHeaders, $name),
                 self::trimNullField(substr($header, 157, 100)),
-                self::trimNullField(substr($header, 265, 32)),
-                self::trimNullField(substr($header, 297, 32)),
+                self::resolvedUserNameFromHeader($header, $metadataHeaders),
+                self::resolvedGroupNameFromHeader($header, $metadataHeaders),
                 $metadataHeaders,
                 $dataOffset
             );
@@ -386,6 +392,18 @@ final class TarArchive
     /**
      * @param array<string, string> $headers
      */
+    private static function resolvedSizeFromHeader(string $header, array $headers): int
+    {
+        if (isset($headers['size'])) {
+            return self::parsePaxNonNegativeInteger($headers['size'], 'TAR PAX size');
+        }
+
+        return self::readOctalField(substr($header, 124, 12), 'TAR entry size');
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
     private static function resolvedModifiedAtFromHeader(string $header, array $headers): int
     {
         if (isset($headers['mtime'])) {
@@ -393,6 +411,46 @@ final class TarArchive
         }
 
         return self::readOctalField(substr($header, 136, 12), 'TAR entry mtime');
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedUidFromHeader(string $header, array $headers, string $name): int
+    {
+        if (isset($headers['uid'])) {
+            return self::parsePaxNonNegativeInteger($headers['uid'], "TAR PAX uid for {$name}");
+        }
+
+        return self::readOctalField(substr($header, 108, 8), "TAR uid for {$name}");
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedGidFromHeader(string $header, array $headers, string $name): int
+    {
+        if (isset($headers['gid'])) {
+            return self::parsePaxNonNegativeInteger($headers['gid'], "TAR PAX gid for {$name}");
+        }
+
+        return self::readOctalField(substr($header, 116, 8), "TAR gid for {$name}");
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedUserNameFromHeader(string $header, array $headers): string
+    {
+        return $headers['uname'] ?? self::trimNullField(substr($header, 265, 32));
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function resolvedGroupNameFromHeader(string $header, array $headers): string
+    {
+        return $headers['gname'] ?? self::trimNullField(substr($header, 297, 32));
     }
 
     private static function validateHeaderChecksum(string $header): void
@@ -527,6 +585,20 @@ final class TarArchive
         }
 
         return (int) floor((float) $value);
+    }
+
+    private static function parsePaxNonNegativeInteger(string $value, string $label): int
+    {
+        if ($value === '' || !ctype_digit($value)) {
+            throw new \RuntimeException("{$label} is not a supported non-negative integer");
+        }
+
+        $integer = (int) $value;
+        if ((string) $integer !== ltrim($value, '0') && ltrim($value, '0') !== '') {
+            throw new \RuntimeException("{$label} is too large for this PHP runtime");
+        }
+
+        return $integer;
     }
 
     private static function isZeroBlock(string $block): bool
