@@ -556,6 +556,9 @@ final class PdfSecurityPreflight
             'auth_event_defaulted_filter_names' => $this->cryptFilterAuthEventDefaultedFilterNames($roles),
             'auth_event_mismatch_role_names' => $this->cryptFilterAuthEventMismatchRoleNames($roles),
             'auth_event_mismatch_filter_names' => $this->cryptFilterAuthEventMismatchFilterNames($roles),
+            'key_length_statuses' => $this->uniqueStringColumn($roles, 'key_length_status'),
+            'key_length_invalid_role_names' => $this->cryptFilterKeyLengthInvalidRoleNames($roles),
+            'key_length_invalid_filter_names' => $this->cryptFilterKeyLengthInvalidFilterNames($roles),
             'text_content_policy' => $this->cryptFilterTextContentPolicy($documentTextRows),
             'embedded_file_payload_policy' => $this->cryptFilterEmbeddedFilePolicy($embeddedFileRows),
             'roles' => $roles,
@@ -624,6 +627,8 @@ final class PdfSecurityPreflight
         $status = $this->cryptFilterMethodStatus($method);
         $identity = $status === 'identity_crypt_filter';
         $authEventStatus = $this->cryptFilterAuthEventStatus($authEvent, $role, $identity);
+        $keyLengthBytes = is_int($filter['key_length_bytes'] ?? null) ? $filter['key_length_bytes'] : null;
+        $keyLengthReview = $this->cryptFilterKeyLengthReview($method, $keyLengthBytes);
 
         return array_merge($row, [
             'crypt_filter_present' => true,
@@ -633,7 +638,12 @@ final class PdfSecurityPreflight
             'auth_event_source' => is_string($filter['auth_event_source'] ?? null) ? $filter['auth_event_source'] : null,
             'auth_event_status' => $authEventStatus,
             'auth_event_applies_to_role' => $this->cryptFilterAuthEventAppliesToRole($authEventStatus),
-            'key_length_bytes' => is_int($filter['key_length_bytes'] ?? null) ? $filter['key_length_bytes'] : null,
+            'key_length_bytes' => $keyLengthBytes,
+            'minimum_key_length_bytes' => $keyLengthReview['minimum_key_length_bytes'],
+            'maximum_key_length_bytes' => $keyLengthReview['maximum_key_length_bytes'],
+            'key_length_valid' => $keyLengthReview['valid'],
+            'key_length_status' => $keyLengthReview['status'],
+            'key_length_fail_closed' => $keyLengthReview['fail_closed'],
             'content_encrypted' => !$identity,
             'identity_crypt_filter' => $identity,
             'status' => $status,
@@ -685,6 +695,62 @@ final class PdfSecurityPreflight
             'unknown_authorization_event_review' => false,
             default => null,
         };
+    }
+
+    /**
+     * @return array{valid: bool|null, status: string, fail_closed: bool, minimum_key_length_bytes: int|null, maximum_key_length_bytes: int|null}
+     */
+    private function cryptFilterKeyLengthReview(?string $method, ?int $keyLengthBytes): array
+    {
+        if ($method === 'Identity' || $method === 'None') {
+            return [
+                'valid' => null,
+                'status' => $keyLengthBytes === null
+                    ? 'identity_filter_no_key_length_required'
+                    : 'identity_filter_key_length_ignored',
+                'fail_closed' => false,
+                'minimum_key_length_bytes' => null,
+                'maximum_key_length_bytes' => null,
+            ];
+        }
+
+        $range = match ($method) {
+            'V2', 'AESV2' => ['minimum' => 5, 'maximum' => 16],
+            'AESV3' => ['minimum' => 32, 'maximum' => 32],
+            default => null,
+        };
+
+        if ($range === null) {
+            return [
+                'valid' => null,
+                'status' => 'crypt_filter_key_length_not_reviewed_for_method',
+                'fail_closed' => false,
+                'minimum_key_length_bytes' => null,
+                'maximum_key_length_bytes' => null,
+            ];
+        }
+
+        if ($keyLengthBytes === null) {
+            return [
+                'valid' => null,
+                'status' => 'crypt_filter_key_length_default_or_unavailable_review',
+                'fail_closed' => false,
+                'minimum_key_length_bytes' => $range['minimum'],
+                'maximum_key_length_bytes' => $range['maximum'],
+            ];
+        }
+
+        $valid = $keyLengthBytes >= $range['minimum'] && $keyLengthBytes <= $range['maximum'];
+
+        return [
+            'valid' => $valid,
+            'status' => $valid
+                ? 'crypt_filter_key_length_supported'
+                : 'invalid_crypt_filter_key_length_review',
+            'fail_closed' => !$valid,
+            'minimum_key_length_bytes' => $range['minimum'],
+            'maximum_key_length_bytes' => $range['maximum'],
+        ];
     }
 
     /**
@@ -792,6 +858,9 @@ final class PdfSecurityPreflight
         ], true)) {
             return true;
         }
+        if (($row['key_length_fail_closed'] ?? false) === true) {
+            return true;
+        }
 
         return ($row['auth_event_applies_to_role'] ?? null) === false;
     }
@@ -814,6 +883,9 @@ final class PdfSecurityPreflight
         if ($statusPolicy !== null) {
             return $statusPolicy;
         }
+        if (($row['key_length_fail_closed'] ?? false) === true) {
+            return 'invalid_crypt_filter_key_length_fail_closed';
+        }
 
         return match ($authEventStatus) {
             'embedded_file_auth_event_on_document_content_review' => 'authorization_event_role_mismatch_fail_closed',
@@ -830,6 +902,7 @@ final class PdfSecurityPreflight
             'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_document_crypt_filter',
             'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_document_crypt_filter_method',
             'unsupported_crypt_filter_method_fail_closed' => 'blocked_by_unsupported_document_crypt_filter_method',
+            'invalid_crypt_filter_key_length_fail_closed' => 'blocked_by_invalid_document_crypt_filter_key_length',
             'authorization_event_role_mismatch_fail_closed' => 'blocked_by_document_crypt_filter_auth_event_mismatch',
             'unknown_authorization_event_fail_closed' => 'blocked_by_unknown_document_crypt_filter_auth_event',
             'authorization_event_unavailable_fail_closed' => 'blocked_by_unavailable_document_crypt_filter_auth_event',
@@ -959,6 +1032,46 @@ final class PdfSecurityPreflight
         foreach ($roles as $role) {
             if (
                 ($role['auth_event_applies_to_role'] ?? null) === false
+                && is_string($role['filter_name'] ?? null)
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterKeyLengthInvalidRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['key_length_fail_closed'] ?? false) === true
+                && is_string($role['role'] ?? null)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterKeyLengthInvalidFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['key_length_fail_closed'] ?? false) === true
                 && is_string($role['filter_name'] ?? null)
                 && !in_array($role['filter_name'], $names, true)
             ) {
