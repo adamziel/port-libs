@@ -8,6 +8,7 @@ final class PdfTextExtractor
 {
     private const POSITIONED_TEXT_WORD_GAP = 12.0;
     private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
+    private const MAX_CMAP_RANGE_ENTRIES = 4096;
     private const INLINE_IMAGE_KEY_ABBREVIATIONS = [
         'BPC' => 'BitsPerComponent',
         'CS' => 'ColorSpace',
@@ -21860,7 +21861,7 @@ final class PdfTextExtractor
 
             $count = 0;
             $targetHex = $target;
-            while ($source <= $last && $count < 512) {
+            while ($source <= $last && $count < self::MAX_CMAP_RANGE_ENTRIES) {
                 $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
                 $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
                 $source++;
@@ -21939,7 +21940,7 @@ final class PdfTextExtractor
             $cid = (int) $range[3];
             $sourceWidth = strlen($start);
             $count = 0;
-            while ($source <= $last && $count < 512) {
+            while ($source <= $last && $count < self::MAX_CMAP_RANGE_ENTRIES) {
                 $currentCid = $cid + $count;
                 if ($currentCid >= 0 && $currentCid <= 0xffff) {
                     $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
