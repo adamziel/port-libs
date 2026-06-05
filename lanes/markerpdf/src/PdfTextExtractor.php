@@ -14853,6 +14853,7 @@ final class PdfTextExtractor
         $operands = [];
         $compatibilityDepth = 0;
         $graphicsStateDepth = 0;
+        $markedContentDepth = 0;
 
         foreach ($this->contentTokens($charProc, true) as $token) {
             if ($token === 'BX') {
@@ -14905,6 +14906,14 @@ final class PdfTextExtractor
                     }
 
                     $graphicsStateDepth--;
+                } elseif ($token === 'BMC' || $token === 'BDC') {
+                    $markedContentDepth++;
+                } elseif ($token === 'EMC') {
+                    if ($markedContentDepth === 0) {
+                        return null;
+                    }
+
+                    $markedContentDepth--;
                 }
 
                 $operands = [];
