@@ -1044,6 +1044,71 @@ HTML,
         ], null, 'html5'));
     },
 
+    'renders bounded pandoc default html5 style partial resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->renderResource('templates/default', [], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Styled Review Packet',
+            'body' => '<p>Styled body.</p>',
+            'document-css' => true,
+            'mainfont' => 'Atkinson Hyperlegible',
+            'fontsize' => '18px',
+            'linestretch' => '1.6',
+            'fontcolor' => '#202124',
+            'backgroundcolor' => '#ffffff',
+            'linkcolor' => '#135e96',
+            'maxwidth' => '42em',
+            'margin-left' => '2rem',
+            'margin-right' => '2rem',
+            'margin-top' => '3rem',
+            'margin-bottom' => '3rem',
+            'monofont' => 'JetBrains Mono',
+            'monobackgroundcolor' => '#f6f8fa',
+            'table-caption-below' => true,
+            'quotes' => true,
+            'displaymath-css' => true,
+            'highlighting-css' => '.sourceCode .kw { color: #005cc5; }',
+            'csl-css' => true,
+            'csl-entry-spacing' => '0.5em',
+        ], null, 'html');
+
+        $t->contains('<style>', $output);
+        $t->contains('/* Default styles provided by pandoc.', $output);
+        $t->contains('font-family: Atkinson Hyperlegible;', $output);
+        $t->contains('font-size: 18px;', $output);
+        $t->contains('line-height: 1.6;', $output);
+        $t->contains('color: #202124;', $output);
+        $t->contains('background-color: #ffffff;', $output);
+        $t->contains('max-width: 42em;', $output);
+        $t->contains('padding-left: 2rem;', $output);
+        $t->contains('padding-right: 2rem;', $output);
+        $t->contains('padding-top: 3rem;', $output);
+        $t->contains('padding-bottom: 3rem;', $output);
+        $t->contains('color: #135e96;', $output);
+        $t->contains('font-family: JetBrains Mono;', $output);
+        $t->contains('background-color: #f6f8fa;', $output);
+        $t->contains('caption-side: bottom;', $output);
+        $t->contains('q { quotes: "\\201C" "\\201D" "\\2018" "\\2019"; }', $output);
+        $t->contains('.display.math{display: block; text-align: center; margin: 0.5rem auto;}', $output);
+        $t->contains('/* CSS for syntax highlighting */', $output);
+        $t->contains('.sourceCode .kw { color: #005cc5; }', $output);
+        $t->contains('/* CSS for citations */', $output);
+        $t->contains('margin-bottom: 0.5em;', $output);
+
+        $custom = $renderer->renderResource('templates/default', [
+            'templates/styles.html' => '/* Custom WordPress review styles */' . "\n" . '.wp-review { color: rebeccapurple; }',
+        ], [
+            'pandoc-version' => '3.7.0',
+            'pagetitle' => 'Custom Style Packet',
+            'body' => '<p>Styled body.</p>',
+        ], null, 'html');
+
+        $t->contains('/* Custom WordPress review styles */', $custom);
+        $t->contains('.wp-review { color: rebeccapurple; }', $custom);
+        $t->same(false, str_contains($custom, '/* Default styles provided by pandoc.'));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'
