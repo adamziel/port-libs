@@ -865,11 +865,13 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
+        $referenceEnd = null;
+        $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+        if ($reference !== null && $referenceEnd !== null) {
             return [
                 'type' => 'reference',
-                'object' => (int) $match[1],
-                'end' => $offset + strlen($match[0]),
+                'object' => $reference['object'],
+                'end' => $referenceEnd,
             ];
         }
 
@@ -4072,12 +4074,18 @@ final class PdfAcroFormExtractor
                 break;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
-                $objectNumber = (int) $match[1];
-                if (isset($fieldNamesByObject[$objectNumber]) && !in_array($fieldNamesByObject[$objectNumber], $names, true)) {
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $objectNumber = $reference['object'];
+                if (
+                    $this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)
+                    && isset($fieldNamesByObject[$objectNumber])
+                    && !in_array($fieldNamesByObject[$objectNumber], $names, true)
+                ) {
                     $names[] = $fieldNamesByObject[$objectNumber];
                 }
-                $offset += strlen($match[0]);
+                $offset = $referenceEnd;
                 continue;
             }
 
@@ -5795,10 +5803,15 @@ final class PdfAcroFormExtractor
 
             $fontObject = null;
             $fontBody = null;
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
-                $fontObject = (int) $match[1];
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $fontObject = $reference['object'];
+                $offset = $referenceEnd;
+                if (!$this->referenceGenerationMatches($fontObject, $reference['generation'], $objects)) {
+                    continue;
+                }
                 $fontBody = $this->dictionaryObjectBody($objects[$fontObject] ?? '');
-                $offset += strlen($match[0]);
             } elseif (substr($body, $offset, 2) === '<<') {
                 $endOffset = null;
                 $fontBody = $this->readPdfDictionaryAt($body, $offset, $endOffset);
@@ -5851,8 +5864,13 @@ final class PdfAcroFormExtractor
             return $this->decodePdfName($value);
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
-            $object = trim($objects[(int) $match[1]]);
+        $reference = $this->objectReferenceFromValue($value);
+        if (
+            $reference !== null
+            && isset($objects[$reference['object']])
+            && $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)
+        ) {
+            $object = trim($objects[$reference['object']]);
             if (str_starts_with($object, '/')) {
                 return $this->decodePdfName($object);
             }
@@ -7010,9 +7028,9 @@ final class PdfAcroFormExtractor
             return $body === null ? [] : array_values(array_unique($this->objectReferences($body)));
         }
 
-        return preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1
-            ? [(int) $match[1]]
-            : [];
+        $reference = $this->objectReferenceFromValue($value);
+
+        return $reference === null ? [] : [$reference['object']];
     }
 
     /**
@@ -7470,8 +7488,9 @@ final class PdfAcroFormExtractor
             }
 
             $value = trim($value);
-            if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
-                $items[] = ['object' => (int) $match[1]];
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null && $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)) {
+                $items[] = ['object' => $reference['object']];
             } else {
                 $items[] = $this->pdfValueToPhpValue($value, $objects);
             }
@@ -7531,7 +7550,14 @@ final class PdfAcroFormExtractor
         }
 
         $value = trim($value);
-        $scriptObject = preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 ? (int) $match[1] : null;
+        $scriptReference = $this->objectReferenceFromValue($value);
+        $scriptObject = null;
+        if (
+            $scriptReference !== null
+            && $this->referenceGenerationMatches($scriptReference['object'], $scriptReference['generation'], $objects)
+        ) {
+            $scriptObject = $scriptReference['object'];
+        }
         $filters = [];
         if ($scriptObject !== null && isset($objects[$scriptObject])) {
             $stream = $this->decodeStreamObject($objects[$scriptObject], $objects);
@@ -7714,8 +7740,13 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
-            return $this->pdfValueToString(trim($objects[(int) $match[1]]), $objects);
+        $reference = $this->objectReferenceFromValue($value);
+        if (
+            $reference !== null
+            && isset($objects[$reference['object']])
+            && $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)
+        ) {
+            return $this->pdfValueToString(trim($objects[$reference['object']]), $objects);
         }
 
         return $this->pdfValueToString($value, $objects);
@@ -7978,7 +8009,9 @@ final class PdfAcroFormExtractor
 
     private function objectNumberFromReferenceValue(string $value): ?int
     {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1 ? (int) $match[1] : null;
+        $reference = $this->objectReferenceFromValue($value);
+
+        return $reference === null ? null : $reference['object'];
     }
 
     private function uriScheme(string $target): ?string
@@ -8131,10 +8164,12 @@ final class PdfAcroFormExtractor
             return ['value' => $this->decodePdfName(substr($body, $offset, $end - $offset)), 'end' => $end];
         }
 
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) === 1) {
-            $ref = (int) $match[1];
-            $generation = (int) $match[2];
-            $endOffset = $offset + strlen($match[0]);
+        $referenceEnd = null;
+        $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+        if ($reference !== null && $referenceEnd !== null) {
+            $ref = $reference['object'];
+            $generation = $reference['generation'];
+            $endOffset = $referenceEnd;
             if (!isset($objects[$ref]) || !$this->referenceGenerationMatches($ref, $generation, $objects)) {
                 return null;
             }
@@ -8368,8 +8403,9 @@ final class PdfAcroFormExtractor
         $value = trim($value);
         $objectNumber = null;
         $objectBody = null;
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null && $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)) {
+            $objectNumber = $reference['object'];
             $objectBody = $objects[$objectNumber] ?? null;
         } elseif (str_starts_with($value, '<<')) {
             $objectBody = $value;
@@ -8784,8 +8820,10 @@ final class PdfAcroFormExtractor
      */
     private function valueReferencesStreamObject(string $value, array $objects): bool
     {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) === 1
-            && str_contains($objects[(int) $match[1]] ?? '', 'stream');
+        $reference = $this->objectReferenceFromValue($value);
+
+        return $reference !== null
+            && str_contains($objects[$reference['object']] ?? '', 'stream');
     }
 
     /**
@@ -9330,11 +9368,9 @@ final class PdfAcroFormExtractor
     private function objectReferenceValueAfterName(string $body, string $name): ?int
     {
         $value = $this->valueAfterName($body, $name);
-        if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/', trim($value), $match) !== 1) {
-            return null;
-        }
+        $reference = $this->objectReferenceFromValue($value);
 
-        return (int) $match[1];
+        return $reference === null ? null : $reference['object'];
     }
 
     private function validObjectReferenceValueAfterName(string $body, string $name, array $objects): ?int
@@ -9362,14 +9398,63 @@ final class PdfAcroFormExtractor
      */
     private function objectReferenceFromValue(?string $value): ?array
     {
-        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/', trim($value), $match) !== 1) {
+        return $value === null ? null : $this->readIndirectReferenceAt($value, 0);
+    }
+
+    /**
+     * @return array{object: int, generation: int}|null
+     */
+    private function readIndirectReferenceAt(string $body, int $offset, ?int &$endOffset = null): ?array
+    {
+        $this->skipWhitespace($body, $offset);
+        if ($offset >= strlen($body) || preg_match('/\G\d+/s', $body, $objectMatch, 0, $offset) !== 1) {
             return null;
         }
 
+        $objectNumber = (int) $objectMatch[0];
+        $offset += strlen($objectMatch[0]);
+        if (!$this->isPdfTokenBoundary($body, $offset)) {
+            return null;
+        }
+
+        $this->skipWhitespace($body, $offset);
+        if ($offset >= strlen($body) || preg_match('/\G\d+/s', $body, $generationMatch, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $generation = (int) $generationMatch[0];
+        $offset += strlen($generationMatch[0]);
+        if (!$this->isPdfTokenBoundary($body, $offset)) {
+            return null;
+        }
+
+        $this->skipWhitespace($body, $offset);
+        if (($body[$offset] ?? '') !== 'R') {
+            return null;
+        }
+
+        $afterReference = $offset + 1;
+        if (!$this->isPdfTokenBoundary($body, $afterReference)) {
+            return null;
+        }
+
+        $endOffset = $afterReference;
+
         return [
-            'object' => (int) $match[1],
-            'generation' => (int) $match[2],
+            'object' => $objectNumber,
+            'generation' => $generation,
         ];
+    }
+
+    private function isPdfTokenBoundary(string $body, int $offset): bool
+    {
+        if ($offset >= strlen($body)) {
+            return true;
+        }
+
+        $char = $body[$offset];
+
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**
@@ -9408,8 +9493,10 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
-            return $ref[0];
+        $referenceEnd = null;
+        $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+        if ($reference !== null && $referenceEnd !== null) {
+            return substr($body, $offset, $referenceEnd - $offset);
         }
 
         if ($body[$offset] === '[') {
@@ -9515,9 +9602,11 @@ final class PdfAcroFormExtractor
             return null;
         }
 
-        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $ref, 0, $offset) === 1) {
-            $endOffset = $offset + strlen($ref[0]);
-            return $ref[0];
+        $referenceEnd = null;
+        $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+        if ($reference !== null && $referenceEnd !== null) {
+            $endOffset = $referenceEnd;
+            return substr($body, $offset, $referenceEnd - $offset);
         }
 
         if ($body[$offset] === '[') {
@@ -9584,11 +9673,11 @@ final class PdfAcroFormExtractor
             return $body === null ? null : ['body' => $body, 'object' => null];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) !== 1) {
+        $objectNumber = $this->validObjectReferenceFromValue($value, $objects);
+        if ($objectNumber === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
         $body = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
         return $body === null ? null : ['body' => $body, 'object' => $objectNumber];
     }
@@ -9621,13 +9710,17 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
-                $objectNumber = (int) $match[1];
-                $dictionaryBody = $this->dictionaryObjectBody($objects[$objectNumber] ?? '');
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($body, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $objectNumber = $reference['object'];
+                $dictionaryBody = $this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)
+                    ? $this->dictionaryObjectBody($objects[$objectNumber] ?? '')
+                    : null;
                 if ($dictionaryBody !== null) {
                     $dictionaries[] = ['body' => $dictionaryBody, 'object' => $objectNumber];
                 }
-                $offset += strlen($match[0]);
+                $offset = $referenceEnd;
                 continue;
             }
 
@@ -9655,8 +9748,13 @@ final class PdfAcroFormExtractor
             return strlen($this->decodeLiteralString(substr($value, 1, $end - 2)));
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
-            return $this->signatureContentsLength(trim($objects[(int) $match[1]]), $objects);
+        $reference = $this->objectReferenceFromValue($value);
+        if (
+            $reference !== null
+            && isset($objects[$reference['object']])
+            && $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)
+        ) {
+            return $this->signatureContentsLength(trim($objects[$reference['object']]), $objects);
         }
 
         return null;
@@ -9725,8 +9823,13 @@ final class PdfAcroFormExtractor
             return $this->decodeLiteralString(substr($value, 1, $end - 2));
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/', $value, $match) === 1 && isset($objects[(int) $match[1]])) {
-            return $this->signatureContentsBytes(trim($objects[(int) $match[1]]), $objects);
+        $reference = $this->objectReferenceFromValue($value);
+        if (
+            $reference !== null
+            && isset($objects[$reference['object']])
+            && $this->referenceGenerationMatches($reference['object'], $reference['generation'], $objects)
+        ) {
+            return $this->signatureContentsBytes(trim($objects[$reference['object']]), $objects);
         }
 
         return null;
@@ -9797,20 +9900,53 @@ final class PdfAcroFormExtractor
      */
     private function filterNamesFromValue(string $value, array $objects): array
     {
-        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
         $filters = [];
-        foreach ($matches as $match) {
-            if (($match[1] ?? '') !== '') {
-                $filters[] = $this->decodePdfName($match[1]);
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $this->skipWhitespace($value, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($value[$offset] === '/') {
+                $nameEnd = $this->skipPdfName($value, $offset);
+                $filters[] = $this->decodePdfName(substr($value, $offset + 1, $nameEnd - $offset - 1));
+                $offset = $nameEnd;
                 continue;
             }
 
-            $objectNumber = isset($match[2]) ? (int) $match[2] : 0;
-            if ($objectNumber > 0 && isset($objects[$objectNumber])) {
-                foreach ($this->filterNamesFromValue($objects[$objectNumber], $objects) as $filter) {
-                    $filters[] = $filter;
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($value, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $objectNumber = $reference['object'];
+                if (
+                    isset($objects[$objectNumber])
+                    && $this->referenceGenerationMatches($objectNumber, $reference['generation'], $objects)
+                ) {
+                    foreach ($this->filterNamesFromValue($objects[$objectNumber], $objects) as $filter) {
+                        $filters[] = $filter;
+                    }
                 }
+                $offset = $referenceEnd;
+                continue;
             }
+
+            if ($value[$offset] === '[') {
+                $endOffset = null;
+                $arrayBody = $this->readPdfArrayAt($value, $offset, $endOffset);
+                if ($arrayBody !== null) {
+                    foreach ($this->filterNamesFromValue($arrayBody, $objects) as $filter) {
+                        $filters[] = $filter;
+                    }
+                }
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            $endOffset = null;
+            $this->readPdfValueAt($value, $offset, $endOffset);
+            $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
         }
 
         return $filters;
@@ -10094,11 +10230,29 @@ final class PdfAcroFormExtractor
      */
     private function objectReferences(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $value, $matches)) {
-            return [];
+        $references = [];
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $this->skipWhitespace($value, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($value, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $references[] = $reference['object'];
+                $offset = $referenceEnd;
+                continue;
+            }
+
+            $endOffset = null;
+            $this->readPdfValueAt($value, $offset, $endOffset);
+            $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
         }
 
-        return array_map('intval', $matches[1]);
+        return $references;
     }
 
     /**
@@ -10149,13 +10303,15 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
-                $objectNumber = (int) $match[1];
-                $generation = (int) $match[2];
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($value, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $objectNumber = $reference['object'];
+                $generation = $reference['generation'];
                 if (!isset($objects[$objectNumber]) || $this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
                     $references[] = $objectNumber;
                 }
-                $offset += strlen($match[0]);
+                $offset = $referenceEnd;
                 continue;
             }
 
@@ -10212,13 +10368,15 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
-                $objectNumber = (int) $match[1];
-                $generation = (int) $match[2];
+            $referenceEnd = null;
+            $reference = $this->readIndirectReferenceAt($value, $offset, $referenceEnd);
+            if ($reference !== null && $referenceEnd !== null) {
+                $objectNumber = $reference['object'];
+                $generation = $reference['generation'];
                 if ($this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
                     $references[] = $objectNumber;
                 }
-                $offset += strlen($match[0]);
+                $offset = $referenceEnd;
                 continue;
             }
 
