@@ -27118,6 +27118,11 @@ final class PdfTextExtractor
             return $expectedLength !== null
                 && (
                     $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength)
+                    || $this->inlineAscii85CandidateReachesSampleFloorBeforePostEodSurplus(
+                        $filters,
+                        $candidate,
+                        $expectedLength
+                    )
                     || $this->inlineFlateCandidateReachesSampleFloorBeforePostStreamSurplus(
                         $filters,
                         $dictionary,
@@ -27183,6 +27188,42 @@ final class PdfTextExtractor
         }
 
         return intdiv($hexDigitCount + 1, 2) >= $expectedLength;
+    }
+
+    /**
+     * ASCII85 inline-image payloads end at `~>`. If malformed surplus bytes
+     * after that EOD contain text-like fake `EI`, keep the payload closed until
+     * the later real inline-image terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineAscii85CandidateReachesSampleFloorBeforePostEodSurplus(
+        array $filters,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || !in_array($nonNullFilters, [['ASCII85Decode'], ['A85']], true)) {
+            return false;
+        }
+
+        $eodOffset = strpos($candidate, '~>');
+        if ($eodOffset === false) {
+            return false;
+        }
+
+        $postEodOffset = $eodOffset + 2;
+        $postEod = substr($candidate, $postEodOffset);
+        if (
+            $postEod === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $postEodOffset)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postEod) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = $this->decodeAscii85Stream(substr($candidate, 0, $postEodOffset));
+        return $decoded !== null && strlen($decoded) >= $expectedLength;
     }
 
     /**

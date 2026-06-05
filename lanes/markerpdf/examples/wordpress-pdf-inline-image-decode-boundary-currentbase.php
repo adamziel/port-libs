@@ -154,6 +154,7 @@ $oversizedCompressedImage = gzcompress($oversizedImageRow, 0);
 if (!is_string($oversizedCompressedImage)) {
     throw new RuntimeException('Unable to build oversized inline image fixture.');
 }
+$ascii85PostEodSurplusPayload = 'z~>ZZ EI BT /F1 12 Tf 72 652 Td (A85 Post EOD Inline Noise) Tj ET rawtail';
 $asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
 $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
 $runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
@@ -189,6 +190,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI /F /A85 ID\n"
     . "87cURDc^jtCh* EI BT /F1 12 Tf 72 672 Td (ASCII85 Inline Noise) Tj ET ~>\nEI\n"
     . "BT /F1 12 Tf 72 656 Td (After A85 Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 654 Td (Before A85 Post EOD Inline Image) Tj ET\n"
+    . "BI /W 4 /H 1 /CS /G /BPC 8 /F /A85 ID "
+    . $ascii85PostEodSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 652 Td (After A85 Post EOD Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 640 Td (Before Oversized Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
     . $oversizedCompressedImage . "\nEI\n"
@@ -406,7 +411,7 @@ $ascii85PostEodSurplusPreviewRejected = false;
 try {
     $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
         '/W 4 /H 1 /CS /G /BPC 8 /F /A85 /D [0 1]',
-        "z~> EI BT /F1 12 Tf 72 690 Td (A85 Post EOD Inline Noise) Tj ET",
+        $ascii85PostEodSurplusPayload,
         [],
         4
     );
@@ -538,6 +543,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_compressed_payload' => str_contains($compressedImage, ' EI '),
     'fake_ei_inside_ascii85_payload' => true,
     'fake_ei_inside_oversized_filtered_payload' => str_contains($oversizedCompressedImage, ' EI '),
+    'fake_ei_inside_ascii85_post_eod_surplus_payload' => str_contains($ascii85PostEodSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
     'fake_ei_inside_wrapped_jpx_prefix_surplus_payload' => str_contains($wrappedJpxPrefixSurplusPayload, ' EI '),
     'fake_ei_inside_stacked_native_filter_surplus_payload' => str_contains($stackedNativeFilterSurplusPayload, ' EI '),
@@ -549,6 +555,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After DP Inline Image',
         'Before A85 Inline Image',
         'After A85 Inline Image',
+        'Before A85 Post EOD Inline Image',
+        'After A85 Post EOD Inline Image',
         'Before Oversized Inline Image',
         'After Oversized Inline Image',
         'Before AHx Surplus Inline Image',
@@ -581,6 +589,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Identity Crypt Inline',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
+    'ascii85_post_eod_surplus_payload_excluded_until_real_ei' => in_array('After A85 Post EOD Inline Image', $lines, true)
+        && str_contains($ascii85PostEodSurplusPayload, 'z~>ZZ EI')
+        && !str_contains($plainText, 'A85 Post EOD Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
     'accepts_asciihex_sample_floor_only_after_eod_marker' => in_array('After AHx Surplus Inline Image', $lines, true),
     'asciihex_surplus_preview_decode_rejected' => $asciiHexSurplusPreviewRejected,
@@ -690,6 +702,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'raw EI')
         && !str_contains($plainText, 'ASCII85 Inline Noise')
         && !str_contains($plainText, '87cURDc')
+        && !str_contains($plainText, 'A85 Post EOD Inline Noise')
         && !str_contains($plainText, 'Oversized Flate Inline Noise')
         && !str_contains($plainText, 'X EI')
         && !str_contains($plainText, 'ASCIIHex Surplus Inline Noise')

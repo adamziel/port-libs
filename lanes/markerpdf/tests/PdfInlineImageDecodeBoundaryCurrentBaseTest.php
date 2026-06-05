@@ -185,6 +185,33 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'keeps ASCII85 post-EOD inline image surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $postEodSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (A85 Post EOD Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before A85 Post EOD Inline Image) Tj ET\n"
+            . "BI /W 4 /H 1 /CS /G /BPC 8 /F /A85 ID z~>"
+            . $postEodSurplus . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After A85 Post EOD Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before A85 Post EOD Inline Image',
+            'After A85 Post EOD Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($postEodSurplus, ' EI '));
+        $t->true(str_contains($content, 'z~>ZZ EI'));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'A85 Post EOD Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'z~>ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'keeps malformed ASCIIHex surplus inline bytes closed until EOD after sample floor' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();
