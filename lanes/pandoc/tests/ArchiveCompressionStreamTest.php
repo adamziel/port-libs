@@ -239,6 +239,36 @@ return [
         $t->same('<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
     },
 
+    'rejects per-entry global pax metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $globalPath = $rawTarHeader('GlobalHead/path', 'g', $paxPayload([
+            'path' => 'packet/global-name.xml',
+        ]), 0, false)
+            . $rawTarHeader('packet/original-name.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $documentBytes = '<w:document><w:body><w:p>Global PAX size must not override entry headers</w:p></w:body></w:document>';
+        $globalSize = $rawTarHeader('GlobalHead/size', 'g', $paxPayload([
+            'size' => (string) strlen($documentBytes),
+        ]), 0, false)
+            . $rawTarHeader('packet/size-override.xml', '0', $documentBytes, 0, false, 0)
+            . str_repeat("\0", 1024);
+        $globalLinkPath = $rawTarHeader('GlobalHead/linkpath', 'g', $paxPayload([
+            'linkpath' => 'packet/target.xml',
+        ]), 0, false)
+            . $rawTarHeader('packet/linkpath.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($globalPath));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($globalSize));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($globalLinkPath));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => 'packet/document.xml', 'data' => '<w:document/>'],
+        ], [
+            'globalPaxHeaders' => [
+                'path' => 'packet/global-name.xml',
+            ],
+        ]));
+    },
+
     'reads gnu long name metadata for tar package fixture entries' => static function (TestRunner $t) use ($rawTarHeader): void {
         $longDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
         $longDirectoryName = 'packet/' . str_repeat('review-directory-', 6) . 'assets/';

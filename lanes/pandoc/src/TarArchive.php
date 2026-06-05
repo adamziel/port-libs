@@ -108,6 +108,7 @@ final class TarArchive
                 if ($typeFlag === self::TYPE_PAX_EXTENDED) {
                     $pendingPaxHeaders = $headers;
                 } else {
+                    self::assertGlobalPaxHeaders($headers);
                     $globalPaxHeaders = array_merge($globalPaxHeaders, $headers);
                 }
                 $cursor = $nextCursor;
@@ -201,6 +202,7 @@ final class TarArchive
         $bytes = '';
         $names = [];
         $globalPaxHeaders = self::normalizePaxHeaders($options['globalPaxHeaders'] ?? [], 'TAR global PAX headers');
+        self::assertGlobalPaxHeaders($globalPaxHeaders);
 
         if ($globalPaxHeaders !== []) {
             $globalPayload = self::buildPaxPayload($globalPaxHeaders);
@@ -654,6 +656,26 @@ final class TarArchive
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function assertGlobalPaxHeaders(array $headers): void
+    {
+        foreach ($headers as $key => $value) {
+            if ($key === 'path' || $key === 'linkpath' || $key === 'size') {
+                throw new \RuntimeException("TAR global PAX header {$key} is per-entry metadata and is not supported");
+            }
+
+            if (str_starts_with($key, 'GNU.sparse.') || str_starts_with($key, 'SCHILY.sparse.')) {
+                throw new \RuntimeException("TAR global PAX sparse header {$key} is not supported");
+            }
+
+            if ($key === 'SCHILY.filetype' && strtolower(trim($value)) === 'sparse') {
+                throw new \RuntimeException('TAR global PAX sparse file metadata is not supported');
+            }
+        }
     }
 
     /**
