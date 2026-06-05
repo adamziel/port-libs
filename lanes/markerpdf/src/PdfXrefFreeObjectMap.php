@@ -77,7 +77,7 @@ final class PdfXrefFreeObjectMap
         }
 
         $entries = $section['entries'];
-        $previousOffset = self::integerValueAfterName($section['trailer'], 'Prev');
+        $previousOffset = self::previousXrefOffsetForSectionBody($pdfBytes, $section['trailer'], $offset);
         if ($previousOffset !== null && $previousOffset >= 0) {
             foreach (self::xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $seenOffsets) as $objectNumber => $entry) {
                 if (!isset($entries[$objectNumber])) {
@@ -445,6 +445,26 @@ final class PdfXrefFreeObjectMap
         }
 
         return $selected;
+    }
+
+    private static function previousXrefOffsetForSectionBody(string $pdfBytes, string $sectionBody, int $beforeOffset): ?int
+    {
+        $reference = self::objectReferenceAfterName($sectionBody, 'Prev');
+        if ($reference === null) {
+            return self::integerValueAfterName($sectionBody, 'Prev');
+        }
+
+        $body = self::directObjectBodyForReferenceBeforeOffset(
+            $pdfBytes,
+            $reference['object'],
+            $reference['generation'],
+            $beforeOffset
+        );
+        if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     private static function integerValueAfterName(string $dictionary, string $name): ?int
