@@ -96,6 +96,9 @@ $contentXml = <<<'XML'
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
       </text:list>
+      <text:list text:style-name="ReviewSteps" text:continue-numbering="true">
+        <text:list-item><text:p>Publish continued review checklist</text:p></text:list-item>
+      </text:list>
       <draw:frame draw:name="Source hero" svg:width="6cm" svg:height="3.5cm">
         <draw:image xlink:href="Pictures/source-hero.png">
           <svg:title>Source hero</svg:title>
@@ -172,7 +175,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['media'][0]['canExposeBytes'] ?? true) !== false) {
         throw new RuntimeException('Expected encrypted ODT media bytes to stay unavailable for import');
     }
-    $imageNode = $result['document']->children[4]->children[0] ?? null;
+    $imageNode = null;
+    foreach ($result['document']->children as $block) {
+        foreach ($block->children as $child) {
+            if ($child instanceof \PortLibs\Pandoc\AstNode && $child->type === 'image' && $child->attr('sourcePart') === 'Pictures/source-hero.png') {
+                $imageNode = $child;
+                break 2;
+            }
+        }
+    }
     if (!$imageNode instanceof \PortLibs\Pandoc\AstNode || $imageNode->attr('width') !== '6cm' || $imageNode->attr('height') !== '3.5cm') {
         throw new RuntimeException('Expected ODT frame image dimensions to survive AST handoff');
     }
@@ -238,6 +249,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="source-hero-seq">Figure 1</span>')) {
         throw new RuntimeException('Expected ODT sequence field to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['continuedListCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT continued list to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<ol start="3"><li>Publish continued review checklist</li></ol>')) {
+        throw new RuntimeException('Expected ODT continued list numbering to survive WordPress blocks');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');

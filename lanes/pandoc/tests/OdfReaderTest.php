@@ -344,6 +344,87 @@ XML;
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('Ready for review', $table->children[1]->children[0]->children[0]->attr('text'));
     },
+    'continues ODT ordered list numbering across sibling lists by level' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithContinuationLists = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="ContinuationSteps">
+      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="2"/>
+      <text:list-level-style-number text:level="2" style:num-format="a" text:start-value="4"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithContinuationLists = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="ContinuationSteps">
+        <text:list-item>
+          <text:p>First review item</text:p>
+          <text:list text:style-name="ContinuationSteps">
+            <text:list-item><text:p>Nested legal note</text:p></text:list-item>
+          </text:list>
+        </text:list-item>
+        <text:list-item><text:p>Second review item</text:p></text:list-item>
+      </text:list>
+      <text:p>Interruption paragraph.</text:p>
+      <text:list text:style-name="ContinuationSteps" text:continue-numbering="true">
+        <text:list-item><text:p>Third review item</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="ContinuationSteps">
+        <text:list-item><text:p>Reset review item</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithContinuationLists, null, $stylesWithContinuationLists));
+        $blocks = $result['document']->children;
+
+        $t->same(4, count($blocks));
+        $firstList = $blocks[0];
+        $paragraph = $blocks[1];
+        $continuedList = $blocks[2];
+        $resetList = $blocks[3];
+        $nestedList = $firstList->children[0]->children[1];
+
+        $t->same('ordered_list', $firstList->type);
+        $t->same(2, $firstList->attr('start'));
+        $t->same('decimal', $firstList->attr('style'));
+        $t->same(1, $firstList->attr('listLevel'));
+        $t->same('First review item', $firstList->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $nestedList->type);
+        $t->same(4, $nestedList->attr('start'));
+        $t->same('lower_alpha', $nestedList->attr('style'));
+        $t->same(2, $nestedList->attr('listLevel'));
+        $t->same('Nested legal note', $nestedList->children[0]->children[0]->attr('text'));
+        $t->same('Interruption paragraph.', $paragraph->attr('text'));
+        $t->same('ordered_list', $continuedList->type);
+        $t->same(true, $continuedList->attr('continued'));
+        $t->same(4, $continuedList->attr('start'));
+        $t->same('Third review item', $continuedList->children[0]->children[0]->attr('text'));
+        $t->same('ordered_list', $resetList->type);
+        $t->same(2, $resetList->attr('start'));
+        $t->same('Reset review item', $resetList->children[0]->children[0]->attr('text'));
+        $t->same(1, $result['importReport']['content']['continuedListCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('2.  First review item', $markdown);
+        $t->contains('  d.  Nested legal note', $markdown);
+        $t->contains('4.  Third review item', $markdown);
+        $t->contains('2.  Reset review item', $markdown);
+        $t->contains('<ol start="2">', $blocksHtml);
+        $t->contains('<ol start="4" type="a">', $blocksHtml);
+        $t->contains('<ol start="4">', $blocksHtml);
+    },
     'maps ODT footnotes endnotes and bookmark references into reviewable AST nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNotesAndBookmarks = <<<'XML'
 <office:document-content
