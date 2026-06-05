@@ -8434,19 +8434,28 @@ final class PdfTextExtractor
      */
     private function decodeParmsIndexForFilterIndex(array $filters, array $decodeParms, int $index): ?int
     {
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        if (count($decodeParms) === count($nonNullFilterIndexes) && count($filters) !== count($decodeParms)) {
+            $compactPosition = array_search($index, $nonNullFilterIndexes, true);
+            if ($compactPosition !== false) {
+                $decodeParmsIndexes = array_keys($decodeParms);
+                $decodeParmsIndex = $decodeParmsIndexes[$compactPosition] ?? null;
+                return is_int($decodeParmsIndex) ? $decodeParmsIndex : null;
+            }
+        }
+
         if (array_key_exists($index, $decodeParms)) {
             return $index;
         }
 
         if (count($decodeParms) !== 1) {
             return null;
-        }
-
-        $nonNullFilterIndexes = [];
-        foreach ($filters as $filterIndex => $filter) {
-            if (is_string($filter)) {
-                $nonNullFilterIndexes[] = $filterIndex;
-            }
         }
 
         if ($nonNullFilterIndexes !== [$index]) {
@@ -16544,7 +16553,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $filterDecodeParms = $decodeParms[$index] ?? null;
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
             if (
                 $filterDecodeParms !== null
                 && trim($filterDecodeParms) !== ''
