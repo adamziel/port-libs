@@ -1901,6 +1901,10 @@ final class PdfLinkAnnotationExtractor
             return false;
         }
 
+        if (preg_match('/[\x00-\x20\x7F]/', $uri) === 1) {
+            return false;
+        }
+
         if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $trimmed, $match) === 1) {
             return in_array(strtolower(rtrim($match[0], ':')), ['http', 'https', 'mailto', 'ftp'], true);
         }
