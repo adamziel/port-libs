@@ -9541,7 +9541,7 @@ final class PdfTextExtractor
      */
     private function type3CharProcWidths(string $fontBody, array $objects): array
     {
-        if (preg_match('/\/Subtype\s*\/Type3\b/', $fontBody) !== 1) {
+        if (!$this->isType3FontBody($fontBody)) {
             return [];
         }
 
@@ -10010,7 +10010,12 @@ final class PdfTextExtractor
 
     private function isType3FontBody(string $fontBody): bool
     {
-        return preg_match('/\/Subtype\s*\/Type3\b/s', $fontBody) === 1;
+        $subtype = $this->topLevelPdfValueAfterName($fontBody, 'Subtype');
+        if ($subtype === null) {
+            return false;
+        }
+
+        return $this->pdfNameValueAt($subtype, 0, []) === 'Type3';
     }
 
     /**
