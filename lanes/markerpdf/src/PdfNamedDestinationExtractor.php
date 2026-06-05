@@ -425,7 +425,7 @@ final class PdfNamedDestinationExtractor
     /**
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @param list<int> $seenObjects
+     * @param list<string> $seenObjects
      * @param array{lower: string, upper: string}|null $inheritedLimits
      * @return list<array{name: string, value: mixed}>
      */
@@ -446,10 +446,11 @@ final class PdfNamedDestinationExtractor
             return [];
         }
         if ($nodeObjectId !== null) {
-            if (in_array($nodeObjectId, $seenObjects, true)) {
+            $seenKey = $this->objectGenerationKey($nodeObjectId, $this->refGeneration($node));
+            if (in_array($seenKey, $seenObjects, true)) {
                 return [];
             }
-            $seenObjects[] = $nodeObjectId;
+            $seenObjects[] = $seenKey;
         }
 
         $dictionary = $this->resolve($node, $objects, $cache);
