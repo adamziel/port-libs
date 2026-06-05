@@ -10273,7 +10273,21 @@ final class PdfTextExtractor
      */
     private function type3CharProcDeclaredWidth(string $objectBody, array $objects): ?float
     {
-        $charProc = $this->decodeStreamObject($objectBody, $objects) ?? trim($objectBody);
+        $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
+        if ($stream !== null) {
+            if ($this->isImageStreamDictionary($stream['dict'], $objects)) {
+                return null;
+            }
+
+            $decoded = $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+            if ($decoded === null) {
+                return null;
+            }
+
+            $charProc = $decoded;
+        } else {
+            $charProc = trim($objectBody);
+        }
         $operands = [];
 
         foreach ($this->contentTokens($charProc) as $token) {
