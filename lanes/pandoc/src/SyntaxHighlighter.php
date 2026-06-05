@@ -46,7 +46,9 @@ final class SyntaxHighlighter
         'haskell' => 'haskell',
         'hs' => 'haskell',
         'javascript' => 'javascript',
+        'javascript-react' => 'jsx',
         'js' => 'javascript',
+        'jsx' => 'jsx',
         'json' => 'json',
         'latex' => 'tex',
         'lhs' => 'haskell',
@@ -501,6 +503,7 @@ final class SyntaxHighlighter
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'javascript' => $this->tokenizeJavaScript($code),
+            'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
@@ -643,6 +646,30 @@ final class SyntaxHighlighter
             ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
             ['function', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*(?=\\s*\\()/'],
             ['operator', '/^(?:=>|===|!==|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeJsx(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^`(?:\\\\.|[^`\\\\])*`/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['function', '/^<\\/?[A-Z][A-Za-z0-9_.$:-]*/'],
+            ['keyword', '/^<\\/?[a-z][A-Za-z0-9_.$:-]*/'],
+            ['attribute', '/^[A-Za-z_:][A-Za-z0-9_.:-]*(?=\\s*=)/'],
+            ['keyword', '/^\\b(?:async|await|break|case|catch|class|const|continue|default|do|else|export|extends|finally|for|from|function|if|import|let|new|return|switch|throw|try|typeof|var|while|yield)\\b/'],
+            ['constant', '/^\\b(?:false|null|true|undefined)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['function', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*(?=\\s*\\()/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_$]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['variable', '/^\\b[A-Za-z_$][A-Za-z0-9_$]*\\b/'],
+            ['operator', '/^(?:<\\/>|\\/?>|=>|===|!==|==|!=|<=|>=|&&|\\|\\||\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:|-])/'],
         ]);
     }
 

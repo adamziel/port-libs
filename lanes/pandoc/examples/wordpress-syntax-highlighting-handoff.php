@@ -108,6 +108,12 @@ if (!$makefileCodeBlock instanceof PortLibs\Pandoc\AstNode || $makefileCodeBlock
 }
 $makefile = $highlighter->highlightCodeBlock($makefileCodeBlock, 'zenburn');
 $makefileWordpressBlock = $highlighter->wordpressHtmlBlock($makefileCodeBlock, 'zenburn');
+$jsxCodeBlock = $document->children[12] ?? null;
+if (!$jsxCodeBlock instanceof PortLibs\Pandoc\AstNode || $jsxCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a JSX code block');
+}
+$jsx = $highlighter->highlightCodeBlock($jsxCodeBlock, 'breezedark');
+$jsxWordpressBlock = $highlighter->wordpressHtmlBlock($jsxCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -382,6 +388,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($makefileWordpressBlock, '<span class="op">@</span><span class="va">$(WP_CLI)</span>')) {
         throw new RuntimeException('Expected Makefile quiet recipe variable handoff');
     }
+    if (($jsx['language'] ?? '') !== 'jsx') {
+        throw new RuntimeException('Expected jsx alias to normalize to JSX highlighting');
+    }
+    if (($jsx['lineNumbering']['start'] ?? null) !== 18) {
+        throw new RuntimeException('Expected JSX source startFrom line-number handoff');
+    }
+    if (!str_contains($jsx['html'], '<span class="kw">import</span> <span class="dt">React</span> <span class="kw">from</span> <span class="st">&#039;react&#039;</span>')) {
+        throw new RuntimeException('Expected JSX import token handoff');
+    }
+    if (!str_contains($jsx['html'], '<span class="kw">return</span> <span class="kw">&lt;section</span> <span class="ot">className</span>')) {
+        throw new RuntimeException('Expected JSX element tag and attribute token handoff');
+    }
+    if (!str_contains($jsx['html'], '<span class="fu">&lt;InnerBlocks</span> <span class="ot">allowedBlocks</span>')) {
+        throw new RuntimeException('Expected JSX component tag and attribute token handoff');
+    }
+    if (!str_contains($jsxWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected JSX WordPress style metadata');
+    }
+    if (!str_contains($jsxWordpressBlock, '<span class="fu">&lt;InnerBlocks</span>')) {
+        throw new RuntimeException('Expected JSX WordPress component token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -417,6 +444,7 @@ echo "pythonHighlightedHtml:\n" . $python['html'] . "\n";
 echo "cppHighlightedHtml:\n" . $cpp['html'] . "\n";
 echo "dockerfileHighlightedHtml:\n" . $dockerfile['html'] . "\n";
 echo "makefileHighlightedHtml:\n" . $makefile['html'] . "\n";
+echo "jsxHighlightedHtml:\n" . $jsx['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -424,4 +452,5 @@ echo "pythonWordpressBlock:\n" . $pythonWordpressBlock . "\n";
 echo "cppWordpressBlock:\n" . $cppWordpressBlock . "\n";
 echo "dockerfileWordpressBlock:\n" . $dockerfileWordpressBlock . "\n";
 echo "makefileWordpressBlock:\n" . $makefileWordpressBlock . "\n";
+echo "jsxWordpressBlock:\n" . $jsxWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

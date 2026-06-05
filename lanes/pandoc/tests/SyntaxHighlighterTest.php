@@ -36,6 +36,8 @@ return [
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('language-docker'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
+        $t->same('jsx', SyntaxHighlighter::normalizeLanguage('jsx'));
+        $t->same('jsx', SyntaxHighlighter::normalizeLanguage('javascript-react'));
         $t->same('c', SyntaxHighlighter::normalizeLanguage('c'));
         $t->same('c', SyntaxHighlighter::normalizeLanguage('h'));
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('c++'));
@@ -471,6 +473,42 @@ return [
         $t->same('typescript', $directTypescript['language']);
         $t->contains('<span class="kw">interface</span> <span class="dt">ReviewBlock</span>', $directTypescript['html']);
         $t->contains('<span class="kw">readonly</span> <span class="va">title</span><span class="op">:</span> <span class="dt">string</span>', $directTypescript['html']);
+    },
+    'highlights jsx react review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[12] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a JSX code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directJsx = (new SyntaxHighlighter())->highlight('return <ReviewCard title={post.title} />;', 'javascript-react');
+
+        $t->same('jsx', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('jsx', $highlighted['language']);
+        $t->same('jsx', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(18, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource jsx numberLines"><code class="sourceCode jsx" style="counter-reset: source-line 17;">', $highlighted['html']);
+        $t->contains('<span id="jsx-review-18"><a href="#jsx-review-18"></a><span class="co">// Gutenberg block preview component</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="dt">React</span> <span class="kw">from</span> <span class="st">&#039;react&#039;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">export</span> <span class="kw">default</span> <span class="kw">function</span> <span class="fu">ImportPreview</span>', $highlighted['html']);
+        $t->contains('<span class="kw">const</span> <span class="op">{</span> <span class="va">title</span><span class="op">,</span> <span class="va">sourceId</span> <span class="op">}</span> <span class="op">=</span> <span class="va">props</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="kw">&lt;section</span> <span class="ot">className</span><span class="op">=</span><span class="st">&quot;wp-block-import&quot;</span> <span class="ot">data-source</span><span class="op">={</span><span class="va">sourceId</span><span class="op">}&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;h2</span><span class="op">&gt;{</span><span class="va">title</span><span class="op">}</span><span class="kw">&lt;/h2</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">&lt;InnerBlocks</span> <span class="ot">allowedBlocks</span><span class="op">={[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">]}</span> <span class="op">/&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;/section</span><span class="op">&gt;;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="fu">&lt;InnerBlocks</span>', $wordpressBlock);
+        $t->same('jsx', $directJsx['language']);
+        $t->contains('<span class="kw">return</span> <span class="fu">&lt;ReviewCard</span> <span class="ot">title</span><span class="op">={</span><span class="va">post</span><span class="op">.</span><span class="va">title</span><span class="op">}</span> <span class="op">/&gt;;</span>', $directJsx['html']);
     },
     'highlights python3 review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [

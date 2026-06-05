@@ -142,3 +142,16 @@ assets/build: package.json src/block.js
 deploy:
 	@$(WP_CLI) plugin update my-plugin --version $(PLUGIN_VERSION)
 ```
+
+``` {.jsx #jsx-review .numberLines startFrom=18}
+// Gutenberg block preview component
+import React from 'react';
+
+export default function ImportPreview(props) {
+  const { title, sourceId } = props;
+  return <section className="wp-block-import" data-source={sourceId}>
+    <h2>{title}</h2>
+    <InnerBlocks allowedBlocks={["core/paragraph"]} />
+  </section>;
+}
+```
