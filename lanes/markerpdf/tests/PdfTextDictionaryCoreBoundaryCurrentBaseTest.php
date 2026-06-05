@@ -211,6 +211,36 @@ return [
         $t->true(!str_contains($encoded, 'hidden destination bytes'));
         $t->true(!str_contains($encoded, 'payload-only ref row should be dropped'));
     },
+    'synthesizes pdftext reference anchors from upstream Reference dictionaries' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['refs'] = [
+            [
+                'page' => 9,
+                'idx' => 2,
+                'coord' => [144.0, 216.0],
+                'raw_private_payload' => 'hidden upstream Reference payload',
+            ],
+            [
+                'page' => 9,
+                'idx' => 3,
+                'coord' => [0.0, 0.0],
+                'url' => 'javascript:alert(1)',
+            ],
+        ];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $refs = $document['pages'][0]['pdftext_source']['refs'];
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(9, $refs[0]['page']);
+        $t->same(2, $refs[0]['idx']);
+        $t->same([144.0, 216.0], $refs[0]['coord']);
+        $t->same('page-9-2', $refs[0]['ref']);
+        $t->same('#page-9-2', $refs[0]['url']);
+        $t->true(!str_contains($encoded, 'hidden upstream Reference payload'));
+        $t->true(!array_key_exists('url', $refs[1]), 'Supplied unsafe pdftext ref URLs remain review-only and are not replaced by synthesized anchors.');
+        $t->same('page-9-3', $refs[1]['ref']);
+    },
     'rejects non string pdftext span urls before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['blocks'][0]['lines'][0]['spans'][1]['url'] = ['https://example.com/not-a-string'];

@@ -277,6 +277,8 @@ final class PdfTextBlockConverter
             }
 
             $row = [];
+            $urlWasSupplied = array_key_exists('url', $ref);
+            $refWasSupplied = array_key_exists('ref', $ref);
             if (array_key_exists('url', $ref)) {
                 if (!is_string($ref['url'])) {
                     throw new InvalidArgumentException("pdftext refs[{$index}].url must be a string when supplied.");
@@ -310,6 +312,16 @@ final class PdfTextBlockConverter
             }
             if (array_key_exists('coord', $ref)) {
                 $row['coord'] = $this->pointMetadata($ref['coord'], "refs[{$index}].coord");
+            }
+
+            if (isset($row['page'], $row['idx'])) {
+                $anchor = 'page-' . $row['page'] . '-' . $row['idx'];
+                if (!$refWasSupplied && !array_key_exists('ref', $row)) {
+                    $row['ref'] = $anchor;
+                }
+                if (!$urlWasSupplied && !array_key_exists('url', $row)) {
+                    $row['url'] = '#' . $anchor;
+                }
             }
 
             if ($row !== []) {

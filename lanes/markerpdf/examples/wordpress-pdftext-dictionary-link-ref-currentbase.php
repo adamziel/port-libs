@@ -30,6 +30,18 @@ $page = [
             'raw_pdf_bytes' => 'hidden destination bytes',
         ],
         [
+            'page' => 9,
+            'idx' => 2,
+            'coord' => [144.0, 216.0],
+            'raw_private_payload' => 'hidden upstream Reference payload',
+        ],
+        [
+            'page' => 9,
+            'idx' => 3,
+            'coord' => [0.0, 0.0],
+            'url' => 'javascript:alert(1)',
+        ],
+        [
             'raw_payload' => 'payload-only ref row should be dropped',
         ],
     ],
@@ -75,10 +87,15 @@ if (!str_contains($text, '[plugin docs](https://example.com/import\\)docs)')
     || str_contains($text, 'javascript:')
     || ($refs[0]['url'] ?? null) !== '#page-3-xy'
     || ($refs[1]['ref'] ?? null) !== 'page-8-4'
-    || count($refs) !== 2
+    || ($refs[2]['ref'] ?? null) !== 'page-9-2'
+    || ($refs[2]['url'] ?? null) !== '#page-9-2'
+    || array_key_exists('url', $refs[3] ?? [])
+    || ($refs[3]['ref'] ?? null) !== 'page-9-3'
+    || count($refs) !== 4
     || array_key_exists('chars', $charSpans[1] ?? [])
     || str_contains($encoded, 'hidden ref payload')
     || str_contains($encoded, 'hidden destination bytes')
+    || str_contains($encoded, 'hidden upstream Reference payload')
     || str_contains($encoded, 'payload-only ref row should be dropped')
 ) {
     throw new RuntimeException('Expected pdftext dictionary link/ref metadata to preserve safe links, omit unsafe clickable links, and remove raw ref/char payloads.');
@@ -92,8 +109,11 @@ echo '<!-- markerpdf-pdftext-dictionary-link-ref-currentbase ' . htmlspecialchar
     'unsafe_pdftext_url_review_only' => ($spans[2]['pdftext_url'] ?? null) === 'javascript:alert(1)' && !array_key_exists('url', $spans[2] ?? []),
     'pdftext_refs_preserved' => ($refs[0]['url'] ?? null) === '#page-3-xy',
     'pdftext_reference_shape_preserved' => ($refs[1]['ref'] ?? null) === 'page-8-4' && ($refs[1]['coord'] ?? null) === [12.5, 64.0],
+    'upstream_reference_anchor_synthesized' => ($refs[2]['ref'] ?? null) === 'page-9-2' && ($refs[2]['url'] ?? null) === '#page-9-2',
+    'unsafe_supplied_reference_url_not_synthesized' => !array_key_exists('url', $refs[3] ?? []) && ($refs[3]['ref'] ?? null) === 'page-9-3',
     'pdftext_ref_payload_excluded' => !str_contains($encoded, 'hidden ref payload')
         && !str_contains($encoded, 'hidden destination bytes')
+        && !str_contains($encoded, 'hidden upstream Reference payload')
         && !str_contains($encoded, 'payload-only ref row should be dropped'),
     'raw_chars_excluded' => !array_key_exists('chars', $charSpans[1] ?? []),
     'visible_wordpress_text' => $text,
