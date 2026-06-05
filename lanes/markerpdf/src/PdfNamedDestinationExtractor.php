@@ -1205,7 +1205,8 @@ final class PdfNamedDestinationExtractor
         array $objects,
         array &$cache
     ): ?array {
-        $destination = $this->resolve($value, $objects, $cache);
+        $destinationValue = $value;
+        $destination = $this->resolve($destinationValue, $objects, $cache);
         if ($this->isDictionary($destination) && array_key_exists('D', $destination)) {
             if (array_key_exists('S', $destination)) {
                 $actionType = $this->nameValue($this->resolve($destination['S'], $objects, $cache));
@@ -1214,7 +1215,20 @@ final class PdfNamedDestinationExtractor
                 }
             }
 
-            $destination = $this->resolve($destination['D'], $objects, $cache);
+            $destinationValue = $destination['D'];
+            $destination = $this->resolve($destinationValue, $objects, $cache);
+        }
+
+        $pageOnly = $this->pageOnlyDestinationDetails($destinationValue, $pageIndexes, $objects, $cache);
+        if ($pageOnly !== null) {
+            return [
+                'name' => $name,
+                'page' => $pageOnly['page'],
+                'page_object_id' => $pageOnly['page_object_id'],
+                'fit' => 'Fit',
+                'coordinates' => [],
+                'source' => $source,
+            ];
         }
 
         if (!is_array($destination) || !array_is_list($destination) || count($destination) < 2) {
@@ -1252,6 +1266,59 @@ final class PdfNamedDestinationExtractor
             'fit' => $fit,
             'coordinates' => $this->destinationCoordinates($fit, $destination, $objects, $cache),
             'source' => $source,
+        ];
+    }
+
+    /**
+     * @param array<string, int> $pageIndexes
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     * @param list<string> $seen
+     * @return array{page: int, page_object_id: int|null}|null
+     */
+    private function pageOnlyDestinationDetails(
+        mixed $value,
+        array $pageIndexes,
+        array $objects,
+        array &$cache,
+        array $seen = []
+    ): ?array {
+        $pageObjectId = $this->validRefObjectId($value, $objects);
+        if ($pageObjectId !== null) {
+            $generation = $this->refGeneration($value);
+            $key = $this->objectGenerationKey($pageObjectId, $generation);
+            if (isset($pageIndexes[$key])) {
+                return [
+                    'page' => $pageIndexes[$key],
+                    'page_object_id' => $pageObjectId,
+                ];
+            }
+
+            if (in_array($key, $seen, true)) {
+                return null;
+            }
+
+            $seen[] = $key;
+            $objectValue = $this->objectValue($pageObjectId, $objects, $cache, $generation);
+            if ($this->isRefValue($objectValue) || is_int($objectValue)) {
+                return $this->pageOnlyDestinationDetails($objectValue, $pageIndexes, $objects, $cache, $seen);
+            }
+
+            return null;
+        }
+
+        if ($this->isRefValue($value)) {
+            return null;
+        }
+
+        $resolved = $this->resolve($value, $objects, $cache);
+        if (!is_int($resolved) || $resolved < 0 || $resolved >= count($pageIndexes)) {
+            return null;
+        }
+
+        return [
+            'page' => $resolved,
+            'page_object_id' => null,
         ];
     }
 
