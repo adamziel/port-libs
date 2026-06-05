@@ -20767,11 +20767,6 @@ final class PdfTextExtractor
             }
 
             if ($char === '[') {
-                $arrayIndex = $index;
-                if ($insideTextObject && $this->arraySegmentContainsUnterminatedLiteral($segment, $arrayIndex)) {
-                    return true;
-                }
-
                 $this->readArrayToken($segment, $index);
                 continue;
             }
@@ -20843,6 +20838,11 @@ final class PdfTextExtractor
             }
 
             if ($char === '[') {
+                $arrayIndex = $index;
+                if ($insideTextObject && $this->arraySegmentContainsUnterminatedLiteral($segment, $arrayIndex)) {
+                    return true;
+                }
+
                 $this->readArrayToken($segment, $index);
                 continue;
             }
