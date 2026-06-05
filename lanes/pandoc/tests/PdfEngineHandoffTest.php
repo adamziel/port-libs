@@ -251,6 +251,71 @@ return [
         $t->contains('produced-engine-artifacts:3', implode(',', $result['diagnostics']));
     },
 
+    'fake runner classifies bibliography sidecars and biber rerun diagnostics' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff\n%%EOF\n";
+        $blg = implode("\n", [
+            'This is Biber 2.19',
+            'Biber warning: Entry missing-key not found in bibliography',
+            'Package biblatex Warning: Please (re)run Biber on the file: review and rerun LaTeX afterwards.',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.pdf' => $pdfBytes,
+                'review.bcf' => '<bcf:controlfile />',
+                'review.run.xml' => '<requests />',
+                'review.bbl' => "\\begin{thebibliography}{1}\n\\end{thebibliography}\n",
+                'review.blg' => $blg,
+            ],
+        ]);
+        $failed = $handoff->fakeRun($plan, [
+            'files' => [
+                'review.pdf' => $pdfBytes,
+                'review.blg' => "Biber ERROR - Cannot find 'refs.bib'\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'review.pdf' => $pdfBytes,
+                    'review.bcf' => '<bcf:controlfile />',
+                    'review.blg' => $blg,
+                ],
+            ],
+            [
+                'files' => [
+                    'review.pdf' => $pdfBytes,
+                    'review.bbl' => "\\begin{thebibliography}{1}\n\\end{thebibliography}\n",
+                    'review.blg' => "This is Biber 2.19\n",
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['review.bbl', 'review.bcf', 'review.blg', 'review.run.xml'], array_keys($result['bibliographyArtifactsSha256']));
+        $t->same(['review.blg'], $result['bibliographyLogFiles']);
+        $t->contains('Entry missing-key not found', implode("\n", $result['bibliographyWarnings']));
+        $t->same([], $result['bibliographyErrors']);
+        $t->same(true, $result['bibliographyNeeded']);
+        $t->same(true, $result['rerunNeeded']);
+        $t->contains('bibliography-sidecars:4', implode(',', $result['diagnostics']));
+        $t->contains('bibliography-log-files:1', implode(',', $result['diagnostics']));
+        $t->contains('bibliography-warnings:2', implode(',', $result['diagnostics']));
+        $t->contains('bibliography-run-needed', implode(',', $result['diagnostics']));
+        $t->same(false, $failed['ok']);
+        $t->same('bibliography-log-error', $failed['reason']);
+        $t->contains("Cannot find 'refs.bib'", implode("\n", $failed['bibliographyErrors']));
+        $t->same(true, $sequence['ok']);
+        $t->same(false, $sequence['rerunNeeded']);
+        $t->same(['review.bbl', 'review.blg'], array_keys($sequence['finalBibliographyArtifactsSha256']));
+        $t->contains('Entry missing-key not found', implode("\n", $sequence['bibliographyWarnings']));
+        $t->contains('fake-runner-attempt-bibliography-needed:1', implode(',', $sequence['diagnostics']));
+        $t->contains('fake-runner-final-bibliography-cleared', implode(',', $sequence['diagnostics']));
+    },
+
     'fake runner records engine declared pdf output metrics when artifact matches' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

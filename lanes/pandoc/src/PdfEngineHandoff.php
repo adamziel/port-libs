@@ -174,9 +174,14 @@ final class PdfEngineHandoff
      *     sourceSha256: string|null,
      *     sourceArtifactsSha256: array<string, string>,
      *     producedArtifactsSha256: array<string, string>,
+     *     bibliographyArtifactsSha256: array<string, string>,
+     *     bibliographyLogFiles: list<string>,
      *     engineLogFiles: list<string>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
+     *     bibliographyWarnings: list<string>,
+     *     bibliographyErrors: list<string>,
+     *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
@@ -209,6 +214,9 @@ final class PdfEngineHandoff
         $sourceSha256 = null;
         $sourceArtifactsSha256 = [];
         $producedArtifactsSha256 = [];
+        $bibliographyArtifactsSha256 = [];
+        $bibliographyLogFiles = [];
+        $bibliographyLogTexts = [];
         $engineLogFiles = [];
         $engineLogTexts = [];
         $status = 'ok';
@@ -255,15 +263,30 @@ final class PdfEngineHandoff
             }
 
             $producedArtifactsSha256[$path] = hash('sha256', $bytes);
+            if ($this->isBibliographyArtifactPath($path)) {
+                $bibliographyArtifactsSha256[$path] = hash('sha256', $bytes);
+                if ($this->isBibliographyLogPath($path)) {
+                    $bibliographyLogFiles[] = $path;
+                    $bibliographyLogTexts[] = $bytes;
+                }
+            }
             if ($this->isEngineLogPath($path)) {
                 $engineLogFiles[] = $path;
                 $engineLogTexts[] = $bytes;
             }
         }
         ksort($producedArtifactsSha256);
+        ksort($bibliographyArtifactsSha256);
         sort($engineLogFiles);
+        sort($bibliographyLogFiles);
         if ($producedArtifactsSha256 !== []) {
             $diagnostics[] = 'produced-engine-artifacts:' . count($producedArtifactsSha256);
+        }
+        if ($bibliographyArtifactsSha256 !== []) {
+            $diagnostics[] = 'bibliography-sidecars:' . count($bibliographyArtifactsSha256);
+        }
+        if ($bibliographyLogFiles !== []) {
+            $diagnostics[] = 'bibliography-log-files:' . count($bibliographyLogFiles);
         }
 
         $engineTexts = array_merge(
@@ -271,6 +294,7 @@ final class PdfEngineHandoff
             $engineLogTexts
         );
         $engineMessages = $this->extractEngineMessages($engineTexts);
+        $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
         $declaredOutput = $this->extractDeclaredOutput($engineTexts);
         if ($engineMessages['warnings'] !== []) {
             $diagnostics[] = 'engine-log-warnings:' . count($engineMessages['warnings']);
@@ -278,8 +302,17 @@ final class PdfEngineHandoff
         if ($engineMessages['errors'] !== []) {
             $diagnostics[] = 'engine-log-errors:' . count($engineMessages['errors']);
         }
+        if ($bibliographyMessages['warnings'] !== []) {
+            $diagnostics[] = 'bibliography-warnings:' . count($bibliographyMessages['warnings']);
+        }
+        if ($bibliographyMessages['errors'] !== []) {
+            $diagnostics[] = 'bibliography-errors:' . count($bibliographyMessages['errors']);
+        }
         if ($engineMessages['rerunNeeded']) {
             $diagnostics[] = 'engine-rerun-needed';
+        }
+        if ($bibliographyMessages['needed']) {
+            $diagnostics[] = 'bibliography-run-needed';
         }
         if ($declaredOutput['file'] !== null) {
             $diagnostics[] = 'engine-output-file:' . $declaredOutput['file'];
@@ -315,6 +348,10 @@ final class PdfEngineHandoff
         if ($reason === null && $engineMessages['errors'] !== []) {
             $status = 'failed';
             $reason = 'engine-log-error';
+        }
+        if ($reason === null && $bibliographyMessages['errors'] !== []) {
+            $status = 'failed';
+            $reason = 'bibliography-log-error';
         }
         if ($reason === null && $exitCode !== 0) {
             $status = 'failed';
@@ -361,10 +398,15 @@ final class PdfEngineHandoff
             'sourceSha256' => $sourceSha256,
             'sourceArtifactsSha256' => $sourceArtifactsSha256,
             'producedArtifactsSha256' => $producedArtifactsSha256,
+            'bibliographyArtifactsSha256' => $bibliographyArtifactsSha256,
+            'bibliographyLogFiles' => $bibliographyLogFiles,
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'engineErrors' => $engineMessages['errors'],
-            'rerunNeeded' => $engineMessages['rerunNeeded'],
+            'bibliographyWarnings' => $bibliographyMessages['warnings'],
+            'bibliographyErrors' => $bibliographyMessages['errors'],
+            'bibliographyNeeded' => $bibliographyMessages['needed'],
+            'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
             'declaredOutputFile' => $declaredOutput['file'],
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],
@@ -396,8 +438,12 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
      *     sourceSha256: string|null,
+     *     finalBibliographyArtifactsSha256: array<string, string>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
+     *     bibliographyWarnings: list<string>,
+     *     bibliographyErrors: list<string>,
+     *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
      *     diagnostics: list<string>
      * }
@@ -416,6 +462,8 @@ final class PdfEngineHandoff
         $attemptResults = [];
         $warnings = [];
         $errors = [];
+        $bibliographyWarnings = [];
+        $bibliographyErrors = [];
         $diagnostics = ['fake-runner-attempts:' . count($runs)];
         $successfulAttempts = 0;
         $status = 'ok';
@@ -423,6 +471,7 @@ final class PdfEngineHandoff
         $finalRun = null;
         $finalRunIndex = 0;
         $hadRerunNeededAttempt = false;
+        $hadBibliographyNeededAttempt = false;
 
         foreach ($runs as $index => $run) {
             if (!is_array($run)) {
@@ -450,6 +499,10 @@ final class PdfEngineHandoff
                 $hadRerunNeededAttempt = true;
                 $diagnostics[] = 'fake-runner-attempt-rerun-needed:' . $attemptIndex;
             }
+            if (($attempt['bibliographyNeeded'] ?? false) === true) {
+                $hadBibliographyNeededAttempt = true;
+                $diagnostics[] = 'fake-runner-attempt-bibliography-needed:' . $attemptIndex;
+            }
 
             foreach ($attempt['engineWarnings'] ?? [] as $warning) {
                 if (is_string($warning) && $warning !== '') {
@@ -461,9 +514,20 @@ final class PdfEngineHandoff
                     $errors[] = $error;
                 }
             }
+            foreach ($attempt['bibliographyWarnings'] ?? [] as $warning) {
+                if (is_string($warning) && $warning !== '') {
+                    $bibliographyWarnings[] = $warning;
+                }
+            }
+            foreach ($attempt['bibliographyErrors'] ?? [] as $error) {
+                if (is_string($error) && $error !== '') {
+                    $bibliographyErrors[] = $error;
+                }
+            }
         }
 
         $finalRerunNeeded = is_array($finalRun) && ($finalRun['rerunNeeded'] ?? false) === true;
+        $finalBibliographyNeeded = is_array($finalRun) && ($finalRun['bibliographyNeeded'] ?? false) === true;
         if ($finalRerunNeeded) {
             $diagnostics[] = 'fake-runner-rerun-still-needed';
             if ($reason === null) {
@@ -472,6 +536,11 @@ final class PdfEngineHandoff
             }
         } elseif ($hadRerunNeededAttempt) {
             $diagnostics[] = 'fake-runner-final-rerun-cleared';
+        }
+        if ($finalBibliographyNeeded) {
+            $diagnostics[] = 'fake-runner-final-bibliography-needed';
+        } elseif ($hadBibliographyNeededAttempt) {
+            $diagnostics[] = 'fake-runner-final-bibliography-cleared';
         }
 
         return [
@@ -491,8 +560,12 @@ final class PdfEngineHandoff
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
+            'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
             'engineWarnings' => array_values(array_unique($warnings)),
             'engineErrors' => array_values(array_unique($errors)),
+            'bibliographyWarnings' => array_values(array_unique($bibliographyWarnings)),
+            'bibliographyErrors' => array_values(array_unique($bibliographyErrors)),
+            'bibliographyNeeded' => $finalBibliographyNeeded,
             'rerunNeeded' => $finalRerunNeeded,
             'diagnostics' => $diagnostics,
         ];
@@ -743,6 +816,16 @@ final class PdfEngineHandoff
         ], true);
     }
 
+    private function isBibliographyArtifactPath(string $path): bool
+    {
+        return preg_match('/\.(?:bbl|bcf|blg|run\.xml)\z/i', $path) === 1;
+    }
+
+    private function isBibliographyLogPath(string $path): bool
+    {
+        return preg_match('/\.blg\z/i', $path) === 1;
+    }
+
     private function isEngineLogPath(string $path): bool
     {
         return preg_match('/\.log\z/i', $path) === 1;
@@ -782,6 +865,66 @@ final class PdfEngineHandoff
             'errors' => array_values(array_unique($errors)),
             'rerunNeeded' => $rerunNeeded,
         ];
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return array{warnings:list<string>, errors:list<string>, needed:bool}
+     */
+    private function extractBibliographyMessages(array $texts): array
+    {
+        $warnings = [];
+        $errors = [];
+        $needed = false;
+
+        foreach ($texts as $text) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                if ($this->isBibliographyErrorLine($line)) {
+                    $errors[] = $line;
+                    continue;
+                }
+                if ($this->isBibliographyWarningLine($line)) {
+                    $warnings[] = $line;
+                }
+                if ($this->isBibliographyRunNeededLine($line)) {
+                    $needed = true;
+                }
+            }
+        }
+
+        return [
+            'warnings' => array_values(array_unique($warnings)),
+            'errors' => array_values(array_unique($errors)),
+            'needed' => $needed,
+        ];
+    }
+
+    private function isBibliographyWarningLine(string $line): bool
+    {
+        if (preg_match('/\b0\s+warnings?\b/i', $line) === 1) {
+            return false;
+        }
+
+        return preg_match('/\bwarning\b|^Warning--/i', $line) === 1
+            && preg_match('/\b(?:biber|bibtex|biblatex|natbib|citation|citations|bibliograph|bibliography|entry|database)\b|^Warning--/i', $line) === 1;
+    }
+
+    private function isBibliographyErrorLine(string $line): bool
+    {
+        if (preg_match('/\b0\s+errors?\b/i', $line) === 1) {
+            return false;
+        }
+
+        return preg_match('/\b(?:biber|bibtex|biblatex|natbib)\b.*\berror\b|\berror\b.*\b(?:biber|bibtex|biblatex|natbib|citation|bibliograph|bibliography)\b|\AI (?:couldn\'t open database file|found no \\\\bibdata command|found no \\\\bibstyle command)\b|\b[1-9]\d*\s+error messages?\b/i', $line) === 1;
+    }
+
+    private function isBibliographyRunNeededLine(string $line): bool
+    {
+        return preg_match('/please\s+\(re\)run\s+(?:biber|bibtex)|please\s+rerun\s+(?:biber|bibtex)|\brerun\s+(?:biber|bibtex)\b|\b(?:run|re-run)\s+(?:biber|bibtex)\b|undefined citations?|\bCitation\b.*\bundefined\b|No file .*\.bbl\b/i', $line) === 1;
     }
 
     private function isEngineWarningLine(string $line): bool
