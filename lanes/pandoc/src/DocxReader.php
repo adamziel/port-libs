@@ -2343,12 +2343,41 @@ final class DocxReader
             $nodes = $wrap('strong', $nodes);
         }
 
-        $reviewMarkupAttrs = $this->runReviewMarkupAttrs($properties);
-        if ($reviewMarkupAttrs !== null) {
-            $nodes = [new AstNode('span', $reviewMarkupAttrs, $nodes)];
+        $metadataAttrs = $this->runMetadataAttrs($properties);
+        if ($metadataAttrs !== null) {
+            $nodes = [new AstNode('span', $metadataAttrs, $nodes)];
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runMetadataAttrs(\DOMElement $properties): ?array
+    {
+        $attrs = null;
+        foreach ([
+            $this->runReviewMarkupAttrs($properties),
+            $this->runLanguageDirectionAttrs($properties),
+        ] as $source) {
+            if ($source === null) {
+                continue;
+            }
+
+            if ($attrs === null) {
+                $attrs = $source;
+                continue;
+            }
+
+            $attrs['classes'] = array_values(array_unique([
+                ...$attrs['classes'],
+                ...$source['classes'],
+            ]));
+            $attrs['attributes'] += $source['attributes'];
+        }
+
+        return $attrs;
     }
 
     /**
@@ -2392,6 +2421,51 @@ final class DocxReader
                 $classes[] = 'docx-shading';
                 $attributes += $shadingAttributes;
             }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runLanguageDirectionAttrs(\DOMElement $properties): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        $language = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'lang');
+        if ($language instanceof \DOMElement) {
+            $langValues = [];
+            foreach ([
+                'val' => 'data-docx-lang',
+                'bidi' => 'data-docx-lang-bidi',
+                'eastAsia' => 'data-docx-lang-east-asia',
+            ] as $source => $target) {
+                $value = $this->wordAttr($language, $source);
+                if ($value !== null && trim($value) !== '') {
+                    $langValues[$source] = trim($value);
+                    $attributes[$target] = trim($value);
+                }
+            }
+
+            $htmlLang = $langValues['val'] ?? $langValues['bidi'] ?? $langValues['eastAsia'] ?? null;
+            if ($htmlLang !== null) {
+                $attributes['lang'] = $htmlLang;
+                $classes[] = 'docx-language';
+            }
+        }
+
+        if ($this->hasOnOffChild($properties, 'rtl')) {
+            $attributes['dir'] = 'rtl';
+            $classes[] = 'docx-rtl';
         }
 
         if ($classes === [] && $attributes === []) {

@@ -896,6 +896,22 @@ $reviewMarkupRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$runLanguageDirectionDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Language review </w:t></w:r>
+      <w:r><w:rPr><w:lang w:val="es-ES"/></w:rPr><w:t>Resumen</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:rtl/><w:lang w:val="ar-SA" w:bidi="ar-SA"/></w:rPr><w:t>ملف المصدر</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r><w:rPr><w:b/><w:lang w:eastAsia="ja-JP"/></w:rPr><w:t>レビュー</w:t></w:r>
+      <w:r><w:rPr><w:rtl w:val="0"/></w:rPr><w:t xml:space="preserve"> plain.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -1204,6 +1220,14 @@ $buildReviewMarkupRunPackage = static function () use ($contentTypesXml, $packag
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $reviewMarkupRunDocumentXml],
+    ]);
+};
+
+$buildRunLanguageDirectionPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $runLanguageDirectionDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $runLanguageDirectionDocumentXml],
     ]);
 };
 
@@ -2275,6 +2299,53 @@ return [
         $t->contains('<span class="docx-highlight docx-highlight-green docx-shading" data-docx-highlight="green" data-docx-shading-fill="FFE699"><strong>bold flagged text</strong></span> plain text.', $blocks);
         $t->true(!str_contains($markdown, 'data-docx-highlight="none"'), 'DOCX highlight none should not create reviewer markup');
         $t->true(!str_contains($blocks, 'data-docx-highlight="none"'), 'DOCX highlight none should not create WordPress reviewer markup');
+    },
+    'preserves DOCX run language and RTL metadata as reviewer spans' => static function (TestRunner $t) use ($buildRunLanguageDirectionPackage): void {
+        $document = (new DocxReader())->readDocument($buildRunLanguageDirectionPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Language review ', $paragraph->children[0]->attr('text'));
+
+        $spanish = $paragraph->children[1];
+        $t->same('span', $spanish->type);
+        $t->same(['docx-language'], $spanish->attr('classes'));
+        $t->same('es-ES', $spanish->attr('attributes')['lang']);
+        $t->same('es-ES', $spanish->attr('attributes')['data-docx-lang']);
+        $t->same('Resumen', $spanish->children[0]->attr('text'));
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $arabic = $paragraph->children[3];
+        $t->same('span', $arabic->type);
+        $t->same(['docx-language', 'docx-rtl'], $arabic->attr('classes'));
+        $t->same('ar-SA', $arabic->attr('attributes')['lang']);
+        $t->same('ar-SA', $arabic->attr('attributes')['data-docx-lang']);
+        $t->same('ar-SA', $arabic->attr('attributes')['data-docx-lang-bidi']);
+        $t->same('rtl', $arabic->attr('attributes')['dir']);
+        $t->same('ملف المصدر', $arabic->children[0]->attr('text'));
+
+        $t->same(' plus ', $paragraph->children[4]->attr('text'));
+        $japanese = $paragraph->children[5];
+        $t->same('span', $japanese->type);
+        $t->same(['docx-language'], $japanese->attr('classes'));
+        $t->same('ja-JP', $japanese->attr('attributes')['lang']);
+        $t->same('ja-JP', $japanese->attr('attributes')['data-docx-lang-east-asia']);
+        $t->same('strong', $japanese->children[0]->type);
+        $t->same('レビュー', $japanese->children[0]->children[0]->attr('text'));
+        $t->same(' plain.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[Resumen]{.docx-language data-docx-lang="es-ES" lang="es-ES"}', $markdown);
+        $t->contains('[ملف المصدر]{.docx-language .docx-rtl data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl"}', $markdown);
+        $t->contains('[**レビュー**]{.docx-language data-docx-lang-east-asia="ja-JP" lang="ja-JP"} plain.', $markdown);
+
+        $t->contains('<span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span>', $blocks);
+        $t->contains('<span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span>', $blocks);
+        $t->contains('<span class="docx-language" data-docx-lang-east-asia="ja-JP" lang="ja-JP"><strong>レビュー</strong></span> plain.', $blocks);
+        $t->true(!str_contains($markdown, 'dir="ltr"'), 'Disabled DOCX w:rtl should not create direction metadata');
+        $t->true(!str_contains($blocks, 'dir="ltr"'), 'Disabled DOCX w:rtl should not create WordPress direction metadata');
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();
