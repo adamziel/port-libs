@@ -659,6 +659,35 @@ $parserStreamFilterStackBoundaryCurrentBaseCommentSplitReferencePdf = static fun
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $malformedLeak = 'BT /F1 12 Tf 72 720 Td (Malformed Indirect Multi Filter Leak) Tj ET';
+    $malformedEncoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($malformedLeak)
+    ) . '~>';
+
+    $validContent = 'BT /F1 12 Tf 72 700 Td (Indirect Array Filter Preserved) Tj ET';
+    $validEncoded = $parserStreamFilterStackBoundaryCurrentBaseAscii85(
+        $parserStreamFilterStackBoundaryCurrentBaseZlibStored($validContent)
+    ) . '~>';
+
+    $visibleAfter = 'BT /F1 12 Tf 72 680 Td (Visible After Malformed Filter Object) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter 10 0 R /Length " . strlen($malformedEncoded) . " >>\nstream\n{$malformedEncoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter 12 0 R /Length " . strlen($validEncoded) . " >>\nstream\n{$validEncoded}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "10 0 obj\n/ASCII85Decode /FlateDecode\nendobj\n"
+        . "12 0 obj\n[ /ASCII85Decode /FlateDecode ]\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1027,6 +1056,26 @@ return [
         $t->true(!str_contains($text, 'Predictor'));
         $t->true(!str_contains($text, '10 0 obj'));
         $t->true(!str_contains($text, '13 0 obj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects indirect filter objects with multiple bare top-level names before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseIndirectMultiNameFilterPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Indirect Array Filter Preserved',
+            'Visible After Malformed Filter Object',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Malformed Indirect Multi Filter Leak'));
+        $t->true(!str_contains($text, 'ASCII85Decode /FlateDecode'));
+        $t->true(!str_contains($text, '10 0 obj'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

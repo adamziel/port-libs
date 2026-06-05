@@ -11538,7 +11538,7 @@ final class PdfTextExtractor
             $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
             $filters = $body === null
                 ? null
-                : $this->filterNamesFromValue(trim($body), $objects, [$objectNumber . ':' . $generation => true]);
+                : $this->filterNamesFromSingleValue(trim($body), $objects, [$objectNumber . ':' . $generation => true]);
             return $filters === null ? null : $this->normalizeStreamFilterStack($filters);
         }
 
@@ -11597,7 +11597,78 @@ final class PdfTextExtractor
     /**
      * @return list<string|null>|null
      * @param array<int, string> $objects
-     * @param array<int, true> $seenObjects
+     * @param array<string, true> $seenObjects
+     */
+    private function filterNamesFromSingleValue(
+        string $value,
+        array $objects,
+        array $seenObjects = [],
+        bool $allowArrayValue = true
+    ): ?array {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        $filters = null;
+        if ($value[$offset] === '[') {
+            if (!$allowArrayValue) {
+                return null;
+            }
+
+            $arrayBody = $this->readPdfArrayAt($value, $offset);
+            if ($arrayBody === null) {
+                return null;
+            }
+
+            $filters = $this->filterNamesFromValue($arrayBody, $objects, $seenObjects, false);
+            $offset += strlen($arrayBody) + 2;
+        } elseif ($value[$offset] === '/') {
+            $end = $offset + 1;
+            while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
+                $end++;
+            }
+
+            $filters = [$this->decodePdfName(substr($value, $offset + 1, $end - $offset - 1))];
+            $offset = $end;
+        } elseif (preg_match('/\Gnull\b/s', $value, $match, 0, $offset) === 1) {
+            $filters = [null];
+            $offset += strlen($match[0]);
+        } else {
+            $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+            if ($reference === null) {
+                return null;
+            }
+
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seenObjects[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $nextSeen = $seenObjects;
+            $nextSeen[$objectKey] = true;
+            $filters = $this->filterNamesFromSingleValue(trim($body), $objects, $nextSeen, $allowArrayValue);
+            $offset = $reference['endOffset'];
+        }
+
+        if ($filters === null) {
+            return null;
+        }
+
+        return $this->skipPdfWhitespace($value, $offset) === strlen($value) ? $filters : null;
+    }
+
+    /**
+     * @return list<string|null>|null
+     * @param array<int, string> $objects
+     * @param array<string, true> $seenObjects
      */
     private function filterNamesFromValue(
         string $value,
@@ -11675,7 +11746,7 @@ final class PdfTextExtractor
 
                 $nextSeen = $seenObjects;
                 $nextSeen[$objectKey] = true;
-                $nested = $this->filterNamesFromValue(trim($body), $objects, $nextSeen, $allowArrayValue && $filters === []);
+                $nested = $this->filterNamesFromSingleValue(trim($body), $objects, $nextSeen, $allowArrayValue && $filters === []);
                 if ($nested === null) {
                     return null;
                 }
@@ -21643,7 +21714,7 @@ final class PdfTextExtractor
             if ($review['token_type'] === 'name') {
                 $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
             }
-            $review['valid_filter_operand'] = $this->filterNamesFromValue(
+            $review['valid_filter_operand'] = $this->filterNamesFromSingleValue(
                 $body,
                 $objects,
                 [$objectNumber . ':' . $generation => true]
