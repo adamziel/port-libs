@@ -185,16 +185,25 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BT /F1 12 Tf 72 605 Td (Visible Pattern Color Before Stray) Tj ET\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 604 Td (Visible After Pattern Color Stray) Tj ET\n"
+    . "BT /F1 12 Tf 72 603 Td (Before Shading Stray) Tj ET\n"
+    . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x00\x01\x02 EI BT /F1 12 Tf 72 602 Td (Shading Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "/Shade1 sh\n"
+    . "BT /F1 12 Tf 72 601 Td (Visible Shading Before Stray) Tj ET\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 600 Td (Visible After Shading Stray) Tj ET\n"
     . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /ColorSpace << /CSWordPress /DeviceRGB >> /Pattern << /P1 7 0 R >> /XObject << /Decorative 6 0 R >> /Properties << /PActual << /ActualText (Named Property EI ActualText) >> >> >> /Contents 4 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /ColorSpace << /CSWordPress /DeviceRGB >> /Pattern << /P1 7 0 R >> /Shading << /Shade1 8 0 R >> /XObject << /Decorative 6 0 R >> /Properties << /PActual << /ActualText (Named Property EI ActualText) >> >> >> /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
     . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\ny\nendstream\nendobj\n"
     . "7 0 obj\n<< /Type /Pattern /PatternType 1 /PaintType 2 /TilingType 1 /BBox [0 0 8 8] /XStep 8 /YStep 8 /Resources << >> /Length 0 >>\nstream\n\nendstream\nendobj\n"
+    . "8 0 obj\n<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Function << /FunctionType 2 /Domain [0 1] /C0 [0 0 0] /C1 [1 1 1] /N 1 >> /Extend [true true] >>\nendobj\n"
     . "%%EOF";
 
 $ccittContent = "BT /F1 12 Tf 72 720 Td (Before CCITT Boundary) Tj ET\n"
@@ -238,7 +247,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, numeric color graphics-state wrapped stray EI, and pattern color graphics-state wrapped stray EI inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, and shading-paint wrapped stray EI inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -357,6 +366,12 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && str_contains($plainText, 'Visible After Pattern Color Stray')
         && !str_contains($plainText, 'Pattern Color Payload Noise')
         && !str_contains($plainText, '/P1 scn')
+        && !str_contains($plainText, 'rawtail'),
+    'preview_only_shading_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before Shading Stray')
+        && str_contains($plainText, 'Visible Shading Before Stray')
+        && str_contains($plainText, 'Visible After Shading Stray')
+        && !str_contains($plainText, 'Shading Payload Noise')
+        && !str_contains($plainText, 'Shade1')
         && !str_contains($plainText, 'rawtail'),
     'preview_only_ccitt_payload_excluded_until_safe_boundary' => !str_contains($ccittPlainText, 'CCITT Inline Payload Noise')
         && !str_contains($ccittPlainText, 'rawtail')

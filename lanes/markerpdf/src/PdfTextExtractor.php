@@ -28857,7 +28857,7 @@ final class PdfTextExtractor
             return $numericOperands(4);
         }
 
-        if (in_array($operator, ['CS', 'cs', 'gs', 'ri'], true)) {
+        if (in_array($operator, ['CS', 'cs', 'gs', 'ri', 'sh'], true)) {
             return count($operands) === 1 && $this->markedContentTagOperand($operands[0]);
         }
 
