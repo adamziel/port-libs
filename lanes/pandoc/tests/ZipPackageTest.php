@@ -1706,6 +1706,54 @@ return [
         );
     },
 
+    'rejects deflate option flags on non-deflated zip entries before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/stored-maximum.bin',
+                'data' => 'stored package media must not claim deflate maximum compression flags',
+                'method' => 0,
+                'flags' => 0x0802,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/stored-fast.bin',
+                'data' => 'stored package media must not claim deflate fast compression flags',
+                'method' => 0,
+                'flags' => 0x0804,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/stored-superfast.bin',
+                'data' => 'stored package media must not claim deflate superfast compression flags',
+                'method' => 0,
+                'flags' => 0x0806,
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>deflate option flags stay valid on deflated entries</w:p></w:document>',
+                'method' => 8,
+                'flags' => 0x0806,
+            ],
+            [
+                'name' => 'word/media/unsupported-method.bin',
+                'data' => 'unsupported methods without deflate option flags remain preflightable',
+                'method' => 12,
+            ],
+        ]));
+
+        $t->same(0x0806, $package->entry('word/document.xml')->generalPurposeFlags);
+        $t->same(
+            '<w:document><w:p>deflate option flags stay valid on deflated entries</w:p></w:document>',
+            $package->read('/word/document.xml')
+        );
+        $t->same(12, $package->entry('word/media/unsupported-method.bin')->compressionMethod);
+    },
+
     'rejects crc and local file header names before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

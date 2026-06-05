@@ -18,6 +18,7 @@ final class ZipPackage
     private const STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG = 0x0040;
     private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
     private const CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x2000;
+    private const DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS = 0x0002 | 0x0004;
     private const SUPPORTED_GENERAL_PURPOSE_FLAGS = 0x0002 | 0x0004 | 0x0008 | self::UTF8_GENERAL_PURPOSE_FLAG;
     private const MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT = 20;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
@@ -151,6 +152,7 @@ final class ZipPackage
             $name = $decodedName['text'];
             self::assertSafePartName($name);
             self::assertSupportedVersionNeededToExtract($versionNeededToExtract, $name);
+            self::assertDeflateOptionFlagsMatchMethod($flags, $method, $name);
             if (isset($entriesByName[$name])) {
                 throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
             }
@@ -1134,6 +1136,22 @@ final class ZipPackage
                 sprintf('Unsupported ZIP general-purpose flag bits 0x%04x for %s', $unsupportedFlags, $label)
             );
         }
+    }
+
+    private static function assertDeflateOptionFlagsMatchMethod(int $flags, int $method, string $entryName): void
+    {
+        $deflateOptionFlags = $flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
+        if ($deflateOptionFlags === 0 || $method === 8) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            sprintf(
+                'ZIP entry %s uses deflate compression option flag bits 0x%04x without deflated compression',
+                $entryName,
+                $deflateOptionFlags
+            )
+        );
     }
 
     private static function assertSupportedVersionNeededToExtract(int $versionNeededToExtract, string $entryName): void

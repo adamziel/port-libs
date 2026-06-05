@@ -943,6 +943,54 @@ $buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildStoredDeflateOptionFlagBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/stored-fast-flags.bin';
+    $data = "Stored media bytes must not carry deflate option flags\n";
+    $crc = $crc32($data);
+    $flags = 0x0806;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildStoredSizeMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/stored-review.txt';
     $data = "Stored media bytes must have matching size metadata\n";
@@ -1235,6 +1283,12 @@ try {
     $unsupportedCompressionMethodPackage->assertSupportedCompressionMethods();
 } catch (RuntimeException $exception) {
     $unsupportedCompressionMethodRejected = str_contains($exception->getMessage(), 'unsupported compression methods');
+}
+$deflateOptionFlagsRejected = false;
+try {
+    ZipPackage::fromString($buildStoredDeflateOptionFlagBackedPackage());
+} catch (RuntimeException $exception) {
+    $deflateOptionFlagsRejected = str_contains($exception->getMessage(), 'deflate compression option flag bits');
 }
 $splitZipBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
     'diskNumber' => 1,
@@ -1848,6 +1902,10 @@ if (in_array('--self-test', $argv, true)) {
 
     if (!$unsupportedCompressionMethodRejected) {
         throw new RuntimeException('Expected unsupported ZIP compression methods to be rejected before media import');
+    }
+
+    if (!$deflateOptionFlagsRejected) {
+        throw new RuntimeException('Expected deflate option flags on stored ZIP entries to be rejected before media import');
     }
 
     if (!$storedSizeMismatchRejected) {
@@ -2506,6 +2564,7 @@ echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected 
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
