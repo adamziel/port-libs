@@ -82,6 +82,40 @@ final class SyntaxHighlighter
         'zenburn',
     ];
 
+    private const TOKEN_STYLE_ALIASES = [
+        'alerttok' => 'warning',
+        'annotationtok' => 'attribute',
+        'attributetok' => 'attribute',
+        'basentok' => 'number',
+        'builtintok' => 'function',
+        'chartok' => 'constant',
+        'commenttok' => 'comment',
+        'commentvartok' => 'comment',
+        'constanttok' => 'constant',
+        'controlflowtok' => 'keyword',
+        'datatypetok' => 'datatype',
+        'decvaltok' => 'number',
+        'documentationtok' => 'comment',
+        'errortok' => 'warning',
+        'extensiontok' => 'preprocessor',
+        'floattok' => 'number',
+        'functiontok' => 'function',
+        'importtok' => 'preprocessor',
+        'informationtok' => 'information',
+        'keywordtok' => 'keyword',
+        'operatortok' => 'operator',
+        'othertok' => 'attribute',
+        'preprocessortok' => 'preprocessor',
+        'regionmarkertok' => 'region',
+        'specialchartok' => 'constant',
+        'specialstringtok' => 'string',
+        'stringtok' => 'string',
+        'variablename' => 'variable',
+        'variabletok' => 'variable',
+        'verbatimstringtok' => 'string',
+        'warningtok' => 'warning',
+    ];
+
     /**
      * @return array{
      *   language:string,
@@ -94,7 +128,7 @@ final class SyntaxHighlighter
      *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string}
      * }
      */
-    public function highlightCodeBlock(AstNode $codeBlock, string $style = 'pygments'): array
+    public function highlightCodeBlock(AstNode $codeBlock, string $style = 'pygments', array $options = []): array
     {
         if ($codeBlock->type !== 'code_block') {
             throw new \InvalidArgumentException('Syntax highlighter expects a code_block node');
@@ -104,18 +138,19 @@ final class SyntaxHighlighter
         $classes = $codeBlock->attr('classes', []);
         $attributes = $codeBlock->attr('attributes', []);
 
-        return $this->highlight((string) $codeBlock->attr('text', ''), $requested, $style, [
+        return $this->highlight((string) $codeBlock->attr('text', ''), $requested, $style, array_replace([
             'id' => (string) $codeBlock->attr('id', ''),
             'classes' => is_array($classes) ? $classes : [],
             'attributes' => is_array($attributes) ? $attributes : [],
-        ]);
+        ], $options));
     }
 
     /**
      * @param array{
      *   id?: string,
      *   classes?: array<int, mixed>,
-     *   attributes?: array<string, mixed>
+     *   attributes?: array<string, mixed>,
+     *   themeJson?: string
      * } $options
      * @return array{
      *   language:string,
@@ -134,6 +169,7 @@ final class SyntaxHighlighter
         $canonicalLanguage = self::normalizeLanguage($requested) ?? '';
         $canonicalStyle = self::normalizeStyle($style);
         $lineOptions = self::lineNumberingOptions($options);
+        $theme = null;
         $diagnostics = [];
 
         if ($requested !== '' && $canonicalLanguage === '') {
@@ -141,6 +177,12 @@ final class SyntaxHighlighter
                 'code' => 'unsupported-language',
                 'message' => "No bounded native syntax definition is available for '{$requested}'",
             ];
+        }
+
+        if (isset($options['themeJson']) && is_string($options['themeJson']) && trim($options['themeJson']) !== '') {
+            $theme = self::parseThemeJson($options['themeJson'], $canonicalStyle);
+            $canonicalStyle = $theme['name'];
+            $diagnostics = array_merge($diagnostics, $theme['diagnostics']);
         }
 
         $tokens = $canonicalLanguage === ''
@@ -153,7 +195,7 @@ final class SyntaxHighlighter
             'style' => $canonicalStyle,
             'tokens' => $tokens,
             'html' => self::renderHighlightedHtml($tokens, $canonicalLanguage, $lineOptions),
-            'css' => self::stylesheet($canonicalStyle),
+            'css' => $theme === null ? self::stylesheet($canonicalStyle) : self::stylesheetFromParsedTheme($theme),
             'diagnostics' => $diagnostics,
             'lineNumbering' => [
                 'enabled' => $lineOptions['numberLines'],
@@ -223,25 +265,159 @@ final class SyntaxHighlighter
         $style = self::normalizeStyle($style);
         $colors = self::styleColors($style);
 
+        return self::stylesheetFromColors($colors, [], $selector);
+    }
+
+    /**
+     * @return array{
+     *   name:string,
+     *   colors:array<string, string>,
+     *   tokenStyles:array<string, array{color?:string, background?:string, bold?:bool, italic?:bool, underline?:bool}>,
+     *   diagnostics:list<array{code:string, message:string}>
+     * }
+     */
+    public static function parseThemeJson(string $json, string $baseStyle = 'pygments'): array
+    {
+        if (substr($json, 0, 3) === "\xEF\xBB\xBF") {
+            throw new \InvalidArgumentException('Pandoc highlight theme JSON must be UTF-8 without a BOM');
+        }
+
+        try {
+            $theme = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \InvalidArgumentException('Unable to parse Pandoc highlight theme JSON: ' . $exception->getMessage(), 0, $exception);
+        }
+
+        if (!is_array($theme)) {
+            throw new \InvalidArgumentException('Pandoc highlight theme JSON must decode to an object');
+        }
+
+        $colors = self::styleColors(self::normalizeStyle($baseStyle));
+        $diagnostics = [];
+        $tokenStyles = [];
+        $editorColors = self::arrayValue($theme, ['editor-colors', 'editorColors']) ?? [];
+        if (!is_array($editorColors)) {
+            $editorColors = [];
+        }
+
+        $normalStyle = self::themeTokenStyle($theme, 'NormalTok') ?? self::themeTokenStyle($theme, 'Normal');
+        $textColor = self::themeColor($theme, ['text-color', 'textColor', 'default-color', 'defaultColor'], 'theme text color')
+            ?? ($normalStyle === null ? null : ($normalStyle['color'] ?? null));
+        $backgroundColor = self::themeColor($theme, ['background-color', 'backgroundColor'], 'theme background color')
+            ?? ($normalStyle === null ? null : ($normalStyle['background'] ?? null));
+        $lineNumberColor = self::themeColor($theme, ['line-number-color', 'lineNumberColor'], 'line number color')
+            ?? self::themeColor($editorColors, ['line-number-color', 'line-numbers', 'lineNumberColor', 'lineNumbers'], 'editor line number color');
+        $lineNumberBackground = self::themeColor($theme, ['line-number-background-color', 'lineNumberBackgroundColor'], 'line number background color')
+            ?? self::themeColor($editorColors, ['line-number-background-color', 'lineNumberBackgroundColor'], 'editor line number background color');
+
+        if ($textColor !== null) {
+            $colors['text'] = $textColor;
+        }
+        if ($backgroundColor !== null) {
+            $colors['background'] = $backgroundColor;
+        }
+        if ($lineNumberColor !== null) {
+            $colors['lineNumber'] = $lineNumberColor;
+        }
+        if ($lineNumberBackground !== null) {
+            $colors['lineNumberBackground'] = $lineNumberBackground;
+        }
+
+        $themeTokenStyles = self::arrayValue($theme, ['token-styles', 'tokenStyles', 'text-styles', 'textStyles']) ?? [];
+        if (!is_array($themeTokenStyles)) {
+            throw new \InvalidArgumentException('Pandoc highlight theme token-styles must be an object');
+        }
+        if ($themeTokenStyles !== [] && array_is_list($themeTokenStyles)) {
+            throw new \InvalidArgumentException('Pandoc highlight theme token-styles must be keyed by token type');
+        }
+
+        foreach ($themeTokenStyles as $tokenName => $styleValue) {
+            if (!is_array($styleValue)) {
+                continue;
+            }
+
+            $type = self::tokenTypeFromThemeName((string) $tokenName);
+            if ($type === null) {
+                if (!in_array(self::normalizedThemeTokenName((string) $tokenName), ['normal', 'normaltok'], true)) {
+                    $diagnostics[] = [
+                        'code' => 'unsupported-theme-token',
+                        'message' => "Theme token style '{$tokenName}' is not used by the bounded native highlighter",
+                    ];
+                }
+                continue;
+            }
+
+            $parsedStyle = self::parseTokenStyle($styleValue, "token style {$tokenName}");
+            if (isset($parsedStyle['color'])) {
+                $colors[$type] = $parsedStyle['color'];
+            }
+            $tokenStyles[$type] = $parsedStyle;
+        }
+
+        $nameValue = self::arrayValue($theme, ['name', 'title']);
+        if (!is_string($nameValue) || trim($nameValue) === '') {
+            $metadata = $theme['metadata'] ?? null;
+            if (is_array($metadata)) {
+                $metadataName = self::arrayValue($metadata, ['name', 'title']);
+                $nameValue = is_string($metadataName) ? $metadataName : 'custom-theme';
+            } else {
+                $nameValue = 'custom-theme';
+            }
+        }
+
+        return [
+            'name' => self::sanitizeStyleName($nameValue),
+            'colors' => $colors,
+            'tokenStyles' => $tokenStyles,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    public static function stylesheetFromThemeJson(string $json, string $selector = '.sourceCode', string $baseStyle = 'pygments'): string
+    {
+        return self::stylesheetFromParsedTheme(self::parseThemeJson($json, $baseStyle), $selector);
+    }
+
+    /**
+     * @param array{
+     *   name:string,
+     *   colors:array<string, string>,
+     *   tokenStyles:array<string, array{color?:string, background?:string, bold?:bool, italic?:bool, underline?:bool}>,
+     *   diagnostics:list<array{code:string, message:string}>
+     * } $theme
+     */
+    private static function stylesheetFromParsedTheme(array $theme, string $selector = '.sourceCode'): string
+    {
+        $selector = trim($selector) === '' ? '.sourceCode' : trim($selector);
+
+        return self::stylesheetFromColors($theme['colors'], $theme['tokenStyles'], $selector);
+    }
+
+    /**
+     * @param array<string, string> $colors
+     * @param array<string, array{color?:string, background?:string, bold?:bool, italic?:bool, underline?:bool}> $tokenStyles
+     */
+    private static function stylesheetFromColors(array $colors, array $tokenStyles = [], string $selector = '.sourceCode'): string
+    {
         $rules = [
             "{$selector} { background: {$colors['background']}; color: {$colors['text']}; }",
-            "{$selector} .kw { color: {$colors['keyword']}; font-weight: 600; }",
-            "{$selector} .dt { color: {$colors['datatype']}; }",
-            "{$selector} .st { color: {$colors['string']}; }",
-            "{$selector} .co { color: {$colors['comment']}; font-style: italic; }",
-            "{$selector} .dv { color: {$colors['number']}; }",
-            "{$selector} .fu { color: {$colors['function']}; }",
-            "{$selector} .va { color: {$colors['variable']}; }",
-            "{$selector} .ot { color: {$colors['attribute']}; }",
-            "{$selector} .op { color: {$colors['operator']}; }",
-            "{$selector} .pp { color: {$colors['preprocessor']}; }",
-            "{$selector} .cn { color: {$colors['constant']}; }",
-            "{$selector} .in { color: {$colors['information']}; }",
-            "{$selector} .re { color: {$colors['region']}; font-weight: 600; }",
-            "{$selector} .al { color: {$colors['warning']}; font-weight: 600; }",
+            self::tokenStylesheetRule($selector, 'kw', 'keyword', $colors, $tokenStyles, ['font-weight: 600']),
+            self::tokenStylesheetRule($selector, 'dt', 'datatype', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'st', 'string', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'co', 'comment', $colors, $tokenStyles, ['font-style: italic']),
+            self::tokenStylesheetRule($selector, 'dv', 'number', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'fu', 'function', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'va', 'variable', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'ot', 'attribute', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'op', 'operator', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'pp', 'preprocessor', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'cn', 'constant', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 'in', 'information', $colors, $tokenStyles),
+            self::tokenStylesheetRule($selector, 're', 'region', $colors, $tokenStyles, ['font-weight: 600']),
+            self::tokenStylesheetRule($selector, 'al', 'warning', $colors, $tokenStyles, ['font-weight: 600']),
             'pre.numberSource code { counter-reset: source-line 0; }',
             'pre.numberSource code > span { position: relative; left: -4em; counter-increment: source-line; }',
-            'pre.numberSource code > span > a:first-child::before { content: counter(source-line); position: relative; left: -1em; text-align: right; vertical-align: baseline; border: none; display: inline-block; user-select: none; padding: 0 4px; width: 4em; }',
+            self::lineNumberStylesheetRule($colors),
             'pre.numberSource { margin-left: 3em; padding-left: 4px; }',
         ];
 
@@ -278,9 +454,9 @@ final class SyntaxHighlighter
         return '<pre class="' . $classes . '"><code class="' . $classes . '">' . $html . '</code></pre>';
     }
 
-    public function wordpressHtmlBlock(AstNode $codeBlock, string $style = 'pygments'): string
+    public function wordpressHtmlBlock(AstNode $codeBlock, string $style = 'pygments', array $options = []): string
     {
-        $highlighted = $this->highlightCodeBlock($codeBlock, $style);
+        $highlighted = $this->highlightCodeBlock($codeBlock, $style, $options);
         $styleName = self::escapeHtml($highlighted['style']);
 
         return '<!-- wp:html -->'
@@ -940,9 +1116,237 @@ final class SyntaxHighlighter
         return $fallbacks;
     }
 
+    /**
+     * @param array<string, mixed> $theme
+     * @return array{color?:string, background?:string, bold?:bool, italic?:bool, underline?:bool}|null
+     */
+    private static function themeTokenStyle(array $theme, string $tokenName): ?array
+    {
+        $tokenStyles = self::arrayValue($theme, ['token-styles', 'tokenStyles', 'text-styles', 'textStyles']);
+        if (!is_array($tokenStyles)) {
+            return null;
+        }
+
+        foreach ($tokenStyles as $name => $style) {
+            if (self::normalizedThemeTokenName((string) $name) === self::normalizedThemeTokenName($tokenName) && is_array($style)) {
+                return self::parseTokenStyle($style, "token style {$tokenName}");
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $style
+     * @return array{color?:string, background?:string, bold?:bool, italic?:bool, underline?:bool}
+     */
+    private static function parseTokenStyle(array $style, string $label): array
+    {
+        $parsed = [];
+        $color = self::themeColor($style, ['text-color', 'textColor', 'color', 'tokenColor'], "{$label} text color");
+        $background = self::themeColor($style, ['background-color', 'backgroundColor', 'background', 'tokenBackground'], "{$label} background color");
+        if ($color !== null) {
+            $parsed['color'] = $color;
+        }
+        if ($background !== null) {
+            $parsed['background'] = $background;
+        }
+
+        foreach (['bold', 'italic', 'underline'] as $flag) {
+            $value = self::arrayValue($style, [$flag, 'token' . ucfirst($flag)]);
+            if ($value !== null) {
+                $parsed[$flag] = self::themeBool($value, "{$label} {$flag}");
+            }
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @param list<string> $names
+     */
+    private static function themeColor(array $values, array $names, string $label): ?string
+    {
+        $value = self::arrayValue($values, $names);
+
+        return $value === null ? null : self::normalizeThemeColor($value, $label);
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @param list<string> $names
+     */
+    private static function arrayValue(array $values, array $names): mixed
+    {
+        foreach ($names as $name) {
+            if (array_key_exists($name, $values)) {
+                return $values[$name];
+            }
+        }
+
+        return null;
+    }
+
+    private static function normalizeThemeColor(mixed $value, string $label): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '') {
+                return null;
+            }
+            if (preg_match('/^#[0-9A-Fa-f]{6}$/', $value) === 1) {
+                return strtolower($value);
+            }
+            if (preg_match('/^#[0-9A-Fa-f]{3}$/', $value) === 1) {
+                return strtolower('#' . $value[1] . $value[1] . $value[2] . $value[2] . $value[3] . $value[3]);
+            }
+            if (in_array(strtolower($value), ['inherit', 'transparent'], true)) {
+                return strtolower($value);
+            }
+        }
+
+        if (is_int($value) && $value >= 0 && $value <= 0xFFFFFF) {
+            return sprintf('#%06x', $value);
+        }
+
+        if (is_array($value) && count($value) === 3) {
+            $channels = array_values($value);
+            foreach ($channels as $channel) {
+                if (!is_int($channel) || $channel < 0 || $channel > 255) {
+                    throw new \InvalidArgumentException("Invalid {$label} channel in Pandoc highlight theme");
+                }
+            }
+
+            return sprintf('#%02x%02x%02x', $channels[0], $channels[1], $channels[2]);
+        }
+
+        throw new \InvalidArgumentException("Invalid {$label} in Pandoc highlight theme");
+    }
+
+    private static function themeBool(mixed $value, string $label): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) && ($value === 0 || $value === 1)) {
+            return $value === 1;
+        }
+
+        if (is_string($value)) {
+            return match (strtolower(trim($value))) {
+                '1', 'true', 'yes' => true,
+                '0', 'false', 'no' => false,
+                default => throw new \InvalidArgumentException("Invalid {$label} flag in Pandoc highlight theme"),
+            };
+        }
+
+        throw new \InvalidArgumentException("Invalid {$label} flag in Pandoc highlight theme");
+    }
+
+    private static function tokenTypeFromThemeName(string $name): ?string
+    {
+        $normalized = self::normalizedThemeTokenName($name);
+        if ($normalized === 'normal' || $normalized === 'normaltok') {
+            return null;
+        }
+
+        return self::TOKEN_STYLE_ALIASES[$normalized] ?? self::TOKEN_STYLE_ALIASES[$normalized . 'tok'] ?? null;
+    }
+
+    private static function normalizedThemeTokenName(string $name): string
+    {
+        return strtolower(preg_replace('/[^A-Za-z0-9]/', '', $name) ?? '');
+    }
+
+    /**
+     * @param array<string, string> $colors
+     * @param array<string, array{color?:string, background?:string, bold?:bool, italic?:bool, underline?:bool}> $tokenStyles
+     * @param list<string> $defaultDeclarations
+     */
+    private static function tokenStylesheetRule(
+        string $selector,
+        string $class,
+        string $type,
+        array $colors,
+        array $tokenStyles,
+        array $defaultDeclarations = []
+    ): string {
+        $style = $tokenStyles[$type] ?? null;
+        $declarations = ['color: ' . ($style['color'] ?? $colors[$type])];
+        if (isset($style['background'])) {
+            $declarations[] = 'background-color: ' . $style['background'];
+        }
+        if (isset($style['bold'])) {
+            if ($style['bold']) {
+                $declarations[] = 'font-weight: 700';
+            }
+        } else {
+            array_push($declarations, ...$defaultDeclarations);
+        }
+        if (isset($style['italic'])) {
+            if ($style['italic']) {
+                $declarations[] = 'font-style: italic';
+            }
+        } elseif (!isset($style['bold'])) {
+            foreach ($defaultDeclarations as $declaration) {
+                if (str_starts_with($declaration, 'font-style:')) {
+                    $declarations[] = $declaration;
+                }
+            }
+        }
+        if (($style['underline'] ?? false) === true) {
+            $declarations[] = 'text-decoration: underline';
+        }
+
+        return "{$selector} .{$class} { " . implode('; ', array_values(array_unique($declarations))) . '; }';
+    }
+
+    /**
+     * @param array<string, string> $colors
+     */
+    private static function lineNumberStylesheetRule(array $colors): string
+    {
+        $declarations = [
+            'content: counter(source-line)',
+            'position: relative',
+            'left: -1em',
+            'text-align: right',
+            'vertical-align: baseline',
+            'border: none',
+            'display: inline-block',
+            'user-select: none',
+            'padding: 0 4px',
+            'width: 4em',
+        ];
+
+        if (isset($colors['lineNumber'])) {
+            $declarations[] = 'color: ' . $colors['lineNumber'];
+        }
+        if (isset($colors['lineNumberBackground'])) {
+            $declarations[] = 'background-color: ' . $colors['lineNumberBackground'];
+        }
+
+        return 'pre.numberSource code > span > a:first-child::before { ' . implode('; ', $declarations) . '; }';
+    }
+
     private static function sanitizeClass(string $class): string
     {
         return preg_replace('/[^A-Za-z0-9_-]/', '', $class) ?? '';
+    }
+
+    private static function sanitizeStyleName(string $style): string
+    {
+        $style = strtolower(trim($style));
+        $style = preg_replace('/[^a-z0-9_-]+/', '-', $style) ?? '';
+        $style = trim($style, '-_');
+
+        return $style === '' ? 'custom-theme' : $style;
     }
 
     private static function sanitizeId(string $id): string

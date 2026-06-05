@@ -406,6 +406,80 @@ return [
         $t->same('lua', $directLua['language']);
         $t->contains('<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Str</span><span class="op">(</span><span class="st">&quot;ok&quot;</span><span class="op">)</span>', $directLua['html']);
     },
+    'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
+        $themeJson = json_encode([
+            'name' => 'Review Import',
+            'text-color' => '#F8F8F2',
+            'background-color' => '#101820',
+            'line-number-color' => '#8F9AAE',
+            'line-number-background-color' => '#202A35',
+            'token-styles' => [
+                'Normal' => ['text-color' => '#F8F8F2'],
+                'KeywordTok' => ['text-color' => '#FFCC00', 'bold' => true],
+                'StringTok' => ['text-color' => '#7BD88F'],
+                'CommentTok' => ['text-color' => '#7F8C8D', 'italic' => true],
+                'FunctionTok' => ['text-color' => '#80DFFF', 'underline' => true],
+                'VariableTok' => ['text-color' => '#FF9F43'],
+                'OperatorTok' => ['text-color' => '#FF6B6B'],
+                'AttributeTok' => ['text-color' => '#C3E88D'],
+                'AlertTok' => ['text-color' => '#FF5555', 'bold' => true],
+                'FutureTok' => ['text-color' => '#ABCDEF'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $parsed = SyntaxHighlighter::parseThemeJson($themeJson);
+        $css = SyntaxHighlighter::stylesheetFromThemeJson($themeJson);
+
+        $t->same('review-import', $parsed['name']);
+        $t->same('#101820', $parsed['colors']['background']);
+        $t->same('#f8f8f2', $parsed['colors']['text']);
+        $t->same('#ffcc00', $parsed['colors']['keyword']);
+        $t->same('#ff5555', $parsed['colors']['warning']);
+        $t->same(1, count($parsed['diagnostics']));
+        $t->same('unsupported-theme-token', $parsed['diagnostics'][0]['code'] ?? null);
+        $t->contains('.sourceCode { background: #101820; color: #f8f8f2; }', $css);
+        $t->contains('.sourceCode .kw { color: #ffcc00; font-weight: 700; }', $css);
+        $t->contains('.sourceCode .fu { color: #80dfff; text-decoration: underline; }', $css);
+        $t->contains('.sourceCode .co { color: #7f8c8d; font-style: italic; }', $css);
+        $t->contains('.sourceCode .al { color: #ff5555; font-weight: 700; }', $css);
+        $t->contains('color: #8f9aae; background-color: #202a35;', $css);
+
+        $highlighted = (new SyntaxHighlighter())->highlight(
+            'echo esc_html($title); // review',
+            'php',
+            'pygments',
+            [
+                'themeJson' => $themeJson,
+                'id' => 'custom-theme',
+                'classes' => ['numberLines'],
+                'attributes' => ['startFrom' => '10'],
+            ]
+        );
+
+        $t->same('review-import', $highlighted['style']);
+        $t->same('unsupported-theme-token', $highlighted['diagnostics'][0]['code'] ?? null);
+        $t->same(10, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource numberLines"><code class="sourceCode php" style="counter-reset: source-line 9;">', $highlighted['html']);
+        $t->contains('<span id="custom-theme-10"><a href="#custom-theme-10"></a><span class="kw">echo</span> <span class="fu">esc_html</span>', $highlighted['html']);
+        $t->contains('.sourceCode .va { color: #ff9f43; }', $highlighted['css']);
+
+        $block = (new SyntaxHighlighter())->wordpressHtmlBlock(new AstNode('code_block', [
+            'id' => 'custom-theme',
+            'classes' => ['php', 'numberLines'],
+            'attributes' => ['startFrom' => '10'],
+            'text' => 'echo esc_html($title); // review',
+        ]), 'pygments', ['themeJson' => $themeJson]);
+
+        $t->contains('<style data-pandoc-highlight-style="review-import">', $block);
+        $t->contains('.sourceCode .kw { color: #ffcc00; font-weight: 700; }', $block);
+        $t->contains('<span id="custom-theme-10"><a href="#custom-theme-10"></a><span class="kw">echo</span>', $block);
+    },
+    'rejects invalid pandoc json theme payloads' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn (): array => SyntaxHighlighter::parseThemeJson("\xEF\xBB\xBF{}"));
+        $t->throws(InvalidArgumentException::class, static fn (): array => SyntaxHighlighter::parseThemeJson('{"token-styles": [{"KeywordTok": {"text-color": "#ffffff"}}]}'));
+        $t->throws(InvalidArgumentException::class, static fn (): array => SyntaxHighlighter::parseThemeJson('{"text-color": "#12"}'));
+        $t->throws(InvalidArgumentException::class, static fn (): array => SyntaxHighlighter::parseThemeJson('{"token-styles": {"KeywordTok": {"bold": "sometimes"}}}'));
+    },
     'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '``` {.php #migration-review .numberLines .lineAnchors startFrom=42}',

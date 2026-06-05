@@ -78,6 +78,29 @@ if (!$luaCodeBlock instanceof PortLibs\Pandoc\AstNode || $luaCodeBlock->type !==
 }
 $lua = $highlighter->highlightCodeBlock($luaCodeBlock, 'breezedark');
 $luaWordpressBlock = $highlighter->wordpressHtmlBlock($luaCodeBlock, 'breezedark');
+$customThemeJson = json_encode([
+    'name' => 'Review Import',
+    'text-color' => '#f8f8f2',
+    'background-color' => '#101820',
+    'line-number-color' => '#8f9aae',
+    'line-number-background-color' => '#202a35',
+    'token-styles' => [
+        'KeywordTok' => ['text-color' => '#ffcc00', 'bold' => true],
+        'StringTok' => ['text-color' => '#7bd88f'],
+        'CommentTok' => ['text-color' => '#7f8c8d', 'italic' => true],
+        'FunctionTok' => ['text-color' => '#80dfff', 'underline' => true],
+        'VariableTok' => ['text-color' => '#ff9f43'],
+        'OperatorTok' => ['text-color' => '#ff6b6b'],
+    ],
+], JSON_THROW_ON_ERROR);
+$customThemeCodeBlock = new AstNode('code_block', [
+    'id' => 'custom-theme-review',
+    'classes' => ['php', 'numberLines'],
+    'attributes' => ['startFrom' => '10'],
+    'text' => 'echo esc_html($title); // review',
+]);
+$customTheme = $highlighter->highlightCodeBlock($customThemeCodeBlock, 'pygments', ['themeJson' => $customThemeJson]);
+$customThemeWordpressBlock = $highlighter->wordpressHtmlBlock($customThemeCodeBlock, 'pygments', ['themeJson' => $customThemeJson]);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -215,6 +238,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($luaWordpressBlock, '<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">Div</span>')) {
         throw new RuntimeException('Expected Lua pandoc constructor handoff');
     }
+    if (($customTheme['style'] ?? '') !== 'review-import') {
+        throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
+    }
+    if (!str_contains($customTheme['css'], '.sourceCode .kw { color: #ffcc00; font-weight: 700; }')) {
+        throw new RuntimeException('Expected custom theme keyword CSS handoff');
+    }
+    if (!str_contains($customTheme['css'], 'color: #8f9aae; background-color: #202a35;')) {
+        throw new RuntimeException('Expected custom theme line-number CSS handoff');
+    }
+    if (!str_contains($customThemeWordpressBlock, '<style data-pandoc-highlight-style="review-import">')) {
+        throw new RuntimeException('Expected custom theme WordPress style metadata');
+    }
+    if (!str_contains($customThemeWordpressBlock, '<span id="custom-theme-review-10"><a href="#custom-theme-review-10"></a><span class="kw">echo</span>')) {
+        throw new RuntimeException('Expected custom theme numbered code handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -230,5 +268,7 @@ echo "diffHighlightedHtml:\n" . $diff['html'] . "\n";
 echo "markdownHighlightedHtml:\n" . $markdown['html'] . "\n";
 echo "rubyHighlightedHtml:\n" . $ruby['html'] . "\n";
 echo "luaHighlightedHtml:\n" . $lua['html'] . "\n";
+echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
+echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
