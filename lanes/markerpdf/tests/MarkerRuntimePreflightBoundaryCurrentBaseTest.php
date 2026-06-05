@@ -750,6 +750,96 @@ return [
             $removeTree($output);
         }
     },
+    'records per-file metadata value boundaries without blocking task args' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['dict-meta.pdf', 'list-meta.pdf', 'missing-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-values.json';
+            file_put_contents($metadataFile, json_encode([
+                'dict-meta.pdf' => ['languages' => ['English'], 'title' => 'Dict Metadata'],
+                'list-meta.pdf' => ['English'],
+                'null-meta.pdf' => null,
+                'scalar-meta.pdf' => 'English',
+                'zero-meta.pdf' => 0,
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 8,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same('object', $plan['metadata']['metadata_json_type']);
+            $t->same(true, $plan['metadata']['metadata_get_available']);
+            $t->same(null, $plan['metadata']['metadata_shape_error_boundary']);
+            $t->same(['dict-meta.pdf', 'list-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same(['dict-meta.pdf', 'list-meta.pdf', 'null-meta.pdf', 'scalar-meta.pdf', 'zero-meta.pdf'], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(['missing-meta.pdf'], $plan['metadata']['missing_metadata_filenames']);
+            $t->same([
+                'dict-meta.pdf' => 'dict',
+                'list-meta.pdf' => 'list',
+                'null-meta.pdf' => 'NoneType',
+                'scalar-meta.pdf' => 'str',
+                'zero-meta.pdf' => 'int',
+            ], $plan['metadata']['metadata_value_types']);
+
+            $review = $plan['metadata']['metadata_value_review'];
+            $t->same('convert.py metadata.get basename + convert_single_pdf metadata truthiness', $review['source']);
+            $t->same(true, $review['review_reached']);
+            $t->same([
+                'dict-meta.pdf' => 'dict',
+                'list-meta.pdf' => 'list',
+                'null-meta.pdf' => 'NoneType',
+                'scalar-meta.pdf' => 'str',
+                'zero-meta.pdf' => 'int',
+            ], $review['selected_metadata_value_types']);
+            $t->same(['list-meta.pdf', 'scalar-meta.pdf'], $review['truthy_non_mapping_metadata_filenames']);
+            $t->same(['null-meta.pdf', 'zero-meta.pdf'], $review['falsy_non_mapping_metadata_filenames']);
+            $t->same('convert-single-pdf-metadata-get-failed', $review['conversion_error_boundary']);
+            $t->same('AttributeError', $review['conversion_error_class']);
+            $t->same("'{type}' object has no attribute 'get'", $review['conversion_error_message_template']);
+            $t->same(false, $review['blocks_task_args']);
+            $t->same(false, $review['blocks_pool_launch']);
+
+            $t->same(6, $plan['worker_pool']['task_args_count']);
+            $t->same(6, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(null, $plan['worker_pool']['pool_error_boundary']);
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['languages' => ['English'], 'title' => 'Dict Metadata'], $taskArgsByName['dict-meta.pdf']['metadata']);
+            $t->same(['English'], $taskArgsByName['list-meta.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['null-meta.pdf']['metadata']);
+            $t->same('English', $taskArgsByName['scalar-meta.pdf']['metadata']);
+            $t->same(0, $taskArgsByName['zero-meta.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['missing-meta.pdf']['metadata']);
+            $t->same(['list-meta.pdf', 'scalar-meta.pdf'], $plan['worker_pool']['truthy_non_mapping_metadata_filenames']);
+            $t->same(['null-meta.pdf', 'zero-meta.pdf'], $plan['worker_pool']['falsy_non_mapping_metadata_filenames']);
+            $t->same('convert-single-pdf-metadata-get-failed', $plan['worker_pool']['per_file_metadata_error_boundary']);
+            $t->same('convert-single-pdf-metadata-get-failed', $plan['conversion_boundary']['per_file_metadata_error_boundary']);
+            $t->same('AttributeError', $plan['conversion_boundary']['per_file_metadata_error_class']);
+            $t->same(true, $plan['console_summary']['summary_reached']);
+            $t->same(
+                'Converting 6 pdfs in chunk 1/1 with 6 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

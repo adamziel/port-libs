@@ -375,6 +375,7 @@ final class BatchConverter
                     'metadata_shape_error_boundary' => null,
                     'metadata_shape_error_class' => null,
                     'metadata_shape_error_message' => null,
+                    'metadata_value_types' => $this->phpMetadataValueTypes($metadataByFilename),
                 ]
                 : $this->loadRuntimeMetadataFile($absoluteMetadataFile);
         } catch (InvalidArgumentException $exception) {
@@ -455,6 +456,8 @@ final class BatchConverter
                     'metadata_shape_error_boundary' => null,
                     'metadata_shape_error_class' => null,
                     'metadata_shape_error_message' => null,
+                    'metadata_value_types' => [],
+                    'metadata_value_review' => $this->runtimeMetadataValueReview([], [], [], 'metadata-file-json-load-failed'),
                     'metadata_filenames' => [],
                     'selected_metadata_filenames' => [],
                     'missing_metadata_filenames' => [],
@@ -597,6 +600,12 @@ final class BatchConverter
                     'metadata_shape_error_boundary' => $runtimeMetadataPlan['metadata_shape_error_boundary'],
                     'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
                     'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
+                    'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                    'metadata_value_review' => $this->runtimeMetadataValueReview(
+                        $selectedFilenames,
+                        $runtimeMetadata,
+                        $runtimeMetadataPlan['metadata_value_types']
+                    ),
                     'metadata_filenames' => $metadataFilenames,
                     'selected_metadata_filenames' => $selectedMetadataFilenames,
                     'missing_metadata_filenames' => $missingMetadataFilenames,
@@ -715,6 +724,12 @@ final class BatchConverter
                     'metadata_shape_error_boundary' => $runtimeMetadataPlan['metadata_shape_error_boundary'],
                     'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
                     'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
+                    'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                    'metadata_value_review' => $this->runtimeMetadataValueReview(
+                        $selectedFilenames,
+                        $runtimeMetadata,
+                        $runtimeMetadataPlan['metadata_value_types']
+                    ),
                     'metadata_filenames' => [],
                     'selected_metadata_filenames' => [],
                     'missing_metadata_filenames' => $selectedFilenames,
@@ -757,7 +772,12 @@ final class BatchConverter
             ];
         }
 
-        $tasks = $this->tasksForFiles($selectedFiles, $absoluteOutputFolder, $runtimeMetadata, $minLength);
+        $metadataValueReview = $this->runtimeMetadataValueReview(
+            $selectedFilenames,
+            $runtimeMetadata,
+            $runtimeMetadataPlan['metadata_value_types']
+        );
+        $tasks = $this->runtimeTasksForFiles($selectedFiles, $absoluteOutputFolder, $runtimeMetadata, $minLength);
 
         $taskArgs = [];
         foreach ($tasks as $task) {
@@ -843,6 +863,8 @@ final class BatchConverter
                 'metadata_shape_error_boundary' => $runtimeMetadataPlan['metadata_shape_error_boundary'],
                 'metadata_shape_error_class' => $runtimeMetadataPlan['metadata_shape_error_class'],
                 'metadata_shape_error_message' => $runtimeMetadataPlan['metadata_shape_error_message'],
+                'metadata_value_types' => $runtimeMetadataPlan['metadata_value_types'],
+                'metadata_value_review' => $metadataValueReview,
                 'metadata_filenames' => $metadataFilenames,
                 'selected_metadata_filenames' => $selectedMetadataFilenames,
                 'missing_metadata_filenames' => $missingMetadataFilenames,
@@ -858,6 +880,10 @@ final class BatchConverter
                 'process_function' => 'process_single_pdf',
                 'task_args_count' => count($taskArgs),
                 'task_args' => $taskArgs,
+                'task_args_metadata_value_types' => $metadataValueReview['selected_metadata_value_types'],
+                'truthy_non_mapping_metadata_filenames' => $metadataValueReview['truthy_non_mapping_metadata_filenames'],
+                'falsy_non_mapping_metadata_filenames' => $metadataValueReview['falsy_non_mapping_metadata_filenames'],
+                'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'progress_iterator' => $this->progressIterator(),
             ],
             'console_summary' => $this->conversionSummaryPlan(
@@ -872,6 +898,9 @@ final class BatchConverter
                 'per_file_preflight_function' => 'process_single_pdf',
                 'converter_function' => 'convert_single_pdf',
                 'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+                'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
+                'per_file_metadata_error_class' => $metadataValueReview['conversion_error_class'],
+                'per_file_metadata_error_message_template' => $metadataValueReview['conversion_error_message_template'],
                 'empty_output_policy' => 'print_empty_file_without_save_markdown',
             ],
             'review_only' => true,
@@ -931,7 +960,8 @@ final class BatchConverter
      *     metadata_get_available: bool,
      *     metadata_shape_error_boundary: string|null,
      *     metadata_shape_error_class: string|null,
-     *     metadata_shape_error_message: string|null
+     *     metadata_shape_error_message: string|null,
+     *     metadata_value_types: array<string, string>
      * }
      */
     private function loadRuntimeMetadataFile(string $metadataFile): array
@@ -957,10 +987,13 @@ final class BatchConverter
                 'metadata_shape_error_boundary' => 'metadata-get-failed',
                 'metadata_shape_error_class' => 'AttributeError',
                 'metadata_shape_error_message' => "'" . $jsonType . "' object has no attribute 'get'",
+                'metadata_value_types' => [],
             ];
         }
 
         $metadata = [];
+        $metadataValueTypes = [];
+        $objectValues = get_object_vars($decodedObject);
         foreach ($decodedArray as $filename => $value) {
             if (!is_string($filename)) {
                 return [
@@ -970,15 +1003,12 @@ final class BatchConverter
                     'metadata_shape_error_boundary' => 'metadata-get-failed',
                     'metadata_shape_error_class' => 'AttributeError',
                     'metadata_shape_error_message' => "'" . $jsonType . "' object has no attribute 'get'",
+                    'metadata_value_types' => [],
                 ];
             }
 
-            if ($value === null || is_array($value)) {
-                $metadata[$filename] = $value;
-                continue;
-            }
-
-            throw new InvalidArgumentException('Batch metadata file values must be objects keyed by basename.');
+            $metadata[$filename] = $value;
+            $metadataValueTypes[$filename] = $this->jsonMetadataType($objectValues[$filename] ?? null);
         }
 
         return [
@@ -988,6 +1018,7 @@ final class BatchConverter
             'metadata_shape_error_boundary' => null,
             'metadata_shape_error_class' => null,
             'metadata_shape_error_message' => null,
+            'metadata_value_types' => $metadataValueTypes,
         ];
     }
 
@@ -1305,6 +1336,121 @@ final class BatchConverter
     }
 
     /**
+     * Runtime task tuple planner for convert.py::main.
+     *
+     * Upstream passes metadata.get(os.path.basename(f)) through unchanged.
+     * Per-file scalar/list values are therefore task-argument values, not
+     * metadata-file shape errors; truthy non-dict values fail later inside
+     * convert_single_pdf() when it calls metadata.get("languages").
+     *
+     * @param list<string> $files
+     * @param array<string, mixed> $metadataByFilename
+     * @return list<array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}>
+     */
+    private function runtimeTasksForFiles(array $files, string $outputFolder, array $metadataByFilename, ?int $minLength): array
+    {
+        $tasks = [];
+        foreach ($files as $filepath) {
+            $basename = basename($filepath);
+            $metadata = array_key_exists($basename, $metadataByFilename)
+                ? $metadataByFilename[$basename]
+                : null;
+
+            $tasks[] = [
+                'filepath' => $filepath,
+                'out_folder' => $outputFolder,
+                'metadata' => $metadata,
+                'min_length' => $minLength,
+            ];
+        }
+
+        return $tasks;
+    }
+
+    /**
+     * @param array<string, mixed> $metadataByFilename
+     * @return array<string, string>
+     */
+    private function phpMetadataValueTypes(array $metadataByFilename): array
+    {
+        $types = [];
+        foreach ($metadataByFilename as $filename => $value) {
+            if (!is_string($filename)) {
+                continue;
+            }
+
+            $types[$filename] = $this->phpMetadataValueType($value);
+        }
+
+        return $types;
+    }
+
+    private function phpMetadataValueType(mixed $value): string
+    {
+        if (is_array($value)) {
+            return array_is_list($value) ? 'list' : 'dict';
+        }
+
+        return $this->jsonMetadataType($value);
+    }
+
+    /**
+     * @param list<string> $selectedFilenames
+     * @param array<string, mixed> $metadataByFilename
+     * @param array<string, string> $metadataValueTypes
+     * @return array<string, mixed>
+     */
+    private function runtimeMetadataValueReview(
+        array $selectedFilenames,
+        array $metadataByFilename,
+        array $metadataValueTypes,
+        ?string $blockedBy = null
+    ): array {
+        $reached = $blockedBy === null;
+        $selectedTypes = [];
+        $truthyNonMapping = [];
+        $falsyNonMapping = [];
+
+        if ($reached) {
+            foreach ($selectedFilenames as $filename) {
+                if (!array_key_exists($filename, $metadataByFilename)) {
+                    continue;
+                }
+
+                $value = $metadataByFilename[$filename];
+                $type = $metadataValueTypes[$filename] ?? $this->phpMetadataValueType($value);
+                $selectedTypes[$filename] = $type;
+                if ($type === 'dict') {
+                    continue;
+                }
+
+                if ($this->pythonTruthyMetadataValue($value)) {
+                    $truthyNonMapping[] = $filename;
+                } else {
+                    $falsyNonMapping[] = $filename;
+                }
+            }
+        }
+
+        return [
+            'source' => 'convert.py metadata.get basename + convert_single_pdf metadata truthiness',
+            'review_reached' => $reached,
+            'blocked_by' => $blockedBy,
+            'selected_metadata_value_types' => $selectedTypes,
+            'truthy_non_mapping_metadata_filenames' => $truthyNonMapping,
+            'falsy_non_mapping_metadata_filenames' => $falsyNonMapping,
+            'conversion_error_boundary' => $truthyNonMapping === [] ? null : 'convert-single-pdf-metadata-get-failed',
+            'conversion_error_class' => $truthyNonMapping === [] ? null : 'AttributeError',
+            'conversion_error_message_template' => $truthyNonMapping === []
+                ? null
+                : "'{type}' object has no attribute 'get'",
+            'blocks_task_args' => false,
+            'blocks_pool_launch' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
      * @return array{text: string, images: array<string, mixed>, metadata: array<string, mixed>}
      */
     private function normalizeConversion(mixed $conversion): array
@@ -1435,8 +1581,8 @@ final class BatchConverter
     }
 
     /**
-     * @param array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null} $task
-     * @return array{filepath: string, out_folder: string, metadata: array<string, mixed>|null, min_length: int|null}
+     * @param array{filepath: string, out_folder: string, metadata?: mixed, min_length?: int|null} $task
+     * @return array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}
      */
     private function taskArg(array $task): array
     {
@@ -1629,6 +1775,27 @@ final class BatchConverter
     private function pythonTruthyInteger(?int $value): bool
     {
         return $value !== null && $value !== 0;
+    }
+
+    private function pythonTruthyMetadataValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value != 0;
+        }
+        if (is_string($value)) {
+            return $value !== '';
+        }
+        if (is_array($value)) {
+            return $value !== [];
+        }
+
+        return true;
     }
 
     /**

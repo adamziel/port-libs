@@ -136,6 +136,22 @@ try {
         torchDevice: 'cuda',
         torchDeviceModel: 'cpu'
     );
+    $valueMetadata = $output . DIRECTORY_SEPARATOR . 'metadata-values.json';
+    file_put_contents($valueMetadata, json_encode([
+        'already-imported.pdf' => ['title' => 'Already Imported'],
+        'ready-for-marker.pdf' => 'English',
+        'short-text.pdf' => null,
+        'upload-notes.txt' => ['English'],
+        'extension-spoof.pdf' => 0,
+    ], JSON_THROW_ON_ERROR));
+    $metadataValuePlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataFile: $valueMetadata,
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu'
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -274,6 +290,18 @@ try {
     ) {
         throw new RuntimeException('Expected list-shaped metadata JSON to fail at metadata.get task construction after summary, not at json.load.');
     }
+    if (
+        $metadataValuePlan['metadata']['metadata_load_success'] !== true
+        || $metadataValuePlan['metadata']['metadata_json_type'] !== 'object'
+        || $metadataValuePlan['metadata']['metadata_get_available'] !== true
+        || $metadataValuePlan['metadata']['metadata_value_review']['truthy_non_mapping_metadata_filenames'] !== ['ready-for-marker.pdf', 'upload-notes.txt']
+        || $metadataValuePlan['metadata']['metadata_value_review']['falsy_non_mapping_metadata_filenames'] !== ['extension-spoof.pdf', 'short-text.pdf']
+        || $metadataValuePlan['metadata']['metadata_value_review']['conversion_error_boundary'] !== 'convert-single-pdf-metadata-get-failed'
+        || $metadataValuePlan['worker_pool']['pool_launchable'] !== true
+        || $metadataValuePlan['worker_pool']['task_args_count'] !== 5
+    ) {
+        throw new RuntimeException('Expected per-file scalar/list metadata values to pass task tuple construction while recording convert_single_pdf metadata.get risk.');
+    }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
     }
@@ -375,6 +403,16 @@ try {
         'metadata_shape_summary_reached' => $metadataShapePlan['console_summary']['summary_reached'],
         'metadata_shape_task_args_count' => $metadataShapePlan['worker_pool']['task_args_count'],
         'metadata_shape_pool_error_boundary' => $metadataShapePlan['worker_pool']['pool_error_boundary'],
+        'metadata_value_json_type' => $metadataValuePlan['metadata']['metadata_json_type'],
+        'metadata_value_get_available' => $metadataValuePlan['metadata']['metadata_get_available'],
+        'metadata_value_types' => $metadataValuePlan['metadata']['metadata_value_types'],
+        'metadata_value_truthy_non_mapping_filenames' => $metadataValuePlan['metadata']['metadata_value_review']['truthy_non_mapping_metadata_filenames'],
+        'metadata_value_falsy_non_mapping_filenames' => $metadataValuePlan['metadata']['metadata_value_review']['falsy_non_mapping_metadata_filenames'],
+        'metadata_value_conversion_error_boundary' => $metadataValuePlan['metadata']['metadata_value_review']['conversion_error_boundary'],
+        'metadata_value_blocks_task_args' => $metadataValuePlan['metadata']['metadata_value_review']['blocks_task_args'],
+        'metadata_value_blocks_pool_launch' => $metadataValuePlan['metadata']['metadata_value_review']['blocks_pool_launch'],
+        'metadata_value_pool_launchable' => $metadataValuePlan['worker_pool']['pool_launchable'],
+        'metadata_value_task_args_count' => $metadataValuePlan['worker_pool']['task_args_count'],
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
