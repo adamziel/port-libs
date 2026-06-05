@@ -21,6 +21,18 @@ final class PdfLinkAnnotationExtractor
         'P' => 'push',
         'T' => 'toggle',
     ];
+    private const ANNOTATION_FLAGS = [
+        1 => 'invisible',
+        2 => 'hidden',
+        3 => 'print',
+        4 => 'no_zoom',
+        5 => 'no_rotate',
+        6 => 'no_view',
+        7 => 'read_only',
+        8 => 'locked',
+        9 => 'toggle_no_view',
+        10 => 'locked_contents',
+    ];
 
     /** @var array<int, array<int, string>> */
     private array $objectBodiesByGeneration = [];
@@ -148,6 +160,9 @@ final class PdfLinkAnnotationExtractor
                         }
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_object'] = $link['annotation_object'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_subtype'] = $link['annotation_subtype'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_flags'] = $link['annotation_flags'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_flag_names'] = $link['annotation_flag_names'];
+                        $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_annotation_visibility'] = $link['annotation_visibility'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_widget_annotation'] = $link['widget_annotation'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_action_type'] = $link['action_type'];
                         $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_safety'] = $link['safety'];
@@ -534,7 +549,9 @@ final class PdfLinkAnnotationExtractor
             'actions' => $review['actions'],
             'additional_actions' => $review['additional_actions'],
             'executes_on_import' => false,
-        ] + $this->presentationReviewFromAnnotation($annotationBody, $objects);
+        ]
+            + $this->annotationFlagReviewFromAnnotation($annotationBody, $objects)
+            + $this->presentationReviewFromAnnotation($annotationBody, $objects);
         if ($review['previous_uri_actions'] !== []) {
             $link['previous_uri_actions'] = $review['previous_uri_actions'];
         }
@@ -904,6 +921,58 @@ final class PdfLinkAnnotationExtractor
         return ($flags & 1) !== 0
             || ($flags & 2) !== 0
             || ($flags & 32) !== 0;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{annotation_flags: int, annotation_flag_names: list<string>, annotation_visibility: string}
+     */
+    private function annotationFlagReviewFromAnnotation(string $annotationBody, array $objects): array
+    {
+        $flags = $this->integerAfterName($annotationBody, 'F', $objects) ?? 0;
+
+        return [
+            'annotation_flags' => $flags,
+            'annotation_flag_names' => $this->annotationFlagNames($flags),
+            'annotation_visibility' => $this->annotationVisibility($flags),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function annotationFlagNames(int $flags): array
+    {
+        $names = [];
+        foreach (self::ANNOTATION_FLAGS as $bit => $name) {
+            if ($this->hasFlagBit($flags, $bit)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private function annotationVisibility(int $flags): string
+    {
+        if ($this->hasFlagBit($flags, 2)) {
+            return 'hidden';
+        }
+
+        if ($this->hasFlagBit($flags, 1)) {
+            return 'invisible';
+        }
+
+        if ($this->hasFlagBit($flags, 6)) {
+            return 'no_view';
+        }
+
+        return 'visible';
+    }
+
+    private function hasFlagBit(int $flags, int $bit): bool
+    {
+        return ($flags & (1 << ($bit - 1))) !== 0;
     }
 
     /**

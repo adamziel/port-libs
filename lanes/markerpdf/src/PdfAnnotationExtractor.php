@@ -192,11 +192,15 @@ final class PdfAnnotationExtractor
             ? null
             : ($structureReviewByAnnotationObject[$record['object']] ?? null);
         $structureParent = null;
+        $annotationFlags = $this->intValueAfterName($body, 'F', $objects) ?? 0;
 
         $row = [
             'subtype' => $subtype,
             'annotation_object' => $record['object'],
             'rect' => $rect,
+            'annotation_flags' => $annotationFlags,
+            'annotation_flag_names' => $this->annotationFlagNames($annotationFlags),
+            'annotation_visibility' => $this->annotationVisibility($annotationFlags),
             'contents' => $this->pdfStringValueAfterName($body, 'Contents', $objects),
             'title' => $this->pdfStringValueAfterName($body, 'T', $objects),
             'name' => $this->pdfStringValueAfterName($body, 'NM', $objects),
