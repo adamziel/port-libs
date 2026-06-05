@@ -19288,6 +19288,24 @@ final class PdfTextExtractor
         $length = strlen($decoded);
         while ($index < $absoluteOffset && $index < $length) {
             $char = $decoded[$index];
+            if ($char === '<' && $index + 1 < $length && $decoded[$index + 1] === '<') {
+                $start = $index;
+                $this->readDictionaryToken($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($char === '[') {
+                $start = $index;
+                $this->readArrayToken($decoded, $index);
+                if ($absoluteOffset < $index || $index === $start) {
+                    return false;
+                }
+                continue;
+            }
+
             if ($char === '(') {
                 $start = $index;
                 $this->readLiteralToken($decoded, $index);
