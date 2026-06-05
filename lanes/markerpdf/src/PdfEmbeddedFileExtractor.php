@@ -2861,6 +2861,7 @@ final class PdfEmbeddedFileExtractor
                     $definitions !== null
                     && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
                 )
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
             ) {
                 continue;
             }
@@ -2883,6 +2884,69 @@ final class PdfEmbeddedFileExtractor
         $commentOffset = strpos($pdfBytes, '%', $lineStart);
 
         return $commentOffset !== false && $commentOffset < $tokenOffset;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function tokenStartsInsidePdfCompositeToken(string $pdfBytes, int $tokenOffset, ?array $definitions = null): bool
+    {
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $tokenOffset && $offset < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                            $offset = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
+            $char = $pdfBytes[$offset];
+
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $literal = $this->readLiteralStringAt($pdfBytes, $offset);
+                if ($literal !== null) {
+                    if ($tokenOffset > $offset && $tokenOffset < $literal['end']) {
+                        return true;
+                    }
+                    $offset = $literal['end'];
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                if ($tokenOffset > $offset && $tokenOffset < $compositeEnd) {
+                    return true;
+                }
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipHexString($pdfBytes, $offset) ?? $length;
+                if ($tokenOffset > $offset && $tokenOffset < $end) {
+                    return true;
+                }
+                $offset = $end;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return false;
     }
 
     /**
