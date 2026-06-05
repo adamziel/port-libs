@@ -1306,6 +1306,20 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects inconsistent CFB MiniFAT and DIFAT header chains before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            "\x05SummaryInformation" => 'summary bytes',
+        ]);
+
+        foreach ([
+            'MiniFAT start sector without a MiniFAT count' => substr_replace($bytes, $u32(0), 64, 4),
+            'MiniFAT count without a valid MiniFAT start sector' => substr_replace($bytes, $u32(0xfffffffe), 60, 4),
+            'DIFAT start sector without a DIFAT count' => substr_replace($bytes, $u32(2), 68, 4),
+        ] as $corruptDocBytes) {
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
+        }
+    },
     'rejects invalid CFB directory object-type fields before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',
