@@ -1057,7 +1057,7 @@ final class PdfNamedDestinationExtractor
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @param list<string> $seenObjects
-     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
      * @return list<array{name: string, value: mixed}>
      */
     private function collectNameTreeEntries(
@@ -1099,13 +1099,13 @@ final class PdfNamedDestinationExtractor
                 : $inheritedLimits;
 
             for ($index = 0; $index + 1 < count($names); $index += 2) {
-                $name = $this->destinationNameValue($names[$index], $objects, $cache);
-                if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
+                $name = $this->destinationNameDetails($names[$index], $objects, $cache);
+                if ($name === null || $name['text'] === '' || !$this->nameTreeNameWithinLimits($name['text'], $entryLimits, $name['bytes'])) {
                     continue;
                 }
 
                 $entries[] = [
-                    'name' => $name,
+                    'name' => $name['text'],
                     'value' => $names[$index + 1],
                 ];
             }
@@ -1124,8 +1124,8 @@ final class PdfNamedDestinationExtractor
      * @param array<string, mixed> $node
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @param array{lower: string, upper: string}|null $inheritedLimits
-     * @return array{lower: string, upper: string}|null
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null $inheritedLimits
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeEffectiveLimits(array $node, array $objects, array &$cache, ?array $inheritedLimits): ?array
     {
@@ -1137,26 +1137,29 @@ final class PdfNamedDestinationExtractor
             return $nodeLimits;
         }
 
-        $limits = [
-            'lower' => strcmp($nodeLimits['lower'], $inheritedLimits['lower']) < 0
-                ? $inheritedLimits['lower']
-                : $nodeLimits['lower'],
-            'upper' => strcmp($nodeLimits['upper'], $inheritedLimits['upper']) > 0
-                ? $inheritedLimits['upper']
-                : $nodeLimits['upper'],
-        ];
-        if (strcmp($limits['lower'], $limits['upper']) > 0) {
+        $lower = strcmp($nodeLimits['lower_bytes'], $inheritedLimits['lower_bytes']) < 0
+            ? ['text' => $inheritedLimits['lower'], 'bytes' => $inheritedLimits['lower_bytes']]
+            : ['text' => $nodeLimits['lower'], 'bytes' => $nodeLimits['lower_bytes']];
+        $upper = strcmp($nodeLimits['upper_bytes'], $inheritedLimits['upper_bytes']) > 0
+            ? ['text' => $inheritedLimits['upper'], 'bytes' => $inheritedLimits['upper_bytes']]
+            : ['text' => $nodeLimits['upper'], 'bytes' => $nodeLimits['upper_bytes']];
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
             return $inheritedLimits;
         }
 
-        return $limits;
+        return [
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
+        ];
     }
 
     /**
      * @param array<string, mixed> $node
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @return array{lower: string, upper: string}|null
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeNodeLimits(array $node, array $objects, array &$cache): ?array
     {
@@ -1165,40 +1168,46 @@ final class PdfNamedDestinationExtractor
             return null;
         }
 
-        $lower = $this->destinationNameValue($limits[0], $objects, $cache);
-        $upper = $this->destinationNameValue($limits[1], $objects, $cache);
-        if ($lower === null || $upper === null || $lower === '' || $upper === '') {
+        $lower = $this->destinationNameDetails($limits[0], $objects, $cache);
+        $upper = $this->destinationNameDetails($limits[1], $objects, $cache);
+        if ($lower === null || $upper === null || $lower['text'] === '' || $upper['text'] === '') {
             return null;
         }
-        if (strcmp($lower, $upper) > 0) {
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
             return null;
         }
 
         return [
-            'lower' => $lower,
-            'upper' => $upper,
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
         ];
     }
 
     /**
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
-    private function nameTreeNameWithinLimits(string $name, ?array $limits): bool
+    private function nameTreeNameWithinLimits(string $name, ?array $limits, ?string $nameBytes = null): bool
     {
         if ($limits === null) {
             return true;
         }
 
-        return strcmp($limits['lower'], $limits['upper']) <= 0
-            && strcmp($name, $limits['lower']) >= 0
-            && strcmp($name, $limits['upper']) <= 0;
+        $candidate = $nameBytes ?? $name;
+        $lower = $limits['lower_bytes'] ?? $limits['lower'];
+        $upper = $limits['upper_bytes'] ?? $limits['upper'];
+
+        return strcmp($lower, $upper) <= 0
+            && strcmp($candidate, $lower) >= 0
+            && strcmp($candidate, $upper) <= 0;
     }
 
     /**
      * @param list<mixed> $items
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @param array{lower: string, upper: string}|null $limits
+     * @param array{lower: string, upper: string, lower_bytes?: string, upper_bytes?: string}|null $limits
      */
     private function nameTreeLimitsMatchAnyPairKey(array $items, array $objects, array &$cache, ?array $limits): bool
     {
@@ -1207,8 +1216,8 @@ final class PdfNamedDestinationExtractor
         }
 
         for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
-            $name = $this->destinationNameValue($items[$index], $objects, $cache);
-            if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
+            $name = $this->destinationNameDetails($items[$index], $objects, $cache);
+            if ($name !== null && $this->nameTreeNameWithinLimits($name['text'], $limits, $name['bytes'])) {
                 return true;
             }
         }
@@ -1520,12 +1529,40 @@ final class PdfNamedDestinationExtractor
     /**
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
+     * @return array{text: string, bytes: string}|null
      */
-    private function destinationNameValue(mixed $value, array $objects, array &$cache): ?string
+    private function destinationNameDetails(mixed $value, array $objects, array &$cache): ?array
     {
         $resolved = $this->resolve($value, $objects, $cache);
 
-        return is_string($resolved) ? $resolved : null;
+        return $this->pdfStringDetails($resolved);
+    }
+
+    /**
+     * @return array{text: string, bytes: string}|null
+     */
+    private function pdfStringDetails(mixed $value): ?array
+    {
+        if (is_string($value)) {
+            return [
+                'text' => $value,
+                'bytes' => $value,
+            ];
+        }
+
+        if (is_array($value)
+            && array_key_exists('__pdf_string', $value)
+            && is_string($value['__pdf_string'])
+            && array_key_exists('__pdf_bytes', $value)
+            && is_string($value['__pdf_bytes'])
+        ) {
+            return [
+                'text' => $value['__pdf_string'],
+                'bytes' => $value['__pdf_bytes'],
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -1622,7 +1659,8 @@ final class PdfNamedDestinationExtractor
         return is_array($value)
             && !array_is_list($value)
             && !array_key_exists('__pdf_ref', $value)
-            && !array_key_exists('__pdf_name', $value);
+            && !array_key_exists('__pdf_name', $value)
+            && !array_key_exists('__pdf_string', $value);
     }
 
     /**
@@ -1671,12 +1709,12 @@ final class PdfNamedDestinationExtractor
             }
             if ($char === '(') {
                 [$string, $offset] = $this->readLiteralString($source, $offset + 1);
-                $tokens[] = ['type' => 'string', 'value' => $this->decodeTextString($string)];
+                $tokens[] = ['type' => 'string', 'value' => $this->decodeTextString($string), 'bytes' => $string];
                 continue;
             }
             if ($char === '<') {
                 [$string, $offset] = $this->readHexString($source, $offset + 1);
-                $tokens[] = ['type' => 'string', 'value' => $this->decodeTextString($string)];
+                $tokens[] = ['type' => 'string', 'value' => $this->decodeTextString($string), 'bytes' => $string];
                 continue;
             }
             if (preg_match('/[+-]?(?:\d+\.\d*|\.\d+|\d+)/A', substr($source, $offset), $match) === 1) {
@@ -1731,7 +1769,11 @@ final class PdfNamedDestinationExtractor
             'dict-start' => $this->parseDictionary($tokens, $index),
             'array-start' => $this->parseArray($tokens, $index),
             'name' => ['__pdf_name' => (string) $token['value']],
-            'string', 'number' => $token['value'],
+            'string' => [
+                '__pdf_string' => (string) $token['value'],
+                '__pdf_bytes' => is_string($token['bytes'] ?? null) ? $token['bytes'] : (string) $token['value'],
+            ],
+            'number' => $token['value'],
             'keyword' => $this->keywordValue((string) $token['value']),
             default => null,
         };
