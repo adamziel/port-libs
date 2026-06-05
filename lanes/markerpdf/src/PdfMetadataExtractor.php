@@ -7290,7 +7290,7 @@ final class PdfMetadataExtractor
     {
         $entries = [];
         $body = $definition['body'];
-        $widthValue = $this->dictionaryTopLevelRawValue($body, 'W');
+        $widthValue = $this->resolvedDictionaryRawValue($body, 'W', $objects);
         $widthBody = $widthValue === null ? null : $this->arrayBody($widthValue);
         if ($widthBody === null) {
             return $entries;
@@ -7315,7 +7315,7 @@ final class PdfMetadataExtractor
         $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev', $objects);
         $xrefOffset = (int) $definition['offset'];
         $offset = 0;
-        foreach ($this->xrefIndexRanges($body, $decodedEntryCount) as $range) {
+        foreach ($this->xrefIndexRanges($body, $decodedEntryCount, $objects) as $range) {
             [$startObject, $count] = $range;
             for ($index = 0; $index < $count; $index++) {
                 if ($offset + $entryWidth > strlen($decoded)) {
@@ -7485,9 +7485,9 @@ final class PdfMetadataExtractor
     /**
      * @return list<array{0: int, 1: int}>
      */
-    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount): array
+    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount, array $objects = []): array
     {
-        $indexValue = $this->dictionaryTopLevelRawValue($xrefBody, 'Index');
+        $indexValue = $this->resolvedDictionaryRawValue($xrefBody, 'Index', $objects === [] ? null : $objects);
         $indexBody = $indexValue === null ? null : $this->arrayBody($indexValue);
         if ($indexBody !== null) {
             $values = $this->integersFromPdfArray($indexBody);
@@ -7499,7 +7499,7 @@ final class PdfMetadataExtractor
             return $ranges;
         }
 
-        $size = $this->dictionaryIntegerValue($xrefBody, 'Size');
+        $size = $this->dictionaryIntegerValue($xrefBody, 'Size', $objects === [] ? null : $objects);
         if ($size !== null) {
             $size = max(0, $size);
             if ($decodedEntryCount !== null && $decodedEntryCount > $size) {

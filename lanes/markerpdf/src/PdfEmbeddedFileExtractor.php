@@ -2253,7 +2253,7 @@ final class PdfEmbeddedFileExtractor
     {
         $entries = [];
         $body = $definition['body'];
-        $widthValue = $this->dictionaryRawValue($body, 'W');
+        $widthValue = $this->resolvedDictionaryRawValue($body, 'W', $objects);
         $widthBody = $widthValue === null ? null : $this->arrayBody($widthValue);
         if ($widthBody === null) {
             return $entries;
@@ -2279,7 +2279,7 @@ final class PdfEmbeddedFileExtractor
         $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev', $objects);
         $xrefOffset = (int) $definition['offset'];
         $offset = 0;
-        foreach ($this->xrefIndexRanges($body, $decodedEntryCount) as $range) {
+        foreach ($this->xrefIndexRanges($body, $decodedEntryCount, $objects) as $range) {
             [$startObject, $count] = $range;
             for ($index = 0; $index < $count; $index++) {
                 if ($offset + $entryWidth > strlen($decoded)) {
@@ -2445,9 +2445,9 @@ final class PdfEmbeddedFileExtractor
     /**
      * @return list<array{0: int, 1: int}>
      */
-    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount): array
+    private function xrefIndexRanges(string $xrefBody, ?int $decodedEntryCount, array $objects = []): array
     {
-        $indexValue = $this->dictionaryRawValue($xrefBody, 'Index');
+        $indexValue = $this->resolvedDictionaryRawValue($xrefBody, 'Index', $objects === [] ? null : $objects);
         $indexBody = $indexValue === null ? null : $this->arrayBody($indexValue);
         if ($indexBody !== null) {
             $values = $this->integersFromPdfArray($indexBody);
@@ -2459,7 +2459,7 @@ final class PdfEmbeddedFileExtractor
             return $ranges;
         }
 
-        $size = $this->dictionaryIntegerValue($xrefBody, 'Size');
+        $size = $this->dictionaryIntegerValue($xrefBody, 'Size', $objects === [] ? null : $objects);
         if ($size !== null) {
             $size = max(0, $size);
             if ($decodedEntryCount !== null && $decodedEntryCount > $size) {
@@ -3114,17 +3114,30 @@ final class PdfEmbeddedFileExtractor
      */
     private function dictionaryIntegerValue(string $dictionary, string $key, ?array $objects = null): ?int
     {
-        $value = $this->dictionaryRawValue($dictionary, $key);
+        $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
         if ($value === null) {
             return null;
         }
 
-        $resolved = trim($objects === null ? $value : ($this->resolveRawValue($value, $objects) ?? $value));
+        $resolved = trim($value);
         if (preg_match('/^-?\d+$/', $resolved) !== 1) {
             return null;
         }
 
         return (int) $resolved;
+    }
+
+    /**
+     * @param array<int, string>|null $objects
+     */
+    private function resolvedDictionaryRawValue(string $dictionary, string $key, ?array $objects): ?string
+    {
+        $value = $this->dictionaryRawValue($dictionary, $key);
+        if ($value === null) {
+            return null;
+        }
+
+        return $objects === null ? $value : ($this->resolveRawValue($value, $objects) ?? $value);
     }
 
     /**
