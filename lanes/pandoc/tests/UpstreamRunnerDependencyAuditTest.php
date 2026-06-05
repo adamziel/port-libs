@@ -128,14 +128,33 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
     ]));
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null) use ($pandocCabal, $luaCabal): array {
-    return [
+$runnerArtifacts = static function (): array {
+    $files = [];
+    foreach (UpstreamRunnerDependencyAudit::expectedRunnerArtifacts() as $relativePath => $kind) {
+        if ($kind === 'directory') {
+            $files[$relativePath . '/.audit-keep'] = 'fixture root present';
+        } else {
+            $files[$relativePath] = 'fixture artifact present';
+        }
+    }
+
+    return $files;
+};
+
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts): array {
+    $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
         'pandoc-lua-engine/pandoc-lua-engine.cabal' => $luaPackage ?? $luaCabal(),
         'test/test-pandoc.hs' => 'main = pure ()',
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs' => 'main = pure ()',
     ];
+
+    if ($includeRunnerArtifacts) {
+        $files = array_merge($files, $runnerArtifacts());
+    }
+
+    return $files;
 };
 
 return [
@@ -176,6 +195,9 @@ return [
             'skylighting-format-context',
         ], $audit['projectConstraintClosure']['missingConstraints']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same(array_keys(UpstreamRunnerDependencyAudit::expectedRunnerArtifacts()), $audit['runnerArtifactClosure']['missing']);
+        $t->same([], $audit['runnerArtifactClosure']['present']);
+        $t->same([], $audit['runnerArtifactClosure']['wrongType']);
         $t->same([], $audit['nonMutatingPlan']);
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing required upstream runner files', $blocked);
@@ -183,6 +205,7 @@ return [
         $t->contains('missing cabal.project package entries', $blocked);
         $t->contains('missing cabal.project solver constraints', $blocked);
         $t->contains('missing Cabal runner test-suite stanzas', $blocked);
+        $t->contains('missing upstream runner source/golden fixture artifacts', $blocked);
         $t->contains(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $audit['activationGate']);
     },
     'accepts hydrated cabal runner closure with exact project source pins' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -226,6 +249,9 @@ return [
         $t->same(true, in_array('zip-archive', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('tasty-lua', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerExecutableOptions()['test:test-pandoc'], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['ghcOptions']);
+        $t->same(array_keys(UpstreamRunnerDependencyAudit::expectedRunnerArtifacts()), $audit['runnerArtifactClosure']['present']);
+        $t->same([], $audit['runnerArtifactClosure']['missing']);
+        $t->same([], $audit['runnerArtifactClosure']['wrongType']);
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
@@ -532,6 +558,40 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('mismatched Cabal runner entry points: test:test-pandoc (buildable expected true, found false)', $blocked);
         $t->contains('buildable exitcode-stdio test-suite types', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'rejects hydrated runner package closure without source and golden fixture artifacts' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $root = $makeTree($requiredFiles($pinnedProject(), null, null, false));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $expectedMissing = array_values(array_diff(
+            array_keys(UpstreamRunnerDependencyAudit::expectedRunnerArtifacts()),
+            ['pandoc-lua-engine/test']
+        ));
+        $t->same($expectedMissing, $audit['runnerArtifactClosure']['missing']);
+        $t->same(['pandoc-lua-engine/test'], $audit['runnerArtifactClosure']['present']);
+        $t->same([], $audit['runnerArtifactClosure']['wrongType']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing upstream runner source/golden fixture artifacts', $blocked);
+        $t->contains('runner source/golden fixtures', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];

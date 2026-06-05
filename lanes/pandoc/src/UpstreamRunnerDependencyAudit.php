@@ -16,6 +16,23 @@ final class UpstreamRunnerDependencyAudit
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
     ];
 
+    private const REQUIRED_RUNNER_ARTIFACTS = [
+        'test/Tests/Command.hs' => 'file',
+        'test/Tests/Readers/Markdown.hs' => 'file',
+        'test/Tests/Writers/Markdown.hs' => 'file',
+        'test/Tests/Writers/Native.hs' => 'file',
+        'test/command' => 'directory',
+        'test/tables' => 'directory',
+        'test/testsuite.txt' => 'file',
+        'test/testsuite.native' => 'file',
+        'test/markdown-reader-more.txt' => 'file',
+        'test/markdown-reader-more.native' => 'file',
+        'test/html-reader.html' => 'file',
+        'test/html-reader.native' => 'file',
+        'pandoc-lua-engine/test' => 'directory',
+        'data' => 'directory',
+    ];
+
     private const REQUIRED_TOOLS = [
         'ghc',
         'cabal',
@@ -157,6 +174,7 @@ final class UpstreamRunnerDependencyAudit
      *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
      *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
      *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>},
+     *   runnerArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>},
      *   readyForNonMutatingCabalPlan:bool,
      *   blockedReasons:list<string>,
      *   nonMutatingPlan:list<string>,
@@ -195,6 +213,7 @@ final class UpstreamRunnerDependencyAudit
         $projectPackageClosure = self::auditProjectPackageClosure($projectContents);
         $projectConstraintClosure = self::auditProjectConstraintClosure($projectContents);
         $runnerDependencyClosure = self::auditRunnerDependencyClosure($root);
+        $runnerArtifactClosure = self::auditRunnerArtifactClosure($root);
 
         $blockedReasons = [];
         if ($missingFiles !== []) {
@@ -242,6 +261,12 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerDependencyClosure['missingExecutableOptions'] !== []) {
             $blockedReasons[] = 'missing Cabal runner executable options: ' . self::formatTargetFailures($runnerDependencyClosure['missingExecutableOptions']);
         }
+        if ($runnerArtifactClosure['missing'] !== []) {
+            $blockedReasons[] = 'missing upstream runner source/golden fixture artifacts: ' . implode(', ', $runnerArtifactClosure['missing']);
+        }
+        if ($runnerArtifactClosure['wrongType'] !== []) {
+            $blockedReasons[] = 'mismatched upstream runner source/golden fixture artifact types: ' . self::formatArtifactTypeMismatches($runnerArtifactClosure['wrongType']);
+        }
 
         $ready = $blockedReasons === [];
 
@@ -260,16 +285,17 @@ final class UpstreamRunnerDependencyAudit
             'projectPackageClosure' => $projectPackageClosure,
             'projectConstraintClosure' => $projectConstraintClosure,
             'runnerDependencyClosure' => $runnerDependencyClosure,
+            'runnerArtifactClosure' => $runnerArtifactClosure,
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
-                'record cabal.project package/flag closure plus source-repository type/location/tag closure and package-file hashes before any solver/build command',
+                'record cabal.project package/flag closure plus source-repository type/location/tag closure, runner source/golden fixture artifacts, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
                 'record test-suite type, buildable state, entry point, and direct build-depends closure for test:test-pandoc and test:test-pandoc-lua-engine',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
-            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure),
+            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $runnerArtifactClosure),
         ];
     }
 
@@ -327,6 +353,14 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedRunnerExecutableOptions(): array
     {
         return self::RUNNER_EXECUTABLE_OPTIONS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function expectedRunnerArtifacts(): array
+    {
+        return self::REQUIRED_RUNNER_ARTIFACTS;
     }
 
     /**
@@ -847,6 +881,42 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>}
+     */
+    private static function auditRunnerArtifactClosure(string $root): array
+    {
+        $present = [];
+        $missing = [];
+        $wrongType = [];
+
+        foreach (self::REQUIRED_RUNNER_ARTIFACTS as $relativePath => $expectedKind) {
+            $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+            $actualKind = self::filesystemArtifactKind($path);
+            if ($actualKind === null) {
+                $missing[] = $relativePath;
+                continue;
+            }
+
+            if ($actualKind !== $expectedKind) {
+                $wrongType[$relativePath] = [
+                    'expected' => $expectedKind,
+                    'actual' => $actualKind,
+                ];
+                continue;
+            }
+
+            $present[] = $relativePath;
+        }
+
+        return [
+            'expected' => self::REQUIRED_RUNNER_ARTIFACTS,
+            'present' => $present,
+            'missing' => $missing,
+            'wrongType' => $wrongType,
+        ];
+    }
+
+    /**
      * @return array<string, array{type:string, name:string, fields:array<string, string>}>
      */
     private static function parseCabalStanzas(string $contents): array
@@ -1088,6 +1158,36 @@ final class UpstreamRunnerDependencyAudit
         return implode('; ', $parts);
     }
 
+    private static function filesystemArtifactKind(string $path): ?string
+    {
+        if (is_file($path)) {
+            return 'file';
+        }
+
+        if (is_dir($path)) {
+            return 'directory';
+        }
+
+        if (file_exists($path)) {
+            return 'other';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{expected:string, actual:string}> $mismatches
+     */
+    private static function formatArtifactTypeMismatches(array $mismatches): string
+    {
+        $parts = [];
+        foreach ($mismatches as $path => $state) {
+            $parts[] = $path . ' expected ' . $state['expected'] . ', found ' . $state['actual'];
+        }
+
+        return implode('; ', $parts);
+    }
+
     /**
      * @param list<string> $missingFiles
      * @param list<string> $missingTools
@@ -1096,8 +1196,9 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
      * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>} $runnerDependencyClosure
+     * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>} $runnerArtifactClosure
      */
-    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure): string
+    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $runnerArtifactClosure): string
     {
         if (
             $missingFiles === []
@@ -1115,11 +1216,13 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['mismatchedEntryPoints'] === []
             && $runnerDependencyClosure['missingDependencies'] === []
             && $runnerDependencyClosure['missingExecutableOptions'] === []
+            && $runnerArtifactClosure['missing'] === []
+            && $runnerArtifactClosure['wrongType'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, runner source/golden fixtures, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, buildable exitcode-stdio test-suite types, test entry points, direct runner build-depends, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, runner source/golden fixtures, buildable exitcode-stdio test-suite types, test entry points, direct runner build-depends, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }
