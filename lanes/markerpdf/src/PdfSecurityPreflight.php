@@ -268,6 +268,11 @@ final class PdfSecurityPreflight
             : null;
         $cryptFilterTextBoundary = $this->cryptFilterContentExtractionBoundary($cryptFilterTextPolicy);
         $cryptFilterTextFailClosed = $cryptFilterTextBoundary !== null;
+        $cryptFilterEmbeddedFilePayloadPolicy = is_string($cryptFilterContentReview['embedded_file_payload_policy'] ?? null)
+            ? $cryptFilterContentReview['embedded_file_payload_policy']
+            : null;
+        $cryptFilterEmbeddedFileBoundary = $this->cryptFilterEmbeddedFileBoundary($cryptFilterEmbeddedFilePayloadPolicy);
+        $cryptFilterEmbeddedFileFailClosed = $cryptFilterEmbeddedFileBoundary !== null;
         if ($policy === 'copy_extract_allowed_after_decryption' && $cryptFilterTextFailClosed) {
             $policy = 'copy_extract_allowed_but_crypt_filter_preflight_blocked';
             $boundary = $cryptFilterTextBoundary;
@@ -373,6 +378,9 @@ final class PdfSecurityPreflight
             'crypt_filter_text_policy' => $cryptFilterTextPolicy,
             'crypt_filter_text_fail_closed' => $cryptFilterTextFailClosed,
             'crypt_filter_content_extraction_boundary' => $cryptFilterTextBoundary,
+            'crypt_filter_embedded_file_payload_policy' => $cryptFilterEmbeddedFilePayloadPolicy,
+            'crypt_filter_embedded_file_fail_closed' => $cryptFilterEmbeddedFileFailClosed,
+            'crypt_filter_embedded_file_boundary' => $cryptFilterEmbeddedFileBoundary,
             'crypt_filter_fail_closed_role_names' => is_array($cryptFilterContentReview['fail_closed_role_names'] ?? null)
                 ? $cryptFilterContentReview['fail_closed_role_names']
                 : [],
@@ -1330,6 +1338,27 @@ final class PdfSecurityPreflight
             'unknown_authorization_event_fail_closed' => 'blocked_by_unknown_document_crypt_filter_auth_event',
             'authorization_event_unavailable_fail_closed' => 'blocked_by_unavailable_document_crypt_filter_auth_event',
             'encrypted_document_fail_closed' => 'blocked_by_unresolved_document_crypt_filter',
+            default => null,
+        };
+    }
+
+    private function cryptFilterEmbeddedFileBoundary(?string $payloadPolicy): ?string
+    {
+        return match ($payloadPolicy) {
+            'duplicate_crypt_filter_dictionary_entries_fail_closed' => 'blocked_by_duplicate_embedded_file_crypt_filter_dictionary',
+            'malformed_crypt_filter_dictionary_entry_fail_closed' => 'blocked_by_malformed_embedded_file_crypt_filter_dictionary',
+            'missing_declared_filter_fail_closed' => 'blocked_by_missing_embedded_file_crypt_filter',
+            'undeclared_crypt_filter_fail_closed' => 'blocked_by_undeclared_embedded_file_crypt_filter',
+            'unknown_crypt_filter_method_fail_closed' => 'blocked_by_unknown_embedded_file_crypt_filter_method',
+            'unsupported_crypt_filter_method_fail_closed' => 'blocked_by_unsupported_embedded_file_crypt_filter_method',
+            'invalid_crypt_filter_key_length_fail_closed' => 'blocked_by_invalid_embedded_file_crypt_filter_key_length',
+            'crypt_filter_method_generation_mismatch_fail_closed' => 'blocked_by_incompatible_embedded_file_crypt_filter_method',
+            'duplicate_crypt_filter_role_entries_fail_closed' => 'blocked_by_duplicate_embedded_file_crypt_filter_roles',
+            'malformed_crypt_filter_role_entry_fail_closed' => 'blocked_by_malformed_embedded_file_crypt_filter_role',
+            'authorization_event_role_mismatch_fail_closed' => 'blocked_by_embedded_file_crypt_filter_auth_event_mismatch',
+            'unknown_authorization_event_fail_closed' => 'blocked_by_unknown_embedded_file_crypt_filter_auth_event',
+            'authorization_event_unavailable_fail_closed' => 'blocked_by_unavailable_embedded_file_crypt_filter_auth_event',
+            'encrypted_document_fail_closed' => 'blocked_by_unresolved_embedded_file_crypt_filter',
             default => null,
         };
     }
@@ -5311,6 +5340,13 @@ final class PdfSecurityPreflight
             $standardHandler
         );
         $cryptFilterContentReview = $this->cryptFilterContentReview(true, $encryption);
+        $cryptFilterTextPolicy = is_string($cryptFilterContentReview['text_content_policy'] ?? null)
+            ? $cryptFilterContentReview['text_content_policy']
+            : null;
+        $cryptFilterEmbeddedFilePayloadPolicy = is_string($cryptFilterContentReview['embedded_file_payload_policy'] ?? null)
+            ? $cryptFilterContentReview['embedded_file_payload_policy']
+            : null;
+        $cryptFilterEmbeddedFileBoundary = $this->cryptFilterEmbeddedFileBoundary($cryptFilterEmbeddedFilePayloadPolicy);
         $cryptFilterDictionaryDeclarationReview = is_array($encryption['crypt_filter_dictionary_declaration_review'] ?? null)
             ? $encryption['crypt_filter_dictionary_declaration_review']
             : [];
@@ -5459,6 +5495,11 @@ final class PdfSecurityPreflight
                 ? $cryptFilterRoleDeclarationReview['duplicate_pdf_names']
                 : [],
             'crypt_filter_content_review' => $cryptFilterContentReview,
+            'crypt_filter_text_policy' => $cryptFilterTextPolicy,
+            'crypt_filter_text_fail_closed' => $this->cryptFilterContentExtractionBoundary($cryptFilterTextPolicy) !== null,
+            'crypt_filter_embedded_file_payload_policy' => $cryptFilterEmbeddedFilePayloadPolicy,
+            'crypt_filter_embedded_file_fail_closed' => $cryptFilterEmbeddedFileBoundary !== null,
+            'crypt_filter_embedded_file_boundary' => $cryptFilterEmbeddedFileBoundary,
             'requires_password_for_content_extraction' => (bool) ($encryption['requires_password_for_content_extraction'] ?? true),
             'review_only' => true,
             'raw_key_material_exposed' => false,

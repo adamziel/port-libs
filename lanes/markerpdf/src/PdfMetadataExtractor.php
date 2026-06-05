@@ -526,8 +526,21 @@ final class PdfMetadataExtractor
             ? $encryption['crypt_filter_dictionary_declaration_review']
             : [];
         $cryptFilterDictionaryFailClosed = ($cryptFilterDictionaryReview['fail_closed'] ?? false) === true;
-        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter';
-        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter';
+        $cryptFilterRoleReview = is_array($encryption['crypt_filter_role_declaration_review'] ?? null)
+            ? $encryption['crypt_filter_role_declaration_review']
+            : [];
+        $roleFailClosedNames = array_values(array_filter(
+            $cryptFilterRoleReview['fail_closed_role_names'] ?? [],
+            static fn (mixed $value): bool => is_string($value)
+        ));
+        $stringRoleFailClosed = in_array('document_strings', $roleFailClosedNames, true);
+        $embeddedFileRoleFailClosed = in_array('embedded_file_streams', $roleFailClosedNames, true)
+            || (
+                ($encryption['embedded_file_filter_defaulted_from_stream_filter'] ?? false) === true
+                && in_array('document_streams', $roleFailClosedNames, true)
+            );
+        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter' || $stringRoleFailClosed;
+        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter' || $embeddedFileRoleFailClosed;
 
         $policy = [
             'source' => 'encrypted_associated_file_review',
@@ -557,6 +570,23 @@ final class PdfMetadataExtractor
             $policy['crypt_filter_dictionary_status'] = $cryptFilterDictionaryReview['status'] ?? null;
             $policy['crypt_filter_dictionary_fail_closed'] = true;
             $policy['crypt_filter_dictionary_policy'] = 'suppressed_malformed_crypt_filter_dictionary';
+        }
+
+        if ($roleFailClosedNames !== []) {
+            $policy['crypt_filter_role_declaration_review'] = $cryptFilterRoleReview;
+            $policy['crypt_filter_role_declaration_status'] = 'malformed_crypt_filter_role_entry_review';
+            $policy['crypt_filter_role_fail_closed_role_names'] = $roleFailClosedNames;
+            $policy['crypt_filter_role_fail_closed_pdf_names'] = array_values(array_filter(
+                $cryptFilterRoleReview['fail_closed_pdf_names'] ?? [],
+                static fn (mixed $value): bool => is_string($value)
+            ));
+            $policy['crypt_filter_role_policy'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($stringRoleFailClosed) {
+            $policy['file_spec_strings_policy_reason'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($embeddedFileRoleFailClosed) {
+            $policy['embedded_file_stream_policy_reason'] = 'suppressed_malformed_crypt_filter_role';
         }
 
         if ($stringFilter !== null) {

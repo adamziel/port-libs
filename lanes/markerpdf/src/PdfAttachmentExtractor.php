@@ -1145,6 +1145,9 @@ final class PdfAttachmentExtractor
         $streamFilter = $this->nameOrStringValue($dictionary['StmF'] ?? null, $objects);
         $stringFilter = $this->nameOrStringValue($dictionary['StrF'] ?? null, $objects);
         $embeddedFileFilter = $this->nameOrStringValue($dictionary['EFF'] ?? null, $objects);
+        $streamRoleMalformed = $this->attachmentCryptFilterRoleMalformed($dictionary, 'StmF', $objects);
+        $stringRoleMalformed = $this->attachmentCryptFilterRoleMalformed($dictionary, 'StrF', $objects);
+        $embeddedFileRoleMalformed = $this->attachmentCryptFilterRoleMalformed($dictionary, 'EFF', $objects);
         $streamFilterDefaulted = false;
         $stringFilterDefaulted = false;
         $embeddedFileFilterDefaulted = false;
@@ -1171,8 +1174,22 @@ final class PdfAttachmentExtractor
         $streamFilterStatus = $this->attachmentCryptFilterStatus($streamFilter, $cryptFilters, $version);
         $stringFilterStatus = $this->attachmentCryptFilterStatus($stringFilter, $cryptFilters, $version);
         $embeddedFileFilterStatus = $this->attachmentCryptFilterStatus($embeddedFileFilter, $cryptFilters, $version);
-        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter';
-        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter';
+        $embeddedFileRoleFailClosed = $embeddedFileRoleMalformed || ($embeddedFileFilterDefaulted && $streamRoleMalformed);
+        $stringsEncrypted = $stringFilterStatus !== 'identity_crypt_filter' || $stringRoleMalformed;
+        $embeddedStreamsEncrypted = $embeddedFileFilterStatus !== 'identity_crypt_filter' || $embeddedFileRoleFailClosed;
+        $roleFailClosedNames = [];
+        $roleFailClosedPdfNames = [];
+        foreach ([
+            'document_streams' => ['malformed' => $streamRoleMalformed, 'pdf_name' => 'StmF'],
+            'document_strings' => ['malformed' => $stringRoleMalformed, 'pdf_name' => 'StrF'],
+            'embedded_file_streams' => ['malformed' => $embeddedFileRoleFailClosed, 'pdf_name' => 'EFF'],
+        ] as $role => $review) {
+            if (($review['malformed'] ?? false) !== true) {
+                continue;
+            }
+            $roleFailClosedNames[] = $role;
+            $roleFailClosedPdfNames[] = $review['pdf_name'];
+        }
 
         $policy = [
             'source' => 'encrypted_attachment_preflight',
@@ -1196,6 +1213,19 @@ final class PdfAttachmentExtractor
             'executes_decryption' => false,
         ];
 
+        if ($roleFailClosedNames !== []) {
+            $policy['crypt_filter_role_declaration_status'] = 'malformed_crypt_filter_role_entry_review';
+            $policy['crypt_filter_role_fail_closed_role_names'] = $roleFailClosedNames;
+            $policy['crypt_filter_role_fail_closed_pdf_names'] = $roleFailClosedPdfNames;
+            $policy['crypt_filter_role_policy'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($stringRoleMalformed) {
+            $policy['file_spec_strings_policy_reason'] = 'suppressed_malformed_crypt_filter_role';
+        }
+        if ($embeddedFileRoleFailClosed) {
+            $policy['embedded_file_stream_policy_reason'] = 'suppressed_malformed_crypt_filter_role';
+        }
+
         if ($version !== null) {
             $policy['version'] = $version;
         }
@@ -1213,6 +1243,19 @@ final class PdfAttachmentExtractor
         }
 
         return $policy;
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function attachmentCryptFilterRoleMalformed(array $dictionary, string $pdfName, array $objects): bool
+    {
+        if (!array_key_exists($pdfName, $dictionary)) {
+            return false;
+        }
+
+        return $this->nameValue($this->resolveValue($dictionary[$pdfName], $objects)) === null;
     }
 
     /**
