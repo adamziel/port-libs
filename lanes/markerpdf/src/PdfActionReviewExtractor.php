@@ -48,6 +48,8 @@ final class PdfActionReviewExtractor
     /** @var array<string, mixed> */
     private array $destinations;
 
+    private ?string $uriBase;
+
     public function __construct(string $pdfBytes)
     {
         $this->objects = $this->parsedObjectValues($pdfBytes);
@@ -60,6 +62,7 @@ final class PdfActionReviewExtractor
         }
 
         $this->destinations = $catalog === null ? [] : $this->destinationMap($catalog, $this->objects);
+        $this->uriBase = $catalog === null ? null : $this->catalogUriBase($catalog);
     }
 
     /**
@@ -289,21 +292,21 @@ final class PdfActionReviewExtractor
                 return null;
             }
 
-            $isSafeUri = $this->isSafeUri($uri);
+            $uriReview = $this->uriReview($uri);
 
             return $this->reviewAction(
                 'URI',
-                $isSafeUri ? 'review-uri' : 'blocked-unsafe-uri',
+                $uriReview['is_safe_uri'] ? 'review-uri' : 'blocked-unsafe-uri',
                 null,
                 null,
                 null,
                 [],
                 [],
-                $uri,
+                $uriReview['uri'],
                 null,
                 null,
-                $isSafeUri
-            );
+                $uriReview['is_safe_uri']
+            ) + $uriReview['metadata'];
         }
 
         if ($type === 'GoToR') {
@@ -1179,6 +1182,30 @@ final class PdfActionReviewExtractor
     }
 
     /**
+     * @param array<string, mixed> $catalog
+     */
+    private function catalogUriBase(array $catalog): ?string
+    {
+        $uriDictionary = $this->resolveDictionary($catalog['URI'] ?? null);
+        if ($uriDictionary === null) {
+            return null;
+        }
+
+        $base = $this->stringOrNameValue($this->resolveValue($uriDictionary['Base'] ?? null));
+        if ($base === null) {
+            return null;
+        }
+
+        $base = trim($base);
+        $scheme = $this->uriScheme($base);
+        if ($base === '' || $scheme === null || !$this->isSafeUri($base)) {
+            return null;
+        }
+
+        return in_array($scheme, ['http', 'https', 'ftp'], true) ? $base : null;
+    }
+
+    /**
      * @param array<string, mixed> $node
      * @param array<string, mixed> $destinations
      * @param array<int, true> $seen
@@ -1540,6 +1567,129 @@ final class PdfActionReviewExtractor
         }
 
         return str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/') || str_starts_with($trimmed, './') || str_starts_with($trimmed, '../');
+    }
+
+    /**
+     * @return array{uri: string, is_safe_uri: bool, metadata: array<string, mixed>}
+     */
+    private function uriReview(string $rawUri): array
+    {
+        $relative = $this->isRelativeUri($rawUri);
+        $resolved = $relative && $this->uriBase !== null
+            ? $this->resolveRelativeUriAgainstBase($rawUri, $this->uriBase)
+            : null;
+        $uri = $resolved ?? $rawUri;
+        $metadata = [
+            'uri_relative' => $relative,
+            'uri_resolved_from_base' => $resolved !== null,
+        ];
+
+        if ($resolved !== null) {
+            $metadata['raw_uri'] = $rawUri;
+            $metadata['uri_base'] = $this->uriBase;
+        }
+
+        return [
+            'uri' => $uri,
+            'is_safe_uri' => $this->isSafeUri($uri),
+            'metadata' => $metadata,
+        ];
+    }
+
+    private function isRelativeUri(string $uri): bool
+    {
+        $trimmed = trim($uri);
+        if ($trimmed === '' || preg_match('/[\x00-\x20\x7F]/', $uri) === 1) {
+            return false;
+        }
+
+        return preg_match('/^[a-z][a-z0-9+.-]*:/i', $trimmed) !== 1
+            && !str_starts_with($trimmed, '//');
+    }
+
+    private function resolveRelativeUriAgainstBase(string $relativeUri, string $baseUri): ?string
+    {
+        $base = parse_url($baseUri);
+        if (!is_array($base) || !is_string($base['scheme'] ?? null) || !is_string($base['host'] ?? null)) {
+            return null;
+        }
+
+        $relative = parse_url($relativeUri);
+        if ($relative === false) {
+            return null;
+        }
+
+        $scheme = strtolower($base['scheme']);
+        if (!in_array($scheme, ['http', 'https', 'ftp'], true)) {
+            return null;
+        }
+
+        $basePath = is_string($base['path'] ?? null) && $base['path'] !== '' ? $base['path'] : '/';
+        $baseQuery = is_string($base['query'] ?? null) ? $base['query'] : null;
+        $relativePath = is_string($relative['path'] ?? null) ? $relative['path'] : '';
+        $path = $basePath;
+        $query = null;
+        $fragment = is_string($relative['fragment'] ?? null) ? $relative['fragment'] : null;
+
+        if ($relativePath !== '') {
+            $baseDirectory = str_ends_with($basePath, '/')
+                ? $basePath
+                : substr($basePath, 0, (int) strrpos($basePath, '/') + 1);
+            $path = str_starts_with($relativePath, '/')
+                ? $relativePath
+                : $baseDirectory . $relativePath;
+            $query = is_string($relative['query'] ?? null) ? $relative['query'] : null;
+        } else {
+            $query = is_string($relative['query'] ?? null) ? $relative['query'] : $baseQuery;
+        }
+
+        return $this->buildUri(
+            $scheme,
+            $base['host'],
+            is_int($base['port'] ?? null) ? $base['port'] : null,
+            $this->normalizeUriPath($path),
+            $query,
+            $fragment
+        );
+    }
+
+    private function buildUri(string $scheme, string $host, ?int $port, string $path, ?string $query, ?string $fragment): string
+    {
+        $uri = $scheme . '://' . $host;
+        if ($port !== null) {
+            $uri .= ':' . $port;
+        }
+
+        $uri .= $path === '' || $path[0] !== '/' ? '/' . $path : $path;
+        if ($query !== null && $query !== '') {
+            $uri .= '?' . $query;
+        }
+        if ($fragment !== null && $fragment !== '') {
+            $uri .= '#' . $fragment;
+        }
+
+        return $uri;
+    }
+
+    private function normalizeUriPath(string $path): string
+    {
+        $absolute = str_starts_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            if ($segment === '..') {
+                array_pop($segments);
+                continue;
+            }
+
+            $segments[] = $segment;
+        }
+
+        $normalized = implode('/', $segments);
+        return ($absolute ? '/' : '') . $normalized;
     }
 
     private function uriScheme(?string $uri): ?string
