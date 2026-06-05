@@ -418,6 +418,25 @@ TPL;
         ]), $output);
     },
 
+    'joins pandoc doctemplate piped variables with trailing separators' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Keywords: $keywords/reverse/uppercase[ / ]$
+Sources: ${ sources/rest/uppercase[, ] }
+Missing: <$missing/rest[ | ]$>
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'keywords' => ['migration', 'wordpress', 'review'],
+            'sources' => ['media', 'links', 'layout'],
+        ]);
+
+        $t->same(implode("\n", [
+            'Keywords: REVIEW / WORDPRESS / MIGRATION',
+            'Sources: LINKS, LAYOUT',
+            'Missing: <>',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate parameterized enumeration and padding pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Checklist:

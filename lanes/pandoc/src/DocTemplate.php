@@ -1074,7 +1074,8 @@ final class DocTemplate
      */
     private function parseVariableExpression(string $expression): array
     {
-        $parts = $this->splitPipeExpression($expression);
+        [$expressionWithoutTrailingSeparator, $trailingSeparator] = $this->extractTrailingSeparator($expression);
+        $parts = $this->splitPipeExpression($expressionWithoutTrailingSeparator);
         $base = array_shift($parts);
         if ($base === null || !preg_match('/^(.+?)(?:\\[(.*)\\])?$/s', $base, $matches)) {
             throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
@@ -1085,9 +1086,58 @@ final class DocTemplate
 
         return [
             'name' => $name,
-            'separator' => array_key_exists(2, $matches) ? $matches[2] : null,
+            'separator' => $trailingSeparator ?? (array_key_exists(2, $matches) ? $matches[2] : null),
             'pipes' => $this->parsePipeSpecs($parts, $expression),
         ];
+    }
+
+    /**
+     * @return array{0:string, 1:?string}
+     */
+    private function extractTrailingSeparator(string $expression): array
+    {
+        $source = rtrim($expression, " \t");
+        if ($source === '' || !str_ends_with($source, ']')) {
+            return [$expression, null];
+        }
+
+        $inQuote = false;
+        $escape = false;
+        $separatorStart = null;
+        $length = strlen($source);
+        for ($index = 0; $index < $length; $index++) {
+            $char = $source[$index];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $escape = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                continue;
+            }
+
+            if (!$inQuote && $char === '[') {
+                $separatorStart = $index;
+                break;
+            }
+        }
+
+        if ($separatorStart === null) {
+            return [$expression, null];
+        }
+
+        $separator = substr($source, $separatorStart + 1, $length - $separatorStart - 2);
+        if (str_contains($separator, ']')) {
+            return [$expression, null];
+        }
+
+        return [rtrim(substr($source, 0, $separatorStart), " \t"), $separator];
     }
 
     private function validateVariableName(string $name, string $expression): void

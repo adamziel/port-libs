@@ -26,6 +26,7 @@ for $title$$~$</p>
 <p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
 <p class="ticket">Ticket: ${ review-id/left 8 "[" "]" }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
+<p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
@@ -61,6 +62,7 @@ $context = [
         ['name' => 'Migration bot'],
         ['name' => 'Content editor'],
     ],
+    'reviewSources' => ['media', 'links', 'layout'],
     'reviewMeta' => [
         'zeta' => 'queued-last',
         'alpha' => 'queued-first',
@@ -98,6 +100,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="next-warning">LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
         '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
+        '<p class="review-sources">LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         '<p class="source-summary" data-état="prêt">Résumé de migration</p>',
