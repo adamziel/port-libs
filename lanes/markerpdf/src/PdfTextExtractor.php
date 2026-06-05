@@ -23361,16 +23361,15 @@ final class PdfTextExtractor
         foreach ($this->cMapOperatorBlocks($cmap, 'beginbfchar', 'endbfchar') as $charBlock) {
             $block = $this->cMapOperatorBlockData($charBlock['body']);
             $declaredCount = $charBlock['declaredCount'];
-            if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
-                if ($declaredCount !== null) {
-                    $entries = array_slice($entries, 0, max(0, $declaredCount));
-                }
+            $entries = $this->cMapTopLevelHexPairs($block);
+            if ($declaredCount !== null) {
+                $entries = array_slice($entries, 0, max(0, $declaredCount));
+            }
 
-                foreach ($entries as $entry) {
-                    $source = $this->normalizeHexKey($entry[1]);
-                    if ($source !== '') {
-                        $map[$source] = $this->decodeCMapUnicodeHex($entry[2]);
-                    }
+            foreach ($entries as [$sourceHex, $targetHex]) {
+                $source = $this->normalizeHexKey($sourceHex);
+                if ($source !== '') {
+                    $map[$source] = $this->decodeCMapUnicodeHex($targetHex);
                 }
             }
         }
@@ -24105,6 +24104,20 @@ final class PdfTextExtractor
         }
 
         return $tokens;
+    }
+
+    /**
+     * @return list<array{0: string, 1: string}>
+     */
+    private function cMapTopLevelHexPairs(string $source): array
+    {
+        $tokens = $this->cMapTopLevelHexTokens($source);
+        $pairs = [];
+        for ($index = 0, $count = count($tokens); $index + 1 < $count; $index += 2) {
+            $pairs[] = [$tokens[$index], $tokens[$index + 1]];
+        }
+
+        return $pairs;
     }
 
     private function normalizeHexKey(string $hex): string
