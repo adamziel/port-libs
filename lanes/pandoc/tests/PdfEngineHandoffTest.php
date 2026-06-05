@@ -712,6 +712,103 @@ MARKDOWN);
         $t->same($result['pdfTrailerRevisions'], $sequence['finalPdfTrailerRevisions']);
     },
 
+    'fake runner extracts bounded pdf xref stream and object stream preflight metadata' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/modern.pdf']);
+        $objectStreamHeader = "8 0 9 24\n";
+        $objectStreamPayload = $objectStreamHeader
+            . "<< /Title (Compressed outline) >>\n"
+            . "<< /Subtype /Link >>\n";
+        $xrefStreamPayload = "fake compressed xref stream bytes";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /ObjStm /N 2 /First ' . strlen($objectStreamHeader) . ' /Extends 7 0 R /Length ' . strlen($objectStreamPayload) . ' >>',
+            'stream',
+            $objectStreamPayload,
+            'endstream',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /XRef /Size 10 /Root 1 0 R /Info 6 0 R /Prev 128 /Index [0 6 8 2] /W [1 2 1] /Filter /FlateDecode /Length ' . strlen($xrefStreamPayload) . ' >>',
+            'stream',
+            $xrefStreamPayload,
+            'endstream',
+            'endobj',
+            '6 0 obj',
+            '<< /Title (Modern export) >>',
+            'endobj',
+            'startxref',
+            '384',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/modern.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/modern.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            [
+                'object' => '5 0 R',
+                'size' => 10,
+                'root' => '1 0 R',
+                'info' => '6 0 R',
+                'encrypt' => null,
+                'prev' => 128,
+                'index' => [0, 6, 8, 2],
+                'w' => [1, 2, 1],
+                'filters' => ['FlateDecode'],
+                'streamBytes' => strlen($xrefStreamPayload),
+                'streamSha256' => null,
+                'streamSkipped' => 'filtered',
+            ],
+        ], $result['pdfXrefStreams']);
+        $t->same(['FlateDecode' => 1], $result['pdfXrefStreamFilters']);
+        $t->same([
+            [
+                'object' => '4 0 R',
+                'objectCount' => 2,
+                'firstByteOffset' => strlen($objectStreamHeader),
+                'extends' => '7 0 R',
+                'objectNumbers' => [8, 9],
+                'filters' => [],
+                'streamBytes' => strlen($objectStreamPayload),
+                'streamSha256' => hash('sha256', $objectStreamPayload),
+                'streamSkipped' => null,
+            ],
+        ], $result['pdfObjectStreams']);
+        $t->same([], $result['pdfObjectStreamFilters']);
+        $t->contains('pdf-byte-xref-streams:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xref-stream-filter:FlateDecode:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xref-stream-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-streams:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-object-stream-objects:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($result['pdfXrefStreams'], $sequence['finalPdfXrefStreams']);
+        $t->same($result['pdfXrefStreamFilters'], $sequence['finalPdfXrefStreamFilters']);
+        $t->same($result['pdfObjectStreams'], $sequence['finalPdfObjectStreams']);
+        $t->same($result['pdfObjectStreamFilters'], $sequence['finalPdfObjectStreamFilters']);
+    },
+
     'fake runner extracts bounded pdf page tree and outline titles from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
