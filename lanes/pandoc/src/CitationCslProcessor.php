@@ -555,6 +555,9 @@ final class CitationCslProcessor
             'id' => $id,
             'type' => self::stringField($item, 'type'),
             'citationAliases' => self::stringListFromFirstField($item, ['citation-aliases', 'citationAliases', 'ids']),
+            'citationLabel' => self::firstStringField($item, ['citation-label', 'citationLabel', 'shorthand', 'label']),
+            'shorthand' => self::firstStringField($item, ['shorthand']),
+            'shorthandIntro' => self::firstStringField($item, ['shorthand-intro', 'shorthandIntro', 'shorthandintro']),
             'title' => self::stringField($item, 'title'),
             'shortTitle' => self::stringField($item, 'short-title'),
             'titleAddon' => self::stringField($item, 'title-addon'),
@@ -611,6 +614,8 @@ final class CitationCslProcessor
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
+            'shortAuthors' => self::names($item['short-author'] ?? $item['shortAuthor'] ?? [], $id, 'short-author'),
+            'shortEditors' => self::names($item['short-editor'] ?? $item['shortEditor'] ?? [], $id, 'short-editor'),
             'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
             'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
             'eventOrganizers' => self::names($item['event-organizer'] ?? [], $id, 'event-organizer'),
@@ -1866,6 +1871,8 @@ final class CitationCslProcessor
             'issued', 'date' => $this->issuedSortValue($item),
             'title' => $this->normalizeSortText((string) $item['title']),
             'short-title' => $this->normalizeSortText((string) $item['shortTitle']),
+            'citation-label' => $this->normalizeSortText((string) $item['citationLabel']),
+            'shorthand' => $this->normalizeSortText((string) $item['shorthand']),
             'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
@@ -2281,6 +2288,13 @@ final class CitationCslProcessor
         $author = $this->citationAuthorLabel($item);
         $suffix = $this->citationSuffix($citation);
         $prefix = $this->citationPrefix($citation);
+        $citationLabel = $this->standaloneCitationLabel($item);
+
+        if ($citationLabel !== '') {
+            $entry = $citationLabel . ($suffix === '' ? '' : ', ' . $suffix);
+
+            return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+        }
 
         if ($mode === 'author_in_text') {
             $entry = $author . ' (' . $year . ($suffix === '' ? '' : ', ' . $suffix) . ')';
@@ -2423,7 +2437,20 @@ final class CitationCslProcessor
      */
     private function citationLabel(array $item): string
     {
+        $citationLabel = $this->standaloneCitationLabel($item);
+        if ($citationLabel !== '') {
+            return $citationLabel;
+        }
+
         return $this->citationAuthorLabel($item) . ' ' . $this->citationYear($item);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function standaloneCitationLabel(array $item): string
+    {
+        return trim((string) ($item['citationLabel'] ?? ''));
     }
 
     /**
@@ -2431,7 +2458,13 @@ final class CitationCslProcessor
      */
     private function citationAuthorLabel(array $item): string
     {
-        $names = $item['authors'];
+        $names = $item['shortAuthors'];
+        if ($names === []) {
+            $names = $item['authors'];
+        }
+        if ($names === []) {
+            $names = $item['shortEditors'];
+        }
         if ($names === []) {
             $names = $item['editors'];
         }
@@ -3877,6 +3910,9 @@ final class CitationCslProcessor
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
+            'citation-label' => (string) $item['citationLabel'],
+            'shorthand' => (string) $item['shorthand'],
+            'shorthand-intro' => (string) $item['shorthandIntro'],
             'title' => (string) $item['title'],
             'short-title' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
@@ -3925,6 +3961,8 @@ final class CitationCslProcessor
             'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
             'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
+            'short-author' => $this->renderNamesElement(['variable' => 'short-author'], $item, $scope),
+            'short-editor' => $this->renderNamesElement(['variable' => 'short-editor'], $item, $scope),
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
             'editor' => $this->renderNamesElement(['variable' => 'editor'], $item, $scope),
             'holder' => $this->renderNamesElement(['variable' => 'holder'], $item, $scope),
@@ -3990,7 +4028,7 @@ final class CitationCslProcessor
             return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
         }
 
-        if (in_array($normalized, ['author', 'editor', 'holder', 'translator', 'event-organizer', 'organizer', 'original-author', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
+        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'translator', 'event-organizer', 'organizer', 'original-author', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -4041,6 +4079,8 @@ final class CitationCslProcessor
 
         foreach ($variables as $nameVariable) {
             $names = match ($nameVariable) {
+                'short-author' => $item['shortAuthors'] ?? [],
+                'short-editor' => $item['shortEditors'] ?? [],
                 'author' => $item['authors'] ?? [],
                 'editor' => $item['editors'] ?? [],
                 'holder' => $item['holders'] ?? [],

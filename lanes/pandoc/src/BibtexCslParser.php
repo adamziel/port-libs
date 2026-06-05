@@ -569,6 +569,10 @@ final class BibtexCslParser
             'id' => $key,
             'type' => self::cslType($type),
             'citation-aliases' => self::biblatexKeyList($fields['ids'] ?? ''),
+            'citation-label' => self::firstField($fields, ['shorthand', 'label']),
+            'label' => self::firstField($fields, ['label']),
+            'shorthand' => self::firstField($fields, ['shorthand']),
+            'shorthand-intro' => self::firstField($fields, ['shorthandintro', 'shorthand-intro']),
             'title' => self::composedTitle($fields, ['title'], ['subtitle']),
             'short-title' => self::firstField($fields, ['shorttitle']),
             'title-addon' => self::firstField($fields, ['titleaddon']),
@@ -645,6 +649,16 @@ final class BibtexCslParser
         $editor = self::namesFromBibtexField($fields, 'editor');
         if ($editor !== []) {
             $item['editor'] = $editor;
+        }
+
+        $shortAuthor = self::namesFromBibtexField($fields, 'shortauthor');
+        if ($shortAuthor !== []) {
+            $item['short-author'] = $shortAuthor;
+        }
+
+        $shortEditor = self::namesFromBibtexField($fields, 'shorteditor');
+        if ($shortEditor !== []) {
+            $item['short-editor'] = $shortEditor;
         }
 
         $holder = self::namesFromBibtexField($fields, 'holder');

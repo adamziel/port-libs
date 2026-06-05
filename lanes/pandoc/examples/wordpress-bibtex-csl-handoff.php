@@ -45,6 +45,8 @@ Secondary editor source @secondary-editor-review preserves compiler, editorial d
 
 Annotated name source @name-annotation-review keeps reviewer name annotations attached.
 
+Shorthand source @shorthand-review and short editor source [@short-editor-review] keep compact citation labels visible.
+
 Software source @import-tool and dataset [@source-dataset] preserve version and publication state metadata.
 
 Event paper @event-paper and proceedings [@event-proceedings] preserve conference metadata.
@@ -345,6 +347,25 @@ $bibtex = <<<'BIB'
   nameaddon  = {Imported source names verified by review desk}
 }
 
+@book{shorthand-review,
+  author         = {Smith, Ada and Curator, Eli},
+  shortauthor    = {{WIR Desk}},
+  title          = {WordPress Import Review Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  shorthand      = {WIR},
+  shorthandintro = {cited as WordPress Import Review},
+  label          = {Manual Label}
+}
+
+@collection{short-editor-review,
+  editor      = {Roe, Pat and Ng, Nia},
+  shorteditor = {{Review Editors}},
+  title       = {Editor Label Source},
+  date        = {2025},
+  publisher   = {Review Press}
+}
+
 @software{import-tool,
   author   = {{Migration Desk}},
   title    = {Block Import Verifier},
@@ -606,6 +627,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($nameAnnotationReview['editors'][0]['annotations'][0]['value'] ?? null) !== 'review editor') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve editor name annotation metadata');
     }
+    $shorthandReview = $processor->item('shorthand-review');
+    if (($shorthandReview['citationLabel'] ?? null) !== 'WIR') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve shorthand citation label metadata');
+    }
+    if (($shorthandReview['shorthandIntro'] ?? null) !== 'cited as WordPress Import Review') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve shorthand intro metadata');
+    }
+    if (($shorthandReview['shortAuthors'][0]['literal'] ?? null) !== 'WIR Desk') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve short author metadata');
+    }
+    $shortEditorReview = $processor->item('short-editor-review');
+    if (($shortEditorReview['shortEditors'][0]['literal'] ?? null) !== 'Review Editors') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve short editor metadata');
+    }
     $importTool = $processor->item('import-tool');
     if (($importTool['version'] ?? null) !== '2.1.0-beta') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve software version metadata');
@@ -712,6 +747,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Smith 2026</dt><dd>Smith, Ada. Migration Source Dossier. Review Press, 2026. Compiled by Roe, Pat; Migration Desk. Editorial direction by Ng, Nia. Reviewer: de la Cruz, Ana Maria.</dd>',
         '<p>Annotated name source Smith and Ng (2026) keeps reviewer name annotations attached.</p>',
         '<dt>Smith and Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Annotated Source Names. Review Press, 2026. Name addendum: Imported source names verified by review desk. Name annotations: Author 1: primary source author; Author 2 family: family name verified; Editor 1: review editor.</dd>',
+        '<p>Shorthand source WIR and short editor source (Review Editors 2025) keep compact citation labels visible.</p>',
+        '<dt>WIR</dt><dd>Smith, Ada; Curator, Eli. WordPress Import Review Manual. Review Press, 2026.</dd>',
+        '<dt>Review Editors 2025</dt><dd>Roe, Pat; Ng, Nia. Editor Label Source. Review Press, 2025.</dd>',
         '<p>Software source Migration Desk (2026) and dataset (Ng 2025) preserve version and publication state metadata.</p>',
         '<dt>Migration Desk 2026</dt><dd>Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.</dd>',
         '<dt>Ng 2025</dt><dd>Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.</dd>',

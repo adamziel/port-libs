@@ -1572,6 +1572,121 @@ XML);
             ],
         ]]));
     },
+    'maps bounded biblatex shorthand labels and short creator lists' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{shorthand-review,
+  author         = {Smith, Ada and Curator, Eli},
+  shortauthor    = {{WIR Desk}},
+  title          = {WordPress Import Review Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  shorthand      = {WIR},
+  shorthandintro = {cited as WordPress Import Review},
+  label          = {Manual Label}
+}
+
+@collection{short-editor-review,
+  editor      = {Roe, Pat and Ng, Nia},
+  shorteditor = {{Review Editors}},
+  title       = {Editor Label Source},
+  date        = {2025},
+  publisher   = {Review Press}
+}
+
+@online{explicit-label-review,
+  title = {Legacy Source Packet},
+  label = {LSP},
+  date  = {2024},
+  url   = {https://example.test/legacy-source-packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('WIR', $items[0]['citation-label']);
+        $t->same('WIR', $items[0]['shorthand']);
+        $t->same('cited as WordPress Import Review', $items[0]['shorthand-intro']);
+        $t->same([['literal' => 'WIR Desk']], $items[0]['short-author']);
+        $t->same('Manual Label', $items[0]['label']);
+        $t->same([['literal' => 'Review Editors']], $items[1]['short-editor']);
+        $t->same('LSP', $items[2]['citation-label']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $shorthand = $processor->item('shorthand-review');
+        $shortEditor = $processor->item('short-editor-review');
+        $explicitLabel = $processor->item('explicit-label-review');
+        $t->same('WIR', $shorthand['citationLabel'] ?? null);
+        $t->same('cited as WordPress Import Review', $shorthand['shorthandIntro'] ?? null);
+        $t->same('WIR Desk', $shorthand['shortAuthors'][0]['literal'] ?? null);
+        $t->same('Review Editors', $shortEditor['shortEditors'][0]['literal'] ?? null);
+        $t->same('LSP', $explicitLabel['citationLabel'] ?? null);
+        $t->same('(WIR; Review Editors 2025; LSP)', $processor->renderCitationCluster([
+            $citation('shorthand-review', '[@shorthand-review]'),
+            $citation('short-editor-review', '[@short-editor-review]'),
+            $citation('explicit-label-review', '[@explicit-label-review]'),
+        ]));
+        $t->same('(WIR, p. 9)', $processor->renderCitationCluster([
+            $citation('shorthand-review', '[@shorthand-review, p. 9]', 'normal', ['suffix' => 'p. 9']),
+        ]));
+        $t->same('Smith, Ada; Curator, Eli. WordPress Import Review Manual. Review Press, 2026.', $processor->renderBibliographyEntry('shorthand-review'));
+
+        $bibliography = $processor->bibliographyDefinitionList(['shorthand-review', 'short-editor-review', 'explicit-label-review']);
+        $t->same('WIR', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('Review Editors 2025', $bibliography->children[1]->children[0]->attr('text'));
+        $t->same('LSP', $bibliography->children[2]->children[0]->attr('text'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="citation-label"/>
+        <text variable="shorthand-intro"/>
+        <names variable="short-author short-editor"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="citation-label"/>
+      <text variable="shorthand"/>
+      <text variable="shorthand-intro"/>
+      <names variable="short-author short-editor"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[WIR | cited as WordPress Import Review | WIR Desk; Review Editors; LSP]', $styled->renderCitationCluster([
+            $citation('shorthand-review', '[@shorthand-review]'),
+            $citation('short-editor-review', '[@short-editor-review]'),
+            $citation('explicit-label-review', '[@explicit-label-review]'),
+        ]));
+        $t->same('WordPress Import Review Manual :: WIR :: WIR :: cited as WordPress Import Review :: WIR Desk', $styled->renderBibliographyEntry('shorthand-review'));
+        $t->same('Editor Label Source :: Review Editors', $styled->renderBibliographyEntry('short-editor-review'));
+
+        $document = (new MarkdownReader())->read('Shorthand source @shorthand-review and editor source [@short-editor-review] keep compact review labels.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Shorthand source WIR and editor source (Review Editors 2025) keep compact review labels.</p>', $blocks);
+        $t->contains('<dt>WIR</dt><dd>Smith, Ada; Curator, Eli. WordPress Import Review Manual. Review Press, 2026.</dd>', $blocks);
+        $t->contains('<dt>Review Editors 2025</dt><dd>Roe, Pat; Ng, Nia. Editor Label Source. Review Press, 2025.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-label',
+            'title' => 'Manual Label Source',
+            'citation-label' => 'MLS',
+            'shorthand-intro' => 'manual intro',
+            'short-author' => [
+                ['literal' => 'Manual Desk'],
+            ],
+        ]]);
+        $manualItem = $manual->item('manual-label');
+        $t->same('MLS', $manualItem['citationLabel'] ?? null);
+        $t->same('manual intro', $manualItem['shorthandIntro'] ?? null);
+        $t->same('Manual Desk', $manualItem['shortAuthors'][0]['literal'] ?? null);
+        $t->same('(MLS)', $manual->renderCitationCluster([$citation('manual-label', '[@manual-label]')]));
+    },
     'maps bounded biblatex software dataset version and pubstate metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @software{import-tool,
