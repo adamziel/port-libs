@@ -646,6 +646,90 @@ return [
             unlink($path);
         }
     },
+    'prefers exact page markers over one-based page_number collisions in supplied layout and order artifacts' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-marker-precedence-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied layout order marker precedence boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(400, [
+                ['text' => 'Marker precedence cover page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(401, [
+                ['text' => 'Second exact supplied marker column carries review notes.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First exact supplied marker column starts the import.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page_number' => 402, 'image' => 'one-based-collision-layout-render'],
+                        ['page' => 401, 'image' => 'exact-page-layout-render'],
+                    ],
+                    'layout_results' => [
+                        [
+                            'page_number' => 402,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                        ],
+                        [
+                            'page' => 401,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                        ],
+                    ],
+                    'order_images' => [
+                        ['page_number' => 402, 'image' => 'one-based-collision-order-render'],
+                        ['page' => 401, 'image' => 'exact-page-order-render'],
+                    ],
+                    'order_results' => [
+                        [
+                            'page_number' => 402,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                            ],
+                        ],
+                        [
+                            'page' => 401,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                            ],
+                        ],
+                    ],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First exact supplied marker column starts the import.', $text);
+            $t->contains('Second exact supplied marker column carries review notes.', $text);
+            $t->true(strpos($text, 'First exact supplied marker column starts the import.') < strpos($text, 'Second exact supplied marker column carries review notes.'));
+            $t->true(!str_contains($text, 'Marker precedence cover page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'ignores selected-count keyed layout and order artifacts for unselected pdftext pages' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-keyed-mismatch-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% supplied keyed layout order mismatch boundary\n%%EOF");

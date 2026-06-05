@@ -103,6 +103,7 @@ final class PdfPageArtifactSelector
         foreach (array_values($pageRange) as $selectedIndex => $sourceIndex) {
             $pageNumber = $selectedPageNumbers[$selectedIndex] ?? null;
             $artifact = null;
+            $bestScore = null;
             foreach ($artifacts as $candidate) {
                 if (!is_array($candidate)) {
                     continue;
@@ -114,9 +115,10 @@ final class PdfPageArtifactSelector
                 }
 
                 $hasMarkers = true;
-                if ($this->pageMarkersMatchSelectedPage($markers, $sourceIndex, $pageNumber)) {
+                $score = $this->pageMarkerMatchScore($markers, $sourceIndex, $pageNumber);
+                if ($score !== null && ($bestScore === null || $score > $bestScore)) {
                     $artifact = $candidate;
-                    break;
+                    $bestScore = $score;
                 }
             }
 
@@ -203,27 +205,38 @@ final class PdfPageArtifactSelector
     /**
      * @param array{source_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>} $markers
      */
-    private function pageMarkersMatchSelectedPage(array $markers, int $sourceIndex, ?int $pageNumber): bool
+    private function pageMarkerMatchScore(array $markers, int $sourceIndex, ?int $pageNumber): ?int
     {
+        $score = 0;
+
         foreach ($markers['source_indexes'] ?? [] as $marker) {
             if ($marker !== $sourceIndex) {
-                return false;
+                return null;
             }
+        }
+        if (($markers['source_indexes'] ?? []) !== []) {
+            $score += 20;
         }
 
         foreach ($markers['pages'] ?? [] as $marker) {
             if ($marker !== ($pageNumber ?? $sourceIndex)) {
-                return false;
+                return null;
             }
+        }
+        if (($markers['pages'] ?? []) !== []) {
+            $score += 100;
         }
 
         foreach ($markers['page_numbers'] ?? [] as $marker) {
             if ($marker !== (($pageNumber ?? $sourceIndex) + 1)) {
-                return false;
+                return null;
             }
         }
+        if (($markers['page_numbers'] ?? []) !== []) {
+            $score += 10;
+        }
 
-        return $markers !== [];
+        return $markers !== [] ? $score : null;
     }
 
     /**
