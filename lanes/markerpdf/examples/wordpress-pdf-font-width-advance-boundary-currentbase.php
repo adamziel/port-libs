@@ -118,6 +118,32 @@ $absoluteTmStyledGapPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($absoluteTmStyledGapContent) . " >>\nstream\n{$absoluteTmStyledGapContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$cidAbsoluteTmStyledGapToUnicode = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<0000> <FFFF>\n"
+    . "endcodespacerange\n"
+    . "4 beginbfchar\n"
+    . "<0001> <0041>\n"
+    . "<0002> <0042>\n"
+    . "<0003> <0043>\n"
+    . "<0004> <0044>\n"
+    . "endbfchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$cidAbsoluteTmStyledGapContent = 'BT /Fcid 12 Tf '
+    . '1 0 0 1 72 720 Tm <00010002> Tj 1 0 0 1 108 720 Tm <00030004> Tj '
+    . 'T* 1 0 0 1 72 704 Tm <00010002> Tj 1 0 0 1 96 704 Tm <00030004> Tj ET';
+$cidAbsoluteTmStyledGapPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CIDAbsoluteTmStyledGap /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($cidAbsoluteTmStyledGapToUnicode) . " >>\nstream\n{$cidAbsoluteTmStyledGapToUnicode}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CIDAbsoluteTmStyledGap /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [1 4 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($cidAbsoluteTmStyledGapContent) . " >>\nstream\n{$cidAbsoluteTmStyledGapContent}\nendstream\nendobj\n%%EOF";
+
 $negativeTcBacktrackContent = 'BT /FnegTc 12 Tf -30 Tc 1 0 0 1 72 720 Tm <4142> Tj ET';
 $negativeTcBacktrackPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /FnegTc 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -493,6 +519,25 @@ $absoluteTmStyledGapSecondBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $absoluteTmStyledGapSecondLine['spans'] ?? []
 );
+$cidAbsoluteTmStyledGapLines = $extractor->extractTextLines($cidAbsoluteTmStyledGapPdf);
+$cidAbsoluteTmStyledGapPlainText = implode("\n", $cidAbsoluteTmStyledGapLines);
+$cidAbsoluteTmStyledGapPages = $extractor->extractStyledTextPages($cidAbsoluteTmStyledGapPdf);
+$cidAbsoluteTmStyledGapStyledLines = [];
+foreach (($cidAbsoluteTmStyledGapPages[0]['blocks'] ?? []) as $block) {
+    foreach (($block['lines'] ?? []) as $line) {
+        $cidAbsoluteTmStyledGapStyledLines[] = $line;
+    }
+}
+$cidAbsoluteTmStyledGapFirstLine = $cidAbsoluteTmStyledGapStyledLines[0] ?? [];
+$cidAbsoluteTmStyledGapSecondLine = $cidAbsoluteTmStyledGapStyledLines[1] ?? [];
+$cidAbsoluteTmStyledGapFirstBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $cidAbsoluteTmStyledGapFirstLine['spans'] ?? []
+);
+$cidAbsoluteTmStyledGapSecondBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $cidAbsoluteTmStyledGapSecondLine['spans'] ?? []
+);
 $negativeTcBacktrackLines = $extractor->extractTextLines($negativeTcBacktrackPdf);
 $negativeTcBacktrackPages = $extractor->extractStyledTextPages($negativeTcBacktrackPdf);
 $negativeTcBacktrackLine = $negativeTcBacktrackPages[0]['blocks'][0]['lines'][0] ?? [];
@@ -649,7 +694,7 @@ $type3FontMatrixVectorSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-exact-generation-widths-and-fontdescriptor-quote-terminal-tc-terminal-tw-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-exact-generation-widths-and-fontdescriptor-quote-terminal-tc-terminal-tw-relative-td-styled-gap-absolute-tm-styled-gap-cid-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -703,6 +748,12 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'absolute_tm_styled_gap_second_bboxes_preserved' => $absoluteTmStyledGapSecondBboxes === [[0.0, 0.0, 24.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
     'absolute_tm_styled_gap_line_bbox_preserved' => ($absoluteTmStyledGapSecondLine['bbox'] ?? null) === [0.0, 0.0, 60.0, 12.0],
     'absolute_tm_styled_gap_compaction_excluded' => $absoluteTmStyledGapSecondBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'cid_absolute_tm_styled_gap_lines_preserved' => $cidAbsoluteTmStyledGapLines === ['AB CD', 'ABCD'],
+    'cid_absolute_tm_styled_gap_plain_text_preserved' => $cidAbsoluteTmStyledGapPlainText === "AB CD\nABCD",
+    'cid_absolute_tm_styled_gap_first_bboxes_preserved' => $cidAbsoluteTmStyledGapFirstBboxes === [[0.0, 0.0, 24.0, 12.0], [36.0, 0.0, 60.0, 12.0]],
+    'cid_absolute_tm_styled_gap_second_bboxes_preserved' => $cidAbsoluteTmStyledGapSecondBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'cid_absolute_tm_styled_gap_line_bbox_preserved' => ($cidAbsoluteTmStyledGapFirstLine['bbox'] ?? null) === [0.0, 0.0, 60.0, 12.0],
+    'cid_absolute_tm_styled_gap_compaction_excluded' => $cidAbsoluteTmStyledGapFirstBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
     'negative_tc_backtrack_text_preserved' => $negativeTcBacktrackLines === ['AB'],
     'negative_tc_backtrack_span_bbox_preserved' => $negativeTcBacktrackSpanBboxes === [[0.0, 0.0, 30.0, 12.0]],
     'negative_tc_backtrack_line_bbox_preserved' => ($negativeTcBacktrackLine['bbox'] ?? null) === [0.0, 0.0, 30.0, 12.0],
@@ -804,6 +855,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'absolute_tm_styled_gap_first_bboxes' => $absoluteTmStyledGapFirstBboxes,
     'absolute_tm_styled_gap_second_bboxes' => $absoluteTmStyledGapSecondBboxes,
     'absolute_tm_styled_gap_second_line_bbox' => $absoluteTmStyledGapSecondLine['bbox'] ?? null,
+    'cid_absolute_tm_styled_gap_lines' => $cidAbsoluteTmStyledGapLines,
+    'cid_absolute_tm_styled_gap_first_bboxes' => $cidAbsoluteTmStyledGapFirstBboxes,
+    'cid_absolute_tm_styled_gap_second_bboxes' => $cidAbsoluteTmStyledGapSecondBboxes,
+    'cid_absolute_tm_styled_gap_first_line_bbox' => $cidAbsoluteTmStyledGapFirstLine['bbox'] ?? null,
     'negative_tc_backtrack_lines' => $negativeTcBacktrackLines,
     'negative_tc_backtrack_span_bboxes' => $negativeTcBacktrackSpanBboxes,
     'negative_tc_backtrack_line_bbox' => $negativeTcBacktrackLine['bbox'] ?? null,
@@ -843,7 +898,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $terminalTwLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $cidAbsoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

@@ -154,6 +154,35 @@ $fontWidthAbsoluteTmStyledGapBoundaryCurrentBasePdf = static function (): string
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthCidAbsoluteTmStyledGapBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<0001> <0041>\n"
+        . "<0002> <0042>\n"
+        . "<0003> <0043>\n"
+        . "<0004> <0044>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcid 12 Tf '
+        . '1 0 0 1 72 720 Tm <00010002> Tj 1 0 0 1 108 720 Tm <00030004> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <00010002> Tj 1 0 0 1 96 704 Tm <00030004> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CIDAbsoluteTmStyledGap /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CIDAbsoluteTmStyledGap /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [1 4 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthNegativeTcBacktrackBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /FnegTc 12 Tf -30 Tc 1 0 0 1 72 720 Tm <4142> Tj ET';
 
@@ -938,6 +967,36 @@ return [
         $t->true(!str_contains($plainText, 'AB CD' . "\n" . 'AB CD'));
         $t->true(!str_contains($plainText, 'AbsoluteTmStyledGap'));
         $t->true(!str_contains($plainText, 'Ftm'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'preserves Type0 CIDFont absolute Tm word-gap geometry in native styled bboxes on current base' => static function (TestRunner $t) use ($fontWidthCidAbsoluteTmStyledGapBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthCidAbsoluteTmStyledGapBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['AB CD', 'ABCD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("AB CD\nABCD", $plainText);
+        $t->same("AB CD\nABCD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [36.0, 0.0, 60.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 60.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same(['AB', 'CD'], array_column($secondLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'AB CD' . "\n" . 'AB CD'));
+        $t->true(!str_contains($plainText, 'CIDAbsoluteTmStyledGap'));
+        $t->true(!str_contains($plainText, 'Fcid'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'keeps negative character spacing backtracking from collapsing direct Tj styled font bboxes on current base' => static function (TestRunner $t) use ($fontWidthNegativeTcBacktrackBoundaryCurrentBasePdf): void {

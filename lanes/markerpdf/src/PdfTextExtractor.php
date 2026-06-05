@@ -27140,6 +27140,77 @@ final class PdfTextExtractor
         return $gap >= self::POSITIONED_TEXT_WORD_GAP ? $gap : null;
     }
 
+    private function fontMapSupportsStyledTextMatrixGap(?array $toUnicodeMap): bool
+    {
+        if ($toUnicodeMap === null || $this->mapWritingMode($toUnicodeMap) === 1) {
+            return false;
+        }
+
+        if (($toUnicodeMap['simpleFont'] ?? false) === true) {
+            return true;
+        }
+
+        if (!$this->fontMapHasDirectCidSourceKeys($toUnicodeMap)) {
+            return false;
+        }
+
+        $cidWidths = $toUnicodeMap['cidWidths'] ?? [];
+        if (is_array($cidWidths) && $cidWidths !== []) {
+            return true;
+        }
+
+        $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
+        if ((is_int($defaultWidth) || is_float($defaultWidth)) && is_finite((float) $defaultWidth)) {
+            return true;
+        }
+
+        $cidSet = $toUnicodeMap['cidSet'] ?? null;
+
+        return is_array($cidSet) && $cidSet !== [];
+    }
+
+    private function fontMapHasDirectCidSourceKeys(array $toUnicodeMap): bool
+    {
+        $map = $toUnicodeMap['map'] ?? [];
+        if (!is_array($map) || $map === []) {
+            return false;
+        }
+
+        $cidRanges = $toUnicodeMap['cidRanges'] ?? [];
+        if (is_array($cidRanges) && $cidRanges !== []) {
+            return false;
+        }
+
+        $codeSpaceWidths = [];
+        $codeSpaceRanges = $toUnicodeMap['cidCodeSpaceRanges'] ?? [];
+        if (!is_array($codeSpaceRanges) || $codeSpaceRanges === []) {
+            $codeSpaceRanges = $toUnicodeMap['codeSpaceRanges'] ?? [];
+        }
+
+        if (!is_array($codeSpaceRanges) || $codeSpaceRanges === []) {
+            return false;
+        }
+
+        foreach ($codeSpaceRanges as $range) {
+            $width = $range['width'] ?? null;
+            if (is_int($width) && $width > 0) {
+                $codeSpaceWidths[$width] = true;
+            }
+        }
+
+        if ($codeSpaceWidths === []) {
+            return false;
+        }
+
+        foreach (array_keys($map) as $sourceKey) {
+            if (!is_string($sourceKey) || !isset($codeSpaceWidths[strlen($sourceKey)])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * @param list<string> $operands
      */
@@ -27150,7 +27221,7 @@ final class PdfTextExtractor
         float $textMatrixHorizontalScale,
         float $textMatrixHorizontalExtentScale
     ): ?float {
-        if (($toUnicodeMap['simpleFont'] ?? false) !== true) {
+        if (!$this->fontMapSupportsStyledTextMatrixGap($toUnicodeMap)) {
             return null;
         }
 
