@@ -177,6 +177,10 @@ XML],
       <w:r><w:t xml:space="preserve"> remain labeled.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:pPr><w:bidi/><w:textDirection w:val="tbRl"/></w:pPr>
+      <w:r><w:t>ملف المصدر paragraph direction remains labeled.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Textbox lead </w:t></w:r>
       <w:r>
         <w:pict>
@@ -502,6 +506,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
+        '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',

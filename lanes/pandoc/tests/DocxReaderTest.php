@@ -912,6 +912,29 @@ $runLanguageDirectionDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$paragraphBidiDirectionDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:bidi/><w:textDirection w:val="tbRl"/></w:pPr>
+      <w:r><w:t>ملف المصدر review note.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:textDirection w:val="lrTb"/></w:pPr>
+      <w:r><w:t>Vertical layout source note.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:bidi w:val="0"/></w:pPr>
+      <w:r><w:t>Disabled bidi stays plain.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading2"/><w:bidi/></w:pPr>
+      <w:r><w:t>RTL Review Heading</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -1228,6 +1251,14 @@ $buildRunLanguageDirectionPackage = static function () use ($contentTypesXml, $p
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $runLanguageDirectionDocumentXml],
+    ]);
+};
+
+$buildParagraphBidiDirectionPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $paragraphBidiDirectionDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $paragraphBidiDirectionDocumentXml],
     ]);
 };
 
@@ -2346,6 +2377,57 @@ return [
         $t->contains('<span class="docx-language" data-docx-lang-east-asia="ja-JP" lang="ja-JP"><strong>レビュー</strong></span> plain.', $blocks);
         $t->true(!str_contains($markdown, 'dir="ltr"'), 'Disabled DOCX w:rtl should not create direction metadata');
         $t->true(!str_contains($blocks, 'dir="ltr"'), 'Disabled DOCX w:rtl should not create WordPress direction metadata');
+    },
+    'preserves DOCX paragraph bidi and text direction metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphBidiDirectionPackage): void {
+        $document = (new DocxReader())->readDocument($buildParagraphBidiDirectionPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(1, count($paragraph->children));
+        $bidiSpan = $paragraph->children[0];
+        $t->same('span', $bidiSpan->type);
+        $t->same(['docx-paragraph-bidi', 'docx-rtl', 'docx-text-direction', 'docx-text-direction-tbrl'], $bidiSpan->attr('classes'));
+        $t->same('true', $bidiSpan->attr('attributes')['data-docx-paragraph-bidi']);
+        $t->same('rtl', $bidiSpan->attr('attributes')['dir']);
+        $t->same('tbRl', $bidiSpan->attr('attributes')['data-docx-text-direction']);
+        $t->same('ملف المصدر review note.', $bidiSpan->children[0]->attr('text'));
+
+        $directionOnly = $document->children[1]->children[0];
+        $t->same('span', $directionOnly->type);
+        $t->same(['docx-text-direction', 'docx-text-direction-lrtb'], $directionOnly->attr('classes'));
+        $t->same('lrTb', $directionOnly->attr('attributes')['data-docx-text-direction']);
+        $t->same('Vertical layout source note.', $directionOnly->children[0]->attr('text'));
+
+        $disabled = $document->children[2];
+        $t->same('paragraph', $disabled->type);
+        $t->same('text', $disabled->children[0]->type);
+        $t->same('Disabled bidi stays plain.', $disabled->children[0]->attr('text'));
+
+        $heading = $document->children[3];
+        $t->same('heading', $heading->type);
+        $t->same(2, $heading->attr('level'));
+        $t->same('rtl-review-heading', $heading->attr('id'));
+        $headingSpan = $heading->children[0];
+        $t->same('span', $headingSpan->type);
+        $t->same(['docx-paragraph-bidi', 'docx-rtl'], $headingSpan->attr('classes'));
+        $t->same('rtl', $headingSpan->attr('attributes')['dir']);
+        $t->same('RTL Review Heading', $headingSpan->children[0]->attr('text'));
+
+        $t->contains('[ملف المصدر review note.]{.docx-paragraph-bidi .docx-rtl .docx-text-direction .docx-text-direction-tbrl data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl"}', $markdown);
+        $t->contains('[Vertical layout source note.]{.docx-text-direction .docx-text-direction-lrtb data-docx-text-direction="lrTb"}', $markdown);
+        $t->contains('Disabled bidi stays plain.', $markdown);
+        $t->contains('## [RTL Review Heading]{.docx-paragraph-bidi .docx-rtl data-docx-paragraph-bidi="true" dir="rtl"}', $markdown);
+
+        $t->contains('<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر review note.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-text-direction docx-text-direction-lrtb" data-docx-text-direction="lrTb">Vertical layout source note.</span></p>', $blocks);
+        $t->contains('<p>Disabled bidi stays plain.</p>', $blocks);
+        $t->contains('<h2 id="rtl-review-heading"><span class="docx-paragraph-bidi docx-rtl" data-docx-paragraph-bidi="true" dir="rtl">RTL Review Heading</span></h2>', $blocks);
+        $t->true(!str_contains($markdown, 'Disabled bidi stays plain.]{'), 'Disabled DOCX paragraph bidi should not create Markdown attributes');
+        $t->true(!str_contains($blocks, 'Disabled bidi stays plain.</span>'), 'Disabled DOCX paragraph bidi should not create WordPress span metadata');
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

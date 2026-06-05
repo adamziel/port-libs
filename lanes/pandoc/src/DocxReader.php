@@ -1275,6 +1275,7 @@ final class DocxReader
             return null;
         }
 
+        $children = $this->applyParagraphMetadata($paragraph, $children);
         $style = $this->paragraphStyleId($paragraph);
         $headingLevel = $this->paragraphHeadingLevel($paragraph, $styles);
         if ($headingLevel !== null) {
@@ -1287,6 +1288,67 @@ final class DocxReader
         }
 
         return new AstNode('paragraph', $style === null ? [] : ['style' => $style], $children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function applyParagraphMetadata(\DOMElement $paragraph, array $children): array
+    {
+        if ($children === []) {
+            return [];
+        }
+
+        $attrs = $this->paragraphMetadataAttrs($paragraph);
+        if ($attrs === null) {
+            return $children;
+        }
+
+        return [new AstNode('span', $attrs, $children)];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function paragraphMetadataAttrs(\DOMElement $paragraph): ?array
+    {
+        $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
+        if (!$properties instanceof \DOMElement) {
+            return null;
+        }
+
+        $classes = [];
+        $attributes = [];
+
+        if ($this->hasOnOffChild($properties, 'bidi')) {
+            $classes[] = 'docx-paragraph-bidi';
+            $classes[] = 'docx-rtl';
+            $attributes['data-docx-paragraph-bidi'] = 'true';
+            $attributes['dir'] = 'rtl';
+        }
+
+        $textDirection = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'textDirection');
+        if ($textDirection instanceof \DOMElement) {
+            $value = trim((string) ($this->wordAttr($textDirection, 'val') ?? ''));
+            if ($value !== '') {
+                $classes[] = 'docx-text-direction';
+                $suffix = $this->metadataClassSuffix($value);
+                if ($suffix !== null) {
+                    $classes[] = 'docx-text-direction-' . $suffix;
+                }
+                $attributes['data-docx-text-direction'] = $value;
+            }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
     }
 
     /**
