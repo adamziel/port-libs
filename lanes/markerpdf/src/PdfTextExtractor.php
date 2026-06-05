@@ -841,6 +841,7 @@ final class PdfTextExtractor
      *     malformed_filter_operand_count: int,
      *     escaped_filter_name_operand_count: int,
      *     unsupported_filter_count: int,
+     *     filter_end_marker_problem_count: int,
      *     invalid_decodeparms_operand_count: int,
      *     malformed_decodeparms_operand_count: int,
      *     invalid_decodeparms_parameter_count: int,
@@ -869,6 +870,7 @@ final class PdfTextExtractor
             'malformed_filter_operand_count' => 0,
             'escaped_filter_name_operand_count' => 0,
             'unsupported_filter_count' => 0,
+            'filter_end_marker_problem_count' => 0,
             'invalid_decodeparms_operand_count' => 0,
             'malformed_decodeparms_operand_count' => 0,
             'invalid_decodeparms_parameter_count' => 0,
@@ -928,6 +930,12 @@ final class PdfTextExtractor
             $decodeParms = $filters === null
                 ? $this->streamDecodeParms($dict, $objects)
                 : $this->streamDecodeParmsForFilters($dict, $objects, $filters);
+            $filterEndMarkerProblems = $this->cMapStreamFilterEndMarkerProblems(
+                $filters,
+                $decodeParms,
+                $stream['stream'],
+                $objects
+            );
             $operands = [];
             foreach ($operandGroups as $group) {
                 foreach ($group as $operand) {
@@ -941,6 +949,7 @@ final class PdfTextExtractor
             $malformedFilterOperandCount = $this->malformedStreamFilterOperandCount($operandGroups['Filter']);
             $escapedFilterNameOperandCount = $this->escapedStreamFilterNameOperandCount($operandGroups['Filter']);
             $unsupportedFilterCount = $this->unsupportedTextStreamFilterCount($filters, $decodeParms, $objects);
+            $filterEndMarkerProblemCount = count($filterEndMarkerProblems);
             $invalidDecodeParmsOperandCount = $this->invalidStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters, $decodeParms);
             $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms'], $filters, $decodeParms);
             $invalidDecodeParmsParameterCount = $this->invalidDecodeParmsParameterCount($filters, $decodeParms, $objects);
@@ -973,6 +982,7 @@ final class PdfTextExtractor
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
             $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
             $review['unsupported_filter_count'] += $unsupportedFilterCount;
+            $review['filter_end_marker_problem_count'] += $filterEndMarkerProblemCount;
             $review['invalid_decodeparms_operand_count'] += $invalidDecodeParmsOperandCount;
             $review['malformed_decodeparms_operand_count'] += $malformedDecodeParmsOperandCount;
             $review['invalid_decodeparms_parameter_count'] += $invalidDecodeParmsParameterCount;
@@ -996,6 +1006,7 @@ final class PdfTextExtractor
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
                 'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
                 'unsupported_filter_count' => $unsupportedFilterCount,
+                'filter_end_marker_problem_count' => $filterEndMarkerProblemCount,
                 'invalid_decodeparms_operand_count' => $invalidDecodeParmsOperandCount,
                 'malformed_decodeparms_operand_count' => $malformedDecodeParmsOperandCount,
                 'invalid_decodeparms_parameter_count' => $invalidDecodeParmsParameterCount,
@@ -1005,6 +1016,11 @@ final class PdfTextExtractor
                     $dictionaryFilterOperandCount,
                     $malformedFilterOperandCount,
                     $unsupportedFilterCount
+                ),
+                'filter_end_marker_policy' => $this->cMapStreamFilterEndMarkerPolicy(
+                    $filters,
+                    $decodeParms,
+                    $filterEndMarkerProblems
                 ),
                 'decodeparms_operand_policy' => $this->streamDecodeParmsOperandPolicy(
                     $decodeParms,
@@ -1028,6 +1044,7 @@ final class PdfTextExtractor
                 'parser_bounded_cmap_bytes_excluded' => $decoded !== null
                     && $parserBoundedDecoded !== null
                     && strlen($parserBoundedDecoded) < strlen($decoded),
+                'filter_end_marker_problems' => $filterEndMarkerProblems,
                 'operand_groups' => $operandGroups,
                 'filter_operands' => $operandGroups['Filter'],
                 'decodeparms_operands' => $operandGroups['DecodeParms'],
@@ -10960,6 +10977,18 @@ final class PdfTextExtractor
             'RunLengthDecode', 'RL' => strpos($stream, chr(128)) !== false,
             default => true,
         };
+    }
+
+    private function streamFilterRequiresExplicitEndMarker(string $filter): bool
+    {
+        return in_array($filter, [
+            'ASCIIHexDecode',
+            'AHx',
+            'ASCII85Decode',
+            'A85',
+            'RunLengthDecode',
+            'RL',
+        ], true);
     }
 
     /**
@@ -22638,6 +22667,104 @@ final class PdfTextExtractor
     private function decodeCMapStream(string $dict, string $stream, array $objects): ?string
     {
         return $this->decodeStream($dict, $stream, $objects, true, true);
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @param list<string|null>|null $decodeParms
+     * @param array<int, string> $objects
+     * @return list<array{filter_index: int, filter: string, problem: string, requires_explicit_end_marker: bool}>
+     */
+    private function cMapStreamFilterEndMarkerProblems(
+        ?array $filters,
+        ?array $decodeParms,
+        string $stream,
+        array $objects
+    ): array {
+        if ($filters === null || $decodeParms === null || $filters === []) {
+            return [];
+        }
+
+        $problems = [];
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if (!$this->textStreamFilterIsSupported($filter, $filterDecodeParms, $objects)) {
+                break;
+            }
+            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
+                break;
+            }
+
+            $requiresExplicitEndMarker = $this->streamFilterRequiresExplicitEndMarker($filter);
+            if ($requiresExplicitEndMarker && !$this->streamFilterInputHasExplicitEndMarker($filter, $stream)) {
+                $problems[] = [
+                    'filter_index' => $index,
+                    'filter' => $filter,
+                    'problem' => 'missing_explicit_end_marker',
+                    'requires_explicit_end_marker' => true,
+                ];
+                break;
+            }
+
+            if (!$this->streamFilterInputHasBoundedEndMarker($filter, $stream, $filterDecodeParms, $objects)) {
+                $problems[] = [
+                    'filter_index' => $index,
+                    'filter' => $filter,
+                    'problem' => $requiresExplicitEndMarker
+                        ? 'unbounded_explicit_end_marker'
+                        : 'missing_bounded_stream_end_marker',
+                    'requires_explicit_end_marker' => $requiresExplicitEndMarker,
+                ];
+                break;
+            }
+
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+                'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms, $objects),
+                default => null,
+            };
+
+            if ($decoded === null) {
+                break;
+            }
+
+            $stream = $decoded;
+        }
+
+        return $problems;
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @param list<string|null>|null $decodeParms
+     * @param list<array<string, mixed>> $filterEndMarkerProblems
+     */
+    private function cMapStreamFilterEndMarkerPolicy(
+        ?array $filters,
+        ?array $decodeParms,
+        array $filterEndMarkerProblems
+    ): string {
+        if ($filters === null) {
+            return 'filter_resolution_failed';
+        }
+        if ($decodeParms === null) {
+            return 'decodeparms_resolution_failed';
+        }
+        if ($filters === []) {
+            return 'no_filters';
+        }
+
+        return $filterEndMarkerProblems === []
+            ? 'filter_end_markers_resolved'
+            : 'reject_malformed_filter_end_markers';
     }
 
     /**
