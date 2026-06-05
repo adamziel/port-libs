@@ -114,9 +114,10 @@ final class PdfActionReviewExtractor
     }
 
     /**
-     * Link and annotation `/A` entries are a single action dictionary. Arrays
-     * are valid under action `/Next`, but a top-level `/A [...]` is malformed
-     * and must not donate a primary WordPress link target.
+     * Link and annotation `/A` entries are a single action dictionary with an
+     * `/S` action subtype. Arrays are valid under action `/Next`, and local
+     * destinations are valid under `/Dest`, but malformed top-level `/A`
+     * values must not donate a primary WordPress link target.
      *
      * @param array<string, true> $seen
      * @return list<array<string, mixed>>
@@ -124,7 +125,8 @@ final class PdfActionReviewExtractor
     private function reviewPrimaryAnnotationActionsFromValue(mixed $value, array &$seen): array
     {
         $resolved = $this->resolveValue($value);
-        if ($this->arrayItems($resolved) !== null) {
+        $dict = $this->dictionaryItems($resolved);
+        if ($dict === null || $this->nameValue($this->resolveValue($dict['S'] ?? null)) === null) {
             return [];
         }
 
