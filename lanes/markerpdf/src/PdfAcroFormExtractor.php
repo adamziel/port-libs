@@ -137,7 +137,7 @@ final class PdfAcroFormExtractor
         $fieldRefs = $this->fieldReferencesWithPageWidgetBoundaries($fieldRefs, $objects, $pageWidgets);
         $fieldNamesByObject = $this->fieldNamesByObject($fieldRefs, $objects);
         $fieldNamesByObject = $this->fieldNamesWithPageWidgetParents($fieldNamesByObject, $objects, $pageWidgets);
-        $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $fieldNamesByObject);
+        $calculationOrder = $this->calculationOrderFromAcroForm($acroForm, $objects, $fieldNamesByObject);
         $calculationOrderReview = $this->calculationOrderReviewFromAcroForm($acroForm, $objects, $fieldNamesByObject);
         $signatureFlags = $this->acroFormSignatureFlags($acroForm);
 
@@ -4037,10 +4037,11 @@ final class PdfAcroFormExtractor
     }
 
     /**
+     * @param array<int, string> $objects
      * @param array<int, string> $fieldNamesByObject
      * @return list<array{object: int, field_name: string|null}>
      */
-    private function calculationOrderFromAcroForm(string $acroForm, array $fieldNamesByObject): array
+    private function calculationOrderFromAcroForm(string $acroForm, array $objects, array $fieldNamesByObject): array
     {
         $value = $this->valueAfterName($acroForm, 'CO');
         if ($value === null || !str_starts_with(trim($value), '[')) {
@@ -4053,7 +4054,7 @@ final class PdfAcroFormExtractor
         }
 
         $order = [];
-        foreach (array_values(array_unique($this->objectReferences($body))) as $objectNumber) {
+        foreach (array_values(array_unique($this->reviewObjectReferencesWithCurrentGenerationBoundary($body, $objects))) as $objectNumber) {
             $order[] = [
                 'object' => $objectNumber,
                 'field_name' => $fieldNamesByObject[$objectNumber] ?? null,
@@ -4081,7 +4082,7 @@ final class PdfAcroFormExtractor
         }
 
         $reviews = [];
-        foreach (array_values(array_unique($this->objectReferences($body))) as $index => $objectNumber) {
+        foreach (array_values(array_unique($this->reviewObjectReferencesWithCurrentGenerationBoundary($body, $objects))) as $index => $objectNumber) {
             $reviews[] = $this->calculationOrderReviewEntry(
                 $index,
                 $objectNumber,
@@ -4108,7 +4109,7 @@ final class PdfAcroFormExtractor
             ? ($this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]))
             : null;
         $isWidget = is_string($body) && $this->isWidget($body);
-        $parentFieldObject = is_string($body) ? $this->objectReferenceValueAfterName($body, 'Parent') : null;
+        $parentFieldObject = is_string($body) ? $this->validObjectReferenceValueAfterName($body, 'Parent', $objects) : null;
         $fieldObject = $parentFieldObject !== null && isset($fieldNamesByObject[$parentFieldObject])
             ? $parentFieldObject
             : (isset($fieldNamesByObject[$objectNumber]) ? $objectNumber : null);
@@ -9828,6 +9829,72 @@ final class PdfAcroFormExtractor
         }
 
         return array_map('intval', $matches[1]);
+    }
+
+    /**
+     * Keep missing review-only object references visible, but reject references
+     * whose generation conflicts with the current selected object body.
+     *
+     * @param array<int, string> $objects
+     * @return list<int>
+     */
+    private function reviewObjectReferencesWithCurrentGenerationBoundary(string $value, array $objects): array
+    {
+        $references = [];
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $this->skipWhitespace($value, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $value[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($value, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($value, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '<' && substr($value, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($value, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($value, $offset);
+                continue;
+            }
+
+            if ($char === '/') {
+                $offset = $this->skipPdfName($value, $offset);
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                $generation = (int) $match[2];
+                if (!isset($objects[$objectNumber]) || $this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
+                    $references[] = $objectNumber;
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $endOffset = null;
+            $this->readPdfValueAt($value, $offset, $endOffset);
+            $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
+        }
+
+        return $references;
     }
 
     /**
