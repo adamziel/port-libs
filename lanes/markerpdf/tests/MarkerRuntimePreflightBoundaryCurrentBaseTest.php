@@ -590,6 +590,76 @@ return [
             $removeTree($input);
         }
     },
+    'records zero and negative multiprocessing Pool creation failures before pool imap' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        try {
+            foreach (['one.pdf', 'two.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $missingOutput = $input . DIRECTORY_SEPARATOR . 'missing-output';
+            $batch = new BatchConverter();
+            $assertPoolProcessCountFailure = static function (TestRunner $t, array $plan, int $processes): void {
+                $poolCreation = $plan['worker_pool']['pool_creation'];
+                $t->same('convert.py torch.multiprocessing Pool creation boundary', $poolCreation['source']);
+                $t->same('after_task_args_before_pool_imap', $poolCreation['order']);
+                $t->same(true, $poolCreation['pool_creation_reached']);
+                $t->same(false, $poolCreation['pool_creation_success']);
+                $t->same('mp.Pool(processes=total_processes, initializer=worker_init, initargs=(model_lst,))', $poolCreation['pool_creation_call']);
+                $t->same($processes, $poolCreation['processes']);
+                $t->same('pool-process-count-failed', $poolCreation['error_boundary']);
+                $t->same('ValueError', $poolCreation['error_class']);
+                $t->contains('Number of processes must be at least 1', (string) $poolCreation['error_message']);
+                $t->same(true, $poolCreation['blocks_pool_imap']);
+                $t->same(false, $poolCreation['pool_imap_reached']);
+                $t->same(false, $poolCreation['progress_iterator_reached']);
+                $t->same(false, $poolCreation['executes_multiprocessing']);
+            };
+
+            $emptyChunk = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                chunkIndex: 3,
+                numChunks: 2,
+                workers: 4
+            );
+            $zeroWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                workers: 0
+            );
+            $negativeWorkers = $batch->runtimeMainPreflightPlan(
+                $input,
+                $missingOutput,
+                workers: -2
+            );
+
+            $t->same(0, $emptyChunk['worker_pool']['total_processes']);
+            $t->same(0, $emptyChunk['worker_pool']['task_args_count']);
+            $t->same('empty-task-queue', $emptyChunk['worker_pool']['pool_error_boundary']);
+            $assertPoolProcessCountFailure($t, $emptyChunk, 0);
+
+            $t->same(0, $zeroWorkers['worker_pool']['requested_workers']);
+            $t->same(0, $zeroWorkers['worker_pool']['total_processes']);
+            $t->same(2, $zeroWorkers['worker_pool']['task_args_count']);
+            $t->same('invalid-worker-count', $zeroWorkers['worker_pool']['pool_error_boundary']);
+            $assertPoolProcessCountFailure($t, $zeroWorkers, 0);
+
+            $t->same(-2, $negativeWorkers['worker_pool']['requested_workers']);
+            $t->same(-2, $negativeWorkers['worker_pool']['total_processes']);
+            $t->same(2, $negativeWorkers['worker_pool']['task_args_count']);
+            $t->same('invalid-worker-count', $negativeWorkers['worker_pool']['pool_error_boundary']);
+            $t->same(
+                'Converting 2 pdfs in chunk 1/1 with -2 processes, and storing in ' . $missingOutput,
+                $negativeWorkers['console_summary']['message_line']
+            );
+            $assertPoolProcessCountFailure($t, $negativeWorkers, -2);
+            $t->same(false, $negativeWorkers['executes_python_or_models']);
+            $t->same(false, $negativeWorkers['executes_multiprocessing']);
+            $t->same(false, $negativeWorkers['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+        }
+    },
     'records output-folder file conflicts before metadata and worker launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $root = $makeTempDir();

@@ -524,7 +524,7 @@ final class BatchConverter
             $endIndex,
             count($inputFiles)
         );
-        $totalProcesses = $workers < 1 ? 0 : min(count($selectedFiles), $workers);
+        $totalProcesses = min(count($selectedFiles), $workers);
         $spawnStartMethod = $this->convertMainSpawnStartMethodPlan(null, $spawnStartMethodAlreadySet, $totalProcesses);
         if (!$spawnStartMethod['start_method_success']) {
             return [
@@ -884,6 +884,7 @@ final class BatchConverter
                 'truthy_non_mapping_metadata_filenames' => $metadataValueReview['truthy_non_mapping_metadata_filenames'],
                 'falsy_non_mapping_metadata_filenames' => $metadataValueReview['falsy_non_mapping_metadata_filenames'],
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
+                'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
                 'progress_iterator' => $this->progressIterator(),
             ],
             'console_summary' => $this->conversionSummaryPlan(
@@ -1597,6 +1598,44 @@ final class BatchConverter
     private function progressIterator(): string
     {
         return 'tqdm(pool.imap(process_single_pdf, task_args), total=len(task_args), desc="Processing PDFs", unit="pdf")';
+    }
+
+    /**
+     * @return array{
+     *     source: string,
+     *     order: string,
+     *     pool_creation_reached: true,
+     *     pool_creation_success: bool,
+     *     pool_creation_call: string,
+     *     processes: int,
+     *     error_boundary: string|null,
+     *     error_class: string|null,
+     *     error_message: string|null,
+     *     blocks_pool_imap: bool,
+     *     pool_imap_reached: bool,
+     *     progress_iterator_reached: bool,
+     *     executes_multiprocessing: false
+     * }
+     */
+    private function convertMainPoolCreationPlan(int $totalProcesses): array
+    {
+        $success = $totalProcesses >= 1;
+
+        return [
+            'source' => 'convert.py torch.multiprocessing Pool creation boundary',
+            'order' => 'after_task_args_before_pool_imap',
+            'pool_creation_reached' => true,
+            'pool_creation_success' => $success,
+            'pool_creation_call' => 'mp.Pool(processes=total_processes, initializer=worker_init, initargs=(model_lst,))',
+            'processes' => $totalProcesses,
+            'error_boundary' => $success ? null : 'pool-process-count-failed',
+            'error_class' => $success ? null : 'ValueError',
+            'error_message' => $success ? null : 'Number of processes must be at least 1',
+            'blocks_pool_imap' => !$success,
+            'pool_imap_reached' => $success,
+            'progress_iterator_reached' => $success,
+            'executes_multiprocessing' => false,
+        ];
     }
 
     private function isJsonMetadataLoadFailure(InvalidArgumentException $exception): bool

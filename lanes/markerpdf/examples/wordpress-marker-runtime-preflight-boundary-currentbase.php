@@ -107,6 +107,16 @@ try {
         numChunks: 2,
         workers: 8
     );
+    $zeroWorkerPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        workers: 0
+    );
+    $negativeWorkerPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        workers: -2
+    );
     $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
     $blockedOutput = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'marker-output';
     file_put_contents($blockedOutput, 'not a directory');
@@ -323,6 +333,17 @@ try {
     ) {
         throw new RuntimeException('Expected negative --chunk_idx to follow upstream Python slice normalization before task tuples are built.');
     }
+    if (
+        $zeroWorkerPlan['worker_pool']['pool_creation']['pool_creation_success'] !== false
+        || $zeroWorkerPlan['worker_pool']['pool_creation']['error_boundary'] !== 'pool-process-count-failed'
+        || $zeroWorkerPlan['worker_pool']['pool_creation']['error_class'] !== 'ValueError'
+        || $zeroWorkerPlan['worker_pool']['pool_creation']['pool_imap_reached'] !== false
+        || $negativeWorkerPlan['worker_pool']['total_processes'] !== -2
+        || $negativeWorkerPlan['worker_pool']['pool_creation']['processes'] !== -2
+        || $negativeWorkerPlan['worker_pool']['pool_creation']['error_boundary'] !== 'pool-process-count-failed'
+    ) {
+        throw new RuntimeException('Expected zero or negative worker counts to fail at upstream multiprocessing Pool creation before pool.imap.');
+    }
     if ($zeroMinLengthSpoof['min_length_gate_active'] !== false || $zeroMinLengthSpoof['filetype_checked'] !== false || $zeroMinLengthSpoof['status'] !== 'ready-for-conversion') {
         throw new RuntimeException('Expected --min_length=0 to leave filetype preflight inactive like upstream convert.py.');
     }
@@ -425,6 +446,15 @@ try {
             $negativeChunkPlan['chunking']['python_slice_start_index'],
             $negativeChunkPlan['chunking']['python_slice_end_index'],
         ],
+        'zero_worker_total_processes' => $zeroWorkerPlan['worker_pool']['total_processes'],
+        'zero_worker_pool_creation_success' => $zeroWorkerPlan['worker_pool']['pool_creation']['pool_creation_success'],
+        'zero_worker_pool_creation_error_boundary' => $zeroWorkerPlan['worker_pool']['pool_creation']['error_boundary'],
+        'zero_worker_pool_creation_error_class' => $zeroWorkerPlan['worker_pool']['pool_creation']['error_class'],
+        'zero_worker_pool_imap_reached' => $zeroWorkerPlan['worker_pool']['pool_creation']['pool_imap_reached'],
+        'negative_worker_total_processes' => $negativeWorkerPlan['worker_pool']['total_processes'],
+        'negative_worker_pool_creation_error_boundary' => $negativeWorkerPlan['worker_pool']['pool_creation']['error_boundary'],
+        'negative_worker_pool_creation_error_class' => $negativeWorkerPlan['worker_pool']['pool_creation']['error_class'],
+        'negative_worker_pool_imap_reached' => $negativeWorkerPlan['worker_pool']['pool_creation']['pool_imap_reached'],
         'runtime_output_folder_creation_required' => $runtimePlan['paths']['output_folder_creation_required'],
         'status_by_filename' => array_map(static fn (array $plan): string => (string) $plan['status'], $plans),
         'skip_reasons' => array_map(static fn (array $plan): ?string => $plan['skip_reason'], $plans),
