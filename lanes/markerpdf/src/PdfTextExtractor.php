@@ -6324,12 +6324,11 @@ final class PdfTextExtractor
         $items = $this->pdfArrayItems($arrayBody);
         $itemCount = count($items);
         for ($index = 0; $index + 1 < $itemCount; $index += 2) {
-            $pageToken = trim($items[$index]);
-            if (preg_match('/^[+-]?\d+$/', $pageToken) !== 1) {
+            $pageIndex = $this->pageLabelPageIndexOperand($items[$index], $objects);
+            if ($pageIndex === null) {
                 continue;
             }
 
-            $pageIndex = (int) $pageToken;
             $labelDictionary = $this->pageLabelDictionaryFromValue($items[$index + 1], $objects);
             if ($labelDictionary === null) {
                 continue;
@@ -6347,6 +6346,37 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelPageIndexOperand(string $value, array $objects, array $seen = []): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$key])) {
+            return null;
+        }
+
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$key] = true;
+        return $this->pageLabelPageIndexOperand($body, $objects, $seen);
     }
 
     /**

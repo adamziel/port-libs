@@ -1366,12 +1366,11 @@ final class MarkerAppPreview
         $sections = [];
         $count = count($elements);
         for ($index = 0; $index + 1 < $count; $index += 2) {
-            $pageIndex = trim($elements[$index]);
-            if (preg_match('/^-?\d+$/', $pageIndex) !== 1) {
+            $pageIndexValue = $this->pageLabelIndexOperand($elements[$index], $objects, $seen);
+            if ($pageIndexValue === null) {
                 continue;
             }
 
-            $pageIndexValue = (int) $pageIndex;
             if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
                 continue;
             }
@@ -1390,6 +1389,31 @@ final class MarkerAppPreview
         }
 
         return $sections;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int> $seen
+     */
+    private function pageLabelIndexOperand(string $value, array $objects, array $seen): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectId = (int) $match[1];
+        $generation = (int) $match[2];
+        $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
+        if ($body === null) {
+            return null;
+        }
+
+        return $this->pageLabelIndexOperand($body, $objects, [...$seen, $objectId]);
     }
 
     /**

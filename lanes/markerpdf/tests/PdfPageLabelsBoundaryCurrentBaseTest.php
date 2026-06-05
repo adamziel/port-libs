@@ -197,6 +197,39 @@ $generationBoundaryPageLabelPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$indirectKeyPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Opening fallback imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Indirect front imported) Tj ET',
+        12 => 'BT /F1 12 Tf 72 720 Td (Indirect body imported) Tj ET',
+        13 => 'BT /F1 12 Tf 72 720 Td (Indirect appendix imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 12 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 13 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Limits [1 3] /Nums [30 0 R << /S /r /P (Front ) /St 2 >> 31 0 R 34 0 R [2 << /P (nested-stale-) /S /D /St 77 >>] << /P (array-value-stale-) /S /D /St 88 >> 32 0 R << /S /A /P (App-) /St 26 >> 33 0 R << /P (stale-back-) /S /D /St 99 >>] >>\nendobj\n"
+        . "30 0 obj\n1\nendobj\n"
+        . "30 1 obj\n0\nendobj\n"
+        . "31 0 obj\n2\nendobj\n"
+        . "31 1 obj\n0\nendobj\n"
+        . "32 0 obj\n3\nendobj\n"
+        . "33 0 obj\n4\nendobj\n"
+        . "34 0 obj\n<< /S /D /P (Body ) /St 8 >>\nendobj\n"
+        . "%%EOF\n";
+};
+
 $tokenBoundaryPageLabelPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Top-level cover imported) Tj ET',
@@ -345,6 +378,25 @@ return [
         $t->true(!in_array('stale-high-generation-99', $labels, true));
         $t->true(!in_array('stale-high-generation-100', $previewLabels, true));
         $t->same('Body 5', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'resolves indirect PageLabels Nums keys by exact generation before WordPress page metadata' => static function (TestRunner $t) use ($indirectKeyPageLabelBoundaryPdf): void {
+        $pdf = $indirectKeyPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['1', 'Front ii', 'Body 8', 'App-Z'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Opening fallback imported', 'Indirect front imported', 'Indirect body imported', 'Indirect appendix imported'], array_column($entries, 'text'));
+        $t->true(!in_array('nested-stale-77', $labels, true));
+        $t->true(!in_array('array-value-stale-88', $previewLabels, true));
+        $t->true(!in_array('stale-back-99', $labels, true));
+        $t->same('App-Z', $preview->getPageImagePlan($pdf, 4)['page_label']);
     },
     'keeps PageLabels root kids and nums at top-level token boundaries' => static function (TestRunner $t) use ($tokenBoundaryPageLabelPdf): void {
         $pdf = $tokenBoundaryPageLabelPdf();
