@@ -447,7 +447,14 @@ final class MathTexConverter
         }
 
         if ($command === 'sqrt') {
-            return '<msqrt>' . $this->parseRequiredGroup($source, $offset) . '</msqrt>';
+            $degree = $this->parseOptionalRootDegree($source, $offset);
+            $radicand = $this->parseRequiredGroup($source, $offset);
+
+            if ($degree !== null) {
+                return '<mroot>' . $radicand . $degree . '</mroot>';
+            }
+
+            return '<msqrt>' . $radicand . '</msqrt>';
         }
 
         if ($command === 'text') {
@@ -771,6 +778,28 @@ final class MathTexConverter
         $offset++;
         $children = $this->parseExpression($source, $offset, '}');
         $this->expectGroupEnd($source, $offset);
+
+        return $this->row($children);
+    }
+
+    private function parseOptionalRootDegree(string $source, int &$offset): ?string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $offset++;
+        $children = $this->parseExpression($source, $offset, ']');
+        if ($children === []) {
+            throw new \InvalidArgumentException('Expected TeX root degree at offset ' . $offset);
+        }
+
+        if (($source[$offset] ?? '') !== ']') {
+            throw new \InvalidArgumentException('Unclosed TeX root degree at offset ' . $offset);
+        }
+
+        $offset++;
 
         return $this->row($children);
     }

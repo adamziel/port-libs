@@ -19,6 +19,21 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline">', $textMathml);
         $t->contains('<mtext>posts &amp; media</mtext><mo>∈</mo><mi>S</mi>', $textMathml);
     },
+    'converts bounded tex indexed roots to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $rootMathml = $converter->texToMathMl('\\sqrt[3]{x} + \\sqrt[n+1]{\\frac{a}{b}}', true);
+        $docxRootMathml = $converter->mathMlFor(new AstNode('math', [
+            'text' => '\\sqrt[k]{x_i + y_i}',
+            'display' => false,
+            'sourceFormat' => 'docx-omml',
+        ]));
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $rootMathml);
+        $t->contains('<mroot><mi>x</mi><mn>3</mn></mroot><mo>+</mo><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>', $rootMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sqrt[3]{x} + \\sqrt[n+1]{\\frac{a}{b}}</annotation>', $rootMathml);
+        $t->contains('<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mi>k</mi></mroot>', $docxRootMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sqrt[k]{x_i + y_i}</annotation>', $docxRootMathml);
+    },
     'adds source tex semantics annotations to bounded mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $annotated = $converter->texToMathMl('\\text{posts & media} \\in S');
@@ -142,6 +157,8 @@ return [
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\frac{a}{'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[]{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[3{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
