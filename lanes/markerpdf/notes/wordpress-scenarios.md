@@ -422,6 +422,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-ccitt-fax-decodeparms-failclosed-currentbase.php` maps malformed CCITTFaxDecode/CCF `/DecodeParms` into a WordPress media-review path. It exposes invalid fax fields for review while keeping CCITT raster payload bytes out of Gutenberg paragraphs and without loading Python, pdftext, pypdfium/PDFium, PIL, Poppler, Ghostscript, OCR, models, or external PDF tools.
 
+`examples/wordpress-pdf-type3-charprocs-fontmatrix-boundary-currentbase.php` maps Type3 `/CharProcs` `d0`/`d1` widths through a non-default `/FontMatrix` into a WordPress paragraph import path. It normalizes glyph-space width `500` with matrix scale `0.002` into the expected text advance, emitting `WideBlock` and `Thin Text` while excluding CharProc payload text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

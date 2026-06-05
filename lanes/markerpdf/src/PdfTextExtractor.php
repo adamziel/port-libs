@@ -9269,6 +9269,7 @@ final class PdfTextExtractor
             return [];
         }
 
+        $widthScale = $this->type3FontMatrixWidthScale($fontBody, $objects);
         $widths = [];
         foreach ($glyphNamesByCode as $code => $glyphName) {
             $reference = $charProcObjectReferences[$glyphName] ?? null;
@@ -9283,11 +9284,29 @@ final class PdfTextExtractor
 
             $width = $this->type3CharProcDeclaredWidth($objectBody, $objects);
             if ($width !== null) {
-                $widths[$code] = $width;
+                $widths[$code] = $width * $widthScale;
             }
         }
 
         return $widths;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function type3FontMatrixWidthScale(string $fontBody, array $objects): float
+    {
+        $matrix = $this->topLevelPdfMatrixValueAfterName($fontBody, 'FontMatrix', $objects);
+        if ($matrix === null) {
+            return 1.0;
+        }
+
+        $horizontalScale = abs($matrix[0]);
+        if ($horizontalScale <= 0.0) {
+            return 1.0;
+        }
+
+        return $horizontalScale * 1000.0;
     }
 
     /**
@@ -10342,6 +10361,30 @@ final class PdfTextExtractor
     private function pdfMatrixValueAfterName(string $body, string $name, array $objects): ?array
     {
         $arrayBody = $this->pdfArrayValueAfterNameResolvingObjects($body, $name, $objects);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $numbers = $this->numbersFromPdfArray($arrayBody);
+        if (count($numbers) < 6) {
+            return null;
+        }
+
+        return array_slice($numbers, 0, 6);
+    }
+
+    /**
+     * @return list<float>|null
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfMatrixValueAfterName(string $body, string $name, array $objects): ?array
+    {
+        $value = $this->topLevelPdfValueAfterName($body, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
         if ($arrayBody === null) {
             return null;
         }
