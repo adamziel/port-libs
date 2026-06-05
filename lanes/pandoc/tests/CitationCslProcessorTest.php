@@ -1662,6 +1662,116 @@ XML);
         $t->same('3.0', $manual['version'] ?? null);
         $t->same('forthcoming', $manual['status'] ?? null);
     },
+    'maps bounded biblatex event metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{event-proceedings,
+  editor          = {Curator, Eli},
+  title           = {WordPress Import Conference Proceedings},
+  eventtitle      = {WordCamp Migration Summit},
+  eventtitleaddon = {Reviewer track},
+  eventtype       = {conference},
+  venue           = {Portland},
+  eventdate       = {2026-06-04/2026-06-05},
+  date            = {2026},
+  publisher       = {Migration Desk}
+}
+
+@inproceedings{event-paper,
+  author    = {Ng, Nia},
+  title     = {Source Packet Event Review},
+  pages     = {44--48},
+  crossref  = {event-proceedings}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('WordCamp Migration Summit', $items[0]['event']);
+        $t->same('Reviewer track', $items[0]['event-title-addon']);
+        $t->same('conference', $items[0]['event-type']);
+        $t->same('Portland', $items[0]['event-place']);
+        $t->same(['date-parts' => [[2026, 6, 4], [2026, 6, 5]]], $items[0]['event-date']);
+        $t->same('WordCamp Migration Summit', $items[1]['event']);
+        $t->same('Reviewer track', $items[1]['event-title-addon']);
+        $t->same('conference', $items[1]['event-type']);
+        $t->same('Portland', $items[1]['event-place']);
+        $t->same(['date-parts' => [[2026, 6, 4], [2026, 6, 5]]], $items[1]['event-date']);
+        $t->same('WordPress Import Conference Proceedings', $items[1]['container-title']);
+        $t->same('Migration Desk', $items[1]['publisher']);
+        $t->same('Portland', $items[1]['publisher-place']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $proceedings = $processor->item('event-proceedings');
+        $paper = $processor->item('event-paper');
+        $t->same('WordCamp Migration Summit', $proceedings['eventTitle'] ?? null);
+        $t->same('Reviewer track', $proceedings['eventTitleAddon'] ?? null);
+        $t->same('conference', $proceedings['eventType'] ?? null);
+        $t->same('Portland', $proceedings['eventPlace'] ?? null);
+        $t->same([[2026, 6, 4], [2026, 6, 5]], $proceedings['eventDate']['rangeParts'] ?? null);
+        $t->same('WordCamp Migration Summit', $paper['eventTitle'] ?? null);
+        $t->same('2026-06-04/2026-06-05', $paper['eventDate']['display'] ?? null);
+        $t->same('(Curator 2026; Ng 2026)', $processor->renderCitationCluster([
+            $citation('event-proceedings', '[@event-proceedings]'),
+            $citation('event-paper', '[@event-paper]'),
+        ]));
+        $t->same(
+            'Curator, Eli. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026.',
+            $processor->renderBibliographyEntry('event-proceedings')
+        );
+        $t->same(
+            'Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48.',
+            $processor->renderBibliographyEntry('event-paper')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author editor"/>
+        <text variable="event"/>
+        <text variable="event-title-addon"/>
+        <text variable="event-type"/>
+        <text variable="event-place"/>
+        <date variable="event-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="event"/>
+      <text variable="event-title-addon"/>
+      <text variable="event-type"/>
+      <text variable="event-place"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Curator | WordCamp Migration Summit | Reviewer track | conference | Portland | 2026-06-04/2026-06-05; Ng | WordCamp Migration Summit | Reviewer track | conference | Portland | 2026-06-04/2026-06-05]', $styled->renderCitationCluster([
+            $citation('event-proceedings', '[@event-proceedings]'),
+            $citation('event-paper', '[@event-paper]'),
+        ]));
+        $t->same('Source Packet Event Review :: WordCamp Migration Summit :: Reviewer track :: conference :: Portland :: 2026-06-04/2026-06-05', $styled->renderBibliographyEntry('event-paper'));
+
+        $document = (new MarkdownReader())->read('Event paper @event-paper and proceedings [@event-proceedings] preserve conference metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Event paper Ng (2026) and proceedings (Curator 2026) preserve conference metadata.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-event',
+            'title' => 'Manual Event Source',
+            'event' => 'Manual Review Meeting',
+            'event-place' => 'Remote',
+            'event-date' => ['date-parts' => [[2026, 6, 5]]],
+        ]])->item('manual-event');
+        $t->same('Manual Review Meeting', $manual['eventTitle'] ?? null);
+        $t->same('Remote', $manual['eventPlace'] ?? null);
+        $t->same('2026-06-05', $manual['eventDate']['display'] ?? null);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

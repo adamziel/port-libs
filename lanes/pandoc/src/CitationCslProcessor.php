@@ -327,6 +327,10 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        foreach ($this->eventBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         $publisher = (string) $item['publisher'];
         $year = $this->citationYear($item);
         $hasDate = $this->hasIssuedDate($item);
@@ -499,6 +503,10 @@ final class CitationCslProcessor
             'containerTitleAddon' => self::stringField($item, 'container-title-addon'),
             'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
+            'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle']),
+            'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon']),
+            'eventPlace' => self::firstStringField($item, ['event-place', 'eventPlace']),
+            'eventType' => self::firstStringField($item, ['event-type', 'eventType']),
             'publisher' => self::stringField($item, 'publisher'),
             'publisherPlace' => self::stringField($item, 'publisher-place'),
             'page' => self::stringField($item, 'page'),
@@ -1615,6 +1623,8 @@ final class CitationCslProcessor
             'title' => $this->normalizeSortText((string) $item['title']),
             'short-title' => $this->normalizeSortText((string) $item['shortTitle']),
             'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
+            'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
+            'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => '',
@@ -2134,6 +2144,43 @@ final class CitationCslProcessor
         $status = (string) ($item['status'] ?? '');
         if ($status !== '') {
             $parts[] = 'Status: ' . rtrim($status, '.') . '.';
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
+    private function eventBibliographyParts(array $item): array
+    {
+        $eventTitle = trim((string) ($item['eventTitle'] ?? ''));
+        $eventTitleAddon = trim((string) ($item['eventTitleAddon'] ?? ''));
+        $eventPlace = trim((string) ($item['eventPlace'] ?? ''));
+        $eventType = trim((string) ($item['eventType'] ?? ''));
+        $eventDate = $item['eventDate'] ?? null;
+
+        $legalType = in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true);
+        if ($legalType && $eventTitle === '' && $eventTitleAddon === '' && $eventPlace === '' && $eventType === '') {
+            return [];
+        }
+
+        $parts = [];
+        if ($eventTitle !== '') {
+            $parts[] = 'Event: ' . $this->withTerminalPunctuation($eventTitle);
+        }
+        if ($eventTitleAddon !== '') {
+            $parts[] = 'Event addendum: ' . $this->withTerminalPunctuation($eventTitleAddon);
+        }
+        if ($eventType !== '') {
+            $parts[] = 'Event type: ' . $this->withTerminalPunctuation($eventType);
+        }
+        if ($eventPlace !== '') {
+            $parts[] = 'Event place: ' . $this->withTerminalPunctuation($eventPlace);
+        }
+        if (is_array($eventDate) && (string) ($eventDate['display'] ?? '') !== '') {
+            $parts[] = 'Event date ' . (string) $eventDate['display'] . '.';
         }
 
         return $parts;
@@ -3251,6 +3298,10 @@ final class CitationCslProcessor
             'container-title-addon' => (string) $item['containerTitleAddon'],
             'main-title' => (string) $item['mainTitle'],
             'main-title-addon' => (string) $item['mainTitleAddon'],
+            'event', 'event-title' => (string) $item['eventTitle'],
+            'event-title-addon' => (string) $item['eventTitleAddon'],
+            'event-place' => (string) $item['eventPlace'],
+            'event-type' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
             'page' => (string) $item['page'],

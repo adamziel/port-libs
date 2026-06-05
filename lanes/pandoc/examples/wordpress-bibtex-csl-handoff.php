@@ -47,6 +47,8 @@ Annotated name source @name-annotation-review keeps reviewer name annotations at
 
 Software source @import-tool and dataset [@source-dataset] preserve version and publication state metadata.
 
+Event paper @event-paper and proceedings [@event-proceedings] preserve conference metadata.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -356,6 +358,25 @@ $bibtex = <<<'BIB'
   pubstate = {revised},
   doi      = {10.5555/dataset}
 }
+
+@proceedings{event-proceedings,
+  editor          = {Curator, Eli},
+  title           = {WordPress Import Conference Proceedings},
+  eventtitle      = {WordCamp Migration Summit},
+  eventtitleaddon = {Reviewer track},
+  eventtype       = {conference},
+  venue           = {Portland},
+  eventdate       = {2026-06-04/2026-06-05},
+  date            = {2026},
+  publisher       = {Migration Desk}
+}
+
+@inproceedings{event-paper,
+  author   = {Ng, Nia},
+  title    = {Source Packet Event Review},
+  pages    = {44--48},
+  crossref = {event-proceedings}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -560,6 +581,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($sourceDataset['status'] ?? null) !== 'revised') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not map dataset pubstate metadata');
     }
+    $eventPaper = $processor->item('event-paper');
+    if (($eventPaper['eventTitle'] ?? null) !== 'WordCamp Migration Summit') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve event paper event title metadata');
+    }
+    if (($eventPaper['eventTitleAddon'] ?? null) !== 'Reviewer track') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve event paper event title addendum metadata');
+    }
+    if (($eventPaper['eventType'] ?? null) !== 'conference') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve event paper event type metadata');
+    }
+    if (($eventPaper['eventPlace'] ?? null) !== 'Portland') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve event paper event place metadata');
+    }
+    if (($eventPaper['eventDate']['display'] ?? null) !== '2026-06-04/2026-06-05') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve event paper event date metadata');
+    }
+    $eventProceedings = $processor->item('event-proceedings');
+    if (($eventProceedings['eventTitle'] ?? null) !== 'WordCamp Migration Summit') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve proceedings event title metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -604,6 +645,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Software source Migration Desk (2026) and dataset (Ng 2025) preserve version and publication state metadata.</p>',
         '<dt>Migration Desk 2026</dt><dd>Migration Desk. Block Import Verifier. 2026. Version: 2.1.0-beta. Status: preprint. https://example.test/import-verifier.</dd>',
         '<dt>Ng 2025</dt><dd>Ng, Nia. Source Packet Dataset. 2025. Version: 2025.4. Status: revised. DOI 10.5555/dataset.</dd>',
+        '<p>Event paper Ng (2026) and proceedings (Curator 2026) preserve conference metadata.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48.</dd>',
+        '<dt>Curator 2026</dt><dd>Curator, Eli. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
