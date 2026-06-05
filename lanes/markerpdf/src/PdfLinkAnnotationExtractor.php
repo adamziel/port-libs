@@ -1663,9 +1663,7 @@ final class PdfLinkAnnotationExtractor
 
     private function valueStartingAtOffsetWithEnd(string $body, int $offset, ?int &$endOffset = null): ?string
     {
-        while ($offset < strlen($body) && ctype_space($body[$offset])) {
-            $offset++;
-        }
+        $this->skipWhitespaceAndComments($body, $offset);
 
         if ($offset >= strlen($body)) {
             return null;
@@ -2117,6 +2115,12 @@ final class PdfLinkAnnotationExtractor
             $char = $value[$index];
             if ($char === '(') {
                 $index = $this->skipLiteralString($value, $index) - 1;
+                continue;
+            }
+            if ($char === '%') {
+                while ($index < $length && $value[$index] !== "\n" && $value[$index] !== "\r") {
+                    $index++;
+                }
                 continue;
             }
             if ($char === '<' && substr($value, $index, 2) !== '<<') {

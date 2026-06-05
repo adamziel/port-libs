@@ -1022,6 +1022,13 @@ final class PdfActionReviewExtractor
                 continue;
             }
 
+            if ($char === '%') {
+                while ($index < $length && $value[$index] !== "\n" && $value[$index] !== "\r") {
+                    $index++;
+                }
+                continue;
+            }
+
             if ($char === '<' && substr($value, $index, 2) !== '<<') {
                 $this->readHexToken($value, $index);
                 $index--;
