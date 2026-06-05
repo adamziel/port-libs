@@ -160,6 +160,12 @@ if (!$shellCodeBlock instanceof PortLibs\Pandoc\AstNode || $shellCodeBlock->type
 }
 $shell = $highlighter->highlightCodeBlock($shellCodeBlock, 'pygments');
 $shellWordpressBlock = $highlighter->wordpressHtmlBlock($shellCodeBlock, 'pygments');
+$tokenTitleCodeBlock = $document->children[20] ?? null;
+if (!$tokenTitleCodeBlock instanceof PortLibs\Pandoc\AstNode || $tokenTitleCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a token-title PHP code block');
+}
+$tokenTitle = $highlighter->highlightCodeBlock($tokenTitleCodeBlock, 'kate');
+$tokenTitleWordpressBlock = $highlighter->wordpressHtmlBlock($tokenTitleCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -632,6 +638,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($shellWordpressBlock, '<span class="re">HTML</span>')) {
         throw new RuntimeException('Expected shell heredoc close token handoff');
     }
+    if (($tokenTitle['tokenTitles'] ?? false) !== true) {
+        throw new RuntimeException('Expected token-title opt-in metadata handoff');
+    }
+    if (!str_contains($tokenTitle['html'], '<span class="kw" title="KeywordTok">echo</span> <span class="fu" title="FunctionTok">esc_html</span>')) {
+        throw new RuntimeException('Expected token title attributes on highlighted PHP tokens');
+    }
+    if (!str_contains($tokenTitleWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected token-title WordPress style metadata');
+    }
+    if (!str_contains($tokenTitleWordpressBlock, '<span class="co" title="CommentTok">// reviewer token titles</span>')) {
+        throw new RuntimeException('Expected token-title WordPress comment metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -676,6 +694,7 @@ echo "javaHighlightedHtml:\n" . $java['html'] . "\n";
 echo "xmlHighlightedHtml:\n" . $xml['html'] . "\n";
 echo "xsltHighlightedHtml:\n" . $xslt['html'] . "\n";
 echo "shellHighlightedHtml:\n" . $shell['html'] . "\n";
+echo "tokenTitleHighlightedHtml:\n" . $tokenTitle['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -691,4 +710,5 @@ echo "perlWordpressBlock:\n" . $perlWordpressBlock . "\n";
 echo "javaWordpressBlock:\n" . $javaWordpressBlock . "\n";
 echo "xmlWordpressBlock:\n" . $xmlWordpressBlock . "\n";
 echo "shellWordpressBlock:\n" . $shellWordpressBlock . "\n";
+echo "tokenTitleWordpressBlock:\n" . $tokenTitleWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

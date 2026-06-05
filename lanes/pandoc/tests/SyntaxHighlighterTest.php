@@ -92,6 +92,8 @@ return [
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
+        $t->same(null, SyntaxHighlighter::normalizeLanguage('tokenTitles'));
+        $t->same(null, SyntaxHighlighter::normalizeLanguage('token-titles'));
         $t->same('breezedark', SyntaxHighlighter::normalizeStyle('breezeDark'));
         $t->same('pygments', SyntaxHighlighter::normalizeStyle('unknown-theme'));
         $t->same('yaml', (new SyntaxHighlighter())->highlightCodeBlock($attributeNode)['language']);
@@ -168,6 +170,41 @@ return [
         $t->same(true, $anchorOnly['lineNumbering']['anchors']);
         $t->contains('<pre class="sourceCode line-anchors"><code class="sourceCode php">', $anchorOnly['html']);
         $t->contains('<span id="anchor-only-1"><a href="#anchor-only-1" aria-hidden="true" tabindex="-1"></a><span class="kw">echo</span>', $anchorOnly['html']);
+    },
+    'renders opt in token title attributes for reviewer metadata' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[20] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a token-title PHP code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $plain = $highlighter->highlight('<?php echo esc_html($title);', 'php');
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $attributeEnabled = $highlighter->highlight(
+            'echo esc_html($title);',
+            'php',
+            'pygments',
+            ['attributes' => ['data-token-titles' => 'true']]
+        );
+
+        $t->same('php', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same(false, $plain['tokenTitles']);
+        $t->same(false, str_contains($plain['html'], 'title="KeywordTok"'));
+        $t->same('php', $highlighted['language']);
+        $t->same(true, $highlighted['tokenTitles']);
+        $t->same(3, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource php numberLines tokenTitles"><code class="sourceCode php" style="counter-reset: source-line 2;">', $highlighted['html']);
+        $t->contains('<span id="token-title-review-3"><a href="#token-title-review-3"></a><span class="pp" title="PreprocessorTok">&lt;?php</span></span>', $highlighted['html']);
+        $t->contains('<span id="token-title-review-4"><a href="#token-title-review-4"></a><span class="kw" title="KeywordTok">echo</span> <span class="fu" title="FunctionTok">esc_html</span>', $highlighted['html']);
+        $t->contains('<span class="va" title="VariableTok">$title</span><span class="op" title="OperatorTok">);</span> <span class="co" title="CommentTok">// reviewer token titles</span>', $highlighted['html']);
+        $t->same(true, $attributeEnabled['tokenTitles']);
+        $t->contains('<span class="kw" title="KeywordTok">echo</span> <span class="fu" title="FunctionTok">esc_html</span>', $attributeEnabled['html']);
     },
     'preserves numbered plain text fallback for unsupported languages' => static function (TestRunner $t): void {
         $highlighted = (new SyntaxHighlighter())->highlight(

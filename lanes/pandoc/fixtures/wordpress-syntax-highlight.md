@@ -264,3 +264,8 @@ HTML
   fi
 done
 ```
+
+``` {.php #token-title-review .numberLines .tokenTitles startFrom=3}
+<?php
+echo esc_html($title); // reviewer token titles
+```

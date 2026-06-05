@@ -23,6 +23,23 @@ final class SyntaxHighlighter
         'warning' => 'al',
     ];
 
+    private const TOKEN_TITLES = [
+        'attribute' => 'OtherTok',
+        'comment' => 'CommentTok',
+        'constant' => 'ConstantTok',
+        'datatype' => 'DataTypeTok',
+        'function' => 'FunctionTok',
+        'information' => 'InformationTok',
+        'keyword' => 'KeywordTok',
+        'number' => 'DecValTok',
+        'operator' => 'OperatorTok',
+        'preprocessor' => 'PreprocessorTok',
+        'region' => 'RegionMarkerTok',
+        'string' => 'StringTok',
+        'variable' => 'VariableTok',
+        'warning' => 'AlertTok',
+    ];
+
     private const LANGUAGE_ALIASES = [
         'bash' => 'bash',
         'c' => 'c',
@@ -172,7 +189,8 @@ final class SyntaxHighlighter
      *   html:string,
      *   css:string,
      *   diagnostics:list<array{code:string, message:string}>,
-     *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string}
+     *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string},
+     *   tokenTitles:bool
      * }
      */
     public function highlightCodeBlock(AstNode $codeBlock, string $style = 'pygments', array $options = []): array
@@ -197,7 +215,8 @@ final class SyntaxHighlighter
      *   id?: string,
      *   classes?: array<int, mixed>,
      *   attributes?: array<string, mixed>,
-     *   themeJson?: string
+     *   themeJson?: string,
+     *   tokenTitles?: bool|string|int
      * } $options
      * @return array{
      *   language:string,
@@ -207,7 +226,8 @@ final class SyntaxHighlighter
      *   html:string,
      *   css:string,
      *   diagnostics:list<array{code:string, message:string}>,
-     *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string}
+     *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string},
+     *   tokenTitles:bool
      * }
      */
     public function highlight(string $code, string $language = '', string $style = 'pygments', array $options = []): array
@@ -250,6 +270,7 @@ final class SyntaxHighlighter
                 'start' => $lineOptions['startNumber'],
                 'lineIdPrefix' => $lineOptions['lineIdPrefix'],
             ],
+            'tokenTitles' => $lineOptions['tokenTitles'],
         ];
     }
 
@@ -478,7 +499,8 @@ final class SyntaxHighlighter
      *   lineAnchors?: bool,
      *   startNumber?: int,
      *   lineIdPrefix?: string,
-     *   containerClasses?: list<string>
+     *   containerClasses?: list<string>,
+     *   tokenTitles?: bool
      * } $options
      */
     public static function renderHighlightedHtml(array $tokens, string $language = '', array $options = []): string
@@ -490,12 +512,11 @@ final class SyntaxHighlighter
         }
 
         $classes = trim('sourceCode' . ($language === '' ? '' : ' ' . self::sanitizeClass($language)));
+        $tokenTitles = (bool) ($options['tokenTitles'] ?? false);
         $html = '';
 
         foreach ($tokens as $token) {
-            $text = self::escapeHtml((string) ($token['text'] ?? ''));
-            $class = self::sanitizeClass((string) ($token['class'] ?? ''));
-            $html .= $class === '' ? $text : '<span class="' . $class . '">' . $text . '</span>';
+            $html .= self::renderTokenHtml($token, $tokenTitles);
         }
 
         return '<pre class="' . $classes . '"><code class="' . $classes . '">' . $html . '</code></pre>';
@@ -1517,6 +1538,14 @@ final class SyntaxHighlighter
             'number-lines',
             'numberlines',
             'sourcecode',
+            'title-attributes',
+            'titleattributes',
+            'token-title-attributes',
+            'token-titleattributes',
+            'tokentitle-attributes',
+            'tokentitleattributes',
+            'token-titles',
+            'tokentitles',
         ], true);
     }
 
@@ -1531,7 +1560,8 @@ final class SyntaxHighlighter
      *   lineAnchors: bool,
      *   startNumber: int,
      *   lineIdPrefix: string,
-     *   containerClasses: list<string>
+     *   containerClasses: list<string>,
+     *   tokenTitles: bool
      * }
      */
     private static function lineNumberingOptions(array $options): array
@@ -1546,6 +1576,9 @@ final class SyntaxHighlighter
 
         $normalized = array_map(self::normalizedClassName(...), $classes);
         $attributes = $options['attributes'] ?? [];
+        if (!is_array($attributes)) {
+            $attributes = [];
+        }
         $start = 1;
         foreach (['startFrom', 'start-from'] as $name) {
             if (isset($attributes[$name]) && preg_match('/^-?\d+$/', (string) $attributes[$name]) === 1) {
@@ -1555,6 +1588,28 @@ final class SyntaxHighlighter
         }
 
         $id = self::sanitizeId((string) ($options['id'] ?? ''));
+        $tokenTitles = self::optionBoolean($options['tokenTitles'] ?? null);
+        if ($tokenTitles === null) {
+            $tokenTitles = in_array('title-attributes', $normalized, true)
+                || in_array('titleattributes', $normalized, true)
+                || in_array('token-title-attributes', $normalized, true)
+                || in_array('token-titleattributes', $normalized, true)
+                || in_array('tokentitle-attributes', $normalized, true)
+                || in_array('tokentitleattributes', $normalized, true)
+                || in_array('token-titles', $normalized, true)
+                || in_array('tokentitles', $normalized, true)
+                || self::attributeBoolean($attributes, [
+                    'data-title-attributes',
+                    'data-token-title-attributes',
+                    'data-token-titles',
+                    'title-attributes',
+                    'titleAttributes',
+                    'token-title-attributes',
+                    'tokenTitleAttributes',
+                    'token-titles',
+                    'tokenTitles',
+                ]);
+        }
 
         return [
             'numberLines' => in_array('number', $normalized, true)
@@ -1565,6 +1620,7 @@ final class SyntaxHighlighter
             'startNumber' => $start,
             'lineIdPrefix' => $id === '' ? '' : $id . '-',
             'containerClasses' => $classes,
+            'tokenTitles' => $tokenTitles,
         ];
     }
 
@@ -1580,12 +1636,14 @@ final class SyntaxHighlighter
      *   lineAnchors?: bool,
      *   startNumber?: int,
      *   lineIdPrefix?: string,
-     *   containerClasses?: list<string>
+     *   containerClasses?: list<string>,
+     *   tokenTitles?: bool
      * } $options
      */
     private static function renderLineNumberedHtml(array $tokens, string $language, array $options): string
     {
         $numberLines = (bool) ($options['numberLines'] ?? false);
+        $tokenTitles = (bool) ($options['tokenTitles'] ?? false);
         $startNumber = (int) ($options['startNumber'] ?? 1);
         $lineIdPrefix = (string) ($options['lineIdPrefix'] ?? '');
         $containerClasses = ['sourceCode'];
@@ -1620,9 +1678,7 @@ final class SyntaxHighlighter
             }
             $line .= '></a>';
             foreach ($lineTokens as $token) {
-                $text = self::escapeHtml((string) ($token['text'] ?? ''));
-                $class = self::sanitizeClass((string) ($token['class'] ?? ''));
-                $line .= $class === '' ? $text : '<span class="' . $class . '">' . $text . '</span>';
+                $line .= self::renderTokenHtml($token, $tokenTitles);
             }
             $line .= '</span>';
             $lineHtml[] = $line;
@@ -2017,6 +2073,71 @@ final class SyntaxHighlighter
         $style = trim($style, '-_');
 
         return $style === '' ? 'custom-theme' : $style;
+    }
+
+    /**
+     * @param array{type?:string, text?:string, class?:string} $token
+     */
+    private static function renderTokenHtml(array $token, bool $tokenTitles): string
+    {
+        $text = self::escapeHtml((string) ($token['text'] ?? ''));
+        $class = self::sanitizeClass((string) ($token['class'] ?? ''));
+        if ($class === '') {
+            return $text;
+        }
+
+        $attributes = ' class="' . $class . '"';
+        $title = $tokenTitles ? self::tokenTitle((string) ($token['type'] ?? '')) : null;
+        if ($title !== null) {
+            $attributes .= ' title="' . self::escapeHtml($title) . '"';
+        }
+
+        return '<span' . $attributes . '>' . $text . '</span>';
+    }
+
+    private static function tokenTitle(string $type): ?string
+    {
+        return self::TOKEN_TITLES[$type] ?? null;
+    }
+
+    /**
+     * @param array<string, mixed> $attributes
+     * @param list<string> $names
+     */
+    private static function attributeBoolean(array $attributes, array $names): bool
+    {
+        foreach ($names as $name) {
+            if (array_key_exists($name, $attributes)) {
+                return self::optionBoolean($attributes[$name]) ?? true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function optionBoolean(mixed $value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) && ($value === 0 || $value === 1)) {
+            return $value === 1;
+        }
+
+        if (is_string($value)) {
+            return match (strtolower(trim($value))) {
+                '', '1', 'true', 'yes', 'on' => true,
+                '0', 'false', 'no', 'off' => false,
+                default => null,
+            };
+        }
+
+        return null;
     }
 
     private static function sanitizeId(string $id): string
