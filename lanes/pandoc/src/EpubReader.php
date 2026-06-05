@@ -14,6 +14,7 @@ final class EpubReader
     public const EPUB_OPS_NS = 'http://www.idpf.org/2007/ops';
     public const NCX_NS = 'http://www.daisy.org/z3986/2005/ncx/';
     public const XMLENC_NS = 'http://www.w3.org/2001/04/xmlenc#';
+    public const XMLDSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
     public const SMIL_NS = 'http://www.w3.org/ns/SMIL';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
@@ -42,6 +43,7 @@ final class EpubReader
      *     resourceProperties:array<string, mixed>,
      *     remoteResources:array<string, mixed>,
      *     encryption:array<string, mixed>,
+     *     ocf:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
      *     pageBreaks:array<string, mixed>,
@@ -56,6 +58,7 @@ final class EpubReader
     {
         $this->assertEpubMimetype($package);
         $container = $this->readContainer($package);
+        $ocf = $this->readOcfSidecars($package);
         $opfPart = (string) $container['opfPart'];
 
         $opf = $this->readOpf($package, $opfPart);
@@ -76,7 +79,8 @@ final class EpubReader
             $opf['pageBreaks'],
             $opf['navigation'],
             $opf['xhtmlResourceReport'],
-            $renditions
+            $renditions,
+            $ocf
         );
 
         return [
@@ -99,6 +103,7 @@ final class EpubReader
             'resourceProperties' => $opf['resourceProperties'],
             'remoteResources' => $opf['remoteResources'],
             'encryption' => $opf['encryption'],
+            'ocf' => $ocf,
             'mediaOverlays' => $opf['mediaOverlays'],
             'mediaDurations' => $opf['mediaDurations'],
             'pageBreaks' => $opf['pageBreaks'],
@@ -140,6 +145,7 @@ final class EpubReader
                 'remoteResources' => $opf['remoteResources'],
                 'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
                 'encryption' => $opf['encryption'],
+                'ocf' => $ocf,
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'mediaDurations' => $opf['mediaDurations'],
                 'pageBreaks' => $opf['pageBreaks'],
@@ -1516,6 +1522,493 @@ final class EpubReader
                 static fn (array $item): bool => $item['obfuscatedFont'] === true,
             )),
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfSidecars(ZipPackage $package): array
+    {
+        $rights = $this->readOcfRights($package);
+        $signatures = $this->readOcfSignatures($package);
+        $diagnostics = array_merge(
+            is_array($rights['diagnostics'] ?? null) ? $rights['diagnostics'] : [],
+            is_array($signatures['diagnostics'] ?? null) ? $signatures['diagnostics'] : []
+        );
+
+        return [
+            'present' => ($rights['present'] ?? false) === true || ($signatures['present'] ?? false) === true,
+            'sidecarCount' => (($rights['present'] ?? false) === true ? 1 : 0)
+                + (($signatures['present'] ?? false) === true ? 1 : 0),
+            'referenceCount' => (int) ($rights['referenceCount'] ?? 0) + (int) ($signatures['referenceCount'] ?? 0),
+            'localReferenceCount' => (int) ($rights['localReferenceCount'] ?? 0) + (int) ($signatures['localReferenceCount'] ?? 0),
+            'externalReferenceCount' => (int) ($rights['externalReferenceCount'] ?? 0) + (int) ($signatures['externalReferenceCount'] ?? 0),
+            'missingReferenceCount' => (int) ($rights['missingReferenceCount'] ?? 0) + (int) ($signatures['missingReferenceCount'] ?? 0),
+            'rights' => $rights,
+            'signatures' => $signatures,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfRights(ZipPackage $package): array
+    {
+        $part = '/META-INF/rights.xml';
+        if (!$package->has($part)) {
+            return self::emptyOcfSidecarReport($part);
+        }
+
+        $report = self::ocfSidecarMetadata($package, $part) + [
+            'present' => true,
+            'valid' => true,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'language' => null,
+            'itemCount' => 0,
+            'items' => [],
+            'referenceCount' => 0,
+            'localReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'missingReferenceCount' => 0,
+            'diagnostics' => [],
+        ];
+
+        try {
+            $dom = self::loadXml($package->read($part), 'EPUB OCF rights XML');
+        } catch (\Throwable $exception) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-rights-xml',
+                'part' => $part,
+                'message' => $exception->getMessage(),
+            ];
+
+            return $report;
+        }
+
+        $root = $dom->documentElement;
+        $report['rootName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $report['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $report['language'] = $root instanceof \DOMElement ? self::xmlLang($root) : null;
+
+        if (!$root instanceof \DOMElement || $root->localName !== 'rights' || $root->namespaceURI !== self::OCF_CONTAINER_NS) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-rights-root',
+                'part' => $part,
+                'rootName' => $report['rootName'],
+                'rootNamespace' => $report['rootNamespace'],
+                'message' => 'EPUB OCF rights XML should use the OCF rights root element',
+            ];
+        }
+
+        if (!$root instanceof \DOMElement) {
+            return $report;
+        }
+
+        $items = [];
+        foreach (self::childElements($root) as $index => $child) {
+            $href = self::nullableAttribute($child, 'href')
+                ?? self::nullableAttribute($child, 'src')
+                ?? self::nullableAttribute($child, 'URI');
+            $reference = $href === null
+                ? null
+                : $this->ocfSidecarReference($package, $href, 'rights');
+            $diagnostics = $reference === null ? [] : $reference['diagnostics'];
+            foreach ($diagnostics as $diagnostic) {
+                $report['diagnostics'][] = ['index' => $index] + $diagnostic;
+            }
+
+            $items[] = [
+                'index' => $index,
+                'name' => $child->localName,
+                'namespace' => $child->namespaceURI,
+                'id' => self::nullableAttribute($child, 'id'),
+                'href' => $href,
+                'mediaType' => self::nullableAttribute($child, 'media-type'),
+                'text' => self::normalizedText($child),
+                'attributes' => self::elementAttributes($child),
+                'reference' => $reference,
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        $report['items'] = $items;
+        $report['itemCount'] = count($items);
+        $report = self::ocfReportWithReferenceCounts($report, self::rightsReferences($items));
+        $report['valid'] = $report['valid'] && $report['diagnostics'] === [];
+
+        return $report;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfSignatures(ZipPackage $package): array
+    {
+        $part = '/META-INF/signatures.xml';
+        if (!$package->has($part)) {
+            return self::emptyOcfSidecarReport($part) + [
+                'signatureCount' => 0,
+                'items' => [],
+                'references' => [],
+            ];
+        }
+
+        $report = self::ocfSidecarMetadata($package, $part) + [
+            'present' => true,
+            'valid' => true,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'signatureCount' => 0,
+            'items' => [],
+            'references' => [],
+            'referenceCount' => 0,
+            'localReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'missingReferenceCount' => 0,
+            'diagnostics' => [],
+        ];
+
+        try {
+            $dom = self::loadXml($package->read($part), 'EPUB OCF signatures XML');
+        } catch (\Throwable $exception) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-signatures-xml',
+                'part' => $part,
+                'message' => $exception->getMessage(),
+            ];
+
+            return $report;
+        }
+
+        $root = $dom->documentElement;
+        $report['rootName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $report['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+
+        if (!$root instanceof \DOMElement || $root->localName !== 'signatures' || $root->namespaceURI !== self::OCF_CONTAINER_NS) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-signatures-root',
+                'part' => $part,
+                'rootName' => $report['rootName'],
+                'rootNamespace' => $report['rootNamespace'],
+                'message' => 'EPUB OCF signatures XML should use the OCF signatures root element',
+            ];
+        }
+
+        $items = [];
+        $references = [];
+        foreach ($dom->getElementsByTagNameNS(self::XMLDSIG_NS, 'Signature') as $signatureIndex => $signatureElement) {
+            if (!$signatureElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $signature = $this->readOcfSignature($package, $signatureElement, $signatureIndex);
+            foreach ($signature['diagnostics'] as $diagnostic) {
+                $report['diagnostics'][] = [
+                    'signatureIndex' => $signatureIndex,
+                    'signatureId' => $signature['id'],
+                ] + $diagnostic;
+            }
+            array_push($references, ...$signature['references']);
+            $items[] = $signature;
+        }
+
+        $report['items'] = $items;
+        $report['signatureCount'] = count($items);
+        $report['references'] = $references;
+        $report = self::ocfReportWithReferenceCounts($report, $references);
+        $report['valid'] = $report['valid'] && $report['diagnostics'] === [];
+
+        return $report;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfSignature(ZipPackage $package, \DOMElement $signature, int $signatureIndex): array
+    {
+        $signedInfo = self::firstChildElement($signature, 'SignedInfo', self::XMLDSIG_NS);
+        $canonicalization = $signedInfo instanceof \DOMElement
+            ? self::firstChildElement($signedInfo, 'CanonicalizationMethod', self::XMLDSIG_NS)
+            : null;
+        $signatureMethod = $signedInfo instanceof \DOMElement
+            ? self::firstChildElement($signedInfo, 'SignatureMethod', self::XMLDSIG_NS)
+            : null;
+        $signatureValue = self::firstChildElement($signature, 'SignatureValue', self::XMLDSIG_NS);
+        $references = [];
+        $diagnostics = [];
+
+        if (!$signedInfo instanceof \DOMElement) {
+            $diagnostics[] = [
+                'type' => 'ocf-signature-missing-signed-info',
+                'message' => 'EPUB OCF signature is missing ds:SignedInfo',
+            ];
+        } else {
+            foreach (self::childElements($signedInfo, 'Reference', self::XMLDSIG_NS) as $referenceIndex => $referenceElement) {
+                $reference = $this->readOcfSignatureReference($package, $referenceElement, $referenceIndex);
+                foreach ($reference['diagnostics'] as $diagnostic) {
+                    $diagnostics[] = [
+                        'referenceIndex' => $referenceIndex,
+                        'uri' => $reference['uri'],
+                    ] + $diagnostic;
+                }
+                $references[] = $reference;
+            }
+        }
+
+        return [
+            'index' => $signatureIndex,
+            'id' => self::nullableAttribute($signature, 'Id') ?? self::nullableAttribute($signature, 'ID'),
+            'canonicalizationMethod' => $canonicalization instanceof \DOMElement
+                ? self::nullableAttribute($canonicalization, 'Algorithm')
+                : null,
+            'signatureMethod' => $signatureMethod instanceof \DOMElement
+                ? self::nullableAttribute($signatureMethod, 'Algorithm')
+                : null,
+            'signatureValuePresent' => $signatureValue instanceof \DOMElement && trim($signatureValue->textContent) !== '',
+            'referenceCount' => count($references),
+            'references' => $references,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readOcfSignatureReference(ZipPackage $package, \DOMElement $referenceElement, int $referenceIndex): array
+    {
+        $uri = self::nullableAttribute($referenceElement, 'URI');
+        $reference = $uri === null
+            ? self::missingOcfSidecarReference('signature')
+            : $this->ocfSidecarReference($package, $uri, 'signature');
+        $digestMethod = self::firstChildElement($referenceElement, 'DigestMethod', self::XMLDSIG_NS);
+        $digestValue = self::firstChildElement($referenceElement, 'DigestValue', self::XMLDSIG_NS);
+
+        return [
+            'index' => $referenceIndex,
+            'uri' => $uri,
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'fragment' => self::targetFragment($reference['target']),
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'digestMethod' => $digestMethod instanceof \DOMElement
+                ? self::nullableAttribute($digestMethod, 'Algorithm')
+                : null,
+            'digestValue' => $digestValue instanceof \DOMElement ? trim($digestValue->textContent) : null,
+            'diagnostics' => $reference['diagnostics'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     target:?string,
+     *     part:?string,
+     *     external:bool,
+     *     exists:bool,
+     *     byteLength:?int,
+     *     crc32:?string,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function ocfSidecarReference(ZipPackage $package, string $uri, string $context): array
+    {
+        $uri = trim($uri);
+        if ($uri === '') {
+            return self::missingOcfSidecarReference($context);
+        }
+
+        if (self::isExternalReference($uri)) {
+            return [
+                'target' => $uri,
+                'part' => null,
+                'external' => true,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'diagnostics' => [[
+                    'type' => 'ocf-' . $context . '-remote-reference',
+                    'uri' => $uri,
+                    'message' => 'EPUB OCF ' . $context . ' reference points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
+        try {
+            $target = self::ocfPackageReferenceTarget($uri, $context === 'signature' ? '/META-INF/signatures.xml' : '/META-INF/rights.xml');
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'part' => null,
+                'external' => false,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'diagnostics' => [[
+                    'type' => 'ocf-' . $context . '-invalid-reference',
+                    'uri' => $uri,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $part = OpcPackagePath::stripQueryAndFragment($target);
+        $exists = $package->has($part);
+        $entry = $exists ? $package->entry($part) : null;
+        $diagnostics = $exists ? [] : [[
+            'type' => 'ocf-' . $context . '-missing-reference',
+            'uri' => $uri,
+            'part' => $part,
+            'message' => 'EPUB OCF ' . $context . ' reference target is missing from the package',
+        ]];
+
+        return [
+            'target' => $target,
+            'part' => $part,
+            'external' => false,
+            'exists' => $exists,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function ocfPackageReferenceTarget(string $uri, string $sidecarPart): string
+    {
+        if (str_contains($uri, "\0") || str_contains($uri, '\\')) {
+            throw new \InvalidArgumentException('EPUB OCF sidecar references must use slash-separated package paths');
+        }
+
+        if (str_starts_with($uri, '#')) {
+            return $sidecarPart . $uri;
+        }
+
+        $split = strcspn($uri, '?#');
+        $path = substr($uri, 0, $split);
+        $suffix = substr($uri, $split);
+        if ($path === '') {
+            throw new \InvalidArgumentException('EPUB OCF sidecar reference path must not be empty');
+        }
+
+        return OpcPackagePath::canonicalPartNameFromUri($path) . $suffix;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyOcfSidecarReport(string $part): array
+    {
+        return [
+            'present' => false,
+            'part' => null,
+            'expectedPart' => $part,
+            'byteLength' => null,
+            'crc32' => null,
+            'byteSha256' => null,
+            'valid' => null,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'referenceCount' => 0,
+            'localReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'missingReferenceCount' => 0,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ocfSidecarMetadata(ZipPackage $package, string $part): array
+    {
+        $entry = $package->entry($part);
+        $bytes = $package->read($part);
+
+        return [
+            'part' => $part,
+            'expectedPart' => $part,
+            'byteLength' => $entry->uncompressedSize,
+            'crc32' => $entry->crc32Hex(),
+            'byteSha256' => hash('sha256', $bytes),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function rightsReferences(array $items): array
+    {
+        $references = [];
+        foreach ($items as $item) {
+            if (is_array($item['reference'] ?? null)) {
+                $references[] = $item['reference'];
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     * @param list<array<string, mixed>> $references
+     *
+     * @return array<string, mixed>
+     */
+    private static function ocfReportWithReferenceCounts(array $report, array $references): array
+    {
+        $report['referenceCount'] = count($references);
+        $report['localReferenceCount'] = count(array_filter(
+            $references,
+            static fn (array $reference): bool => ($reference['external'] ?? false) !== true
+                && ($reference['exists'] ?? false) === true,
+        ));
+        $report['externalReferenceCount'] = count(array_filter(
+            $references,
+            static fn (array $reference): bool => ($reference['external'] ?? false) === true,
+        ));
+        $report['missingReferenceCount'] = count(array_filter(
+            $references,
+            static fn (array $reference): bool => ($reference['external'] ?? false) !== true
+                && ($reference['exists'] ?? true) !== true,
+        ));
+
+        return $report;
+    }
+
+    /**
+     * @return array{
+     *     target:null,
+     *     part:null,
+     *     external:false,
+     *     exists:false,
+     *     byteLength:null,
+     *     crc32:null,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function missingOcfSidecarReference(string $context): array
+    {
+        return [
+            'target' => null,
+            'part' => null,
+            'external' => false,
+            'exists' => false,
+            'byteLength' => null,
+            'crc32' => null,
+            'diagnostics' => [[
+                'type' => 'ocf-' . $context . '-missing-reference',
+                'message' => 'EPUB OCF ' . $context . ' reference is missing a URI',
+            ]],
         ];
     }
 
@@ -4632,6 +5125,7 @@ final class EpubReader
      * @param array<string, mixed> $navigation
      * @param array<string, mixed> $xhtmlResourceReport
      * @param array<string, mixed> $renditions
+     * @param array<string, mixed> $ocf
      */
     private function documentNode(
         array $metadata,
@@ -4649,7 +5143,8 @@ final class EpubReader
         array $pageBreaks,
         array $navigation,
         array $xhtmlResourceReport,
-        array $renditions
+        array $renditions,
+        array $ocf
     ): AstNode {
         $assetsByPart = [];
         foreach ($xhtmlAssets as $asset) {
@@ -4732,6 +5227,7 @@ final class EpubReader
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,
             'renditions' => $renditions,
+            'ocf' => $ocf,
             'title' => $metadata['title'] ?? '',
         ], $children);
     }
@@ -5015,6 +5511,29 @@ final class EpubReader
         $text = preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent;
 
         return trim($text);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function elementAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        if (!$element->hasAttributes()) {
+            return $attributes;
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $attributes[$attribute->name] = $attribute->value;
+        }
+
+        ksort($attributes);
+
+        return $attributes;
     }
 
     private static function nullableAttribute(\DOMElement $element, string $name): ?string

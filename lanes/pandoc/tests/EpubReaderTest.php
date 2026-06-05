@@ -168,6 +168,38 @@ $encryptionXml = <<<'XML'
 </encryption>
 XML;
 
+$rightsXml = <<<'XML'
+<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:drm="https://example.invalid/epub-drm" xml:lang="en">
+  <drm:license id="local-license" href="META-INF/licenses/source-license.xml" media-type="application/xml">Migration license</drm:license>
+  <drm:policy id="remote-policy" href="https://rights.example.invalid/policy.xml">Remote policy</drm:policy>
+  <drm:notice id="missing-notice" href="META-INF/licenses/missing.xml">Missing notice</drm:notice>
+</rights>
+XML;
+
+$signaturesXml = <<<'XML'
+<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:Signature Id="package-signature">
+    <ds:SignedInfo>
+      <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <ds:Reference URI="OEBPS/text/chapter1.xhtml#intro">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>chapter-digest</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="OEBPS/images/missing-signed.png">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>missing-digest</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="https://signatures.example.invalid/source-manifest.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>remote-digest</ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+    <ds:SignatureValue>signed-review-packet</ds:SignatureValue>
+  </ds:Signature>
+</signatures>
+XML;
+
 $smilXml = <<<'XML'
 <smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
@@ -1712,6 +1744,81 @@ XML;
         $t->same([], $result['importReport']['encryption']['diagnostics']);
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
+    'reports OCF rights and signatures sidecars without validating cryptography' => static function (TestRunner $t) use ($buildEpubPackage, $rightsXml, $signaturesXml): void {
+        $licenseBytes = '<license source="wordpress-import">review required</license>';
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
+                ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+                ['name' => 'META-INF/licenses/source-license.xml', 'data' => $licenseBytes],
+            ]
+        ));
+
+        $ocf = $result['ocf'];
+        $rights = $ocf['rights'];
+        $signatures = $ocf['signatures'];
+
+        $t->same(true, $ocf['present']);
+        $t->same(2, $ocf['sidecarCount']);
+        $t->same(6, $ocf['referenceCount']);
+        $t->same(2, $ocf['externalReferenceCount']);
+        $t->same(2, $ocf['missingReferenceCount']);
+        $t->same(['ocf-rights-remote-reference', 'ocf-rights-missing-reference', 'ocf-signature-missing-reference', 'ocf-signature-remote-reference'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $ocf['diagnostics']));
+
+        $t->same(true, $rights['present']);
+        $t->same('/META-INF/rights.xml', $rights['part']);
+        $t->same('rights', $rights['rootName']);
+        $t->same(EpubReader::OCF_CONTAINER_NS, $rights['rootNamespace']);
+        $t->same('en', $rights['language']);
+        $t->same(strlen($rightsXml), $rights['byteLength']);
+        $t->same(hash('sha256', $rightsXml), $rights['byteSha256']);
+        $t->same(3, $rights['itemCount']);
+        $t->same(3, $rights['referenceCount']);
+        $t->same(1, $rights['localReferenceCount']);
+        $t->same(1, $rights['externalReferenceCount']);
+        $t->same(1, $rights['missingReferenceCount']);
+        $t->same('local-license', $rights['items'][0]['id']);
+        $t->same('license', $rights['items'][0]['name']);
+        $t->same('https://example.invalid/epub-drm', $rights['items'][0]['namespace']);
+        $t->same('Migration license', $rights['items'][0]['text']);
+        $t->same('/META-INF/licenses/source-license.xml', $rights['items'][0]['reference']['target']);
+        $t->same(true, $rights['items'][0]['reference']['exists']);
+        $t->same(strlen($licenseBytes), $rights['items'][0]['reference']['byteLength']);
+        $t->same('application/xml', $rights['items'][0]['mediaType']);
+        $t->same(true, $rights['items'][1]['reference']['external']);
+        $t->same('ocf-rights-remote-reference', $rights['items'][1]['diagnostics'][0]['type']);
+        $t->same(false, $rights['items'][2]['reference']['exists']);
+        $t->same('ocf-rights-missing-reference', $rights['items'][2]['diagnostics'][0]['type']);
+
+        $t->same(true, $signatures['present']);
+        $t->same('/META-INF/signatures.xml', $signatures['part']);
+        $t->same('signatures', $signatures['rootName']);
+        $t->same(EpubReader::OCF_CONTAINER_NS, $signatures['rootNamespace']);
+        $t->same(strlen($signaturesXml), $signatures['byteLength']);
+        $t->same(hash('sha256', $signaturesXml), $signatures['byteSha256']);
+        $t->same(1, $signatures['signatureCount']);
+        $t->same(3, $signatures['referenceCount']);
+        $t->same(1, $signatures['localReferenceCount']);
+        $t->same(1, $signatures['externalReferenceCount']);
+        $t->same(1, $signatures['missingReferenceCount']);
+        $t->same('package-signature', $signatures['items'][0]['id']);
+        $t->same('http://www.w3.org/TR/2001/REC-xml-c14n-20010315', $signatures['items'][0]['canonicalizationMethod']);
+        $t->same('http://www.w3.org/2001/04/xmldsig-more#rsa-sha256', $signatures['items'][0]['signatureMethod']);
+        $t->same(true, $signatures['items'][0]['signatureValuePresent']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $signatures['items'][0]['references'][0]['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $signatures['items'][0]['references'][0]['part']);
+        $t->same(true, $signatures['items'][0]['references'][0]['exists']);
+        $t->same('http://www.w3.org/2001/04/xmlenc#sha256', $signatures['items'][0]['references'][0]['digestMethod']);
+        $t->same('chapter-digest', $signatures['items'][0]['references'][0]['digestValue']);
+        $t->same(false, $signatures['items'][0]['references'][1]['exists']);
+        $t->same('ocf-signature-missing-reference', $signatures['items'][0]['references'][1]['diagnostics'][0]['type']);
+        $t->same(true, $signatures['items'][0]['references'][2]['external']);
+        $t->same('ocf-signature-remote-reference', $signatures['items'][0]['references'][2]['diagnostics'][0]['type']);
+        $t->same($ocf, $result['importReport']['ocf']);
+        $t->same($ocf, $result['document']->attr('ocf'));
     },
     'parses EPUB3 SMIL media overlays for spine audio review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $smilXml): void {
         $opfWithOverlay = str_replace(

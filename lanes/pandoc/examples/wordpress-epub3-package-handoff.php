@@ -203,10 +203,40 @@ $encryptionXml = <<<'XML'
 </encryption>
 XML;
 
+$rightsXml = <<<'XML'
+<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:drm="https://example.invalid/epub-drm" xml:lang="en">
+  <drm:license id="local-license" href="META-INF/licenses/source-license.xml" media-type="application/xml">Migration license</drm:license>
+  <drm:policy id="remote-policy" href="https://rights.example.invalid/policy.xml">Remote policy</drm:policy>
+</rights>
+XML;
+
+$signaturesXml = <<<'XML'
+<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:Signature Id="package-signature">
+    <ds:SignedInfo>
+      <ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <ds:Reference URI="EPUB/text/chapter.xhtml#source">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>chapter-digest</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="https://signatures.example.invalid/source-manifest.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>remote-digest</ds:DigestValue>
+      </ds:Reference>
+    </ds:SignedInfo>
+    <ds:SignatureValue>signed-review-packet</ds:SignatureValue>
+  </ds:Signature>
+</signatures>
+XML;
+
 $packageParts = [
     ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
     ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+    ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
+    ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+    ['name' => 'META-INF/licenses/source-license.xml', 'data' => '<license source="wordpress-import">review required</license>'],
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
     ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
@@ -224,6 +254,17 @@ $packageParts = [
     ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
 ];
 $package = ZipPackage::fromParts($packageParts);
+$withPackagePartData = static function (array $parts, string $name, string $data): array {
+    foreach ($parts as $index => $part) {
+        if (($part['name'] ?? null) === $name) {
+            $parts[$index]['data'] = $data;
+
+            return $parts;
+        }
+    }
+
+    throw new RuntimeException('Missing EPUB fixture part: ' . $name);
+};
 
 $reader = new EpubReader();
 $result = $reader->readPackage($package);
@@ -242,8 +283,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['package']['uniqueIdentifier']['selectedBy'] ?? null) !== 'unique-identifier') {
         throw new RuntimeException('Expected EPUB package report to expose the canonical identifier source');
     }
-    $missingIdentifierParts = $packageParts;
-    $missingIdentifierParts[3]['data'] = str_replace('unique-identifier="source-id"', 'unique-identifier="missing-id"', $opfXml);
+    $missingIdentifierParts = $withPackagePartData(
+        $packageParts,
+        'EPUB/package.opf',
+        str_replace('unique-identifier="source-id"', 'unique-identifier="missing-id"', $opfXml)
+    );
     $missingIdentifierResult = $reader->readPackage(ZipPackage::fromParts($missingIdentifierParts));
     if (($missingIdentifierResult['metadata']['uniqueIdentifier']['diagnostics'][0]['type'] ?? null) !== 'unique-identifier-not-found') {
         throw new RuntimeException('Expected unresolved EPUB unique identifier to remain a review diagnostic');
@@ -281,8 +325,11 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['document']->children[0]->attr('linearRaw') ?? null) !== 'maybe' || ($result['document']->children[0]->attr('linearValid') ?? null) !== false) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose invalid EPUB spine linear metadata');
     }
-    $nonLinearParts = $packageParts;
-    $nonLinearParts[3]['data'] = str_replace('linear="maybe"', 'linear="no"', $opfXml);
+    $nonLinearParts = $withPackagePartData(
+        $packageParts,
+        'EPUB/package.opf',
+        str_replace('linear="maybe"', 'linear="no"', $opfXml)
+    );
     $nonLinearResult = $reader->readPackage(ZipPackage::fromParts($nonLinearParts));
     if (($nonLinearResult['spineProperties']['linearItemCount'] ?? null) !== 0 || ($nonLinearResult['spineProperties']['primaryReadingOrderEmpty'] ?? null) !== true) {
         throw new RuntimeException('Expected all non-linear EPUB spine itemrefs to report an empty primary reading order');
@@ -500,6 +547,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
+    if (($result['ocf']['sidecarCount'] ?? null) !== 2 || ($result['ocf']['externalReferenceCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB OCF rights/signatures sidecars to report remote references without fetching');
+    }
+    if (($result['ocf']['rights']['items'][0]['reference']['target'] ?? null) !== '/META-INF/licenses/source-license.xml') {
+        throw new RuntimeException('Expected EPUB OCF rights sidecar to resolve local license reference');
+    }
+    if (($result['ocf']['rights']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'ocf-rights-remote-reference') {
+        throw new RuntimeException('Expected EPUB OCF rights remote policy to remain unfetched');
+    }
+    if (($result['ocf']['signatures']['items'][0]['references'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
+        throw new RuntimeException('Expected EPUB OCF signature reference to resolve package-root target');
+    }
+    if (($result['ocf']['signatures']['items'][0]['references'][1]['diagnostics'][0]['type'] ?? null) !== 'ocf-signature-remote-reference') {
+        throw new RuntimeException('Expected EPUB OCF signature remote reference to remain unfetched');
+    }
+    if (($result['document']->attr('ocf')['signatures']['signatureCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose OCF signature metadata');
+    }
     if (($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? null) !== '/EPUB/audio/chapter.mp3') {
         throw new RuntimeException('Expected EPUB media-overlay audio target to resolve relative to the SMIL part');
     }
@@ -660,6 +725,10 @@ echo 'bindings=' . count($result['bindings']['items'] ?? []) . "\n";
 echo 'bindingHandler=' . ($result['bindings']['items'][0]['handlerId'] ?? '') . "\n";
 echo 'bindingDiagnostics=' . count($result['bindings']['diagnostics'] ?? []) . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
+echo 'ocfSidecars=' . ($result['ocf']['sidecarCount'] ?? 0) . "\n";
+echo 'ocfRightsItems=' . ($result['ocf']['rights']['itemCount'] ?? 0) . "\n";
+echo 'ocfSignatureReferences=' . ($result['ocf']['signatures']['referenceCount'] ?? 0) . "\n";
+echo 'ocfExternalReferences=' . ($result['ocf']['externalReferenceCount'] ?? 0) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
 echo 'mediaOverlayFirstClipSeconds=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['clipDurationSeconds'] ?? '') . "\n";
