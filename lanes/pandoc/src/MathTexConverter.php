@@ -67,6 +67,15 @@ final class MathTexConverter
         'wedge' => '∧',
     ];
 
+    /** @var array<string, array{lineThickness?: string, open?: string, close?: string}> */
+    private const INFIX_FRACTION_COMMANDS = [
+        'atop' => ['lineThickness' => '0'],
+        'brace' => ['lineThickness' => '0', 'open' => '{', 'close' => '}'],
+        'brack' => ['lineThickness' => '0', 'open' => '[', 'close' => ']'],
+        'choose' => ['lineThickness' => '0', 'open' => '(', 'close' => ')'],
+        'over' => [],
+    ];
+
     /** @var array<string, string> */
     private const FUNCTION_COMMANDS = [
         'cos' => 'cos',
@@ -389,6 +398,22 @@ final class MathTexConverter
                 break;
             }
 
+            $infixOffset = $offset;
+            $infixCommand = $this->readInfixFractionCommand($source, $infixOffset);
+            if ($infixCommand !== null) {
+                if ($nodes === []) {
+                    throw new \InvalidArgumentException('Expected TeX infix numerator before \\' . $infixCommand . ' at offset ' . $offset);
+                }
+
+                $offset = $infixOffset;
+                $denominator = $this->parseExpression($source, $offset, $stopChar);
+                if ($denominator === []) {
+                    throw new \InvalidArgumentException('Expected TeX infix denominator after \\' . $infixCommand . ' at offset ' . $offset);
+                }
+
+                return [$this->renderInfixFractionCommand($nodes, $denominator, $infixCommand)];
+            }
+
             $base = $this->parseAtom($source, $offset);
             $nodes[] = $this->applyScripts($source, $offset, $base);
         }
@@ -664,6 +689,31 @@ final class MathTexConverter
         }
 
         return '<mstyle' . $style . '>' . $fraction . '</mstyle>';
+    }
+
+    /**
+     * @param list<string> $numerator
+     * @param list<string> $denominator
+     */
+    private function renderInfixFractionCommand(array $numerator, array $denominator, string $command): string
+    {
+        $spec = self::INFIX_FRACTION_COMMANDS[$command];
+        $fraction = '<mfrac'
+            . (isset($spec['lineThickness']) ? ' linethickness="' . $this->esc($spec['lineThickness']) . '"' : '')
+            . '>'
+            . $this->row($numerator)
+            . $this->row($denominator)
+            . '</mfrac>';
+
+        if (!isset($spec['open']) && !isset($spec['close'])) {
+            return $fraction;
+        }
+
+        return '<mrow>'
+            . (isset($spec['open']) ? '<mo fence="true" stretchy="true">' . $this->esc($spec['open']) . '</mo>' : '')
+            . $fraction
+            . (isset($spec['close']) ? '<mo fence="true" stretchy="true">' . $this->esc($spec['close']) . '</mo>' : '')
+            . '</mrow>';
     }
 
     private function normalizeGeneralizedFractionDelimiter(string $delimiter, string $side): string
@@ -1109,6 +1159,23 @@ final class MathTexConverter
         }
 
         throw new \InvalidArgumentException('Unclosed TeX text group at offset ' . $start);
+    }
+
+    private function readInfixFractionCommand(string $source, int &$offset): ?string
+    {
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $commandOffset = $offset + 1;
+        $command = $this->readCommandName($source, $commandOffset);
+        if (!isset(self::INFIX_FRACTION_COMMANDS[$command])) {
+            return null;
+        }
+
+        $offset = $commandOffset;
+
+        return $command;
     }
 
     private function readCommandName(string $source, int &$offset): string

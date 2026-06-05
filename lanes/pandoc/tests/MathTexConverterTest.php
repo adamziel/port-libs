@@ -57,6 +57,19 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\dfrac{a_1}{b_1} + \\tfrac{x}{y} + \\genfrac{[}{]}{0pt}{0}{n}{k} + \\genfrac{\\langle}{\\rangle}{1pt}{2}{p_i}{m_i}</annotation>', $fractionMathml);
         $t->contains('<mfrac linethickness=".5pt"><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mi>c</mi></mfrac>', $plainGenfracMathml);
     },
+    'converts bounded tex infix fraction commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $infixMathml = $converter->texToMathMl('{a+b \\over c+d} + {n \\atop k} + {n \\choose k}', true);
+        $delimitedMathml = $converter->texToMathMl('{p_i \\brack m_i} + {x+y \\brace z}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $infixMathml);
+        $t->contains('<mfrac><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mrow><mi>c</mi><mo>+</mo><mi>d</mi></mrow></mfrac>', $infixMathml);
+        $t->contains('<mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac>', $infixMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo fence="true" stretchy="true">)</mo>', $infixMathml);
+        $t->contains('<annotation encoding="application/x-tex">{a+b \\over c+d} + {n \\atop k} + {n \\choose k}</annotation>', $infixMathml);
+        $t->contains('<mo fence="true" stretchy="true">[</mo><mfrac linethickness="0"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">]</mo>', $delimitedMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><mfrac linethickness="0"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mi>z</mi></mfrac><mo fence="true" stretchy="true">}</mo>', $delimitedMathml);
+    },
     'adds source tex semantics annotations to bounded mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $annotated = $converter->texToMathMl('\\text{posts & media} \\in S');
@@ -239,6 +252,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{0pt}{4}{n}{k}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{0pt}{0}{}{k}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{0pt}{0}{n}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\choose k'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('n \\choose'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{a \\over}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{\\atop b}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
