@@ -2039,8 +2039,12 @@ final class CitationCslProcessor
     private function renderCollapsedCitationEntries(array $citations): ?array
     {
         $mode = $this->citationCollapseMode();
-        if ($mode === '' || $mode === 'citation-number' || count($citations) < 2) {
+        if ($mode === '' || count($citations) < 2) {
             return null;
+        }
+
+        if ($mode === 'citation-number') {
+            return $this->renderCollapsedCitationNumberEntries($citations);
         }
 
         if (!$this->citationCollapseLayoutIsAuthorDateLike()) {
@@ -2082,12 +2086,154 @@ final class CitationCslProcessor
         return $entries;
     }
 
+    /**
+     * @param list<AstNode> $citations
+     * @return list<string>|null
+     */
+    private function renderCollapsedCitationNumberEntries(array $citations): ?array
+    {
+        if (!$this->citationNumberCollapseLayoutIsPure()) {
+            return null;
+        }
+
+        $entries = [];
+        $run = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
+            }
+
+            $entry = $this->collapseableCitationNumberEntry($citation);
+            if ($entry === null) {
+                $this->appendCollapsedCitationNumberRun($entries, $run);
+                $run = [];
+                $entries[] = $this->renderCitationEntry($citation);
+                continue;
+            }
+
+            if ($run === [] || (int) $entry['number'] === (int) $run[count($run) - 1]['number'] + 1) {
+                $run[] = $entry;
+                continue;
+            }
+
+            $this->appendCollapsedCitationNumberRun($entries, $run);
+            $run = [$entry];
+        }
+
+        $this->appendCollapsedCitationNumberRun($entries, $run);
+
+        return $entries;
+    }
+
     private function citationCollapseMode(): string
     {
         $options = $this->style->citationOptions();
         $mode = (string) ($options['collapse'] ?? '');
 
         return in_array($mode, ['citation-number', 'year', 'year-suffix', 'year-suffix-ranged'], true) ? $mode : '';
+    }
+
+    private function citationNumberCollapseLayoutIsPure(): bool
+    {
+        $elements = $this->style->citationRenderingElements();
+        if ($elements === []) {
+            return false;
+        }
+
+        $shape = $this->citationNumberCollapseRenderingShape($elements);
+
+        return $shape['citationNumbers'] === 1 && !$shape['unsupported'];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param list<string> $macroStack
+     * @return array{citationNumbers:int, unsupported:bool}
+     */
+    private function citationNumberCollapseRenderingShape(array $elements, array $macroStack = []): array
+    {
+        $shape = ['citationNumbers' => 0, 'unsupported' => false];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $childShape = $this->citationNumberCollapseRenderingElementShape($element, $macroStack);
+            $shape['citationNumbers'] += $childShape['citationNumbers'];
+            $shape['unsupported'] = $shape['unsupported'] || $childShape['unsupported'];
+        }
+
+        return $shape;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param list<string> $macroStack
+     * @return array{citationNumbers:int, unsupported:bool}
+     */
+    private function citationNumberCollapseRenderingElementShape(array $element, array $macroStack): array
+    {
+        $type = (string) ($element['type'] ?? '');
+        if ($type === 'group') {
+            if ($this->renderingElementHasLocalDecoration($element)) {
+                return ['citationNumbers' => 0, 'unsupported' => true];
+            }
+
+            $children = $element['children'] ?? [];
+
+            return is_array($children)
+                ? $this->citationNumberCollapseRenderingShape($children, $macroStack)
+                : ['citationNumbers' => 0, 'unsupported' => true];
+        }
+
+        if ($type === 'number') {
+            $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+            $form = strtolower(trim((string) ($element['form'] ?? 'numeric')));
+
+            return [
+                'citationNumbers' => $variable === 'citation-number' ? 1 : 0,
+                'unsupported' => $variable !== 'citation-number'
+                    || $form !== 'numeric'
+                    || $this->renderingElementHasLocalDecoration($element),
+            ];
+        }
+
+        if ($type === 'text') {
+            if (isset($element['macro']) && is_string($element['macro'])) {
+                $name = $element['macro'];
+                if (in_array($name, $macroStack, true) || $this->renderingElementHasLocalDecoration($element)) {
+                    return ['citationNumbers' => 0, 'unsupported' => true];
+                }
+
+                $macro = $this->style->macroRenderingElements($name);
+
+                return is_array($macro)
+                    ? $this->citationNumberCollapseRenderingShape($macro, [...$macroStack, $name])
+                    : ['citationNumbers' => 0, 'unsupported' => true];
+            }
+
+            $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+
+            return [
+                'citationNumbers' => $variable === 'citation-number' ? 1 : 0,
+                'unsupported' => $variable !== 'citation-number' || $this->renderingElementHasLocalDecoration($element),
+            ];
+        }
+
+        return ['citationNumbers' => 0, 'unsupported' => true];
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function renderingElementHasLocalDecoration(array $element): bool
+    {
+        return (string) ($element['prefix'] ?? '') !== ''
+            || (string) ($element['suffix'] ?? '') !== ''
+            || (string) ($element['display'] ?? '') !== ''
+            || (string) ($element['textCase'] ?? '') !== ''
+            || ($element['quotes'] ?? false) === true
+            || ($element['stripPeriods'] ?? false) === true;
     }
 
     private function citationCollapseLayoutIsAuthorDateLike(): bool
@@ -2191,6 +2337,34 @@ final class CitationCslProcessor
     }
 
     /**
+     * @return array{citation:AstNode, number:int, text:string}|null
+     */
+    private function collapseableCitationNumberEntry(AstNode $citation): ?array
+    {
+        $id = (string) $citation->attr('id', '');
+        $item = $this->itemsById[$id] ?? null;
+        if ($item === null || (string) $citation->attr('mode', 'normal') !== 'normal') {
+            return null;
+        }
+
+        if ($this->citationPrefix($citation) !== '' || $this->citationSuffix($citation) !== '') {
+            return null;
+        }
+
+        $item = $this->itemWithCitationContext($item, $citation);
+        $number = $this->citationNumberValue($item, $citation);
+        if (preg_match('/^\d+$/', $number) !== 1) {
+            return null;
+        }
+
+        return [
+            'citation' => $citation,
+            'number' => (int) $number,
+            'text' => $number,
+        ];
+    }
+
+    /**
      * @return array{citation:AstNode, author:string, year:string, yearBase:string, yearSuffix:string, prefix:string}|null
      */
     private function collapseableCitationEntry(AstNode $citation): ?array
@@ -2233,6 +2407,33 @@ final class CitationCslProcessor
         }
 
         return (string) $left['yearBase'] === (string) $right['yearBase'];
+    }
+
+    /**
+     * @param list<string> $entries
+     * @param list<array{citation:AstNode, number:int, text:string}> $run
+     */
+    private function appendCollapsedCitationNumberRun(array &$entries, array $run): void
+    {
+        if ($run === []) {
+            return;
+        }
+
+        if (count($run) === 1) {
+            $entries[] = $this->renderCitationEntry($run[0]['citation']);
+
+            return;
+        }
+
+        $entries[] = $this->collapsedCitationNumberRunText($run);
+    }
+
+    /**
+     * @param list<array{number:int, text:string}> $run
+     */
+    private function collapsedCitationNumberRunText(array $run): string
+    {
+        return (string) $run[0]['text'] . "\u{2013}" . (string) $run[count($run) - 1]['text'];
     }
 
     /**

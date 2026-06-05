@@ -4395,6 +4395,140 @@ XML
         $t->same('1', $group instanceof AstNode ? ($group->children[1]->attr('cslItem')['citationNumber'] ?? null) : null);
         $t->same('2', $group instanceof AstNode ? ($group->children[2]->attr('cslItem')['citationNumber'] ?? null) : null);
     },
+    'collapses bounded csl citation-number ranges for numeric styles' => static function (TestRunner $t): void {
+        $items = [
+            [
+                'id' => 'alpha',
+                'type' => 'report',
+                'title' => 'Alpha Packet',
+                'author' => [
+                    ['family' => 'Alpha', 'given' => 'Ava'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'beta',
+                'type' => 'report',
+                'title' => 'Beta Packet',
+                'author' => [
+                    ['family' => 'Beta', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'gamma',
+                'type' => 'report',
+                'title' => 'Gamma Packet',
+                'author' => [
+                    ['family' => 'Gamma', 'given' => 'Gia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'delta',
+                'type' => 'report',
+                'title' => 'Delta Packet',
+                'author' => [
+                    ['family' => 'Delta', 'given' => 'Dee'],
+                ],
+                'issued' => ['date-parts' => [[2027]]],
+            ],
+            [
+                'id' => 'epsilon',
+                'type' => 'report',
+                'title' => 'Epsilon Packet',
+                'author' => [
+                    ['family' => 'Epsilon', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2028]]],
+            ],
+        ];
+        $processor = CitationCslProcessor::fromItems($items)->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Number Collapse Style</title>
+    <id>https://example.test/styles/bounded-citation-number-collapse</id>
+    <updated>2026-06-05T11:41:47+00:00</updated>
+  </info>
+  <citation collapse="citation-number">
+    <layout prefix="[" suffix="]" delimiter=", ">
+      <number variable="citation-number"/>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <layout delimiter=" ">
+      <number variable="citation-number" display="left-margin" prefix="[" suffix="]"/>
+      <group display="right-inline" delimiter=". " suffix=".">
+        <names variable="author">
+          <name initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $dash = "\u{2013}";
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('citation-number', $summary['citationOptions']['collapse'] ?? null);
+        $t->same('citation-number', $summary['citationRendering'][0]['variable'] ?? null);
+        $t->same("[1{$dash}5]", $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alpha', 'text' => '[@alpha]']),
+            new AstNode('citation', ['id' => 'beta', 'text' => '[@beta]']),
+            new AstNode('citation', ['id' => 'gamma', 'text' => '[@gamma]']),
+            new AstNode('citation', ['id' => 'delta', 'text' => '[@delta]']),
+            new AstNode('citation', ['id' => 'epsilon', 'text' => '[@epsilon]']),
+        ]));
+        $t->same('[5, 4, 3]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'epsilon', 'text' => '[@epsilon]', 'cslCitationNumber' => '5']),
+            new AstNode('citation', ['id' => 'delta', 'text' => '[@delta]', 'cslCitationNumber' => '4']),
+            new AstNode('citation', ['id' => 'gamma', 'text' => '[@gamma]', 'cslCitationNumber' => '3']),
+        ]));
+        $t->same("[1{$dash}3, 4, p. 9, 5]", $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alpha', 'text' => '[@alpha]']),
+            new AstNode('citation', ['id' => 'beta', 'text' => '[@beta]']),
+            new AstNode('citation', ['id' => 'gamma', 'text' => '[@gamma]']),
+            new AstNode('citation', ['id' => 'delta', 'text' => '[@delta, p. 9]', 'locator' => 'p. 9']),
+            new AstNode('citation', ['id' => 'epsilon', 'text' => '[@epsilon]']),
+        ]));
+
+        $decoratedStyle = CitationCslProcessor::fromItems($items)->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation collapse="citation-number">
+    <layout prefix="[" suffix="]" delimiter=", ">
+      <group delimiter=" ">
+        <text value="source"/>
+        <number variable="citation-number"/>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML
+        );
+        $t->same('[source 1, source 2, source 3]', $decoratedStyle->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alpha', 'text' => '[@alpha]']),
+            new AstNode('citation', ['id' => 'beta', 'text' => '[@beta]']),
+            new AstNode('citation', ['id' => 'gamma', 'text' => '[@gamma]']),
+        ]));
+
+        $document = (new MarkdownReader())->read(
+            'Collapsed range cites [@alpha; @beta; @gamma; @delta; @epsilon].'
+            . "\n\n" . 'Descending review order keeps source order [@epsilon; @delta; @gamma].'
+            . "\n\n" . 'Locator boundary cites [@alpha; @beta; @gamma; @delta, p. 9; @epsilon].'
+        );
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Numbered Sources'));
+        $t->contains("<p>Collapsed range cites [1{$dash}5].</p>", $blocks);
+        $t->contains('<p>Descending review order keeps source order [5, 4, 3].</p>', $blocks);
+        $t->contains("<p>Locator boundary cites [1{$dash}3, 4, p. 9, 5].</p>", $blocks);
+        $t->contains('<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet.</div></div></dd>', $blocks);
+        $t->contains('<dt>Epsilon 2028</dt><dd><div class="csl-entry"><div class="csl-left-margin">[5]</div><div class="csl-right-inline">Epsilon, E. Epsilon Packet.</div></div></dd>', $blocks);
+    },
     'applies bounded csl citation position conditionals for repeated cites' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

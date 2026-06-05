@@ -12,6 +12,8 @@ $markdown = <<<'MARKDOWN'
 # Numbered Citation Review
 
 Review cites [@zeta; @alpha, p. 9; @middle] while preserving source-numbered bibliography order.
+
+Collapsed source ranges cite [@alpha; @middle; @zeta] for reviewer notes.
 MARKDOWN;
 
 $cslJson = <<<'JSON'
@@ -54,7 +56,7 @@ $styleXml = <<<'XML'
     <id>https://example.test/styles/wordpress-citation-number-review</id>
     <updated>2026-06-05T09:29:29+00:00</updated>
   </info>
-  <citation>
+  <citation collapse="citation-number">
     <layout prefix="[" suffix="]" delimiter=", ">
       <number variable="citation-number"/>
     </layout>
@@ -83,14 +85,19 @@ $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
     $summary = $processor->cslStyleSummary();
+    if (($summary['citationOptions']['collapse'] ?? null) !== 'citation-number') {
+        throw new RuntimeException('CSL citation-number handoff did not preserve citation collapse metadata');
+    }
     if (($summary['citationRendering'][0]['variable'] ?? null) !== 'citation-number') {
         throw new RuntimeException('CSL citation-number handoff did not preserve citation rendering metadata');
     }
     if (($summary['bibliographyRendering'][0]['variable'] ?? null) !== 'citation-number') {
         throw new RuntimeException('CSL citation-number handoff did not preserve bibliography rendering metadata');
     }
+    $dash = "\u{2013}";
     foreach ([
         '<p>Review cites [3, 1, p. 9, 2] while preserving source-numbered bibliography order.</p>',
+        "<p>Collapsed source ranges cite [1{$dash}3] for reviewer notes.</p>",
         '<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div></dd>',
         '<dt>Zeta 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[3]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div></dd>',
     ] as $snippet) {
