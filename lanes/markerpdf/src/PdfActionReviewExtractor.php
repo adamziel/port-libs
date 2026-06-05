@@ -305,10 +305,14 @@ final class PdfActionReviewExtractor
             }
 
             $uriReview = $this->uriReview($uri);
+            $isMap = $this->boolValue($action['IsMap'] ?? null) ?? false;
+            $safety = $uriReview['is_safe_uri']
+                ? ($isMap ? 'coordinate-dependent-uri-review' : 'review-uri')
+                : 'blocked-unsafe-uri';
 
             return $this->reviewAction(
                 'URI',
-                $uriReview['is_safe_uri'] ? 'review-uri' : 'blocked-unsafe-uri',
+                $safety,
                 null,
                 null,
                 null,
@@ -318,7 +322,10 @@ final class PdfActionReviewExtractor
                 null,
                 null,
                 $uriReview['is_safe_uri']
-            ) + $uriReview['metadata'];
+            ) + $uriReview['metadata'] + [
+                'uri_is_map' => $isMap,
+                'requires_activation_coordinates' => $isMap,
+            ];
         }
 
         if ($type === 'GoToR') {
@@ -841,6 +848,13 @@ final class PdfActionReviewExtractor
         }
 
         return is_float($resolved) ? (int) $resolved : null;
+    }
+
+    private function boolValue(mixed $value): ?bool
+    {
+        $resolved = $this->resolveValue($value);
+
+        return is_bool($resolved) ? $resolved : null;
     }
 
     /**
