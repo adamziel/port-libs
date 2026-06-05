@@ -2650,6 +2650,10 @@ final class DocxReader
             return $this->breakNodes($child);
         }
 
+        if ($this->isWordElement($child, 'cr')) {
+            return [new AstNode('linebreak')];
+        }
+
         if ($this->isWordElement($child, 'softHyphen')) {
             return [new AstNode('text', ['text' => "\u{00AD}"])];
         }
@@ -2685,6 +2689,18 @@ final class DocxReader
             return $nodes;
         }
 
+        if ($this->isWordElement($child, 'footnoteRef')) {
+            return $this->runReferenceMarkerNodes('footnote');
+        }
+
+        if ($this->isWordElement($child, 'endnoteRef')) {
+            return $this->runReferenceMarkerNodes('endnote');
+        }
+
+        if ($this->isWordElement($child, 'annotationRef')) {
+            return $this->runReferenceMarkerNodes('annotation');
+        }
+
         if ($this->isMathElement($child, 'oMath')) {
             return $this->mathNodes($child, false);
         }
@@ -2706,6 +2722,27 @@ final class DocxReader
         }
 
         return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function runReferenceMarkerNodes(string $kind): array
+    {
+        $kind = match ($kind) {
+            'footnote' => 'footnote',
+            'endnote' => 'endnote',
+            'annotation' => 'annotation',
+            default => '',
+        };
+        if ($kind === '') {
+            return [];
+        }
+
+        return [new AstNode('span', [
+            'classes' => ['docx-reference-marker', 'docx-' . $kind . '-reference-marker'],
+            'attributes' => ['data-docx-reference-marker' => $kind],
+        ], [new AstNode('text', ['text' => 'DOCX ' . $kind . ' reference marker'])])];
     }
 
     /**

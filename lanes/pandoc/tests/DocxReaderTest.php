@@ -719,6 +719,84 @@ $missingNotesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$runReferenceMarkerDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+  <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+$runReferenceMarkerDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:t xml:space="preserve">Special run tokens: soft</w:t>
+        <w:softHyphen/>
+        <w:t xml:space="preserve">hyphen, no</w:t>
+        <w:noBreakHyphen/>
+        <w:t xml:space="preserve">break, first line</w:t>
+        <w:cr/>
+        <w:t>second line.</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:t xml:space="preserve">Reviewed note markers</w:t>
+        <w:footnoteReference w:id="2"/>
+        <w:t>/</w:t>
+        <w:endnoteReference w:id="5"/>
+        <w:t>/</w:t>
+        <w:commentReference w:id="9"/>
+        <w:t>.</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$runReferenceMarkerFootnotesXml = <<<'XML'
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="2">
+    <w:p>
+      <w:r>
+        <w:footnoteRef/>
+        <w:t xml:space="preserve"> Footnote self label.</w:t>
+        <w:cr/>
+        <w:t>Second note line.</w:t>
+      </w:r>
+    </w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+
+$runReferenceMarkerEndnotesXml = <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="5">
+    <w:p>
+      <w:r>
+        <w:endnoteRef/>
+        <w:t xml:space="preserve"> Endnote self label.</w:t>
+      </w:r>
+    </w:p>
+  </w:endnote>
+</w:endnotes>
+XML;
+
+$runReferenceMarkerCommentsXml = <<<'XML'
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="9" w:author="Migration Reviewer">
+    <w:p>
+      <w:r>
+        <w:annotationRef/>
+        <w:t xml:space="preserve"> Comment marker.</w:t>
+      </w:r>
+    </w:p>
+  </w:comment>
+</w:comments>
+XML;
+
 $mathDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
@@ -1600,6 +1678,26 @@ $buildMissingNotesPackage = static function () use ($contentTypesXml, $packageRe
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $missingNotesDocumentXml],
+    ]);
+};
+
+$buildRunReferenceMarkerPackage = static function () use (
+    $contentTypesXml,
+    $packageRelationshipsXml,
+    $runReferenceMarkerDocumentRelationshipsXml,
+    $runReferenceMarkerDocumentXml,
+    $runReferenceMarkerFootnotesXml,
+    $runReferenceMarkerEndnotesXml,
+    $runReferenceMarkerCommentsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $runReferenceMarkerDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $runReferenceMarkerDocumentRelationshipsXml],
+        ['name' => 'word/footnotes.xml', 'data' => $runReferenceMarkerFootnotesXml],
+        ['name' => 'word/endnotes.xml', 'data' => $runReferenceMarkerEndnotesXml],
+        ['name' => 'word/comments.xml', 'data' => $runReferenceMarkerCommentsXml],
     ]);
 };
 
@@ -2654,6 +2752,70 @@ return [
         $t->same('88', $notes['items'][1]['id']);
         $t->same('endnote', $notes['items'][1]['sourceType']);
         $t->same(true, $notes['items'][1]['missing']);
+    },
+    'preserves DOCX note-body reference markers and carriage returns' => static function (TestRunner $t) use ($buildRunReferenceMarkerPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildRunReferenceMarkerPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(3, count($paragraph->children));
+        $t->same("Special run tokens: soft\u{00AD}hyphen, no\u{2011}break, first line", $paragraph->children[0]->attr('text'));
+        $t->same('linebreak', $paragraph->children[1]->type);
+        $t->same('second line.', $paragraph->children[2]->attr('text'));
+
+        $referenceParagraph = $document->children[1];
+        $t->same('Reviewed note markers', $referenceParagraph->children[0]->attr('text'));
+        $footnote = $referenceParagraph->children[1];
+        $endnote = $referenceParagraph->children[3];
+        $comment = $referenceParagraph->children[5];
+        $t->same('note', $footnote->type);
+        $t->same('footnote', $footnote->attr('sourceType'));
+        $t->same('note', $endnote->type);
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same('note', $comment->type);
+        $t->same('comment', $comment->attr('sourceType'));
+
+        $footnoteParagraph = $footnote->children[0];
+        $footnoteMarker = $footnoteParagraph->children[0];
+        $t->same('span', $footnoteMarker->type);
+        $t->same(['docx-reference-marker', 'docx-footnote-reference-marker'], $footnoteMarker->attr('classes'));
+        $t->same('footnote', $footnoteMarker->attr('attributes')['data-docx-reference-marker']);
+        $t->same('DOCX footnote reference marker', $footnoteMarker->children[0]->attr('text'));
+        $t->same(' Footnote self label.', $footnoteParagraph->children[1]->attr('text'));
+        $t->same('linebreak', $footnoteParagraph->children[2]->type);
+        $t->same('Second note line.', $footnoteParagraph->children[3]->attr('text'));
+
+        $endnoteMarker = $endnote->children[0]->children[0];
+        $t->same(['docx-reference-marker', 'docx-endnote-reference-marker'], $endnoteMarker->attr('classes'));
+        $t->same('endnote', $endnoteMarker->attr('attributes')['data-docx-reference-marker']);
+        $t->same('DOCX endnote reference marker', $endnoteMarker->children[0]->attr('text'));
+
+        $commentMarker = $comment->children[0]->children[0];
+        $t->same(['docx-reference-marker', 'docx-annotation-reference-marker'], $commentMarker->attr('classes'));
+        $t->same('annotation', $commentMarker->attr('attributes')['data-docx-reference-marker']);
+        $t->same('DOCX annotation reference marker', $commentMarker->children[0]->attr('text'));
+
+        $noteItemsByKey = [];
+        foreach ($result['importReport']['notes']['items'] as $item) {
+            $noteItemsByKey[(string) $item['sourceType'] . ':' . (string) $item['id']] = $item;
+        }
+        $t->same("DOCX footnote reference marker Footnote self label.\nSecond note line.", $noteItemsByKey['footnote:2']['text']);
+        $t->same('DOCX endnote reference marker Endnote self label.', $noteItemsByKey['endnote:5']['text']);
+        $t->same('DOCX annotation reference marker Comment marker.', $noteItemsByKey['comment:9']['text']);
+
+        $t->contains("Special run tokens: soft\u{00AD}hyphen, no\u{2011}break, first line<br/>second line.", $blocks);
+        $t->contains('<span class="docx-reference-marker docx-footnote-reference-marker" data-docx-reference-marker="footnote">DOCX footnote reference marker</span> Footnote self label.<br/>Second note line.', $blocks);
+        $t->contains('<span class="docx-reference-marker docx-endnote-reference-marker" data-docx-reference-marker="endnote">DOCX endnote reference marker</span> Endnote self label.', $blocks);
+        $t->contains('<span class="docx-reference-marker docx-annotation-reference-marker" data-docx-reference-marker="annotation">DOCX annotation reference marker</span> Comment marker.', $blocks);
+
+        $t->contains('[DOCX footnote reference marker]{.docx-reference-marker .docx-footnote-reference-marker data-docx-reference-marker="footnote"} Footnote self label.', $markdown);
+        $t->contains('Second note line.', $markdown);
+        $t->contains('[DOCX endnote reference marker]{.docx-reference-marker .docx-endnote-reference-marker data-docx-reference-marker="endnote"} Endnote self label.', $markdown);
+        $t->contains('[DOCX annotation reference marker]{.docx-reference-marker .docx-annotation-reference-marker data-docx-reference-marker="annotation"} Comment marker.', $markdown);
     },
     'maps DOCX OMML inline and display formulas into math AST nodes' => static function (TestRunner $t) use ($buildMathPackage): void {
         $document = (new DocxReader())->readDocument($buildMathPackage());

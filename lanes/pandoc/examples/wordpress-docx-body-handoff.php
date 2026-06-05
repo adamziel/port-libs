@@ -486,13 +486,13 @@ XML],
 XML],
     ['name' => 'word/footnotes.xml', 'data' => <<<'XML'
 <w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:footnote w:id="2"><w:p><w:r><w:t>DOCX footnote import note.</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="2"><w:p><w:r><w:footnoteRef/><w:t xml:space="preserve"> DOCX footnote import note.</w:t><w:cr/><w:t>Second footnote marker line.</w:t></w:r></w:p></w:footnote>
   <w:footnote w:id="3"><w:p><w:r><w:t>DOCX automatic footnote label note.</w:t></w:r></w:p></w:footnote>
 </w:footnotes>
 XML],
     ['name' => 'word/endnotes.xml', 'data' => <<<'XML'
 <w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:endnote w:id="5"><w:p><w:r><w:t>DOCX endnote import note.</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="5"><w:p><w:r><w:endnoteRef/><w:t xml:space="preserve"> DOCX endnote import note.</w:t></w:r></w:p></w:endnote>
   <w:endnote w:id="6"><w:p><w:r><w:t>DOCX automatic endnote label note.</w:t></w:r></w:p></w:endnote>
 </w:endnotes>
 XML],
@@ -500,7 +500,7 @@ XML],
 <w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
   <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-04T09:55:00Z">
-    <w:p w14:paraId="00DOCX09"><w:r><w:t>DOCX reviewer comment import note.</w:t></w:r></w:p>
+    <w:p w14:paraId="00DOCX09"><w:r><w:annotationRef/><w:t xml:space="preserve"> DOCX reviewer comment import note.</w:t></w:r></w:p>
   </w:comment>
   <w:comment w:id="10" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-05T03:20:00Z">
     <w:p w14:paraId="00DOCX10"><w:r><w:t>DOCX multi-paragraph reviewer comment import note.</w:t></w:r></w:p>
@@ -787,6 +787,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         '<figcaption class="wp-element-caption">DOCX review table</figcaption>',
+        '<span class="docx-reference-marker docx-footnote-reference-marker" data-docx-reference-marker="footnote">DOCX footnote reference marker</span> DOCX footnote import note.<br/>Second footnote marker line.',
+        '<span class="docx-reference-marker docx-endnote-reference-marker" data-docx-reference-marker="endnote">DOCX endnote reference marker</span> DOCX endnote import note.',
+        '<span class="docx-reference-marker docx-annotation-reference-marker" data-docx-reference-marker="annotation">DOCX annotation reference marker</span> DOCX reviewer comment import note.',
         'DOCX footnote import note.',
         'DOCX endnote import note.',
         'DOCX automatic footnote label note.',
