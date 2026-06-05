@@ -1228,7 +1228,7 @@ final class PdfOutlineExtractor
                 }
             }
 
-            if ($level < $maxDepth) {
+            if ($title !== null && $level < $maxDepth) {
                 foreach ($this->outlineActionReviewRows(
                     $dict['First'] ?? null,
                     $objects,
@@ -2299,7 +2299,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth) {
+            if ($title !== null && $level < $maxDepth) {
                 foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
@@ -2383,7 +2383,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth) {
+            if ($title !== null && $level < $maxDepth) {
                 foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
@@ -2502,7 +2502,7 @@ final class PdfOutlineExtractor
                 $items[] = $row;
             }
 
-            if ($level < $maxDepth) {
+            if ($title !== null && $level < $maxDepth) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
                     $dict['First'] ?? null,
                     $objects,
@@ -2812,7 +2812,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth) {
+            if ($title !== null && $level < $maxDepth) {
                 foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }

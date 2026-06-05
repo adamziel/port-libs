@@ -2827,21 +2827,21 @@ final class PdfMetadataExtractor
                     $destinationsByName,
                     $structureContext
                 );
-            }
 
-            foreach ($this->documentOutlineItemMetadataRows(
-                $this->dictionaryTopLevelRawValue($dictionary, 'First'),
-                $objects,
-                $pageIndexes,
-                $destinationsByName,
-                $structureContext,
-                $current,
-                $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
-                $maxDepth,
-                $level + 1,
-                $seen
-            ) as $child) {
-                $items[] = $child;
+                foreach ($this->documentOutlineItemMetadataRows(
+                    $this->dictionaryTopLevelRawValue($dictionary, 'First'),
+                    $objects,
+                    $pageIndexes,
+                    $destinationsByName,
+                    $structureContext,
+                    $current,
+                    $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
+                    $maxDepth,
+                    $level + 1,
+                    $seen
+                ) as $child) {
+                    $items[] = $child;
+                }
             }
 
             if ($lastItemObject !== null && $current === $lastItemObject) {
