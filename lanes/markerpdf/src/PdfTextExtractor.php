@@ -5974,6 +5974,7 @@ final class PdfTextExtractor
             $effectiveBitsPerComponent ?? 1
         );
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
+        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
 
         return [
             'page_index' => $pageIndex,
@@ -6091,6 +6092,7 @@ final class PdfTextExtractor
             'preview_only_filters' => $previewOnlyFilters,
             'filter_details' => $filterDetails,
             'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
+            'dctdecode_stream_boundary' => $dctStreamBoundary,
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
             'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
             'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
@@ -6396,6 +6398,7 @@ final class PdfTextExtractor
         );
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
+        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
 
         return [
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
@@ -6413,6 +6416,7 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             ...$dctFilterReview,
+            'dctdecode_stream_boundary' => $dctStreamBoundary,
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
             'raw_length' => strlen($reviewStream),
@@ -6632,6 +6636,7 @@ final class PdfTextExtractor
         $dctFilterReview = $filterDetails === []
             ? $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects)
             : $this->imageXObjectDctFilterReview($filterDetails);
+        $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
 
         return [
             'object_number' => $objectNumber,
@@ -6646,6 +6651,7 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             ...$dctFilterReview,
+            'dctdecode_stream_boundary' => $dctStreamBoundary,
             ...($filterDetails === [] ? [] : ['filter_details' => $filterDetails]),
             ...$ccittFilterReview,
             'native_raster_decode' => $filters !== null && $previewOnlyFilters === [],
@@ -6774,6 +6780,57 @@ final class PdfTextExtractor
         }
 
         return substr($stream, 0, $eoiEnd);
+    }
+
+    /**
+     * @param list<string> $resolvedFilters
+     * @return array<string, mixed>|null
+     */
+    private function dctPreviewStreamBoundaryReview(array $resolvedFilters, string $stream, string $reviewStream): ?array
+    {
+        if (!in_array('DCTDecode', $resolvedFilters, true) && !in_array('DCT', $resolvedFilters, true)) {
+            return null;
+        }
+
+        $start = 0;
+        $length = strlen($reviewStream);
+        while ($start < $length && str_contains("\x00\t\n\f\r ", $reviewStream[$start])) {
+            $start++;
+        }
+        if (substr($reviewStream, $start, 2) !== "\xff\xd8") {
+            return null;
+        }
+
+        $eoiEnd = null;
+        foreach ($this->dctPreviewEoiEndOffsets($reviewStream, $start) as $candidateEnd) {
+            if ($this->skipDctPreviewPadding($reviewStream, $candidateEnd) === $length) {
+                $eoiEnd = $candidateEnd;
+                break;
+            }
+        }
+        if ($eoiEnd === null) {
+            return null;
+        }
+
+        $jpegBytes = substr($reviewStream, $start, $eoiEnd - $start);
+        $paddingEnd = $this->skipDctPreviewPadding($reviewStream, $eoiEnd);
+
+        return [
+            'source' => 'dctdecode_jpeg_marker_boundary',
+            'jpeg_soi_offset' => $start,
+            'jpeg_eoi_end_offset' => $eoiEnd,
+            'raw_stream_length' => strlen($stream),
+            'review_stream_length' => strlen($reviewStream),
+            'padding_byte_count' => max(0, $paddingEnd - $eoiEnd),
+            'stream_trimmed_to_jpeg_eoi' => strlen($reviewStream) < strlen($stream),
+            'sos_marker_seen' => str_contains($jpegBytes, "\xff\xda"),
+            'byte_stuffed_ff00_seen' => str_contains($jpegBytes, "\xff\x00"),
+            'restart_marker_seen' => preg_match('/\xff[\xd0-\xd7]/s', $jpegBytes) === 1,
+            'jpeg_marker_framing_used' => true,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ];
     }
 
     /**
