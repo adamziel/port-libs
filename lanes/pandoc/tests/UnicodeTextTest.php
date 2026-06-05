@@ -244,6 +244,28 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes bounded gbk simplified chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
+        $decoded = UnicodeText::decodeBytes($bytes, 'gb18030');
+        $document = (new MarkdownReader())->readBytes($bytes, 'gb2312');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedLead = UnicodeText::decodeBytes("\xD6\"A", 'gbk');
+        $unmappedPair = UnicodeText::decodeBytes("\x81\x40A", 'cp936');
+
+        $t->same('gbk', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 简体\n\n中文 GBK 测试，北京。", $decoded['text']);
+        $t->same(['encoding' => 'gbk', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('简体', $document->children[0]->attr('text'));
+        $t->same('中文 GBK 测试，北京。', $document->children[1]->attr('text'));
+        $t->same(21, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="简体">简体</h1>', $blocks);
+        $t->contains('<p>中文 GBK 测试，北京。</p>', $blocks);
+        $t->same("\u{FFFD}\"A", $malformedLead['text']);
+        $t->same(1, $malformedLead['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([

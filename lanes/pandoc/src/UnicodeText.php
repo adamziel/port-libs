@@ -513,6 +513,20 @@ final class UnicodeText
         0xb8d5 => 0x8a66,
     ];
 
+    /** @var array<int, int> */
+    private const GBK_PAIRS = [
+        0xa1a3 => 0x3002,
+        0xa3ac => 0xff0c,
+        0xb1b1 => 0x5317,
+        0xb2e2 => 0x6d4b,
+        0xbcf2 => 0x7b80,
+        0xbea9 => 0x4eac,
+        0xcad4 => 0x8bd5,
+        0xcce5 => 0x4f53,
+        0xcec4 => 0x6587,
+        0xd6d0 => 0x4e2d,
+    ];
+
     /** @var list<int> */
     private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
         0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
@@ -614,12 +628,13 @@ final class UnicodeText
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
-        if ($normalized === 'shift_jis' || $normalized === 'euc-jp' || $normalized === 'iso-2022-jp' || $normalized === 'big5') {
+        if ($normalized === 'shift_jis' || $normalized === 'euc-jp' || $normalized === 'iso-2022-jp' || $normalized === 'big5' || $normalized === 'gbk') {
             [$text, $repairs] = match ($normalized) {
                 'shift_jis' => self::decodeShiftJis($bytes),
                 'euc-jp' => self::decodeEucJp($bytes),
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
-                default => self::decodeBig5($bytes),
+                'big5' => self::decodeBig5($bytes),
+                default => self::decodeGbk($bytes),
             };
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
@@ -1068,6 +1083,8 @@ final class UnicodeText
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
             'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
             'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
+            'gbk', 'gb18030', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
+            'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
             default => 'utf-8',
         };
     }
@@ -1725,6 +1742,52 @@ final class UnicodeText
             }
 
             $out .= self::fromCodepoint(self::BIG5_PAIRS[$pair]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeGbk(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+
+            if ($byte < 0x81 || $byte > 0xfe || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if (!(($trail >= 0x40 && $trail <= 0x7e) || ($trail >= 0x80 && $trail <= 0xfe))) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($trail > 0x7f) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $pair = ($byte << 8) | $trail;
+            if (!isset(self::GBK_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::GBK_PAIRS[$pair]);
             $offset++;
         }
 
