@@ -7954,6 +7954,7 @@ final class PdfTextExtractor
         );
         $embeddedFilePayloadObjectNumbers = $this->embeddedFilePayloadObjectNumbers($objects);
         $pieceInfoPrivateObjectNumbers = $this->pieceInfoPrivateStreamObjectNumbers($objects);
+        $type3CharProcsDictionaryObjectGenerations = $this->type3CharProcsDictionaryObjectGenerationSet($objects);
         $type3CharProcObjectGenerations = $this->type3CharProcObjectGenerationSet($objects);
         $type3CharProcResourceObjectGenerations = $this->type3CharProcResourceObjectGenerationSet($objects);
         foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
@@ -7964,6 +7965,7 @@ final class PdfTextExtractor
                 || $objects[$streamObjectNumber] !== $definition['body']
                 || isset($embeddedFilePayloadObjectNumbers[$streamObjectNumber])
                 || isset($pieceInfoPrivateObjectNumbers[$streamObjectNumber])
+                || isset($type3CharProcsDictionaryObjectGenerations[$streamObjectNumber][$definition['generation']])
                 || isset($type3CharProcObjectGenerations[$streamObjectNumber][$definition['generation']])
                 || isset($type3CharProcResourceObjectGenerations[$streamObjectNumber][$definition['generation']])
             ) {
@@ -7992,6 +7994,29 @@ final class PdfTextExtractor
         }
 
         return $streams;
+    }
+
+    /**
+     * @return array<int, array<int, true>>
+     * @param array<int, string> $objects
+     */
+    private function type3CharProcsDictionaryObjectGenerationSet(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $body) {
+            if (!$this->isType3FontBody($body)) {
+                continue;
+            }
+
+            $reference = $this->type3CharProcsDictionaryReference($body);
+            if ($reference === null) {
+                continue;
+            }
+
+            $references[$reference['objectNumber']][$reference['generation']] = true;
+        }
+
+        return $references;
     }
 
     /**
@@ -14034,13 +14059,7 @@ final class PdfTextExtractor
      */
     private function charProcsDictionaryBody(string $fontBody, array $objects): ?string
     {
-        $offset = $this->topLevelNameValueOffset($fontBody, 'CharProcs');
-        if ($offset === null) {
-            return null;
-        }
-
-        $referenceOffset = $offset;
-        $reference = $this->readPdfIndirectReferenceToken($fontBody, $referenceOffset);
+        $reference = $this->type3CharProcsDictionaryReference($fontBody);
         if ($reference !== null) {
             $objectBody = $this->objectBodyForExactReference(
                 $objects,
@@ -14048,11 +14067,38 @@ final class PdfTextExtractor
                 $reference['generation']
             );
 
-            return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
+            if ($objectBody === null || $this->objectBodyIsStreamObject($objectBody)) {
+                return null;
+            }
+
+            return $this->dictionaryObjectBody($objectBody);
         }
 
-        $offset = $this->skipPdfWhitespace($fontBody, $offset);
-        return substr($fontBody, $offset, 2) === '<<' ? $this->readPdfDictionaryAt($fontBody, $offset) : null;
+        $offset = $this->topLevelNameValueOffset($fontBody, 'CharProcs');
+        if ($offset === null) {
+            return null;
+        }
+
+        $dictionaryOffset = $offset;
+        $this->skipContentWhitespaceAndComments($fontBody, $dictionaryOffset);
+
+        return substr($fontBody, $dictionaryOffset, 2) === '<<'
+            ? $this->readPdfDictionaryAt($fontBody, $dictionaryOffset)
+            : null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function type3CharProcsDictionaryReference(string $fontBody): ?array
+    {
+        $offset = $this->topLevelNameValueOffset($fontBody, 'CharProcs');
+        if ($offset === null) {
+            return null;
+        }
+
+        $referenceOffset = $offset;
+        return $this->readPdfIndirectReferenceToken($fontBody, $referenceOffset);
     }
 
     /**
@@ -14985,7 +15031,8 @@ final class PdfTextExtractor
 
     private function objectBodyIsStreamObject(string $objectBody): bool
     {
-        $offset = $this->skipPdfWhitespace($objectBody, 0);
+        $offset = 0;
+        $this->skipContentWhitespaceAndComments($objectBody, $offset);
         $dictionaryEnd = $offset;
         if ($this->readPdfDictionaryTokenAt($objectBody, $dictionaryEnd) === null) {
             return false;
