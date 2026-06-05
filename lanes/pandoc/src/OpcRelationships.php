@@ -81,8 +81,9 @@ final class OpcRelationships
             return '/_rels/.rels';
         }
 
-        $dir = dirname($sourcePartName);
-        $base = basename($sourcePartName);
+        $sourceUri = OpcPackagePath::partNameToUri($sourcePartName);
+        $dir = dirname($sourceUri);
+        $base = basename($sourceUri);
 
         return ($dir === '/' ? '' : $dir) . '/_rels/' . $base . '.rels';
     }
@@ -110,7 +111,7 @@ final class OpcRelationships
             throw new \InvalidArgumentException('OPC relationship part names must identify a source part');
         }
 
-        return OpcPackagePath::canonicalPartName(($dir === '' ? '/' : $dir . '/') . $base);
+        return OpcPackagePath::canonicalPartNameFromUri(($dir === '' ? '/' : $dir . '/') . $base);
     }
 
     public static function isRelationshipPartName(string $partName): bool

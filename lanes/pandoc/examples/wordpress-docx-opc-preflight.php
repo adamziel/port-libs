@@ -22,6 +22,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/_rels/draft.xml.rels" ContentType="application/xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/review%20source.xml" ContentType="application/xml"/>
   <Override PartName="/word/media/source%20diagram.svg" ContentType="image/svg+xml; charset=UTF-8"/>
   <Override PartName="/word/embeddings/source%20workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
   <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
@@ -49,6 +50,7 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero%20image.PNG"/>
   <Relationship Id="rIdDiagram" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source%20diagram.svg"/>
+  <Relationship Id="rIdReviewSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="review%20source.xml"/>
   <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source%20workbook.xlsx"/>
   <Relationship Id="rIdEmbeddedOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
@@ -64,6 +66,12 @@ XML;
 $footnotesRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdFootnoteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footnote-source.png"/>
+</Relationships>
+XML;
+
+$reviewSourceRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewSourceImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review%20source.png"/>
 </Relationships>
 XML;
 
@@ -87,12 +95,15 @@ $package = ZipPackage::fromParts([
     ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+    ['name' => 'word/review source.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/review%20source.xml.rels', 'data' => $reviewSourceRelationshipsXml],
     ['name' => 'word/draft.xml', 'data' => '<draft/>'],
     ['name' => 'word/_rels/draft.xml.rels', 'data' => $draftRelationshipsXml],
     ['name' => 'word/media/draft-hidden.png', 'data' => 'PNG'],
     ['name' => 'word/media/hero image.PNG', 'data' => 'PNG'],
     ['name' => 'word/media/source diagram.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
     ['name' => 'word/media/footnote-source.png', 'data' => 'PNG'],
+    ['name' => 'word/media/review source.png', 'data' => 'PNG'],
     ['name' => 'word/embeddings/source workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
     ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLE'],
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
@@ -447,9 +458,13 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['contentTypeOverrides']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdCore']['targetPart'] ?? null) !== '/docProps/core.xml'
         || ($summary['packageConsistency']['relationshipTargets']['/:rIdSignatureOrigin']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
+        || ($summary['packageConsistency']['relationshipTargets']['/word/review source.xml:rIdReviewSourceImage']['targetPart'] ?? null) !== '/word/media/review source.png'
         || isset($summary['packageConsistency']['relationshipTargets']['/word/draft.xml:rIdDraftImage'])
         || $summary['integrity']['packagePartsValid'] !== false
-        || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml']
+        || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml', '/word/review source.xml']
+        || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
+        || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded'] ?? null) !== true
+        || ($summary['packageParts']['/word/_rels/review%20source.xml.rels']['issues'] ?? null) !== []
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
@@ -471,6 +486,8 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceLoaded'] !== true
         || $summary['packageParts']['/word/media/hero image.PNG']['contentType'] !== 'image/png'
+        || ($summary['wordpressImport']['mediaParts'][3] ?? null) !== '/word/media/review source.png'
+        || ($summary['relationships']['rIdReviewSource']['target'] ?? null) !== '/word/review source.xml'
         || isset($summary['relationships']['rIdDraftImage'])
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false

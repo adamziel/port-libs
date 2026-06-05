@@ -297,16 +297,83 @@ XML;
         $t->same('/_rels/document.xml.rels', OpcRelationships::relationshipPartNameForSource('/document.xml'));
         $t->same('/word/_rels/document.xml.rels', OpcRelationships::relationshipPartNameForSource('/word/document.xml'));
         $t->same('/word/embeddings/_rels/oleObject1.bin.rels', OpcRelationships::relationshipPartNameForSource('word/embeddings/oleObject1.bin'));
+        $t->same('/word/media/_rels/source%20diagram.svg.rels', OpcRelationships::relationshipPartNameForSource('/word/media/source diagram.svg'));
+        $t->same('/customXml/_rels/%C3%A9preuve.xml.rels', OpcRelationships::relationshipPartNameForSource("/customXml/\u{00E9}preuve.xml"));
         $t->same('/', OpcRelationships::sourcePartNameForRelationshipPart('/_rels/.rels'));
         $t->same('/document.xml', OpcRelationships::sourcePartNameForRelationshipPart('/_rels/document.xml.rels'));
         $t->same('/word/document.xml', OpcRelationships::sourcePartNameForRelationshipPart('/word/_rels/document.xml.rels'));
         $t->same('/word/embeddings/oleObject1.bin', OpcRelationships::sourcePartNameForRelationshipPart('/word/embeddings/_rels/oleObject1.bin.rels'));
+        $t->same('/word/media/source diagram.svg', OpcRelationships::sourcePartNameForRelationshipPart('/word/media/_rels/source%20diagram.svg.rels'));
+        $t->same("/customXml/\u{00E9}preuve.xml", OpcRelationships::sourcePartNameForRelationshipPart('/customXml/_rels/%C3%A9preuve.xml.rels'));
         $t->true(OpcRelationships::isRelationshipPartName('/_rels/.rels'));
         $t->true(OpcRelationships::isRelationshipPartName('/word/_rels/document.xml.rels'));
         $t->same(false, OpcRelationships::isRelationshipPartName('/word/document.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::sourcePartNameForRelationshipPart('/word/document.xml.rels'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::relationshipPartNameForSource('/word/_rels/document.xml.rels'));
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => new OpcRelationships('/word/_rels/document.xml.rels'));
+    },
+    'loads OPC relationship parts for percent encoded source part names' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/review%20source.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/review%20source.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/source%20diagram.png"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/review source.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/review%20source.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/source diagram.png', 'data' => 'PNG'],
+        ]);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($package, '/word/review source.xml'));
+        $relationships = OpcRelationships::fromPackage($package, '/word/review source.xml');
+        $t->same('/word/_rels/review%20source.xml.rels', $relationships->relationshipPartName());
+        $t->same('/word/media/source diagram.png', $relationships->resolveTarget('rIdReviewImage'));
+
+        $graph = OpcRelationshipGraph::fromPackage($package);
+        $t->same(['/', '/word/review source.xml'], $graph->sourcePartNames());
+        $t->true($graph->hasRelationshipsForSource('/word/review source.xml'));
+        $t->same(null, $graph->relationshipsForSource('/word/review%20source.xml'));
+
+        $parts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $t->same('/word/review source.xml', $parts['/word/_rels/review%20source.xml.rels']['relationshipSource']);
+        $t->same(true, $parts['/word/_rels/review%20source.xml.rels']['sourceExists']);
+        $t->same(true, $parts['/word/_rels/review%20source.xml.rels']['relationshipSourceLoaded']);
+        $t->same(true, $parts['/word/_rels/review%20source.xml.rels']['valid']);
+        $t->same([], $parts['/word/_rels/review%20source.xml.rels']['issues']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['rIdDocument', 'rIdReviewImage'], array_keys($closureById));
+        $t->same('/word/review source.xml', $closureById['rIdDocument']['targetPart']);
+        $t->same('/word/review source.xml', $closureById['rIdReviewImage']['source']);
+        $t->same('/word/media/source diagram.png', $closureById['rIdReviewImage']['targetPart']);
+        $t->same('image/png', $closureById['rIdReviewImage']['contentType']);
+        $t->same(true, $closureById['rIdReviewImage']['valid']);
     },
     'parses package level OPC relationships and resolves package root targets' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $relationships = OpcRelationships::fromXml($packageRelationshipsXml);
