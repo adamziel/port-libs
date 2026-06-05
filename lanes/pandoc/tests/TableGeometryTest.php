@@ -103,6 +103,33 @@ $buildOverfullColumnWidthDocument = static function (): AstNode {
     ]);
 };
 
+$buildInvalidColumnWidthDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Invalid source width audit',
+            'alignments' => ['left', 'right', 'center', 'default'],
+            'widths' => [0.25, 'auto', -0.1, null],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                    new AstNode('table_cell', ['text' => 'Notes'], [new AstNode('text', ['text' => 'Notes'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                    new AstNode('table_cell', ['text' => 'Review widths'], [new AstNode('text', ['text' => 'Review widths'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowHeadColumnDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -686,6 +713,40 @@ return [
         $t->same($summary, $packet['widthSummary'] ?? null);
         $t->same(['table-widths-exceed-full-width'], $packet['summary']['diagnosticCodes'] ?? null);
         $t->same([0.4, 0.4, 0.2], array_map(static fn (array $spec): ?float => $spec['normalizedWidth'], $packet['columns']));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'reports invalid relative width values without losing usable column metadata' => static function (TestRunner $t) use ($buildInvalidColumnWidthDocument): void {
+        $document = $buildInvalidColumnWidthDocument();
+        $table = $document->children[0];
+        $summary = TableGeometry::columnWidthSummary($table);
+        $diagnostics = TableGeometry::diagnostics($table);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, $summary['columnCount']);
+        $t->same(true, $summary['hasExplicitWidths']);
+        $t->same(4, $summary['explicitWidthCount']);
+        $t->same(1, $summary['validWidthCount']);
+        $t->same([0], $summary['validWidthColumns']);
+        $t->same([1, 2], $summary['invalidWidthColumns']);
+        $t->same([1, 2, 3], $summary['missingColumns']);
+        $t->same([
+            ['column' => 1, 'rawType' => 'string', 'rawValue' => 'auto'],
+            ['column' => 2, 'rawType' => 'float', 'rawValue' => -0.1],
+        ], $summary['invalidWidths']);
+        $t->same([0.25, null, null, null], array_map(static fn (array $spec): ?float => $spec['width'], TableGeometry::columnSpecs($table, 4)));
+        $t->same(['table-widths-have-invalid-values'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same([1, 2], $diagnostics[0]['invalidColumns'] ?? null);
+        $t->same(2, $diagnostics[0]['invalidWidthCount'] ?? null);
+        $t->same('auto', $diagnostics[0]['invalidWidths'][0]['rawValue'] ?? null);
+        $t->same(-0.1, $diagnostics[0]['invalidWidths'][1]['rawValue'] ?? null);
+        $t->same(['table-widths-have-invalid-values'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same($summary, $packet['widthSummary'] ?? null);
+        $t->same([1, 2], $packet['diagnostics'][0]['invalidColumns'] ?? null);
+        $t->same(false, $packet['widthSummary']['hasCompleteWidths'] ?? true);
+        $t->same(true, $packet['widthSummary']['hasPartialWidths'] ?? false);
+        $t->contains('<tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td><td>Review widths</td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, '<colgroup>'), 'Invalid partial widths should not emit a misleading WordPress colgroup');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'renders table body row head columns by visual column for wordpress handoff' => static function (TestRunner $t) use ($buildRowHeadColumnDocument): void {

@@ -536,8 +536,26 @@ final class TableGeometry
     private static function widthDiagnostics(AstNode $table): array
     {
         $summary = self::columnWidthSummary($table);
+        $diagnostics = [];
+        $invalidWidths = $summary['invalidWidths'] ?? [];
+        if (is_array($invalidWidths) && $invalidWidths !== []) {
+            $diagnostics[] = [
+                'code' => 'table-widths-have-invalid-values',
+                'source' => 'table-widths',
+                'columnCount' => (int) $summary['columnCount'],
+                'invalidWidthCount' => count($invalidWidths),
+                'invalidColumns' => array_values(array_map(
+                    static fn (array $record): int => (int) $record['column'],
+                    $invalidWidths
+                )),
+                'validWidthColumns' => $summary['validWidthColumns'],
+                'missingColumns' => $summary['missingColumns'],
+                'invalidWidths' => $invalidWidths,
+            ];
+        }
+
         if (($summary['overfull'] ?? false) !== true) {
-            return [];
+            return $diagnostics;
         }
 
         $columns = [];
@@ -547,7 +565,7 @@ final class TableGeometry
             }
         }
 
-        return [[
+        $diagnostics[] = [
             'code' => 'table-widths-exceed-full-width',
             'source' => 'table-widths',
             'columnCount' => (int) $summary['columnCount'],
@@ -556,7 +574,9 @@ final class TableGeometry
             'overflowAmount' => (float) $summary['overflowAmount'],
             'normalizedWidths' => $summary['normalizedWidths'],
             'percentWidths' => $summary['percentWidths'],
-        ]];
+        ];
+
+        return $diagnostics;
     }
 
     /**
@@ -852,6 +872,9 @@ final class TableGeometry
      *     explicitWidthCount:int,
      *     validWidthCount:int,
      *     missingWidthCount:int,
+     *     validWidthColumns:list<int>,
+     *     invalidWidthColumns:list<int>,
+     *     invalidWidths:list<array<string, mixed>>,
      *     hasCompleteWidths:bool,
      *     hasPartialWidths:bool,
      *     widthTotal:float,
@@ -873,7 +896,10 @@ final class TableGeometry
 
         $widthTotal = 0.0;
         $validWidthCount = 0;
+        $validWidthColumns = [];
         $missingColumns = [];
+        $invalidWidths = self::invalidWidthRecords($rawWidths, $columnCount);
+        $invalidWidthColumns = array_map(static fn (array $record): int => (int) $record['column'], $invalidWidths);
         foreach ($specs as $spec) {
             $width = $spec['width'];
             if ($width === null) {
@@ -883,6 +909,7 @@ final class TableGeometry
 
             $widthTotal += $width;
             $validWidthCount++;
+            $validWidthColumns[] = (int) $spec['column'];
         }
 
         $normalizedWidths = [];
@@ -904,6 +931,9 @@ final class TableGeometry
             'explicitWidthCount' => $explicitWidthCount,
             'validWidthCount' => $validWidthCount,
             'missingWidthCount' => count($missingColumns),
+            'validWidthColumns' => $validWidthColumns,
+            'invalidWidthColumns' => $invalidWidthColumns,
+            'invalidWidths' => $invalidWidths,
             'hasCompleteWidths' => $hasCompleteWidths,
             'hasPartialWidths' => $hasPartialWidths,
             'widthTotal' => self::roundWidth($widthTotal),
@@ -2463,6 +2493,45 @@ final class TableGeometry
         }
 
         return $total;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function invalidWidthRecords(mixed $rawWidths, int $columnCount): array
+    {
+        if (!is_array($rawWidths)) {
+            return [];
+        }
+
+        $widths = array_values($rawWidths);
+        $records = [];
+        for ($column = 0; $column < max(0, $columnCount); $column++) {
+            if (!array_key_exists($column, $widths)) {
+                continue;
+            }
+
+            $value = $widths[$column];
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_numeric($value) && (float) $value >= 0.0) {
+                continue;
+            }
+
+            $record = [
+                'column' => $column,
+                'rawType' => get_debug_type($value),
+            ];
+            if (is_scalar($value)) {
+                $record['rawValue'] = $value;
+            }
+
+            $records[] = $record;
+        }
+
+        return $records;
     }
 
     private static function roundWidth(float $width): float

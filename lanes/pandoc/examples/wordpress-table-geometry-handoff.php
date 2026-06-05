@@ -159,6 +159,29 @@ $overfullWidthTable = new AstNode('table', [
     ]),
 ]);
 
+$invalidWidthTable = new AstNode('table', [
+    'caption' => 'Invalid source width audit',
+    'alignments' => ['left', 'right', 'center', 'default'],
+    'widths' => [0.25, 'auto', -0.1, null],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+            new AstNode('table_cell', ['text' => 'Notes'], [new AstNode('text', ['text' => 'Notes'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            new AstNode('table_cell', ['text' => 'Review widths'], [new AstNode('text', ['text' => 'Review widths'])]),
+        ]),
+    ]),
+]);
+
 $malformedSpanTable = new AstNode('table', [
     'caption' => 'Malformed source span review',
     'alignments' => ['left', 'right', 'center'],
@@ -542,6 +565,7 @@ $document = new AstNode('document', [], [
     ...$captionMetadataTables,
     $blockCaptionTable,
     $malformedSpanTable,
+    $invalidWidthTable,
     $blockContentTable,
 ]);
 
@@ -559,6 +583,25 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing per-column width percentages');
     }
     json_encode($overfullWidthPacket, JSON_THROW_ON_ERROR);
+
+    $invalidWidthPacket = TableGeometry::reviewPacket($invalidWidthTable, ['accessibility' => false]);
+    if (($invalidWidthPacket['summary']['diagnosticCodes'] ?? null) !== ['table-widths-have-invalid-values']) {
+        throw new RuntimeException('Table geometry self-test missing invalid width diagnostic');
+    }
+    if (($invalidWidthPacket['widthSummary']['invalidWidthColumns'] ?? null) !== [1, 2]) {
+        throw new RuntimeException('Table geometry self-test missing invalid width column summary');
+    }
+    if (($invalidWidthPacket['widthSummary']['invalidWidths'][0]['rawValue'] ?? null) !== 'auto' || ($invalidWidthPacket['widthSummary']['invalidWidths'][1]['rawValue'] ?? null) !== -0.1) {
+        throw new RuntimeException('Table geometry self-test missing invalid width raw values');
+    }
+    if (($invalidWidthPacket['widthSummary']['validWidthColumns'] ?? null) !== [0] || ($invalidWidthPacket['widthSummary']['missingColumns'] ?? null) !== [1, 2, 3]) {
+        throw new RuntimeException('Table geometry self-test missing valid/missing width provenance');
+    }
+    $invalidWidthBlock = '<figure class="wp-block-table"><table><thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th><th>Notes</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td><td>Review widths</td></tr></tbody></table><figcaption class="wp-element-caption">Invalid source width audit</figcaption></figure>';
+    if (!str_contains($blocks, $invalidWidthBlock)) {
+        throw new RuntimeException('Table geometry self-test missing invalid source width review table');
+    }
+    json_encode($invalidWidthPacket, JSON_THROW_ON_ERROR);
 
     $migrationGrids = TableGeometry::sectionGrids($document->children[0]);
     $columnSpecs = TableGeometry::columnSpecs($document->children[0], 5);
