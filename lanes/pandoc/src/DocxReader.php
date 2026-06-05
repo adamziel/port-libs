@@ -877,13 +877,14 @@ final class DocxReader
     {
         $blocks = [];
         $pendingListParagraphs = [];
+        $activeCommentRangeId = null;
         foreach ($container->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
             }
 
             if ($this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, $referencedNotes, $styles);
+                $paragraph = $this->paragraphNode($child, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
                 if ($paragraph instanceof AstNode) {
                     $listDefinition = $paragraph->type === 'paragraph'
                         ? $this->listDefinitionForParagraph($child, $styles, $numbering)
@@ -972,10 +973,11 @@ final class DocxReader
         ZipPackage $package,
         ?OpcRelationships $relationships,
         array $referencedNotes,
-        array $styles = []
+        array $styles,
+        ?string &$activeCommentRangeId
     ): ?AstNode
     {
-        $children = $this->paragraphInlines($paragraph, $package, $relationships, $referencedNotes);
+        $children = $this->paragraphInlines($paragraph, $package, $relationships, $referencedNotes, $activeCommentRangeId);
         $text = $this->plainInlineText($children);
         if ($children === [] && $text === '') {
             return null;
@@ -999,10 +1001,15 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function paragraphInlines(\DOMElement $paragraph, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
+    private function paragraphInlines(
+        \DOMElement $paragraph,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        ?string &$activeCommentRangeId
+    ): array
     {
         $inlines = [];
-        $activeCommentRangeId = null;
         $activeCommentRangeNodes = [];
         $activeField = null;
         foreach ($paragraph->childNodes as $child) {

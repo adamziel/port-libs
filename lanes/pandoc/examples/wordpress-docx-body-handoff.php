@@ -94,6 +94,17 @@ XML],
       <w:r><w:t xml:space="preserve"> remains auditable.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Cross paragraph comment </w:t></w:r>
+      <w:commentRangeStart w:id="10"/>
+      <w:r><w:t>starts here</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>continues here</w:t></w:r>
+      <w:commentRangeEnd w:id="10"/>
+      <w:r><w:t xml:space="preserve"> for import review</w:t></w:r>
+      <w:r><w:commentReference w:id="10"/></w:r>
+    </w:p>
+    <w:p>
       <w:bookmarkStart w:id="14" w:name="source_packet_anchor"/>
       <w:bookmarkStart w:id="15" w:name="_GoBack"/>
       <w:bookmarkEnd w:id="15"/>
@@ -219,6 +230,9 @@ XML],
   <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-04T09:55:00Z">
     <w:p><w:r><w:t>DOCX reviewer comment import note.</w:t></w:r></w:p>
   </w:comment>
+  <w:comment w:id="10" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-05T03:20:00Z">
+    <w:p><w:r><w:t>DOCX multi-paragraph reviewer comment import note.</w:t></w:r></w:p>
+  </w:comment>
 </w:comments>
 XML],
     ['name' => 'word/header1.xml', 'data' => <<<'XML'
@@ -337,6 +351,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
+        '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">starts here</span></p>',
+        '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">continues here</span> for import review',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
@@ -356,6 +372,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'DOCX footnote import note.',
         'DOCX endnote import note.',
         'DOCX reviewer comment import note.',
+        'DOCX multi-paragraph reviewer comment import note.',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('DOCX body handoff self-test missing: ' . $needle);

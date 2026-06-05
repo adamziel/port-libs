@@ -389,6 +389,38 @@ $commentsXml = <<<'XML'
 </w:comments>
 XML;
 
+$commentsOnlyDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+$crossParagraphCommentRangeDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Before </w:t></w:r>
+      <w:commentRangeStart w:id="10"/>
+      <w:r><w:t>first paragraph note</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>second paragraph note</w:t></w:r>
+      <w:commentRangeEnd w:id="10"/>
+      <w:r><w:t xml:space="preserve"> after range </w:t></w:r>
+      <w:r><w:commentReference w:id="10"/></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$crossParagraphCommentsXml = <<<'XML'
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="10" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-05T03:20:00Z">
+    <w:p><w:r><w:t>Comment spans two DOCX paragraphs.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+
 $mathDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
@@ -732,6 +764,22 @@ $buildNotesPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $notesDocumentRelationshipsXml],
         ['name' => 'word/endnotes.xml', 'data' => $endnotesXml],
         ['name' => 'word/comments.xml', 'data' => $commentsXml],
+    ]);
+};
+
+$buildCrossParagraphCommentRangePackage = static function () use (
+    $notesContentTypesXml,
+    $packageRelationshipsXml,
+    $commentsOnlyDocumentRelationshipsXml,
+    $crossParagraphCommentRangeDocumentXml,
+    $crossParagraphCommentsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $notesContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $crossParagraphCommentRangeDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $commentsOnlyDocumentRelationshipsXml],
+        ['name' => 'word/comments.xml', 'data' => $crossParagraphCommentsXml],
     ]);
 };
 
@@ -1214,6 +1262,48 @@ return [
 
         $t->contains('[ commented source ]{.docx-comment-range data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"}[^2]', $markdown);
         $t->contains('<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> commented source </span><sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>', $blocks);
+    },
+    'preserves DOCX comment ranges that span paragraphs before the note reference' => static function (TestRunner $t) use ($buildCrossParagraphCommentRangePackage): void {
+        $document = (new DocxReader())->readDocument($buildCrossParagraphCommentRangePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $first = $document->children[0];
+        $t->same('paragraph', $first->type);
+        $t->same('Before ', $first->children[0]->attr('text'));
+        $firstRange = $first->children[1];
+        $t->same('span', $firstRange->type);
+        $t->same(['docx-comment-range'], $firstRange->attr('classes'));
+        $t->same('10', $firstRange->attr('attributes')['data-docx-comment-id']);
+        $t->same('Migration Reviewer', $firstRange->attr('attributes')['data-docx-comment-author']);
+        $t->same('MR', $firstRange->attr('attributes')['data-docx-comment-initials']);
+        $t->same('2026-06-05T03:20:00Z', $firstRange->attr('attributes')['data-docx-comment-date']);
+        $t->same('first paragraph note', $firstRange->children[0]->attr('text'));
+
+        $second = $document->children[1];
+        $t->same('paragraph', $second->type);
+        $secondRange = $second->children[0];
+        $t->same('span', $secondRange->type);
+        $t->same(['docx-comment-range'], $secondRange->attr('classes'));
+        $t->same('10', $secondRange->attr('attributes')['data-docx-comment-id']);
+        $t->same('Migration Reviewer', $secondRange->attr('attributes')['data-docx-comment-author']);
+        $t->same('second paragraph note', $secondRange->children[0]->attr('text'));
+        $t->same(' after range ', $second->children[1]->attr('text'));
+        $comment = $second->children[2];
+        $t->same('note', $comment->type);
+        $t->same('10', $comment->attr('id'));
+        $t->same('comment', $comment->attr('sourceType'));
+        $t->same('Comment spans two DOCX paragraphs.', $comment->children[0]->children[0]->attr('text'));
+
+        $t->contains('Before [first paragraph note]{.docx-comment-range data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z"}', $markdown);
+        $t->contains('[second paragraph note]{.docx-comment-range data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z"} after range [^1]', $markdown);
+        $t->contains('[^1]: Comment spans two DOCX paragraphs.', $markdown);
+
+        $t->contains('<p>Before <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">first paragraph note</span></p>', $blocks);
+        $t->contains('<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">second paragraph note</span> after range <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
+        $t->contains('<li id="fn-1"><p>Comment spans two DOCX paragraphs.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'maps DOCX OMML inline and display formulas into math AST nodes' => static function (TestRunner $t) use ($buildMathPackage): void {
         $document = (new DocxReader())->readDocument($buildMathPackage());
