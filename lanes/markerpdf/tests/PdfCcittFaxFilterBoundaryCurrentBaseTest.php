@@ -151,6 +151,21 @@ return [
                 ],
             ],
         ], $fax['filter_details']);
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => true,
+            'black_sample_value' => 1,
+            'white_sample_value' => 0,
+            'image_mask_decode_source' => 'explicit',
+            'decode_inverts_stencil' => true,
+            'black_sample_opacity' => 0.0,
+            'white_sample_opacity' => 1.0,
+            'black_sample_is_visible' => false,
+            'white_sample_is_visible' => true,
+        ], $fax['ccitt_fax_imagemask_polarity_boundary']);
 
         $alias = $review['entries'][1];
         $t->same('AliasFax', $alias['resource_name']);
@@ -418,8 +433,25 @@ return [
         $t->same(false, $plan['inline_image']['native_raster_decode']);
         $t->same(true, $plan['inline_image_payload_excluded_from_text']);
         $t->same(true, $plan['inline_image_abbreviations_expanded']);
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => false,
+            'black_sample_value' => 0,
+            'white_sample_value' => 1,
+            'image_mask_decode_source' => 'explicit',
+            'decode_inverts_stencil' => true,
+            'black_sample_opacity' => 1.0,
+            'white_sample_opacity' => 0.0,
+            'black_sample_is_visible' => true,
+            'white_sample_is_visible' => false,
+        ], $plan['ccitt_fax_imagemask_polarity_boundary']);
         $t->contains('ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
+        $t->contains('ccitt_fax_imagemask_polarity_review_before_rgb_conversion', implode(',', $plan['notes']));
         $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
+        $t->contains('inline_ccitt_fax_imagemask_polarity_review_before_rgb_conversion', implode(',', $plan['notes']));
         $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline CCITT fax payload noise'));
     },
     'marks malformed inline CCITT Fax DecodeParms fail closed before RGB preview' => static function (TestRunner $t): void {
@@ -671,6 +703,21 @@ return [
             'rows_match_height' => true,
             'dimension_mismatch' => false,
         ], $entry['ccitt_fax_decode_boundary'] ?? null);
+        $t->same([
+            'filter' => 'CCF',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => true,
+            'black_sample_value' => 1,
+            'white_sample_value' => 0,
+            'image_mask_decode_source' => 'default',
+            'decode_inverts_stencil' => false,
+            'black_sample_opacity' => 1.0,
+            'white_sample_opacity' => 0.0,
+            'black_sample_is_visible' => true,
+            'white_sample_is_visible' => false,
+        ], $entry['ccitt_fax_imagemask_polarity_boundary'] ?? null);
         $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encodedReview, $faxPayload));
         $t->true(!str_contains($encodedReview, $encodedFaxPayload));

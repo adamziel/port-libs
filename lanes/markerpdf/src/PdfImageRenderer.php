@@ -499,6 +499,13 @@ final class PdfImageRenderer
         $matteUnblendingRequired = $softMaskComposable && ($softMaskMatte['matches_image_components'] ?? false);
         $imageDecodeValid = $imageDecode !== null && $imageDecode['valid_for_components'];
         $imageDecodeMismatch = $imageDecode !== null && !$imageDecode['valid_for_components'];
+        $ccittDecodeBoundary = $this->ccittFaxDecodeBoundaryReview(
+            $imageFilterDetails,
+            $this->integerNameValue($imageDictionary, 'Width', $objects),
+            $this->integerNameValue($imageDictionary, 'Height', $objects)
+        );
+        $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($imageFilterDetails);
+        $ccittImageMaskPolarityBoundary = $this->ccittFaxImageMaskPolarityBoundary($ccittDecodeBoundary, $imageMask);
         $notes = [];
 
         if ($colorSpace['uses_indexed_color_space']) {
@@ -592,6 +599,9 @@ final class PdfImageRenderer
             if (($imageMask['inverted'] ?? false) === true) {
                 $notes[] = 'image_mask_decode_inverts_stencil';
             }
+            if ($ccittImageMaskPolarityBoundary !== null) {
+                $notes[] = 'ccitt_fax_imagemask_polarity_review_before_rgb_conversion';
+            }
         }
         if ($softMaskPresent && $softMaskGroup !== null) {
             $notes[] = 'soft_mask_dictionary_review_before_rgb_conversion';
@@ -648,12 +658,9 @@ final class PdfImageRenderer
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
                 'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
             ],
-            'ccitt_fax_decode_boundary' => $this->ccittFaxDecodeBoundaryReview(
-                $imageFilterDetails,
-                $this->integerNameValue($imageDictionary, 'Width', $objects),
-                $this->integerNameValue($imageDictionary, 'Height', $objects)
-            ),
-            'ccitt_fax_coding_boundary' => $this->ccittFaxCodingBoundaryReview($imageFilterDetails),
+            'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
+            'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
+            'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
             'source_color_space' => $imageMaskPresent ? 'ImageMask' : $colorSpace['source_color_space'],
             'color_space_resource_name' => $imageMaskPresent ? null : ($colorSpace['color_space_resource_name'] ?? null),
             'color_space_resource_value' => $imageMaskPresent ? null : ($colorSpace['color_space_resource_value'] ?? null),
@@ -875,6 +882,9 @@ final class PdfImageRenderer
         }
         if (in_array('CCITTFaxDecode', $filters, true) || in_array('CCF', $filters, true)) {
             $plan['notes'][] = 'inline_ccitt_fax_image_filter_review_only';
+            if (($plan['ccitt_fax_imagemask_polarity_boundary'] ?? null) !== null) {
+                $plan['notes'][] = 'inline_ccitt_fax_imagemask_polarity_review_before_rgb_conversion';
+            }
         }
         foreach ($operandBoundaryFilters as $filter) {
             $plan['notes'][] = $filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND
@@ -4590,6 +4600,50 @@ final class PdfImageRenderer
             'two_dimensional_line_interval' => $k > 0 ? $k : null,
             'end_of_block' => $endOfBlock,
             'end_of_block_marker' => $this->ccittFaxEndOfBlockMarkerName($k, $endOfBlock),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $ccittBoundary
+     * @param array{present: bool, decode: array{source: string, inverted_components: list<int>}, opacity_for_zero: float, opacity_for_one: float}|null $imageMask
+     * @return array<string, mixed>|null
+     */
+    private function ccittFaxImageMaskPolarityBoundary(?array $ccittBoundary, ?array $imageMask): ?array
+    {
+        if ($ccittBoundary === null || $imageMask === null || ($imageMask['present'] ?? false) !== true) {
+            return null;
+        }
+
+        $effective = is_array($ccittBoundary['effective_decode_parms'] ?? null)
+            ? $ccittBoundary['effective_decode_parms']
+            : [];
+        $blackIs1 = is_bool($effective['black_is_1'] ?? null) ? $effective['black_is_1'] : false;
+        $blackSampleValue = $blackIs1 ? 1 : 0;
+        $whiteSampleValue = $blackIs1 ? 0 : 1;
+        $opacityForZero = is_numeric($imageMask['opacity_for_zero'] ?? null)
+            ? (float) $imageMask['opacity_for_zero']
+            : null;
+        $opacityForOne = is_numeric($imageMask['opacity_for_one'] ?? null)
+            ? (float) $imageMask['opacity_for_one']
+            : null;
+        $blackOpacity = $blackSampleValue === 1 ? $opacityForOne : $opacityForZero;
+        $whiteOpacity = $whiteSampleValue === 1 ? $opacityForOne : $opacityForZero;
+        $decode = is_array($imageMask['decode'] ?? null) ? $imageMask['decode'] : null;
+
+        return [
+            'filter' => (string) ($ccittBoundary['filter'] ?? 'CCITTFaxDecode'),
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => $blackIs1,
+            'black_sample_value' => $blackSampleValue,
+            'white_sample_value' => $whiteSampleValue,
+            'image_mask_decode_source' => $decode['source'] ?? null,
+            'decode_inverts_stencil' => is_array($decode) && ($decode['inverted_components'] ?? []) !== [],
+            'black_sample_opacity' => $blackOpacity,
+            'white_sample_opacity' => $whiteOpacity,
+            'black_sample_is_visible' => $blackOpacity === null ? null : $blackOpacity > 0.0,
+            'white_sample_is_visible' => $whiteOpacity === null ? null : $whiteOpacity > 0.0,
         ];
     }
 

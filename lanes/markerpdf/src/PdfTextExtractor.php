@@ -4557,6 +4557,21 @@ final class PdfTextExtractor
         $imageVisibleBbox = $imageVisibleBbox === null ? null : $this->normalizedPdfReviewNumbers($imageVisibleBbox);
         $imageWidth = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
         $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
+        $effectiveBitsPerComponent = $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent;
+        $imageDecode = $this->imageXObjectDecodeReview(
+            $stream['dict'],
+            $objects,
+            $imageMask ? 1 : $this->imageXObjectColorSpaceComponentCount($colorSpace),
+            $imageMask
+        );
+        $ccittDecodeBoundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight);
+        $ccittCodingBoundary = $this->ccittFaxCodingBoundaryReview($filterDetails);
+        $ccittImageMaskPolarityBoundary = $this->ccittFaxImageMaskPolarityBoundary(
+            $ccittDecodeBoundary,
+            $imageMask,
+            $imageDecode,
+            $effectiveBitsPerComponent ?? 1
+        );
 
         return [
             'page_index' => $pageIndex,
@@ -4591,7 +4606,7 @@ final class PdfTextExtractor
             'color_space_resource_name' => $colorSpaceReview['resource_name'],
             'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
             'color_space_resource_source' => $colorSpaceReview['resource_source'],
-            'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
+            'bits_per_component' => $effectiveBitsPerComponent,
             'image_mask' => $imageMask,
             'interpolate' => $this->pdfBooleanValueAfterNameResolvingObjects($stream['dict'], 'Interpolate', $objects),
             'rendering_intent' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Intent', $objects),
@@ -4620,8 +4635,9 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             'filter_details' => $filterDetails,
-            'ccitt_fax_decode_boundary' => $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight),
-            'ccitt_fax_coding_boundary' => $this->ccittFaxCodingBoundaryReview($filterDetails),
+            'ccitt_fax_decode_boundary' => $ccittDecodeBoundary,
+            'ccitt_fax_coding_boundary' => $ccittCodingBoundary,
+            'ccitt_fax_imagemask_polarity_boundary' => $ccittImageMaskPolarityBoundary,
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -4897,7 +4913,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            $arrayBody = '[0 1]';
+            $arrayBody = '0 1';
             $source = 'default';
         }
 
@@ -5476,6 +5492,52 @@ final class PdfTextExtractor
             'two_dimensional_line_interval' => $k > 0 ? $k : null,
             'end_of_block' => $endOfBlock,
             'end_of_block_marker' => $this->ccittFaxEndOfBlockMarkerName($k, $endOfBlock),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $ccittBoundary
+     * @param array{ranges: list<array{min: float, max: float}>, valid_for_components: bool, source: string, inverted_components: list<int>}|null $decode
+     * @return array<string, mixed>|null
+     */
+    private function ccittFaxImageMaskPolarityBoundary(
+        ?array $ccittBoundary,
+        bool $imageMask,
+        ?array $decode,
+        int $bitsPerComponent
+    ): ?array {
+        if ($ccittBoundary === null || !$imageMask) {
+            return null;
+        }
+
+        $effective = is_array($ccittBoundary['effective_decode_parms'] ?? null)
+            ? $ccittBoundary['effective_decode_parms']
+            : [];
+        $blackIs1 = is_bool($effective['black_is_1'] ?? null) ? $effective['black_is_1'] : false;
+        $blackSampleValue = $blackIs1 ? 1 : 0;
+        $whiteSampleValue = $blackIs1 ? 0 : 1;
+        $decodeValid = is_array($decode) && ($decode['valid_for_components'] ?? false) === true;
+        $blackOpacity = $decodeValid
+            ? $this->imageXObjectDecodedSampleValue($blackSampleValue, $decode, $bitsPerComponent)
+            : null;
+        $whiteOpacity = $decodeValid
+            ? $this->imageXObjectDecodedSampleValue($whiteSampleValue, $decode, $bitsPerComponent)
+            : null;
+
+        return [
+            'filter' => (string) ($ccittBoundary['filter'] ?? 'CCITTFaxDecode'),
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'image_mask' => true,
+            'black_is_1' => $blackIs1,
+            'black_sample_value' => $blackSampleValue,
+            'white_sample_value' => $whiteSampleValue,
+            'image_mask_decode_source' => is_array($decode) ? ($decode['source'] ?? null) : null,
+            'decode_inverts_stencil' => is_array($decode) && ($decode['inverted_components'] ?? []) !== [],
+            'black_sample_opacity' => $blackOpacity,
+            'white_sample_opacity' => $whiteOpacity,
+            'black_sample_is_visible' => $blackOpacity === null ? null : $blackOpacity > 0.0,
+            'white_sample_is_visible' => $whiteOpacity === null ? null : $whiteOpacity > 0.0,
         ];
     }
 
