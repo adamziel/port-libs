@@ -984,7 +984,7 @@ final class PdfTextExtractor
             $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
             $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($dict, 'Filter');
-            $filters = $this->streamFilters($dict, $objects);
+            $filters = $this->streamFilters($dict, $objects, true);
             $decodeParms = $filters === null
                 ? $this->streamDecodeParms($dict, $objects)
                 : $this->streamDecodeParmsForFilters($dict, $objects, $filters);
@@ -13475,9 +13475,9 @@ final class PdfTextExtractor
      * @return list<string|null>|null
      * @param array<int, string> $objects
      */
-    private function streamFilters(string $dict, array $objects = []): ?array
+    private function streamFilters(string $dict, array $objects = [], bool $allowDuplicateDeclarations = false): ?array
     {
-        if (count($this->topLevelPdfValuesAfterNameInDictionaryBody($dict, 'Filter')) > 1) {
+        if (!$allowDuplicateDeclarations && count($this->topLevelPdfValuesAfterNameInDictionaryBody($dict, 'Filter')) > 1) {
             return null;
         }
 
@@ -13511,6 +13511,10 @@ final class PdfTextExtractor
 
         $reference = $this->pdfIndirectReferenceTokenAt($dict, $offset);
         if ($reference !== null) {
+            if ($this->directReferenceFilterExtraOperand($dict, $offset) !== null) {
+                return null;
+            }
+
             $objectNumber = $reference['objectNumber'];
             $generation = $reference['generation'];
             $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
@@ -13518,6 +13522,58 @@ final class PdfTextExtractor
                 ? null
                 : $this->filterNamesFromSingleValue(trim($body), $objects, [$objectNumber . ':' . $generation => true]);
             return $filters === null ? null : $this->normalizeStreamFilterStack($filters);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function directReferenceFilterExtraOperand(string $dict, int $offset): ?array
+    {
+        $reference = $this->pdfIndirectReferenceTokenAt($dict, $offset);
+        if ($reference === null) {
+            return null;
+        }
+
+        $next = $this->skipPdfWhitespace($dict, $reference['endOffset']);
+        if ($next >= strlen($dict) || substr($dict, $next, 2) === '>>' || ($dict[$next] ?? '') === ']') {
+            return null;
+        }
+
+        if ($dict[$next] !== '/') {
+            $token = $this->pdfValueAtOffset($dict, $next);
+            if ($token === null) {
+                return null;
+            }
+
+            return [
+                'type' => $this->pdfOperandTokenType($token),
+                'preview' => $this->xrefStreamOperandValuePreview($token),
+            ];
+        }
+
+        $nextEnd = $this->pdfNameTokenEndOffset($dict, $next);
+        if ($nextEnd <= $next + 1) {
+            return null;
+        }
+
+        $name = $this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1));
+        if ($this->streamFilterNameLooksLikeDecoder($name)) {
+            return [
+                'type' => 'name',
+                'preview' => substr($dict, $next, $nextEnd - $next),
+                'name' => $name,
+            ];
+        }
+
+        if ($this->directScalarFilterUnknownNamePrecedesLength($dict, $nextEnd)) {
+            return [
+                'type' => 'name',
+                'preview' => substr($dict, $next, $nextEnd - $next),
+                'name' => $name,
+            ];
         }
 
         return null;
@@ -24059,7 +24115,7 @@ final class PdfTextExtractor
         foreach ($items as $item) {
             $item = trim($item);
             if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $item, $match) === 1) {
-                $reviews[] = $this->xrefStreamIndirectOperandReview(
+                $review = $this->xrefStreamIndirectOperandReview(
                     $name,
                     (int) $match[1],
                     (int) $match[2],
@@ -24067,6 +24123,14 @@ final class PdfTextExtractor
                     $xrefEntries,
                     $definitions
                 );
+                $extraFilterOperand = $name === 'Filter'
+                    ? $this->directReferenceFilterExtraOperand($dict, $offset)
+                    : null;
+                if ($extraFilterOperand !== null) {
+                    $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraFilterOperand);
+                }
+
+                $reviews[] = $review;
                 continue;
             }
 
@@ -24091,13 +24155,7 @@ final class PdfTextExtractor
                     $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($item);
                 }
                 if ($extraFilterOperand !== null) {
-                    $review['extra_filter_operand'] = true;
-                    $review['extra_filter_operand_type'] = $extraFilterOperand['type'];
-                    $review['extra_filter_operand_preview'] = $extraFilterOperand['preview'];
-                    if (($extraFilterOperand['type'] ?? null) === 'name' && isset($extraFilterOperand['name'])) {
-                        $review['extra_filter_name_operand'] = true;
-                        $review['extra_filter_name'] = $extraFilterOperand['name'];
-                    }
+                    $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraFilterOperand);
                 }
             }
             if ($name === 'DecodeParms') {
@@ -24264,14 +24322,7 @@ final class PdfTextExtractor
                 [$objectNumber . ':' . $generation => true]
             ) !== null;
             if ($extraFilterOperand !== null) {
-                $review['valid_filter_operand'] = false;
-                $review['extra_filter_operand'] = true;
-                $review['extra_filter_operand_type'] = $extraFilterOperand['type'];
-                $review['extra_filter_operand_preview'] = $extraFilterOperand['preview'];
-                if (($extraFilterOperand['type'] ?? null) === 'name') {
-                    $review['extra_filter_name_operand'] = true;
-                    $review['extra_filter_name'] = $extraFilterOperand['name'] ?? null;
-                }
+                $review = $this->streamFilterOperandReviewWithExtraOperand($review, $extraFilterOperand);
             }
         }
         if ($name === 'DecodeParms' && $body !== null) {
@@ -24282,6 +24333,25 @@ final class PdfTextExtractor
                 $objects,
                 [$objectNumber . ':' . $generation => true]
             );
+        }
+
+        return $review;
+    }
+
+    /**
+     * @param array<string, mixed> $review
+     * @param array{type: string, preview: string, name?: string} $extraFilterOperand
+     * @return array<string, mixed>
+     */
+    private function streamFilterOperandReviewWithExtraOperand(array $review, array $extraFilterOperand): array
+    {
+        $review['valid_filter_operand'] = false;
+        $review['extra_filter_operand'] = true;
+        $review['extra_filter_operand_type'] = $extraFilterOperand['type'];
+        $review['extra_filter_operand_preview'] = $extraFilterOperand['preview'];
+        if (($extraFilterOperand['type'] ?? null) === 'name' && isset($extraFilterOperand['name'])) {
+            $review['extra_filter_name_operand'] = true;
+            $review['extra_filter_name'] = $extraFilterOperand['name'];
         }
 
         return $review;
