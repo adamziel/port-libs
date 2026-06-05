@@ -1234,39 +1234,143 @@ final class PdfActionReviewExtractor
     /**
      * @param array<string, mixed> $node
      * @param array<string, mixed> $destinations
-     * @param array<int, true> $seen
+     * @param array<string, true> $seen
+     * @param array{lower: string, upper: string}|null $inheritedLimits
      */
-    private function collectNameTreeDestinations(array $node, array &$destinations, array $seen = []): void
-    {
+    private function collectNameTreeDestinations(
+        array $node,
+        array &$destinations,
+        array $seen = [],
+        ?array $inheritedLimits = null,
+        int $depth = 0
+    ): void {
+        if ($depth > 20) {
+            return;
+        }
+
+        $limits = $this->nameTreeEffectiveLimits($node, $inheritedLimits);
+        $kids = $this->resolveArray($node['Kids'] ?? null) ?? [];
         $names = $this->resolveArray($node['Names'] ?? null);
         if ($names !== null) {
+            $entryLimits = ($kids !== [] || $this->nameTreeLimitsMatchAnyPairKey($names, $limits))
+                ? $limits
+                : $inheritedLimits;
+
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
                 $name = $this->stringOrNameValue($this->resolveValue($names[$index]));
-                if ($name !== null) {
+                if ($name !== null && $name !== '' && $this->nameTreeNameWithinLimits($name, $entryLimits)) {
                     $destinations[$name] = $names[$index + 1];
                 }
             }
         }
 
-        $kids = $this->resolveArray($node['Kids'] ?? null);
-        if ($kids === null) {
+        if ($kids === []) {
             return;
         }
 
         foreach ($kids as $kid) {
-            $objectNumber = $this->referenceObjectNumber($kid);
-            if ($objectNumber !== null) {
-                if (isset($seen[$objectNumber])) {
+            $reference = $this->referenceObject($kid);
+            if ($reference !== null) {
+                $seenKey = $reference['object'] . ':' . $reference['generation'];
+                if (isset($seen[$seenKey])) {
                     continue;
                 }
-                $seen[$objectNumber] = true;
+                $seen[$seenKey] = true;
             }
 
             $child = $this->resolveDictionary($kid);
             if ($child !== null) {
-                $this->collectNameTreeDestinations($child, $destinations, $seen);
+                $this->collectNameTreeDestinations($child, $destinations, $seen, $limits, $depth + 1);
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array{lower: string, upper: string}|null $inheritedLimits
+     * @return array{lower: string, upper: string}|null
+     */
+    private function nameTreeEffectiveLimits(array $node, ?array $inheritedLimits): ?array
+    {
+        $nodeLimits = $this->nameTreeNodeLimits($node);
+        if ($nodeLimits === null) {
+            return $inheritedLimits;
+        }
+
+        if ($inheritedLimits === null) {
+            return $nodeLimits;
+        }
+
+        $limits = [
+            'lower' => strcmp($nodeLimits['lower'], $inheritedLimits['lower']) < 0
+                ? $inheritedLimits['lower']
+                : $nodeLimits['lower'],
+            'upper' => strcmp($nodeLimits['upper'], $inheritedLimits['upper']) > 0
+                ? $inheritedLimits['upper']
+                : $nodeLimits['upper'],
+        ];
+
+        return strcmp($limits['lower'], $limits['upper']) > 0 ? $inheritedLimits : $limits;
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array{lower: string, upper: string}|null
+     */
+    private function nameTreeNodeLimits(array $node): ?array
+    {
+        $limits = $this->resolveArray($node['Limits'] ?? null);
+        if ($limits === null || count($limits) < 2) {
+            return null;
+        }
+
+        $lower = $this->stringOrNameValue($this->resolveValue($limits[0]));
+        $upper = $this->stringOrNameValue($this->resolveValue($limits[1]));
+        if ($lower === null || $upper === null || $lower === '' || $upper === '') {
+            return null;
+        }
+        if (strcmp($lower, $upper) > 0) {
+            return null;
+        }
+
+        return [
+            'lower' => $lower,
+            'upper' => $upper,
+        ];
+    }
+
+    /**
+     * @param array{lower: string, upper: string}|null $limits
+     */
+    private function nameTreeNameWithinLimits(string $name, ?array $limits): bool
+    {
+        if ($limits === null) {
+            return true;
+        }
+
+        return strcmp($limits['lower'], $limits['upper']) <= 0
+            && strcmp($name, $limits['lower']) >= 0
+            && strcmp($name, $limits['upper']) <= 0;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array{lower: string, upper: string}|null $limits
+     */
+    private function nameTreeLimitsMatchAnyPairKey(array $items, ?array $limits): bool
+    {
+        if ($limits === null || $items === []) {
+            return true;
+        }
+
+        for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
+            $name = $this->stringOrNameValue($this->resolveValue($items[$index]));
+            if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
