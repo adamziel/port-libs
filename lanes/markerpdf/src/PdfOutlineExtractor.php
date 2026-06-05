@@ -277,21 +277,26 @@ final class PdfOutlineExtractor
         $pagePresentations = $this->getPageTransitionActionMetadata($pdfBytes);
         $articleThreads = $this->articleThreadNavigationMetadata($catalog, $objects, $pageIndexes, $pageLabels);
         $pageReviews = (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes);
+        $outlineStructureByObject = $this->outlineItemStructureMetadataByObject($pdfBytes);
 
-        return $this->outlineStructureDestinationPageContextItems(
-            $outlineRoot['First'] ?? null,
-            $objects,
-            $pageIndexes,
-            array_flip($pageIndexes),
-            $destinations,
-            $pageLabels,
-            $this->pagePresentationsByPageIndex($pagePresentations),
-            $this->articleBeadsByPageIndex($articleThreads),
-            $this->pageReviewsByPageIndex($pageReviews),
-            $this->taggedContentByPageIndex($pdfBytes),
-            $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
-            $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
-            max(1, $maxDepth)
+        return $this->withOutlineItemStructureMetadataRows(
+            $this->outlineStructureDestinationPageContextItems(
+                $outlineRoot['First'] ?? null,
+                $objects,
+                $pageIndexes,
+                array_flip($pageIndexes),
+                $destinations,
+                $pageLabels,
+                $this->pagePresentationsByPageIndex($pagePresentations),
+                $this->articleBeadsByPageIndex($articleThreads),
+                $this->pageReviewsByPageIndex($pageReviews),
+                $this->taggedContentByPageIndex($pdfBytes),
+                $this->validReferenceObjectNumber($catalog['Outlines'] ?? null, $objects),
+                $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
+                max(1, $maxDepth)
+            ),
+            $outlineStructureByObject,
+            false
         );
     }
 
@@ -479,6 +484,7 @@ final class PdfOutlineExtractor
         $articleBeadsByPage = $this->articleBeadsByPageIndex($articleThreads);
         $pageReviews = $includePageReview ? (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdfBytes) : [];
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
+        $outlineStructureByObject = $this->outlineItemStructureMetadataByObject($pdfBytes);
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
         if ($outlineRoot !== null && $this->isOutlineRootDictionary($outlineRoot, $objects)) {
@@ -497,7 +503,7 @@ final class PdfOutlineExtractor
                 $this->validReferenceObjectNumber($outlineRoot['Last'] ?? null, $objects),
                 15
             ) as $item) {
-                $metadata['outline'][] = $item;
+                $metadata['outline'][] = $this->withOutlineItemStructureMetadata($item, $outlineStructureByObject, false);
             }
             if ($metadata['outline'] !== []) {
                 $metadata['source'][] = 'outline';
@@ -519,7 +525,11 @@ final class PdfOutlineExtractor
             );
             if ($outlineActionReviews !== []) {
                 $metadata['source'][] = 'outline_actions';
-                $metadata['outline_action_review_actions'] = $outlineActionReviews;
+                $metadata['outline_action_review_actions'] = $this->withOutlineItemStructureMetadataRows(
+                    $outlineActionReviews,
+                    $outlineStructureByObject,
+                    true
+                );
             }
         }
 
@@ -1055,6 +1065,86 @@ final class PdfOutlineExtractor
         return isset($metadata['open_action_destination']['target_tagged_content'])
             && is_array($metadata['open_action_destination']['target_tagged_content'])
             && $metadata['open_action_destination']['target_tagged_content'] !== [];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function outlineItemStructureMetadataByObject(string $pdfBytes): array
+    {
+        $documentMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdfBytes);
+        $items = $documentMetadata['document_outline']['items'] ?? null;
+        if (!is_array($items)) {
+            return [];
+        }
+
+        $byObject = [];
+        foreach ($items as $item) {
+            if (!is_array($item) || !is_int($item['outline_object'] ?? null)) {
+                continue;
+            }
+
+            $context = [];
+            foreach ([
+                'structure_element',
+                'structure_element_object',
+                'structure_element_raw_role',
+                'structure_element_role',
+                'structure_element_page',
+                'structure_element_page_number',
+                'structure_element_page_object',
+                'structure_element_mcids',
+                'structure_element_associated_file_count',
+            ] as $key) {
+                if (array_key_exists($key, $item)) {
+                    $context[$key] = $item[$key];
+                }
+            }
+
+            if ($context !== []) {
+                $byObject[$item['outline_object']] = $context;
+            }
+        }
+
+        return $byObject;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param array<int, array<string, mixed>> $outlineStructureByObject
+     * @return list<array<string, mixed>>
+     */
+    private function withOutlineItemStructureMetadataRows(array $rows, array $outlineStructureByObject, bool $prefix): array
+    {
+        foreach ($rows as $index => $row) {
+            if (is_array($row)) {
+                $rows[$index] = $this->withOutlineItemStructureMetadata($row, $outlineStructureByObject, $prefix);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<int, array<string, mixed>> $outlineStructureByObject
+     * @return array<string, mixed>
+     */
+    private function withOutlineItemStructureMetadata(array $row, array $outlineStructureByObject, bool $prefix): array
+    {
+        $outlineObject = $row['outline_object'] ?? null;
+        if (!is_int($outlineObject) || !isset($outlineStructureByObject[$outlineObject])) {
+            return $row;
+        }
+
+        foreach ($outlineStructureByObject[$outlineObject] as $key => $value) {
+            $targetKey = $prefix ? 'outline_' . $key : $key;
+            if (!array_key_exists($targetKey, $row)) {
+                $row[$targetKey] = $value;
+            }
+        }
+
+        return $row;
     }
 
     /**

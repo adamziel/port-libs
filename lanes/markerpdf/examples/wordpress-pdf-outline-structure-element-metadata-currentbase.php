@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
+use PortLibs\MarkerPDF\PdfOutlineExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -31,12 +32,16 @@ $pdf = "%PDF-2.0\n"
     . "trailer\n<< /Root 1 0 R >>\n%%EOF";
 
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+$navigation = (new PdfOutlineExtractor())->getNavigationReviewMetadata($pdf);
 $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
 $outline = $metadata['document_outline'] ?? [];
 $item = $outline['items'][0] ?? [];
 $structure = $item['structure_element'] ?? [];
 $file = $structure['associated_files'][0] ?? [];
+$navigationItem = $navigation['outline'][0] ?? [];
+$navigationStructure = $navigationItem['structure_element'] ?? [];
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+$navigationEncoded = json_encode($navigation, JSON_UNESCAPED_SLASHES);
 
 if (($structure['source'] ?? null) !== 'outline_item_structure_element') {
     throw new RuntimeException('Expected outline /SE structure-element metadata.');
@@ -49,6 +54,15 @@ if (($file['filename'] ?? null) !== 'outline-source.xml' || ($file['checksum_mat
 }
 if (!is_string($encoded) || str_contains($encoded, $payload)) {
     throw new RuntimeException('Expected associated FileSpec payload bytes to stay review-only.');
+}
+if (($navigationStructure['source'] ?? null) !== 'outline_item_structure_element') {
+    throw new RuntimeException('Expected navigation review to carry outline /SE structure metadata.');
+}
+if (($navigationItem['structure_element_role'] ?? null) !== 'H1' || ($navigationItem['structure_element_mcids'] ?? []) !== [0]) {
+    throw new RuntimeException('Expected navigation review to carry mapped /SE role and MCID metadata.');
+}
+if (!is_string($navigationEncoded) || str_contains($navigationEncoded, $payload)) {
+    throw new RuntimeException('Expected navigation review metadata to omit associated FileSpec payload bytes.');
 }
 if (str_contains($plainText, 'WordPress outline SE review')
     || str_contains($plainText, 'WordPress outline structure title')
@@ -69,7 +83,10 @@ echo '<!-- markerpdf-outline-structure-element-metadata-currentbase ' . $htmlJso
     'structure_mcids' => $structure['mcids'] ?? [],
     'associated_filename' => $file['filename'] ?? null,
     'associated_checksum_matches' => $file['checksum_matches'] ?? null,
+    'navigation_outline_structure_role' => $navigationItem['structure_element_role'] ?? null,
+    'navigation_outline_structure_mcids' => $navigationItem['structure_element_mcids'] ?? [],
     'payload_content_omitted' => is_string($encoded) && !str_contains($encoded, $payload),
+    'navigation_payload_content_omitted' => is_string($navigationEncoded) && !str_contains($navigationEncoded, $payload),
     'visible_text_excludes_outline_metadata' => !str_contains($plainText, 'WordPress outline SE review')
         && !str_contains($plainText, 'Accessible WordPress outline summary'),
     'executes_python_or_models' => false,
