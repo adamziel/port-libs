@@ -12,7 +12,8 @@ $sourceHtml = <<<'HTML'
 <section class="import-review">
   <h1 id="packet">Imported packet</h1>
   <p onclick="alert(1)">Manual<br>break before reviewer note.</p>
-  <p><a href="javascript:alert(1)" data-source="legacy">Unsafe source link</a></p>
+  <p><a href="/wp-admin/post.php?post=42" ping="https://tracker.example.test/ping javascript:alert(1)" data-source="legacy">Tracked source link</a></p>
+  <div action="/safe-submit" formaction="javascript:alert(1)" longdesc="https://example.test/longdesc" background="mailto:review@example.test">Extended URL attributes</div>
   <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 02.00x, javascript:alert(1) 3x, /uploads/bad.png 0w" alt="Preview"></p>
   <p><a href="mailto:review@example.test">Mail reviewer</a><img src="mailto:review@example.test" alt="Unsafe media link"></p>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
@@ -31,7 +32,8 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<section class="import-review">',
         '<p>Manual<br>break before reviewer note.</p>',
-        '<a data-source="legacy">Unsafe source link</a>',
+        '<a href="/wp-admin/post.php?post=42" data-source="legacy">Tracked source link</a>',
+        '<div action="/safe-submit" longdesc="https://example.test/longdesc">Extended URL attributes</div>',
         '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
@@ -44,7 +46,7 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'javascript:', 'src="mailto:', 'poster="tel:', '<script>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<script>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
@@ -55,6 +57,11 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');
+    }
+    foreach (['ping', 'formaction', 'background'] as $filteredAttribute) {
+        if (!in_array($filteredAttribute, $fragment->summary()['filteredAttributes'], true)) {
+            throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered ' . $filteredAttribute . ' attribute');
+        }
     }
     foreach ([
         '<!DOCTYPE html><p>legacy doctype</p>',

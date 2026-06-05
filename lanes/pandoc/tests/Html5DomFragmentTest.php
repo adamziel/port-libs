@@ -77,6 +77,34 @@ return [
         $t->true(!str_contains($html, 'src="mailto:'), 'Expected mailto media src URLs to be removed');
         $t->true(!str_contains($html, 'poster="tel:'), 'Expected tel poster URLs to be removed');
     },
+    'filters extended URL attributes and ping side effects before review handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<section>'
+            . '<a href="/review" ping="https://tracker.example.test/ping javascript:alert(1)">Tracked review link</a>'
+            . '<div action="/safe-submit" formaction="javascript:alert(1)" longdesc="https://example.test/longdesc" background="mailto:review@example.test">URL attrs</div>'
+            . '<figure longdesc=" javascript:alert(1) " background="/media/bg.png"><img src="/media/cover.png" longdesc="/media/cover-longdesc.html" alt="Cover"></figure>'
+            . '</section>'
+        );
+        $summary = $fragment->summary();
+        $html = $fragment->serialize();
+        $nodes = $fragment->nodes();
+
+        $t->contains('<a href="/review">Tracked review link</a>', $html);
+        $t->contains('<div action="/safe-submit" longdesc="https://example.test/longdesc">URL attrs</div>', $html);
+        $t->contains('<figure background="/media/bg.png"><img src="/media/cover.png" longdesc="/media/cover-longdesc.html" alt="Cover"></figure>', $html);
+        $t->same(['background', 'formaction', 'longdesc', 'ping'], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['unsafe-attribute', 'unsafe-url', 'unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same('/safe-submit', $nodes[0]['children'][1]['attrs']['action']);
+        $t->same('https://example.test/longdesc', $nodes[0]['children'][1]['attrs']['longdesc']);
+        $t->same('/media/bg.png', $nodes[0]['children'][2]['attrs']['background']);
+        $t->true(!str_contains($html, 'ping='), 'Expected ping side-effect URLs to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected javascript URLs to be stripped from extended attributes');
+        $t->true(!str_contains($html, 'background="mailto:'), 'Expected mailto image-fetch URL to be stripped');
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'

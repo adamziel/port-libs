@@ -522,6 +522,7 @@ final class Html5DomFragment
         $lower = strtolower($name);
 
         return str_starts_with($lower, 'on')
+            || $lower === 'ping'
             || $lower === 'style'
             || $lower === 'srcdoc'
             || $lower === 'data-pandoc-fragment-root';
@@ -529,12 +530,38 @@ final class Html5DomFragment
 
     private static function isUrlAttribute(string $name): bool
     {
-        return in_array(strtolower($name), ['href', 'src', 'cite', 'poster', 'xlink:href', 'srcset'], true);
+        return in_array(strtolower($name), [
+            'action',
+            'background',
+            'cite',
+            'codebase',
+            'data',
+            'formaction',
+            'href',
+            'longdesc',
+            'manifest',
+            'poster',
+            'profile',
+            'src',
+            'srcset',
+            'xlink:href',
+        ], true);
     }
 
     private static function isSafeUrlAttributeValue(string $name, string $value): bool
     {
-        if (in_array(strtolower($name), ['src', 'poster'], true)) {
+        if (in_array(strtolower($name), [
+            'action',
+            'background',
+            'codebase',
+            'data',
+            'formaction',
+            'longdesc',
+            'manifest',
+            'poster',
+            'profile',
+            'src',
+        ], true)) {
             return self::isSafeFetchUrl($value);
         }
 
