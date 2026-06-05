@@ -2430,6 +2430,56 @@ return [
         $t->same('sequence-explicit-item-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="sequence-explicit-item-yaml-body">Sequence explicit item YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml plain multiline metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title:',
+            '  Plain **Packet**',
+            '  for review',
+            'review:',
+            '  note:',
+            '    Keep reviewer',
+            '    plain continuation',
+            '  paragraph:',
+            '    First line',
+            '',
+            '    Second paragraph',
+            '  steps:',
+            '    - Collect source',
+            '      metadata packet',
+            '    - Approve',
+            '      WordPress import',
+            'references:',
+            '  - id: plain-multiline-ref',
+            '    title:',
+            '      Source',
+            '      metadata export',
+            '    metadata:',
+            '      source note:',
+            '        Imported reviewer',
+            '        plain scalar',
+            '...',
+            '',
+            '# Plain multiline YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Plain **Packet** for review', $meta['title']);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('Keep reviewer plain continuation', $meta['review']['note']);
+        $t->same("First line\nSecond paragraph", $meta['review']['paragraph']);
+        $t->same('Collect source metadata packet', $meta['review']['steps'][0]);
+        $t->same('Approve WordPress import', $meta['review']['steps'][1]);
+        $t->same('plain-multiline-ref', $meta['references'][0]['id']);
+        $t->same('Source metadata export', $meta['references'][0]['title']);
+        $t->same('Imported reviewer plain scalar', $meta['references'][0]['metadata']['source note']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('plain-multiline-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="plain-multiline-yaml-body">Plain multiline YAML body</h1>', $blocks);
+    },
     'records pandoc yaml ambiguous top-level field names as diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

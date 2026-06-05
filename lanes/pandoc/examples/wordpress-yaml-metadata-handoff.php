@@ -248,6 +248,25 @@ source-continuation-uri: "https://example.test/\
 single-quoted-source-note: 'Reviewer''s
   front matter keeps # literal and C:\exports\packet'
 single-quoted-labels: ['don''t normalize', 'backslash\n literal']
+plain-continuation-review:
+  note:
+    Imported reviewer
+    plain scalar
+  paragraph:
+    First paragraph
+
+    Second paragraph
+  steps:
+    - Collect source
+      metadata packet
+    - Approve
+      WordPress import
+plain-continuation-reference:
+  id: plain-continuation-ref
+  metadata:
+    source note:
+      Source reviewer
+      plain scalar
 source-summary: >- # folded source note for reviewer queue
   Preserve front matter
   comments before rendering.
@@ -739,6 +758,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['single-quoted-labels'] ?? []) !== ["don't normalize", 'backslash\n literal']) {
         throw new RuntimeException('YAML metadata self-test missing single-quoted label list');
     }
+    if (($meta['plain-continuation-review']['note'] ?? '') !== 'Imported reviewer plain scalar') {
+        throw new RuntimeException('YAML metadata self-test missing plain multiline note folding');
+    }
+    if (($meta['plain-continuation-review']['paragraph'] ?? '') !== "First paragraph\nSecond paragraph") {
+        throw new RuntimeException('YAML metadata self-test missing plain multiline blank-line folding');
+    }
+    if (($meta['plain-continuation-review']['steps'] ?? []) !== ['Collect source metadata packet', 'Approve WordPress import']) {
+        throw new RuntimeException('YAML metadata self-test missing sequence-item plain multiline folding');
+    }
+    if (($meta['plain-continuation-reference']['metadata']['source note'] ?? '') !== 'Source reviewer plain scalar') {
+        throw new RuntimeException('YAML metadata self-test missing nested reference plain multiline folding');
+    }
     if (($meta['source-revision'] ?? '') !== '007') {
         throw new RuntimeException('YAML metadata self-test missing tagged string revision');
     }
@@ -781,5 +812,6 @@ echo 'Flow comment labels: ' . implode(', ', $meta['flow-comment-labels'] ?? [])
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
 echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";
 echo 'Single quoted source note: ' . ($meta['single-quoted-source-note'] ?? '') . "\n";
+echo 'Plain continuation note: ' . ($meta['plain-continuation-review']['note'] ?? '') . "\n";
 echo 'Reference: ' . ($meta['references'][0]['id'] ?? '') . ' / ' . ($meta['references'][0]['title'] ?? '') . "\n\n";
 echo $blocks . "\n";

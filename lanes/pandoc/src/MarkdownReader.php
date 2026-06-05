@@ -831,6 +831,10 @@ final class MarkdownReader
                 ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
             if ($multiline !== null) {
                 $value = $multiline;
+            } elseif ($this->isYamlPlainMultilineScalar($children)) {
+                $value = $this->parseYamlPlainMultilineScalar(
+                    array_merge([$sourceValue], $this->stripYamlCommonIndent($children))
+                );
             } else {
                 $value = $this->parseYamlScalarValueFromDirectives($sourceValue, $anchorName, $tags);
                 $tagsApplied = true;
@@ -991,7 +995,65 @@ final class MarkdownReader
             return $this->parseYamlScalarValue(trim($normalized[0]));
         }
 
-        return rtrim(implode("\n", $normalized));
+        return $this->parseYamlPlainMultilineScalar($normalized);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function isYamlPlainMultilineScalar(array $lines): bool
+    {
+        $normalized = $this->stripYamlCommonIndent($lines);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+        }
+
+        if ($normalized === []) {
+            return false;
+        }
+
+        $first = trim($normalized[0]);
+        if ($first === '' || preg_match('/^-[ \t]?(.*)$/', $first) === 1) {
+            return false;
+        }
+
+        return !$this->startsWithYamlMapping($normalized);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function parseYamlPlainMultilineScalar(array $lines): string
+    {
+        $normalized = $this->stripYamlCommonIndent($lines);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+        }
+
+        if ($normalized === []) {
+            return '';
+        }
+
+        $folded = rtrim((string) array_shift($normalized), " \t");
+        foreach ($normalized as $line) {
+            if (trim($line) === '') {
+                $folded = rtrim($folded, " \t") . "\n";
+                continue;
+            }
+
+            $content = trim($line);
+            $folded = str_ends_with($folded, "\n")
+                ? $folded . $content
+                : rtrim($folded, " \t") . ' ' . $content;
+        }
+
+        return $folded;
     }
 
     /**
@@ -1093,6 +1155,14 @@ final class MarkdownReader
 
             if ($childLines !== [] && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))) {
                 $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
+                continue;
+            }
+
+            if ($this->isYamlPlainMultilineScalar($childLines)) {
+                $value = $this->parseYamlPlainMultilineScalar(array_merge([$sourceValue], $childLines));
+                $value = $this->applyYamlExplicitScalarTagToParsedValue($value, $tags);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
