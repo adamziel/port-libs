@@ -240,6 +240,51 @@ return [
         $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
         $t->true(!str_contains($blocks, '<applet'), 'Expected WordPress blocks to omit applet wrapper');
     },
+    'unwraps iframe srcdoc content through sanitizer before WordPress handoff' => static function (TestRunner $t): void {
+        $srcdoc = htmlspecialchars(
+            '<base href="./frames/"><article><h2>Embedded packet</h2><a href="note.html">note</a><img src="cover.png" alt="Cover"><a href="javascript:alert(1)">bad</a><script>drop()</script></article>',
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8'
+        );
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<iframe srcdoc="' . $srcdoc . '"></iframe><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/iframe-srcdoc-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><h2>Embedded packet</h2><a href="https://source.example.test/import/posts/frames/note.html">note</a><img src="https://source.example.test/import/posts/frames/cover.png" alt="Cover"><a>bad</a></article><p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Embedded packetnotebadafter', $fragment->textContent());
+        $t->same(['a', 'article', 'h2', 'img', 'p'], $summary['elementNames']);
+        $t->same(['base', 'iframe', 'script'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag'], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same('https://source.example.test/import/posts/frames/note.html', $nodes[0]['children'][1]['attrs']['href']);
+        $t->same('https://source.example.test/import/posts/frames/cover.png', $nodes[0]['children'][2]['attrs']['src']);
+        $t->same([], $nodes[0]['children'][3]['attrs']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('/migration/iframe-srcdoc-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<iframe'), 'Expected iframe wrapper to be stripped');
+        $t->true(!str_contains($html, 'srcdoc='), 'Expected iframe srcdoc attribute to be stripped');
+        $t->true(!str_contains($html, '<base'), 'Expected nested srcdoc base element to be stripped');
+        $t->true(!str_contains($html, '<script'), 'Expected nested srcdoc script to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected nested unsafe srcdoc URL to be stripped');
+    },
     'unwraps noscript fallback content while dropping unsafe container before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<noscript><p>Script-disabled fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p>'

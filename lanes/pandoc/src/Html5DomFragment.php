@@ -390,6 +390,17 @@ final class Html5DomFragment
                 'tag' => $name,
             ];
 
+            if ($name === 'iframe' && $node->hasAttribute('srcdoc')) {
+                $srcdocNodes = self::normalizeHtmlSrcdocAttribute(
+                    $node->getAttribute('srcdoc'),
+                    $diagnostics,
+                    $baseUrl
+                );
+                if ($srcdocNodes !== []) {
+                    return $srcdocNodes;
+                }
+            }
+
             return self::normalizeChildren(
                 $node,
                 $mode,
@@ -443,6 +454,54 @@ final class Html5DomFragment
         }
 
         return [$element];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeHtmlSrcdocAttribute(string $srcdoc, array &$diagnostics, ?string $baseUrl): array
+    {
+        $srcdoc = trim($srcdoc);
+        if ($srcdoc === '') {
+            return [];
+        }
+
+        try {
+            self::assertSafeHtmlSource($srcdoc, 'iframe srcdoc');
+            $srcdocDiagnostics = [];
+            $dom = self::loadHtmlDocument($srcdoc, $srcdocDiagnostics);
+        } catch (\InvalidArgumentException $error) {
+            $diagnostics[] = [
+                'code' => 'invalid-srcdoc',
+                'tag' => 'iframe',
+                'attribute' => 'srcdoc',
+                'message' => $error->getMessage(),
+            ];
+
+            return [];
+        }
+
+        foreach ($srcdocDiagnostics as $diagnostic) {
+            $diagnostic['context'] ??= 'iframe-srcdoc';
+            $diagnostics[] = $diagnostic;
+        }
+
+        $wrapper = self::htmlWrapper($dom);
+        if (!$wrapper instanceof \DOMElement) {
+            $diagnostics[] = [
+                'code' => 'invalid-srcdoc',
+                'tag' => 'iframe',
+                'attribute' => 'srcdoc',
+                'message' => 'Unable to parse iframe srcdoc wrapper',
+            ];
+
+            return [];
+        }
+
+        $srcdocBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
+
+        return self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $srcdocBaseUrl);
     }
 
     /**

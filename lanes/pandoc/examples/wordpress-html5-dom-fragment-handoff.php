@@ -8,12 +8,19 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\Html5DomFragment;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
-$source = <<<'HTML'
+$srcdoc = htmlspecialchars(
+    '<base href="./embedded/"><article><h2>Embedded srcdoc packet</h2><a href="note.html">frame note</a><img src="frame.png" alt="Frame"><script>drop()</script></article>',
+    ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+    'UTF-8'
+);
+
+$source = <<<HTML
 <base href="https://source.example.test/import/posts/post-42.html?draft=1">
 <article id="legacy-post-42" data-source="html-export">
   <h1>Imported source packet</h1>
   <!--review--->
   <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;">source note</a>.</p>
+  <iframe srcdoc="$srcdoc"></iframe>
   <figure><img src=" cover.png&#13;" srcset=" cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
   <picture><source srcset="hero.avif 1x, javascript:alert(1) 2x" media="(min-width: 48em)" type="image/avif"><source srcset="mailto:bad@example.test 1x" media="(max-width: 47em)"><img src="fallback.jpg" alt="Responsive cover"></picture>
 </article>
@@ -26,7 +33,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Imported source packet', 'AT&T <review> text', 'source note', 'Cover image'] as $textSnippet) {
+    foreach (['Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -36,6 +43,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
+        '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
         '<img src="https://source.example.test/import/posts/cover.png" srcset="https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover">',
         '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif">',
         '<img src="https://source.example.test/import/posts/fallback.jpg" alt="Responsive cover">',
@@ -46,7 +54,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', 'javascript:', 'mailto:bad@example.test', '(max-width: 47em)', '--->'] as $blocked) {
+    foreach (['<base', '<iframe', 'srcdoc=', '<script', 'javascript:', 'mailto:bad@example.test', '(max-width: 47em)', '--->'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
