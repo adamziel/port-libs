@@ -227,6 +227,9 @@ final class MathTexConverter
 
     private int $activeLeftFenceDepth = 0;
 
+    /** @var array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> */
+    private array $equationReferenceLabels = [];
+
     public function latexFor(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
@@ -240,40 +243,49 @@ final class MathTexConverter
 
     /**
      * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
-    public function mathMlFor(AstNode $node, array $macros = []): string
+    public function mathMlFor(AstNode $node, array $macros = [], array $referenceLabels = []): string
     {
-        return $this->texToMathMl((string) $node->attr('text', ''), $node->attr('display') === true, $macros);
+        return $this->texToMathMl((string) $node->attr('text', ''), $node->attr('display') === true, $macros, $referenceLabels);
     }
 
     /**
      * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
-    public function texToMathMl(string $tex, bool $display = false, array $macros = []): string
+    public function texToMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = []): string
     {
-        $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
-        $equation = $this->extractEquationMetadata($expandedTex);
-        $this->activeLeftFenceDepth = 0;
-        $offset = 0;
-        $children = $this->parseExpression($equation['tex'], $offset, null);
-        $this->skipWhitespace($equation['tex'], $offset);
+        $previousReferenceLabels = $this->equationReferenceLabels;
+        $this->equationReferenceLabels = $this->normalizeEquationReferenceLabels($referenceLabels);
 
-        if ($offset < strlen($equation['tex'])) {
-            throw new \InvalidArgumentException('Unsupported TeX token at offset ' . $offset);
+        try {
+            $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
+            $equation = $this->extractEquationMetadata($expandedTex);
+            $this->activeLeftFenceDepth = 0;
+            $offset = 0;
+            $children = $this->parseExpression($equation['tex'], $offset, null);
+            $this->skipWhitespace($equation['tex'], $offset);
+
+            if ($offset < strlen($equation['tex'])) {
+                throw new \InvalidArgumentException('Unsupported TeX token at offset ' . $offset);
+            }
+
+            $displayMode = $display ? 'block' : 'inline';
+            $annotations = '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>';
+            if ($equation['label'] !== null) {
+                $annotations .= '<annotation encoding="application/x-tex-label">' . $this->esc($equation['label']) . '</annotation>';
+            }
+
+            return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="' . $displayMode . '">'
+                . '<semantics>'
+                . $this->renderEquationBody($children, $equation)
+                . $annotations
+                . '</semantics>'
+                . '</math>';
+        } finally {
+            $this->equationReferenceLabels = $previousReferenceLabels;
         }
-
-        $displayMode = $display ? 'block' : 'inline';
-        $annotations = '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>';
-        if ($equation['label'] !== null) {
-            $annotations .= '<annotation encoding="application/x-tex-label">' . $this->esc($equation['label']) . '</annotation>';
-        }
-
-        return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="' . $displayMode . '">'
-            . '<semantics>'
-            . $this->renderEquationBody($children, $equation)
-            . $annotations
-            . '</semantics>'
-            . '</math>';
     }
 
     /**
@@ -443,6 +455,17 @@ final class MathTexConverter
         $this->collectMacroDefinitions($node, $macros);
 
         return $macros;
+    }
+
+    /**
+     * @return array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}>
+     */
+    public function equationReferenceLabelsFromDocument(AstNode $node): array
+    {
+        $labels = [];
+        $this->collectEquationReferenceLabelsFromDocument($node, $labels);
+
+        return $labels;
     }
 
     /**
@@ -1357,7 +1380,8 @@ final class MathTexConverter
         }
 
         $targetId = $this->normalizeEquationLabelId($label);
-        $reference = '<mtext href="#' . $this->esc($targetId) . '">' . $this->esc($label) . '</mtext>';
+        $referenceText = $this->equationReferenceLabels[$targetId]['reference'] ?? $label;
+        $reference = '<mtext href="#' . $this->esc($targetId) . '">' . $this->esc($referenceText) . '</mtext>';
         if ($command === 'eqref') {
             return '<mrow><mo>(</mo>' . $reference . '<mo>)</mo></mrow>';
         }
@@ -1724,6 +1748,188 @@ final class MathTexConverter
             'tag' => $tag,
             'tagStarred' => $tagStarred,
         ];
+    }
+
+    /**
+     * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
+     */
+    private function collectEquationReferenceLabelsFromDocument(AstNode $node, array &$labels): void
+    {
+        if ($node->type === 'math') {
+            $this->collectEquationReferenceLabelsFromTex((string) $node->attr('text', ''), $labels);
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectEquationReferenceLabelsFromDocument($child, $labels);
+        }
+    }
+
+    /**
+     * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
+     */
+    private function collectEquationReferenceLabelsFromTex(string $source, array &$labels): void
+    {
+        $equation = $this->extractEquationMetadata($source);
+        if ($equation['label'] !== null) {
+            $this->registerEquationReferenceLabel($labels, $equation['label'], $equation['tag'], $equation['tagStarred']);
+        }
+
+        $this->collectEnvironmentEquationReferenceLabelsFromTex($source, $labels);
+    }
+
+    /**
+     * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
+     */
+    private function collectEnvironmentEquationReferenceLabelsFromTex(string $source, array &$labels): void
+    {
+        $offset = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            if ($source[$offset] !== '\\') {
+                $offset++;
+                continue;
+            }
+
+            $commandOffset = $offset + 1;
+            $command = $this->readCommandName($source, $commandOffset);
+            if ($command !== 'begin') {
+                $offset++;
+                continue;
+            }
+
+            $environmentOffset = $commandOffset;
+            $environment = $this->readRequiredGroupText($source, $environmentOffset);
+            $contentOffset = $environmentOffset;
+            $alignedAtPairs = null;
+            if (isset(self::AMS_ALIGNEDAT_ENVIRONMENTS[$environment])) {
+                $alignedAtPairs = $this->normalizeAmsAlignedAtPairCount($this->readRequiredGroupText($source, $contentOffset), $environment);
+            }
+
+            $content = $this->readEnvironmentContent($source, $contentOffset, $environment);
+            if (isset(self::AMS_ROW_ENVIRONMENTS[$environment])) {
+                if ($this->endsWithTopLevelRowSeparator($content)) {
+                    throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+                }
+
+                $rows = $this->splitAlignmentRows($content, $environment);
+                $this->validateAmsRowEnvironmentRows($rows, $environment, self::AMS_ROW_ENVIRONMENTS[$environment]['columns']);
+                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels);
+            } elseif ($alignedAtPairs !== null) {
+                if ($this->endsWithTopLevelRowSeparator($content)) {
+                    throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+                }
+
+                $rows = $this->splitAlignmentRows($content, $environment);
+                $this->validateAmsRowEnvironmentRows($rows, $environment, $alignedAtPairs * 2);
+                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels);
+            }
+
+            $this->collectEnvironmentEquationReferenceLabelsFromTex($content, $labels);
+            $offset = $contentOffset;
+        }
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
+     */
+    private function collectEquationReferenceLabelsFromEnvironmentRows(array $rows, string $environment, array &$labels): void
+    {
+        foreach ($rows as $rowIndex => $row) {
+            $parsed = $this->extractEnvironmentRowMetadata($row, $environment, $rowIndex);
+            if ($parsed['label'] !== null) {
+                $this->registerEquationReferenceLabel($labels, $parsed['label'], $parsed['tag'], $parsed['tagStarred']);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
+     */
+    private function registerEquationReferenceLabel(array &$labels, string $label, ?string $tag, bool $tagStarred): void
+    {
+        $label = trim($label);
+        if ($label === '') {
+            throw new \InvalidArgumentException('Expected TeX equation label content');
+        }
+
+        $id = $this->normalizeEquationLabelId($label);
+        if (isset($labels[$id])) {
+            throw new \InvalidArgumentException('Duplicate TeX equation label ' . $label);
+        }
+
+        $reference = $tag !== null ? trim($tag) : $label;
+        if ($reference === '') {
+            throw new \InvalidArgumentException('Expected TeX equation reference text for ' . $label);
+        }
+
+        $labels[$id] = [
+            'label' => $label,
+            'id' => $id,
+            'reference' => $reference,
+            'tag' => $tag,
+            'tagStarred' => $tagStarred,
+        ];
+    }
+
+    /**
+     * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
+     * @return array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}>
+     */
+    private function normalizeEquationReferenceLabels(array $referenceLabels): array
+    {
+        $normalized = [];
+        foreach ($referenceLabels as $key => $entry) {
+            $tag = null;
+            $tagStarred = false;
+
+            if (is_string($entry)) {
+                $label = (string) $key;
+                $reference = trim($entry);
+            } elseif (is_array($entry)) {
+                $labelEntry = $entry['label'] ?? $entry['id'] ?? (string) $key;
+                if (!is_string($labelEntry)) {
+                    throw new \InvalidArgumentException('Expected TeX equation reference label');
+                }
+                $label = $labelEntry;
+
+                $referenceEntry = $entry['reference'] ?? $entry['tag'] ?? $label;
+                if (!is_string($referenceEntry)) {
+                    throw new \InvalidArgumentException('Expected TeX equation reference text for ' . $label);
+                }
+                $reference = trim($referenceEntry);
+
+                if (array_key_exists('tag', $entry)) {
+                    if ($entry['tag'] !== null && !is_string($entry['tag'])) {
+                        throw new \InvalidArgumentException('Expected TeX equation reference tag for ' . $label);
+                    }
+                    $tag = $entry['tag'];
+                }
+                $tagStarred = (bool) ($entry['tagStarred'] ?? false);
+            } else {
+                throw new \InvalidArgumentException('Expected TeX equation reference label map entry');
+            }
+
+            if ($reference === '') {
+                throw new \InvalidArgumentException('Expected TeX equation reference text for ' . $label);
+            }
+
+            $id = $this->normalizeEquationLabelId($label);
+            if (isset($normalized[$id])) {
+                throw new \InvalidArgumentException('Duplicate TeX equation reference label ' . $label);
+            }
+
+            $normalized[$id] = [
+                'label' => $label,
+                'id' => $id,
+                'reference' => $reference,
+                'tag' => $tag,
+                'tagStarred' => $tagStarred,
+            ];
+        }
+
+        return $normalized;
     }
 
     private function readEnvironmentContent(string $source, int &$offset, string $environment): string

@@ -290,6 +290,53 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\ref{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqref{###}'));
     },
+    'resolves bounded tex equation references through a document label map' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'text' => 'p_i + m_i \\label{eq:review-flow} \\tag{WP-2}',
+                    'display' => true,
+                ]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'text' => '\\begin{align}x_i &= y_i \\label{review row/2} \\tag*{review} \\\\ u_i &= v_i\\end{align}',
+                    'display' => true,
+                ]),
+            ]),
+        ]);
+        $labels = $converter->equationReferenceLabelsFromDocument($document);
+        $resolvedMathml = $converter->texToMathMl('\\eqref{eq:review-flow} + \\ref{review row/2} + \\eqref{missing}', false, [], $labels);
+        $nodeMathml = $converter->mathMlFor(new AstNode('math', [
+            'text' => '\\eqref{eq:review-flow} + \\eqref{review row/2}',
+            'display' => false,
+        ]), [], $labels);
+
+        $t->same([
+            'eq:review-flow' => [
+                'label' => 'eq:review-flow',
+                'id' => 'eq:review-flow',
+                'reference' => 'WP-2',
+                'tag' => 'WP-2',
+                'tagStarred' => false,
+            ],
+            'review-row-2' => [
+                'label' => 'review row/2',
+                'id' => 'review-row-2',
+                'reference' => 'review',
+                'tag' => 'review',
+                'tagStarred' => true,
+            ],
+        ], $labels);
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:review-flow">WP-2</mtext><mo>)</mo></mrow><mo>+</mo><mtext href="#review-row-2">review</mtext><mo>+</mo><mrow><mo>(</mo><mtext href="#missing">missing</mtext><mo>)</mo></mrow>', $resolvedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\eqref{eq:review-flow} + \\ref{review row/2} + \\eqref{missing}</annotation>', $resolvedMathml);
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:review-flow">WP-2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#review-row-2">review</mtext><mo>)</mo></mrow>', $nodeMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->equationReferenceLabelsFromDocument(new AstNode('document', [], [
+            new AstNode('math', ['text' => 'x \\label{eq:dup}', 'display' => true]),
+            new AstNode('math', ['text' => 'y \\label{eq:dup}', 'display' => true]),
+        ])));
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
