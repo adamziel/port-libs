@@ -457,10 +457,12 @@ final class UnicodeText
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
-        if ($normalized === 'shift_jis' || $normalized === 'euc-jp') {
-            [$text, $repairs] = $normalized === 'shift_jis'
-                ? self::decodeShiftJis($bytes)
-                : self::decodeEucJp($bytes);
+        if ($normalized === 'shift_jis' || $normalized === 'euc-jp' || $normalized === 'iso-2022-jp') {
+            [$text, $repairs] = match ($normalized) {
+                'shift_jis' => self::decodeShiftJis($bytes),
+                'euc-jp' => self::decodeEucJp($bytes),
+                default => self::decodeIso2022Jp($bytes),
+            };
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
@@ -904,6 +906,7 @@ final class UnicodeText
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
+            'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
             default => 'utf-8',
         };
     }
@@ -1409,6 +1412,135 @@ final class UnicodeText
         }
 
         return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeIso2022Jp(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $state = 'ascii';
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte === 0x1b) {
+                $escape = self::iso2022JpEscapeState($bytes, $offset);
+                if ($escape === null) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    $offset += min(2, $length - $offset - 1);
+                    $state = 'ascii';
+                    continue;
+                }
+
+                $state = $escape['state'];
+                $offset += 2;
+                continue;
+            }
+
+            if ($state === 'ascii') {
+                if ($byte <= 0x7f) {
+                    $out .= self::fromCodepoint($byte);
+                } else {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                }
+                continue;
+            }
+
+            if ($state === 'roman') {
+                if ($byte <= 0x7f) {
+                    $out .= match ($byte) {
+                        0x5c => "\u{00A5}",
+                        0x7e => "\u{203E}",
+                        default => self::fromCodepoint($byte),
+                    };
+                } else {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                }
+                continue;
+            }
+
+            if ($state === 'katakana') {
+                if ($byte >= 0x21 && $byte <= 0x5f) {
+                    $out .= self::fromCodepoint(0xff61 + $byte - 0x21);
+                } elseif ($byte <= 0x20) {
+                    $out .= self::fromCodepoint($byte);
+                } else {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if ($byte <= 0x7f) {
+                        $state = 'ascii';
+                    }
+                }
+                continue;
+            }
+
+            if ($byte <= 0x20) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte < 0x21 || $byte > 0x7e || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail < 0x21 || $trail > 0x7e) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($trail > 0x7f) {
+                    $offset++;
+                } else {
+                    $state = 'ascii';
+                }
+                continue;
+            }
+
+            $pointer = (($byte - 0x21) * 94) + $trail - 0x21;
+            if (!isset(self::JIS0208_POINTERS[$pointer])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::JIS0208_POINTERS[$pointer]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{state:string}|null
+     */
+    private static function iso2022JpEscapeState(string $bytes, int $offset): ?array
+    {
+        if ($offset + 2 >= strlen($bytes)) {
+            return null;
+        }
+
+        $first = ord($bytes[$offset + 1]);
+        $second = ord($bytes[$offset + 2]);
+
+        if ($first === 0x24 && ($second === 0x40 || $second === 0x42)) {
+            return ['state' => 'jis0208'];
+        }
+        if ($first !== 0x28) {
+            return null;
+        }
+
+        return match ($second) {
+            0x42 => ['state' => 'ascii'],
+            0x49 => ['state' => 'katakana'],
+            0x4a => ['state' => 'roman'],
+            default => null,
+        };
     }
 
     private static function fromCodepoint(int $codepoint): string

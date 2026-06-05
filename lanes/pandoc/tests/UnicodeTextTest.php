@@ -169,6 +169,32 @@ return [
         $t->same("\u{FFFD}\"A", $malformedJis0208['text']);
         $t->same(1, $malformedJis0208['repairs']);
     },
+    'decodes iso 2022 jp escape states into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n"
+            . "\x1B\$B\x4B\x5C\x4A\x38\x24\x48\x48\x3E\x33\x51\x1B(I\x36\x40\x36\x45"
+            . "\x1B\$B\x21\x22\x34\x5D\x2D\x21\x47\x48\x21\x41\x3A\x6A\x21\x23"
+            . "\x1B(J \x5C\x7E\x1B(B ASCII";
+        $decoded = UnicodeText::decodeBytes($bytes, 'csiso2022jp');
+        $document = (new MarkdownReader())->readBytes($bytes, 'iso-2022-jp');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedTrail = UnicodeText::decodeBytes("\x1B\$B\x37 A", 'iso2022jp');
+        $malformedEscape = UnicodeText::decodeBytes("A\x1B\$XB", 'iso-2022-jp');
+
+        $t->same('iso-2022-jp', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 計画\n\n本文と半角ｶﾀｶﾅ、丸①波～崎。 ¥‾ ASCII", $decoded['text']);
+        $t->same(['encoding' => 'iso-2022-jp', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same("本文と半角ｶﾀｶﾅ、丸①波～崎。 ¥‾ ASCII", $document->children[1]->attr('text'));
+        $t->same(36, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(38, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="計画">計画</h1>', $blocks);
+        $t->contains("<p>本文と半角ｶﾀｶﾅ、丸①波～崎。 ¥‾ ASCII</p>", $blocks);
+        $t->same("\u{FFFD} A", $malformedTrail['text']);
+        $t->same(1, $malformedTrail['repairs']);
+        $t->same("A\u{FFFD}B", $malformedEscape['text']);
+        $t->same(1, $malformedEscape['repairs']);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([

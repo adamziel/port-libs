@@ -32,6 +32,12 @@ $shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
 $eucJpBytes = (string) hex2bin('2320b7d7b2e80a0acbdccab8a4c8c8beb3d18eb68ec08eb68ec5a1a2b4ddada1c7c8a1c1baeaa1a3');
 $eucJpSource = (new MarkdownReader())->readBytes($eucJpBytes, 'x-euc-jp');
 $eucJpText = (string) $eucJpSource->children[1]->attr('text');
+$iso2022JpBytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n"
+    . "\x1B\$B\x4B\x5C\x4A\x38\x24\x48\x48\x3E\x33\x51\x1B(I\x36\x40\x36\x45"
+    . "\x1B\$B\x21\x22\x34\x5D\x2D\x21\x47\x48\x21\x41\x3A\x6A\x21\x23"
+    . "\x1B(J \x5C\x7E\x1B(B ASCII";
+$iso2022JpSource = (new MarkdownReader())->readBytes($iso2022JpBytes, 'csiso2022jp');
+$iso2022JpText = (string) $iso2022JpSource->children[1]->attr('text');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
 $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} Cafe\u{0301} trail",
@@ -275,6 +281,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucJpSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucJpText) . '/' . UnicodeText::displayWidth($eucJpText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-2022-JP source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso2022JpText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso2022JpSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso2022JpText) . '/' . UnicodeText::displayWidth($iso2022JpText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
@@ -421,6 +432,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>EUC-JP source</td><td>本文と半角ｶﾀｶﾅ、丸①波～崎。</td><td>euc-jp:27/28</td>")) {
         throw new RuntimeException('charset handoff self-test missing EUC-JP decode audit row');
+    }
+    if (($iso2022JpSource->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-2022-jp') {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-JP source encoding');
+    }
+    if (!str_contains($blocks, "<td>ISO-2022-JP source</td><td>本文と半角ｶﾀｶﾅ、丸①波～崎。 ¥‾ ASCII</td><td>iso-2022-jp:36/38</td>")) {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-JP decode audit row');
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');
