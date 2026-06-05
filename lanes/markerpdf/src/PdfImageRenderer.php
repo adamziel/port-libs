@@ -408,7 +408,7 @@ final class PdfImageRenderer
      *     indexed_color_space: array{base_color_space: string|null, base_components: int|null, base_uses_icc_profile: bool, base_icc_profile: array{components: int|null, alternate_color_space: string|null, range: list<float>, length: int|null}|null, high_value: int|null, lookup_source: string|null, lookup_length: int|null, expected_lookup_length: int|null, lookup_length_matches: bool, lookup_entry_count: int|null, lookup_preview_hex: string, lookup_bytes: list<int>}|null,
      *     jpx_soft_mask_in_data: array{present: bool, value: int|null, valid_value: bool, filter_is_jpx: bool, uses_embedded_soft_mask: bool, encoded_soft_mask_values: bool, preblended_with_matte: bool, external_soft_mask_present: bool, external_soft_mask_ignored: bool, ignored_without_jpx: bool, review_only: bool}|null,
      *     soft_mask: array{present: bool, subtype: string|null, width: int|null, height: int|null, color_space: string|null, components: int|null, bits_per_component: int|null, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, opacity_for_zero: float|null, opacity_for_max: float|null, decode_inverted: bool, decode_component_mismatch: bool, matte: list<float>|null, interpolate: bool|null}|null,
-     *     soft_mask_filter_boundary: array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null,
+     *     soft_mask_filter_boundary: array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool, native_prefix_decoded?: true, native_prefix_decoded_length?: int, native_prefix_decoded_sha256?: string, native_prefix_decoded_preview_hex?: string, stopped_before_filter?: string|null}|null,
      *     soft_mask_group: array<string, mixed>|null,
      *     soft_mask_transfer_function: array<string, mixed>|null,
      *     soft_mask_is_grayscale: bool|null,
@@ -640,6 +640,9 @@ final class PdfImageRenderer
                     $notes[] = 'soft_mask_stream_filters_decoded_before_rgb_conversion';
                 } elseif ($softMaskFilterBoundary['preview_only_filters'] !== []) {
                     $notes[] = 'soft_mask_stream_filter_preview_only';
+                    if (($softMaskFilterBoundary['native_prefix_decoded'] ?? false) === true) {
+                        $notes[] = 'soft_mask_stream_native_prefix_decoded_before_preview_only';
+                    }
                 } elseif ($softMaskFilterBoundary['decode_failed']) {
                     $notes[] = 'soft_mask_stream_filter_decode_failed';
                 }
@@ -5834,7 +5837,7 @@ final class PdfImageRenderer
 
     /**
      * @param array<int, string> $objects
-     * @return array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool}|null
+     * @return array{present: bool, source_object: int|null, filters: list<string>, preview_only_filters: list<string>, unsupported_filters: list<string>, raw_length: int|null, decoded_length: int|null, decoded_sha256: string|null, decoded_preview_hex: string|null, decoded_sample_bytes: list<int>, decoded_with_current_filters: bool, decode_failed: bool, uses_current_object_map: bool, native_prefix_decoded?: true, native_prefix_decoded_length?: int, native_prefix_decoded_sha256?: string, native_prefix_decoded_preview_hex?: string, stopped_before_filter?: string|null}|null
      */
     private function imageSoftMaskFilterBoundary(string $dictionary, array $objects): ?array
     {
@@ -5871,12 +5874,20 @@ final class PdfImageRenderer
         $decoded = null;
         $unsupportedFilters = [];
         $decodeFailed = false;
+        $nativePrefixDecodedBytes = null;
+        $stoppedBeforeFilter = null;
 
         if ($stream !== null) {
-            $decodeResult = $this->decodeImageStreamByFilters($maskDictionary, $stream, $objects);
+            $decodeResult = $this->decodeImageStreamByFilters($maskDictionary, $stream, $objects, false, true);
             $decoded = $decodeResult['decoded'];
             $unsupportedFilters = $decodeResult['unsupported_filters'];
             $decodeFailed = $decodeResult['decode_failed'];
+            if (is_string($decodeResult['native_prefix_decoded_bytes'] ?? null)) {
+                $nativePrefixDecodedBytes = $decodeResult['native_prefix_decoded_bytes'];
+                $stoppedBeforeFilter = is_string($decodeResult['stopped_before_filter'] ?? null)
+                    ? $decodeResult['stopped_before_filter']
+                    : null;
+            }
         } elseif ($filters !== []) {
             $decodeFailed = true;
         }
@@ -5891,7 +5902,7 @@ final class PdfImageRenderer
             }
         }
 
-        return [
+        $boundary = [
             'present' => true,
             'source_object' => $sourceObject,
             'filters' => $filters,
@@ -5906,6 +5917,16 @@ final class PdfImageRenderer
             'decode_failed' => $decodeFailed,
             'uses_current_object_map' => $usesCurrentObjectMap,
         ];
+
+        if (is_string($nativePrefixDecodedBytes)) {
+            $boundary['native_prefix_decoded'] = true;
+            $boundary['native_prefix_decoded_length'] = strlen($nativePrefixDecodedBytes);
+            $boundary['native_prefix_decoded_sha256'] = hash('sha256', $nativePrefixDecodedBytes);
+            $boundary['native_prefix_decoded_preview_hex'] = strtoupper(bin2hex(substr($nativePrefixDecodedBytes, 0, 16)));
+            $boundary['stopped_before_filter'] = $stoppedBeforeFilter;
+        }
+
+        return $boundary;
     }
 
     /**

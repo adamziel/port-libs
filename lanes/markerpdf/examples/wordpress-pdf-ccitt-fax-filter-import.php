@@ -189,6 +189,15 @@ $postCcittFilterReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
     . '/DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null null null] >>'
 );
 $postCcittFilterBoundary = $postCcittFilterReview['ccitt_fax_filter_boundary'] ?? [];
+$softMaskPrefixFaxBytes = "\x00\x10\x01";
+$softMaskPrefixPayload = strtoupper(bin2hex($softMaskPrefixFaxBytes)) . '>';
+$softMaskPrefixReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
+    '<< /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 41 0 R >>',
+    [
+        41 => "<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCF] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length " . strlen($softMaskPrefixPayload) . " >>\nstream\n{$softMaskPrefixPayload}\nendstream",
+    ]
+);
+$softMaskPrefixBoundary = $softMaskPrefixReview['soft_mask_filter_boundary'] ?? [];
 $unresolvedXobjectBefore = 'BT /F1 12 Tf 72 720 Td (Before unresolved CCITT import) Tj ET';
 $unresolvedXobjectAfter = 'BT /F1 12 Tf 72 680 Td (After unresolved CCITT import) Tj ET';
 $unresolvedXobjectPayload = 'BT /F1 12 Tf 72 700 Td (WordPress unresolved CCITT DecodeParms leak) Tj ET';
@@ -364,6 +373,18 @@ if (
     throw new RuntimeException('Post-CCITT filter-stack boundary smoke failed.');
 }
 if (
+    ($softMaskPrefixBoundary['filters'] ?? null) !== ['ASCIIHexDecode', 'CCF']
+    || ($softMaskPrefixBoundary['preview_only_filters'] ?? null) !== ['CCF']
+    || ($softMaskPrefixBoundary['native_prefix_decoded'] ?? null) !== true
+    || ($softMaskPrefixBoundary['native_prefix_decoded_length'] ?? null) !== strlen($softMaskPrefixFaxBytes)
+    || ($softMaskPrefixBoundary['native_prefix_decoded_sha256'] ?? null) !== hash('sha256', $softMaskPrefixFaxBytes)
+    || ($softMaskPrefixBoundary['stopped_before_filter'] ?? null) !== 'CCF'
+    || !in_array('soft_mask_stream_native_prefix_decoded_before_preview_only', $softMaskPrefixReview['notes'] ?? [], true)
+    || str_contains(json_encode($softMaskPrefixReview, JSON_UNESCAPED_SLASHES) ?: '', $softMaskPrefixPayload)
+) {
+    throw new RuntimeException('Soft-mask CCITT native-prefix boundary smoke failed.');
+}
+if (
     ($unresolvedXobjectParms['valid_decode_parms'] ?? null) !== false
     || ($unresolvedXobjectParms['decode_parms_review'] ?? null) !== 'unresolved_ccitt_decodeparms_fail_closed'
     || ($unresolvedXobjectBoundary['invalid_decode_parms'] ?? null) !== true
@@ -462,6 +483,12 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'post_ccitt_filters_after_ccitt' => $postCcittFilterBoundary['filters_after_ccitt'] ?? [],
     'post_ccitt_native_filters_blocked' => $postCcittFilterBoundary['native_filters_after_ccitt'] ?? [],
     'post_ccitt_filters_block_native_decode' => $postCcittFilterBoundary['post_ccitt_filters_block_native_decode'] ?? null,
+    'soft_mask_prefix_filters' => $softMaskPrefixBoundary['filters'] ?? [],
+    'soft_mask_prefix_preview_only_filters' => $softMaskPrefixBoundary['preview_only_filters'] ?? [],
+    'soft_mask_prefix_native_decoded' => $softMaskPrefixBoundary['native_prefix_decoded'] ?? null,
+    'soft_mask_prefix_native_decoded_length' => $softMaskPrefixBoundary['native_prefix_decoded_length'] ?? null,
+    'soft_mask_prefix_stopped_before_filter' => $softMaskPrefixBoundary['stopped_before_filter'] ?? null,
+    'soft_mask_prefix_payload_excluded_from_review' => !str_contains(json_encode($softMaskPrefixReview, JSON_UNESCAPED_SLASHES) ?: '', $softMaskPrefixPayload),
     'xobject_compact_imagemask_polarity' => [
         'black_sample_value' => $compactXobjectPolarityBoundary['black_sample_value'] ?? null,
         'white_sample_value' => $compactXobjectPolarityBoundary['white_sample_value'] ?? null,

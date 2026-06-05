@@ -1517,4 +1517,38 @@ return [
         $t->same(false, $entry['payload_in_visible_text'] ?? null);
         $t->true(!str_contains(json_encode($review, JSON_UNESCAPED_SLASHES) ?: '', $payload));
     },
+    'records native prefix decoded bytes before CCITT Fax soft-mask review handoff' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $faxBytes = "\x00\x10\x01";
+        $encodedFaxBytes = strtoupper(bin2hex($faxBytes)) . '>';
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 41 0 R >>',
+            [
+                41 => "<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter [/ASCIIHexDecode /CCF] /DecodeParms [null << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length " . strlen($encodedFaxBytes) . " >>\nstream\n{$encodedFaxBytes}\nendstream",
+            ]
+        );
+
+        $boundary = $plan['soft_mask_filter_boundary'];
+
+        $t->same(true, $plan['soft_mask']['present'] ?? null);
+        $t->same(['ASCIIHexDecode', 'CCF'], $boundary['filters']);
+        $t->same(['CCF'], $boundary['preview_only_filters']);
+        $t->same(['CCF'], $boundary['unsupported_filters']);
+        $t->same(strlen($encodedFaxBytes), $boundary['raw_length']);
+        $t->same(null, $boundary['decoded_length']);
+        $t->same(null, $boundary['decoded_sha256']);
+        $t->same(null, $boundary['decoded_preview_hex']);
+        $t->same([], $boundary['decoded_sample_bytes']);
+        $t->same(false, $boundary['decoded_with_current_filters']);
+        $t->same(false, $boundary['decode_failed']);
+        $t->same(true, $boundary['uses_current_object_map']);
+        $t->same(true, $boundary['native_prefix_decoded']);
+        $t->same(strlen($faxBytes), $boundary['native_prefix_decoded_length']);
+        $t->same(hash('sha256', $faxBytes), $boundary['native_prefix_decoded_sha256']);
+        $t->same(strtoupper(bin2hex($faxBytes)), $boundary['native_prefix_decoded_preview_hex']);
+        $t->same('CCF', $boundary['stopped_before_filter']);
+        $t->contains('soft_mask_stream_filter_preview_only', implode(',', $plan['notes']));
+        $t->contains('soft_mask_stream_native_prefix_decoded_before_preview_only', implode(',', $plan['notes']));
+        $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', $faxBytes));
+    },
 ];
