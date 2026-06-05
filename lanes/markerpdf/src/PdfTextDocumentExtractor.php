@@ -42,7 +42,8 @@ final class PdfTextDocumentExtractor
         ?int $workers = null,
         bool $sort = false,
         bool $keepChars = false,
-        bool $disableLinks = false
+        bool $disableLinks = false,
+        bool $quoteLoosebox = true
     ): array {
         $totalPages = count($pdftextPages);
         $startPage ??= 0;
@@ -94,6 +95,7 @@ final class PdfTextDocumentExtractor
                     'workers' => $workers,
                     'sort' => $sort ? true : null,
                     'disable_links' => $disableLinks ? true : null,
+                    'quote_loosebox' => $quoteLoosebox,
                 ], static fn (mixed $value): bool => $value !== null),
             ],
             'page_range' => $pageRange,
@@ -133,7 +135,8 @@ final class PdfTextDocumentExtractor
         float $batchMultiplier = 1.0,
         ?LayoutOrderer $orderer = null,
         bool $keepChars = false,
-        bool $disableLinks = false
+        bool $disableLinks = false,
+        bool $quoteLoosebox = true
     ): array {
         $document = $this->getTextBlocks(
             $pdftextPages,
@@ -144,7 +147,8 @@ final class PdfTextDocumentExtractor
             workers: $workers,
             sort: $sort,
             keepChars: $keepChars,
-            disableLinks: $disableLinks
+            disableLinks: $disableLinks,
+            quoteLoosebox: $quoteLoosebox
         );
         $orderer ??= new LayoutOrderer();
         $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($document['pages']);

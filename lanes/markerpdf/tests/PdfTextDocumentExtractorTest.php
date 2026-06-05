@@ -106,6 +106,7 @@ return [
             'keep_chars' => false,
             'flatten_pdf' => true,
             'workers' => 2,
+            'quote_loosebox' => true,
         ], $result['metadata']['pdftext_options']);
         $t->same(4, $result['pages'][0]['pnum']);
     },

@@ -621,4 +621,13 @@ return [
         $t->same(90, $accepted['pages'][0]['rotation']);
         $t->same([0.0, 0.0, 300.0, 200.0], $accepted['pages'][0]['bbox']);
     },
+    'records pdftext quote loosebox option at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $defaultDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
+        $strictDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1, quoteLoosebox: false);
+
+        $t->same(true, $defaultDocument['metadata']['pdftext_options']['quote_loosebox']);
+        $t->same(false, $strictDocument['metadata']['pdftext_options']['quote_loosebox']);
+        $t->same([0], $strictDocument['metadata']['pdftext_options']['page_range']);
+        $t->same('Read ', $strictDocument['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0]['text']);
+    },
 ];
