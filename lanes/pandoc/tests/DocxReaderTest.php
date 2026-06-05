@@ -200,6 +200,57 @@ $stylesNumberingDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$multilevelNumberingXml = <<<'XML'
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="30">
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="decimal"/>
+      <w:lvlText w:val="%1."/>
+    </w:lvl>
+    <w:lvl w:ilvl="1">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="lowerLetter"/>
+      <w:lvlText w:val="%2)"/>
+    </w:lvl>
+    <w:lvl w:ilvl="2">
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="*"/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="31">
+    <w:abstractNumId w:val="30"/>
+  </w:num>
+</w:numbering>
+XML;
+
+$nestedNumberingDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="31"/></w:numPr></w:pPr>
+      <w:r><w:t>Plan import</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="31"/></w:numPr></w:pPr>
+      <w:r><w:t>Check media</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="31"/></w:numPr></w:pPr>
+      <w:r><w:t>Check comments</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="2"/><w:numId w:val="31"/></w:numPr></w:pPr>
+      <w:r><w:t>Resolve reviewer note</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="31"/></w:numPr></w:pPr>
+      <w:r><w:t>Publish import</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $tableSpanDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -577,6 +628,24 @@ $buildStylesNumberingPackage = static function () use (
     ]);
 };
 
+$buildNestedNumberingPackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $nestedNumberingDocumentXml,
+    $stylesXml,
+    $multilevelNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $nestedNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/numbering.xml', 'data' => $multilevelNumberingXml],
+    ]);
+};
+
 $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableSpanDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -865,6 +934,46 @@ return [
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'preserves nested DOCX numbering levels as child AST lists' => static function (TestRunner $t) use ($buildNestedNumberingPackage): void {
+        $document = (new DocxReader())->readDocument($buildNestedNumberingPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $outline = $document->children[0];
+        $t->same('ordered_list', $outline->type);
+        $t->same('31', $outline->attr('numId'));
+        $t->same(0, $outline->attr('level'));
+        $t->same('decimal', $outline->attr('style'));
+        $t->same('period', $outline->attr('delimiter'));
+        $t->same(2, count($outline->children));
+
+        $firstItem = $outline->children[0];
+        $t->same('list_item', $firstItem->type);
+        $t->same(0, $firstItem->attr('level'));
+        $t->same('Plan import', $firstItem->children[0]->children[0]->attr('text'));
+
+        $sublist = $firstItem->children[1];
+        $t->same('ordered_list', $sublist->type);
+        $t->same(1, $sublist->attr('level'));
+        $t->same('lower_alpha', $sublist->attr('style'));
+        $t->same('one_paren', $sublist->attr('delimiter'));
+        $t->same(2, count($sublist->children));
+        $t->same('Check media', $sublist->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Check comments', $sublist->children[1]->children[0]->children[0]->attr('text'));
+
+        $thirdLevel = $sublist->children[1]->children[1];
+        $t->same('bullet_list', $thirdLevel->type);
+        $t->same(2, $thirdLevel->attr('level'));
+        $t->same('bullet', $thirdLevel->attr('format'));
+        $t->same('Resolve reviewer note', $thirdLevel->children[0]->children[0]->children[0]->attr('text'));
+
+        $t->same('Publish import', $outline->children[1]->children[0]->children[0]->attr('text'));
+
+        $t->contains("1.  Plan import\n  a)  Check media\n  b)  Check comments\n    - Resolve reviewer note\n2.  Publish import", $markdown);
+        $t->contains('<!-- wp:list {"ordered":true} -->', $blocks);
+        $t->contains('<ol><li>Plan import<ol type="a"><li>Check media</li><li>Check comments<ul><li>Resolve reviewer note</li></ul></li></ol></li><li>Publish import</li></ol>', $blocks);
     },
     'maps DOCX table gridSpan and vMerge cells into table span attributes' => static function (TestRunner $t) use ($buildTableSpanPackage): void {
         $document = (new DocxReader())->readDocument($buildTableSpanPackage());

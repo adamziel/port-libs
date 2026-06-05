@@ -865,7 +865,7 @@ final class DocxReader
     ): array
     {
         $blocks = [];
-        $currentList = null;
+        $pendingListParagraphs = [];
         foreach ($container->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -878,24 +878,27 @@ final class DocxReader
                         ? $this->listDefinitionForParagraph($child, $styles, $numbering)
                         : null;
                     if ($listDefinition !== null) {
-                        $this->appendListParagraph($blocks, $currentList, $paragraph, $listDefinition);
+                        $pendingListParagraphs[] = [
+                            'paragraph' => $paragraph,
+                            'definition' => $listDefinition,
+                        ];
                         continue;
                     }
 
-                    $currentList = null;
+                    $this->appendListParagraphs($blocks, $pendingListParagraphs);
                     $blocks[] = $paragraph;
                 }
                 continue;
             }
 
             if ($this->isWordElement($child, 'tbl')) {
-                $currentList = null;
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
                 $blocks[] = $this->tableNode($child, $package, $relationships, $referencedNotes, $styles, $numbering);
                 continue;
             }
 
             if ($this->isWordElement($child, 'sdt')) {
-                $currentList = null;
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
                 array_push(
                     $blocks,
                     ...$this->structuredDocumentTagBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering)
@@ -904,13 +907,15 @@ final class DocxReader
             }
 
             if ($this->isWordElement($child, 'altChunk')) {
-                $currentList = null;
+                $this->appendListParagraphs($blocks, $pendingListParagraphs);
                 array_push($blocks, ...$this->alternativeFormatBlocks($child, $package, $relationships));
                 continue;
             }
 
-            $currentList = null;
+            $this->appendListParagraphs($blocks, $pendingListParagraphs);
         }
+
+        $this->appendListParagraphs($blocks, $pendingListParagraphs);
 
         return $blocks;
     }
@@ -2134,44 +2139,149 @@ final class DocxReader
 
     /**
      * @param list<AstNode> $blocks
-     * @param array{key:string, index:int}|null $currentList
+     * @param list<array{paragraph:AstNode, definition:array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string}}> $pending
+     */
+    private function appendListParagraphs(array &$blocks, array &$pending): void
+    {
+        if ($pending === []) {
+            return;
+        }
+
+        $mutableBlocks = [];
+        $stack = [];
+
+        foreach ($pending as $item) {
+            $definition = $item['definition'];
+            $level = max(0, $definition['level']);
+            foreach (array_keys($stack) as $stackLevel) {
+                if ($stackLevel >= $level) {
+                    unset($stack[$stackLevel]);
+                }
+            }
+
+            if (!$this->appendNestedListParagraph($mutableBlocks, $stack, $item['paragraph'], $definition)) {
+                $mutableBlocks[] = $this->newMutableList($definition);
+                $listIndex = count($mutableBlocks) - 1;
+                $list =& $mutableBlocks[$listIndex];
+                $this->appendMutableListItem($list, $stack, $item['paragraph'], $definition);
+                unset($list);
+            }
+        }
+
+        foreach ($mutableBlocks as $mutableBlock) {
+            $blocks[] = $this->astNodeFromMutableListBlock($mutableBlock);
+        }
+
+        $pending = [];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $mutableBlocks
+     * @param array<int, array{key:string, lastItem:array<string, mixed>}> $stack
      * @param array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string} $definition
      */
-    private function appendListParagraph(array &$blocks, ?array &$currentList, AstNode $paragraph, array $definition): void
+    private function appendNestedListParagraph(array &$mutableBlocks, array &$stack, AstNode $paragraph, array $definition): bool
     {
-        $key = implode(':', [
+        $level = max(0, $definition['level']);
+        $children =& $mutableBlocks;
+
+        for ($parentLevel = $level - 1; $parentLevel >= 0; $parentLevel--) {
+            if (isset($stack[$parentLevel])) {
+                $children =& $stack[$parentLevel]['lastItem']['children'];
+                break;
+            }
+        }
+
+        if ($children === $mutableBlocks && $level > 0 && $mutableBlocks === []) {
+            unset($children);
+            return false;
+        }
+
+        $lastIndex = count($children) - 1;
+        if ($lastIndex < 0 || !is_array($children[$lastIndex]) || ($children[$lastIndex]['key'] ?? null) !== $this->listDefinitionKey($definition)) {
+            $children[] = $this->newMutableList($definition);
+            $lastIndex = count($children) - 1;
+        }
+
+        $list =& $children[$lastIndex];
+        $this->appendMutableListItem($list, $stack, $paragraph, $definition);
+        unset($list, $children);
+
+        return true;
+    }
+
+    /**
+     * @return array{type:string, key:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    private function newMutableList(array $definition): array
+    {
+        $attrs = [
+            'sourceFormat' => 'docx',
+            'numId' => $definition['numId'],
+            'level' => max(0, $definition['level']),
+        ];
+        if ($definition['ordered']) {
+            $attrs['style'] = $definition['style'];
+            $attrs['delimiter'] = $definition['delimiter'];
+            $attrs['start'] = $definition['start'];
+        } else {
+            $attrs['format'] = $definition['format'];
+        }
+
+        return [
+            'type' => $definition['ordered'] ? 'ordered_list' : 'bullet_list',
+            'key' => $this->listDefinitionKey($definition),
+            'attrs' => $attrs,
+            'children' => [],
+        ];
+    }
+
+    /**
+     * @param array{type:string, key:string, attrs:array<string, mixed>, children:list<array<string, mixed>>} $list
+     * @param array<int, array{key:string, lastItem:array<string, mixed>}> $stack
+     * @param array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string} $definition
+     */
+    private function appendMutableListItem(array &$list, array &$stack, AstNode $paragraph, array $definition): void
+    {
+        $itemIndex = count($list['children']);
+        $list['children'][] = [
+            'type' => 'list_item',
+            'attrs' => ['level' => max(0, $definition['level'])],
+            'children' => [$paragraph],
+        ];
+
+        $level = max(0, $definition['level']);
+        $stack[$level] = [
+            'key' => $this->listDefinitionKey($definition),
+            'lastItem' => &$list['children'][$itemIndex],
+        ];
+    }
+
+    /**
+     * @param array{type:string, key:string, attrs:array<string, mixed>, children:list<mixed>} $node
+     */
+    private function astNodeFromMutableListBlock(array $node): AstNode
+    {
+        $children = [];
+        foreach ($node['children'] as $child) {
+            $children[] = is_array($child) ? $this->astNodeFromMutableListBlock($child) : $child;
+        }
+
+        return new AstNode($node['type'], $node['attrs'], $children);
+    }
+
+    /**
+     * @param array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string} $definition
+     */
+    private function listDefinitionKey(array $definition): string
+    {
+        return implode(':', [
             $definition['numId'],
-            (string) $definition['level'],
+            (string) max(0, $definition['level']),
             $definition['ordered'] ? 'ordered' : 'bullet',
             $definition['style'],
             $definition['delimiter'],
         ]);
-
-        if ($currentList === null || $currentList['key'] !== $key) {
-            $attrs = [
-                'sourceFormat' => 'docx',
-                'numId' => $definition['numId'],
-                'level' => $definition['level'],
-            ];
-            if ($definition['ordered']) {
-                $attrs['style'] = $definition['style'];
-                $attrs['delimiter'] = $definition['delimiter'];
-                $attrs['start'] = $definition['start'];
-            } else {
-                $attrs['format'] = $definition['format'];
-            }
-
-            $blocks[] = new AstNode($definition['ordered'] ? 'ordered_list' : 'bullet_list', $attrs, []);
-            $currentList = [
-                'key' => $key,
-                'index' => count($blocks) - 1,
-            ];
-        }
-
-        $index = $currentList['index'];
-        $items = $blocks[$index]->children;
-        $items[] = new AstNode('list_item', ['level' => $definition['level']], [$paragraph]);
-        $blocks[$index] = new AstNode($blocks[$index]->type, $blocks[$index]->attrs, $items);
     }
 
     /**

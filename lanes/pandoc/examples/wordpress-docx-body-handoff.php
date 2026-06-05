@@ -59,6 +59,7 @@ XML],
     <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX source packet</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ReviewSubhead"/></w:pPr><w:r><w:t>Reviewer checklist</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Match media IDs</w:t></w:r></w:p>
+    <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="11"/></w:numPr></w:pPr><w:r><w:t>Map hero attachment</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Preserve alt text</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Confirm source URL</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="12"/></w:numPr></w:pPr><w:r><w:t>Publish packet</w:t></w:r></w:p>
@@ -193,7 +194,10 @@ XML],
 XML],
     ['name' => 'word/numbering.xml', 'data' => <<<'XML'
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:abstractNum w:abstractNumId="10"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl></w:abstractNum>
+  <w:abstractNum w:abstractNumId="10">
+    <w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="-"/></w:lvl>
+    <w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="*"/></w:lvl>
+  </w:abstractNum>
   <w:num w:numId="11"><w:abstractNumId w:val="10"/></w:num>
   <w:abstractNum w:abstractNumId="20"><w:lvl w:ilvl="0"><w:start w:val="3"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1)"/></w:lvl></w:abstractNum>
   <w:num w:numId="12"><w:abstractNumId w:val="20"/></w:num>
@@ -324,7 +328,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<h1 id="docx-source-packet">DOCX source packet</h1>',
         '<h2 id="reviewer-checklist">Reviewer checklist</h2>',
-        '<ul><li>Match media IDs</li><li>Preserve alt text</li></ul>',
+        '<ul><li>Match media IDs<ul><li>Map hero attachment</li></ul></li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
