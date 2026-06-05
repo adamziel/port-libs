@@ -10124,6 +10124,109 @@ final class PdfTextExtractor
 
             $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references, $seen);
         }
+
+        foreach ($this->type3PrivateColorSpaceResourceValues($resourceOwnerBody, $objects) as $value) {
+            $this->collectType3PrivateStreamGenerationsFromValue($value, $objects, $references, $seen);
+        }
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function type3PrivateColorSpaceResourceValues(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
+        $colorSpaceDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ColorSpace');
+        if ($colorSpaceDictionary === null) {
+            return [];
+        }
+
+        $colorSpaceDictionary = trim($colorSpaceDictionary);
+        if (str_starts_with($colorSpaceDictionary, '<<')) {
+            $body = $this->readPdfDictionaryAt($colorSpaceDictionary, 0);
+            if ($body === null) {
+                return [];
+            }
+            $colorSpaceDictionary = $body;
+        }
+
+        $values = [];
+        $offset = 0;
+        $length = strlen($colorSpaceDictionary);
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($colorSpaceDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($colorSpaceDictionary[$offset] !== '/') {
+                $next = $this->skipPdfValueAt($colorSpaceDictionary, $offset);
+                $offset = $next > $offset ? $next : $offset + 1;
+                continue;
+            }
+
+            $nameEnd = $offset + 1;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $colorSpaceDictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($colorSpaceDictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $value = $this->pdfValueAtOffset($colorSpaceDictionary, $valueOffset);
+            if ($value !== null) {
+                $values[] = $value;
+            }
+
+            $next = $this->skipPdfValueAt($colorSpaceDictionary, $valueOffset);
+            $offset = $next > $valueOffset ? $next : $valueOffset + 1;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, array<int, true>> $references
+     * @param array<string, true> $seen
+     */
+    private function collectType3PrivateStreamGenerationsFromValue(
+        string $value,
+        array $objects,
+        array &$references,
+        array $seen
+    ): void {
+        foreach ($this->objectReferencePairs($value) as $reference) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $body = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($body === null) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            if ($this->streamDictionaryAndPayload($body, $objects) !== null) {
+                $references[$reference['objectNumber']][$reference['generation']] = true;
+                continue;
+            }
+
+            $this->collectType3PrivateStreamGenerationsFromValue($body, $objects, $references, $seen);
+        }
     }
 
     /**
