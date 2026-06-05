@@ -132,6 +132,47 @@ $pdftextMinimalCharsPage = static function (): array {
     ];
 };
 
+$pdftextCharsWithoutSpanRangePage = static function (): array {
+    $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
+
+    return [
+        'page' => 37,
+        'bbox' => [0.0, 0.0, 600.0, 800.0],
+        'width' => 600.0,
+        'height' => 800.0,
+        'rotation' => 0,
+        'blocks' => [[
+            'bbox' => [0.12, 0.22, 0.48, 0.25],
+            'lines' => [[
+                'bbox' => [0.12, 0.22, 0.48, 0.25],
+                'spans' => [[
+                    'text' => "Inferred span range\n",
+                    'bbox' => [0.12, 0.22, 0.48, 0.25],
+                    'font' => $font,
+                    'rotation' => 0,
+                    'chars' => [
+                        [
+                            'char' => 'I',
+                            'bbox' => [0.12, 0.22, 0.13, 0.25],
+                            'font' => $font,
+                            'rotation' => 0,
+                            'char_idx' => 30,
+                            'raw_payload' => 'missing span range payload must stay hidden',
+                        ],
+                        [
+                            'char' => 'n',
+                            'bbox' => [0.13, 0.22, 0.14, 0.25],
+                            'font' => $font,
+                            'rotation' => 0,
+                            'char_idx' => 31,
+                        ],
+                    ],
+                ]],
+            ]],
+        ]],
+    ];
+};
+
 $pdftextScriptPage = static function (): array {
     $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
 
@@ -462,6 +503,27 @@ return [
         $t->true(!str_contains($encoded, 'embedded_font_program'));
         $t->true(!str_contains($encoded, 'raw_font_stream'));
         $t->true(!str_contains($encoded, 'debug_payload'));
+    },
+    'infers pdftext span character ranges from kept character indexes' => static function (TestRunner $t) use ($pdftextCharsWithoutSpanRangePage): void {
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextCharsWithoutSpanRangePage()], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(30, $span['char_start_idx'] ?? null);
+        $t->same(31, $span['char_end_idx'] ?? null);
+        $t->same(30, $charSpan['char_start_idx'] ?? null);
+        $t->same(31, $charSpan['char_end_idx'] ?? null);
+        $t->same(30, $span['chars'][0]['char_idx']);
+        $t->same(31, $charSpan['chars'][1]['char_idx']);
+        $t->same('Inferred span range', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'missing span range payload must stay hidden'));
+
+        $invertedCharacterOrder = $pdftextCharsWithoutSpanRangePage();
+        $invertedCharacterOrder['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = 32;
+        $invertedCharacterOrder['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['char_idx'] = 31;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$invertedCharacterOrder], maxPages: 1, keepChars: true));
     },
     'requires pdftext span chars when keep chars is requested' => static function (TestRunner $t) use ($pdftextCharsPage): void {
         $missingChars = $pdftextCharsPage();

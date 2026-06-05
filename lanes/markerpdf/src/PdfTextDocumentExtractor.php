@@ -336,7 +336,9 @@ final class PdfTextDocumentExtractor
                     if (!array_key_exists('chars', $span)) {
                         throw new InvalidArgumentException('pdftext span chars are required when keep_chars=true.');
                     }
-                    $sanitizedSpan['chars'] = $this->sanitizeDictionaryOutputChars($span['chars'], $bboxScale, $sanitizedSpan);
+                    $sanitizedChars = $this->sanitizeDictionaryOutputChars($span['chars'], $bboxScale, $sanitizedSpan);
+                    $sanitizedSpan = $this->inferDictionaryOutputSpanCharacterRange($sanitizedSpan, $sanitizedChars);
+                    $sanitizedSpan['chars'] = $this->validateDictionaryOutputSpanCharacterRange($sanitizedSpan, $sanitizedChars);
                 }
                 $span = $sanitizedSpan;
             }
@@ -344,6 +346,59 @@ final class PdfTextDocumentExtractor
         }
 
         return $sanitizedSpans;
+    }
+
+    /**
+     * pdftext inference derives parent span indexes from the first and last
+     * kept character rows before dictionary_output scales and returns them.
+     *
+     * @param array<string, mixed> $span
+     * @param list<array<string, mixed>> $chars
+     * @return array<string, mixed>
+     */
+    private function inferDictionaryOutputSpanCharacterRange(array $span, array $chars): array
+    {
+        if ($chars === []) {
+            return $span;
+        }
+
+        $first = $chars[0]['char_idx'] ?? null;
+        $last = $chars[array_key_last($chars)]['char_idx'] ?? null;
+        if (!array_key_exists('char_start_idx', $span) && is_int($first)) {
+            $span['char_start_idx'] = $first;
+        }
+        if (!array_key_exists('char_end_idx', $span) && is_int($last)) {
+            $span['char_end_idx'] = $last;
+        }
+
+        return $span;
+    }
+
+    /**
+     * @param array<string, mixed> $span
+     * @param list<array<string, mixed>> $chars
+     * @return list<array<string, mixed>>
+     */
+    private function validateDictionaryOutputSpanCharacterRange(array $span, array $chars): array
+    {
+        if (!array_key_exists('char_start_idx', $span) || !array_key_exists('char_end_idx', $span)) {
+            return $chars;
+        }
+
+        $startIndex = $this->dictionaryOutputIntegerMetadata($span['char_start_idx'], 'span.char_start_idx');
+        $endIndex = $this->dictionaryOutputIntegerMetadata($span['char_end_idx'], 'span.char_end_idx');
+        if ($startIndex > $endIndex) {
+            throw new InvalidArgumentException('pdftext span.char_start_idx must be less than or equal to span.char_end_idx.');
+        }
+
+        foreach ($chars as $index => $char) {
+            $charIndex = $this->dictionaryOutputIntegerMetadata($char['char_idx'] ?? null, "char {$index}.char_idx");
+            if ($charIndex < $startIndex || $charIndex > $endIndex) {
+                throw new InvalidArgumentException("pdftext char {$index}.char_idx must be within the parent span character range.");
+            }
+        }
+
+        return $chars;
     }
 
     /**
