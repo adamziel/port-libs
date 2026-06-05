@@ -413,6 +413,11 @@ final class CitationCslProcessor
         }
 
         $issuedDate = self::dateVariable($item['issued'] ?? null, $id, 'issued');
+        $sourceFilePolicy = self::sourceFilesWithDiagnostics($item['sourceFiles'] ?? [], $id);
+        $sourceFileDiagnostics = [
+            ...$sourceFilePolicy['diagnostics'],
+            ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
+        ];
 
         return [
             'id' => $id,
@@ -426,7 +431,8 @@ final class CitationCslProcessor
             'language' => self::stringField($item, 'language'),
             'abstract' => self::stringField($item, 'abstract'),
             'keywords' => self::stringListField($item, 'keyword'),
-            'sourceFiles' => self::sourceFiles($item['sourceFiles'] ?? [], $id),
+            'sourceFiles' => $sourceFilePolicy['files'],
+            'sourceFileDiagnostics' => $sourceFileDiagnostics,
             'issuedDate' => $issuedDate,
             'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
             'originalTitle' => self::stringField($item, 'original-title'),
@@ -498,12 +504,12 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return list<array{label:string, path:string, mediaType:string}>
+     * @return array{files:list<array{label:string, path:string, mediaType:string}>, diagnostics:list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>}
      */
-    private static function sourceFiles(mixed $value, string $id): array
+    private static function sourceFilesWithDiagnostics(mixed $value, string $id): array
     {
         if ($value === null || $value === []) {
-            return [];
+            return ['files' => [], 'diagnostics' => []];
         }
 
         if (!is_array($value) || !array_is_list($value)) {
@@ -511,15 +517,21 @@ final class CitationCslProcessor
         }
 
         $files = [];
+        $diagnostics = [];
         foreach ($value as $index => $file) {
             if (is_scalar($file)) {
                 $path = trim((string) $file);
                 if ($path !== '') {
-                    $files[] = [
-                        'label' => '',
-                        'path' => $path,
-                        'mediaType' => '',
-                    ];
+                    $policy = self::sourceFilePathPolicy($path);
+                    if ($policy['reason'] === '') {
+                        $files[] = [
+                            'label' => '',
+                            'path' => $policy['path'],
+                            'mediaType' => '',
+                        ];
+                    } else {
+                        $diagnostics[] = self::sourceFilePolicyDiagnostic('', $path, '', $policy['reason']);
+                    }
                 }
                 continue;
             }
@@ -533,14 +545,21 @@ final class CitationCslProcessor
                 throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFiles[' . $index . '] is missing path');
             }
 
-            $files[] = [
-                'label' => self::sourceFileString($file['label'] ?? '', $id, $index, 'label'),
-                'path' => $path,
-                'mediaType' => self::sourceFileString($file['mediaType'] ?? '', $id, $index, 'mediaType'),
-            ];
+            $label = self::sourceFileString($file['label'] ?? '', $id, $index, 'label');
+            $mediaType = self::sourceFileString($file['mediaType'] ?? '', $id, $index, 'mediaType');
+            $policy = self::sourceFilePathPolicy($path);
+            if ($policy['reason'] === '') {
+                $files[] = [
+                    'label' => $label,
+                    'path' => $policy['path'],
+                    'mediaType' => $mediaType,
+                ];
+            } else {
+                $diagnostics[] = self::sourceFilePolicyDiagnostic($label, $path, $mediaType, $policy['reason']);
+            }
         }
 
-        return $files;
+        return ['files' => $files, 'diagnostics' => $diagnostics];
     }
 
     private static function sourceFileString(mixed $value, string $id, int $index, string $field): string
@@ -554,6 +573,118 @@ final class CitationCslProcessor
         }
 
         return trim((string) $value);
+    }
+
+    /**
+     * @return list<array{label:string, path:string, mediaType:string, reason:string, importable:bool}>
+     */
+    private static function sourceFileDiagnostics(mixed $value, string $id): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFileDiagnostics must be a list');
+        }
+
+        $diagnostics = [];
+        foreach ($value as $index => $diagnostic) {
+            if (!is_array($diagnostic)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFileDiagnostics[' . $index . '] must be an object');
+            }
+
+            $reason = self::sourceFileString($diagnostic['reason'] ?? '', $id, $index, 'reason');
+            if ($reason === '') {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' sourceFileDiagnostics[' . $index . '] is missing reason');
+            }
+
+            $diagnostics[] = [
+                'label' => self::sourceFileString($diagnostic['label'] ?? '', $id, $index, 'label'),
+                'path' => self::sourceFileString($diagnostic['path'] ?? '', $id, $index, 'path'),
+                'mediaType' => self::sourceFileString($diagnostic['mediaType'] ?? '', $id, $index, 'mediaType'),
+                'reason' => $reason,
+                'importable' => self::boolField($diagnostic, 'importable', false),
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array{path:string, reason:string}
+     */
+    private static function sourceFilePathPolicy(string $path): array
+    {
+        if ($path === '') {
+            return ['path' => '', 'reason' => 'missing-path'];
+        }
+
+        if (preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'control-character'];
+        }
+
+        if (preg_match('/^[A-Za-z]:/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'windows-drive-path'];
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'remote-uri'];
+        }
+
+        if (str_starts_with($path, '//')) {
+            return ['path' => $path, 'reason' => 'uri-authority-path'];
+        }
+
+        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            return ['path' => $path, 'reason' => 'absolute-path'];
+        }
+
+        if (str_contains($path, '\\')) {
+            return ['path' => $path, 'reason' => 'backslash-separator'];
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            return ['path' => $path, 'reason' => 'malformed-percent-escape'];
+        }
+
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+
+            $decoded = rawurldecode($segment);
+            if (preg_match('/[\x00-\x1F\x7F]/', $decoded) === 1 || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
+                return ['path' => $path, 'reason' => 'unsafe-percent-encoded-path-byte'];
+            }
+
+            if ($decoded === '..') {
+                return ['path' => $path, 'reason' => 'path-traversal'];
+            }
+
+            $segments[] = $decoded;
+        }
+
+        if ($segments === []) {
+            return ['path' => $path, 'reason' => 'missing-path'];
+        }
+
+        return ['path' => implode('/', $segments), 'reason' => ''];
+    }
+
+    /**
+     * @return array{label:string, path:string, mediaType:string, reason:string, importable:bool}
+     */
+    private static function sourceFilePolicyDiagnostic(string $label, string $path, string $mediaType, string $reason): array
+    {
+        return [
+            'label' => $label,
+            'path' => $path,
+            'mediaType' => $mediaType,
+            'reason' => $reason,
+            'importable' => false,
+        ];
     }
 
     /**

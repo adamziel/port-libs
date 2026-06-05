@@ -408,6 +408,71 @@ BIB;
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@xdata{a,xdata={b}} @xdata{b,xdata={a}} @online{site,title={Site},xdata={a}}'));
     },
+    'applies bounded biblatex source file attachment policy diagnostics' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@xdata{attachment-policy,
+  file = {Review PDF:attachments/source-audit.pdf:application/pdf; Reviewer Notes:attachments/reviewer%20notes.html:text/html; Remote PDF:https://example.test/source-audit.pdf:application/pdf; Absolute PDF:/var/private/source-audit.pdf:application/pdf; Traversal PDF:../private/source-audit.pdf:application/pdf; Encoded Traversal:attachments/%2e%2e/private.pdf:application/pdf; Windows PDF:C:\Users\Ada\source-audit.pdf:application/pdf; Backslash PDF:attachments\source-audit.pdf:application/pdf; Bad Percent:attachments/%XX/source.pdf:application/pdf; Encoded Slash:attachments/%2Fsource.pdf:application/pdf; Missing::application/pdf}
+}
+
+@online{source-attachment,
+  author = {Ng, Nia},
+  title  = {Attachment Source},
+  date   = {2026-06-05},
+  url    = {https://example.test/source-attachment},
+  xdata  = {attachment-policy}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same([
+            ['label' => 'Review PDF', 'path' => 'attachments/source-audit.pdf', 'mediaType' => 'application/pdf'],
+            ['label' => 'Reviewer Notes', 'path' => 'attachments/reviewer notes.html', 'mediaType' => 'text/html'],
+        ], $items[0]['sourceFiles']);
+        $diagnostics = $items[0]['sourceFileDiagnostics'] ?? [];
+        $t->same(9, count($diagnostics));
+        $t->same([
+            'remote-uri',
+            'absolute-path',
+            'path-traversal',
+            'path-traversal',
+            'windows-drive-path',
+            'backslash-separator',
+            'malformed-percent-escape',
+            'unsafe-percent-encoded-path-byte',
+            'missing-path',
+        ], array_column($diagnostics, 'reason'));
+        $t->same('Remote PDF', $diagnostics[0]['label'] ?? null);
+        $t->same('https://example.test/source-audit.pdf', $diagnostics[0]['path'] ?? null);
+        $t->same(false, $diagnostics[0]['importable'] ?? null);
+        $t->same('Missing', $diagnostics[8]['label'] ?? null);
+        $t->same('application/pdf', $diagnostics[8]['mediaType'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('source-attachment');
+        $t->same('attachments/reviewer notes.html', $item['sourceFiles'][1]['path'] ?? null);
+        $t->same('path-traversal', $item['sourceFileDiagnostics'][2]['reason'] ?? null);
+        $t->same('Encoded Traversal', $item['sourceFileDiagnostics'][3]['label'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('source-attachment', '[@source-attachment]')]));
+
+        $document = (new MarkdownReader())->read('Attachment source @source-attachment keeps unsafe file paths in review diagnostics.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Attachment source Ng (2026) keeps unsafe file paths in review diagnostics.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Attachment Source. 2026. https://example.test/source-attachment.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-source',
+            'title' => 'Manual Source',
+            'sourceFiles' => [
+                'attachments/manual.pdf',
+                'https://example.test/manual.pdf',
+            ],
+        ]])->item('manual-source');
+        $t->same([['label' => '', 'path' => 'attachments/manual.pdf', 'mediaType' => '']], $manual['sourceFiles'] ?? null);
+        $t->same('remote-uri', $manual['sourceFileDiagnostics'][0]['reason'] ?? null);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'bad-diagnostic', 'sourceFileDiagnostics' => 'bad']]));
+    },
     'preserves bounded biblatex entry sets and related entry metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @set{migration-review-set,

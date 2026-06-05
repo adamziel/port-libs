@@ -94,7 +94,7 @@ $bibtex = <<<'BIB'
 
 @xdata{attachment-review-packet,
   langid = {english},
-  file   = {Review PDF:attachments/source-audit.pdf:application/pdf; Source HTML:attachments/source-audit.html:text/html}
+  file   = {Review PDF:attachments/source-audit.pdf:application/pdf; Source HTML:attachments/source-audit.html:text/html; Reviewer Notes:attachments/reviewer%20notes.html:text/html; Remote PDF:https://example.test/source-audit.pdf:application/pdf; Traversal PDF:../private/source-audit.pdf:application/pdf; Windows PDF:C:\Users\Ada\source-audit.pdf:application/pdf}
 }
 
 @inreference{source-glossary,
@@ -172,6 +172,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($sourceGlossary['sourceFiles'][0]['path'] ?? null) !== 'attachments/source-audit.pdf') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not inherit source-glossary attachment metadata');
+    }
+    if (($sourceGlossary['sourceFiles'][2]['path'] ?? null) !== 'attachments/reviewer notes.html') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not normalize source-glossary attachment path metadata');
+    }
+    if (array_column($sourceGlossary['sourceFileDiagnostics'] ?? [], 'reason') !== ['remote-uri', 'path-traversal', 'windows-drive-path']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve unsafe attachment diagnostics');
     }
     $reviewSet = $processor->item('migration-review-set');
     if (($reviewSet['raw']['entrySet'] ?? null) !== ['set-audit-paper', 'set-archived-site', 'missing-source']) {
