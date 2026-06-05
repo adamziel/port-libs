@@ -131,6 +131,13 @@ $chapter2Xhtml = <<<'XML'
 </html>
 XML;
 
+$slideshowFallbackXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>Slideshow fallback</title></head>
+  <body><h1>Slideshow fallback</h1><p>Scripted slideshow fallback remains reviewable.</p></body>
+</html>
+XML;
+
 $ncxXml = <<<'XML'
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
   <navMap>
@@ -440,6 +447,58 @@ return [
         $t->same($collections, $result['importReport']['collections']);
         $t->same($guide, $result['document']->attr('guide'));
         $t->same($collections, $result['document']->attr('collections'));
+    },
+    'resolves OPF manifest fallback chains for foreign spine XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $slideshowFallbackXhtml): void {
+        $opfWithFallbackSpine = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/><item id="slideshow" href="slides/slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler"/><item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $opfXml
+        );
+        $opfWithFallbackSpine = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="slideshow" linear="no"/><itemref idref="chapter-2" linear="no"/>',
+            $opfWithFallbackSpine
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFallbackSpine,
+            null,
+            [
+                ['name' => 'OEBPS/slides/slideshow.xml', 'data' => '<slides><slide src="../images/cover.png"/></slides>'],
+                ['name' => 'OEBPS/text/slideshow-fallback.xhtml', 'data' => $slideshowFallbackXhtml],
+            ]
+        ));
+
+        $t->same(3, count($result['spine']));
+        $t->same('slideshow', $result['spine'][1]['idref']);
+        $t->same('application/x-demo-slideshow', $result['spine'][1]['mediaType']);
+        $t->same('/OEBPS/slides/slideshow.xml', $result['spine'][1]['part']);
+        $t->same('slideshow-handler', $result['spine'][1]['contentId']);
+        $t->same('/OEBPS/text/slideshow-fallback.xhtml', $result['spine'][1]['contentPart']);
+        $t->same('application/xhtml+xml', $result['spine'][1]['contentMediaType']);
+        $t->same(true, $result['spine'][1]['contentIsFallback']);
+        $t->same([], $result['spine'][1]['fallbackDiagnostics']);
+        $t->same(1, count($result['spine'][1]['fallbackChain']));
+        $t->same('slideshow-handler', $result['spine'][1]['fallbackChain'][0]['id']);
+        $t->same('application/xhtml+xml', $result['spine'][1]['fallbackChain'][0]['mediaType']);
+        $t->same('/OEBPS/text/slideshow-fallback.xhtml', $result['spine'][1]['fallbackChain'][0]['part']);
+
+        $t->same(4, count($result['xhtmlAssets']));
+        $t->same(3, count($result['document']->children));
+        $fallbackBlock = $result['document']->children[1];
+        $t->same('raw_html', $fallbackBlock->type);
+        $t->same('epub3-spine-fallback', $fallbackBlock->attr('source'));
+        $t->same('slideshow', $fallbackBlock->attr('id'));
+        $t->same('/OEBPS/slides/slideshow.xml', $fallbackBlock->attr('spinePart'));
+        $t->same('application/x-demo-slideshow', $fallbackBlock->attr('spineMediaType'));
+        $t->same('slideshow', $fallbackBlock->attr('fallbackOf'));
+        $t->same('/OEBPS/text/slideshow-fallback.xhtml', $fallbackBlock->attr('part'));
+        $t->same('slideshow-handler', $fallbackBlock->attr('contentId'));
+        $t->same($result['spine'][1]['fallbackChain'], $fallbackBlock->attr('fallbackChain'));
+        $t->contains('Scripted slideshow fallback remains reviewable.', $fallbackBlock->attr('html'));
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Scripted slideshow fallback remains reviewable.', $blocks);
     },
     'reports missing non-spine package assets without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithMissingAudio = str_replace(

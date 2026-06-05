@@ -814,6 +814,8 @@ final class EpubReader
                 throw new \RuntimeException('EPUB spine item is missing from the package: ' . $manifestItem['part']);
             }
 
+            $content = $this->resolveSpineContentItem($manifestItem, $manifestById);
+            $contentItem = $content['item'];
             $spine[] = [
                 'index' => $index,
                 'idref' => $idref,
@@ -827,10 +829,155 @@ final class EpubReader
                 'encrypted' => self::isEncryptedManifestItem($manifestItem),
                 'canExposeBytes' => (bool) ($manifestItem['canExposeBytes'] ?? true),
                 'encryption' => $manifestItem['encryption'] ?? null,
+                'contentId' => is_array($contentItem) ? (string) $contentItem['id'] : null,
+                'contentTarget' => is_array($contentItem) ? (string) $contentItem['target'] : null,
+                'contentPart' => is_array($contentItem) ? (string) $contentItem['part'] : null,
+                'contentHref' => is_array($contentItem) ? (string) $contentItem['href'] : null,
+                'contentMediaType' => is_array($contentItem) ? (string) $contentItem['mediaType'] : null,
+                'contentProperties' => is_array($contentItem) ? $contentItem['properties'] : [],
+                'contentEncrypted' => is_array($contentItem) && self::isEncryptedManifestItem($contentItem),
+                'contentCanExposeBytes' => is_array($contentItem) ? (bool) ($contentItem['canExposeBytes'] ?? true) : false,
+                'contentIsFallback' => is_array($contentItem) && $content['isFallback'],
+                'fallbackChain' => $content['chain'],
+                'fallbackDiagnostics' => $content['diagnostics'],
             ];
         }
 
         return $spine;
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{
+     *     item:?array<string, mixed>,
+     *     chain:list<array<string, mixed>>,
+     *     diagnostics:list<array<string, mixed>>,
+     *     isFallback:bool
+     * }
+     */
+    private function resolveSpineContentItem(array $manifestItem, array $manifestById): array
+    {
+        $current = $manifestItem;
+        $visited = [(string) $manifestItem['id'] => true];
+        $chain = [];
+        $diagnostics = [];
+        $isFallback = false;
+
+        while (true) {
+            if (self::canExposeXhtmlContent($current)) {
+                return [
+                    'item' => $current,
+                    'chain' => $chain,
+                    'diagnostics' => $diagnostics,
+                    'isFallback' => $isFallback,
+                ];
+            }
+
+            $fallbackId = trim((string) ($current['fallback'] ?? ''));
+            if ($fallbackId === '') {
+                $diagnostics[] = self::spineFallbackDiagnostic($current);
+
+                return [
+                    'item' => null,
+                    'chain' => $chain,
+                    'diagnostics' => $diagnostics,
+                    'isFallback' => $isFallback,
+                ];
+            }
+
+            if (isset($visited[$fallbackId])) {
+                $diagnostics[] = [
+                    'type' => 'cyclic-spine-fallback-chain',
+                    'id' => (string) $current['id'],
+                    'fallback' => $fallbackId,
+                    'message' => 'EPUB manifest fallback chain cycles before reaching an XHTML content document',
+                ];
+
+                return [
+                    'item' => null,
+                    'chain' => $chain,
+                    'diagnostics' => $diagnostics,
+                    'isFallback' => $isFallback,
+                ];
+            }
+
+            if (!isset($manifestById[$fallbackId])) {
+                $diagnostics[] = [
+                    'type' => 'missing-spine-fallback-manifest-item',
+                    'id' => (string) $current['id'],
+                    'fallback' => $fallbackId,
+                    'message' => 'EPUB manifest fallback references an item id that is not in the OPF manifest',
+                ];
+
+                return [
+                    'item' => null,
+                    'chain' => $chain,
+                    'diagnostics' => $diagnostics,
+                    'isFallback' => $isFallback,
+                ];
+            }
+
+            $visited[$fallbackId] = true;
+            $current = $manifestById[$fallbackId];
+            $chain[] = self::fallbackChainItem($current);
+            $isFallback = true;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function fallbackChainItem(array $item): array
+    {
+        return [
+            'id' => (string) $item['id'],
+            'href' => (string) $item['href'],
+            'target' => (string) $item['target'],
+            'part' => (string) $item['part'],
+            'mediaType' => (string) $item['mediaType'],
+            'properties' => $item['properties'],
+            'exists' => (bool) ($item['exists'] ?? false),
+            'encrypted' => self::isEncryptedManifestItem($item),
+            'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? true),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function spineFallbackDiagnostic(array $item): array
+    {
+        $id = (string) $item['id'];
+        if (($item['exists'] ?? false) !== true) {
+            return [
+                'type' => 'missing-spine-fallback-part',
+                'id' => $id,
+                'part' => (string) $item['part'],
+                'message' => 'EPUB manifest fallback item is missing from the package',
+            ];
+        }
+
+        if (self::isEncryptedManifestItem($item)) {
+            return [
+                'type' => 'encrypted-spine-fallback-content',
+                'id' => $id,
+                'part' => (string) $item['part'],
+                'message' => 'EPUB manifest fallback item is encrypted and cannot be exposed as XHTML content',
+            ];
+        }
+
+        return [
+            'type' => 'missing-spine-xhtml-fallback',
+            'id' => $id,
+            'mediaType' => (string) $item['mediaType'],
+            'message' => 'EPUB spine item fallback chain did not reach an XHTML content document',
+        ];
     }
 
     /**
@@ -1721,24 +1868,37 @@ final class EpubReader
 
         $children = [];
         foreach ($spine as $item) {
-            if ($item['mediaType'] !== self::XHTML_MEDIA_TYPE) {
+            $contentMediaType = $item['contentMediaType'] ?? $item['mediaType'];
+            if ($contentMediaType !== self::XHTML_MEDIA_TYPE) {
                 continue;
             }
 
-            $asset = $assetsByPart[(string) $item['part']] ?? null;
+            $contentPart = (string) ($item['contentPart'] ?? $item['part']);
+            $asset = $assetsByPart[$contentPart] ?? null;
             if (!is_array($asset)) {
                 continue;
             }
 
-            $children[] = new AstNode('raw_html', [
+            $isFallback = (bool) ($item['contentIsFallback'] ?? false);
+            $attributes = [
                 'format' => 'html',
                 'html' => $asset['html'],
-                'part' => $item['part'],
+                'part' => $asset['part'],
                 'id' => $item['idref'],
                 'linear' => $item['linear'],
                 'mediaOverlay' => $item['mediaOverlay'],
-                'source' => 'epub3-spine',
-            ]);
+                'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
+            ];
+
+            if ($isFallback) {
+                $attributes['spinePart'] = $item['part'];
+                $attributes['spineMediaType'] = $item['mediaType'];
+                $attributes['fallbackOf'] = $item['idref'];
+                $attributes['contentId'] = $item['contentId'];
+                $attributes['fallbackChain'] = $item['fallbackChain'];
+            }
+
+            $children[] = new AstNode('raw_html', $attributes);
         }
 
         return new AstNode('document', [
@@ -1906,6 +2066,17 @@ final class EpubReader
     private static function isEncryptedManifestItem(array $item): bool
     {
         return ($item['encrypted'] ?? false) === true;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function canExposeXhtmlContent(array $item): bool
+    {
+        return ($item['mediaType'] ?? null) === self::XHTML_MEDIA_TYPE
+            && ($item['exists'] ?? false) === true
+            && !self::isEncryptedManifestItem($item)
+            && ($item['canExposeBytes'] ?? true) === true;
     }
 
     private static function isObfuscatedFont(?string $algorithm, ?string $mediaType, string $part): bool

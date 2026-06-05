@@ -30,6 +30,8 @@ $opfXml = <<<'XML'
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>
+    <item id="slideshow" href="slides/source-slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler"/>
+    <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
     <item id="audio-chapter" href="audio/chapter.mp3" media-type="audio/mpeg"/>
     <item id="style" href="styles/review.css" media-type="text/css"/>
@@ -39,6 +41,7 @@ $opfXml = <<<'XML'
   </manifest>
   <spine toc="toc">
     <itemref idref="chapter"/>
+    <itemref idref="slideshow" linear="no"/>
   </spine>
   <guide>
     <reference type="text" title="Begin source" href="text/chapter.xhtml#source"/>
@@ -111,6 +114,15 @@ $chapterXhtml = <<<'XML'
 </html>
 XML;
 
+$slideshowFallbackXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <h1>Source slideshow fallback</h1>
+    <p>Scripted EPUB slideshow fallback is preserved for WordPress review.</p>
+  </body>
+</html>
+XML;
+
 $smilXml = <<<'XML'
 <smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
@@ -166,6 +178,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
+    ['name' => 'EPUB/text/slideshow-fallback.xhtml', 'data' => $slideshowFallbackXhtml],
+    ['name' => 'EPUB/slides/source-slideshow.xml', 'data' => '<slides><slide src="../images/cover.png"/></slides>'],
     ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smilXml],
     ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3-DATA'],
     ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
@@ -184,6 +198,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if ($result['spine'][0]['part'] !== '/EPUB/text/chapter.xhtml') {
         throw new RuntimeException('Expected spine chapter part to resolve relative to the OPF');
+    }
+    if (($result['spine'][1]['contentId'] ?? null) !== 'slideshow-handler' || ($result['spine'][1]['contentPart'] ?? null) !== '/EPUB/text/slideshow-fallback.xhtml') {
+        throw new RuntimeException('Expected EPUB foreign spine item to resolve to its XHTML fallback handler');
+    }
+    if (($result['document']->children[1]->attr('source') ?? null) !== 'epub3-spine-fallback') {
+        throw new RuntimeException('Expected EPUB document AST to mark the slideshow handler as a fallback block');
+    }
+    if (!str_contains((string) $result['document']->children[1]->attr('html'), 'Scripted EPUB slideshow fallback is preserved')) {
+        throw new RuntimeException('Expected EPUB fallback XHTML to remain reviewable in the AST');
     }
     if (($result['nav']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected EPUB nav href to resolve to the chapter fragment');
@@ -273,6 +296,7 @@ echo 'title=' . $result['metadata']['title'] . "\n";
 echo 'identifier=' . $result['metadata']['identifier'] . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
+echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'remoteNavExternal=' . (($result['nav']['items'][1]['external'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
