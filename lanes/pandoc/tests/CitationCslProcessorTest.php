@@ -555,7 +555,103 @@ BIB;
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites Migration Review Set (2026) and related manual Curator (2024).</p>', $blocks);
         $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>', $blocks);
-        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>', $blocks);
+    },
+    'normalizes bounded biblatex related references into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@set{migration-review-set,
+  title    = {Migration Review Set},
+  date     = {2026-06-05},
+  entryset = {audit-paper}
+}
+
+@inproceedings{audit-paper,
+  options = {dataonly},
+  author  = {Smith, Ada},
+  title   = {Packet Audit Trails},
+  date    = {2026},
+  pages   = {12--18}
+}
+
+@book{related-manual,
+  author        = {Curator, Eli},
+  title         = {Migration Manual},
+  date          = {2024},
+  related       = {migration-review-set, missing-related},
+  relatedtype   = {companion},
+  relatedstring = {Companion review set}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('related-manual');
+        $t->same(['migration-review-set', 'missing-related'], $manual['relatedKeys'] ?? null);
+        $t->same('companion', $manual['relatedType'] ?? null);
+        $t->same('Companion review set', $manual['relatedString'] ?? null);
+        $t->same(['missing-related'], $manual['missingRelatedKeys'] ?? null);
+        $t->same('migration-review-set', $manual['relatedItems'][0]['id'] ?? null);
+        $t->same('Migration Review Set', $manual['relatedItems'][0]['title'] ?? null);
+        $t->same('2026-06-05', $manual['relatedItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(
+            'Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.',
+            $processor->renderBibliographyEntry('related-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-type"/>
+        <text variable="related-keys"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-string"/>
+      <text variable="related"/>
+      <text variable="missing-related-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Migration Manual | companion | migration-review-set, missing-related]', $styled->renderCitationCluster([$citation('related-manual', '[@related-manual]')]));
+        $t->same('Migration Manual :: Companion review set :: Migration Review Set (2026-06-05); missing: missing-related :: missing-related', $styled->renderBibliographyEntry('related-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-related',
+            'title' => 'Manual Related Source',
+            'related-keys' => ['source-a', 'missing-source'],
+            'related-type' => 'reviewof',
+            'related-string' => 'Reviews source packet',
+            'relatedItems' => [
+                [
+                    'id' => 'source-a',
+                    'title' => 'Source A',
+                    'issued' => ['date-parts' => [[2025]]],
+                ],
+            ],
+            'missingRelatedKeys' => ['missing-source'],
+        ]])->item('manual-related');
+        $t->same(['source-a', 'missing-source'], $direct['relatedKeys'] ?? null);
+        $t->same('reviewof', $direct['relatedType'] ?? null);
+        $t->same('Source A', $direct['relatedItems'][0]['title'] ?? null);
+        $t->same('2025', $direct['relatedItems'][0]['issuedDate']['display'] ?? null);
+
+        $document = (new MarkdownReader())->read('Related source @related-manual keeps companion review metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Related source Curator (2024) keeps companion review metadata visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-related',
+            'title' => 'Bad Related',
+            'relatedItems' => ['source-a'],
+        ]]));
     },
     'maps bounded biblatex translation and original publication metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'

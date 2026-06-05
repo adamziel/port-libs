@@ -604,6 +604,21 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing entry-set keys');
     }
     $relatedManual = $processor->item('related-manual');
+    if (($relatedManual['relatedKeys'] ?? null) !== ['migration-review-set', 'missing-related']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not normalize related manual relationship keys');
+    }
+    if (($relatedManual['relatedType'] ?? null) !== 'companion') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not normalize related manual relationship type');
+    }
+    if (($relatedManual['relatedString'] ?? null) !== 'Companion review set') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not normalize related manual relationship string');
+    }
+    if (($relatedManual['relatedItems'][0]['title'] ?? null) !== 'Migration Review Set') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize related manual relationship item');
+    }
+    if (($relatedManual['missingRelatedKeys'] ?? null) !== ['missing-related']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not normalize missing related keys');
+    }
     if (($relatedManual['raw']['relatedType'] ?? null) !== 'companion') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve related manual relationship type');
     }
@@ -1034,7 +1049,7 @@ XML);
         '<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>',
         '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
-        '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>',
+        '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>',
         '<p>A review note source Ng (2026) keeps import audit notes and publication medium attached.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',

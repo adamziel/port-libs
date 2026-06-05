@@ -423,6 +423,10 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        foreach ($this->relatedBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         foreach ($this->nameMetadataBibliographyParts($item) as $part) {
             $parts[] = $part;
         }
@@ -686,6 +690,11 @@ final class CitationCslProcessor
             'keywords' => self::stringListField($item, 'keyword'),
             'sourceFiles' => $sourceFilePolicy['files'],
             'sourceFileDiagnostics' => $sourceFileDiagnostics,
+            'relatedKeys' => self::stringListFromFirstField($item, ['relatedKeys', 'related-keys', 'related']),
+            'relatedType' => self::firstStringField($item, ['relatedType', 'related-type', 'relatedtype']),
+            'relatedString' => self::firstStringField($item, ['relatedString', 'related-string', 'relatedstring']),
+            'relatedItems' => self::relatedItemSummaries($item['relatedItems'] ?? [], $id),
+            'missingRelatedKeys' => self::stringListFromFirstField($item, ['missingRelatedKeys', 'missing-related-keys']),
             'issuedDate' => $issuedDate,
             'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
             'originalTitle' => self::stringField($item, 'original-title'),
@@ -911,6 +920,55 @@ final class CitationCslProcessor
         }
 
         return trim((string) $value);
+    }
+
+    /**
+     * @return list<array{id:string, type:string, title:string, issuedDate:array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}, display:string}>
+     */
+    private static function relatedItemSummaries(mixed $value, string $id): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' relatedItems must be a list');
+        }
+
+        $summaries = [];
+        foreach ($value as $index => $related) {
+            if (!is_array($related)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' relatedItems[' . $index . '] must be an object');
+            }
+
+            $relatedId = self::firstStringField($related, ['id', 'citation-key']);
+            $title = self::stringField($related, 'title');
+            if ($relatedId === '' && $title === '') {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' relatedItems[' . $index . '] must include id or title');
+            }
+
+            $issuedDate = self::dateVariable($related['issued'] ?? null, $id, 'relatedItems[' . $index . '].issued');
+            $summaries[] = [
+                'id' => $relatedId,
+                'type' => self::stringField($related, 'type'),
+                'title' => $title,
+                'issuedDate' => $issuedDate,
+                'display' => self::relatedItemSummaryDisplay($relatedId, $title, $issuedDate),
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param array{display:string, literal:string} $issuedDate
+     */
+    private static function relatedItemSummaryDisplay(string $id, string $title, array $issuedDate): string
+    {
+        $label = $title !== '' ? $title : $id;
+        $date = trim((string) ($issuedDate['display'] ?? ''));
+
+        return $date !== '' ? $label . ' (' . $date . ')' : $label;
     }
 
     /**
@@ -3440,6 +3498,17 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @return list<string>
      */
+    private function relatedBibliographyParts(array $item): array
+    {
+        $summary = $this->relatedSummary($item);
+
+        return $summary === '' ? [] : [$this->withTerminalPunctuation($summary)];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
     private function nameMetadataBibliographyParts(array $item): array
     {
         $parts = [];
@@ -3490,6 +3559,76 @@ final class CitationCslProcessor
         }
 
         return implode('; ', $entries);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relatedSummary(array $item): string
+    {
+        $values = $this->relatedSummaryValues($item);
+        if ($values === '') {
+            return '';
+        }
+
+        $label = trim((string) ($item['relatedString'] ?? ''));
+        if ($label === '') {
+            $label = 'Related source';
+        }
+
+        $type = trim((string) ($item['relatedType'] ?? ''));
+        if ($type !== '') {
+            $label .= ' (' . $type . ')';
+        }
+
+        return $label . ': ' . $values;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relatedSummaryValues(array $item): string
+    {
+        $values = [];
+        $relatedItems = $item['relatedItems'] ?? [];
+        if (is_array($relatedItems)) {
+            foreach ($relatedItems as $relatedItem) {
+                if (!is_array($relatedItem)) {
+                    continue;
+                }
+
+                $display = trim((string) ($relatedItem['display'] ?? ''));
+                if ($display !== '') {
+                    $values[] = $display;
+                }
+            }
+        }
+
+        $missing = $item['missingRelatedKeys'] ?? [];
+        if (is_array($missing)) {
+            foreach ($missing as $key) {
+                $key = trim((string) $key);
+                if ($key !== '') {
+                    $values[] = 'missing: ' . $key;
+                }
+            }
+        }
+
+        if ($values === []) {
+            $relatedKeys = $item['relatedKeys'] ?? [];
+            if (is_array($relatedKeys)) {
+                $values = array_values(array_filter(
+                    array_map(static fn (mixed $key): string => trim((string) $key), $relatedKeys),
+                    static fn (string $key): bool => $key !== ''
+                ));
+            }
+        }
+
+        if ($values === []) {
+            return '';
+        }
+
+        return implode('; ', $values);
     }
 
     /**
@@ -4554,6 +4693,12 @@ final class CitationCslProcessor
             'addendum' => (string) $item['addendum'],
             'name-addon' => (string) $item['nameAddon'],
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
+            'related' => $this->relatedSummaryValues($item),
+            'related-summary' => $this->relatedSummary($item),
+            'related-keys' => implode(', ', is_array($item['relatedKeys'] ?? null) ? $item['relatedKeys'] : []),
+            'related-type', 'relatedtype' => (string) ($item['relatedType'] ?? ''),
+            'related-string', 'relatedstring' => (string) ($item['relatedString'] ?? ''),
+            'missing-related-keys' => implode(', ', is_array($item['missingRelatedKeys'] ?? null) ? $item['missingRelatedKeys'] : []),
             'original-publisher-list' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
             'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
