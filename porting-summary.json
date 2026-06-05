@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 07:14:34 UTC",
-    "sourceCommit": "4ab2abc56d5c83bbac98f267b763cd7d0b57a5ae",
-    "sourceCommitShort": "4ab2abc56d5c",
+    "generated": "2026-06-05 07:15:37 UTC",
+    "sourceCommit": "a99415aeed2feb39fb6e42a4ec05fd4b05a42134",
+    "sourceCommitShort": "a99415aeed2f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4ab2abc56d5c83bbac98f267b763cd7d0b57a5ae",
-    "dashboardCommitShort": "4ab2abc56d5c",
+    "dashboardCommit": "a99415aeed2feb39fb6e42a4ec05fd4b05a42134",
+    "dashboardCommitShort": "a99415aeed2f",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -81,7 +81,7 @@
             "library": "markerPDF",
             "priority": "Active",
             "queue": "Active",
-            "state": "Near complete",
+            "state": "PHP green, upstream gap",
             "progressPercent": "100.0",
             "completion": "100.0%",
             "suite": "cloned-static-inventory",
@@ -91,12 +91,12 @@
             "coverage": "724 / 78 (928.2%)",
             "mapPercent": "928.2%",
             "unmapped": "0",
-            "php": "1,563 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; isolated inline ASCIIHex EOD sample-fl...",
-            "audit": "Current-base red-first fixture showed fake EI inside malformed ASCIIH...",
+            "php": "1,564 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; isolated xref Prev-chain latest free-r...",
+            "audit": "2026-06-05 UTC isolated xref Prev-chain latest free-row suppression s...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "Continue no-GPU markerPDF native parser work on non-overlappi...",
-            "remainingGate": "No local blocker",
+            "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
+            "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
             "commit": "pending fast ac..."
         },
         {
