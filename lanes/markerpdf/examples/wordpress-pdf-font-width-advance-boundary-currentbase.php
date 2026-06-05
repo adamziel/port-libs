@@ -66,6 +66,13 @@ $textRisePdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($textRiseContent) . " >>\nstream\n{$textRiseContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F /G /H] >>\nendobj\n%%EOF";
 
+$tjBacktrackContent = 'BT /Ftj 12 Tf 1 0 0 1 72 720 Tm [(AB) 3000 (CD)] TJ ET';
+$tjBacktrackWidths = implode(' ', array_fill(0, 36, '1000'));
+$tjBacktrackPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftj 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjBacktrackAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 67 /Widths [{$tjBacktrackWidths}] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($tjBacktrackContent) . " >>\nstream\n{$tjBacktrackContent}\nendstream\nendobj\n%%EOF";
+
 $sparseWidthContent = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 $sparseWidthPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsparse 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -170,6 +177,14 @@ $textRiseSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $textRiseLine['spans'] ?? []
 );
+$tjBacktrackLines = $extractor->extractTextLines($tjBacktrackPdf);
+$tjBacktrackPlainText = implode("\n", $tjBacktrackLines);
+$tjBacktrackPages = $extractor->extractStyledTextPages($tjBacktrackPdf);
+$tjBacktrackLine = $tjBacktrackPages[0]['blocks'][0]['lines'][0] ?? [];
+$tjBacktrackSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $tjBacktrackLine['spans'] ?? []
+);
 $sparseWidthLines = $extractor->extractTextLines($sparseWidthPdf);
 $sparseWidthPlainText = implode("\n", $sparseWidthLines);
 $sparseWidthPages = $extractor->extractStyledTextPages($sparseWidthPdf);
@@ -213,6 +228,11 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'text_rise_span_bboxes_preserved' => $textRiseSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 6.0, 48.0, 18.0], [48.0, -3.0, 72.0, 9.0], [72.0, 0.0, 96.0, 12.0]],
     'text_rise_line_bbox_preserved' => ($textRiseLine['bbox'] ?? null) === [0.0, -3.0, 96.0, 18.0],
     'text_rise_zero_baseline_fallback_excluded' => $textRiseSpanBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0], [48.0, 0.0, 72.0, 12.0], [72.0, 0.0, 96.0, 12.0]],
+    'tj_backtrack_text_preserved' => $tjBacktrackLines === ['ABCD'],
+    'tj_backtrack_plain_text_preserved' => $tjBacktrackPlainText === 'ABCD',
+    'tj_backtrack_span_bbox_preserved' => $tjBacktrackSpanBboxes === [[0.0, 0.0, 36.0, 12.0]],
+    'tj_backtrack_line_bbox_preserved' => ($tjBacktrackLine['bbox'] ?? null) === [0.0, 0.0, 36.0, 12.0],
+    'tj_backtrack_final_cursor_collapse_excluded' => $tjBacktrackSpanBboxes !== [[0.0, 0.0, 12.0, 12.0]],
     'unresolved_width_slot_preserved' => $sparseWidthLines === ['CD'],
     'unresolved_width_false_gap_excluded' => !str_contains($sparseWidthPlainText, 'C D'),
     'unresolved_width_slot_bboxes_preserved' => $sparseWidthSpanBboxes === [[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]],
@@ -233,6 +253,9 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'text_rise_plain_text' => $textRisePlainText,
     'text_rise_span_bboxes' => $textRiseSpanBboxes,
     'text_rise_line_bbox' => $textRiseLine['bbox'] ?? null,
+    'tj_backtrack_lines' => $tjBacktrackLines,
+    'tj_backtrack_span_bboxes' => $tjBacktrackSpanBboxes,
+    'tj_backtrack_line_bbox' => $tjBacktrackLine['bbox'] ?? null,
     'sparse_width_lines' => $sparseWidthLines,
     'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
     'vertical_span_bboxes' => $verticalSpanBboxes,
@@ -240,7 +263,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $sparseWidthLines, $verticalLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $sparseWidthLines, $verticalLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

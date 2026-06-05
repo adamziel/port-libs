@@ -84,6 +84,16 @@ $fontWidthTextRiseBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D /E /F /G /H] >>\nendobj\n%%EOF";
 };
 
+$fontWidthTjBacktrackBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Ftj 12 Tf 1 0 0 1 72 720 Tm [(AB) 3000 (CD)] TJ ET';
+    $widths = implode(' ', array_fill(0, 36, '1000'));
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftj 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+TjBacktrackAdvance /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 67 /Widths [{$widths}] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 
@@ -285,6 +295,26 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0], [48.0, 0.0, 72.0, 12.0], [72.0, 0.0, 96.0, 12.0]]);
         $t->true(!str_contains($plainText, 'TextRiseAdvance'));
         $t->true(!str_contains($plainText, 'Frise'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'keeps TJ backtracking adjustments from collapsing native styled font bboxes on current base' => static function (TestRunner $t) use ($fontWidthTjBacktrackBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthTjBacktrackBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABCD'], $extractor->extractTextLines($pdf));
+        $t->same(['ABCD'], $extractor->extractTextRuns($pdf));
+        $t->same('ABCD', $plainText);
+        $t->same("ABCD\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABCD'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 36.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 36.0, 12.0], $line['bbox'] ?? null);
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'TjBacktrackAdvance'));
+        $t->true(!str_contains($plainText, 'Ftj'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'preserves unresolved simple-font width slots before current advance gap decisions' => static function (TestRunner $t) use ($fontWidthUnresolvedSlotBoundaryCurrentBasePdf): void {

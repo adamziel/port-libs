@@ -18722,8 +18722,7 @@ final class PdfTextExtractor
         float $horizontalScale
     ): float {
         if ($sourceOperand !== null && $this->mapWritingMode($toUnicodeMap) !== 1) {
-            $endX = $this->advanceTextEndXForOperand(
-                0.0,
+            $extentWidth = $this->textOperandHorizontalExtentWidth(
                 $sourceOperand,
                 $toUnicodeMap,
                 $fontSize,
@@ -18731,12 +18730,73 @@ final class PdfTextExtractor
                 $wordSpacing,
                 $horizontalScale
             );
-            if ($endX !== null && is_finite($endX)) {
-                return max(1.0, abs($endX));
+            if ($extentWidth !== null && is_finite($extentWidth)) {
+                return max(1.0, $extentWidth);
             }
         }
 
         return max(1.0, $this->length($text) * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO);
+    }
+
+    private function textOperandHorizontalExtentWidth(
+        string $operand,
+        ?array $toUnicodeMap,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): ?float {
+        $operand = trim($operand);
+        if (!str_starts_with($operand, '[')) {
+            $endX = $this->advanceTextEndXForOperand(
+                0.0,
+                $operand,
+                $toUnicodeMap,
+                $fontSize,
+                $characterSpacing,
+                $wordSpacing,
+                $horizontalScale
+            );
+
+            return $endX === null ? null : abs($endX);
+        }
+
+        $cursorX = 0.0;
+        $minX = 0.0;
+        $maxX = 0.0;
+        $hasTextExtent = false;
+        foreach ($this->textArrayElements($operand) as $element) {
+            if ($element['type'] === 'text') {
+                $textOperand = (string) $element['value'];
+                $startX = $cursorX;
+                $endX = $this->advanceTextEndX(
+                    $cursorX,
+                    $this->decodeTextOperand($textOperand, $toUnicodeMap),
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $horizontalScale,
+                    $this->glyphWidthsForTextOperand($textOperand, $toUnicodeMap),
+                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap)
+                );
+                if ($endX === null) {
+                    continue;
+                }
+
+                $cursorX = $endX;
+                $minX = min($minX, $startX, $endX);
+                $maxX = max($maxX, $startX, $endX);
+                $hasTextExtent = true;
+                continue;
+            }
+
+            $adjustedX = $this->adjustTextEndX($cursorX, (float) $element['value'], $fontSize, $horizontalScale);
+            if ($adjustedX !== null) {
+                $cursorX = $adjustedX;
+            }
+        }
+
+        return $hasTextExtent ? $maxX - $minX : null;
     }
 
     /**
