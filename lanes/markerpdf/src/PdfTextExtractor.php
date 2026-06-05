@@ -26946,6 +26946,11 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($this->contentSegmentGraphicsStateOperatorOperands($token, $outsideTextOperands)) {
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
                 if ($this->numericOperand($token) !== null) {
                     if (count($outsideTextOperands) >= 6) {
                         return false;
@@ -27173,6 +27178,54 @@ final class PdfTextExtractor
             default => null,
         };
         if ($requiredOperands === null || count($operands) !== $requiredOperands) {
+            return false;
+        }
+
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function contentSegmentGraphicsStateOperatorOperands(string $operator, array $operands): bool
+    {
+        $numericOperands = function (int $count) use ($operands): bool {
+            if (count($operands) !== $count) {
+                return false;
+            }
+
+            foreach ($operands as $operand) {
+                if ($this->numericOperand($operand) === null) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        if (in_array($operator, ['G', 'g', 'w', 'M', 'i', 'J', 'j'], true)) {
+            return $numericOperands(1);
+        }
+
+        if (in_array($operator, ['RG', 'rg'], true)) {
+            return $numericOperands(3);
+        }
+
+        if (in_array($operator, ['K', 'k'], true)) {
+            return $numericOperands(4);
+        }
+
+        if (in_array($operator, ['CS', 'cs', 'gs', 'ri'], true)) {
+            return count($operands) === 1 && $this->markedContentTagOperand($operands[0]);
+        }
+
+        if (!in_array($operator, ['SC', 'sc', 'SCN', 'scn'], true) || $operands === [] || count($operands) > 8) {
             return false;
         }
 
