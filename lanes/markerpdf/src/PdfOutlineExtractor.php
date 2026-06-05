@@ -1983,7 +1983,21 @@ final class PdfOutlineExtractor
         }
 
         $seenOffsets = [];
-        return $this->trailerRootReferenceFromClassicXrefOffset($pdfBytes, (int) $latest[1], $seenOffsets);
+        return $this->trailerRootReferenceFromStartxrefOffset($pdfBytes, (int) $latest[1], $seenOffsets);
+    }
+
+    /**
+     * @param array<int, true> $seenOffsets
+     * @return array{object: int, generation: int}|null
+     */
+    private function trailerRootReferenceFromStartxrefOffset(string $pdfBytes, int $offset, array &$seenOffsets): ?array
+    {
+        $root = $this->trailerRootReferenceFromClassicXrefOffset($pdfBytes, $offset, $seenOffsets);
+        if ($root !== null) {
+            return $root;
+        }
+
+        return $this->trailerRootReferenceFromXrefStreamOffset($pdfBytes, $offset, $seenOffsets);
     }
 
     /**
@@ -1992,7 +2006,7 @@ final class PdfOutlineExtractor
      */
     private function trailerRootReferenceFromClassicXrefOffset(string $pdfBytes, int $offset, array &$seenOffsets): ?array
     {
-        if ($offset < 0 || isset($seenOffsets[$offset])) {
+        if ($offset < 0 || isset($seenOffsets[$offset]) || substr($pdfBytes, $this->skipWhitespace($pdfBytes, $offset), 4) !== 'xref') {
             return null;
         }
         $seenOffsets[$offset] = true;
@@ -2015,7 +2029,68 @@ final class PdfOutlineExtractor
             return null;
         }
 
-        return $this->trailerRootReferenceFromClassicXrefOffset($pdfBytes, $previousOffset, $seenOffsets);
+        return $this->trailerRootReferenceFromStartxrefOffset($pdfBytes, $previousOffset, $seenOffsets);
+    }
+
+    /**
+     * @param array<int, true> $seenOffsets
+     * @return array{object: int, generation: int}|null
+     */
+    private function trailerRootReferenceFromXrefStreamOffset(string $pdfBytes, int $offset, array &$seenOffsets): ?array
+    {
+        if ($offset < 0) {
+            return null;
+        }
+
+        $offset = $this->skipWhitespace($pdfBytes, $offset);
+        if (isset($seenOffsets[$offset])) {
+            return null;
+        }
+
+        $dictionary = $this->xrefStreamDictionaryAtOffset($pdfBytes, $offset);
+        if ($dictionary === null || $this->nameValue($dictionary['Type'] ?? null) !== 'XRef') {
+            return null;
+        }
+        $seenOffsets[$offset] = true;
+
+        $root = $dictionary['Root'] ?? null;
+        if ($this->isReferenceValue($root)) {
+            return [
+                'object' => (int) $root['object'],
+                'generation' => $this->referenceGeneration($root),
+            ];
+        }
+
+        $previousOffset = $this->integerOrNullValue($dictionary['Prev'] ?? null);
+        if ($previousOffset === null) {
+            return null;
+        }
+
+        return $this->trailerRootReferenceFromStartxrefOffset($pdfBytes, $previousOffset, $seenOffsets);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function xrefStreamDictionaryAtOffset(string $pdfBytes, int $offset): ?array
+    {
+        $remaining = substr($pdfBytes, $offset, 8192);
+        if (preg_match('/^\d+\s+\d+\s+obj\b/s', $remaining, $headerMatch) !== 1) {
+            return null;
+        }
+
+        $dictionaryOffset = strpos($remaining, '<<', strlen($headerMatch[0]));
+        if ($dictionaryOffset === false) {
+            return null;
+        }
+
+        $tokens = $this->tokens(substr($remaining, $dictionaryOffset, 4096));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $index = 0;
+        return $this->dictionaryItems($this->parseValue($tokens, $index));
     }
 
     /**
