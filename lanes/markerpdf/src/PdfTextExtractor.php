@@ -22982,28 +22982,35 @@ final class PdfTextExtractor
                     break;
                 }
 
-                if (
-                    preg_match('/^(?:00)+$/', $exact) !== 1
-                    || $offset + ($keyLength * 2) > $length
-                ) {
+                if (preg_match('/^(?:00)+$/', $exact) !== 1) {
                     continue;
                 }
 
-                $suffix = substr($normalized, $offset + $keyLength, $keyLength);
-                if (!array_key_exists($suffix, $mappings)) {
-                    continue;
+                for ($suffixOffset = $offset + $keyLength; $suffixOffset + $keyLength <= $length; $suffixOffset += $keyLength) {
+                    $suffix = substr($normalized, $suffixOffset, $keyLength);
+                    if (preg_match('/^(?:00)+$/', $suffix) === 1) {
+                        continue;
+                    }
+
+                    if (!array_key_exists($suffix, $mappings)) {
+                        break;
+                    }
+
+                    $combined = substr($normalized, $offset, $suffixOffset + $keyLength - $offset);
+                    if (strlen($combined) > 8 || !$this->fontWidthMapContainsCid(hexdec($combined), $toUnicodeMap)) {
+                        break;
+                    }
+
+                    $keys[] = $combined;
+                    $offset += strlen($combined);
+                    $matched = true;
+                    $collapsed = true;
+                    break;
                 }
 
-                $combined = substr($normalized, $offset, $keyLength * 2);
-                if (!$this->fontWidthMapContainsCid(hexdec($combined), $toUnicodeMap)) {
-                    continue;
+                if ($matched) {
+                    break;
                 }
-
-                $keys[] = $combined;
-                $offset += $keyLength * 2;
-                $matched = true;
-                $collapsed = true;
-                break;
             }
 
             if (!$matched) {
