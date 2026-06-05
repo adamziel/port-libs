@@ -483,7 +483,7 @@ final class PdfAttachmentExtractor
                 : $inheritedLimits;
             $childLimits = $entryLimits;
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->stringValue($names[$index]);
+                $name = $this->stringValue($this->resolveValue($names[$index], $objects));
                 if ($name === null || $name === '' || !$this->nameTreeNameWithinLimits($name, $entryLimits)) {
                     continue;
                 }
