@@ -7429,7 +7429,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
             if ($decoded === null) {
                 continue;
             }

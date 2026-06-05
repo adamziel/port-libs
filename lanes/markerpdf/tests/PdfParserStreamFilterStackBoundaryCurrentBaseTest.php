@@ -573,6 +573,22 @@ $parserStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf = static function
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $safeContent = 'BT /F1 12 Tf 72 720 Td (Fallback Trailing Null DecodeParms Applies) Tj ET';
+    $safeCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($safeContent);
+    $leakingContent = 'BT /F1 12 Tf 72 704 Td (Trailing Null DecodeParms Leak) Tj ET';
+    $leakingCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($leakingContent);
+    $visibleAfter = 'BT /F1 12 Tf 72 688 Td (Visible After Fallback Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "4 0 obj\n<< /Filter [ /FlateDecode null ] /DecodeParms [ << /Predictor 1 >> 99 0 R ] /Length " . strlen($safeCompressed) . " >>\nstream\n{$safeCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter [ /FlateDecode null ] /DecodeParms [ 99 0 R null ] /Length " . strlen($leakingCompressed) . " >>\nstream\n{$leakingCompressed}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -874,6 +890,24 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'Extra DecodeParms Leak'));
         $t->true(!str_contains($text, 'Predictor'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'ignores unresolved DecodeParms entries aligned to trailing null filters in fallback stream scans' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Fallback Trailing Null DecodeParms Applies',
+            'Visible After Fallback Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($text, 'Trailing Null DecodeParms Leak'));
+        $t->true(!str_contains($text, '99 0 R'));
+        $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
