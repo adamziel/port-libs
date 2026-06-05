@@ -376,6 +376,51 @@ XML;
         $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review"></span>marker.', $blocksHtml);
         $t->contains('<a href="#point-review" class="odf-reference-ref" data-odf-ref-name="Point Review" data-odf-reference-format="page">point marker</a>', $blocksHtml);
     },
+    'maps ODT sequence fields into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithSequences = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="seq-hero">Figure 1</text:sequence>: Hero image.</text:p>
+      <text:h text:outline-level="2">Appendix <text:sequence text:name="Chapter" text:formula="ooow:Chapter+1">A</text:sequence></text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSequences));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $paragraph = $blocks[0];
+        $heading = $blocks[1];
+        $figureSequence = $paragraph->children[1];
+        $chapterSequence = $heading->children[1];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Caption Figure 1: Hero image.', $paragraph->attr('text'));
+        $t->same('span', $figureSequence->type);
+        $t->same(['odf-sequence'], $figureSequence->attr('classes'));
+        $t->same('Figure 1', $figureSequence->children[0]->attr('text'));
+        $t->same('Illustration', $figureSequence->attr('attributes')['data-odf-sequence-name']);
+        $t->same('ooow:Illustration+1', $figureSequence->attr('attributes')['data-odf-sequence-formula']);
+        $t->same('seq-hero', $figureSequence->attr('attributes')['data-odf-sequence-ref-name']);
+        $t->same('heading', $heading->type);
+        $t->same(2, $heading->attr('level'));
+        $t->same('span', $chapterSequence->type);
+        $t->same('Chapter', $chapterSequence->attr('attributes')['data-odf-sequence-name']);
+        $t->same('A', $chapterSequence->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['sequenceCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Caption [Figure 1]{.odf-sequence data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero"}: Hero image.', $markdown);
+        $t->contains('## Appendix [A]{.odf-sequence data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1"}', $markdown);
+        $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
+        $t->contains('<h2>Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
+    },
     'maps ODT tracked changes into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTrackedChanges = <<<'XML'
 <office:document-content

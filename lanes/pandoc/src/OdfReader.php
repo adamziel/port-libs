@@ -127,6 +127,7 @@ final class OdfReader
                     'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
                     'referenceMarkCount' => $contentStats['referenceMarkCount'],
                     'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
+                    'sequenceCount' => $contentStats['sequenceCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
                 ],
@@ -932,6 +933,13 @@ final class OdfReader
                 $nodes[] = new AstNode('linebreak');
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'sequence')) {
+                $sequence = $this->sequenceNode($child, $catalog, $package);
+                if ($sequence instanceof AstNode) {
+                    $nodes[] = $sequence;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::DRAW_NS, 'frame')) {
                 $image = $this->frameImageNode($child, $package);
                 if ($image instanceof AstNode) {
@@ -985,6 +993,40 @@ final class OdfReader
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function sequenceNode(\DOMElement $sequence, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $children = $this->coalesceTextNodes($this->inlineNodes($sequence, $catalog, $package));
+        if ($children === []) {
+            $text = self::normalizedText($sequence);
+            if ($text === '') {
+                return null;
+            }
+            $children = [new AstNode('text', ['text' => $text])];
+        }
+
+        $attributes = [];
+        foreach ([
+            'name' => 'data-odf-sequence-name',
+            'formula' => 'data-odf-sequence-formula',
+            'ref-name' => 'data-odf-sequence-ref-name',
+            'num-format' => 'data-odf-sequence-num-format',
+        ] as $source => $target) {
+            $value = self::attr($sequence, self::TEXT_NS, $source);
+            if ($value !== '') {
+                $attributes[$target] = $value;
+            }
+        }
+
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'classes' => ['odf-sequence'],
+            'attributes' => $attributes,
+        ], $children);
     }
 
     /**
@@ -1769,7 +1811,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, trackedChangeCount:int, mathCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, trackedChangeCount:int, mathCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -1779,6 +1821,7 @@ final class OdfReader
             'bookmarkReferenceCount' => 0,
             'referenceMarkCount' => 0,
             'referenceReferenceCount' => 0,
+            'sequenceCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
         ];
@@ -1797,6 +1840,9 @@ final class OdfReader
             }
             if ($node->type === 'link' && $this->nodeHasClass($node, 'odf-reference-ref')) {
                 $stats['referenceReferenceCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-sequence')) {
+                $stats['sequenceCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-change')) {
                 $stats['trackedChangeCount']++;

@@ -76,7 +76,7 @@ $contentXml = <<<'XML'
         </text:changed-region>
       </text:tracked-changes>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object 1"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
@@ -183,6 +183,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['content']['referenceReferenceCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT reference refs to be counted in the import report');
+    }
+    if (($result['importReport']['content']['sequenceCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT sequence fields to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="source-hero-seq">Figure 1</span>')) {
+        throw new RuntimeException('Expected ODT sequence field to render in WordPress blocks');
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
