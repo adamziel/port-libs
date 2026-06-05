@@ -10919,7 +10919,10 @@ final class PdfTextExtractor
                 $afterMarker = $markerOffset + strlen($marker);
                 $terminator = $this->skipPdfWhitespace($value, $afterMarker);
                 if ($this->endstreamKeywordAt($value, $terminator)) {
-                    return $terminator;
+                    $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
+                    if ($this->ccittFaxBytesReachBoundaryForDecodeParms($payload, $filterDecodeParms, $objects)) {
+                        return $terminator;
+                    }
                 }
 
                 $offset = $markerOffset + 1;
@@ -10972,12 +10975,37 @@ final class PdfTextExtractor
             ? null
             : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
 
-        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects);
-        if ($markers === []) {
-            return true;
+        return $this->ccittFaxBytesReachBoundaryForDecodeParms($faxBytes, $filterDecodeParms, $objects, true);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxBytesReachBoundaryForDecodeParms(
+        string $faxBytes,
+        ?string $decodeParms,
+        array $objects,
+        bool $acceptWithoutExplicitMarkers = false
+    ): bool
+    {
+        $bytes = rtrim($faxBytes, "\x00\t\n\f\r ");
+        if ($bytes === '') {
+            return false;
         }
 
-        $bytes = rtrim($faxBytes, "\x00\t\n\f\r ");
+        $rowCount = $this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects);
+        if ($rowCount !== null) {
+            $rowEndMarker = "\x00\x10\x01";
+
+            return str_ends_with($bytes, $rowEndMarker)
+                && substr_count($bytes, $rowEndMarker) >= $rowCount;
+        }
+
+        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($decodeParms, $objects);
+        if ($markers === []) {
+            return $acceptWithoutExplicitMarkers;
+        }
+
         foreach ($markers as $marker) {
             if (str_ends_with($bytes, $marker)) {
                 return true;
@@ -11030,28 +11058,42 @@ final class PdfTextExtractor
      */
     private function ccittFaxEndOfLineMarkersForOwnership(?string $decodeParms, array $objects): array
     {
-        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'EndOfLine')) {
+        if ($this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects) === null) {
             return [];
+        }
+
+        return ["\x00\x10\x01"];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxEndOfLineRowCountForOwnership(?string $decodeParms, array $objects): ?int
+    {
+        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'EndOfLine')) {
+            return null;
         }
 
         $endOfLine = $this->decodeParmsBool($decodeParms, 'EndOfLine', $objects);
         if ($endOfLine !== true) {
-            return [];
+            return null;
         }
 
         $k = $this->decodeParmsInt($decodeParms, 'K', $objects) ?? 0;
         if ($k < 0) {
-            return [];
+            return null;
         }
 
         if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
             $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
             if ($rows === null || $rows <= 0) {
-                return [];
+                return null;
             }
+
+            return $rows;
         }
 
-        return ["\x00\x10\x01"];
+        return 1;
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int
@@ -28861,10 +28903,8 @@ final class PdfTextExtractor
             return 'unknown';
         }
 
-        foreach ($this->ccittFaxEndOfBlockMarkersForOwnership($decodeParms, $objects) as $marker) {
-            if (str_ends_with($bytes, $marker)) {
-                return 'complete';
-            }
+        if ($this->ccittFaxBytesReachBoundaryForDecodeParms($bytes, $decodeParms, $objects)) {
+            return 'complete';
         }
 
         return 'incomplete';
