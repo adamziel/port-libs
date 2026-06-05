@@ -3406,7 +3406,7 @@ final class PdfAcroFormExtractor
      * @param array<int, string> $objects
      * @param array<string, array{value: string, source: string, source_object: int|null}> $inherited
      * @param list<string> $nameParts
-     * @param list<array{object: int, partial_name: string|null, full_name: string, mapping_name: string|null}> $hierarchyPath
+     * @param list<array{object: int, partial_name: string|null, full_name: string, alternate_name: string|null, mapping_name: string|null}> $hierarchyPath
      * @param array<int, true> $seen
      * @param array<int, int> $pageIndexes
      * @param array<int, array{page_index: int, page_object: int, annotation_index: int}> $pageWidgets
@@ -3431,6 +3431,7 @@ final class PdfAcroFormExtractor
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         $effective = $this->mergeFieldAttributes($body, $inherited, $objectNumber);
         $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
+        $alternateName = $this->pdfStringValueAfterName($body, 'TU', $objects);
         $mappingName = $this->pdfStringValueAfterName($body, 'TM', $objects);
         $currentNameParts = $nameParts;
         if ($partialName !== null && $partialName !== '') {
@@ -3442,6 +3443,7 @@ final class PdfAcroFormExtractor
             'object' => $objectNumber,
             'partial_name' => $partialName,
             'full_name' => $currentFullName,
+            'alternate_name' => $alternateName,
             'mapping_name' => $mappingName,
         ];
 
@@ -3533,6 +3535,7 @@ final class PdfAcroFormExtractor
             'object' => $objectNumber,
             'name' => $name,
             'partial_name' => $partialName,
+            'alternate_name' => $alternateName,
             'mapping_name' => $mappingName ?? $name,
             'field_type' => $fieldType,
             'field_type_label' => $this->fieldTypeLabel($fieldType),
@@ -3544,6 +3547,7 @@ final class PdfAcroFormExtractor
             'max_length' => $maxLengthReview['max_length'] ?? null,
             'value_state' => $valueState,
             'field_hierarchy' => $fieldHierarchy,
+            'field_name_review' => $this->fieldNameReview($objectNumber, $name, $partialName, $alternateName, $mappingName, $fieldType, $currentHierarchyPath),
             'default_appearance' => $defaultAppearance,
             'actions' => $actionReview['actions'],
             'action_review' => $actionReview['review'],
@@ -3581,7 +3585,7 @@ final class PdfAcroFormExtractor
     }
 
     /**
-     * @param list<array{object: int, partial_name: string|null, full_name: string, mapping_name: string|null}> $path
+     * @param list<array{object: int, partial_name: string|null, full_name: string, alternate_name: string|null, mapping_name: string|null}> $path
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      * @param array<string, array{value: string, source: string, source_object: int|null}> $inherited
      * @return array<string, mixed>
@@ -3654,6 +3658,59 @@ final class PdfAcroFormExtractor
             'terminal_overrides_parent_max_length' => $terminalHasMaxLength && isset($inherited['MaxLen']),
             'value_redacted' => $password,
             'value_used_for_import' => $password ? false : isset($effective['V']),
+            'executes_form_actions' => false,
+            'executes_javascript' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{object: int, partial_name: string|null, full_name: string, alternate_name: string|null, mapping_name: string|null}> $path
+     * @return array<string, mixed>
+     */
+    private function fieldNameReview(
+        int $fieldObject,
+        string $fieldName,
+        ?string $partialName,
+        ?string $alternateName,
+        ?string $mappingName,
+        ?string $fieldType,
+        array $path
+    ): array {
+        $wordpressLabel = $alternateName !== null && $alternateName !== ''
+            ? $alternateName
+            : (($mappingName !== null && $mappingName !== '') ? $mappingName : $fieldName);
+
+        return [
+            'source' => 'acroform_field_name_review_boundary',
+            'field_object' => $fieldObject,
+            'field_name' => $fieldName,
+            'partial_name' => $partialName,
+            'alternate_name' => $alternateName,
+            'mapping_name' => $mappingName ?? $fieldName,
+            'explicit_mapping_name' => $mappingName !== null,
+            'field_type' => $fieldType,
+            'wordpress_label' => $wordpressLabel,
+            'path' => $path,
+            'path_objects' => array_values(array_map(
+                static fn (array $entry): int => $entry['object'],
+                $path
+            )),
+            'partial_name_path' => array_values(array_map(
+                static fn (array $entry): ?string => $entry['partial_name'],
+                $path
+            )),
+            'alternate_name_path' => array_values(array_map(
+                static fn (array $entry): ?string => $entry['alternate_name'],
+                $path
+            )),
+            'mapping_name_path' => array_values(array_map(
+                static fn (array $entry): ?string => $entry['mapping_name'],
+                $path
+            )),
+            'review_only' => true,
+            'alternate_name_used_as_visible_text' => false,
+            'mapping_name_used_as_visible_text' => false,
+            'field_value_used_as_visible_text' => false,
             'executes_form_actions' => false,
             'executes_javascript' => false,
         ];

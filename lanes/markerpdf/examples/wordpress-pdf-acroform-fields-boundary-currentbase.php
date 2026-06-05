@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfAcroFormExtractor;
+use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -10,9 +11,9 @@ $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm page widget boundary body)
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
-    . "5 0 obj\n<< /Fields [6 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
+    . "5 0 obj\n<< /Fields [6 0 R 23 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
     . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n] >>\nendobj\n"
     . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
     . "10 0 obj\n<< /FT /Ch /T (omitted.category) /V (page) /Opt [(post) (page)] /Kids [12 0 R] >>\nendobj\n"
@@ -22,6 +23,8 @@ $pdf = "%PDF-1.7\n"
     . "18 0 obj\n<< /Subtype /Widget /Parent 16 0 R /Rect [50 0 R 51 0 R 52 0 R 53 0 R] /P 3 0 R /F 54 0 R >>\nendobj\n"
     . "20 0 obj\n<< /FT /Tx /T (detached.secret) /V (detached widget value must not surface) /Kids [22 0 R] >>\nendobj\n"
     . "22 0 obj\n<< /Subtype /Widget /Parent 20 0 R /Rect [72 520 320 544] /F 4 >>\nendobj\n"
+    . "23 0 obj\n<< /FT /Tx /T (review) /TU (Parent review label stays ancestor metadata) /TM (review-parent-map) /V (Parent review value) /Kids [24 0 R] >>\nendobj\n"
+    . "24 0 obj\n<< /Subtype /Widget /Parent 23 0 R /T (label) /TU (Review label for editors) /TM (review.label.export) /V (Mapped label value) /Rect [72 480 320 504] /P 3 0 R /F 4 >>\nendobj\n"
     . "40 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
     . "50 0 obj\n360\nendobj\n"
     . "51 0 obj\n544\nendobj\n"
@@ -43,12 +46,13 @@ $pdf = "%PDF-1.7\n"
     . "%%EOF";
 
 $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+$visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
 $fieldsByName = [];
 foreach ($form['fields'] as $field) {
     $fieldsByName[(string) ($field['name'] ?? '')] = $field;
 }
 
-foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry'] as $name) {
+foreach (['listed.email', 'omitted.category', 'inline.note', 'indirect.geometry', 'review.label'] as $name) {
     if (!isset($fieldsByName[$name])) {
         throw new RuntimeException("Missing expected AcroForm field {$name}.");
     }
@@ -66,6 +70,21 @@ if (($indirectWidget['rect'] ?? null) !== [72.0, 520.0, 360.0, 544.0]) {
 }
 if (($indirectWidget['annotation_flags'] ?? null) !== 4 || ($indirectWidget['annotation_visibility'] ?? null) !== 'visible') {
     throw new RuntimeException('Indirect AcroForm widget annotation flags were not resolved.');
+}
+
+$reviewLabel = $fieldsByName['review.label'];
+$fieldNameReview = is_array($reviewLabel['field_name_review'] ?? null) ? $reviewLabel['field_name_review'] : [];
+if (($reviewLabel['alternate_name'] ?? null) !== 'Review label for editors') {
+    throw new RuntimeException('AcroForm /TU alternate name was not preserved for WordPress review.');
+}
+if (($reviewLabel['mapping_name'] ?? null) !== 'review.label.export') {
+    throw new RuntimeException('AcroForm /TM mapping name was not preserved for WordPress review.');
+}
+if (($fieldNameReview['wordpress_label'] ?? null) !== 'Review label for editors') {
+    throw new RuntimeException('AcroForm field name review did not choose the alternate label.');
+}
+if (($fieldNameReview['alternate_name_used_as_visible_text'] ?? null) !== false || str_contains($visibleText, 'Review label for editors')) {
+    throw new RuntimeException('AcroForm alternate names must stay out of visible WordPress text.');
 }
 
 $decoyNames = [
@@ -107,11 +126,19 @@ foreach ($form['fields'] as $field) {
 
 echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-catalog-acroform-page-widget-boundary',
-    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them; detached widgets remain excluded',
+    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them; AcroForm alternate and mapping names stay review-only',
     'field_count' => count($form['fields']),
     'field_names' => array_column($rows, 'name'),
     'promoted_page_widget_parent_fields' => ['omitted.category'],
     'promoted_standalone_widget_fields' => ['inline.note'],
+    'alternate_name_review_field' => $reviewLabel['alternate_name'] ?? null,
+    'mapping_name_review_field' => $reviewLabel['mapping_name'] ?? null,
+    'wordpress_label_from_alternate_name' => $fieldNameReview['wordpress_label'] ?? null,
+    'alternate_mapping_names_review_only' => ($fieldNameReview['alternate_name_used_as_visible_text'] ?? null) === false
+        && ($fieldNameReview['mapping_name_used_as_visible_text'] ?? null) === false
+        && !str_contains($visibleText, 'Review label for editors')
+        && !str_contains($visibleText, 'review.label.export')
+        && !str_contains($visibleText, 'Mapped label value'),
     'indirect_widget_rect_resolved' => ($indirectWidget['rect'] ?? null) === [72.0, 520.0, 360.0, 544.0],
     'indirect_widget_flags_resolved' => ($indirectWidget['annotation_flags'] ?? null) === 4,
     'indirect_widget_visibility' => $indirectWidget['annotation_visibility'] ?? null,

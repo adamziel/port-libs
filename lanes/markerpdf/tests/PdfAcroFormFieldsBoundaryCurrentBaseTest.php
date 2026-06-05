@@ -165,6 +165,21 @@ $acroFormArrayTokenBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$acroFormAlternateMappingNameBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm alternate mapping name body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (profile) /TU (Parent profile label must stay ancestor review) /TM (profile-parent-map) /V (Inherited profile value) /DV (Inherited draft value) /MaxLen 64 /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /T (email) /TU (Public email label) /TM (profile.email.export) /V (editor@example.test) /DV (draft@example.test) /MaxLen 12 /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "20 0 obj\n<< /FT /Tx /T (detached.tu.decoy) /TU (Detached tooltip must not surface) /TM (detached.map) /V (Detached alternate mapping decoy) >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'repairs AcroForm field discovery from page owned widget annotations only' => static function (TestRunner $t) use ($pageWidgetFieldBoundaryPdf, $fieldsByName): void {
         $pdf = $pageWidgetFieldBoundaryPdf();
@@ -427,5 +442,60 @@ return [
         $t->true(!str_contains($visibleText, 'Fields literal decoy'));
         $t->true(!str_contains($visibleText, 'Annots nested dictionary decoy'));
         $t->true(!str_contains($visibleText, 'Kids comment decoy'));
+    },
+    'preserves AcroForm alternate and mapping names as review metadata only' => static function (
+        TestRunner $t
+    ) use ($acroFormAlternateMappingNameBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormAlternateMappingNameBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['profile.email'], array_keys($fields));
+        $t->same(1, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $field = $fields['profile.email'];
+        $review = is_array($field['field_name_review'] ?? null) ? $field['field_name_review'] : [];
+        $path = $field['field_hierarchy']['path'] ?? [];
+        $t->same(8, $field['object']);
+        $t->same('profile.email', $field['name']);
+        $t->same('email', $field['partial_name']);
+        $t->same('Public email label', $field['alternate_name'] ?? null);
+        $t->same('profile.email.export', $field['mapping_name']);
+        $t->same('editor@example.test', $field['value']);
+        $t->same('draft@example.test', $field['default_value']);
+        $t->same('text', $field['field_type_label']);
+        $t->same(['FT', 'DA'], $field['field_hierarchy']['inherited_attributes']);
+        $t->same(['V', 'DV', 'MaxLen'], $field['field_hierarchy']['local_attributes']);
+        $t->same(['V', 'DV'], $field['field_hierarchy']['local_value_attributes']);
+        $t->same([6, 8], array_column($path, 'object'));
+        $t->same(['profile', 'email'], array_column($path, 'partial_name'));
+        $t->same(['Parent profile label must stay ancestor review', 'Public email label'], array_column($path, 'alternate_name'));
+        $t->same(['profile-parent-map', 'profile.email.export'], array_column($path, 'mapping_name'));
+        $t->same('field_terminal_override', $field['value_state']['hierarchy_boundary']['current_value_source']);
+        $t->same(12, $field['max_length']);
+        $t->same(12, $field['max_length_review']['max_length']);
+        $t->same(8, $field['max_length_review']['max_length_source_object']);
+        $t->same(false, $field['max_length_review']['max_length_inherited']);
+        $t->same(true, $field['max_length_review']['current_value_exceeds_max_length']);
+
+        $t->same('acroform_field_name_review_boundary', $review['source'] ?? null);
+        $t->same('Public email label', $review['alternate_name'] ?? null);
+        $t->same('profile.email.export', $review['mapping_name'] ?? null);
+        $t->same('Public email label', $review['wordpress_label'] ?? null);
+        $t->same(false, $review['alternate_name_used_as_visible_text'] ?? null);
+        $t->same(false, $review['mapping_name_used_as_visible_text'] ?? null);
+        $t->same(false, $review['executes_form_actions'] ?? null);
+        $t->same(false, $review['executes_javascript'] ?? null);
+
+        $t->true(!isset($fields['detached.tu.decoy']));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Detached alternate mapping decoy'));
+        $t->true(str_contains($visibleText, 'Visible AcroForm alternate mapping name body'));
+        $t->true(!str_contains($visibleText, 'Public email label'));
+        $t->true(!str_contains($visibleText, 'profile.email.export'));
+        $t->true(!str_contains($visibleText, 'editor@example.test'));
+        $t->true(!str_contains($visibleText, 'Parent profile label must stay ancestor review'));
     },
 ];
