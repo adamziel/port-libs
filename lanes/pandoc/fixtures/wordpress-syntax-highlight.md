@@ -400,3 +400,24 @@ digraph ImportFlow {
   }
 }
 ```
+
+``` {.mjs #gutenberg-js-review .numberLines startFrom=190}
+// Gutenberg import block registration review
+import { registerBlockType } from "@wordpress/blocks";
+import apiFetch from "@wordpress/api-fetch";
+
+const slugify = (title = "Untitled") =>
+  title.trim().toLowerCase().replace(/\s+/gu, "-");
+
+export async function registerImportBlock(sourceId) {
+  const response = await apiFetch({ path: "/wp/v2/posts?per_page=1" });
+  registerBlockType("legacy/import-review", {
+    title: `Import ${sourceId}`,
+    attributes: { sourceId: { type: "string" } },
+    edit({ attributes }) {
+      console.log(JSON.stringify(response));
+      return wp.element.createElement("p", null, slugify(attributes.sourceId));
+    },
+  });
+}
+```

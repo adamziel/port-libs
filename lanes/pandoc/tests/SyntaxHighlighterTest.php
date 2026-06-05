@@ -39,6 +39,12 @@ return [
         $t->same('dot', SyntaxHighlighter::normalizeLanguage('gv'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
+        $t->same('javascript', SyntaxHighlighter::normalizeLanguage('mjs'));
+        $t->same('javascript', SyntaxHighlighter::normalizeLanguage('cjs'));
+        $t->same('javascript', SyntaxHighlighter::normalizeLanguage('node'));
+        $t->same('javascript', SyntaxHighlighter::normalizeLanguage('nodejs'));
+        $t->same('javascript', SyntaxHighlighter::normalizeLanguage('ecmascript'));
+        $t->same('javascript', SyntaxHighlighter::normalizeLanguage('es6'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('jsx'));
         $t->same('jsx', SyntaxHighlighter::normalizeLanguage('javascript-react'));
         $t->same('c', SyntaxHighlighter::normalizeLanguage('c'));
@@ -551,6 +557,54 @@ return [
         $t->same('graphviz', $directGraphviz['requestedLanguage']);
         $t->contains('<span class="kw">graph</span> <span class="va">Review</span> <span class="op">{</span>', $directGraphviz['html']);
         $t->contains('<span class="va">draft</span> <span class="op">--</span> <span class="va">published</span> <span class="op">[</span><span class="ot">weight</span><span class="op">=</span><span class="dv">2</span><span class="op">];</span>', $directGraphviz['html']);
+    },
+    'highlights javascript gutenberg module snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[28] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a JavaScript module code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'kate');
+        $directNode = (new SyntaxHighlighter())->highlight(
+            '#!/usr/bin/env node' . "\n" . 'console.log(JSON.stringify({ ok: true, count: 2n }))',
+            'node'
+        );
+        $directCjs = (new SyntaxHighlighter())->highlight('module.exports = require("@wordpress/scripts");', 'cjs');
+
+        $t->same('mjs', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('javascript', $highlighted['language']);
+        $t->same('mjs', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(190, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource mjs numberLines"><code class="sourceCode javascript" style="counter-reset: source-line 189;">', $highlighted['html']);
+        $t->contains('<span id="gutenberg-js-review-190"><a href="#gutenberg-js-review-190"></a><span class="co">// Gutenberg import block registration review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="op">{</span> <span class="va">registerBlockType</span> <span class="op">}</span> <span class="kw">from</span> <span class="st">&quot;@wordpress/blocks&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">const</span> <span class="va">slugify</span> <span class="op">=</span> <span class="op">(</span><span class="va">title</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)</span> <span class="op">=&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">replace</span><span class="op">(</span><span class="st">/\\s+/gu</span><span class="op">,</span> <span class="st">&quot;-&quot;</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">export</span> <span class="kw">async</span> <span class="kw">function</span> <span class="fu">registerImportBlock</span><span class="op">(</span><span class="va">sourceId</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">await</span> <span class="fu">apiFetch</span><span class="op">({</span> <span class="ot">path</span><span class="op">:</span> <span class="st">&quot;/wp/v2/posts?per_page=1&quot;</span> <span class="op">});</span>', $highlighted['html']);
+        $t->contains('<span class="fu">registerBlockType</span><span class="op">(</span><span class="st">&quot;legacy/import-review&quot;</span><span class="op">,</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">attributes</span><span class="op">:</span> <span class="op">{</span> <span class="ot">sourceId</span><span class="op">:</span> <span class="op">{</span> <span class="ot">type</span><span class="op">:</span> <span class="st">&quot;string&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">console</span><span class="op">.</span><span class="fu">log</span><span class="op">(</span><span class="dt">JSON</span><span class="op">.</span><span class="fu">stringify</span><span class="op">(</span><span class="va">response</span><span class="op">));</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="fu">registerBlockType</span><span class="op">(</span><span class="st">&quot;legacy/import-review&quot;</span>', $wordpressBlock);
+        $t->same('javascript', $directNode['language']);
+        $t->same('node', $directNode['requestedLanguage']);
+        $t->contains('<span class="co">#!/usr/bin/env node</span>', $directNode['html']);
+        $t->contains('<span class="dt">console</span><span class="op">.</span><span class="fu">log</span><span class="op">(</span><span class="dt">JSON</span><span class="op">.</span><span class="fu">stringify</span>', $directNode['html']);
+        $t->contains('<span class="ot">ok</span><span class="op">:</span> <span class="cn">true</span><span class="op">,</span> <span class="ot">count</span><span class="op">:</span> <span class="dv">2n</span>', $directNode['html']);
+        $t->same('javascript', $directCjs['language']);
+        $t->same('cjs', $directCjs['requestedLanguage']);
+        $t->contains('<span class="va">module</span><span class="op">.</span><span class="va">exports</span> <span class="op">=</span> <span class="fu">require</span><span class="op">(</span><span class="st">&quot;@wordpress/scripts&quot;</span><span class="op">);</span>', $directCjs['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

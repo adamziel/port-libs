@@ -208,6 +208,12 @@ if (!$dotCodeBlock instanceof PortLibs\Pandoc\AstNode || $dotCodeBlock->type !==
 }
 $dot = $highlighter->highlightCodeBlock($dotCodeBlock, 'monochrome');
 $dotWordpressBlock = $highlighter->wordpressHtmlBlock($dotCodeBlock, 'monochrome');
+$javascriptCodeBlock = $document->children[28] ?? null;
+if (!$javascriptCodeBlock instanceof PortLibs\Pandoc\AstNode || $javascriptCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a JavaScript module code block');
+}
+$javascript = $highlighter->highlightCodeBlock($javascriptCodeBlock, 'kate');
+$javascriptWordpressBlock = $highlighter->wordpressHtmlBlock($javascriptCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -836,6 +842,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($dotWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
         throw new RuntimeException('Expected DOT WordPress style metadata');
     }
+    if (($javascript['language'] ?? '') !== 'javascript') {
+        throw new RuntimeException('Expected JavaScript module alias to normalize to JavaScript highlighting');
+    }
+    if (($javascript['lineNumbering']['start'] ?? null) !== 190) {
+        throw new RuntimeException('Expected JavaScript source startFrom line-number handoff');
+    }
+    if (!str_contains($javascript['html'], '<span class="kw">import</span> <span class="op">{</span> <span class="va">registerBlockType</span>')) {
+        throw new RuntimeException('Expected JavaScript import binding token handoff');
+    }
+    if (!str_contains($javascript['html'], '<span class="fu">replace</span><span class="op">(</span><span class="st">/\\s+/gu</span>')) {
+        throw new RuntimeException('Expected JavaScript regex literal token handoff');
+    }
+    if (!str_contains($javascript['html'], '<span class="kw">await</span> <span class="fu">apiFetch</span><span class="op">({</span> <span class="ot">path</span>')) {
+        throw new RuntimeException('Expected JavaScript await call and object-key token handoff');
+    }
+    if (!str_contains($javascript['html'], '<span class="dt">console</span><span class="op">.</span><span class="fu">log</span><span class="op">(</span><span class="dt">JSON</span><span class="op">.</span><span class="fu">stringify</span>')) {
+        throw new RuntimeException('Expected JavaScript built-in/function token handoff');
+    }
+    if (!str_contains($javascriptWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected JavaScript WordPress style metadata');
+    }
+    if (!str_contains($javascriptWordpressBlock, '<span class="fu">registerBlockType</span><span class="op">(</span><span class="st">&quot;legacy/import-review&quot;</span>')) {
+        throw new RuntimeException('Expected JavaScript Gutenberg registration token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -888,6 +918,7 @@ echo "scssHighlightedHtml:\n" . $scss['html'] . "\n";
 echo "goHighlightedHtml:\n" . $go['html'] . "\n";
 echo "powershellHighlightedHtml:\n" . $powershell['html'] . "\n";
 echo "dotHighlightedHtml:\n" . $dot['html'] . "\n";
+echo "javascriptHighlightedHtml:\n" . $javascript['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -911,4 +942,5 @@ echo "scssWordpressBlock:\n" . $scssWordpressBlock . "\n";
 echo "goWordpressBlock:\n" . $goWordpressBlock . "\n";
 echo "powershellWordpressBlock:\n" . $powershellWordpressBlock . "\n";
 echo "dotWordpressBlock:\n" . $dotWordpressBlock . "\n";
+echo "javascriptWordpressBlock:\n" . $javascriptWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
