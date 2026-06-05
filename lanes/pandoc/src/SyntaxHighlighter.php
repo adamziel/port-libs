@@ -53,6 +53,7 @@ final class SyntaxHighlighter
         'ini' => 'ini',
         'javascript' => 'javascript',
         'javascript-react' => 'jsx',
+        'java' => 'java',
         'js' => 'javascript',
         'jsx' => 'jsx',
         'json' => 'json',
@@ -520,6 +521,7 @@ final class SyntaxHighlighter
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'ini' => $this->tokenizeIni($code),
+            'java' => $this->tokenizeJava($code),
             'javascript' => $this->tokenizeJavaScript($code),
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
@@ -616,6 +618,30 @@ final class SyntaxHighlighter
     private function tokenizePhp(string $code): array
     {
         return $this->scan($code, $this->phpPatterns());
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeJava(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:abstract|assert|break|case|catch|class|continue|default|do|else|enum|exports|extends|final|finally|for|if|implements|import|instanceof|interface|module|native|new|non-sealed|open|opens|package|permits|private|protected|provides|public|record|requires|return|sealed|static|strictfp|super|switch|synchronized|this|throw|throws|to|transient|transitive|try|uses|var|volatile|while|with|yield)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:boolean|byte|char|double|float|int|long|short|void)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)[fFdDlL]?\\b/'],
+            ['datatype', '/^\\b(?:BigDecimal|BigInteger|Boolean|Byte|Character|Class|Double|Exception|Files|Float|HashMap|HashSet|IOException|Integer|List|Long|Map|Objects|Optional|Path|Pattern|Record|Set|String|StringBuilder|URI|UUID)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:::|->|>>>?=?|<<=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
     }
 
     /**

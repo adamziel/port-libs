@@ -65,6 +65,7 @@ return [
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('pl'));
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('PL'));
         $t->same('perl', SyntaxHighlighter::normalizeLanguage('pm'));
+        $t->same('java', SyntaxHighlighter::normalizeLanguage('java'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
@@ -851,6 +852,45 @@ return [
         $t->same('perl', $module['language']);
         $t->contains('<span class="kw">package</span> <span class="dt">WP::Import</span><span class="op">;</span>', $module['html']);
         $t->contains('<span class="fu">use</span> <span class="kw">utf8</span><span class="op">;</span>', $module['html']);
+    },
+    'highlights java migration review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[17] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Java code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'tango');
+        $record = (new SyntaxHighlighter())->highlight('record ImportTask(String title, int count) {}', 'java');
+
+        $t->same('java', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('java', $highlighted['language']);
+        $t->same('java', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(21, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource java numberLines"><code class="sourceCode java" style="counter-reset: source-line 20;">', $highlighted['html']);
+        $t->contains('<span id="java-review-21"><a href="#java-review-21"></a><span class="kw">package</span> <span class="va">org</span><span class="op">.</span><span class="va">wordpress</span><span class="op">.</span><span class="va">importer</span><span class="op">;</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">java</span><span class="op">.</span><span class="va">nio</span><span class="op">.</span><span class="va">file</span><span class="op">.</span><span class="dt">Files</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="co">// WordPress import review helper</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span> <span class="kw">final</span> <span class="kw">class</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">private</span> <span class="kw">final</span> <span class="dt">Path</span> <span class="va">sourcePath</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">this</span><span class="op">.</span><span class="va">sourcePath</span> <span class="op">=</span> <span class="va">sourcePath</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@Deprecated</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span> <span class="dt">Optional</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;</span> <span class="fu">title</span><span class="op">()</span> <span class="kw">throws</span> <span class="dt">IOException</span>', $highlighted['html']);
+        $t->contains('<span class="kw">var</span> <span class="va">json</span> <span class="op">=</span> <span class="dt">Files</span><span class="op">.</span><span class="fu">readString</span><span class="op">(</span><span class="va">sourcePath</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="va">json</span><span class="op">.</span><span class="fu">isBlank</span><span class="op">())</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="dt">Optional</span><span class="op">.</span><span class="fu">of</span><span class="op">(</span><span class="st">&quot;Imported&quot;</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="dt">Optional</span><span class="op">.</span><span class="fu">empty</span><span class="op">();</span>', $wordpressBlock);
+        $t->same('java', $record['language']);
+        $t->contains('<span class="kw">record</span> <span class="dt">ImportTask</span><span class="op">(</span><span class="dt">String</span> <span class="va">title</span><span class="op">,</span> <span class="dt">int</span> <span class="va">count</span><span class="op">)</span>', $record['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

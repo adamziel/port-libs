@@ -138,6 +138,12 @@ if (!$perlCodeBlock instanceof PortLibs\Pandoc\AstNode || $perlCodeBlock->type !
 }
 $perl = $highlighter->highlightCodeBlock($perlCodeBlock, 'zenburn');
 $perlWordpressBlock = $highlighter->wordpressHtmlBlock($perlCodeBlock, 'zenburn');
+$javaCodeBlock = $document->children[17] ?? null;
+if (!$javaCodeBlock instanceof PortLibs\Pandoc\AstNode || $javaCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Java code block');
+}
+$java = $highlighter->highlightCodeBlock($javaCodeBlock, 'tango');
+$javaWordpressBlock = $highlighter->wordpressHtmlBlock($javaCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -532,6 +538,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($perlWordpressBlock, '<span class="kw">return</span> <span class="fu">lc</span> <span class="va">$title</span>')) {
         throw new RuntimeException('Expected Perl return/function token handoff');
     }
+    if (($java['language'] ?? '') !== 'java') {
+        throw new RuntimeException('Expected Java alias to normalize to Java highlighting');
+    }
+    if (($java['lineNumbering']['start'] ?? null) !== 21) {
+        throw new RuntimeException('Expected Java source startFrom line-number handoff');
+    }
+    if (!str_contains($java['html'], '<span class="kw">public</span> <span class="kw">final</span> <span class="kw">class</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected Java class token handoff');
+    }
+    if (!str_contains($java['html'], '<span class="dt">Files</span><span class="op">.</span><span class="fu">readString</span>')) {
+        throw new RuntimeException('Expected Java static method token handoff');
+    }
+    if (!str_contains($java['html'], '<span class="ot">@Deprecated</span>')) {
+        throw new RuntimeException('Expected Java annotation token handoff');
+    }
+    if (!str_contains($javaWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Java WordPress style metadata');
+    }
+    if (!str_contains($javaWordpressBlock, '<span class="dt">Optional</span><span class="op">.</span><span class="fu">empty</span><span class="op">();</span>')) {
+        throw new RuntimeException('Expected Java Optional method token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -572,6 +599,7 @@ echo "rHighlightedHtml:\n" . $rScript['html'] . "\n";
 echo "iniHighlightedHtml:\n" . $ini['html'] . "\n";
 echo "tomlHighlightedHtml:\n" . $toml['html'] . "\n";
 echo "perlHighlightedHtml:\n" . $perl['html'] . "\n";
+echo "javaHighlightedHtml:\n" . $java['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -584,4 +612,5 @@ echo "rWordpressBlock:\n" . $rWordpressBlock . "\n";
 echo "iniWordpressBlock:\n" . $iniWordpressBlock . "\n";
 echo "tomlWordpressBlock:\n" . $tomlWordpressBlock . "\n";
 echo "perlWordpressBlock:\n" . $perlWordpressBlock . "\n";
+echo "javaWordpressBlock:\n" . $javaWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

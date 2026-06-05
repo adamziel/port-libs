@@ -207,3 +207,30 @@ sub normalize_title {
     return lc $title;
 }
 ```
+
+``` {.java #java-review .numberLines startFrom=21}
+package org.wordpress.importer;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+
+// WordPress import review helper
+public final class ReviewPacket {
+    private final Path sourcePath;
+
+    public ReviewPacket(Path sourcePath) {
+        this.sourcePath = sourcePath;
+    }
+
+    @Deprecated
+    public Optional<String> title() throws IOException {
+        var json = Files.readString(sourcePath);
+        if (json.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of("Imported");
+    }
+}
+```
