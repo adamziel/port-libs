@@ -41,7 +41,8 @@ final class PdfTextDocumentExtractor
         bool $flattenPdf = false,
         ?int $workers = null,
         bool $sort = false,
-        bool $keepChars = false
+        bool $keepChars = false,
+        bool $disableLinks = false
     ): array {
         $totalPages = count($pdftextPages);
         $startPage ??= 0;
@@ -69,7 +70,7 @@ final class PdfTextDocumentExtractor
             if (!is_array($page)) {
                 throw new InvalidArgumentException('Supplied pdftext page entries must be arrays.');
             }
-            $page = $this->sanitizeDictionaryOutputPage($page, $keepChars);
+            $page = $this->sanitizeDictionaryOutputPage($page, $keepChars, $disableLinks);
             if ($sort) {
                 $page['blocks'] = $this->sortDictionaryOutputBlocks($page['blocks'] ?? null);
             }
@@ -92,6 +93,7 @@ final class PdfTextDocumentExtractor
                     'flatten_pdf' => $flattenPdf,
                     'workers' => $workers,
                     'sort' => $sort ? true : null,
+                    'disable_links' => $disableLinks ? true : null,
                 ], static fn (mixed $value): bool => $value !== null),
             ],
             'page_range' => $pageRange,
@@ -130,7 +132,8 @@ final class PdfTextDocumentExtractor
         bool $sort = false,
         float $batchMultiplier = 1.0,
         ?LayoutOrderer $orderer = null,
-        bool $keepChars = false
+        bool $keepChars = false,
+        bool $disableLinks = false
     ): array {
         $document = $this->getTextBlocks(
             $pdftextPages,
@@ -140,7 +143,8 @@ final class PdfTextDocumentExtractor
             flattenPdf: $flattenPdf,
             workers: $workers,
             sort: $sort,
-            keepChars: $keepChars
+            keepChars: $keepChars,
+            disableLinks: $disableLinks
         );
         $orderer ??= new LayoutOrderer();
         $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($document['pages']);
@@ -202,9 +206,13 @@ final class PdfTextDocumentExtractor
      * @param array<string, mixed> $page
      * @return array<string, mixed>
      */
-    private function sanitizeDictionaryOutputPage(array $page, bool $keepChars = false): array
+    private function sanitizeDictionaryOutputPage(array $page, bool $keepChars = false, bool $disableLinks = false): array
     {
         $bboxScale = $this->dictionaryOutputBboxScale($page);
+
+        if ($disableLinks) {
+            unset($page['refs']);
+        }
 
         if (!isset($page['blocks']) || !is_array($page['blocks']) || !array_is_list($page['blocks'])) {
             return $page;
@@ -222,7 +230,7 @@ final class PdfTextDocumentExtractor
                 $sanitizedBlock['bbox'] = $this->unnormalizeDictionaryOutputBbox($block['bbox'], $bboxScale);
             }
             if (array_key_exists('lines', $block)) {
-                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines'], $bboxScale, $keepChars);
+                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines'], $bboxScale, $keepChars, $disableLinks);
             }
             $blocks[] = $sanitizedBlock;
         }
@@ -235,7 +243,7 @@ final class PdfTextDocumentExtractor
      * @param mixed $lines
      * @return mixed
      */
-    private function sanitizeDictionaryOutputLines(mixed $lines, ?array $bboxScale = null, bool $keepChars = false): mixed
+    private function sanitizeDictionaryOutputLines(mixed $lines, ?array $bboxScale = null, bool $keepChars = false, bool $disableLinks = false): mixed
     {
         if (!is_array($lines) || !array_is_list($lines)) {
             return $lines;
@@ -253,7 +261,7 @@ final class PdfTextDocumentExtractor
                 $sanitizedLine['bbox'] = $this->unnormalizeDictionaryOutputBbox($line['bbox'], $bboxScale);
             }
             if (array_key_exists('spans', $line)) {
-                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans'], $bboxScale, $keepChars);
+                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans'], $bboxScale, $keepChars, $disableLinks);
             }
             $sanitizedLines[] = $sanitizedLine;
         }
@@ -265,7 +273,7 @@ final class PdfTextDocumentExtractor
      * @param mixed $spans
      * @return mixed
      */
-    private function sanitizeDictionaryOutputSpans(mixed $spans, ?array $bboxScale = null, bool $keepChars = false): mixed
+    private function sanitizeDictionaryOutputSpans(mixed $spans, ?array $bboxScale = null, bool $keepChars = false, bool $disableLinks = false): mixed
     {
         if (!is_array($spans) || !array_is_list($spans)) {
             return $spans;
@@ -276,6 +284,9 @@ final class PdfTextDocumentExtractor
             if (is_array($span)) {
                 $sanitizedSpan = [];
                 foreach (['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx', 'url', 'superscript', 'subscript'] as $key) {
+                    if ($disableLinks && $key === 'url') {
+                        continue;
+                    }
                     if (array_key_exists($key, $span)) {
                         $sanitizedSpan[$key] = $span[$key];
                     }

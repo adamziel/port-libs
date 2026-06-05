@@ -241,6 +241,29 @@ return [
         $t->true(!array_key_exists('url', $refs[1]), 'Supplied unsafe pdftext ref URLs remain review-only and are not replaced by synthesized anchors.');
         $t->same('page-9-3', $refs[1]['ref']);
     },
+    'honors pdftext disable_links at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['refs'][0]['raw_private_payload'] = 'hidden disabled-link ref payload';
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1, disableLinks: true);
+        $page = $document['pages'][0];
+        $spans = $page['blocks'][0]['lines'][0]['spans'];
+        $charSpans = $page['char_blocks'][0]['lines'][0]['spans'];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(true, $document['metadata']['pdftext_options']['disable_links']);
+        $t->true(!array_key_exists('refs', $page['pdftext_source']), 'disable_links skips pdftext page reference annotation.');
+        $t->true(!array_key_exists('url', $spans[1]), 'Safe span links are not promoted when pdftext link annotation is disabled.');
+        $t->true(!array_key_exists('pdftext_url', $spans[1]), 'Disabled pdftext links should not remain as review URLs.');
+        $t->true(!array_key_exists('pdftext_url_is_safe', $spans[1]), 'Disabled pdftext links should not retain safety flags.');
+        $t->true(!array_key_exists('url', $charSpans[1]), 'Stored char_blocks mirror dictionary_output with no span links.');
+        $t->true(!array_key_exists('url', $charSpans[2]), 'Unsafe span link payloads are stripped with disable_links.');
+        $t->same('Read plugin docs but review script action', $blocks[0]['text']);
+        $t->true(!str_contains($blocks[0]['text'], 'https://example.com/import'), 'WordPress Markdown should not render disabled pdftext links.');
+        $t->true(!str_contains($encoded, 'hidden disabled-link ref payload'));
+        $t->true(!str_contains($encoded, 'javascript:alert'));
+    },
     'rejects non string pdftext span urls before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['blocks'][0]['lines'][0]['spans'][1]['url'] = ['https://example.com/not-a-string'];
