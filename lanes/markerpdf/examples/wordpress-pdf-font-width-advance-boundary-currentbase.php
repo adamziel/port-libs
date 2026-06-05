@@ -142,6 +142,16 @@ $exactGenerationWidthPdf = "%PDF-1.4\n"
     . "20 0 obj\n[1000 1000 1000 1000 1000 1000 1000 1000 1000]\nendobj\n"
     . "20 1 obj\n[250 250 250 250 250 250 250 250 250]\nendobj\n%%EOF";
 
+$exactGenerationDescriptorContent = 'BT /Fdesc 12 Tf '
+    . '1 0 0 1 72 720 Tm <4142> Tj '
+    . '1 0 0 1 96 720 Tm <4344> Tj ET';
+$exactGenerationDescriptorPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fdesc 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+DescriptorGeneration /Encoding /WinAnsiEncoding /FontDescriptor 7 0 R >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($exactGenerationDescriptorContent) . " >>\nstream\n{$exactGenerationDescriptorContent}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Type /FontDescriptor /FontName /ReferencedDescriptor /Flags 4 /MissingWidth 250 >>\nendobj\n"
+    . "7 1 obj\n<< /Type /FontDescriptor /FontName /UnreferencedDescriptor /Flags 32 /MissingWidth 1000 >>\nendobj\n%%EOF";
+
 $lastCharContent = 'BT /Flast 12 Tf '
     . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
     . 'T* 1 0 0 1 72 704 Tm <43> Tj 1 0 0 1 100 704 Tm <44> Tj ET';
@@ -492,6 +502,19 @@ $exactGenerationWidthSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $exactGenerationWidthLine['spans'] ?? []
 );
+$exactGenerationDescriptorLines = $extractor->extractTextLines($exactGenerationDescriptorPdf);
+$exactGenerationDescriptorPlainText = implode("\n", $exactGenerationDescriptorLines);
+$exactGenerationDescriptorPages = $extractor->extractStyledTextPages($exactGenerationDescriptorPdf);
+$exactGenerationDescriptorLine = $exactGenerationDescriptorPages[0]['blocks'][0]['lines'][0] ?? [];
+$exactGenerationDescriptorSpans = $exactGenerationDescriptorLine['spans'] ?? [];
+$exactGenerationDescriptorSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $exactGenerationDescriptorSpans
+);
+$exactGenerationDescriptorSpanFonts = array_map(
+    static fn (array $span): string => (string) ($span['font'] ?? ''),
+    $exactGenerationDescriptorSpans
+);
 $lastCharLines = $extractor->extractTextLines($lastCharPdf);
 $lastCharPlainText = implode("\n", $lastCharLines);
 $lastCharPages = $extractor->extractStyledTextPages($lastCharPdf);
@@ -598,7 +621,7 @@ $type3FontMatrixVectorSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-exact-generation-widths-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-nonfinite-width-exact-generation-widths-and-fontdescriptor-quote-relative-td-styled-gap-absolute-tm-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-negative-first-cid-array-type3-fontmatrix-width-and-type3-fontmatrix-vector-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -663,6 +686,12 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'exact_generation_width_false_gap_excluded' => !str_contains($exactGenerationWidthPlainText, 'Wide Block'),
     'exact_generation_width_stale_generation_excluded' => $exactGenerationWidthSpanBboxes !== [[0.0, 0.0, 12.0, 12.0], [46.0, 0.0, 61.0, 12.0]],
     'exact_generation_width_bboxes_preserved' => $exactGenerationWidthSpanBboxes === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]],
+    'exact_generation_fontdescriptor_missingwidth_gap_preserved' => $exactGenerationDescriptorLines === ['AB CD'],
+    'exact_generation_fontdescriptor_false_join_excluded' => !str_contains($exactGenerationDescriptorPlainText, 'ABCD'),
+    'exact_generation_fontdescriptor_bboxes_preserved' => $exactGenerationDescriptorSpanBboxes === [[0.0, 0.0, 6.0, 12.0], [24.0, 0.0, 30.0, 12.0]],
+    'exact_generation_fontdescriptor_unreferenced_bboxes_excluded' => $exactGenerationDescriptorSpanBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'exact_generation_fontdescriptor_font_preserved' => $exactGenerationDescriptorSpanFonts === ['ReferencedDescriptor_symbolic', 'ReferencedDescriptor_symbolic'],
+    'exact_generation_fontdescriptor_unreferenced_font_excluded' => !in_array('UnreferencedDescriptor_non_symbolic', $exactGenerationDescriptorSpanFonts, true),
     'lastchar_width_decoy_gap_excluded' => ($lastCharLines[0] ?? null) === 'CD',
     'lastchar_real_positioned_gap_preserved' => ($lastCharLines[1] ?? null) === 'C D',
     'lastchar_double_gap_output_excluded' => !str_contains($lastCharPlainText, 'C D' . "\n" . 'C D'),
@@ -748,6 +777,9 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
     'exact_generation_width_lines' => $exactGenerationWidthLines,
     'exact_generation_width_span_bboxes' => $exactGenerationWidthSpanBboxes,
+    'exact_generation_descriptor_lines' => $exactGenerationDescriptorLines,
+    'exact_generation_descriptor_span_bboxes' => $exactGenerationDescriptorSpanBboxes,
+    'exact_generation_descriptor_span_fonts' => $exactGenerationDescriptorSpanFonts,
     'lastchar_lines' => $lastCharLines,
     'lastchar_span_bboxes' => $lastCharSpanBboxes,
     'malformed_range_lines' => $malformedRangeLines,
@@ -775,7 +807,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $exactGenerationDescriptorLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

@@ -187,6 +187,19 @@ $fontWidthExactGenerationArrayBoundaryCurrentBasePdf = static function (): strin
         . "20 1 obj\n[250 250 250 250 250 250 250 250 250]\nendobj\n%%EOF";
 };
 
+$fontWidthExactGenerationDescriptorBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fdesc 12 Tf '
+        . '1 0 0 1 72 720 Tm <4142> Tj '
+        . '1 0 0 1 96 720 Tm <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fdesc 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+DescriptorGeneration /Encoding /WinAnsiEncoding /FontDescriptor 7 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /FontDescriptor /FontName /ReferencedDescriptor /Flags 4 /MissingWidth 250 >>\nendobj\n"
+        . "7 1 obj\n<< /Type /FontDescriptor /FontName /UnreferencedDescriptor /Flags 32 /MissingWidth 1000 >>\nendobj\n%%EOF";
+};
+
 $fontWidthLastCharBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Flast 12 Tf '
         . '1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 86 720 Tm <44> Tj '
@@ -973,6 +986,29 @@ return [
         $t->true(!str_contains($plainText, 'Wide Block'));
         $t->true(!str_contains($plainText, 'GenerationWidths'));
         $t->true(!str_contains($plainText, 'Fgen'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'resolves exact-generation FontDescriptor MissingWidth before current advance gaps' => static function (TestRunner $t) use ($fontWidthExactGenerationDescriptorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthExactGenerationDescriptorBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same('AB CD', $plainText);
+        $t->same("AB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 6.0, 12.0], [24.0, 0.0, 30.0, 12.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 30.0, 12.0], $line['bbox'] ?? null);
+        $t->same(['ReferencedDescriptor_symbolic', 'ReferencedDescriptor_symbolic'], array_column($spans, 'font'));
+        $t->true(!str_contains($plainText, 'ABCD'));
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]]);
+        $t->true(!in_array('UnreferencedDescriptor_non_symbolic', array_column($spans, 'font'), true));
+        $t->true(!str_contains($plainText, 'DescriptorGeneration'));
+        $t->true(!str_contains($plainText, 'Fdesc'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'clips simple-font Widths entries to LastChar before positioned word gaps on current base' => static function (TestRunner $t) use ($fontWidthLastCharBoundaryCurrentBasePdf): void {

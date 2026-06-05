@@ -15255,9 +15255,13 @@ final class PdfTextExtractor
      */
     private function fontDescriptorBody(string $fontBody, array $objects): ?string
     {
-        $descriptorObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'FontDescriptor');
-        if ($descriptorObjectNumber !== null) {
-            return $objects[$descriptorObjectNumber] ?? null;
+        $descriptorReference = $this->objectReferenceAfterName($fontBody, 'FontDescriptor');
+        if ($descriptorReference !== null) {
+            return $this->objectBodyForExactReference(
+                $objects,
+                $descriptorReference['objectNumber'],
+                $descriptorReference['generation']
+            );
         }
 
         if (preg_match('/\/FontDescriptor\s*<</s', $fontBody, $match, PREG_OFFSET_CAPTURE) !== 1) {
