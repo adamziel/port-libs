@@ -15,6 +15,8 @@ $contentTypesXml = <<<'XML'
   <Default Extension="html" ContentType="text/html"/>
   <Default Extension="txt" ContentType="text/plain; charset=utf-8"/>
   <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
+  <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
@@ -58,6 +60,8 @@ XML],
   <Relationship Id="rIdReviewDiagramLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="diagrams/review-layout.xml"/>
   <Relationship Id="rIdReviewDiagramStyle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle" Target="diagrams/review-style.xml"/>
   <Relationship Id="rIdReviewDiagramColors" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors" Target="diagrams/review-colors.xml"/>
+  <Relationship Id="rIdReviewOleWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/review-workbook.bin"/>
+  <Relationship Id="rIdReviewEmbeddedPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-audit.xlsx"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -311,6 +315,23 @@ XML],
       </w:r>
       <w:r><w:t xml:space="preserve"> stay visible.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Embedded review objects </w:t></w:r>
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i88" alt="Review workbook"/>
+          <o:OLEObject Type="Embed" ProgID="Excel.Sheet.12" ShapeID="_x0000_i88" DrawAspect="Content" ObjectID="_1650000088" r:id="rIdReviewOleWorkbook"/>
+        </w:object>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i89" alt="Source audit package"/>
+          <o:OLEObject Type="Embed" ProgID="Package" ShapeID="_x0000_i89" DrawAspect="Icon" ObjectID="_1650000089" r:id="rIdReviewEmbeddedPackage"/>
+        </w:object>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> remain reviewable.</w:t></w:r>
+    </w:p>
     <w:tbl>
       <w:tr>
         <w:tc>
@@ -413,6 +434,8 @@ XML],
     ['name' => 'word/diagrams/review-layout.xml', 'data' => '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
     ['name' => 'word/diagrams/review-style.xml', 'data' => '<dgm:styleDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
     ['name' => 'word/diagrams/review-colors.xml', 'data' => '<dgm:colorsDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
+    ['name' => 'word/embeddings/review-workbook.bin', 'data' => 'OLEWORKBOOK'],
+    ['name' => 'word/embeddings/source-audit.xlsx', 'data' => 'XLSXPACKAGE'],
     ['name' => 'word/media/hero.png', 'data' => 'PNGDATA'],
     ['name' => 'word/media/vml-badge.png', 'data' => 'VMLPNGDATA'],
     ['name' => 'docProps/core.xml', 'data' => <<<'XML'
@@ -464,6 +487,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['importReport']['alternativeFormats']['items'][1]['paragraphCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing plain-text altChunk paragraphs');
+    }
+    if (($summary['importReport']['embeddedObjects']['count'] ?? 0) !== 2 || ($summary['importReport']['embeddedObjects']['embeddedCount'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing embedded object package report');
+    }
+    if (($summary['importReport']['embeddedObjects']['items'][0]['bytes'] ?? 0) !== 11) {
+        throw new RuntimeException('DOCX body handoff self-test missing embedded OLE byte count');
     }
     if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
         throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
@@ -545,6 +574,12 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-drawing-placeholder docx-drawing-diagram" data-docx-drawing-kind="diagram" data-docx-docpr-id="19" data-docx-docpr-name="Review workflow" data-docx-docpr-descr="Imported workflow diagram" data-docx-docpr-title="Review workflow" data-docx-diagram-data-id="rIdReviewDiagramData"',
         'data-docx-diagram-layout-target-part="/word/diagrams/review-layout.xml"',
         'DOCX diagram: Imported workflow diagram</span>',
+        '<span class="docx-embedded-object docx-embedded-ole-object" data-docx-embedded-kind="ole-object" data-docx-relationship-id="rIdReviewOleWorkbook"',
+        'data-docx-target-part="/word/embeddings/review-workbook.bin"',
+        'DOCX embedded OLE object: Review workbook</span>',
+        '<span class="docx-embedded-object docx-embedded-package" data-docx-embedded-kind="package" data-docx-relationship-id="rIdReviewEmbeddedPackage"',
+        'data-docx-target-part="/word/embeddings/source-audit.xlsx"',
+        'DOCX embedded package: Source audit package</span>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',

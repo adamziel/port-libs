@@ -35,6 +35,8 @@ final class DocxReader
     public const REL_TYPE_DIAGRAM_LAYOUT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
     public const REL_TYPE_DIAGRAM_QUICK_STYLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
     public const REL_TYPE_DIAGRAM_COLORS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors';
+    public const REL_TYPE_OLE_OBJECT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
+    public const REL_TYPE_EMBEDDED_PACKAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
 
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
@@ -155,6 +157,7 @@ final class DocxReader
             'reachableRelationshipCount' => count($reachableRelationships),
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
+            'embeddedObjects' => $this->embeddedObjectImportReport($package, $reachableRelationships, $document),
             'alternativeFormats' => $alternativeFormats,
             'revisions' => $revisions,
             'sections' => [
@@ -208,6 +211,115 @@ final class DocxReader
             )),
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
+     * @return array{count:int, oleObjectCount:int, packageCount:int, embeddedCount:int, missingCount:int, items:list<array{source:string, id:string, type:string, kind:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, usedCount:int, descriptions:list<string>, issues:list<string>}>}
+     */
+    private function embeddedObjectImportReport(ZipPackage $package, array $reachableRelationships, AstNode $document): array
+    {
+        $objectNodesByRelationshipId = $this->embeddedObjectNodesByRelationshipId($document);
+        $items = [];
+        foreach ($reachableRelationships as $relationship) {
+            if (!$this->isEmbeddedObjectRelationshipType($relationship['type'])) {
+                continue;
+            }
+
+            $targetPart = $relationship['targetPart'];
+            $objectNodes = $objectNodesByRelationshipId[$relationship['id']] ?? [];
+            $items[] = [
+                'source' => $relationship['source'],
+                'id' => $relationship['id'],
+                'type' => $relationship['type'],
+                'kind' => $this->embeddedObjectKindFromRelationshipType($relationship['type']),
+                'target' => $relationship['target'],
+                'targetPart' => $targetPart,
+                'contentType' => $relationship['contentType'],
+                'external' => $relationship['external'],
+                'exists' => $relationship['exists'],
+                'bytes' => $targetPart !== null && $relationship['exists'] === true ? strlen($package->read($targetPart)) : null,
+                'usedCount' => count($objectNodes),
+                'descriptions' => $this->embeddedObjectDescriptions($objectNodes),
+                'issues' => $relationship['issues'],
+            ];
+        }
+
+        return [
+            'count' => count($items),
+            'oleObjectCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['kind'] === 'ole-object',
+            )),
+            'packageCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['kind'] === 'package',
+            )),
+            'embeddedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, list<AstNode>>
+     */
+    private function embeddedObjectNodesByRelationshipId(AstNode $node): array
+    {
+        $objects = [];
+        $this->collectEmbeddedObjectNodesByRelationshipId($node, $objects);
+
+        return $objects;
+    }
+
+    /**
+     * @param array<string, list<AstNode>> $objects
+     */
+    private function collectEmbeddedObjectNodesByRelationshipId(AstNode $node, array &$objects): void
+    {
+        if ($node->type === 'span') {
+            $classes = $node->attr('classes', []);
+            $attributes = $node->attr('attributes', []);
+            if (
+                is_array($classes)
+                && in_array('docx-embedded-object', $classes, true)
+                && is_array($attributes)
+                && isset($attributes['data-docx-relationship-id'])
+                && is_string($attributes['data-docx-relationship-id'])
+                && $attributes['data-docx-relationship-id'] !== ''
+            ) {
+                $relationshipId = $attributes['data-docx-relationship-id'];
+                $objects[$relationshipId] ??= [];
+                $objects[$relationshipId][] = $node;
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectEmbeddedObjectNodesByRelationshipId($child, $objects);
+        }
+    }
+
+    /**
+     * @param list<AstNode> $objectNodes
+     * @return list<string>
+     */
+    private function embeddedObjectDescriptions(array $objectNodes): array
+    {
+        $descriptions = [];
+        foreach ($objectNodes as $objectNode) {
+            $description = $this->plainInlineText($objectNode->children);
+            if ($description !== '') {
+                $descriptions[$description] = true;
+            }
+        }
+
+        return array_keys($descriptions);
     }
 
     /**
@@ -2263,6 +2375,10 @@ final class DocxReader
             return $this->vmlImageNodes($child, $package, $relationships);
         }
 
+        if ($this->isWordElement($child, 'object')) {
+            return $this->embeddedObjectNodes($child, $package, $relationships);
+        }
+
         return [];
     }
 
@@ -3298,6 +3414,146 @@ final class DocxReader
         }
 
         return null;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function embeddedObjectNodes(\DOMElement $object, ZipPackage $package, ?OpcRelationships $relationships): array
+    {
+        if (!$relationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $nodes = [];
+        foreach ($object->getElementsByTagNameNS(self::OFFICE_VML_NS, 'OLEObject') as $oleObject) {
+            if (!$oleObject instanceof \DOMElement) {
+                continue;
+            }
+
+            $relationshipId = $this->relationshipAttr($oleObject, 'id');
+            if ($relationshipId === null || $relationshipId === '') {
+                continue;
+            }
+
+            $relationship = $relationships->byId($relationshipId);
+            if (!$relationship instanceof OpcRelationship || !$this->isEmbeddedObjectRelationshipType($relationship->type)) {
+                continue;
+            }
+
+            $shape = $this->vmlShapeForOleObject($oleObject, $object);
+            $nodes[] = $this->embeddedObjectPlaceholderNode($oleObject, $shape, $relationship, $package, $relationships);
+        }
+
+        return $nodes;
+    }
+
+    private function isEmbeddedObjectRelationshipType(string $relationshipType): bool
+    {
+        return in_array($relationshipType, [self::REL_TYPE_OLE_OBJECT, self::REL_TYPE_EMBEDDED_PACKAGE], true);
+    }
+
+    private function embeddedObjectKindFromRelationshipType(string $relationshipType): string
+    {
+        return $relationshipType === self::REL_TYPE_EMBEDDED_PACKAGE ? 'package' : 'ole-object';
+    }
+
+    private function embeddedObjectPlaceholderNode(
+        \DOMElement $oleObject,
+        ?\DOMElement $shape,
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationships $relationships
+    ): AstNode {
+        $kind = $this->embeddedObjectKindFromRelationshipType($relationship->type);
+        $attrs = [
+            'classes' => ['docx-embedded-object', 'docx-embedded-' . $kind],
+            'attributes' => [
+                'data-docx-embedded-kind' => $kind,
+                'data-docx-relationship-id' => $relationship->id,
+                'data-docx-relationship-type' => $relationship->type,
+            ],
+        ];
+
+        foreach ($this->drawingRelationshipTargetAttrs($relationship, $package, $relationships) as $name => $value) {
+            $attrs['attributes']['data-docx-' . $name] = $value;
+        }
+
+        if (
+            ($attrs['attributes']['data-docx-external'] ?? null) === 'false'
+            && ($attrs['attributes']['data-docx-exists'] ?? null) === 'true'
+            && isset($attrs['attributes']['data-docx-target-part'])
+        ) {
+            $attrs['attributes']['data-docx-bytes'] = (string) strlen($package->read($attrs['attributes']['data-docx-target-part']));
+        } elseif (
+            ($attrs['attributes']['data-docx-external'] ?? null) === 'false'
+            && ($attrs['attributes']['data-docx-exists'] ?? null) === 'false'
+        ) {
+            $attrs['attributes']['data-docx-issues'] = 'missing-in-package';
+        }
+
+        foreach ([
+            'Type' => 'data-docx-ole-type',
+            'ProgID' => 'data-docx-ole-prog-id',
+            'ShapeID' => 'data-docx-ole-shape-id',
+            'DrawAspect' => 'data-docx-ole-draw-aspect',
+            'ObjectID' => 'data-docx-ole-object-id',
+            'UpdateMode' => 'data-docx-ole-update-mode',
+        ] as $source => $target) {
+            $value = trim($oleObject->getAttribute($source));
+            if ($value !== '') {
+                $attrs['attributes'][$target] = $value;
+            }
+        }
+
+        if ($shape instanceof \DOMElement) {
+            foreach ([
+                'id' => 'data-docx-shape-id',
+                'alt' => 'data-docx-shape-alt',
+                'style' => 'data-docx-shape-style',
+            ] as $source => $target) {
+                $value = trim($shape->getAttribute($source));
+                if ($value !== '') {
+                    $attrs['attributes'][$target] = $value;
+                }
+            }
+        }
+
+        return new AstNode('span', $attrs, [
+            new AstNode('text', ['text' => $this->embeddedObjectPlaceholderText($kind, $oleObject, $shape)]),
+        ]);
+    }
+
+    private function embeddedObjectPlaceholderText(string $kind, \DOMElement $oleObject, ?\DOMElement $shape): string
+    {
+        $label = $shape instanceof \DOMElement ? trim($shape->getAttribute('alt')) : '';
+        if ($label === '') {
+            $label = trim($oleObject->getAttribute('ProgID'));
+        }
+
+        $kindLabel = $kind === 'ole-object' ? 'OLE object' : str_replace('-', ' ', $kind);
+
+        return 'DOCX embedded ' . $kindLabel . ($label === '' ? '' : ': ' . $label);
+    }
+
+    private function vmlShapeForOleObject(\DOMElement $oleObject, \DOMElement $object): ?\DOMElement
+    {
+        $shapeId = trim($oleObject->getAttribute('ShapeID'));
+        $fallback = null;
+        foreach ($object->getElementsByTagNameNS(self::VML_NS, '*') as $shape) {
+            if (!$shape instanceof \DOMElement || !in_array($shape->localName, ['shape', 'rect', 'oval', 'roundrect', 'group'], true)) {
+                continue;
+            }
+
+            if ($fallback === null) {
+                $fallback = $shape;
+            }
+            if ($shapeId !== '' && trim($shape->getAttribute('id')) === $shapeId) {
+                return $shape;
+            }
+        }
+
+        return $fallback;
     }
 
     /**

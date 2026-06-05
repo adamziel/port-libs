@@ -1045,6 +1045,59 @@ $altChunkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$embeddedObjectContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
+  <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+  <Default Extension="docx" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$embeddedObjectDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdOleWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
+  <Relationship Id="rIdSourcePackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-audit.xlsx"/>
+  <Relationship Id="rIdMissingPackage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/missing-source.docx"/>
+</Relationships>
+XML;
+
+$embeddedObjectDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Embedded office objects </w:t></w:r>
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i2048" alt="Migration workbook"/>
+          <o:OLEObject Type="Embed" ProgID="Excel.Sheet.12" ShapeID="_x0000_i2048" DrawAspect="Content" ObjectID="_1650000001" r:id="rIdOleWorkbook"/>
+        </w:object>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i2049" alt="Source audit package"/>
+          <o:OLEObject Type="Embed" ProgID="Package" ShapeID="_x0000_i2049" DrawAspect="Icon" ObjectID="_1650000002" r:id="rIdSourcePackage"/>
+        </w:object>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i2050" alt="Missing source package"/>
+          <o:OLEObject Type="Embed" ProgID="Package" ShapeID="_x0000_i2050" DrawAspect="Icon" ObjectID="_1650000003" r:id="rIdMissingPackage"/>
+        </w:object>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> remain visible for import review.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -1337,6 +1390,22 @@ $buildAltChunkPackage = static function () use (
         ['name' => 'word/chunks/review.html', 'data' => $altChunkHtml],
         ['name' => 'word/chunks/review.txt', 'data' => $altChunkText],
         ['name' => 'word/chunks/source.rtf', 'data' => '{\rtf1 unsupported reviewer chunk}'],
+    ]);
+};
+
+$buildEmbeddedObjectPackage = static function () use (
+    $embeddedObjectContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $embeddedObjectDocumentRelationshipsXml,
+    $embeddedObjectDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $embeddedObjectContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $embeddedObjectDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $embeddedObjectDocumentRelationshipsXml],
+        ['name' => 'word/embeddings/oleObject1.bin', 'data' => 'OLEWORKBOOK'],
+        ['name' => 'word/embeddings/source-audit.xlsx', 'data' => 'XLSXPACKAGE'],
     ]);
 };
 
@@ -2720,6 +2789,104 @@ return [
         $t->same('rIdUnsupportedChunk', $unsupported['id']);
         $t->same('application/rtf', $unsupported['contentType']);
         $t->same(['unsupported-content-type'], $unsupported['issues']);
+    },
+    'preserves DOCX embedded OLE object and package relationships as review placeholders' => static function (TestRunner $t) use ($buildEmbeddedObjectPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildEmbeddedObjectPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Embedded office objects ', $paragraph->children[0]->attr('text'));
+
+        $ole = $paragraph->children[1];
+        $t->same('span', $ole->type);
+        $t->same(['docx-embedded-object', 'docx-embedded-ole-object'], $ole->attr('classes'));
+        $t->same('DOCX embedded OLE object: Migration workbook', $ole->children[0]->attr('text'));
+        $oleAttrs = $ole->attr('attributes');
+        $t->same('ole-object', $oleAttrs['data-docx-embedded-kind']);
+        $t->same('rIdOleWorkbook', $oleAttrs['data-docx-relationship-id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject', $oleAttrs['data-docx-relationship-type']);
+        $t->same('/word/embeddings/oleObject1.bin', $oleAttrs['data-docx-target']);
+        $t->same('/word/embeddings/oleObject1.bin', $oleAttrs['data-docx-target-part']);
+        $t->same('false', $oleAttrs['data-docx-external']);
+        $t->same('true', $oleAttrs['data-docx-exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $oleAttrs['data-docx-content-type']);
+        $t->same('11', $oleAttrs['data-docx-bytes']);
+        $t->same('Excel.Sheet.12', $oleAttrs['data-docx-ole-prog-id']);
+        $t->same('_x0000_i2048', $oleAttrs['data-docx-ole-shape-id']);
+        $t->same('Content', $oleAttrs['data-docx-ole-draw-aspect']);
+        $t->same('_1650000001', $oleAttrs['data-docx-ole-object-id']);
+        $t->same('_x0000_i2048', $oleAttrs['data-docx-shape-id']);
+        $t->same('Migration workbook', $oleAttrs['data-docx-shape-alt']);
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $package = $paragraph->children[3];
+        $t->same('span', $package->type);
+        $t->same(['docx-embedded-object', 'docx-embedded-package'], $package->attr('classes'));
+        $t->same('DOCX embedded package: Source audit package', $package->children[0]->attr('text'));
+        $packageAttrs = $package->attr('attributes');
+        $t->same('package', $packageAttrs['data-docx-embedded-kind']);
+        $t->same('rIdSourcePackage', $packageAttrs['data-docx-relationship-id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/package', $packageAttrs['data-docx-relationship-type']);
+        $t->same('/word/embeddings/source-audit.xlsx', $packageAttrs['data-docx-target-part']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $packageAttrs['data-docx-content-type']);
+        $t->same('11', $packageAttrs['data-docx-bytes']);
+        $t->same('Package', $packageAttrs['data-docx-ole-prog-id']);
+        $t->same('Icon', $packageAttrs['data-docx-ole-draw-aspect']);
+
+        $t->same(' plus ', $paragraph->children[4]->attr('text'));
+        $missing = $paragraph->children[5];
+        $t->same('span', $missing->type);
+        $t->same(['docx-embedded-object', 'docx-embedded-package'], $missing->attr('classes'));
+        $t->same('DOCX embedded package: Missing source package', $missing->children[0]->attr('text'));
+        $missingAttrs = $missing->attr('attributes');
+        $t->same('false', $missingAttrs['data-docx-exists']);
+        $t->same('missing-in-package', $missingAttrs['data-docx-issues']);
+        $t->true(!isset($missingAttrs['data-docx-bytes']), 'Missing embedded package should not report byte count');
+        $t->same(' remain visible for import review.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[DOCX embedded OLE object: Migration workbook]{.docx-embedded-object .docx-embedded-ole-object data-docx-embedded-kind="ole-object"', $markdown);
+        $t->contains('data-docx-relationship-id="rIdOleWorkbook"', $markdown);
+        $t->contains('[DOCX embedded package: Source audit package]{.docx-embedded-object .docx-embedded-package data-docx-embedded-kind="package"', $markdown);
+        $t->contains('data-docx-target-part="/word/embeddings/source-audit.xlsx"', $markdown);
+        $t->contains('data-docx-issues="missing-in-package"', $markdown);
+
+        $t->contains('<span class="docx-embedded-object docx-embedded-ole-object" data-docx-embedded-kind="ole-object"', $blocks);
+        $t->contains('data-docx-relationship-id="rIdOleWorkbook"', $blocks);
+        $t->contains('DOCX embedded OLE object: Migration workbook</span>', $blocks);
+        $t->contains('<span class="docx-embedded-object docx-embedded-package" data-docx-embedded-kind="package"', $blocks);
+        $t->contains('data-docx-target-part="/word/embeddings/source-audit.xlsx"', $blocks);
+        $t->contains('DOCX embedded package: Source audit package</span>', $blocks);
+        $t->contains('data-docx-issues="missing-in-package"', $blocks);
+        $t->contains('DOCX embedded package: Missing source package</span>', $blocks);
+
+        $embeddedObjects = $result['importReport']['embeddedObjects'];
+        $t->same(3, $embeddedObjects['count']);
+        $t->same(1, $embeddedObjects['oleObjectCount']);
+        $t->same(2, $embeddedObjects['packageCount']);
+        $t->same(2, $embeddedObjects['embeddedCount']);
+        $t->same(1, $embeddedObjects['missingCount']);
+        $t->same('rIdOleWorkbook', $embeddedObjects['items'][0]['id']);
+        $t->same('ole-object', $embeddedObjects['items'][0]['kind']);
+        $t->same('/word/embeddings/oleObject1.bin', $embeddedObjects['items'][0]['targetPart']);
+        $t->same(11, $embeddedObjects['items'][0]['bytes']);
+        $t->same(1, $embeddedObjects['items'][0]['usedCount']);
+        $t->same(['DOCX embedded OLE object: Migration workbook'], $embeddedObjects['items'][0]['descriptions']);
+        $t->same([], $embeddedObjects['items'][0]['issues']);
+        $t->same('rIdSourcePackage', $embeddedObjects['items'][1]['id']);
+        $t->same('package', $embeddedObjects['items'][1]['kind']);
+        $t->same('/word/embeddings/source-audit.xlsx', $embeddedObjects['items'][1]['targetPart']);
+        $t->same(11, $embeddedObjects['items'][1]['bytes']);
+        $t->same(['DOCX embedded package: Source audit package'], $embeddedObjects['items'][1]['descriptions']);
+        $t->same('rIdMissingPackage', $embeddedObjects['items'][2]['id']);
+        $t->same('package', $embeddedObjects['items'][2]['kind']);
+        $t->same(false, $embeddedObjects['items'][2]['exists']);
+        $t->same(null, $embeddedObjects['items'][2]['bytes']);
+        $t->same(['missing-in-package'], $embeddedObjects['items'][2]['issues']);
     },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();
