@@ -40,7 +40,7 @@ final class UnicodeText
     ];
 
     /**
-     * @return array{text:string, encoding:string, bom:string|null, repairs:int}
+     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}}
      */
     public static function decodeBytes(string $bytes, ?string $encoding = null): array
     {
@@ -67,33 +67,39 @@ final class UnicodeText
 
         if ($normalized === 'utf-16le' || $normalized === 'utf-16be') {
             [$text, $repairs] = self::decodeUtf16($bytes, $normalized === 'utf-16le');
+            [$text, $lineEndings] = self::normalizeLineEndings($text);
 
             return [
                 'text' => $text,
                 'encoding' => $normalized,
                 'bom' => $bom,
                 'repairs' => $repairs,
+                'lineEndings' => $lineEndings,
             ];
         }
 
         if ($normalized === 'windows-1252' || $normalized === 'iso-8859-1') {
             [$text, $repairs] = self::decodeSingleByte($bytes, $normalized === 'windows-1252');
+            [$text, $lineEndings] = self::normalizeLineEndings($text);
 
             return [
                 'text' => $text,
                 'encoding' => $normalized,
                 'bom' => $bom,
                 'repairs' => $repairs,
+                'lineEndings' => $lineEndings,
             ];
         }
 
         [$text, $repairs] = self::repairUtf8($bytes);
+        [$text, $lineEndings] = self::normalizeLineEndings($text);
 
         return [
             'text' => $text,
             'encoding' => $repairs === 0 ? 'utf-8' : 'utf-8-repaired',
             'bom' => $bom,
             'repairs' => $repairs,
+            'lineEndings' => $lineEndings,
         ];
     }
 
@@ -204,6 +210,29 @@ final class UnicodeText
             'center' => str_repeat(' ', intdiv($padding, 2)) . $text . str_repeat(' ', $padding - intdiv($padding, 2)),
             default => $text . str_repeat(' ', $padding),
         };
+    }
+
+    /**
+     * @return array{0:string, 1:array{normalized:bool, crlf:int, cr:int, conversions:int}}
+     */
+    public static function normalizeLineEndings(string $text): array
+    {
+        $crlf = substr_count($text, "\r\n");
+        $normalized = str_replace("\r\n", "\n", $text);
+        $cr = substr_count($normalized, "\r");
+        if ($cr > 0) {
+            $normalized = str_replace("\r", "\n", $normalized);
+        }
+
+        return [
+            $normalized,
+            [
+                'normalized' => $crlf > 0 || $cr > 0,
+                'crlf' => $crlf,
+                'cr' => $cr,
+                'conversions' => $crlf + $cr,
+            ],
+        ];
     }
 
     private static function normalizeEncoding(?string $encoding): ?string
@@ -396,7 +425,23 @@ final class UnicodeText
             return self::REPLACEMENT;
         }
 
-        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($codepoint <= 0x7f) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7ff) {
+            return chr(0xc0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+        if ($codepoint <= 0xffff) {
+            return chr(0xe0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3f))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        return chr(0xf0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3f))
+            . chr(0x80 | (($codepoint >> 6) & 0x3f))
+            . chr(0x80 | ($codepoint & 0x3f));
     }
 
     private static function codepoint(string $char): int

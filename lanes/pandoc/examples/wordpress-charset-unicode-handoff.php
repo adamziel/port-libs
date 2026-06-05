@@ -10,10 +10,11 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\UnicodeText;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
-$legacyBytes = "# Cafe\xE9 Review\n\nEditor \x93quoted\x94 source \x97 price \x8010.";
+$legacyBytes = "# Cafe\xE9 Review\r\n\r\nEditor \x93quoted\x94 source \x97 price \x8010.\rReviewer line ending note.";
 
 $source = (new MarkdownReader())->readBytes($legacyBytes, 'windows-1252');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
+$lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
 $table = new AstNode('table', [
     'caption' => 'Unicode width audit',
     'alignments' => ['default', 'default', 'default'],
@@ -46,6 +47,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $displaySlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $displaySlices))])]),
         ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
+        ]),
     ]),
 ]);
 $document = new AstNode('document', $source->attrs, [...$source->children, $table]);
@@ -60,6 +66,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($document->children[1]->attr('text'), "\u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10")) {
         throw new RuntimeException('charset handoff self-test missing decoded smart punctuation');
     }
+    if (($document->attr('sourceLineEndings')['conversions'] ?? 0) !== 3) {
+        throw new RuntimeException('charset handoff self-test missing line ending normalization audit');
+    }
+    if (str_contains($document->children[1]->attr('text'), "\r")) {
+        throw new RuntimeException('charset handoff self-test leaked raw carriage returns');
+    }
     if (!str_contains($markdown, "| \u{9B5A}\u{9B5A}")) {
         throw new RuntimeException('charset handoff self-test missing Unicode markdown table row');
     }
@@ -69,6 +81,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, "<td>\u{9B5A} / A\u{0301} / \u{1F469}\u{200D}\u{1F4BB} / B</td><td>2,1,2,1</td>")) {
         throw new RuntimeException('charset handoff self-test missing display-width split audit');
     }
+    if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
+        throw new RuntimeException('charset handoff self-test missing line ending table audit');
+    }
 
     echo "charset unicode handoff self-test ok\n";
     return;
@@ -76,5 +91,6 @@ if (($argv[1] ?? '') === '--self-test') {
 
 echo 'Encoding: ' . ($document->attr('sourceEncoding')['encoding'] ?? '') . "\n";
 echo 'Repairs: ' . ($document->attr('sourceEncoding')['repairs'] ?? 0) . "\n\n";
+echo 'Line ending conversions: ' . ($document->attr('sourceLineEndings')['conversions'] ?? 0) . "\n\n";
 echo $markdown . "\n\n";
 echo $blocks . "\n";

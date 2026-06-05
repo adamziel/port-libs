@@ -86,6 +86,41 @@ return [
         $t->same(['encoding' => 'utf-8-repaired', 'bom' => null, 'repairs' => 2], $document->attr('sourceEncoding'));
         $t->same("Broken \u{FFFD}(\u{FFFD} UTF-8", $document->children[0]->attr('text'));
     },
+    'normalizes decoded carriage return line endings before markdown parsing' => static function (TestRunner $t) use ($utf16le): void {
+        $decoded = UnicodeText::decodeBytes("# Import\r\n\r\nFirst paragraph\rSecond paragraph", 'utf-8');
+        $document = (new MarkdownReader())->readBytes("\xFF\xFE" . $utf16le([
+            0x0023,
+            0x0020,
+            0x8A08,
+            0x753B,
+            0x000d,
+            0x000a,
+            0x000d,
+            0x000a,
+            0x0052,
+            0x0065,
+            0x0076,
+            0x0069,
+            0x0065,
+            0x0077,
+            0x000d,
+            0x0051,
+            0x0075,
+            0x0065,
+            0x0075,
+            0x0065,
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same("# Import\n\nFirst paragraph\nSecond paragraph", $decoded['text']);
+        $t->same(['normalized' => true, 'crlf' => 2, 'cr' => 1, 'conversions' => 3], $decoded['lineEndings']);
+        $t->same(['encoding' => 'utf-16le', 'bom' => 'utf-16le', 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same(['normalized' => true, 'crlf' => 2, 'cr' => 1, 'conversions' => 3], $document->attr('sourceLineEndings'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same('Review Queue', $document->children[1]->attr('text'));
+        $t->contains('<h1 id="計画">計画</h1>', $blocks);
+        $t->contains("<p>Review\nQueue</p>", $blocks);
+    },
     'measures display width for cjk combining emoji and zero width marks' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $persian = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";

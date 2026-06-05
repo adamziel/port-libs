@@ -39,16 +39,20 @@ final class MarkdownReader
     {
         $decoded = UnicodeText::decodeBytes($bytes, $encoding);
         $document = $this->read($decoded['text']);
+        $attrs = array_replace($document->attrs, [
+            'sourceEncoding' => [
+                'encoding' => $decoded['encoding'],
+                'bom' => $decoded['bom'],
+                'repairs' => $decoded['repairs'],
+            ],
+        ]);
+        if (($decoded['lineEndings']['conversions'] ?? 0) > 0) {
+            $attrs['sourceLineEndings'] = $decoded['lineEndings'];
+        }
 
         return new AstNode(
             'document',
-            array_replace($document->attrs, [
-                'sourceEncoding' => [
-                    'encoding' => $decoded['encoding'],
-                    'bom' => $decoded['bom'],
-                    'repairs' => $decoded['repairs'],
-                ],
-            ]),
+            $attrs,
             $document->children
         );
     }
