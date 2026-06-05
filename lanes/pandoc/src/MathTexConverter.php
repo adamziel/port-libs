@@ -442,10 +442,19 @@ final class MathTexConverter
         $command = $this->readCommandName($source, $offset);
 
         if ($command === 'frac') {
-            return '<mfrac>'
-                . $this->parseRequiredGroup($source, $offset)
-                . $this->parseRequiredGroup($source, $offset)
-                . '</mfrac>';
+            return $this->parseFractionCommand($source, $offset, null);
+        }
+
+        if ($command === 'dfrac') {
+            return $this->parseFractionCommand($source, $offset, true);
+        }
+
+        if ($command === 'tfrac') {
+            return $this->parseFractionCommand($source, $offset, false);
+        }
+
+        if ($command === 'genfrac') {
+            return $this->parseGeneralizedFractionCommand($source, $offset);
         }
 
         if ($command === 'sqrt') {
@@ -613,6 +622,102 @@ final class MathTexConverter
         }
 
         return '<mstyle displaystyle="' . ($displaystyle ? 'true' : 'false') . '">' . $binomial . '</mstyle>';
+    }
+
+    private function parseFractionCommand(string $source, int &$offset, ?bool $displaystyle): string
+    {
+        $fraction = '<mfrac>'
+            . $this->parseRequiredGroup($source, $offset)
+            . $this->parseRequiredGroup($source, $offset)
+            . '</mfrac>';
+
+        if ($displaystyle === null) {
+            return $fraction;
+        }
+
+        return '<mstyle displaystyle="' . ($displaystyle ? 'true' : 'false') . '">' . $fraction . '</mstyle>';
+    }
+
+    private function parseGeneralizedFractionCommand(string $source, int &$offset): string
+    {
+        $left = $this->normalizeGeneralizedFractionDelimiter($this->readRequiredGroupText($source, $offset), 'left');
+        $right = $this->normalizeGeneralizedFractionDelimiter($this->readRequiredGroupText($source, $offset), 'right');
+        $lineThickness = $this->normalizeGeneralizedFractionLineThickness($this->readRequiredGroupText($source, $offset));
+        $style = $this->normalizeGeneralizedFractionStyle($this->readRequiredGroupText($source, $offset));
+        $fraction = '<mfrac'
+            . ($lineThickness !== null ? ' linethickness="' . $this->esc($lineThickness) . '"' : '')
+            . '>'
+            . $this->parseRequiredNonEmptyGroup($source, $offset, 'genfrac numerator')
+            . $this->parseRequiredNonEmptyGroup($source, $offset, 'genfrac denominator')
+            . '</mfrac>';
+
+        if ($left !== '' || $right !== '') {
+            $fraction = '<mrow>'
+                . ($left !== '' ? '<mo fence="true" stretchy="true">' . $this->esc($left) . '</mo>' : '')
+                . $fraction
+                . ($right !== '' ? '<mo fence="true" stretchy="true">' . $this->esc($right) . '</mo>' : '')
+                . '</mrow>';
+        }
+
+        if ($style === null) {
+            return $fraction;
+        }
+
+        return '<mstyle' . $style . '>' . $fraction . '</mstyle>';
+    }
+
+    private function normalizeGeneralizedFractionDelimiter(string $delimiter, string $side): string
+    {
+        $delimiter = trim($delimiter);
+        if ($delimiter === '' || $delimiter === '.') {
+            return '';
+        }
+
+        if (strlen($delimiter) === 1 && str_contains('()[]{}|/<>', $delimiter)) {
+            return $delimiter;
+        }
+
+        if ($delimiter[0] === '\\') {
+            $offset = 1;
+            $command = $this->readCommandName($delimiter, $offset);
+            if ($offset === strlen($delimiter) && isset(self::DELIMITER_COMMANDS[$command])) {
+                return self::DELIMITER_COMMANDS[$command];
+            }
+        }
+
+        throw new \InvalidArgumentException('Unsupported TeX genfrac ' . $side . ' delimiter ' . $delimiter);
+    }
+
+    private function normalizeGeneralizedFractionLineThickness(string $lineThickness): ?string
+    {
+        $lineThickness = trim($lineThickness);
+        if ($lineThickness === '') {
+            return null;
+        }
+
+        if (preg_match('/^(?:0+(?:\.0+)?)(?:pt|em|ex|px)?$/', $lineThickness) === 1) {
+            return '0';
+        }
+
+        if (preg_match('/^(?:\d+(?:\.\d+)?|\.\d+)(?:pt|em|ex|px)$/', $lineThickness) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX genfrac line thickness ' . $lineThickness);
+        }
+
+        return $lineThickness;
+    }
+
+    private function normalizeGeneralizedFractionStyle(string $style): ?string
+    {
+        $style = trim($style);
+
+        return match ($style) {
+            '' => null,
+            '0' => ' displaystyle="true"',
+            '1' => ' displaystyle="false"',
+            '2' => ' scriptlevel="1"',
+            '3' => ' scriptlevel="2"',
+            default => throw new \InvalidArgumentException('Unsupported TeX genfrac style ' . $style),
+        };
     }
 
     private function parseArrayEnvironment(string $source, int &$offset): string

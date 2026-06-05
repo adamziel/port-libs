@@ -44,6 +44,19 @@ return [
         $t->contains('<mstyle displaystyle="true"><mrow><mo fence="true" stretchy="true">(</mo><mfrac linethickness="0"><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mi>c</mi></mfrac><mo fence="true" stretchy="true">)</mo></mrow></mstyle>', $binomialMathml);
         $t->contains('<annotation encoding="application/x-tex">\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}</annotation>', $binomialMathml);
     },
+    'converts bounded tex generalized fractions to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $fractionMathml = $converter->texToMathMl('\\dfrac{a_1}{b_1} + \\tfrac{x}{y} + \\genfrac{[}{]}{0pt}{0}{n}{k} + \\genfrac{\\langle}{\\rangle}{1pt}{2}{p_i}{m_i}', true);
+        $plainGenfracMathml = $converter->texToMathMl('\\genfrac{}{}{.5pt}{}{a+b}{c}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $fractionMathml);
+        $t->contains('<mstyle displaystyle="true"><mfrac><msub><mi>a</mi><mn>1</mn></msub><msub><mi>b</mi><mn>1</mn></msub></mfrac></mstyle>', $fractionMathml);
+        $t->contains('<mstyle displaystyle="false"><mfrac><mi>x</mi><mi>y</mi></mfrac></mstyle>', $fractionMathml);
+        $t->contains('<mstyle displaystyle="true"><mrow><mo fence="true" stretchy="true">[</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo fence="true" stretchy="true">]</mo></mrow></mstyle>', $fractionMathml);
+        $t->contains('<mstyle scriptlevel="1"><mrow><mo fence="true" stretchy="true">⟨</mo><mfrac linethickness="1pt"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">⟩</mo></mrow></mstyle>', $fractionMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\dfrac{a_1}{b_1} + \\tfrac{x}{y} + \\genfrac{[}{]}{0pt}{0}{n}{k} + \\genfrac{\\langle}{\\rangle}{1pt}{2}{p_i}{m_i}</annotation>', $fractionMathml);
+        $t->contains('<mfrac linethickness=".5pt"><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mi>c</mi></mfrac>', $plainGenfracMathml);
+    },
     'adds source tex semantics annotations to bounded mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $annotated = $converter->texToMathMl('\\text{posts & media} \\in S');
@@ -220,6 +233,12 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\binom{n}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\binom{}{k}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\tbinom{n}{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\dfrac{a}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{bad}{0}{n}{k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{\\unknown}{]}{0pt}{0}{n}{k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{0pt}{4}{n}{k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{0pt}{0}{}{k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\genfrac{[}{]}{0pt}{0}{n}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
