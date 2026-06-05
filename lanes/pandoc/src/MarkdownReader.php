@@ -565,10 +565,48 @@ final class MarkdownReader
         }
 
         if (is_array($key)) {
-            return $this->normalizeYamlExplicitSequenceMappingKey($key);
+            if (!$this->isYamlAssociativeArray($key)) {
+                return $this->normalizeYamlExplicitSequenceMappingKey($key);
+            }
+
+            return $this->normalizeYamlExplicitMapMappingKey($key);
         }
 
         return null;
+    }
+
+    private function normalizeYamlExplicitMapMappingKey(array $key): ?string
+    {
+        if (!$this->isYamlAssociativeArray($key)) {
+            return $this->normalizeYamlExplicitSequenceMappingKey($key);
+        }
+
+        $items = [];
+        foreach ($key as $mapKey => $value) {
+            $normalizedKey = $this->formatYamlExplicitMapMappingKeyName($mapKey);
+            $normalizedValue = $this->formatYamlExplicitSequenceMappingKeyItem($value);
+            if ($normalizedKey === null || $normalizedValue === null) {
+                return null;
+            }
+
+            $items[] = $normalizedKey . ': ' . $normalizedValue;
+        }
+
+        return '{' . implode(', ', $items) . '}';
+    }
+
+    private function formatYamlExplicitMapMappingKeyName(int|string $key): ?string
+    {
+        if (is_int($key)) {
+            return (string) $key;
+        }
+
+        if (preg_match('/^[A-Za-z0-9_.-]+$/', $key) === 1) {
+            return $key;
+        }
+
+        $encoded = json_encode($key, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return is_string($encoded) ? $encoded : null;
     }
 
     private function normalizeYamlExplicitSequenceMappingKey(array $key): ?string
@@ -614,7 +652,11 @@ final class MarkdownReader
         }
 
         if (is_array($item)) {
-            return $this->normalizeYamlExplicitSequenceMappingKey($item);
+            if (!$this->isYamlAssociativeArray($item)) {
+                return $this->normalizeYamlExplicitSequenceMappingKey($item);
+            }
+
+            return $this->normalizeYamlExplicitMapMappingKey($item);
         }
 
         return null;

@@ -1801,6 +1801,52 @@ return [
         $t->same('sequence-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="sequence-key-yaml-body">Sequence key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit map keys in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Map key **Packet**',
+            '? {source: uri, type: review}',
+            ': https://example.test/import#map-key',
+            '?',
+            '  source: owner',
+            '  desk: import',
+            ': Import Desk',
+            'review:',
+            '  ? {owner: desk, ticket: 7}',
+            '  : queued',
+            '  ? {labels: [source, qa], active: true}',
+            '  :',
+            '    - migration',
+            '    - wordpress',
+            'map-key-labels: !!set',
+            '  ? {source: uri}',
+            '  ? {qa: true}',
+            'references:',
+            '  - id: map-key-ref',
+            '    ? {source: key, type: metadata}',
+            '    : metadata value',
+            '...',
+            '',
+            '# Map key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Map key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('https://example.test/import#map-key', $meta['{source: uri, type: review}']);
+        $t->same('Import Desk', $meta['{source: owner, desk: import}']);
+        $t->same('queued', $meta['review']['{owner: desk, ticket: 7}']);
+        $t->same(['migration', 'wordpress'], $meta['review']['{labels: [source, qa], active: true}']);
+        $t->true(array_key_exists('{source: uri}', $meta['map-key-labels']) && $meta['map-key-labels']['{source: uri}'] === null);
+        $t->true(array_key_exists('{qa: true}', $meta['map-key-labels']) && $meta['map-key-labels']['{qa: true}'] === null);
+        $t->same('metadata value', $meta['references'][0]['{source: key, type: metadata}']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('map-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="map-key-yaml-body">Map key YAML body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

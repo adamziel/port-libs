@@ -149,6 +149,22 @@ sequence-key-review:
 sequence-key-label-set: !!set
   ? [source, uri]
   ? [qa, true]
+? {source: uri, type: review}
+: "https://example.test/exports/packet#map-key"
+?
+  source: owner
+  desk: import
+: Import Desk
+map-key-review:
+  ? {owner: desk, ticket: 7}
+  : queued
+  ? {labels: [source, qa], active: true}
+  :
+    - migration
+    - wordpress
+map-key-label-set: !!set
+  ? {source: uri}
+  ? {qa: true}
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -371,6 +387,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!array_key_exists('[qa, true]', $meta['sequence-key-label-set'] ?? []) || $meta['sequence-key-label-set']['[qa, true]'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing explicit sequence key in set metadata');
     }
+    if (($meta['{source: uri, type: review}'] ?? '') !== 'https://example.test/exports/packet#map-key') {
+        throw new RuntimeException('YAML metadata self-test missing explicit map source URI key');
+    }
+    if (($meta['{source: owner, desk: import}'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test missing block-form explicit map owner key');
+    }
+    if (($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') !== 'queued') {
+        throw new RuntimeException('YAML metadata self-test missing nested explicit map ticket key');
+    }
+    if (($meta['map-key-review']['{labels: [source, qa], active: true}'] ?? []) !== ['migration', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing nested explicit map labels key');
+    }
+    if (!array_key_exists('{qa: true}', $meta['map-key-label-set'] ?? []) || $meta['map-key-label-set']['{qa: true}'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit map key in set metadata');
+    }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
     }
@@ -430,6 +461,7 @@ echo 'Review optional deadline is null: ' . ((array_key_exists('optional-deadlin
 echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / ' . ($meta['explicit-review']['source:key'] ?? '') . "\n";
 echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ?? '') . ' / ' . ($meta['[sequence, source-uri]'] ?? '') . "\n";
+echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
