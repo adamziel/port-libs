@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\OpcContentTypes;
+use PortLibs\Pandoc\OpcPackagePath;
 use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
@@ -50,6 +51,8 @@ $documentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source%20workbook.xlsx"/>
   <Relationship Id="rIdEmbeddedOle" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/oleObject1.bin"/>
   <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdInternalBookmark" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#review-bookmark"/>
+  <Relationship Id="rIdInternalReviewState" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="?review=ready#packet"/>
   <Relationship Id="rIdRelativeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="review/source.html#packet" TargetMode="External"/>
   <Relationship Id="rIdUnsafeReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
   <Relationship Id="rIdMalformedType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source-with-bad-type" TargetMode="External"/>
@@ -136,6 +139,9 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     $relationshipPreflight[$target['id']] = [
         'id' => $target['id'],
         'target' => $target['target'],
+        'targetPart' => $target['external'] || in_array('invalid-target', $target['issues'], true)
+            ? null
+            : OpcPackagePath::stripQueryAndFragment($target['target']),
         'contentType' => $target['contentType'],
         'relationshipTypeKind' => $target['relationshipTypeKind'],
         'relationshipTypeScheme' => $target['relationshipTypeScheme'],
@@ -330,6 +336,18 @@ $summary = [
         'digitalSignatureParts' => $digitalSignatureParts,
         'embeddedPackageParts' => $embeddedPackageParts,
         'embeddedObjectParts' => $embeddedObjectParts,
+        'internalSourceReferences' => array_values(array_map(
+            static fn (array $target): array => [
+                'id' => $target['id'],
+                'target' => $target['target'],
+                'targetPart' => $target['targetPart'],
+                'contentType' => $target['contentType'],
+                'issues' => $target['issues'],
+            ],
+            array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === false
+                && $target['targetPart'] === $documentPart
+                && $target['target'] !== $documentPart)
+        )),
         'hasReviewerEditLink' => ($relationshipSummaries['rIdReviewer']['external'] ?? false) === true,
     ],
 ];
@@ -351,6 +369,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'application/vnd.openxmlformats-officedocument.package',
         '/word/embeddings/oleObject1.bin',
         'application/vnd.openxmlformats-officedocument.oleObject',
+        '/word/document.xml#review-bookmark',
+        '/word/document.xml?review=ready#packet',
     ];
     $actual = [
         $summary['document']['part'],
@@ -368,6 +388,8 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['embeddedPackages'][0]['contentType'] ?? null,
         $summary['wordpressImport']['embeddedObjectParts'][0] ?? null,
         $summary['embeddedPackages'][1]['contentType'] ?? null,
+        $summary['relationships']['rIdInternalBookmark']['target'] ?? null,
+        $summary['relationships']['rIdInternalReviewState']['target'] ?? null,
     ];
     if (
         $actual !== $expected
@@ -388,6 +410,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
+        || ($summary['relationships']['rIdInternalBookmark']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['relationships']['rIdInternalReviewState']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
+        || ($summary['wordpressImport']['internalSourceReferences'][0]['id'] ?? null) !== 'rIdInternalBookmark'
+        || ($summary['wordpressImport']['internalSourceReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['internalSourceReferences'][0]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['internalSourceReferences'][1]['id'] ?? null) !== 'rIdInternalReviewState'
+        || ($summary['wordpressImport']['internalSourceReferences'][1]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['internalSourceReferences'][1]['issues'] ?? null) !== []
         || $summary['integrity']['packagePartsValid'] !== false
         || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml']
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'

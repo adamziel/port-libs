@@ -101,7 +101,12 @@ final class OpcPackagePath
         $path = substr($target, 0, $split);
         $suffix = substr($target, $split);
         if ($path === '') {
-            throw new \InvalidArgumentException('OPC relationship target path must not be empty');
+            $source = self::canonicalPartName($sourcePartName, true);
+            if ($source === '/') {
+                throw new \InvalidArgumentException('OPC relationship target path must not be empty');
+            }
+
+            return $source . $suffix;
         }
 
         $path = self::decodeUriPath($path, 'OPC relationship target');

@@ -336,6 +336,61 @@ XML;
         $t->same('Internal', $relationships->byId('rIdStyles')?->targetMode);
         $t->same(null, $relationships->byId('missing'));
     },
+    'resolves same source internal OPC relationship fragment and query targets' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdBookmark" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#review-bookmark"/>
+  <Relationship Id="rIdReviewerState" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="?review=ready#packet"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
+        $relationships = OpcRelationships::fromXml($documentRelationshipsXml, '/word/document.xml');
+
+        $t->same('/word/document.xml#review-bookmark', $relationships->resolveTarget('rIdBookmark'));
+        $t->same('/word/document.xml?review=ready#packet', $relationships->resolveTarget('rIdReviewerState'));
+        $t->same('/word/styles.xml', $relationships->resolveTarget('rIdStyles'));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('/word/document.xml#review-bookmark', $preflight['rIdBookmark']['target']);
+        $t->same('/word/document.xml', OpcPackagePath::stripQueryAndFragment($preflight['rIdBookmark']['target']));
+        $t->same(true, $preflight['rIdBookmark']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $preflight['rIdBookmark']['contentType']);
+        $t->same(true, $preflight['rIdBookmark']['valid']);
+        $t->same([], $preflight['rIdBookmark']['issues']);
+        $t->same('/word/document.xml?review=ready#packet', $preflight['rIdReviewerState']['target']);
+        $t->same('/word/document.xml', OpcPackagePath::stripQueryAndFragment($preflight['rIdReviewerState']['target']));
+        $t->same(true, $preflight['rIdReviewerState']['exists']);
+        $t->same(true, $preflight['rIdReviewerState']['valid']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['rIdDocument', 'rIdBookmark', 'rIdReviewerState', 'rIdStyles'], array_keys($closureById));
+        $t->same('/word/document.xml', $closureById['rIdBookmark']['targetPart']);
+        $t->same(1, $closureById['rIdBookmark']['depth']);
+        $t->same('/word/document.xml', $closureById['rIdReviewerState']['targetPart']);
+        $t->same(array_fill(0, 4, true), array_column($closureById, 'valid'));
+
+        $rootRelationships = new OpcRelationships('/');
+        $rootRelationships->add(new OpcRelationship('rIdFragment', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml', '#root-fragment'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $rootRelationships->resolveTarget('rIdFragment'));
+    },
     'resolves percent encoded OPC relationship target paths to package parts' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
