@@ -233,11 +233,12 @@ final class PdfTextExtractor
 
         $objects = $this->pdfObjects($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
-        if ($pageObjectNumbers === [] && $this->currentTrailerRootReferenceBlocksFallback) {
-            return [];
-        }
         $pageCount = count($pageObjectNumbers);
         if ($pageCount === 0) {
+            if ($this->currentTrailerRootReferenceBlocksFallback || $this->hasCatalogPageTreeReference($objects)) {
+                return [];
+            }
+
             $pageCount = count($this->allDecodedStreams($pdfBytes, $objects));
         }
 

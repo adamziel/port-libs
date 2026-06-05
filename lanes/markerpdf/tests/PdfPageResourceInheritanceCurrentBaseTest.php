@@ -231,6 +231,21 @@ $pageResourceKidGenerationAllStaleCurrentBasePdf = static function () use ($page
         . "%%EOF";
 };
 
+$pageResourceKidGenerationLatestBodyLabelFallbackCurrentBasePdf = static function (): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale kid generation text) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current generation fallback label leak) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream\nendobj\n"
+        . "3 1 obj\n<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $pageResourceKidsPathNoParentCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
     $content = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /BranchForm Do Q q /RootForm Do Q';
     $branchForm = 'BT /F1 12 Tf 12 24 Td (Catalog path inherited form text) Tj ET';
@@ -612,6 +627,23 @@ return [
         $t->same('', $extractor->extractPlainText($pdf));
         $t->same('', $extractor->naiveGetText($pdf));
         $t->same([], (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf));
+    },
+    'blocks fallback page labels when catalog Kids select a stale page generation' => static function (TestRunner $t) use ($pageResourceKidGenerationLatestBodyLabelFallbackCurrentBasePdf): void {
+        $pdf = $pageResourceKidGenerationLatestBodyLabelFallbackCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $propertyExtractor = new PdfPagePropertyExtractor();
+
+        $t->same([], $extractor->extractTextLines($pdf));
+        $t->same([], $extractor->extractTextRuns($pdf));
+        $t->same('', $plainText);
+        $t->same('', $extractor->naiveGetText($pdf));
+        $t->same(0, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same([], $extractor->extractPageLabels($pdf));
+        $t->same([], $propertyExtractor->extractPageBoundaryMetadata($pdf));
+        $t->same([], $propertyExtractor->extractPageReviewMetadata($pdf));
+        $t->same(false, str_contains($plainText, 'Current generation fallback label leak'));
+        $t->same(false, str_contains($plainText, 'Stale kid generation text'));
     },
     'inherits resources from the catalog Kids path when a reachable page omits Parent' => static function (TestRunner $t) use ($pageResourceKidsPathNoParentCurrentBasePdf): void {
         $pdf = $pageResourceKidsPathNoParentCurrentBasePdf();
