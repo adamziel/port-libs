@@ -546,18 +546,19 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{previousRenderedNames:string, entrySubstitutionChecked:bool}
+     * @return array{previousRenderedNames:string, previousRenderedNameParts:list<string>, entrySubstitutionChecked:bool}
      */
     private function emptyBibliographySubstitutionState(): array
     {
         return [
             'previousRenderedNames' => '',
+            'previousRenderedNameParts' => [],
             'entrySubstitutionChecked' => false,
         ];
     }
 
     /**
-     * @param array{previousRenderedNames:string, entrySubstitutionChecked:bool} $state
+     * @param array{previousRenderedNames:string, previousRenderedNameParts:list<string>, entrySubstitutionChecked:bool} $state
      */
     private function resetBibliographySubstitutionEntry(array &$state): void
     {
@@ -565,28 +566,67 @@ final class CitationCslProcessor
     }
 
     /**
-     * @param array{previousRenderedNames:string, entrySubstitutionChecked:bool} $state
+     * @param list<string> $renderedNameParts
+     * @param array{previousRenderedNames:string, previousRenderedNameParts:list<string>, entrySubstitutionChecked:bool} $state
+     * @return array{type:string, value?:string, parts?:list<string>}
      */
-    private function applyBibliographySubsequentAuthorSubstitute(string $renderedNames, array &$state): string
+    private function bibliographySubsequentAuthorSubstitutionPlan(array $renderedNameParts, string $renderedNames, array &$state): array
     {
         if ($renderedNames === '' || ($state['entrySubstitutionChecked'] ?? false) === true) {
-            return $renderedNames;
+            return ['type' => 'none'];
         }
 
         $state['entrySubstitutionChecked'] = true;
         $previous = (string) ($state['previousRenderedNames'] ?? '');
+        $previousParts = is_array($state['previousRenderedNameParts'] ?? null)
+            ? array_values(array_map('strval', $state['previousRenderedNameParts']))
+            : [];
         $state['previousRenderedNames'] = $renderedNames;
+        $state['previousRenderedNameParts'] = array_values($renderedNameParts);
 
         $options = $this->style->bibliographyOptions();
         $substitute = (string) ($options['subsequentAuthorSubstitute'] ?? '');
         $rule = (string) ($options['subsequentAuthorSubstituteRule'] ?? 'complete-all');
-        if ($substitute === '' || $previous === '' || $rule !== 'complete-all') {
-            return $renderedNames;
+        if ($substitute === '' || $previous === '') {
+            return ['type' => 'none'];
         }
 
-        return $this->normalizedRenderedNameKey($renderedNames) === $this->normalizedRenderedNameKey($previous)
-            ? $substitute
-            : $renderedNames;
+        $completeMatch = $this->normalizedRenderedNameKey($renderedNames) === $this->normalizedRenderedNameKey($previous);
+        if ($rule === 'complete-all') {
+            return $completeMatch ? ['type' => 'full', 'value' => $substitute] : ['type' => 'none'];
+        }
+
+        if ($rule === 'complete-each') {
+            return $completeMatch && $renderedNameParts !== []
+                ? ['type' => 'parts', 'parts' => array_fill(0, count($renderedNameParts), $substitute)]
+                : ['type' => 'none'];
+        }
+
+        if ($rule !== 'partial-each' && $rule !== 'partial-first') {
+            return ['type' => 'none'];
+        }
+
+        $matchCount = 0;
+        $limit = min(count($renderedNameParts), count($previousParts));
+        for ($index = 0; $index < $limit; $index++) {
+            if ($this->normalizedRenderedNameKey($renderedNameParts[$index]) !== $this->normalizedRenderedNameKey($previousParts[$index])) {
+                break;
+            }
+
+            $matchCount++;
+        }
+
+        if ($matchCount === 0) {
+            return ['type' => 'none'];
+        }
+
+        $substituted = $renderedNameParts;
+        $substitutionCount = $rule === 'partial-first' ? 1 : $matchCount;
+        for ($index = 0; $index < $substitutionCount; $index++) {
+            $substituted[$index] = $substitute;
+        }
+
+        return ['type' => 'parts', 'parts' => $substituted];
     }
 
     private function normalizedRenderedNameKey(string $value): string
@@ -3117,12 +3157,7 @@ final class CitationCslProcessor
             return '';
         }
 
-        $rendered = $this->renderNameList($names, $this->style->bibliographyNameRendering(), true);
-        if (is_array($bibliographyState)) {
-            return $this->applyBibliographySubsequentAuthorSubstitute($rendered, $bibliographyState);
-        }
-
-        return $rendered;
+        return $this->renderNameList($names, $this->style->bibliographyNameRendering(), true, null, $bibliographyState);
     }
 
     /**
@@ -4131,12 +4166,9 @@ final class CitationCslProcessor
             $names,
             $options,
             $scope === 'bibliography',
-            $citation
+            $citation,
+            $bibliographyState
         );
-
-        if ($scope === 'bibliography' && is_array($bibliographyState)) {
-            return $this->applyBibliographySubsequentAuthorSubstitute($rendered, $bibliographyState);
-        }
 
         return $rendered;
     }
@@ -5250,7 +5282,7 @@ final class CitationCslProcessor
      * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
      * @param array<string, mixed> $options
      */
-    private function renderNameList(array $names, array $options, bool $bibliography, ?AstNode $citation = null): string
+    private function renderNameList(array $names, array $options, bool $bibliography, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         $forceEtAl = false;
         $renderableNames = [];
@@ -5302,15 +5334,66 @@ final class CitationCslProcessor
                     ? $this->renderBibliographyName($lastName, $options, $count - 1)
                     : $this->renderCitationName($lastName, $options);
 
+                if ($bibliography && is_array($bibliographyState)) {
+                    $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan(
+                        [...$rendered, $lastRendered],
+                        $this->joinNamesWithEtAlUseLast($rendered, $lastRendered, $options),
+                        $bibliographyState
+                    );
+                    if (($substitution['type'] ?? '') === 'full') {
+                        return (string) ($substitution['value'] ?? '');
+                    }
+                    if (($substitution['type'] ?? '') === 'parts' && is_array($substitution['parts'] ?? null)) {
+                        $substituted = $substitution['parts'];
+                        $lastRendered = array_pop($substituted) ?? $lastRendered;
+                        $rendered = $substituted;
+                    }
+                }
+
                 return $this->joinNamesWithEtAlUseLast($rendered, $lastRendered, $options);
             }
 
             $term = $this->renderEtAlTerm($options);
             if ($rendered === []) {
+                if ($bibliography && is_array($bibliographyState)) {
+                    $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan([], $term, $bibliographyState);
+                    if (($substitution['type'] ?? '') === 'full') {
+                        return (string) ($substitution['value'] ?? '');
+                    }
+                }
+
                 return $term;
             }
 
+            if ($bibliography && is_array($bibliographyState)) {
+                $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan(
+                    $rendered,
+                    $this->joinNamesWithEtAl($rendered, $term, $options, $bibliography, $visibleCount - 1),
+                    $bibliographyState
+                );
+                if (($substitution['type'] ?? '') === 'full') {
+                    return (string) ($substitution['value'] ?? '');
+                }
+                if (($substitution['type'] ?? '') === 'parts' && is_array($substitution['parts'] ?? null)) {
+                    $rendered = $substitution['parts'];
+                }
+            }
+
             return $this->joinNamesWithEtAl($rendered, $term, $options, $bibliography, $visibleCount - 1);
+        }
+
+        if ($bibliography && is_array($bibliographyState)) {
+            $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan(
+                $rendered,
+                implode($options['delimiter'], $rendered),
+                $bibliographyState
+            );
+            if (($substitution['type'] ?? '') === 'full') {
+                return (string) ($substitution['value'] ?? '');
+            }
+            if (($substitution['type'] ?? '') === 'parts' && is_array($substitution['parts'] ?? null)) {
+                $rendered = $substitution['parts'];
+            }
         }
 
         return $bibliography

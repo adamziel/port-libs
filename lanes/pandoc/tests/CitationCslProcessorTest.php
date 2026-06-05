@@ -6600,6 +6600,119 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl subsequent author substitute rule variants' => static function (TestRunner $t) use ($citation): void {
+        $items = [
+            [
+                'id' => 'complete-a',
+                'type' => 'report',
+                'title' => 'Complete A',
+                'author' => [
+                    ['family' => 'Doe'],
+                    ['family' => 'Stevens'],
+                    ['family' => 'Miller'],
+                ],
+                'issued' => ['date-parts' => [[2001]]],
+            ],
+            [
+                'id' => 'complete-b',
+                'type' => 'report',
+                'title' => 'Complete B',
+                'author' => [
+                    ['family' => 'Doe'],
+                    ['family' => 'Stevens'],
+                    ['family' => 'Miller'],
+                ],
+                'issued' => ['date-parts' => [[2002]]],
+            ],
+            [
+                'id' => 'partial-a',
+                'type' => 'report',
+                'title' => 'Partial A',
+                'author' => [
+                    ['family' => 'Doe'],
+                    ['family' => 'Stevens'],
+                    ['family' => 'Miller'],
+                ],
+                'issued' => ['date-parts' => [[2004]]],
+            ],
+            [
+                'id' => 'partial-b',
+                'type' => 'report',
+                'title' => 'Partial B',
+                'author' => [
+                    ['family' => 'Doe'],
+                    ['family' => 'Stevens'],
+                    ['family' => 'Clark'],
+                ],
+                'issued' => ['date-parts' => [[2005]]],
+            ],
+            [
+                'id' => 'partial-c',
+                'type' => 'report',
+                'title' => 'Partial C',
+                'author' => [
+                    ['family' => 'Doe'],
+                    ['family' => 'Clark'],
+                ],
+                'issued' => ['date-parts' => [[2006]]],
+            ],
+        ];
+        $style = static fn (string $rule): string => <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Subsequent Author Rule Review</title>
+    <id>https://example.test/styles/bounded-subsequent-author-rule-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography subsequent-author-substitute="---" subsequent-author-substitute-rule="{$rule}">
+    <layout delimiter=". " suffix=".">
+      <names variable="author" delimiter="; ">
+        <name name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML;
+        $entryText = static fn (AstNode $bibliography, int $index): string => $bibliography->children[$index]->children[1]->children[0]->children[0]->attr('text');
+
+        $completeEach = CitationCslProcessor::fromItems($items)->withCslStyle($style('complete-each'));
+        $t->same('complete-each', $completeEach->cslStyleSummary()['bibliographyOptions']['subsequentAuthorSubstituteRule'] ?? null);
+        $completeBibliography = $completeEach->bibliographyDefinitionList(['complete-a', 'complete-b']);
+        $t->same('Doe; Stevens; Miller. Complete A.', $entryText($completeBibliography, 0));
+        $t->same('---; ---; ---. Complete B.', $entryText($completeBibliography, 1));
+
+        $partialEach = CitationCslProcessor::fromItems($items)->withCslStyle($style('partial-each'));
+        $t->same('partial-each', $partialEach->cslStyleSummary()['bibliographyOptions']['subsequentAuthorSubstituteRule'] ?? null);
+        $partialBibliography = $partialEach->bibliographyDefinitionList(['partial-a', 'partial-b', 'partial-c']);
+        $t->same('Doe; Stevens; Miller. Partial A.', $entryText($partialBibliography, 0));
+        $t->same('---; ---; Clark. Partial B.', $entryText($partialBibliography, 1));
+        $t->same('---; Clark. Partial C.', $entryText($partialBibliography, 2));
+
+        $partialFirst = CitationCslProcessor::fromItems($items)->withCslStyle($style('partial-first'));
+        $t->same('partial-first', $partialFirst->cslStyleSummary()['bibliographyOptions']['subsequentAuthorSubstituteRule'] ?? null);
+        $partialFirstBibliography = $partialFirst->bibliographyDefinitionList(['partial-a', 'partial-b']);
+        $t->same('Doe; Stevens; Miller. Partial A.', $entryText($partialFirstBibliography, 0));
+        $t->same('---; Stevens; Clark. Partial B.', $entryText($partialFirstBibliography, 1));
+
+        $document = (new MarkdownReader())->read('Review cites @partial-a, @partial-b, and @partial-c.');
+        $blocks = (new WordPressBlockWriter())->write($partialEach->appendBibliography($document, 'Works Cited'));
+        $t->contains('<dt>Doe et al. 2004</dt><dd>Doe; Stevens; Miller. Partial A.</dd>', $blocks);
+        $t->contains('<dt>Doe et al. 2005</dt><dd>---; ---; Clark. Partial B.</dd>', $blocks);
+        $t->contains('<dt>Doe and Clark 2006</dt><dd>---; Clark. Partial C.</dd>', $blocks);
+        $t->same('(Doe et al. 2001; Doe et al. 2002)', $completeEach->renderCitationCluster([
+            $citation('complete-a', '[@complete-a]'),
+            $citation('complete-b', '[@complete-b]'),
+        ]));
+    },
     'maps bounded biblatex library call numbers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{archive-manual,
