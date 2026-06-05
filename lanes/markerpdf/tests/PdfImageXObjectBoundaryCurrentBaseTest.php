@@ -1628,6 +1628,83 @@ return [
         $t->true(!str_contains($encoded, hash('sha256', $embeddedExternalMaskPayload)));
         $t->true(str_contains($encoded, hash('sha256', $invalidExternalMaskPayload)));
     },
+    'maps rotated UserUnit page geometry for image XObject display review' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before rotated UserUnit images) Tj ET\n"
+            . "q 40 0 0 20 30 60 cm /Rotated#20Image Do Q\n"
+            . "q 50 0 0 40 160 230 cm /Clipped#20Rotated Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After rotated UserUnit images) Tj ET';
+        $rotatedPayload = 'BT /F1 12 Tf 72 720 Td (Rotated UserUnit Image Noise) Tj ET';
+        $clippedPayload = 'BT /F1 12 Tf 72 720 Td (Clipped Rotated UserUnit Image Noise) Tj ET';
+        $rotatedCompressed = gzcompress($rotatedPayload);
+        $clippedCompressed = gzcompress($clippedPayload);
+        if (!is_string($rotatedCompressed) || !is_string($clippedCompressed)) {
+            throw new RuntimeException('Unable to compress rotated UserUnit image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.6\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /MediaBox [10 20 210 320] /CropBox [20 40 180 240] /Rotate 90 /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Rotated#20Image 5 0 R /Clipped#20Rotated 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /UserUnit 2 /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($rotatedCompressed) . " >>\nstream\n{$rotatedCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 5 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($clippedCompressed) . " >>\nstream\n{$clippedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $rotated = $entriesByName['Rotated Image'];
+        $t->same([10.0, 20.0, 210.0, 320.0], $rotated['page_media_box']);
+        $t->same([20.0, 40.0, 180.0, 240.0], $rotated['page_crop_box']);
+        $t->same([20.0, 40.0, 180.0, 240.0], $rotated['page_clip_bbox']);
+        $t->same(90, $rotated['page_rotation']);
+        $t->same('pages', $rotated['page_rotation_source']);
+        $t->same(2.0, $rotated['page_user_unit']);
+        $t->same('page', $rotated['page_user_unit_source']);
+        $t->same(true, $rotated['page_rotation_swaps_axes']);
+        $t->same(true, $rotated['page_user_unit_applied_to_display']);
+        $t->same(['width' => 400.0, 'height' => 320.0], $rotated['page_display_size']);
+        $t->same([[30.0, 60.0, 70.0, 80.0]], $rotated['invocation_bboxes']);
+        $t->same([[30.0, 60.0, 70.0, 80.0]], $rotated['invocation_visible_bboxes']);
+        $t->same([[40.0, 20.0, 80.0, 100.0]], $rotated['invocation_display_bboxes']);
+        $t->same([[40.0, 20.0, 80.0, 100.0]], $rotated['invocation_visible_display_bboxes']);
+        $t->same([40.0, 20.0, 80.0, 100.0], $rotated['image_display_bbox']);
+        $t->same([40.0, 20.0, 80.0, 100.0], $rotated['image_visible_display_bbox']);
+        $t->same(true, $rotated['display_geometry_review_only']);
+        $t->same(false, $rotated['clip_reduces_painted_bbox']);
+        $t->same(false, $rotated['payload_in_visible_text']);
+        $t->same(hash('sha256', $rotatedPayload), $rotated['decoded_sha256']);
+
+        $clipped = $entriesByName['Clipped Rotated'];
+        $t->same([[160.0, 230.0, 210.0, 270.0]], $clipped['invocation_bboxes']);
+        $t->same([[160.0, 230.0, 180.0, 240.0]], $clipped['invocation_visible_bboxes']);
+        $t->same([[380.0, 280.0, 460.0, 380.0]], $clipped['invocation_display_bboxes']);
+        $t->same([[380.0, 280.0, 400.0, 320.0]], $clipped['invocation_visible_display_bboxes']);
+        $t->same([380.0, 280.0, 460.0, 380.0], $clipped['image_display_bbox']);
+        $t->same([380.0, 280.0, 400.0, 320.0], $clipped['image_visible_display_bbox']);
+        $t->same(true, $clipped['page_clip_reduces_painted_bbox']);
+        $t->same(false, $clipped['page_clip_excludes_image']);
+        $t->same(hash('sha256', $clippedPayload), $clipped['decoded_sha256']);
+
+        $t->same(['Before rotated UserUnit images', 'After rotated UserUnit images'], $extractor->extractTextLines($pdf));
+        $t->same("Before rotated UserUnit images\nAfter rotated UserUnit images", $plainText);
+        $t->true(!str_contains($plainText, 'Rotated UserUnit Image Noise'));
+        $t->true(!str_contains($plainText, 'Clipped Rotated UserUnit Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $rotatedPayload));
+        $t->true(!str_contains($encoded, $clippedPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

@@ -4742,6 +4742,29 @@ final class PdfTextExtractor
         $pageClipBbox = $this->normalizedPdfRectangleOrNull($pageBoundaryClipReview['bbox'] ?? null);
         $pageMediaBox = $this->normalizedPdfRectangleOrNull($pageBoundaryClipReview['media_box'] ?? null);
         $pageCropBox = $this->normalizedPdfRectangleOrNull($pageBoundaryClipReview['crop_box'] ?? null);
+        $pageRotation = is_int($pageBoundaryClipReview['rotation'] ?? null)
+            ? $this->normalizedPageRotation((int) $pageBoundaryClipReview['rotation'])
+            : 0;
+        $pageRotationSource = is_string($pageBoundaryClipReview['rotation_source'] ?? null)
+            ? $pageBoundaryClipReview['rotation_source']
+            : 'default';
+        $pageUserUnit = (is_int($pageBoundaryClipReview['user_unit'] ?? null) || is_float($pageBoundaryClipReview['user_unit'] ?? null))
+            ? max(0.000001, (float) $pageBoundaryClipReview['user_unit'])
+            : 1.0;
+        $pageUserUnitSource = is_string($pageBoundaryClipReview['user_unit_source'] ?? null)
+            ? $pageBoundaryClipReview['user_unit_source']
+            : 'default';
+        $pageDisplaySize = $pageClipBbox === null
+            ? null
+            : $this->imageXObjectPageDisplaySize($pageClipBbox, $pageRotation, $pageUserUnit);
+        $invocationDisplayBboxes = $pageClipBbox === null
+            ? []
+            : $this->imageXObjectDisplayBboxes($invocationBboxes, $pageClipBbox, $pageRotation, $pageUserUnit);
+        $invocationVisibleDisplayBboxes = $pageClipBbox === null
+            ? []
+            : $this->imageXObjectDisplayBboxes($invocationVisibleBboxes, $pageClipBbox, $pageRotation, $pageUserUnit);
+        $imageDisplayBbox = $this->pdfRectangleUnionList($invocationDisplayBboxes);
+        $imageVisibleDisplayBbox = $this->pdfRectangleUnionList($invocationVisibleDisplayBboxes);
         $pageClipReducesPaintedBbox = false;
         $pageClipExcludedInvocationCount = 0;
         if ($pageClipBbox !== null) {
@@ -4790,6 +4813,13 @@ final class PdfTextExtractor
             'page_clip_intersects_media' => $pageBoundaryClipReview === null
                 ? null
                 : (($pageBoundaryClipReview['crop_box_intersects_media'] ?? false) === true),
+            'page_rotation' => $pageRotation,
+            'page_rotation_source' => $pageRotationSource,
+            'page_user_unit' => $pageUserUnit,
+            'page_user_unit_source' => $pageUserUnitSource,
+            'page_rotation_swaps_axes' => in_array($pageRotation, [90, 270], true),
+            'page_user_unit_applied_to_display' => abs($pageUserUnit - 1.0) > 0.000001,
+            'page_display_size' => $pageDisplaySize,
             'resource_name' => $resourceName,
             'resource_path' => $resourcePath === [] ? [$resourceName] : $resourcePath,
             'form_xobject_depth' => max(0, count($resourcePath) - 1),
@@ -4804,10 +4834,16 @@ final class PdfTextExtractor
             'invocation_bboxes' => $invocationBboxes,
             'invocation_clip_bboxes' => $invocationClipBboxes,
             'invocation_visible_bboxes' => $invocationVisibleBboxes,
+            'invocation_display_bboxes' => $invocationDisplayBboxes,
+            'invocation_visible_display_bboxes' => $invocationVisibleDisplayBboxes,
             'invocation_graphics_states' => $invocationGraphicsStates,
             'graphics_state_review_only' => $invocationGraphicsStates !== [],
             'image_unit_bbox' => $imageUnitBbox,
             'image_visible_bbox' => $imageVisibleBbox,
+            'image_display_bbox' => $imageDisplayBbox,
+            'image_visible_display_bbox' => $imageVisibleDisplayBbox,
+            'display_geometry_review_only' => $pageDisplaySize !== null
+                && ($pageRotation !== 0 || abs($pageUserUnit - 1.0) > 0.000001),
             'clip_applied' => $clipApplied,
             'clip_reduces_painted_bbox' => $clipReducesPaintedBbox,
             'clip_excludes_image' => $clipExcludedInvocationCount > 0,
@@ -11649,7 +11685,11 @@ final class PdfTextExtractor
         $mediaBoxSource = 'default';
         $cropBox = null;
         $cropBoxSource = 'media_box';
-        $hasExplicitPageBox = false;
+        $rotation = 0;
+        $rotationSource = 'default';
+        $userUnit = 1.0;
+        $userUnitSource = 'default';
+        $hasExplicitPageGeometry = false;
 
         foreach (array_reverse($this->pageObjectLineage($pageObjectNumber, $objects)) as $objectNumber) {
             $objectBody = $objects[$objectNumber] ?? null;
@@ -11662,18 +11702,34 @@ final class PdfTextExtractor
             if ($candidateMediaBox !== null) {
                 $mediaBox = $candidateMediaBox;
                 $mediaBoxSource = $source;
-                $hasExplicitPageBox = true;
+                $hasExplicitPageGeometry = true;
             }
 
             $candidateCropBox = $this->topLevelPdfRectangleValueAfterName($objectBody, 'CropBox', $objects);
             if ($candidateCropBox !== null) {
                 $cropBox = $candidateCropBox;
                 $cropBoxSource = $source;
-                $hasExplicitPageBox = true;
+                $hasExplicitPageGeometry = true;
+            }
+
+            $candidateRotation = $this->topLevelPdfNumberValueAfterName($objectBody, 'Rotate', $objects);
+            if ($candidateRotation !== null) {
+                $rotation = $this->normalizedPageRotation((int) round($candidateRotation));
+                $rotationSource = $source;
+                $hasExplicitPageGeometry = true;
+            }
+
+            if ($objectNumber === $pageObjectNumber) {
+                $candidateUserUnit = $this->topLevelPdfNumberValueAfterName($objectBody, 'UserUnit', $objects);
+                if ($candidateUserUnit !== null && $candidateUserUnit > 0.0) {
+                    $userUnit = (float) $candidateUserUnit;
+                    $userUnitSource = $source;
+                    $hasExplicitPageGeometry = true;
+                }
             }
         }
 
-        if (!$hasExplicitPageBox) {
+        if (!$hasExplicitPageGeometry) {
             return null;
         }
 
@@ -11701,7 +11757,133 @@ final class PdfTextExtractor
             'crop_box_source' => $cropBoxSource,
             'crop_box_clipped_to_media' => $cropBoxClippedToMedia,
             'crop_box_intersects_media' => $this->pdfRectanglesHavePositiveIntersection($mediaBox, $cropBox),
+            'rotation' => $rotation,
+            'rotation_source' => $rotationSource,
+            'user_unit' => $userUnit,
+            'user_unit_source' => $userUnitSource,
+            'rotation_swaps_axes' => in_array($rotation, [90, 270], true),
+            'user_unit_applied_to_display' => abs($userUnit - 1.0) > 0.000001,
+            'display_page_size' => $this->imageXObjectPageDisplaySize($clipBox, $rotation, $userUnit),
             'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function topLevelPdfNumberValueAfterName(string $objectBody, string $name, array $objects): ?float
+    {
+        $value = $this->topLevelPdfValueAfterName($objectBody, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->pdfNumberValueAt($value, 0, $objects);
+    }
+
+    private function normalizedPageRotation(int $rotation): int
+    {
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
+    }
+
+    /**
+     * @param list<float> $pageBbox
+     * @return array{width: float, height: float}
+     */
+    private function imageXObjectPageDisplaySize(array $pageBbox, int $rotation, float $userUnit): array
+    {
+        $width = max(0.0, $pageBbox[2] - $pageBbox[0]) * $userUnit;
+        $height = max(0.0, $pageBbox[3] - $pageBbox[1]) * $userUnit;
+        if (in_array($this->normalizedPageRotation($rotation), [90, 270], true)) {
+            [$width, $height] = [$height, $width];
+        }
+
+        return [
+            'width' => $this->normalizedPdfReviewNumbers([$width])[0],
+            'height' => $this->normalizedPdfReviewNumbers([$height])[0],
+        ];
+    }
+
+    /**
+     * @param list<list<float>> $bboxes
+     * @param list<float> $pageBbox
+     * @return list<list<float>>
+     */
+    private function imageXObjectDisplayBboxes(array $bboxes, array $pageBbox, int $rotation, float $userUnit): array
+    {
+        $displayBboxes = [];
+        foreach ($bboxes as $bbox) {
+            $displayBboxes[] = $this->imageXObjectDisplayBbox($bbox, $pageBbox, $rotation, $userUnit);
+        }
+
+        return $displayBboxes;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $pageBbox
+     * @return list<float>
+     */
+    private function imageXObjectDisplayBbox(array $bbox, array $pageBbox, int $rotation, float $userUnit): array
+    {
+        $points = [
+            [$bbox[0], $bbox[1]],
+            [$bbox[2], $bbox[1]],
+            [$bbox[0], $bbox[3]],
+            [$bbox[2], $bbox[3]],
+        ];
+        $mapped = array_map(
+            fn (array $point): array => $this->imageXObjectDisplayPoint(
+                (float) $point[0],
+                (float) $point[1],
+                $pageBbox,
+                $rotation,
+                $userUnit
+            ),
+            $points
+        );
+        $xs = array_column($mapped, 0);
+        $ys = array_column($mapped, 1);
+
+        return $this->normalizedPdfReviewNumbers([
+            min($xs),
+            min($ys),
+            max($xs),
+            max($ys),
+        ]);
+    }
+
+    /**
+     * @param list<float> $pageBbox
+     * @return array{0: float, 1: float}
+     */
+    private function imageXObjectDisplayPoint(
+        float $x,
+        float $y,
+        array $pageBbox,
+        int $rotation,
+        float $userUnit
+    ): array {
+        $width = max(0.0, $pageBbox[2] - $pageBbox[0]);
+        $height = max(0.0, $pageBbox[3] - $pageBbox[1]);
+        $x -= $pageBbox[0];
+        $y -= $pageBbox[1];
+
+        $mapped = match ($this->normalizedPageRotation($rotation)) {
+            90 => [$y, $x],
+            180 => [$width - $x, $y],
+            270 => [$height - $y, $width - $x],
+            default => [$x, $height - $y],
+        };
+
+        return [
+            $mapped[0] * $userUnit,
+            $mapped[1] * $userUnit,
         ];
     }
 
@@ -13750,6 +13932,24 @@ final class PdfTextExtractor
             max($left[2], $right[2]),
             max($left[3], $right[3]),
         ];
+    }
+
+    /**
+     * @param list<list<float>> $rectangles
+     * @return list<float>|null
+     */
+    private function pdfRectangleUnionList(array $rectangles): ?array
+    {
+        $union = null;
+        foreach ($rectangles as $rectangle) {
+            if (count($rectangle) < 4) {
+                continue;
+            }
+
+            $union = $this->pdfRectangleUnion($union, array_slice($rectangle, 0, 4));
+        }
+
+        return $union === null ? null : $this->normalizedPdfReviewNumbers($union);
     }
 
     /**
