@@ -196,6 +196,8 @@ final class MathTexConverter
         'split' => ['columnalign' => 'right left', 'columns' => 2],
     ];
 
+    private int $activeLeftFenceDepth = 0;
+
     public function latexFor(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
@@ -221,6 +223,7 @@ final class MathTexConverter
     public function texToMathMl(string $tex, bool $display = false, array $macros = []): string
     {
         $expandedTex = $this->expandRawTexMathMacros($tex, $this->normalizeMacroDefinitions($macros));
+        $this->activeLeftFenceDepth = 0;
         $offset = 0;
         $children = $this->parseExpression($expandedTex, $offset, null);
         $this->skipWhitespace($expandedTex, $offset);
@@ -660,8 +663,12 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Unexpected TeX environment end at offset ' . $offset);
         }
 
+        if ($command === 'middle') {
+            return $this->parseMiddleFenceCommand($source, $offset);
+        }
+
         if ($command === 'left' || $command === 'right') {
-            return $this->parseFenceCommand($source, $offset);
+            return $this->parseFenceCommand($source, $offset, $command);
         }
 
         if (isset(self::SIZED_DELIMITER_COMMANDS[$command])) {
@@ -1298,14 +1305,34 @@ final class MathTexConverter
         return implode('', $children);
     }
 
-    private function parseFenceCommand(string $source, int &$offset): string
+    private function parseFenceCommand(string $source, int &$offset, string $command): string
     {
         $delimiter = $this->readFenceDelimiter($source, $offset);
+        if ($command === 'left') {
+            $this->activeLeftFenceDepth++;
+        } elseif ($this->activeLeftFenceDepth > 0) {
+            $this->activeLeftFenceDepth--;
+        }
+
         if ($delimiter === '') {
             return '';
         }
 
         return '<mo fence="true" stretchy="true">' . $this->esc($delimiter) . '</mo>';
+    }
+
+    private function parseMiddleFenceCommand(string $source, int &$offset): string
+    {
+        if ($this->activeLeftFenceDepth <= 0) {
+            throw new \InvalidArgumentException('Expected TeX \\middle inside \\left...\\right at offset ' . $offset);
+        }
+
+        $delimiter = $this->readFenceDelimiter($source, $offset);
+        if ($delimiter === '') {
+            return '';
+        }
+
+        return '<mo fence="true" stretchy="true" separator="true">' . $this->esc($delimiter) . '</mo>';
     }
 
     private function parseSizedDelimiterCommand(string $source, int &$offset, string $command): string

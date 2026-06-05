@@ -151,6 +151,17 @@ return [
         $t->contains('<mo fence="true" stretchy="true" minsize="3em" maxsize="3em">/</mo><mi>y</mi><mo fence="true" stretchy="true" minsize="3em" maxsize="3em">/</mo>', $middleMathml);
         $t->contains('<mi>x</mi><mo fence="true" stretchy="true" minsize="3em" maxsize="3em">]</mo>', $invisibleMathml);
     },
+    'converts bounded tex middle delimiters to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $middleMathml = $converter->texToMathMl('\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle', true);
+        $invisibleLeftMathml = $converter->texToMathMl('\\left. a \\middle\\vert b \\right]');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $middleMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><msub><mi>p</mi><mi>i</mi></msub><mo fence="true" stretchy="true" separator="true">|</mo><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi><mo fence="true" stretchy="true">}</mo>', $middleMathml);
+        $t->contains('<mo fence="true" stretchy="true">⟨</mo><mi>x</mi><mo fence="true" stretchy="true" separator="true">/</mo><mi>y</mi><mo fence="true" stretchy="true">⟩</mo>', $middleMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle</annotation>', $middleMathml);
+        $t->contains('<mi>a</mi><mo fence="true" stretchy="true" separator="true">|</mo><mi>b</mi><mo fence="true" stretchy="true">]</mo>', $invisibleLeftMathml);
+    },
     'converts bounded tex large operators functions and operator names to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $operatorMathml = $converter->texToMathMl('\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\int_{0}^{1} f(x) dx', true);
@@ -415,6 +426,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a \\\\ }'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\middle|'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left( x \\right) \\middle| y'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left( x \\middle\\unknown y \\right)'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\big'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\big\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\Bigg a'));
