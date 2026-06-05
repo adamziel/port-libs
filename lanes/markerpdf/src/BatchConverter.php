@@ -1902,8 +1902,11 @@ final class BatchConverter
         if (is_string($value)) {
             return 'str';
         }
-        if (is_int($value) || is_float($value)) {
+        if (is_int($value)) {
             return 'int';
+        }
+        if (is_float($value)) {
+            return 'float';
         }
         if (is_bool($value)) {
             return 'bool';
