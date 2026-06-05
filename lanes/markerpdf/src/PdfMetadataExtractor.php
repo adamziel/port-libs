@@ -4889,7 +4889,7 @@ final class PdfMetadataExtractor
                 'review_only' => true,
             ];
 
-            if (preg_match('/^-?\d+$/', $valueForReview) !== 1) {
+            if (preg_match('/^[+-]?\d+$/', $valueForReview) !== 1) {
                 $entries[] = $entry + [
                     'status' => $resolved === null && $this->objectReferenceFromValue($value) !== null
                         ? 'permission_word_unresolved_reference'
@@ -11843,7 +11843,7 @@ final class PdfMetadataExtractor
     private function dictionaryIntegerValue(string $dictionary, string $key, ?array $objects = null): ?int
     {
         $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
-        if ($value === null || preg_match('/^-?\d+$/', trim($value)) !== 1) {
+        if ($value === null || preg_match('/^[+-]?\d+$/', trim($value)) !== 1) {
             return null;
         }
 
