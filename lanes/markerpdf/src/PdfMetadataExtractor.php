@@ -3710,7 +3710,7 @@ final class PdfMetadataExtractor
             return $this->documentDestinationArrayDetails($items, $objects, $pageIndexes, $destinationName);
         }
 
-        $resolved = trim($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
         if (preg_match('/^\d+$/', $resolved) === 1) {
             $pageIndex = (int) $resolved;
             return $pageIndex >= 0 && $pageIndex < count($pageIndexes)
@@ -3786,7 +3786,7 @@ final class PdfMetadataExtractor
             ];
         }
 
-        $resolved = trim($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($trimmed, $objects) ?? $trimmed);
         $resolvedObjectNumber = $this->validObjectNumberFromReference($resolved, $objects);
         if ($resolvedObjectNumber !== null && isset($pageIndexes[$resolvedObjectNumber])) {
             return [
@@ -3820,7 +3820,7 @@ final class PdfMetadataExtractor
      */
     private function destinationNumericValue(string $value, array $objects): ?float
     {
-        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
         if ($resolved === '' || $resolved === 'null') {
             return null;
         }
@@ -8599,8 +8599,18 @@ final class PdfMetadataExtractor
     private function skipPdfWhitespace(string $pdfBytes, int $offset): int
     {
         $length = strlen($pdfBytes);
-        while ($offset < $length && ctype_space($pdfBytes[$offset])) {
-            $offset++;
+        while ($offset < $length) {
+            if (ctype_space($pdfBytes[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($pdfBytes[$offset] === '%') {
+                $offset = $this->lineCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            break;
         }
 
         return $offset;
@@ -10252,7 +10262,7 @@ final class PdfMetadataExtractor
      */
     private function resolvePdfValue(string $value, array $objects): ?string
     {
-        $trimmed = trim($value);
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $trimmed) !== 1) {
             return $trimmed;
         }
@@ -10358,7 +10368,7 @@ final class PdfMetadataExtractor
 
     private function normalizedDictionaryBody(string $dictionary): string
     {
-        $trimmed = trim($dictionary);
+        $trimmed = $this->trimPdfWhitespaceAndComments($dictionary);
         if (str_starts_with($trimmed, '<<')) {
             return $this->readPdfDictionaryAt($trimmed, 0) ?? $dictionary;
         }
@@ -10387,7 +10397,7 @@ final class PdfMetadataExtractor
             return $body === null ? null : ['body' => $body, 'object' => $reference['objectNumber']];
         }
 
-        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
         if ($resolved === '') {
             return null;
         }
@@ -10403,7 +10413,7 @@ final class PdfMetadataExtractor
 
     private function objectNumberFromReference(string $value): ?int
     {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+        return preg_match('/^(\d+)\s+\d+\s+R\b/s', $this->trimPdfWhitespaceAndComments($value), $match) === 1 ? (int) $match[1] : null;
     }
 
     /**
@@ -10456,7 +10466,7 @@ final class PdfMetadataExtractor
      */
     private function objectReferenceFromValue(?string $value): ?array
     {
-        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($value), $match) !== 1) {
+        if ($value === null || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $this->trimPdfWhitespaceAndComments($value), $match) !== 1) {
             return null;
         }
 
@@ -10472,7 +10482,7 @@ final class PdfMetadataExtractor
      */
     private function arrayItemsFromValue(string $value, array $objects): array
     {
-        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
         $body = $this->arrayBody($resolved);
         if ($body === null) {
             return [];
@@ -10507,7 +10517,7 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        $resolved = trim($this->resolvePdfValue($value, $objects) ?? $value);
+        $resolved = $this->trimPdfWhitespaceAndComments($this->resolvePdfValue($value, $objects) ?? $value);
         if ($resolved === '') {
             return null;
         }
@@ -10590,7 +10600,7 @@ final class PdfMetadataExtractor
 
     private function stringValueFromRaw(string $value): ?string
     {
-        $value = trim($value);
+        $value = $this->trimPdfWhitespaceAndComments($value);
         if ($value === '') {
             return null;
         }
@@ -10606,9 +10616,7 @@ final class PdfMetadataExtractor
     private function readPdfValueAt(string $value, int $offset): ?string
     {
         $length = strlen($value);
-        while ($offset < $length && ctype_space($value[$offset])) {
-            $offset++;
-        }
+        $offset = $this->skipPdfWhitespace($value, $offset);
 
         if ($offset >= $length) {
             return null;
@@ -10668,6 +10676,11 @@ final class PdfMetadataExtractor
                 if ($char === ')') {
                     $literalDepth--;
                 }
+                continue;
+            }
+
+            if ($char === '%') {
+                $index = $this->lineCommentEndOffset($value, $index) - 1;
                 continue;
             }
 
@@ -10898,6 +10911,32 @@ final class PdfMetadataExtractor
         $depth = 0;
         $bodyStart = $offset + 2;
         for ($index = $offset, $length = strlen($value); $index < $length - 1; $index++) {
+            $char = $value[$index];
+            if ($char === '%') {
+                $index = $this->lineCommentEndOffset($value, $index) - 1;
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($value, $index);
+                $index = max($index, $end - 1);
+                continue;
+            }
+
+            if ($char === '<' && ($value[$index + 1] ?? '') !== '<') {
+                $end = strpos($value, '>', $index + 1);
+                $index = $end === false ? $length : $end;
+                continue;
+            }
+
+            if ($char === '[') {
+                $array = $this->readPdfArrayAt($value, $index);
+                if ($array !== null) {
+                    $index += strlen($array) - 1;
+                    continue;
+                }
+            }
+
             $pair = substr($value, $index, 2);
             if ($pair === '<<') {
                 $depth++;
@@ -10919,16 +10958,18 @@ final class PdfMetadataExtractor
         return null;
     }
 
+    private function trimPdfWhitespaceAndComments(string $value): string
+    {
+        return trim(substr($value, $this->skipPdfWhitespace($value, 0)));
+    }
+
     private function dictionaryStringValue(string $dictionary, string $key): ?string
     {
         if (preg_match('/\/' . preg_quote($key, '/') . '\b/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
 
-        $offset = $match[0][1] + strlen($match[0][0]);
-        while ($offset < strlen($dictionary) && ctype_space($dictionary[$offset])) {
-            $offset++;
-        }
+        $offset = $this->skipPdfWhitespace($dictionary, $match[0][1] + strlen($match[0][0]));
 
         if ($offset >= strlen($dictionary)) {
             return null;
