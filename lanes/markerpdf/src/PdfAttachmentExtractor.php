@@ -171,7 +171,7 @@ final class PdfAttachmentExtractor
     private function documentAttachmentIndex(array $attachments, array $candidate): ?int
     {
         foreach ($attachments as $index => $attachment) {
-            if (($attachment['source'] ?? null) !== 'embedded-files-name-tree') {
+            if (!$this->attachmentCanAcceptMirror($attachment, $candidate)) {
                 continue;
             }
 
@@ -181,6 +181,33 @@ final class PdfAttachmentExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     * @param array<string, mixed> $candidate
+     */
+    private function attachmentCanAcceptMirror(array $attachment, array $candidate): bool
+    {
+        $attachmentSource = $attachment['source'] ?? null;
+        $candidateSource = $candidate['source'] ?? null;
+        if ($attachmentSource === 'embedded-files-name-tree') {
+            return true;
+        }
+
+        if ($attachmentSource === 'catalog-associated-file') {
+            return in_array($candidateSource, [
+                'catalog-associated-file',
+                'page-associated-file',
+                'file-attachment-annotation',
+            ], true);
+        }
+
+        if ($attachmentSource === 'page-associated-file' && $candidateSource === 'file-attachment-annotation') {
+            return ($attachment['page_object_id'] ?? null) === ($candidate['page_object_id'] ?? null);
+        }
+
+        return false;
     }
 
     /**
