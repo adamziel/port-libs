@@ -549,40 +549,80 @@ final class PdfEmbeddedFileExtractor
                 $items = [trim($streamValues)];
             }
 
-            foreach ($items as $relatedFileIndex => $streamValue) {
-                $stream = $this->embeddedFileStreamFromValue($streamValue, $objects);
+            $relatedFileIndex = 0;
+            for ($index = 0, $count = count($items); $index < $count; $index++) {
+                $relatedFilename = $this->stringValueFromRaw($items[$index], $objects);
+                if ($relatedFilename !== null && $relatedFilename !== '' && $index + 1 < $count) {
+                    $stream = $this->embeddedFileStreamFromValue($items[$index + 1], $objects);
+                    if ($stream !== null) {
+                        $rows[] = $this->relatedFileReviewRow(
+                            $rfKey,
+                            $relatedFileIndex,
+                            $stream,
+                            $objects,
+                            $relatedFilename
+                        );
+                        $relatedFileIndex++;
+                        $index++;
+                        continue;
+                    }
+                }
+
+                $stream = $this->embeddedFileStreamFromValue($items[$index], $objects);
                 if ($stream === null) {
                     continue;
                 }
 
-                $row = [
-                    'source' => 'filespec_related_files',
-                    'rf_key' => $rfKey,
-                    'related_file_index' => $relatedFileIndex,
-                    'embedded_file_object' => $stream['object'],
-                    'size' => strlen($stream['content']),
-                    'content_sha256' => hash('sha256', $stream['content']),
-                    'payload_included' => false,
-                ];
-
-                $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
-                if ($mimeType !== null && $mimeType !== '') {
-                    $row['mime_type'] = $mimeType;
-                }
-
-                if ($stream['filters'] !== []) {
-                    $row['filters'] = $stream['filters'];
-                }
-
-                foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
-                    $row[$key] = $metadataValue;
-                }
-
-                $rows[] = $row;
+                $rows[] = $this->relatedFileReviewRow($rfKey, $relatedFileIndex, $stream, $objects);
+                $relatedFileIndex++;
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array{object: int|null, dictionary: string, content: string, filters: list<string>} $stream
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function relatedFileReviewRow(
+        string $rfKey,
+        int $relatedFileIndex,
+        array $stream,
+        array $objects,
+        ?string $relatedFilename = null
+    ): array
+    {
+        $row = [
+            'source' => 'filespec_related_files',
+            'rf_key' => $rfKey,
+            'related_file_index' => $relatedFileIndex,
+            'embedded_file_object' => $stream['object'],
+            'size' => strlen($stream['content']),
+            'content_sha256' => hash('sha256', $stream['content']),
+            'payload_included' => false,
+        ];
+
+        if ($relatedFilename !== null && $relatedFilename !== '') {
+            $row['related_filename'] = $relatedFilename;
+            $row['related_filename_source'] = 'rf_name_pair';
+        }
+
+        $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
+        if ($mimeType !== null && $mimeType !== '') {
+            $row['mime_type'] = $mimeType;
+        }
+
+        if ($stream['filters'] !== []) {
+            $row['filters'] = $stream['filters'];
+        }
+
+        foreach ($this->embeddedFileParams($stream['dictionary'], $objects, $stream['content']) as $key => $metadataValue) {
+            $row[$key] = $metadataValue;
+        }
+
+        return $row;
     }
 
     /**

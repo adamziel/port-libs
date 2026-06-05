@@ -666,10 +666,29 @@ final class PdfAttachmentExtractor
                 $items = [$streamValues];
             }
 
-            foreach ($items as $relatedFileIndex => $streamValue) {
-                $row = $this->relatedFileRowFromStreamValue($streamValue, $objects, $rfKey, $relatedFileIndex);
+            $relatedFileIndex = 0;
+            for ($index = 0, $count = count($items); $index < $count; $index++) {
+                $relatedFilename = $this->stringValue($this->resolveValue($items[$index], $objects));
+                if ($relatedFilename !== null && $relatedFilename !== '' && $index + 1 < $count) {
+                    $row = $this->relatedFileRowFromStreamValue(
+                        $items[$index + 1],
+                        $objects,
+                        $rfKey,
+                        $relatedFileIndex,
+                        $relatedFilename
+                    );
+                    if ($row !== null) {
+                        $rows[] = $row;
+                        $relatedFileIndex++;
+                        $index++;
+                        continue;
+                    }
+                }
+
+                $row = $this->relatedFileRowFromStreamValue($items[$index], $objects, $rfKey, $relatedFileIndex);
                 if ($row !== null) {
                     $rows[] = $row;
+                    $relatedFileIndex++;
                 }
             }
         }
@@ -681,7 +700,13 @@ final class PdfAttachmentExtractor
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @return array<string, mixed>|null
      */
-    private function relatedFileRowFromStreamValue(mixed $streamValue, array $objects, string $rfKey, int $relatedFileIndex): ?array
+    private function relatedFileRowFromStreamValue(
+        mixed $streamValue,
+        array $objects,
+        string $rfKey,
+        int $relatedFileIndex,
+        ?string $relatedFilename = null
+    ): ?array
     {
         $streamObjectId = $this->refObjectId($streamValue);
         if ($streamObjectId === null || !isset($objects[$streamObjectId])) {
@@ -718,6 +743,10 @@ final class PdfAttachmentExtractor
             'executes_external_pdf_tools' => false,
         ];
 
+        if ($relatedFilename !== null && $relatedFilename !== '') {
+            $row['related_filename'] = $relatedFilename;
+            $row['related_filename_source'] = 'rf_name_pair';
+        }
         if ($filters !== []) {
             $row['filters'] = $filters;
         }

@@ -36,7 +36,7 @@ $pdf = "%PDF-1.7\n"
     . "11 0 obj\n<< /Type /Filespec /F (zz-stale.csv) /Desc (Stale out-of-limits import rows) /AFRelationship /Data /EF << /F 12 0 R >> >>\nendobj\n"
     . "12 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
     . "stream\n{$stalePayload}\nendstream\nendobj\n"
-    . "13 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 14 0 R /UF 14 0 R >> /RF << /F [15 0 R] >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /Filespec /F (legacy-source.xml) /UF (source.xml) /Desc (Original WordPress export) /AFRelationship /Source /EF << /F 14 0 R /UF 14 0 R >> /RF << /F [(catalog-related.json) 15 0 R] >> >>\nendobj\n"
     . "14 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260604174658Z) >> /Length " . strlen($sourcePayload) . " >>\n"
     . "stream\n{$sourcePayload}\nendstream\nendobj\n"
     . "15 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($relatedPayload) . " /CheckSum <{$relatedChecksum}> >> /Length " . strlen($relatedPayload) . " >>\n"
@@ -75,9 +75,10 @@ if (str_contains($summaryJson, 'post-eof-stale.csv') || str_contains($summaryJso
 }
 if (($catalogAttachment['related_file_count'] ?? null) !== 1
     || ($catalogAttachment['related_files'][0]['checksum_matches'] ?? null) !== true
+    || ($catalogAttachment['related_files'][0]['related_filename'] ?? null) !== 'catalog-related.json'
     || str_contains($summaryJson, $relatedPayload)
 ) {
-    throw new RuntimeException('Expected related files to be summarized without exposing related payload bytes.');
+    throw new RuntimeException('Expected named related files to be summarized without exposing related payload bytes.');
 }
 $pageAttachment = $summary['attachments'][2] ?? null;
 if (!is_array($pageAttachment)
@@ -103,6 +104,7 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'catalog_associated_file_preflight' => ($catalogAttachment['associated_file'] ?? false) === true,
     'page_associated_file_preflight' => ($pageAttachment['page_associated_file'] ?? false) === true,
     'related_file_preflight' => ($catalogAttachment['related_file_count'] ?? 0) === 1,
+    'related_file_name_pair_preflight' => ($catalogAttachment['related_files'][0]['related_filename'] ?? null) === 'catalog-related.json',
     'related_file_payload_omitted' => !str_contains($summaryJson, $relatedPayload),
     'page_associated_file_payload_omitted' => !str_contains($summaryJson, $pagePayload),
     'relationship_roles' => array_values(array_filter(array_map(
