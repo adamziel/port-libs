@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\DocTemplate;
+use PortLibs\Pandoc\UnicodeText;
 
 $templatePath = 'review-packets/review.html';
 $resources = [
@@ -39,7 +40,7 @@ HTML,
 $if(adminNote)$<aside class="admin-note">$adminNote$</aside>$endif$
 HTML,
     'review-packets/components/résumé.html' => <<<'HTML'
-<p class="source-summary" data-état="$révision.état$">$révision.titre$</p>
+<p class="source-summary" data-état="$révision.état$">$révision.titre$ $^$$révision.note$</p>
 HTML,
     'review-packets/components/next-warning.html' => '$warnings.source$/$it.source$: $warnings.message$',
     'review-packets/components/trailing-note.html' => '<p class="partial-spacing">Partial spacing survives reviewer packet boundaries</p>' . "\n\n",
@@ -74,7 +75,11 @@ $context = [
         'review-id' => 'PR-42',
     ],
     'suppressed' => false,
-    'révision' => ['état' => 'prêt', 'titre' => 'Résumé de migration'],
+    'révision' => [
+        'état' => 'prêt',
+        'titre' => 'Résumé de migration',
+        'note' => "Première ligne\nDeuxième ligne",
+    ],
     'warnings' => [
         ['index' => 1, 'title' => 'Media warning', 'source' => 'media', 'priority' => 1, 'message' => 'Check &amp; confirm alt text'],
         ['index' => 2, 'title' => 'Link warning', 'source' => 'links', 'priority' => 4, 'message' => 'Verify edit links before publish'],
@@ -99,6 +104,7 @@ for ($index = 4; $index <= 27; $index++) {
 $output = (new DocTemplate())->renderResource($templatePath, $resources, $context, 'wp-data');
 
 if (in_array('--self-test', $argv, true)) {
+    $sourceSummaryPrefix = '<p class="source-summary" data-état="prêt">Résumé de migration ';
     foreach ([
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
@@ -110,7 +116,9 @@ if (in_array('--self-test', $argv, true)) {
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         "<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>\n\n</header>",
-        '<p class="source-summary" data-état="prêt">Résumé de migration</p>',
+        $sourceSummaryPrefix . 'Première ligne' . "\n"
+            . str_repeat(' ', UnicodeText::displayWidth($sourceSummaryPrefix))
+            . 'Deuxième ligne</p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
         '<li data-index="2" data-source="links" data-review-title="Batch 42 Review"><span class="marker">B.</span> <span class="source">{LINKS   }</span> <span class="priority">  IV</span> Verify edit links before publish</li>',
         '<li data-index="3" data-source="魚" data-review-title="Batch 42 Review"><span class="marker">C.</span> <span class="source">{魚      }</span> <span class="priority">  IX</span> Confirm multilingual source label spacing</li>',

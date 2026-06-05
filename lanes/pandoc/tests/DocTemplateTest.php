@@ -241,6 +241,28 @@ TPL;
         ]), $output);
     },
 
+    'nests pandoc doctemplate multiline values by unicode display column' => static function (TestRunner $t): void {
+        $accent = "A\u{0301}";
+        $template = '$for(rows)$<p>$it.label$ $^$$it.note$</p>$sep$' . "\n" . '$endfor$';
+
+        $output = (new DocTemplate())->render($template, [
+            'rows' => [
+                ['label' => '魚', 'note' => "First\nSecond"],
+                ['label' => $accent, 'note' => "First\nSecond"],
+                ['label' => "☑️", 'note' => "First\nSecond"],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            '<p>魚 First',
+            '      Second</p>',
+            "<p>{$accent} First",
+            '     Second</p>',
+            '<p>☑️ First',
+            '      Second</p>',
+        ]), $output);
+    },
+
     'automatically nests multiline pandoc doctemplate variables that stand alone on indented lines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <section class="wp-import-body">

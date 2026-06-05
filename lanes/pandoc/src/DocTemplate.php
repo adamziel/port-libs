@@ -1738,10 +1738,10 @@ final class DocTemplate
 
     private function currentColumn(string $output): int
     {
-        $lineStart = strrpos($output, "\n");
-        $line = $lineStart === false ? $output : substr($output, $lineStart + 1);
+        $lineStart = $this->lastLineEndingByteOffset($output);
+        $line = $lineStart === null ? $output : substr($output, $lineStart + 1);
 
-        return strlen($line);
+        return UnicodeText::displayWidth(str_replace("\t", ' ', $line));
     }
 
     /**
