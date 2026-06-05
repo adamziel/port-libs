@@ -8222,7 +8222,10 @@ final class PdfMetadataExtractor
         return null;
     }
 
-    private function xmpQualifiedTextValue(DOMElement $element): ?string
+    /**
+     * @param array<string, true> $seenResourceIds
+     */
+    private function xmpQualifiedTextValue(DOMElement $element, array $seenResourceIds = []): ?string
     {
         if ($element->hasAttributeNS(self::NS_RDF, 'value')) {
             $value = $this->cleanText($element->getAttributeNS(self::NS_RDF, 'value'));
@@ -8232,20 +8235,72 @@ final class PdfMetadataExtractor
         }
 
         foreach ($this->xmpChildElements($element, self::NS_RDF, 'value') as $valueElement) {
-            $value = $this->cleanText($valueElement->textContent);
+            $value = $this->xmpQualifiedTextValue($valueElement, $seenResourceIds);
             if ($value !== null) {
                 return $value;
             }
         }
 
         foreach ($this->xmpChildElements($element, self::NS_RDF, 'Description') as $description) {
-            $value = $this->xmpQualifiedTextValue($description);
+            $value = $this->xmpQualifiedTextValue($description, $seenResourceIds);
             if ($value !== null) {
                 return $value;
             }
         }
 
+        $value = $this->xmpResourceReferenceTextValue($element, $seenResourceIds);
+        if ($value !== null) {
+            return $value;
+        }
+
         return $this->cleanText($element->textContent);
+    }
+
+    /**
+     * XMP writers sometimes store scalar values in same-packet RDF resource
+     * nodes. Resolve only fragment-local references and prefer rdf:value so
+     * private qualifiers do not become document metadata.
+     *
+     * @param array<string, true> $seenResourceIds
+     */
+    private function xmpResourceReferenceTextValue(DOMElement $element, array $seenResourceIds): ?string
+    {
+        $target = $this->xmpResourceReferenceTargetElement($element, $seenResourceIds);
+        if ($target === null) {
+            return null;
+        }
+
+        if ($target->hasAttributeNS(self::NS_RDF, 'value')) {
+            $value = $this->cleanText($target->getAttributeNS(self::NS_RDF, 'value'));
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        foreach ($this->xmpChildElements($target, self::NS_RDF, 'value') as $valueElement) {
+            $value = $this->xmpQualifiedTextValue($valueElement, $seenResourceIds);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        foreach ($this->xmpChildElements($target, self::NS_RDF, 'Description') as $description) {
+            $value = $this->xmpQualifiedTextValue($description, $seenResourceIds);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        $value = $this->xmpResourceReferenceTextValue($target, $seenResourceIds);
+        if ($value !== null) {
+            return $value;
+        }
+
+        if ($this->xmpElementHasElementChildren($target)) {
+            return null;
+        }
+
+        return $this->cleanText($target->textContent);
     }
 
     /**
@@ -8295,6 +8350,11 @@ final class PdfMetadataExtractor
             if ($this->xmpRdfCollectionItemsHaveValues($items)) {
                 return $items;
             }
+        }
+
+        $items = $this->xmpRdfResourceReferenceCollectionItems($element);
+        if ($this->xmpRdfCollectionItemsHaveValues($items)) {
+            return $items;
         }
 
         return [];
@@ -8360,6 +8420,124 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * @param array<string, true> $seenResourceIds
+     * @return list<DOMElement>
+     */
+    private function xmpRdfResourceReferenceCollectionItems(DOMElement $element, array $seenResourceIds = []): array
+    {
+        $target = $this->xmpResourceReferenceTargetElement($element, $seenResourceIds);
+        if ($target === null) {
+            return [];
+        }
+
+        $directItems = $this->xmpChildElements($target, self::NS_RDF, 'li');
+        if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
+            return $directItems;
+        }
+
+        foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
+            foreach ($this->xmpChildElements($target, self::NS_RDF, $containerName) as $container) {
+                $items = $this->xmpRdfContainerItems($container);
+                if ($this->xmpRdfCollectionItemsHaveValues($items)) {
+                    return $items;
+                }
+            }
+        }
+
+        foreach ($this->xmpChildElements($target, self::NS_RDF, 'Description') as $description) {
+            $items = $this->xmpRdfResourceWrappedCollectionItems($description);
+            if ($this->xmpRdfCollectionItemsHaveValues($items)) {
+                return $items;
+            }
+        }
+
+        return $this->xmpRdfResourceReferenceCollectionItems($target, $seenResourceIds);
+    }
+
+    /**
+     * @param array<string, true> $seenResourceIds
+     */
+    private function xmpResourceReferenceTargetElement(DOMElement $element, array &$seenResourceIds): ?DOMElement
+    {
+        if (count($seenResourceIds) >= 8 || !$element->hasAttributeNS(self::NS_RDF, 'resource')) {
+            return null;
+        }
+
+        $id = $this->xmpFragmentResourceId($element->getAttributeNS(self::NS_RDF, 'resource'));
+        if ($id === null || isset($seenResourceIds[$id])) {
+            return null;
+        }
+
+        $seenResourceIds[$id] = true;
+
+        return $this->xmpDocumentLevelResourceTargetElement($element, $id);
+    }
+
+    private function xmpFragmentResourceId(string $resource): ?string
+    {
+        $resource = trim($resource);
+        if (!str_starts_with($resource, '#')) {
+            return null;
+        }
+
+        $id = substr($resource, 1);
+        if ($id === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_.:-]*$/', $id) !== 1) {
+            return null;
+        }
+
+        return $id;
+    }
+
+    private function xmpDocumentLevelResourceTargetElement(DOMElement $source, string $id): ?DOMElement
+    {
+        $document = $source->ownerDocument;
+        if (!$document instanceof DOMDocument) {
+            return null;
+        }
+
+        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
+            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
+                continue;
+            }
+
+            foreach ($rdf->childNodes as $child) {
+                if (!$child instanceof DOMElement || !$this->xmpElementMatchesResourceId($child, $id)) {
+                    continue;
+                }
+
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function xmpElementMatchesResourceId(DOMElement $element, string $id): bool
+    {
+        if ($element->hasAttributeNS(self::NS_RDF, 'ID') && trim($element->getAttributeNS(self::NS_RDF, 'ID')) === $id) {
+            return true;
+        }
+
+        if ($element->hasAttributeNS(self::NS_XML, 'id') && trim($element->getAttributeNS(self::NS_XML, 'id')) === $id) {
+            return true;
+        }
+
+        return $element->hasAttributeNS(self::NS_RDF, 'about')
+            && trim($element->getAttributeNS(self::NS_RDF, 'about')) === '#' . $id;
+    }
+
+    private function xmpElementHasElementChildren(DOMElement $element): bool
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof DOMElement) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<DOMElement>
      */
     private function xmpTopLevelDescriptions(DOMDocument $document): array
@@ -8377,6 +8555,10 @@ final class PdfMetadataExtractor
 
                 if ($child->namespaceURI === self::NS_RDF) {
                     if ($child->localName === 'Description') {
+                        if ($this->xmpDescriptionIsFragmentResourceTarget($child)) {
+                            continue;
+                        }
+
                         $nodes[] = $child;
                     }
                     continue;
@@ -8402,6 +8584,21 @@ final class PdfMetadataExtractor
             && $parent->namespaceURI === 'adobe:ns:meta/'
             && $parent->localName === 'xmpmeta'
             && $parent->parentNode instanceof DOMDocument;
+    }
+
+    private function xmpDescriptionIsFragmentResourceTarget(DOMElement $description): bool
+    {
+        if ($description->hasAttributeNS(self::NS_RDF, 'ID') || $description->hasAttributeNS(self::NS_XML, 'id')) {
+            return true;
+        }
+
+        if (!$description->hasAttributeNS(self::NS_RDF, 'about')) {
+            return false;
+        }
+
+        $about = trim($description->getAttributeNS(self::NS_RDF, 'about'));
+
+        return str_starts_with($about, '#');
     }
 
     /**
