@@ -918,6 +918,46 @@ HTML,
         ]), $output);
     },
 
+    'resolves extensionless pandoc custom template resources by output format' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->renderResource('templates/review', [
+            'templates/review.html' => <<<'HTML'
+<article>
+${ header() }
+<section>$title$</section>
+</article>
+HTML,
+            'templates/header.html' => '<header>$format$ review</header>' . "\n",
+        ], [
+            'title' => 'Batch 42 Review',
+            'format' => 'HTML',
+        ], null, 'html');
+
+        $t->same(implode("\n", [
+            '<article>',
+            '<header>HTML review</header>',
+            '<section>Batch 42 Review</section>',
+            '</article>',
+        ]), $output);
+
+        $t->same('plain wins', $renderer->renderResource('templates/review', [
+            'templates/review' => 'plain wins',
+            'templates/review.html' => 'html fallback',
+        ], [], null, 'html'));
+
+        $t->same("Summary: media\nlinks", $renderer->renderResourceWrapped('templates/summary', [
+            'templates/summary.html' => 'Summary: $~$media links$~$',
+        ], [], 14, null, 'html'));
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->renderResource('templates/missing', [
+            'templates/review.html' => '$title$',
+        ], ['title' => 'Missing'], null, 'html'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $renderer->renderResource('templates/review', [
+            'templates/review.html' => '$title$',
+        ], ['title' => 'Bad format'], null, '../html'));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'

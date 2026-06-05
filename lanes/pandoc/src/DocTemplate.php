@@ -36,10 +36,11 @@ final class DocTemplate
      * @param array<string, string> $resources
      * @param array<string, mixed> $context
      */
-    public function renderResource(string $templatePath, array $resources, array $context, ?string $userDataDirectory = null): string
+    public function renderResource(string $templatePath, array $resources, array $context, ?string $userDataDirectory = null, ?string $format = null): string
     {
         $templatePath = $this->normalizeTemplateResourcePath($templatePath);
         $resources = $this->normalizeTemplateResourceMap($resources);
+        $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format);
         if (!array_key_exists($templatePath, $resources)) {
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
         }
@@ -55,11 +56,12 @@ final class DocTemplate
      * @param array<string, string> $resources
      * @param array<string, mixed> $context
      */
-    public function renderResourceWrapped(string $templatePath, array $resources, array $context, int $lineLength, ?string $userDataDirectory = null): string
+    public function renderResourceWrapped(string $templatePath, array $resources, array $context, int $lineLength, ?string $userDataDirectory = null, ?string $format = null): string
     {
         $this->validateLineLength($lineLength);
         $templatePath = $this->normalizeTemplateResourcePath($templatePath);
         $resources = $this->normalizeTemplateResourceMap($resources);
+        $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format);
         if (!array_key_exists($templatePath, $resources)) {
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
         }
@@ -104,6 +106,28 @@ final class DocTemplate
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, string> $resources
+     */
+    private function resolveTemplateResourcePath(string $templatePath, array $resources, ?string $format): string
+    {
+        if (array_key_exists($templatePath, $resources)) {
+            return $templatePath;
+        }
+
+        if ($format === null || $format === '' || $this->templateResourceExtension($this->templateResourceBasename($templatePath)) !== '') {
+            return $templatePath;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]*$/', $format)) {
+            throw new \InvalidArgumentException('Invalid doctemplate output format');
+        }
+
+        $candidate = $templatePath . '.' . $format;
+
+        return array_key_exists($candidate, $resources) ? $candidate : $templatePath;
     }
 
     /**

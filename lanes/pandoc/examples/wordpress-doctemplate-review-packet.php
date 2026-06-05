@@ -7,9 +7,9 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Pandoc\DocTemplate;
 use PortLibs\Pandoc\UnicodeText;
 
-$templatePath = 'review-packets/review.html';
+$templatePath = 'review-packets/review';
 $resources = [
-    $templatePath => <<<'HTML'
+    'review-packets/review.html' => <<<'HTML'
 <article class="wp-import-review">
 ${ components/review-header() }
 ${ components/admin-note() }
@@ -122,7 +122,7 @@ $context['wrappedPlainSummary'] = $renderer->renderWrapped(
     48,
 );
 
-$output = $renderer->renderResource($templatePath, $resources, $context, 'wp-data');
+$output = $renderer->renderResource($templatePath, $resources, $context, 'wp-data', 'html');
 
 if (in_array('--self-test', $argv, true)) {
     $sourceSummaryPrefix = '<p class="source-summary" data-état="prêt">Résumé de migration ';
@@ -180,6 +180,16 @@ if (in_array('--self-test', $argv, true)) {
 
     if (str_contains($output, "\r")) {
         fwrite(STDERR, "Unexpected CR byte from included doctemplate partial final line ending\n");
+        exit(1);
+    }
+
+    $extensionFallback = (new DocTemplate())->renderResource('packets/review', [
+        'packets/review.html' => '<p>$title$</p>',
+    ], [
+        'title' => 'Extension fallback',
+    ], null, 'html');
+    if ($extensionFallback !== '<p>Extension fallback</p>') {
+        fwrite(STDERR, "Missing expected doctemplate extension fallback\n");
         exit(1);
     }
 
