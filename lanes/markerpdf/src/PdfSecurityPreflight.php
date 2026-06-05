@@ -300,6 +300,10 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_review' => $standardParameterReview,
             'standard_security_handler_parameters_well_formed' => $standardParameterReview['parameters_well_formed'] ?? null,
             'standard_security_handler_parameter_status' => $standardParameterReview['status'] ?? null,
+            'standard_security_handler_version_supported' => $standardParameterReview['version_supported'] ?? null,
+            'standard_security_handler_revision_supported' => $standardParameterReview['revision_supported'] ?? null,
+            'standard_security_handler_version_revision_compatible' => $standardParameterReview['version_revision_compatible'] ?? null,
+            'standard_security_handler_key_length_status' => $standardParameterReview['key_length_status'] ?? null,
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
@@ -1682,6 +1686,10 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_review' => $standardParameterReview,
             'standard_security_handler_parameters_well_formed' => $standardParameterReview['parameters_well_formed'] ?? null,
             'standard_security_handler_parameter_status' => $standardParameterReview['status'] ?? null,
+            'standard_security_handler_version_supported' => $standardParameterReview['version_supported'] ?? null,
+            'standard_security_handler_revision_supported' => $standardParameterReview['revision_supported'] ?? null,
+            'standard_security_handler_version_revision_compatible' => $standardParameterReview['version_revision_compatible'] ?? null,
+            'standard_security_handler_key_length_status' => $standardParameterReview['key_length_status'] ?? null,
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
@@ -5355,6 +5363,10 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_review' => $standardParameterReview,
             'standard_security_handler_parameters_well_formed' => $standardParameterReview['parameters_well_formed'] ?? null,
             'standard_security_handler_parameter_status' => $standardParameterReview['status'] ?? null,
+            'standard_security_handler_version_supported' => $standardParameterReview['version_supported'] ?? null,
+            'standard_security_handler_revision_supported' => $standardParameterReview['revision_supported'] ?? null,
+            'standard_security_handler_version_revision_compatible' => $standardParameterReview['version_revision_compatible'] ?? null,
+            'standard_security_handler_key_length_status' => $standardParameterReview['key_length_status'] ?? null,
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
@@ -5514,6 +5526,12 @@ final class PdfSecurityPreflight
             } elseif ($permissionPolicy === 'permissions_malformed_blocked_without_decryption') {
                 if (($permissionPreflight['standard_security_handler_parameters_well_formed'] ?? null) === false) {
                     $reasons[] = 'standard_security_handler_parameters_malformed';
+                    $parameterViolations = is_array($permissionPreflight['standard_security_handler_parameter_violations'] ?? null)
+                        ? $permissionPreflight['standard_security_handler_parameter_violations']
+                        : [];
+                    if (in_array('standard_security_handler_version_revision_mismatch', $parameterViolations, true)) {
+                        $reasons[] = 'standard_security_handler_version_revision_mismatch';
+                    }
                 } elseif (($permissionPreflight['permission_word_duplicate_entries'] ?? false) === true) {
                     $reasons[] = 'permission_word_duplicate_entries';
                 } elseif (($permissionPreflight['permission_word_range_valid'] ?? null) === false) {
