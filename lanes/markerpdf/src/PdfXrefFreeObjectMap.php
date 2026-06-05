@@ -582,6 +582,110 @@ final class PdfXrefFreeObjectMap
         return $selected;
     }
 
+    private static function compressedObjectStreamBodyForReferenceBeforeOffset(
+        string $pdfBytes,
+        int $objectNumber,
+        int $generation,
+        int $beforeOffset
+    ): ?string {
+        if ($objectNumber <= 0 || $generation !== 0 || $beforeOffset <= 0) {
+            return null;
+        }
+
+        $selected = null;
+        $offset = 0;
+        while (preg_match('/(\d+)\s+(\d+)\s+obj\b/s', $pdfBytes, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $objectOffset = $match[0][1];
+            if ($objectOffset >= $beforeOffset) {
+                break;
+            }
+
+            $bodyStart = $objectOffset + strlen($match[0][0]);
+            $bodyEnd = strpos($pdfBytes, 'endobj', $bodyStart);
+            if ($bodyEnd === false) {
+                break;
+            }
+
+            $body = substr($pdfBytes, $bodyStart, $bodyEnd - $bodyStart);
+            $memberBody = self::objectStreamMemberBody($body, $objectNumber);
+            if ($memberBody !== null) {
+                $selected = $memberBody;
+            }
+
+            $offset = $bodyEnd + strlen('endobj');
+        }
+
+        return $selected;
+    }
+
+    private static function objectStreamMemberBody(string $objectBody, int $objectNumber): ?string
+    {
+        if (preg_match('/\/Type\s*\/ObjStm\b/s', $objectBody) !== 1) {
+            return null;
+        }
+
+        $dictionaryOffset = strpos($objectBody, '<<');
+        $dictionary = is_int($dictionaryOffset) ? self::readDictionaryAt($objectBody, $dictionaryOffset) : null;
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $stream = self::streamPayload($objectBody);
+        if ($stream === null) {
+            return null;
+        }
+
+        $decoded = self::decodedStreamPayload($dictionary, $stream);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $memberCount = self::integerValueAfterName($dictionary, 'N');
+        $first = self::integerValueAfterName($dictionary, 'First');
+        if ($memberCount === null || $memberCount < 1 || $first === null || $first <= 0 || $first >= strlen($decoded)) {
+            return null;
+        }
+
+        $header = substr($decoded, 0, $first);
+        if (preg_match_all('/(\d+)\s+(\d+)/', $header, $matches, PREG_SET_ORDER) < 1) {
+            return null;
+        }
+
+        $members = [];
+        foreach (array_slice($matches, 0, $memberCount) as $index => $member) {
+            $members[] = [
+                'object' => (int) $member[1],
+                'offset' => (int) $member[2],
+                'index' => $index,
+            ];
+        }
+
+        foreach ($members as $index => $member) {
+            if ($member['object'] !== $objectNumber) {
+                continue;
+            }
+
+            $objectDataLength = strlen($decoded) - $first;
+            $start = $member['offset'];
+            $end = $objectDataLength;
+            for ($nextIndex = $index + 1; $nextIndex < count($members); $nextIndex++) {
+                $nextOffset = $members[$nextIndex]['offset'];
+                if ($nextOffset > $start) {
+                    $end = $nextOffset;
+                    break;
+                }
+            }
+
+            if ($start < 0 || $end <= $start || $end > $objectDataLength) {
+                return null;
+            }
+
+            return trim(substr($decoded, $first + $start, $end - $start));
+        }
+
+        return null;
+    }
+
     private static function previousXrefOffsetForSectionBody(string $pdfBytes, string $sectionBody, int $beforeOffset): ?int
     {
         $reference = self::objectReferenceAfterName($sectionBody, 'Prev');
@@ -596,7 +700,15 @@ final class PdfXrefFreeObjectMap
             $beforeOffset
         );
         if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
-            return null;
+            $body = self::compressedObjectStreamBodyForReferenceBeforeOffset(
+                $pdfBytes,
+                $reference['object'],
+                $reference['generation'],
+                $beforeOffset
+            );
+            if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
+                return null;
+            }
         }
 
         return (int) $match[1];
