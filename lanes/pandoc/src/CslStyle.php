@@ -98,6 +98,7 @@ final class CslStyle
                 'quotes' => false,
             ],
             'initializeWith' => null,
+            'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'first',
             'nameParts' => [],
         ],
@@ -116,6 +117,7 @@ final class CslStyle
                 'quotes' => false,
             ],
             'initializeWith' => null,
+            'initializeWithHyphen' => true,
             'nameAsSortOrder' => 'all',
             'nameParts' => [],
         ],
@@ -736,6 +738,7 @@ final class CslStyle
                 is_array($overrides['etAl'] ?? null) ? $overrides['etAl'] : []
             ),
             'initializeWith' => is_string($overrides['initializeWith'] ?? null) ? $overrides['initializeWith'] : $defaults['initializeWith'],
+            'initializeWithHyphen' => is_bool($overrides['initializeWithHyphen'] ?? null) ? $overrides['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
             'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
         ];
@@ -812,6 +815,10 @@ final class CslStyle
 
         if ($name instanceof \DOMElement && $name->hasAttribute('initialize-with')) {
             $overrides['initializeWith'] = $name->getAttribute('initialize-with');
+        }
+        $initializeWithHyphen = self::optionalBooleanNameAttribute($name, $names, 'initialize-with-hyphen', $scope);
+        if ($initializeWithHyphen !== null) {
+            $overrides['initializeWithHyphen'] = $initializeWithHyphen;
         }
         if ($name instanceof \DOMElement) {
             $nameParts = self::namePartRenderingOptions($name, $scope);
@@ -895,6 +902,25 @@ final class CslStyle
         }
 
         return null;
+    }
+
+    private static function optionalBooleanNameAttribute(?\DOMElement $name, \DOMElement $names, string $attribute, string $scope): ?bool
+    {
+        $value = self::optionalNameAttribute($name, $names, $attribute);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = strtolower(trim($value));
+        if ($value === 'true') {
+            return true;
+        }
+
+        if ($value === 'false') {
+            return false;
+        }
+
+        throw new \InvalidArgumentException('CSL ' . $scope . ' name attribute ' . $attribute . ' must be true or false');
     }
 
     private static function positiveIntegerNameAttribute(\DOMElement $names, ?\DOMElement $name, string $attribute, string $scope): ?int

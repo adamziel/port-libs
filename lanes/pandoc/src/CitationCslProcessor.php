@@ -4128,6 +4128,7 @@ final class CitationCslProcessor
                 is_array($options['etAl'] ?? null) ? $options['etAl'] : []
             ),
             'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
+            'initializeWithHyphen' => is_bool($options['initializeWithHyphen'] ?? null) ? $options['initializeWithHyphen'] : ($defaults['initializeWithHyphen'] ?? true),
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
         ];
@@ -5063,7 +5064,7 @@ final class CitationCslProcessor
             return $this->formatNamePart('family', $family, $options);
         }
 
-        return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options['initializeWith']), $options);
+        return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
     }
 
     /**
@@ -5078,7 +5079,7 @@ final class CitationCslProcessor
 
         $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
         $family = $this->formatNamePart('family', $family, $options);
-        $given = $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options['initializeWith']), $options);
+        $given = $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
         $droppingParticle = (string) $name['droppingParticle'];
         $suffix = (string) $name['suffix'];
         $sortOrdered = $options['nameAsSortOrder'] === 'all' || ($options['nameAsSortOrder'] === 'first' && $index === 0);
@@ -5194,25 +5195,47 @@ final class CitationCslProcessor
         };
     }
 
-    private function renderGivenName(string $given, ?string $initializeWith): string
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function renderGivenName(string $given, array $options): string
     {
         $given = trim($given);
+        $initializeWith = $options['initializeWith'] ?? null;
         if ($given === '' || $initializeWith === null) {
             return $given;
         }
 
-        $parts = preg_split('/[\s-]+/u', $given) ?: [];
-        $initials = [];
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if ($part === '' || preg_match('/^./us', $part, $match) !== 1) {
+        $initializeWith = (string) $initializeWith;
+        $initializeWithHyphen = ($options['initializeWithHyphen'] ?? true) !== false;
+        $tokens = preg_split('/(\s+|-+)/u', $given, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
+        $rendered = '';
+        $separator = '';
+        foreach ($tokens as $token) {
+            if (preg_match('/^\s+$/u', $token) === 1) {
+                $separator = 'space';
                 continue;
             }
 
-            $initials[] = $this->uppercaseInitial($match[0]) . $initializeWith;
+            if (preg_match('/^-+$/u', $token) === 1) {
+                $separator = 'hyphen';
+                continue;
+            }
+
+            if (preg_match('/^./us', $token, $match) !== 1) {
+                continue;
+            }
+
+            $initial = $this->uppercaseInitial($match[0]) . $initializeWith;
+            if ($rendered !== '' && $separator === 'hyphen' && $initializeWithHyphen) {
+                $rendered = rtrim($rendered) . '-' . $initial;
+            } else {
+                $rendered .= $initial;
+            }
+            $separator = '';
         }
 
-        return rtrim(implode('', $initials));
+        return rtrim($rendered);
     }
 
     private function uppercaseInitial(string $initial): string

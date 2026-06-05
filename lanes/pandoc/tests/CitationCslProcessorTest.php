@@ -3364,6 +3364,104 @@ XML
 XML
         ));
     },
+    'applies bounded csl initialize with hyphen for hyphenated given names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'hyphen-given-source',
+                'type' => 'report',
+                'title' => 'Hyphen Given Packet',
+                'author' => [
+                    ['given' => 'Jean-Luc'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'hyphen-family-source',
+                'type' => 'report',
+                'title' => 'Hyphen Family Packet',
+                'author' => [
+                    ['family' => 'Source', 'given' => 'Jean-Luc'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Initialize With Hyphen Review Style</title>
+    <id>https://example.test/styles/bounded-initialize-with-hyphen-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author">
+          <name initialize-with=". " initialize-with-hyphen="true"/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " initialize-with-hyphen="false" name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Initialize With Hyphen Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['nameRendering']['citation']['initializeWithHyphen'] ?? null);
+        $t->same(false, $summary['nameRendering']['bibliography']['initializeWithHyphen'] ?? null);
+        $t->same(true, $summary['citationRendering'][0]['children'][0]['nameRendering']['initializeWithHyphen'] ?? null);
+        $t->same(false, $summary['bibliographyRendering'][0]['nameRendering']['initializeWithHyphen'] ?? null);
+        $t->same('(J.-L. 2026; Source 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'hyphen-given-source', 'text' => '[@hyphen-given-source]']),
+            new AstNode('citation', ['id' => 'hyphen-family-source', 'text' => '[@hyphen-family-source]']),
+        ]));
+        $t->same('J. L. Hyphen Given Packet.', $processor->renderBibliographyEntry('hyphen-given-source'));
+        $t->same('Source, J. L. Hyphen Family Packet.', $processor->renderBibliographyEntry('hyphen-family-source'));
+
+        $defaultHyphen = CitationCslProcessor::fromItems([
+            [
+                'id' => 'default-hyphen-source',
+                'title' => 'Default Hyphen Source',
+                'author' => [
+                    ['family' => 'Default', 'given' => 'Jean-Luc'],
+                ],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><name initialize-with=". "/></names></layout></citation>
+  <bibliography><layout delimiter=". " suffix="."><names variable="author"><name initialize-with=". " name-as-sort-order="all"/></names><text variable="title"/></layout></bibliography>
+</style>
+XML
+        );
+        $t->same(true, $defaultHyphen->cslStyleSummary()['nameRendering']['bibliography']['initializeWithHyphen'] ?? null);
+        $t->same('Default, J.-L. Default Hyphen Source.', $defaultHyphen->renderBibliographyEntry('default-hyphen-source'));
+
+        $document = (new MarkdownReader())->read('Hyphenated source @hyphen-given-source and family source [@hyphen-family-source] keep initials reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Hyphenated source J.-L. (2026) and family source (Source 2025) keep initials reviewable.</p>', $blocks);
+        $t->contains('<dt>J.-L. 2026</dt><dd>J. L. Hyphen Given Packet.</dd>', $blocks);
+        $t->contains('<dt>Source 2025</dt><dd>Source, J. L. Hyphen Family Packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><name initialize-with=". " initialize-with-hyphen="maybe"/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl et al element term formatting and delimiter policy' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
