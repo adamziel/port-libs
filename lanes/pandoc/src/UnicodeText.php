@@ -501,6 +501,18 @@ final class UnicodeText
         11091 => 0x9ad9,
     ];
 
+    /** @var array<int, int> */
+    private const BIG5_PAIRS = [
+        0xa141 => 0xff0c,
+        0xa143 => 0x3002,
+        0xa4a4 => 0x4e2d,
+        0xa4e5 => 0x6587,
+        0xadbb => 0x9999,
+        0xb4e4 => 0x6e2f,
+        0xb4fa => 0x6e2c,
+        0xb8d5 => 0x8a66,
+    ];
+
     /** @var list<int> */
     private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
         0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
@@ -602,11 +614,12 @@ final class UnicodeText
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
-        if ($normalized === 'shift_jis' || $normalized === 'euc-jp' || $normalized === 'iso-2022-jp') {
+        if ($normalized === 'shift_jis' || $normalized === 'euc-jp' || $normalized === 'iso-2022-jp' || $normalized === 'big5') {
             [$text, $repairs] = match ($normalized) {
                 'shift_jis' => self::decodeShiftJis($bytes),
                 'euc-jp' => self::decodeEucJp($bytes),
-                default => self::decodeIso2022Jp($bytes),
+                'iso-2022-jp' => self::decodeIso2022Jp($bytes),
+                default => self::decodeBig5($bytes),
             };
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
@@ -1054,6 +1067,7 @@ final class UnicodeText
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
             'iso2022jp', 'csiso2022jp' => 'iso-2022-jp',
+            'big5', 'big5hkscs', 'big5hk', 'cnbig5', 'csbig5', 'xxbig5' => 'big5',
             default => 'utf-8',
         };
     }
@@ -1665,6 +1679,52 @@ final class UnicodeText
             }
 
             $out .= self::fromCodepoint(self::JIS0208_POINTERS[$pointer]);
+            $offset++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeBig5(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+
+            if ($byte < 0x81 || $byte > 0xfe || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if (!(($trail >= 0x40 && $trail <= 0x7e) || ($trail >= 0xa1 && $trail <= 0xfe))) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                if ($trail > 0x7f) {
+                    $offset++;
+                }
+                continue;
+            }
+
+            $pair = ($byte << 8) | $trail;
+            if (!isset(self::BIG5_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::BIG5_PAIRS[$pair]);
             $offset++;
         }
 

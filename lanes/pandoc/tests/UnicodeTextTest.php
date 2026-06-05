@@ -222,6 +222,28 @@ return [
         $t->same("A\u{FFFD}B", $malformedEscape['text']);
         $t->same(1, $malformedEscape['repairs']);
     },
+    'decodes bounded big5 traditional chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141adbbb4e4a143');
+        $decoded = UnicodeText::decodeBytes($bytes, 'big5-hkscs');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cn-big5');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedLead = UnicodeText::decodeBytes("\xA4 A", 'big5');
+        $unmappedPair = UnicodeText::decodeBytes("\x81\x40A", 'x-x-big5');
+
+        $t->same('big5', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 中文\n\n中文 Big5 測試，香港。", $decoded['text']);
+        $t->same(['encoding' => 'big5', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('中文', $document->children[0]->attr('text'));
+        $t->same("中文 Big5 測試，香港。", $document->children[1]->attr('text'));
+        $t->same(22, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="中文">中文</h1>', $blocks);
+        $t->contains('<p>中文 Big5 測試，香港。</p>', $blocks);
+        $t->same("\u{FFFD} A", $malformedLead['text']);
+        $t->same(1, $malformedLead['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([
