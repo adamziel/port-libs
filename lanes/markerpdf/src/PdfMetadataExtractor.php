@@ -8763,18 +8763,33 @@ final class PdfMetadataExtractor
      */
     private function xmpResourceReferenceTargetElement(DOMElement $element, array &$seenResourceIds): ?DOMElement
     {
-        if (count($seenResourceIds) >= 8 || !$element->hasAttributeNS(self::NS_RDF, 'resource')) {
+        if (count($seenResourceIds) >= 8) {
             return null;
         }
 
-        $id = $this->xmpFragmentResourceId($element->getAttributeNS(self::NS_RDF, 'resource'));
-        if ($id === null || isset($seenResourceIds[$id])) {
-            return null;
+        if ($element->hasAttributeNS(self::NS_RDF, 'resource')) {
+            $id = $this->xmpFragmentResourceId($element->getAttributeNS(self::NS_RDF, 'resource'));
+            if ($id === null || isset($seenResourceIds['resource:' . $id])) {
+                return null;
+            }
+
+            $seenResourceIds['resource:' . $id] = true;
+
+            return $this->xmpDocumentLevelResourceTargetElement($element, $id);
         }
 
-        $seenResourceIds[$id] = true;
+        if ($element->hasAttributeNS(self::NS_RDF, 'nodeID')) {
+            $id = $this->xmpBlankNodeId($element->getAttributeNS(self::NS_RDF, 'nodeID'));
+            if ($id === null || isset($seenResourceIds['node:' . $id])) {
+                return null;
+            }
 
-        return $this->xmpDocumentLevelResourceTargetElement($element, $id);
+            $seenResourceIds['node:' . $id] = true;
+
+            return $this->xmpDocumentLevelNodeIdTargetElement($element, $id);
+        }
+
+        return null;
     }
 
     private function xmpFragmentResourceId(string $resource): ?string
@@ -8790,6 +8805,16 @@ final class PdfMetadataExtractor
         }
 
         return $id;
+    }
+
+    private function xmpBlankNodeId(string $nodeId): ?string
+    {
+        $nodeId = trim($nodeId);
+        if ($nodeId === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $nodeId) !== 1) {
+            return null;
+        }
+
+        return $nodeId;
     }
 
     private function xmpDocumentLevelResourceTargetElement(DOMElement $source, string $id): ?DOMElement
@@ -8816,6 +8841,30 @@ final class PdfMetadataExtractor
         return null;
     }
 
+    private function xmpDocumentLevelNodeIdTargetElement(DOMElement $source, string $id): ?DOMElement
+    {
+        $document = $source->ownerDocument;
+        if (!$document instanceof DOMDocument) {
+            return null;
+        }
+
+        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'RDF') as $rdf) {
+            if (!$rdf instanceof DOMElement || !$this->isDocumentLevelXmpRdfElement($rdf)) {
+                continue;
+            }
+
+            foreach ($rdf->childNodes as $child) {
+                if (!$child instanceof DOMElement || !$this->xmpElementMatchesNodeId($child, $id)) {
+                    continue;
+                }
+
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
     private function xmpElementMatchesResourceId(DOMElement $element, string $id): bool
     {
         if ($element->hasAttributeNS(self::NS_RDF, 'ID') && trim($element->getAttributeNS(self::NS_RDF, 'ID')) === $id) {
@@ -8828,6 +8877,12 @@ final class PdfMetadataExtractor
 
         return $element->hasAttributeNS(self::NS_RDF, 'about')
             && trim($element->getAttributeNS(self::NS_RDF, 'about')) === '#' . $id;
+    }
+
+    private function xmpElementMatchesNodeId(DOMElement $element, string $id): bool
+    {
+        return $element->hasAttributeNS(self::NS_RDF, 'nodeID')
+            && trim($element->getAttributeNS(self::NS_RDF, 'nodeID')) === $id;
     }
 
     private function xmpElementHasElementChildren(DOMElement $element): bool
@@ -8892,7 +8947,11 @@ final class PdfMetadataExtractor
 
     private function xmpDescriptionIsFragmentResourceTarget(DOMElement $description): bool
     {
-        if ($description->hasAttributeNS(self::NS_RDF, 'ID') || $description->hasAttributeNS(self::NS_XML, 'id')) {
+        if (
+            $description->hasAttributeNS(self::NS_RDF, 'ID')
+            || $description->hasAttributeNS(self::NS_XML, 'id')
+            || $description->hasAttributeNS(self::NS_RDF, 'nodeID')
+        ) {
             return true;
         }
 
