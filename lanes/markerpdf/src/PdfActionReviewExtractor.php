@@ -88,7 +88,7 @@ final class PdfActionReviewExtractor
         $seen = [];
         $actions = [];
         if (array_key_exists('A', $dict)) {
-            $actions = $this->reviewActionsFromValue($dict['A'], $seen);
+            $actions = $this->reviewPrimaryAnnotationActionsFromValue($dict['A'], $seen);
         } elseif (array_key_exists('Dest', $dict)) {
             $action = $this->localDestinationReview($dict['Dest']);
             if ($action !== null) {
@@ -111,6 +111,24 @@ final class PdfActionReviewExtractor
             'previous_uri_actions' => $previousUriActions,
             'executes_actions_on_import' => false,
         ];
+    }
+
+    /**
+     * Link and annotation `/A` entries are a single action dictionary. Arrays
+     * are valid under action `/Next`, but a top-level `/A [...]` is malformed
+     * and must not donate a primary WordPress link target.
+     *
+     * @param array<string, true> $seen
+     * @return list<array<string, mixed>>
+     */
+    private function reviewPrimaryAnnotationActionsFromValue(mixed $value, array &$seen): array
+    {
+        $resolved = $this->resolveValue($value);
+        if ($this->arrayItems($resolved) !== null) {
+            return [];
+        }
+
+        return $this->reviewActionsFromValue($value, $seen);
     }
 
     /**
