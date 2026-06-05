@@ -233,6 +233,22 @@ $nullFilterDecodeParmsPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$nullSlotDecodeParmsRowOne = 'BT /F1 12 Tf 72 720 Td (Null Slot DecodeParms Ignored) Tj T* ';
+$nullSlotDecodeParmsRowTwo = str_pad('(Real Flate Still Decodes) Tj ET', strlen($nullSlotDecodeParmsRowOne));
+$nullSlotDecodeParmsCompressed = $zlibStored($pngSubPredictorEncode($nullSlotDecodeParmsRowOne . $nullSlotDecodeParmsRowTwo, strlen($nullSlotDecodeParmsRowOne)));
+$realFilterDecodeParmsLeak = 'BT /F1 12 Tf 72 680 Td (Real Filter DecodeParms Leak) Tj ET';
+$realFilterDecodeParmsCompressed = $zlibStored($realFilterDecodeParmsLeak);
+$nullSlotVisibleAfter = 'BT /F1 12 Tf 72 660 Td (Visible After Null Slot Boundary) Tj ET';
+$nullSlotDecodeParmsPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ null /FlateDecode ] /DecodeParms [ 99 0 R << /Predictor 12 /Columns " . strlen($nullSlotDecodeParmsRowOne) . " >> ] /Length " . strlen($nullSlotDecodeParmsCompressed) . " >>\nstream\n{$nullSlotDecodeParmsCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter [ /FlateDecode null ] /DecodeParms [ 99 0 R null ] /Length " . strlen($realFilterDecodeParmsCompressed) . " >>\nstream\n{$realFilterDecodeParmsCompressed}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Length " . strlen($nullSlotVisibleAfter) . " >>\nstream\n{$nullSlotVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $compactDecodeParmsBefore = "BT /F1 12 Tf 72 720 Td (Compact Params Stack Before) Tj ET\n";
 while ((7 + strlen($compactDecodeParmsBefore)) % 4 !== 0) {
     $compactDecodeParmsBefore .= ' ';
@@ -304,6 +320,7 @@ $flateFirstLines = $extractor->extractTextLines($flateFirstPdf);
 $runLengthLines = $extractor->extractTextLines($runLengthPdf);
 $runLengthDeclaredLines = $extractor->extractTextLines($runLengthDeclaredPdf);
 $nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParmsPdf);
+$nullSlotDecodeParmsLines = $extractor->extractTextLines($nullSlotDecodeParmsPdf);
 $compactDecodeParmsLines = $extractor->extractTextLines($compactDecodeParmsPdf);
 $aliasCompactDecodeParmsLines = $extractor->extractTextLines($aliasCompactDecodeParmsPdf);
 $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
@@ -317,6 +334,7 @@ $allLines = [
     ...$runLengthLines,
     ...$runLengthDeclaredLines,
     ...$nullFilterDecodeParmsLines,
+    ...$nullSlotDecodeParmsLines,
     ...$compactDecodeParmsLines,
     ...$aliasCompactDecodeParmsLines,
     ...$strayDecodeParmsLines,
@@ -335,12 +353,20 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['RunLengthDecode', 'FlateDecode'],
         ['RunLengthDecode', 'FlateDecode'],
         [null, 'FlateDecode'],
+        [null, 'FlateDecode'],
+        ['FlateDecode', null],
         [null, 'ASCII85Decode', 'FlateDecode'],
         ['A85', null, 'Fl'],
         [],
         [null],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
+    'unresolved_decodeparms_on_null_filter_slot_ignored' => $nullSlotDecodeParmsLines === [
+        'Null Slot DecodeParms Ignored',
+        'Real Flate Still Decodes',
+        'Visible After Null Slot Boundary',
+    ],
+    'unresolved_decodeparms_on_real_filter_slot_fail_closed' => !str_contains($joined, 'Real Filter DecodeParms Leak'),
     'compact_decodeparms_ignore_null_filter_placeholders' => $compactDecodeParmsLines === [
         'Compact Params Stack Before',
         'Compact Params Stack After',

@@ -1956,7 +1956,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
+            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true);
             if ($decoded !== null) {
                 $streams[] = $this->filterOptionalContentMarkedBlocks($decoded, $optionalContentProperties);
             }
@@ -3706,7 +3706,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects);
+            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true);
             if ($decoded !== null) {
                 $streams[] = $decoded;
             }
@@ -5107,7 +5107,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objectBody, $objects);
+        $decoded = $this->decodeStreamObject($objectBody, $objects, true);
         if ($decoded === null) {
             return null;
         }
@@ -5538,7 +5538,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objects[$appearanceObjectNumber], $objects);
+        $decoded = $this->decodeStreamObject($objects[$appearanceObjectNumber], $objects, true);
         if ($decoded === null) {
             return null;
         }
@@ -7779,7 +7779,11 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function decodeStreamObject(string $objectBody, array $objects): ?string
+    private function decodeStreamObject(
+        string $objectBody,
+        array $objects,
+        bool $ignoreNullFilterDecodeParms = false
+    ): ?string
     {
         $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($entry === null) {
@@ -7790,7 +7794,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->decodeStream($entry['dict'], $entry['stream'], $objects);
+        return $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, $ignoreNullFilterDecodeParms);
     }
 
     /**
@@ -8817,7 +8821,8 @@ final class PdfTextExtractor
         string $dict,
         string $stream,
         array $objects = [],
-        bool $requireExplicitFilterEndMarkers = false
+        bool $requireExplicitFilterEndMarkers = false,
+        bool $ignoreNullFilterDecodeParms = false
     ): ?string
     {
         $filters = $this->streamFilters($dict, $objects);
@@ -8829,7 +8834,9 @@ final class PdfTextExtractor
             return $stream;
         }
 
-        $decodeParms = $this->streamDecodeParms($dict, $objects);
+        $decodeParms = $ignoreNullFilterDecodeParms
+            ? $this->streamDecodeParmsForFilters($dict, $objects, $filters)
+            : $this->streamDecodeParms($dict, $objects);
         if ($decodeParms === null) {
             return null;
         }
@@ -9108,6 +9115,158 @@ final class PdfTextExtractor
         }
 
         return $this->decodeParmsValueList($dict, $offset, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     * @return list<string|null>|null
+     */
+    private function streamDecodeParmsForFilters(string $dict, array $objects, array $filters): ?array
+    {
+        $offset = $this->topLevelNameValueOffset($dict, 'DecodeParms');
+        if ($offset === null) {
+            return [];
+        }
+
+        $offset = $this->skipPdfWhitespace($dict, $offset);
+        if ($offset >= strlen($dict)) {
+            return null;
+        }
+
+        if ($dict[$offset] !== '[') {
+            return $this->decodeParmsValueList($dict, $offset, $objects);
+        }
+
+        $arrayBody = $this->readPdfArrayAt($dict, $offset);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $rawItems = $this->decodeParmsArrayRawItems($arrayBody);
+        if ($rawItems === null) {
+            return null;
+        }
+
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        $compactArray = count($rawItems) === count($nonNullFilterIndexes) && count($filters) !== count($rawItems);
+        $items = [];
+        foreach ($rawItems as $itemIndex => $rawItem) {
+            $filterIndex = $compactArray ? ($nonNullFilterIndexes[$itemIndex] ?? null) : $itemIndex;
+            if ($filterIndex !== null && ($filters[$filterIndex] ?? null) === null) {
+                $items[] = null;
+                continue;
+            }
+
+            if ($rawItem === null) {
+                $items[] = null;
+                continue;
+            }
+
+            $resolved = $this->decodeParmsValueList($rawItem, 0, $objects);
+            if ($resolved === null || count($resolved) !== 1) {
+                return null;
+            }
+
+            $items[] = $resolved[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<string|null>|null
+     */
+    private function decodeParmsArrayRawItems(string $arrayBody): ?array
+    {
+        $items = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $offset = $this->skipPdfWhitespace($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($arrayBody[$offset] === '%') {
+                $this->skipPdfComment($arrayBody, $offset);
+                continue;
+            }
+
+            if (preg_match('/\Gnull\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $items[] = null;
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (substr($arrayBody, $offset, 2) === '<<') {
+                $dictionaryOffset = $offset;
+                $dictionary = $this->readPdfDictionaryTokenAt($arrayBody, $dictionaryOffset);
+                if ($dictionary === null) {
+                    return null;
+                }
+
+                $items[] = '<<' . $dictionary . '>>';
+                $offset = $dictionaryOffset;
+                continue;
+            }
+
+            if ($arrayBody[$offset] === '[') {
+                $body = $this->readPdfArrayAt($arrayBody, $offset);
+                if ($body === null) {
+                    return null;
+                }
+
+                $items[] = '[' . $body . ']';
+                $offset += strlen($body) + 2;
+                continue;
+            }
+
+            if ($arrayBody[$offset] === '(') {
+                $start = $offset;
+                $this->readLiteralToken($arrayBody, $offset);
+                $items[] = substr($arrayBody, $start, $offset - $start);
+                continue;
+            }
+
+            if ($arrayBody[$offset] === '<') {
+                $start = $offset;
+                $this->readHexToken($arrayBody, $offset);
+                $items[] = substr($arrayBody, $start, $offset - $start);
+                continue;
+            }
+
+            if ($arrayBody[$offset] === '/') {
+                $start = $offset;
+                $this->readNameToken($arrayBody, $offset);
+                $items[] = substr($arrayBody, $start, $offset - $start);
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $items[] = $match[0];
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $start = $offset;
+            while ($offset < $length && !$this->isBareTokenDelimiter($arrayBody[$offset])) {
+                $offset++;
+            }
+            if ($offset === $start) {
+                return null;
+            }
+
+            $items[] = substr($arrayBody, $start, $offset - $start);
+        }
+
+        return $items;
     }
 
     /**

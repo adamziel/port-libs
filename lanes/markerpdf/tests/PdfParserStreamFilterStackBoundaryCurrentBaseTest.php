@@ -121,6 +121,30 @@ $parserStreamFilterStackBoundaryCurrentBaseNullFilterDecodeParmsPdf = static fun
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseNullDecodeParmsSlotPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $rowOne = 'BT /F1 12 Tf 72 720 Td (Null Slot DecodeParms Ignored) Tj T* ';
+    $rowTwo = str_pad('(Real Flate Still Decodes) Tj ET', strlen($rowOne));
+    $encodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor($rowOne . $rowTwo, strlen($rowOne));
+    $compressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($encodedRows);
+
+    $realFilterDecodeParmsLeak = 'BT /F1 12 Tf 72 680 Td (Real Filter DecodeParms Leak) Tj ET';
+    $realFilterCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($realFilterDecodeParmsLeak);
+    $visibleAfter = 'BT /F1 12 Tf 72 660 Td (Visible After Null Slot Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ null /FlateDecode ] /DecodeParms [ 99 0 R << /Predictor 12 /Columns " . strlen($rowOne) . " >> ] /Length " . strlen($compressed) . " >>\nstream\n{$compressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ /FlateDecode null ] /DecodeParms [ 99 0 R null ] /Length " . strlen($realFilterCompressed) . " >>\nstream\n{$realFilterCompressed}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseCompactDecodeParmsPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseAscii85,
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
@@ -418,6 +442,23 @@ return [
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->true(!str_contains($text, 'DecodeParms'));
+        $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'ignores unresolved DecodeParms entries aligned to null filters while failing closed on real filters' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseNullDecodeParmsSlotPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseNullDecodeParmsSlotPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Null Slot DecodeParms Ignored', 'Real Flate Still Decodes', 'Visible After Null Slot Boundary'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same("Null Slot DecodeParms Ignored\nReal Flate Still Decodes\nVisible After Null Slot Boundary", $text);
+        $t->same("Null Slot DecodeParms Ignored\nReal Flate Still Decodes\nVisible After Null Slot Boundary\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Real Filter DecodeParms Leak'));
+        $t->true(!str_contains($text, '99 0 obj'));
         $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, "\0"));
     },
