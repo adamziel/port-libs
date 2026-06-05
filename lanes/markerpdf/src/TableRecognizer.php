@@ -317,7 +317,7 @@ final class TableRecognizer
         $this->assignUnassigned($assigned, $rows, $cols);
         $this->handleRowColSpans($assigned, $rows, $cols);
 
-        return $assigned;
+        return $this->withBandOrderMetadata($assigned, $rows, $cols);
     }
 
     /**
@@ -352,13 +352,16 @@ final class TableRecognizer
      */
     public function markdownFormat(array $cells): string
     {
-        $cells = $this->sortCells($this->normalizeAssignedCells($cells));
+        $cells = $this->normalizeAssignedCells($cells);
+        $rowOrder = $this->storedBandOrderMap($cells, 'row');
+        $colOrder = $this->storedBandOrderMap($cells, 'col');
+        $cells = $this->sortCells($cells, $rowOrder, $colOrder);
         if ($cells === []) {
             return '';
         }
 
-        $rows = $this->sortedUniqueIds(array_map(static fn (array $cell): int => (int) $cell['row_ids'][0], $cells));
-        $cols = $this->sortedUniqueIds(array_map(static fn (array $cell): int => (int) $cell['col_ids'][0], $cells));
+        $rows = $this->orderedUniqueIdsFromCells($cells, 'row_ids', $rowOrder);
+        $cols = $this->orderedUniqueIdsFromCells($cells, 'col_ids', $colOrder);
         $matrix = [];
 
         foreach ($rows as $row) {
@@ -393,20 +396,22 @@ final class TableRecognizer
      */
     public function mergedCellGeometry(array $cells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
-        $cells = $this->sortCells($this->normalizeAssignedCells($cells));
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
         $cols = $this->normalizeRowsOrCols($cols, 'col_id');
         $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
         $rows = $geometryBands['rows'];
         $cols = $geometryBands['cols'];
+        $rowOrder = $this->bandOrderMap($rows, 'row_id');
+        $colOrder = $this->bandOrderMap($cols, 'col_id');
+        $cells = $this->sortCells($this->normalizeAssignedCells($cells), $rowOrder, $colOrder);
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
 
         $geometry = [];
         foreach ($cells as $cell) {
-            $rowIds = $this->nonNullSortedIds($cell['row_ids']);
-            $colIds = $this->nonNullSortedIds($cell['col_ids']);
+            $rowIds = $this->nonNullOrderedIds($cell['row_ids'], $rowOrder);
+            $colIds = $this->nonNullOrderedIds($cell['col_ids'], $colOrder);
             if (count($rowIds) <= 1 && count($colIds) <= 1) {
                 continue;
             }
@@ -453,16 +458,18 @@ final class TableRecognizer
      */
     public function spanningGridReview(array $cells, array $rows = [], array $cols = [], ?array $imageSize = null): array
     {
-        $cells = $this->sortCells($this->normalizeAssignedCells($cells));
-        if ($cells === []) {
-            return $this->emptySpanningGridReview();
-        }
-
         $rows = $this->normalizeRowsOrCols($rows, 'row_id');
         $cols = $this->normalizeRowsOrCols($cols, 'col_id');
         $geometryBands = $this->tableGridGeometryBoundary($rows, $cols, $imageSize);
         $rows = $geometryBands['rows'];
         $cols = $geometryBands['cols'];
+        $rowOrder = $this->bandOrderMap($rows, 'row_id');
+        $colOrder = $this->bandOrderMap($cols, 'col_id');
+        $cells = $this->sortCells($this->normalizeAssignedCells($cells), $rowOrder, $colOrder);
+        if ($cells === []) {
+            return $this->emptySpanningGridReview();
+        }
+
         $geometryBoundaryReview = $geometryBands['review'];
         $cellBoundaryReview = $this->tableCellGeometryBoundary($cells, $imageSize);
         $cells = $this->cellsWithGeometryBoundary($cells, $cellBoundaryReview);
@@ -471,7 +478,7 @@ final class TableRecognizer
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
         $axisMetadata = $this->spanningGridAxisMetadata($rotated);
 
-        $cellGroups = $this->spanningGridAnchorGroups($cells);
+        $cellGroups = $this->spanningGridAnchorGroups($cells, $rowOrder, $colOrder);
         $rowIds = [];
         $colIds = [];
         foreach ($cellGroups as $cellGroup) {
@@ -482,8 +489,8 @@ final class TableRecognizer
                 $colIds[$colId] = $colId;
             }
         }
-        sort($rowIds, SORT_NUMERIC);
-        sort($colIds, SORT_NUMERIC);
+        $rowIds = $this->orderIdsByMap(array_values($rowIds), $rowOrder);
+        $colIds = $this->orderIdsByMap(array_values($colIds), $colOrder);
 
         if ($rowIds === [] || $colIds === []) {
             return $this->emptySpanningGridReview($rotated);
@@ -537,7 +544,7 @@ final class TableRecognizer
                 $entry['text_parts'] = $this->reviewTextParts($cellGroup['cells']);
                 $entry['anchor_cell_bbox'] = $cellGroup['cells'][0]['bbox'];
                 $entry['continuation_count'] = count($cellGroup['cells']) - 1;
-                $entry['continuation_cells'] = $this->reviewContinuationCells(array_slice($cellGroup['cells'], 1));
+                $entry['continuation_cells'] = $this->reviewContinuationCells(array_slice($cellGroup['cells'], 1), $rowOrder, $colOrder);
             }
 
             $cellBoundary = $this->cellGroupBoundarySummary($cellGroup['cells']);
@@ -569,7 +576,7 @@ final class TableRecognizer
             $renderCells[] = $entry;
         }
 
-        $headerReferences = $this->applyHeaderReferences($renderCells);
+        $headerReferences = $this->applyHeaderReferences($renderCells, $rowOrder, $colOrder);
         $renderCells = $headerReferences['render_cells'];
         $accessibilityGrid = $this->accessibilityGridReview(
             $rowIds,
@@ -674,6 +681,8 @@ final class TableRecognizer
         $rows = $geometryBands['rows'];
         $cols = $geometryBands['cols'];
         $geometryBoundaryReview = $geometryBands['review'];
+        $rowOrder = $this->bandOrderMap($rows, 'row_id');
+        $colOrder = $this->bandOrderMap($cols, 'col_id');
         $rowBboxes = $this->bboxesById($rows, 'row_id');
         $colBboxes = $this->bboxesById($cols, 'col_id');
         $rotated = $rows !== [] && $cols !== [] && $this->isRotated($rows, $cols);
@@ -701,8 +710,8 @@ final class TableRecognizer
                 }
 
                 $cell = $assignedCells[$cellIndex];
-                $rowIds = $this->nonNullSortedIds($cell['row_ids']);
-                $colIds = $this->nonNullSortedIds($cell['col_ids']);
+                $rowIds = $this->nonNullOrderedIds($cell['row_ids'], $rowOrder);
+                $colIds = $this->nonNullOrderedIds($cell['col_ids'], $colOrder);
                 if ($rowIds === [] || $colIds === []) {
                     continue;
                 }
@@ -730,7 +739,7 @@ final class TableRecognizer
                     $candidateGridCell['grid_cell_bboxes'] = $this->gridCellBboxesForSpan($rowIds, $colIds, $rowBboxes, $colBboxes, $rotated);
                 }
                 $candidateGridCells[] = $candidateGridCell;
-                $candidateGridRenderCell = $this->assignedCellGridRenderReview($cellIndex, $cell, $gridCellsByPosition, $renderCells);
+                $candidateGridRenderCell = $this->assignedCellGridRenderReview($cellIndex, $cell, $gridCellsByPosition, $renderCells, $rowOrder, $colOrder);
                 if ($candidateGridRenderCell !== null) {
                     $candidateGridRenderCells[] = $candidateGridRenderCell;
                 }
@@ -739,8 +748,8 @@ final class TableRecognizer
             if ($candidateGridCells !== []) {
                 $entry['candidate_grid_cells'] = $candidateGridCells;
                 $entry['candidate_grid_anchors'] = $candidateAnchors;
-                $entry['candidate_row_ids'] = $this->uniqueGridIds($candidateGridCells, 'row_ids');
-                $entry['candidate_col_ids'] = $this->uniqueGridIds($candidateGridCells, 'col_ids');
+                $entry['candidate_row_ids'] = $this->uniqueGridIds($candidateGridCells, 'row_ids', $rowOrder);
+                $entry['candidate_col_ids'] = $this->uniqueGridIds($candidateGridCells, 'col_ids', $colOrder);
                 $entry['grid_border_axes'] = $this->gridBorderAxes($entry['candidate_row_ids'], $entry['candidate_col_ids']);
                 $entry['grid_border_axis'] = $this->headerAxisForAxes($entry['grid_border_axes']);
             }
@@ -751,8 +760,8 @@ final class TableRecognizer
             $assignedIndex = $this->nullableInteger($conflict['assigned_cell_index'] ?? null);
             if ($assignedIndex !== null && isset($assignedCells[$assignedIndex])) {
                 $cell = $assignedCells[$assignedIndex];
-                $rowIds = $this->nonNullSortedIds($cell['row_ids']);
-                $colIds = $this->nonNullSortedIds($cell['col_ids']);
+                $rowIds = $this->nonNullOrderedIds($cell['row_ids'], $rowOrder);
+                $colIds = $this->nonNullOrderedIds($cell['col_ids'], $colOrder);
                 if ($rowIds !== [] && $colIds !== []) {
                     $assignedGridCell = [
                         'cell_index' => $assignedIndex,
@@ -770,7 +779,7 @@ final class TableRecognizer
                     $entry['assigned_grid_cell'] = $assignedGridCell;
                 }
 
-                $assignedGridRenderCell = $this->assignedCellGridRenderReview($assignedIndex, $cell, $gridCellsByPosition, $renderCells);
+                $assignedGridRenderCell = $this->assignedCellGridRenderReview($assignedIndex, $cell, $gridCellsByPosition, $renderCells, $rowOrder, $colOrder);
                 if ($assignedGridRenderCell !== null) {
                     $entry['assigned_grid_render_cell'] = $assignedGridRenderCell;
                 }
@@ -812,10 +821,16 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $renderCells
      * @return array<string, mixed>|null
      */
-    private function assignedCellGridRenderReview(int $cellIndex, array $cell, array $gridCellsByPosition, array $renderCells): ?array
-    {
-        $rowIds = $this->nonNullSortedIds($cell['row_ids']);
-        $colIds = $this->nonNullSortedIds($cell['col_ids']);
+    private function assignedCellGridRenderReview(
+        int $cellIndex,
+        array $cell,
+        array $gridCellsByPosition,
+        array $renderCells,
+        array $rowOrder = [],
+        array $colOrder = []
+    ): ?array {
+        $rowIds = $this->nonNullOrderedIds($cell['row_ids'], $rowOrder);
+        $colIds = $this->nonNullOrderedIds($cell['col_ids'], $colOrder);
         if ($rowIds === [] || $colIds === []) {
             return null;
         }
@@ -2168,6 +2183,14 @@ final class TableRecognizer
             if (isset($cell['order'])) {
                 $entry['order'] = (int) $cell['order'];
             }
+            foreach (['row_geometry_orders', 'col_geometry_orders'] as $field) {
+                if (isset($cell[$field]) && is_array($cell[$field])) {
+                    $entry[$field] = array_map(
+                        static fn (mixed $order): ?int => $order === null ? null : (int) $order,
+                        array_values($cell[$field])
+                    );
+                }
+            }
             $normalized[] = $entry;
         }
 
@@ -2503,7 +2526,7 @@ final class TableRecognizer
                     break;
                 }
             }
-            sort($cell['col_ids']);
+            $cell['col_ids'] = $this->orderedIdsByBands($cell['col_ids'], $cols, 'col_id');
         }
         unset($cell);
 
@@ -2527,7 +2550,7 @@ final class TableRecognizer
                     break;
                 }
             }
-            sort($cell['row_ids']);
+            $cell['row_ids'] = $this->orderedIdsByBands($cell['row_ids'], $rows, 'row_id');
         }
         unset($cell);
     }
@@ -2696,8 +2719,8 @@ final class TableRecognizer
                 $status = 'clipped_to_table_image';
             }
 
-            $rowIds = $this->nonNullSortedIds($cell['row_ids']);
-            $colIds = $this->nonNullSortedIds($cell['col_ids']);
+            $rowIds = $this->nonNullOrderedIds($cell['row_ids']);
+            $colIds = $this->nonNullOrderedIds($cell['col_ids']);
             $reviewRow = [
                 'cell_index' => $index,
                 'text' => (string) $cell['text'],
@@ -2895,6 +2918,71 @@ final class TableRecognizer
     }
 
     /**
+     * @param list<array<string, mixed>> $items
+     * @return array<int, int>
+     */
+    private function bandOrderMap(array $items, string $idField): array
+    {
+        $order = [];
+        foreach (array_values($items) as $position => $item) {
+            if (isset($item[$idField])) {
+                $order[(int) $item[$idField]] = $position;
+            }
+        }
+
+        return $order;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return list<array<string, mixed>>
+     */
+    private function withBandOrderMetadata(array $cells, array $rows, array $cols): array
+    {
+        $rowOrder = $this->bandOrderMap($rows, 'row_id');
+        $colOrder = $this->bandOrderMap($cols, 'col_id');
+        foreach ($cells as &$cell) {
+            $cell['row_ids'] = $this->nonNullOrderedIds($cell['row_ids'] ?? [], $rowOrder);
+            $cell['col_ids'] = $this->nonNullOrderedIds($cell['col_ids'] ?? [], $colOrder);
+            $cell['row_geometry_orders'] = array_map(
+                static fn (int $rowId): ?int => $rowOrder[$rowId] ?? null,
+                $cell['row_ids']
+            );
+            $cell['col_geometry_orders'] = array_map(
+                static fn (int $colId): ?int => $colOrder[$colId] ?? null,
+                $cell['col_ids']
+            );
+        }
+        unset($cell);
+
+        return $cells;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return array<int, int>
+     */
+    private function storedBandOrderMap(array $cells, string $axis): array
+    {
+        $idField = $axis === 'row' ? 'row_ids' : 'col_ids';
+        $orderField = $axis === 'row' ? 'row_geometry_orders' : 'col_geometry_orders';
+        $order = [];
+        foreach ($cells as $cell) {
+            if (!isset($cell[$idField], $cell[$orderField]) || !is_array($cell[$idField]) || !is_array($cell[$orderField])) {
+                continue;
+            }
+            foreach (array_values($cell[$idField]) as $index => $id) {
+                if ($id === null || !isset($cell[$orderField][$index]) || $cell[$orderField][$index] === null) {
+                    continue;
+                }
+                $order[(int) $id] = (int) $cell[$orderField][$index];
+            }
+        }
+
+        return $order;
+    }
+
+    /**
      * @param list<int|null> $ids
      * @return list<int>
      */
@@ -2910,6 +2998,95 @@ final class TableRecognizer
         sort($out, SORT_NUMERIC);
 
         return $out;
+    }
+
+    /**
+     * @param list<int|null> $ids
+     * @return list<int>
+     */
+    private function nonNullOrderedIds(array $ids, array $orderMap = []): array
+    {
+        $out = [];
+        foreach ($ids as $id) {
+            if ($id !== null) {
+                $out[] = (int) $id;
+            }
+        }
+
+        return $this->orderIdsByMap($out, $orderMap);
+    }
+
+    /**
+     * @param list<int|null> $ids
+     * @param list<array<string, mixed>> $bands
+     * @return list<int>
+     */
+    private function orderedIdsByBands(array $ids, array $bands, string $idField): array
+    {
+        return $this->nonNullOrderedIds($ids, $this->bandOrderMap($bands, $idField));
+    }
+
+    /**
+     * @param list<int> $ids
+     * @return list<int>
+     */
+    private function orderIdsByMap(array $ids, array $orderMap = []): array
+    {
+        $ids = array_values(array_unique(array_map(static fn (mixed $id): int => (int) $id, $ids)));
+        usort($ids, static function (int $left, int $right) use ($orderMap): int {
+            $leftKnown = array_key_exists($left, $orderMap);
+            $rightKnown = array_key_exists($right, $orderMap);
+            if ($leftKnown && $rightKnown) {
+                return $orderMap[$left] <=> $orderMap[$right];
+            }
+            if ($leftKnown) {
+                return -1;
+            }
+            if ($rightKnown) {
+                return 1;
+            }
+
+            return $left <=> $right;
+        });
+
+        return $ids;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @return list<int>
+     */
+    private function orderedUniqueIdsFromCells(array $cells, string $idField, array $orderMap = []): array
+    {
+        $ids = [];
+        foreach ($cells as $cell) {
+            foreach (($cell[$idField] ?? []) as $id) {
+                if ($id !== null) {
+                    $ids[] = (int) $id;
+                }
+            }
+        }
+
+        return $this->orderIdsByMap($ids, $orderMap);
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    private function minIdPosition(array $ids, array $orderMap = []): int
+    {
+        $positions = [];
+        foreach ($ids as $id) {
+            $id = (int) $id;
+            $positions[] = $orderMap[$id] ?? $id;
+        }
+
+        return $positions === [] ? 0 : min($positions);
+    }
+
+    private function idSortPosition(int $id, array $orderMap = []): int
+    {
+        return $orderMap[$id] ?? $id;
     }
 
     /**
@@ -2944,7 +3121,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $candidateGridCells
      * @return list<int>
      */
-    private function uniqueGridIds(array $candidateGridCells, string $field): array
+    private function uniqueGridIds(array $candidateGridCells, string $field, array $orderMap = []): array
     {
         $ids = [];
         foreach ($candidateGridCells as $cell) {
@@ -2955,7 +3132,7 @@ final class TableRecognizer
             }
         }
 
-        return $this->nonNullSortedIds($ids);
+        return $this->nonNullOrderedIds($ids, $orderMap);
     }
 
     /**
@@ -2985,14 +3162,14 @@ final class TableRecognizer
      * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
      * @return list<array{cells: list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}>, row_ids: list<int>, col_ids: list<int>, text: string, bbox: list<float>}>
      */
-    private function spanningGridAnchorGroups(array $cells): array
+    private function spanningGridAnchorGroups(array $cells, array $rowOrder = [], array $colOrder = []): array
     {
         $groups = [];
         $order = [];
 
         foreach ($cells as $cell) {
-            $rowIds = $this->nonNullSortedIds($cell['row_ids']);
-            $colIds = $this->nonNullSortedIds($cell['col_ids']);
+            $rowIds = $this->nonNullOrderedIds($cell['row_ids'], $rowOrder);
+            $colIds = $this->nonNullOrderedIds($cell['col_ids'], $colOrder);
             if ($rowIds === [] || $colIds === []) {
                 continue;
             }
@@ -3011,8 +3188,8 @@ final class TableRecognizer
             }
 
             $groups[$key]['cells'][] = $cell;
-            $groups[$key]['row_ids'] = $this->mergeSortedIds($groups[$key]['row_ids'], $rowIds);
-            $groups[$key]['col_ids'] = $this->mergeSortedIds($groups[$key]['col_ids'], $colIds);
+            $groups[$key]['row_ids'] = $this->mergeOrderedIds($groups[$key]['row_ids'], $rowIds, $rowOrder);
+            $groups[$key]['col_ids'] = $this->mergeOrderedIds($groups[$key]['col_ids'], $colIds, $colOrder);
             $groups[$key]['text'] = $this->combinedCellText($groups[$key]['cells']);
             $groups[$key]['bbox'] = $this->mergedCellBbox($groups[$key]['cells']);
         }
@@ -3048,12 +3225,11 @@ final class TableRecognizer
      * @param list<int> $right
      * @return list<int>
      */
-    private function mergeSortedIds(array $left, array $right): array
+    private function mergeOrderedIds(array $left, array $right, array $orderMap = []): array
     {
         $ids = array_values(array_unique(array_merge($left, $right)));
-        sort($ids, SORT_NUMERIC);
 
-        return $ids;
+        return $this->orderIdsByMap($ids, $orderMap);
     }
 
     /**
@@ -3087,14 +3263,14 @@ final class TableRecognizer
      * @param list<array{bbox: list<float>, text: string, row_ids: list<int|null>, col_ids: list<int|null>, order?: int}> $cells
      * @return list<array{text: string, row_ids: list<int>, col_ids: list<int>, bbox: list<float>}>
      */
-    private function reviewContinuationCells(array $cells): array
+    private function reviewContinuationCells(array $cells, array $rowOrder = [], array $colOrder = []): array
     {
         $continuations = [];
         foreach ($cells as $cell) {
             $entry = [
                 'text' => (string) $cell['text'],
-                'row_ids' => $this->nonNullSortedIds($cell['row_ids']),
-                'col_ids' => $this->nonNullSortedIds($cell['col_ids']),
+                'row_ids' => $this->nonNullOrderedIds($cell['row_ids'], $rowOrder),
+                'col_ids' => $this->nonNullOrderedIds($cell['col_ids'], $colOrder),
                 'bbox' => $cell['bbox'],
             ];
             foreach (['cell_boundary_status', 'cell_boundary_active', 'bounded_cell_bbox', 'clipped_cell_bbox'] as $field) {
@@ -3150,19 +3326,24 @@ final class TableRecognizer
      */
     private function columnHeaderRowIdsForGrid(array $cellGroups, array $rowIds, int $topRowId): array
     {
-        $maxHeaderRowId = $topRowId;
+        $rowPositionById = array_flip($rowIds);
+        $maxHeaderRowPosition = $rowPositionById[$topRowId] ?? 0;
         foreach ($cellGroups as $cellGroup) {
             $groupRowIds = $cellGroup['row_ids'];
             if ($groupRowIds === [] || $groupRowIds[0] !== $topRowId) {
                 continue;
             }
 
-            $maxHeaderRowId = max($maxHeaderRowId, max($groupRowIds));
+            foreach ($groupRowIds as $rowId) {
+                if (isset($rowPositionById[$rowId])) {
+                    $maxHeaderRowPosition = max($maxHeaderRowPosition, (int) $rowPositionById[$rowId]);
+                }
+            }
         }
 
         $headerRows = [];
-        foreach ($rowIds as $rowId) {
-            if ($rowId <= $maxHeaderRowId) {
+        foreach ($rowIds as $position => $rowId) {
+            if ($position <= $maxHeaderRowPosition) {
                 $headerRows[] = $rowId;
             }
         }
@@ -3277,7 +3458,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $renderCells
      * @return array{render_cells: list<array<string, mixed>>, header_cells: list<array<string, mixed>>, data_cells: list<array<string, mixed>>}
      */
-    private function applyHeaderReferences(array $renderCells): array
+    private function applyHeaderReferences(array $renderCells, array $rowOrder = [], array $colOrder = []): array
     {
         $headerCells = [];
         foreach ($renderCells as $index => &$renderCell) {
@@ -3310,7 +3491,7 @@ final class TableRecognizer
                 continue;
             }
 
-            $references = $this->headerReferencesForDataCell($renderCell, $headerCells);
+            $references = $this->headerReferencesForDataCell($renderCell, $headerCells, $rowOrder, $colOrder);
             $renderCell['headers'] = $references['headers'];
             $renderCell['column_header_ids'] = $references['column_header_ids'];
             $renderCell['row_header_ids'] = $references['row_header_ids'];
@@ -3356,7 +3537,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $headerCells
      * @return array{headers: list<string>, column_header_ids: list<string>, row_header_ids: list<string>, header_texts: list<string>, header_text: string}
      */
-    private function headerReferencesForDataCell(array $dataCell, array $headerCells): array
+    private function headerReferencesForDataCell(array $dataCell, array $headerCells, array $rowOrder = [], array $colOrder = []): array
     {
         $rowIds = $this->integerList($dataCell['row_ids'] ?? []);
         $colIds = $this->integerList($dataCell['col_ids'] ?? []);
@@ -3370,8 +3551,8 @@ final class TableRecognizer
             ];
         }
 
-        $dataMinRow = min($rowIds);
-        $dataMinCol = min($colIds);
+        $dataMinRow = $this->minIdPosition($rowIds, $rowOrder);
+        $dataMinCol = $this->minIdPosition($colIds, $colOrder);
         $columnHeaderIds = [];
         $rowHeaderIds = [];
         $headerTextsById = [];
@@ -3392,14 +3573,14 @@ final class TableRecognizer
             $headerTextsById[$headerId] = (string) ($headerCell['text'] ?? '');
             if (
                 in_array('column', $headerAxes, true)
-                && min($headerRowIds) < $dataMinRow
+                && $this->minIdPosition($headerRowIds, $rowOrder) < $dataMinRow
                 && array_intersect($headerColIds, $colIds) !== []
             ) {
                 $columnHeaderIds[] = $headerId;
             }
             if (
                 in_array('row', $headerAxes, true)
-                && min($headerColIds) < $dataMinCol
+                && $this->minIdPosition($headerColIds, $colOrder) < $dataMinCol
                 && array_intersect($headerRowIds, $rowIds) !== []
             ) {
                 $rowHeaderIds[] = $headerId;
@@ -3939,7 +4120,7 @@ final class TableRecognizer
      * @param list<array<string, mixed>> $cells
      * @return list<array<string, mixed>>
      */
-    private function sortCells(array $cells): array
+    private function sortCells(array $cells, array $rowOrder = [], array $colOrder = []): array
     {
         $order = $this->sortWithinCell($cells);
         foreach ($cells as $idx => &$cell) {
@@ -3947,9 +4128,20 @@ final class TableRecognizer
         }
         unset($cell);
 
-        usort($cells, static fn (array $left, array $right): int => ($left['row_ids'][0] <=> $right['row_ids'][0])
-            ?: ($left['col_ids'][0] <=> $right['col_ids'][0])
-            ?: (($left['order'] ?? 0) <=> ($right['order'] ?? 0)));
+        usort($cells, function (array $left, array $right) use ($rowOrder, $colOrder): int {
+            $leftRows = $this->nonNullOrderedIds($left['row_ids'] ?? [], $rowOrder);
+            $rightRows = $this->nonNullOrderedIds($right['row_ids'] ?? [], $rowOrder);
+            $leftCols = $this->nonNullOrderedIds($left['col_ids'] ?? [], $colOrder);
+            $rightCols = $this->nonNullOrderedIds($right['col_ids'] ?? [], $colOrder);
+            $leftRow = $leftRows[0] ?? PHP_INT_MAX;
+            $rightRow = $rightRows[0] ?? PHP_INT_MAX;
+            $leftCol = $leftCols[0] ?? PHP_INT_MAX;
+            $rightCol = $rightCols[0] ?? PHP_INT_MAX;
+
+            return $this->idSortPosition($leftRow, $rowOrder) <=> $this->idSortPosition($rightRow, $rowOrder)
+                ?: $this->idSortPosition($leftCol, $colOrder) <=> $this->idSortPosition($rightCol, $colOrder)
+                ?: (($left['order'] ?? 0) <=> ($right['order'] ?? 0));
+        });
 
         return $cells;
     }
