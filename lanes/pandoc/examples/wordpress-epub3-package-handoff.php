@@ -14,6 +14,11 @@ $containerXml = <<<'XML'
     <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
     <rootfile full-path="EPUB/fixed/package.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
+  <links>
+    <link href="EPUB/meta/review-record.json" rel="record alternate" media-type="application/ld+json" properties="schema-org reviewer"/>
+    <link href="https://metadata.example.test/container-record.json" rel="record" media-type="application/ld+json"/>
+    <link href="EPUB/text/chapter.xhtml#epubcfi(/6/2[source]!/4/2/1:12)" rel="preview" media-type="application/xhtml+xml"/>
+  </links>
 </container>
 XML;
 
@@ -287,6 +292,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['package']['uniqueIdentifier']['selectedBy'] ?? null) !== 'unique-identifier') {
         throw new RuntimeException('Expected EPUB package report to expose the canonical identifier source');
+    }
+    if (($result['container']['linkCount'] ?? null) !== 3 || ($result['container']['links'][0]['target'] ?? null) !== '/EPUB/meta/review-record.json') {
+        throw new RuntimeException('Expected EPUB OCF container links to expose package metadata records');
+    }
+    if (($result['container']['links'][0]['byteSha256'] ?? null) !== hash('sha256', '{"@context":"https://schema.org","name":"WordPress EPUB review record"}')) {
+        throw new RuntimeException('Expected EPUB OCF container link to hash local metadata record bytes');
+    }
+    if (($result['container']['linksByRel']['record'][0]['target'] ?? null) !== '/EPUB/meta/review-record.json') {
+        throw new RuntimeException('Expected EPUB OCF container links to be indexed by rel');
+    }
+    if (($result['container']['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-container-link-reference') {
+        throw new RuntimeException('Expected remote EPUB OCF container link to stay unfetched for review');
+    }
+    if (($result['container']['links'][2]['fragmentKind'] ?? null) !== 'epub-cfi' || ($result['container']['links'][2]['epubCfi']['path'] ?? null) !== '/6/2[source]!/4/2/1:12') {
+        throw new RuntimeException('Expected EPUB OCF container CFI preview link to preserve CFI metadata');
+    }
+    if (($result['importReport']['container']['linkDiagnostics'][0]['type'] ?? null) !== 'external-container-link-reference') {
+        throw new RuntimeException('Expected EPUB import report to expose OCF container link diagnostics');
     }
     $missingIdentifierParts = $withPackagePartData(
         $packageParts,
@@ -678,6 +701,11 @@ echo 'uniqueIdentifierId=' . ($result['metadata']['uniqueIdentifier']['id'] ?? '
 echo 'uniqueIdentifierSelectedBy=' . ($result['metadata']['uniqueIdentifier']['selectedBy'] ?? '') . "\n";
 echo 'uniqueIdentifierDiagnostics=' . count($result['metadata']['uniqueIdentifier']['diagnostics'] ?? []) . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
+echo 'containerLinks=' . ($result['container']['linkCount'] ?? 0) . "\n";
+echo 'containerRecordTarget=' . ($result['container']['links'][0]['target'] ?? '') . "\n";
+echo 'containerRecordSha256=' . ($result['container']['links'][0]['byteSha256'] ?? '') . "\n";
+echo 'containerRemoteDiagnostics=' . count($result['container']['linkDiagnostics'] ?? []) . "\n";
+echo 'containerCfiPath=' . ($result['container']['links'][2]['epubCfi']['path'] ?? '') . "\n";
 echo 'opfPrefixes=' . implode(',', array_keys($result['package']['prefixes'] ?? [])) . "\n";
 echo 'schemaPrefix=' . ($result['package']['prefixes']['schema'] ?? '') . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";

@@ -185,7 +185,15 @@ final class EpubReader
     }
 
     /**
-     * @return array{opfPart:string, selectedRootfileIndex:int, rootfiles:list<array{index:int, path:string, mediaType:string, exists:bool, selected:bool}>}
+     * @return array{
+     *     opfPart:string,
+     *     selectedRootfileIndex:int,
+     *     rootfiles:list<array{index:int, path:string, mediaType:string, exists:bool, selected:bool}>,
+     *     linkCount:int,
+     *     links:list<array<string, mixed>>,
+     *     linksByRel:array<string, list<array<string, mixed>>>,
+     *     linkDiagnostics:list<array<string, mixed>>
+     * }
      */
     private function readContainer(ZipPackage $package): array
     {
@@ -252,10 +260,180 @@ final class EpubReader
             $rootfiles[$index]['selected'] = $index === $selectedIndex;
         }
 
+        $links = $this->readContainerLinks(
+            $package,
+            self::firstChildElement($root, 'links', self::OCF_CONTAINER_NS),
+        );
+
         return [
             'opfPart' => $selected['path'],
             'selectedRootfileIndex' => $selectedIndex,
             'rootfiles' => $rootfiles,
+            'linkCount' => count($links['items']),
+            'links' => $links['items'],
+            'linksByRel' => self::linksByRel($links['items']),
+            'linkDiagnostics' => $links['diagnostics'],
+        ];
+    }
+
+    /**
+     * @return array{items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     */
+    private function readContainerLinks(ZipPackage $package, ?\DOMElement $linksElement): array
+    {
+        if (!$linksElement instanceof \DOMElement) {
+            return [
+                'items' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $items = [];
+        $diagnostics = [];
+        foreach (self::childElements($linksElement, 'link', self::OCF_CONTAINER_NS) as $index => $link) {
+            $href = self::nullableAttribute($link, 'href');
+            $reference = $this->containerLinkReference($package, $href ?? '');
+            $item = [
+                'index' => $index,
+                'href' => $href,
+                'rel' => self::spaceDelimited($link->getAttribute('rel')),
+                'mediaType' => self::nullableAttribute($link, 'media-type'),
+                'properties' => self::spaceDelimited($link->getAttribute('properties')),
+                'refines' => self::nullableAttribute($link, 'refines'),
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'fragment' => $reference['fragment'],
+                'fragmentKind' => $reference['fragmentKind'],
+                'epubCfi' => $reference['epubCfi'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'byteSha256' => $reference['byteSha256'],
+                'diagnostics' => $reference['diagnostics'],
+            ];
+
+            foreach ($reference['diagnostics'] as $diagnostic) {
+                $diagnostics[] = [
+                    'index' => $index,
+                    'href' => $href,
+                ] + $diagnostic;
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     target:?string,
+     *     part:?string,
+     *     fragment:?string,
+     *     fragmentKind:?string,
+     *     epubCfi:?array<string, mixed>,
+     *     external:bool,
+     *     exists:bool,
+     *     byteLength:?int,
+     *     crc32:?string,
+     *     byteSha256:?string,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function containerLinkReference(ZipPackage $package, string $href): array
+    {
+        $href = trim($href);
+        $fragmentFields = self::targetFragmentFields(null);
+        if ($href === '') {
+            return [
+                'target' => null,
+                'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'external' => false,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'byteSha256' => null,
+                'diagnostics' => [[
+                    'type' => 'missing-container-link-href',
+                    'message' => 'EPUB OCF container link is missing href',
+                ]],
+            ];
+        }
+
+        if (self::isExternalReference($href)) {
+            $fragmentFields = self::targetFragmentFields($href);
+
+            return [
+                'target' => $href,
+                'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'external' => true,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'byteSha256' => null,
+                'diagnostics' => [[
+                    'type' => 'external-container-link-reference',
+                    'href' => $href,
+                    'message' => 'EPUB OCF container link points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
+        try {
+            $target = self::ocfPackageReferenceTarget($href, '/META-INF/container.xml');
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'external' => false,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'byteSha256' => null,
+                'diagnostics' => [[
+                    'type' => 'invalid-container-link-reference',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $fragmentFields = self::targetFragmentFields($target);
+        $part = OpcPackagePath::stripQueryAndFragment($target);
+        $exists = $package->has($part);
+        $entry = $exists ? $package->entry($part) : null;
+        $diagnostics = $exists ? [] : [[
+            'type' => 'missing-container-link-reference',
+            'href' => $href,
+            'part' => $part,
+            'message' => 'EPUB OCF container link target is missing from the package',
+        ]];
+
+        return [
+            'target' => $target,
+            'part' => $part,
+            'fragment' => $fragmentFields['fragment'],
+            'fragmentKind' => $fragmentFields['fragmentKind'],
+            'epubCfi' => $fragmentFields['epubCfi'],
+            'external' => false,
+            'exists' => $exists,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'byteSha256' => $exists ? hash('sha256', $package->read($part)) : null,
+            'diagnostics' => $diagnostics,
         ];
     }
 

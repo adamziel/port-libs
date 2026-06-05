@@ -391,6 +391,74 @@ return [
         $t->contains('Chapter XHTML stays available', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
     },
+    'reports OCF container links with package targets and diagnostics' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $containerRecord = '{"source":"wordpress-export","kind":"epub-container-link"}';
+        $containerXml = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+  <links>
+    <link href="META-INF/container-record.json" rel="record alternate" media-type="application/ld+json" properties="schema-org reviewer"/>
+    <link href="OEBPS/text/chapter1.xhtml#epubcfi(/6/2[chapter-1]!/4/2/1:12)" rel="preview" media-type="application/xhtml+xml"/>
+    <link href="https://metadata.example.test/source-record.json" rel="record" media-type="application/ld+json"/>
+    <link href="META-INF/missing-record.json" rel="record" media-type="application/json"/>
+  </links>
+</container>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideContainerXml: $containerXml,
+            extraParts: [
+                ['name' => 'META-INF/container-record.json', 'data' => $containerRecord],
+            ],
+        ));
+        $container = $result['container'];
+
+        $t->same(4, $container['linkCount']);
+        $t->same(3, count($container['linksByRel']['record']));
+        $t->same(1, count($container['linksByRel']['alternate']));
+        $t->same(1, count($container['linksByRel']['preview']));
+
+        $local = $container['links'][0];
+        $t->same(0, $local['index']);
+        $t->same(['record', 'alternate'], $local['rel']);
+        $t->same(['schema-org', 'reviewer'], $local['properties']);
+        $t->same('application/ld+json', $local['mediaType']);
+        $t->same('/META-INF/container-record.json', $local['target']);
+        $t->same('/META-INF/container-record.json', $local['part']);
+        $t->same(false, $local['external']);
+        $t->same(true, $local['exists']);
+        $t->same(strlen($containerRecord), $local['byteLength']);
+        $t->same(hash('sha256', $containerRecord), $local['byteSha256']);
+        $t->same([], $local['diagnostics']);
+
+        $preview = $container['links'][1];
+        $t->same('/OEBPS/text/chapter1.xhtml#epubcfi(/6/2[chapter-1]!/4/2/1:12)', $preview['target']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $preview['part']);
+        $t->same('epubcfi(/6/2[chapter-1]!/4/2/1:12)', $preview['fragment']);
+        $t->same('epub-cfi', $preview['fragmentKind']);
+        $t->same('/6/2[chapter-1]!/4/2/1:12', $preview['epubCfi']['path']);
+        $t->same(true, $preview['exists']);
+
+        $remote = $container['links'][2];
+        $t->same(true, $remote['external']);
+        $t->same(false, $remote['exists']);
+        $t->same(null, $remote['part']);
+        $t->same('external-container-link-reference', $remote['diagnostics'][0]['type']);
+
+        $missing = $container['links'][3];
+        $t->same(false, $missing['exists']);
+        $t->same('/META-INF/missing-record.json', $missing['part']);
+        $t->same('missing-container-link-reference', $missing['diagnostics'][0]['type']);
+
+        $t->same(2, count($container['linkDiagnostics']));
+        $t->same(2, $container['linkDiagnostics'][0]['index']);
+        $t->same('external-container-link-reference', $container['linkDiagnostics'][0]['type']);
+        $t->same(3, $container['linkDiagnostics'][1]['index']);
+        $t->same('missing-container-link-reference', $container['linkDiagnostics'][1]['type']);
+        $t->same($container, $result['importReport']['container']);
+    },
     'parses OPF package prefix declarations for metadata vocabulary review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $prefix = 'schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/ bad-prefix';
         $opfWithPrefixes = str_replace(
