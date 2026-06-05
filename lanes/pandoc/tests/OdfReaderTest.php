@@ -591,6 +591,72 @@ XML;
         $t->contains('<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="seq-hero">Figure 1</span>', $blocksHtml);
         $t->contains('<h2>Appendix <span class="odf-sequence" data-odf-sequence-name="Chapter" data-odf-sequence-formula="ooow:Chapter+1">A</span></h2>', $blocksHtml);
     },
+    'maps ODT variable user page and date fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:user-field-decls>
+        <text:user-field-decl text:name="Reviewer" office:value-type="string" office:string-value="Migration Desk"/>
+      </text:user-field-decls>
+      <text:p>Fields <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> page <text:page-number text:select-page="current" text:page-adjust="1">2</text:page-number> exported <text:date text:fixed="true" text:date-value="2026-06-05">June 5, 2026</text:date>.</text:p>
+      <text:h text:outline-level="2">Status <text:variable-get text:name="ReviewStatus">Ready</text:variable-get></text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFields));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $paragraph = $blocks[0];
+        $heading = $blocks[1];
+        $reviewStatus = $paragraph->children[1];
+        $reviewer = $paragraph->children[3];
+        $pageNumber = $paragraph->children[5];
+        $date = $paragraph->children[7];
+        $statusGet = $heading->children[1];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Fields Ready by Migration Desk page 2 exported June 5, 2026.', $paragraph->attr('text'));
+        $t->same('span', $reviewStatus->type);
+        $t->same(['odf-field', 'odf-field-variable-set'], $reviewStatus->attr('classes'));
+        $t->same('variable-set', $reviewStatus->attr('fieldType'));
+        $t->same('ReviewStatus', $reviewStatus->attr('fieldName'));
+        $t->same('string', $reviewStatus->attr('fieldMetadata')['valueType']);
+        $t->same('Ready', $reviewStatus->attr('fieldMetadata')['stringValue']);
+        $t->same('Ready', $reviewStatus->children[0]->attr('text'));
+
+        $t->same(['odf-field', 'odf-field-user-field-get'], $reviewer->attr('classes'));
+        $t->same('Reviewer', $reviewer->attr('fieldName'));
+        $t->same('Migration Desk', $reviewer->children[0]->attr('text'));
+        $t->same('page-number', $pageNumber->attr('fieldType'));
+        $t->same('current', $pageNumber->attr('fieldMetadata')['selectPage']);
+        $t->same('1', $pageNumber->attr('fieldMetadata')['pageAdjust']);
+        $t->same('2', $pageNumber->children[0]->attr('text'));
+        $t->same('date', $date->attr('fieldType'));
+        $t->same(true, $date->attr('fieldMetadata')['fixed']);
+        $t->same('2026-06-05', $date->attr('fieldMetadata')['dateValue']);
+        $t->same('June 5, 2026', $date->children[0]->attr('text'));
+
+        $t->same('heading', $heading->type);
+        $t->same(2, $heading->attr('level'));
+        $t->same('variable-get', $statusGet->attr('fieldType'));
+        $t->same('ReviewStatus', $statusGet->attr('attributes')['data-odf-field-name']);
+        $t->same(5, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Ready]{.odf-field .odf-field-variable-set data-odf-field-type="variable-set" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready"}', $markdown);
+        $t->contains('[2]{.odf-field .odf-field-page-number data-odf-field-type="page-number" data-odf-field-select-page="current" data-odf-field-page-adjust="1"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-variable-set" data-odf-field-type="variable-set" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
+    },
     'maps ODT bibliography marks into citation handoff nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithBibliographyMarks = <<<'XML'
 <office:document-content

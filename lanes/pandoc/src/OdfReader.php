@@ -155,6 +155,7 @@ final class OdfReader
                     'referenceMarkCount' => $contentStats['referenceMarkCount'],
                     'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
+                    'fieldCount' => $contentStats['fieldCount'],
                     'citationCount' => $contentStats['citationCount'],
                     'trackedChangeCount' => $contentStats['trackedChangeCount'],
                     'mathCount' => $contentStats['mathCount'],
@@ -1053,6 +1054,13 @@ final class OdfReader
                 $nodes[] = new AstNode('linebreak');
                 continue;
             }
+            if ($this->isTextFieldElement($child)) {
+                $field = $this->fieldNode($child, $catalog, $package);
+                if ($field instanceof AstNode) {
+                    $nodes[] = $field;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::TEXT_NS, 'sequence')) {
                 $sequence = $this->sequenceNode($child, $catalog, $package);
                 if ($sequence instanceof AstNode) {
@@ -1120,6 +1128,121 @@ final class OdfReader
         }
 
         return $nodes;
+    }
+
+    private function isTextFieldElement(\DOMElement $element): bool
+    {
+        if ($element->namespaceURI !== self::TEXT_NS) {
+            return false;
+        }
+
+        return in_array($element->localName, [
+            'variable-set',
+            'variable-get',
+            'user-field-get',
+            'expression',
+            'page-number',
+            'page-count',
+            'date',
+            'time',
+        ], true);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function fieldNode(\DOMElement $field, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $children = $this->coalesceTextNodes($this->inlineNodes($field, $catalog, $package));
+        $metadata = $this->fieldMetadata($field);
+        if ($children === []) {
+            $text = $this->fieldFallbackText($field, $metadata);
+            if ($text === '') {
+                return null;
+            }
+            $children = [new AstNode('text', ['text' => $text])];
+        }
+
+        $fieldType = $field->localName;
+        $attributes = [
+            'data-odf-field-type' => $fieldType,
+        ];
+        foreach ($metadata as $name => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $attributes['data-odf-field-' . self::kebabCase((string) $name)] = is_bool($value)
+                ? ($value ? 'true' : 'false')
+                : (string) $value;
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'fieldType' => $fieldType,
+            'fieldMetadata' => $metadata,
+            'classes' => ['odf-field', 'odf-field-' . $fieldType],
+            'attributes' => $attributes,
+        ];
+        if (isset($metadata['name']) && is_string($metadata['name']) && $metadata['name'] !== '') {
+            $attrs['fieldName'] = $metadata['name'];
+        }
+
+        return new AstNode('span', $attrs, $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fieldMetadata(\DOMElement $field): array
+    {
+        $dateValue = self::attr($field, self::TEXT_NS, 'date-value');
+        if ($dateValue === '') {
+            $dateValue = self::attr($field, self::OFFICE_NS, 'date-value');
+        }
+        $timeValue = self::attr($field, self::TEXT_NS, 'time-value');
+        if ($timeValue === '') {
+            $timeValue = self::attr($field, self::OFFICE_NS, 'time-value');
+        }
+        $fixed = self::attr($field, self::TEXT_NS, 'fixed');
+
+        $metadata = self::withoutEmpty([
+            'name' => self::nullable(self::attr($field, self::TEXT_NS, 'name')),
+            'formula' => self::nullable(self::attr($field, self::TEXT_NS, 'formula')),
+            'valueType' => self::nullable(self::attr($field, self::OFFICE_NS, 'value-type')),
+            'value' => self::nullable(self::attr($field, self::OFFICE_NS, 'value')),
+            'stringValue' => self::nullable(self::attr($field, self::OFFICE_NS, 'string-value')),
+            'dateValue' => self::nullable($dateValue),
+            'timeValue' => self::nullable($timeValue),
+            'selectPage' => self::nullable(self::attr($field, self::TEXT_NS, 'select-page')),
+            'pageAdjust' => self::nullable(self::attr($field, self::TEXT_NS, 'page-adjust')),
+            'styleName' => self::nullable(self::attr($field, self::STYLE_NS, 'data-style-name')),
+        ]);
+
+        if ($fixed !== '') {
+            $metadata['fixed'] = in_array(strtolower($fixed), ['true', '1'], true);
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function fieldFallbackText(\DOMElement $field, array $metadata): string
+    {
+        $text = self::normalizedText($field);
+        if ($text !== '') {
+            return $text;
+        }
+
+        foreach (['stringValue', 'value', 'dateValue', 'timeValue'] as $name) {
+            $value = $metadata[$name] ?? null;
+            if (is_scalar($value) && (string) $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -2138,7 +2261,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, citationCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, citationCount:int, trackedChangeCount:int, mathCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2149,6 +2272,7 @@ final class OdfReader
             'referenceMarkCount' => 0,
             'referenceReferenceCount' => 0,
             'sequenceCount' => 0,
+            'fieldCount' => 0,
             'citationCount' => 0,
             'trackedChangeCount' => 0,
             'mathCount' => 0,
@@ -2184,6 +2308,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-sequence')) {
                 $stats['sequenceCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-field')) {
+                $stats['fieldCount']++;
             }
             if ($node->type === 'citation') {
                 $stats['citationCount']++;
