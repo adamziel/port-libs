@@ -879,6 +879,108 @@ XML
 XML
         ));
     },
+    'applies bounded csl name rendering options for initials and et al thresholds' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-packet',
+                'type' => 'webpage',
+                'title' => 'Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Okafor', 'given' => 'Ola'],
+                    ['family' => 'Smith', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'URL' => 'https://example.test/source-packet',
+            ],
+            [
+                'id' => 'editor-packet',
+                'type' => 'book',
+                'title' => 'Edited Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli', 'suffix' => 'III', 'comma-suffix' => true],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publisher' => 'Review Press',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Options Review Style</title>
+    <id>https://example.test/styles/bounded-name-options</id>
+    <updated>2026-06-05T01:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
+        <name initialize-with=". "/>
+      </names>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <names variable="author editor" delimiter="; " et-al-min="4" et-al-use-first="2">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Name Options Review Style', $summary['title'] ?? null);
+        $t->same(3, $summary['nameRendering']['citation']['etAlMin'] ?? null);
+        $t->same(2, $summary['nameRendering']['citation']['etAlUseFirst'] ?? null);
+        $t->same(', ', $summary['nameRendering']['citation']['delimiter'] ?? null);
+        $t->same('. ', $summary['nameRendering']['bibliography']['initializeWith'] ?? null);
+        $t->same('all', $summary['nameRendering']['bibliography']['nameAsSortOrder'] ?? null);
+
+        $t->same('(de la Cruz, Ng, et al. 2026; Curator 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-packet', 'text' => '[@source-packet]']),
+            new AstNode('citation', ['id' => 'editor-packet', 'text' => '[@editor-packet]']),
+        ]));
+        $t->same('de la Cruz, A. M.; Ng, N.; et al. Source Packet. 2026. https://example.test/source-packet.', $processor->renderBibliographyEntry('source-packet'));
+        $t->same('Curator, E., III. Edited Packet. Review Press, 2025.', $processor->renderBibliographyEntry('editor-packet'));
+
+        $document = (new MarkdownReader())->read('Review cites @source-packet and [@editor-packet].');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites de la Cruz, Ng, et al. (2026) and (Curator 2025).', $markdown);
+        $t->contains('de la Cruz, Ng, et al. 2026' . "\n" . ':   de la Cruz, A. M.; Ng, N.; et al. Source Packet. 2026. https://example.test/source-packet.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites de la Cruz, Ng, et al. (2026) and (Curator 2025).</p>', $blocks);
+        $t->contains('<dt>de la Cruz, Ng, et al. 2026</dt><dd>de la Cruz, A. M.; Ng, N.; et al. Source Packet. 2026. https://example.test/source-packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <names variable="author" et-al-min="soon"><name/></names>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <names variable="author"><name name-as-sort-order="sideways"/></names>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

@@ -17,12 +17,33 @@ final class CslStyle
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
     ];
 
+    /** @var array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} */
+    private const DEFAULT_NAME_RENDERING = [
+        'citation' => [
+            'delimiter' => ', ',
+            'and' => 'text',
+            'etAlMin' => 3,
+            'etAlUseFirst' => 1,
+            'initializeWith' => null,
+            'nameAsSortOrder' => 'first',
+        ],
+        'bibliography' => [
+            'delimiter' => '; ',
+            'and' => 'text',
+            'etAlMin' => null,
+            'etAlUseFirst' => 1,
+            'initializeWith' => null,
+            'nameAsSortOrder' => 'all',
+        ],
+    ];
+
     /**
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
+     * @param array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} $nameRendering
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
      */
@@ -32,6 +53,7 @@ final class CslStyle
         private readonly array $bibliographyOptions,
         private readonly array $citationSortKeys,
         private readonly array $bibliographySortKeys,
+        private readonly array $nameRendering,
         private readonly array $terms,
         private readonly array $metadata,
     ) {
@@ -45,6 +67,7 @@ final class CslStyle
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
             [],
             [],
+            self::DEFAULT_NAME_RENDERING,
             self::DEFAULT_TERMS,
             ['title' => '', 'id' => '', 'class' => 'in-text', 'defaultLocale' => '']
         );
@@ -122,6 +145,12 @@ final class CslStyle
                 : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
             self::sortKeys($citation, 'citation'),
             $bibliography instanceof \DOMElement ? self::sortKeys($bibliography, 'bibliography') : [],
+            [
+                'citation' => self::nameRenderingOptions($layout, 'citation'),
+                'bibliography' => $bibliographyLayoutElement instanceof \DOMElement
+                    ? self::nameRenderingOptions($bibliographyLayoutElement, 'bibliography')
+                    : self::DEFAULT_NAME_RENDERING['bibliography'],
+            ],
             $terms,
             $metadata
         );
@@ -192,7 +221,23 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     */
+    public function citationNameRendering(): array
+    {
+        return $this->nameRendering['citation'];
+    }
+
+    /**
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     */
+    public function bibliographyNameRendering(): array
+    {
+        return $this->nameRendering['bibliography'];
+    }
+
+    /**
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, nameRendering:array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -203,6 +248,7 @@ final class CslStyle
             'bibliographyOptions' => $this->bibliographyOptions,
             'citationSort' => $this->citationSortKeys,
             'bibliographySort' => $this->bibliographySortKeys,
+            'nameRendering' => $this->nameRendering,
             'terms' => [
                 'and' => $this->term('and'),
                 'etAl' => $this->term('et-al'),
@@ -264,6 +310,79 @@ final class CslStyle
         $value = trim($element->getAttribute($name));
         if (preg_match('/^-?\d+$/', $value) !== 1) {
             throw new \InvalidArgumentException('CSL bibliography attribute ' . $name . ' must be an integer');
+        }
+
+        return (int) $value;
+    }
+
+    /**
+     * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
+     */
+    private static function nameRenderingOptions(\DOMElement $layout, string $scope): array
+    {
+        $defaults = self::DEFAULT_NAME_RENDERING[$scope];
+        $names = self::firstAuthorEditorNamesElement($layout);
+        if (!$names instanceof \DOMElement) {
+            return $defaults;
+        }
+
+        $name = self::directChild($names, 'name');
+        $delimiter = $names->hasAttribute('delimiter') ? $names->getAttribute('delimiter') : $defaults['delimiter'];
+        $and = self::nameAttribute($name, $names, 'and', $defaults['and']);
+        if (!in_array($and, ['text', 'symbol', 'none'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' name and attribute must be text, symbol, or none');
+        }
+
+        $nameAsSortOrder = self::nameAttribute($name, $names, 'name-as-sort-order', $defaults['nameAsSortOrder']);
+        if (!in_array($nameAsSortOrder, ['first', 'all'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' name-as-sort-order must be first or all');
+        }
+
+        $etAlMin = self::positiveIntegerNameAttribute($names, $name, 'et-al-min', $scope);
+        $etAlUseFirst = self::positiveIntegerNameAttribute($names, $name, 'et-al-use-first', $scope);
+        $initializeWith = $name instanceof \DOMElement && $name->hasAttribute('initialize-with')
+            ? $name->getAttribute('initialize-with')
+            : $defaults['initializeWith'];
+
+        return [
+            'delimiter' => $delimiter,
+            'and' => $and,
+            'etAlMin' => $etAlMin ?? $defaults['etAlMin'],
+            'etAlUseFirst' => $etAlUseFirst ?? $defaults['etAlUseFirst'],
+            'initializeWith' => $initializeWith,
+            'nameAsSortOrder' => $nameAsSortOrder,
+        ];
+    }
+
+    private static function nameAttribute(?\DOMElement $name, \DOMElement $names, string $attribute, string $default): string
+    {
+        if ($name instanceof \DOMElement && $name->hasAttribute($attribute)) {
+            return trim($name->getAttribute($attribute));
+        }
+
+        if ($names->hasAttribute($attribute)) {
+            return trim($names->getAttribute($attribute));
+        }
+
+        return $default;
+    }
+
+    private static function positiveIntegerNameAttribute(\DOMElement $names, ?\DOMElement $name, string $attribute, string $scope): ?int
+    {
+        $source = null;
+        if ($names->hasAttribute($attribute)) {
+            $source = $names;
+        } elseif ($name instanceof \DOMElement && $name->hasAttribute($attribute)) {
+            $source = $name;
+        }
+
+        if (!$source instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($source->getAttribute($attribute));
+        if (preg_match('/^\d+$/', $value) !== 1 || (int) $value < 1) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' name attribute ' . $attribute . ' must be a positive integer');
         }
 
         return (int) $value;
@@ -421,6 +540,38 @@ final class CslStyle
         }
 
         return null;
+    }
+
+    private static function firstAuthorEditorNamesElement(\DOMElement $element): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($child->localName === 'names' && self::namesElementIncludesAuthorEditor($child)) {
+                return $child;
+            }
+
+            $match = self::firstAuthorEditorNamesElement($child);
+            if ($match instanceof \DOMElement) {
+                return $match;
+            }
+        }
+
+        return null;
+    }
+
+    private static function namesElementIncludesAuthorEditor(\DOMElement $names): bool
+    {
+        $variable = strtolower(trim($names->getAttribute('variable')));
+        if ($variable === '') {
+            return true;
+        }
+
+        $variables = preg_split('/\s+/', $variable) ?: [];
+
+        return in_array('author', $variables, true) || in_array('editor', $variables, true);
     }
 
     /**

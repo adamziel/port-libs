@@ -961,28 +961,7 @@ final class CitationCslProcessor
             return $title === '' ? (string) $item['id'] : $title;
         }
 
-        $families = array_map(static function (array $name): string {
-            if ($name['literal'] !== '') {
-                return $name['literal'];
-            }
-
-            $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
-            if ($family !== '') {
-                return $family;
-            }
-
-            return $name['given'];
-        }, $names);
-
-        if (count($families) === 1) {
-            return $families[0];
-        }
-
-        if (count($families) === 2) {
-            return $families[0] . ' ' . $this->style->term('and') . ' ' . $families[1];
-        }
-
-        return $families[0] . ' ' . $this->style->term('et-al');
+        return $this->renderNameList($names, $this->style->citationNameRendering(), false);
     }
 
     /**
@@ -1030,35 +1009,172 @@ final class CitationCslProcessor
             return '';
         }
 
-        $parts = [];
-        foreach ($names as $name) {
-            if ($name['literal'] !== '') {
-                $parts[] = $name['literal'];
-                continue;
+        return $this->renderNameList($names, $this->style->bibliographyNameRendering(), true);
+    }
+
+    /**
+     * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
+     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     */
+    private function renderNameList(array $names, array $options, bool $bibliography): string
+    {
+        $count = count($names);
+        $etAlMin = $options['etAlMin'];
+        $useEtAl = is_int($etAlMin) && $count >= $etAlMin;
+        $visibleCount = $useEtAl ? max(1, min((int) $options['etAlUseFirst'], $count)) : $count;
+        $visible = array_slice($names, 0, $visibleCount);
+
+        $rendered = [];
+        foreach ($visible as $index => $name) {
+            $rendered[] = $bibliography
+                ? $this->renderBibliographyName($name, $options, $index)
+                : $this->renderCitationName($name, $options);
+        }
+
+        if ($useEtAl) {
+            $term = $this->style->term('et-al');
+            if ($rendered === []) {
+                return $term;
             }
 
-            $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
-            $given = (string) $name['given'];
-            $droppingParticle = (string) $name['droppingParticle'];
-            $suffix = (string) $name['suffix'];
+            if (count($rendered) === 1) {
+                return $rendered[0] . ' ' . $term;
+            }
+
+            return implode($options['delimiter'], $rendered) . $options['delimiter'] . $term;
+        }
+
+        return $bibliography
+            ? implode($options['delimiter'], $rendered)
+            : $this->joinCitationNames($rendered, $options);
+    }
+
+    /**
+     * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     */
+    private function renderCitationName(array $name, array $options): string
+    {
+        if ($name['literal'] !== '') {
+            return $name['literal'];
+        }
+
+        $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
+        if ($family !== '') {
+            return $family;
+        }
+
+        return $this->renderGivenName((string) $name['given'], $options['initializeWith']);
+    }
+
+    /**
+     * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     */
+    private function renderBibliographyName(array $name, array $options, int $index): string
+    {
+        if ($name['literal'] !== '') {
+            return $name['literal'];
+        }
+
+        $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
+        $given = $this->renderGivenName((string) $name['given'], $options['initializeWith']);
+        $droppingParticle = (string) $name['droppingParticle'];
+        $suffix = (string) $name['suffix'];
+        $sortOrdered = $options['nameAsSortOrder'] === 'all' || ($options['nameAsSortOrder'] === 'first' && $index === 0);
+
+        if ($sortOrdered) {
             if ($family !== '' && $given !== '') {
                 $entry = $family . ', ' . $given;
             } else {
                 $entry = $family !== '' ? $family : $given;
             }
-
-            if ($droppingParticle !== '') {
-                $entry = trim($entry . ' ' . $droppingParticle);
-            }
-
-            if ($suffix !== '') {
-                $entry .= ($name['commaSuffix'] ? ', ' : ' ') . $suffix;
-            }
-
-            $parts[] = $entry;
+        } else {
+            $entry = trim(($given !== '' ? $given . ' ' : '') . $family);
         }
 
-        return implode('; ', $parts);
+        if ($droppingParticle !== '') {
+            $entry = trim($entry . ' ' . $droppingParticle);
+        }
+
+        if ($suffix !== '') {
+            $entry .= ($name['commaSuffix'] ? ', ' : ' ') . $suffix;
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @param list<string> $names
+     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     */
+    private function joinCitationNames(array $names, array $options): string
+    {
+        $count = count($names);
+        if ($count === 0) {
+            return '';
+        }
+
+        if ($count === 1) {
+            return $names[0];
+        }
+
+        $and = $this->andJoiner($options);
+        if ($and === '') {
+            return implode($options['delimiter'], $names);
+        }
+
+        if ($count === 2) {
+            return $names[0] . ' ' . $and . ' ' . $names[1];
+        }
+
+        return implode($options['delimiter'], array_slice($names, 0, -1))
+            . $options['delimiter']
+            . $and
+            . ' '
+            . $names[$count - 1];
+    }
+
+    /**
+     * @param array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string} $options
+     */
+    private function andJoiner(array $options): string
+    {
+        return match ($options['and']) {
+            'symbol' => '&',
+            'none' => '',
+            default => $this->style->term('and'),
+        };
+    }
+
+    private function renderGivenName(string $given, ?string $initializeWith): string
+    {
+        $given = trim($given);
+        if ($given === '' || $initializeWith === null) {
+            return $given;
+        }
+
+        $parts = preg_split('/[\s-]+/u', $given) ?: [];
+        $initials = [];
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '' || preg_match('/^./us', $part, $match) !== 1) {
+                continue;
+            }
+
+            $initials[] = $this->uppercaseInitial($match[0]) . $initializeWith;
+        }
+
+        return rtrim(implode('', $initials));
+    }
+
+    private function uppercaseInitial(string $initial): string
+    {
+        if (function_exists('mb_strtoupper')) {
+            return mb_strtoupper($initial, 'UTF-8');
+        }
+
+        return strtoupper($initial);
     }
 
     private function citationPrefix(AstNode $citation): string

@@ -90,14 +90,22 @@ $cslStyleXml = <<<'XML'
     </terms>
   </locale>
   <citation>
-    <layout prefix="(" suffix=")" delimiter="; "/>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="2">
+        <name/>
+      </names>
+    </layout>
   </citation>
   <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
     <sort>
       <key variable="issued" sort="descending"/>
       <key variable="title"/>
     </sort>
-    <layout prefix="[" suffix="]" delimiter=" "/>
+    <layout prefix="[" suffix="]" delimiter=" ">
+      <names variable="author editor" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+    </layout>
   </bibliography>
 </style>
 XML;
@@ -109,9 +117,9 @@ $blocks = (new WordPressBlockWriter())->write($document);
 if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
-        '<p>The local style renders Adams and others (undated) when source dates are missing.</p>',
-        '<dt>de la Cruz 2026</dt><dd>[de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
-        '<dt>Adams and others undated</dt><dd>[Adams, Ari; Baker, Bea; Clark, Cy. Undated Committee Packet.]</dd>',
+        '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
+        '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
+        '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet.]</dd>',
         '<p>The source archive keeps (see @missing-source; URL Key Source 2000, p. 33) visible for reviewer follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
@@ -124,7 +132,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>WordPress Migration Team 2024</dt>',
         '<dt>URL Key Source 2000</dt>',
         '<dt>Smith 1899</dt>',
-        '<dt>Adams and others undated</dt>',
+        '<dt>Adams, Baker, and others undated</dt>',
     ];
     $previousPosition = -1;
     foreach ($sortedTerms as $term) {
