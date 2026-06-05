@@ -24,6 +24,7 @@ final class PdfEmbeddedFileExtractor
      */
     public function extractEmbeddedFiles(string $pdfBytes): array
     {
+        $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         $objects = $this->pdfObjects($pdfBytes);
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
         if ($catalog === null) {
@@ -4794,6 +4795,16 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $offset;
+    }
+
+    private function bytesThroughTerminalEof(string $pdfBytes): string
+    {
+        $eof = strrpos($pdfBytes, '%%EOF');
+        if ($eof === false) {
+            return $pdfBytes;
+        }
+
+        return substr($pdfBytes, 0, $eof + strlen('%%EOF'));
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string
