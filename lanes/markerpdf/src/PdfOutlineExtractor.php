@@ -3033,14 +3033,19 @@ final class PdfOutlineExtractor
      */
     private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = [], array $pageIndexes = []): void
     {
+        $inheritedLimits = $activeLimits;
         $nodeLimits = $this->nameTreeLimits($node, $objects);
         if ($nodeLimits !== null) {
-            $activeLimits[] = $nodeLimits;
+            $activeLimits = $this->nameTreeEffectiveLimitStack($activeLimits, $nodeLimits);
         }
 
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if (($kids === null || $kids === []) && $names !== null) {
+            $entryLimits = $inheritedLimits === [] || $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $activeLimits)
+                ? $activeLimits
+                : $inheritedLimits;
+
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects);
                 if ($name === null) {
@@ -3049,7 +3054,7 @@ final class PdfOutlineExtractor
                 }
 
                 if (
-                    $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
+                    $this->nameWithinNameTreeLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationValueAllowedForMap($names[$index + 1], $objects, $pageIndexes)
                 ) {
                     $destinations[$name['text']] = $names[$index + 1];
@@ -3088,14 +3093,19 @@ final class PdfOutlineExtractor
      */
     private function collectNameTreeActionDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
     {
+        $inheritedLimits = $activeLimits;
         $nodeLimits = $this->nameTreeLimits($node, $objects);
         if ($nodeLimits !== null) {
-            $activeLimits[] = $nodeLimits;
+            $activeLimits = $this->nameTreeEffectiveLimitStack($activeLimits, $nodeLimits);
         }
 
         $kids = $this->resolveArray($node['Kids'] ?? null, $objects);
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if (($kids === null || $kids === []) && $names !== null) {
+            $entryLimits = $inheritedLimits === [] || $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $activeLimits)
+                ? $activeLimits
+                : $inheritedLimits;
+
             for ($index = 0, $count = count($names); $index + 1 < $count;) {
                 $name = $this->destinationNameDetails($names[$index], $objects);
                 if ($name === null) {
@@ -3104,7 +3114,7 @@ final class PdfOutlineExtractor
                 }
 
                 if (
-                    $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])
+                    $this->nameWithinNameTreeLimits($name['text'], $entryLimits, $name['bytes'])
                     && $this->destinationActionValueAllowedForMap($names[$index + 1], $objects)
                 ) {
                     $destinations[$name['text']] = $names[$index + 1];
@@ -3196,6 +3206,76 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $activeLimits
+     * @param array{lower: string, upper: string, lower_bytes: string, upper_bytes: string} $nodeLimits
+     * @return list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}>
+     */
+    private function nameTreeEffectiveLimitStack(array $activeLimits, array $nodeLimits): array
+    {
+        if ($activeLimits === []) {
+            return [$nodeLimits];
+        }
+
+        $inherited = $this->nameTreeMergedLimits($activeLimits);
+        if ($inherited === null) {
+            return $activeLimits;
+        }
+
+        $lower = strcmp($nodeLimits['lower_bytes'], $inherited['lower_bytes']) < 0
+            ? ['text' => $inherited['lower'], 'bytes' => $inherited['lower_bytes']]
+            : ['text' => $nodeLimits['lower'], 'bytes' => $nodeLimits['lower_bytes']];
+        $upper = strcmp($nodeLimits['upper_bytes'], $inherited['upper_bytes']) > 0
+            ? ['text' => $inherited['upper'], 'bytes' => $inherited['upper_bytes']]
+            : ['text' => $nodeLimits['upper'], 'bytes' => $nodeLimits['upper_bytes']];
+
+        if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
+            return $activeLimits;
+        }
+
+        return [[
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
+        ]];
+    }
+
+    /**
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $limits
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
+     */
+    private function nameTreeMergedLimits(array $limits): ?array
+    {
+        $merged = $limits[0] ?? null;
+        if ($merged === null) {
+            return null;
+        }
+
+        for ($index = 1, $count = count($limits); $index < $count; $index++) {
+            $limit = $limits[$index];
+            $lower = strcmp($limit['lower_bytes'], $merged['lower_bytes']) < 0
+                ? ['text' => $merged['lower'], 'bytes' => $merged['lower_bytes']]
+                : ['text' => $limit['lower'], 'bytes' => $limit['lower_bytes']];
+            $upper = strcmp($limit['upper_bytes'], $merged['upper_bytes']) > 0
+                ? ['text' => $merged['upper'], 'bytes' => $merged['upper_bytes']]
+                : ['text' => $limit['upper'], 'bytes' => $limit['upper_bytes']];
+
+            if (strcmp($lower['bytes'], $upper['bytes']) > 0) {
+                return null;
+            }
+
+            $merged = [
+                'lower' => $lower['text'],
+                'upper' => $upper['text'],
+                'lower_bytes' => $lower['bytes'],
+                'upper_bytes' => $upper['bytes'],
+            ];
+        }
+
+        return $merged;
+    }
+
+    /**
      * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $limits
      */
     private function nameWithinNameTreeLimits(string $name, array $limits, ?string $nameBytes = null): bool
@@ -3224,6 +3304,33 @@ final class PdfOutlineExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @param array<int, mixed> $objects
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $limits
+     */
+    private function nameTreeLimitsMatchAnyPairKey(array $items, array $objects, array $limits): bool
+    {
+        if ($limits === [] || $items === []) {
+            return true;
+        }
+
+        for ($index = 0, $count = count($items); $index + 1 < $count;) {
+            $name = $this->destinationNameDetails($items[$index], $objects);
+            if ($name === null) {
+                $index++;
+                continue;
+            }
+
+            if ($this->nameWithinNameTreeLimits($name['text'], $limits, $name['bytes'])) {
+                return true;
+            }
+            $index += 2;
+        }
+
+        return false;
     }
 
     /**
