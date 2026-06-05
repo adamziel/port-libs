@@ -26352,6 +26352,19 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($this->contentSegmentPathOperatorOperands($token, $outsideTextOperands)) {
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
+                if ($this->contentSegmentPathStateOperator($token)) {
+                    if ($outsideTextOperands !== []) {
+                        return false;
+                    }
+
+                    continue;
+                }
+
                 if ($token === 'BMC') {
                     if (
                         count($outsideTextOperands) !== 1
@@ -26543,6 +26556,36 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function contentSegmentPathOperatorOperands(string $operator, array $operands): bool
+    {
+        $requiredOperands = match ($operator) {
+            'm', 'l' => 2,
+            're', 'v', 'y' => 4,
+            'c' => 6,
+            default => null,
+        };
+        if ($requiredOperands === null || count($operands) !== $requiredOperands) {
+            return false;
+        }
+
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function contentSegmentPathStateOperator(string $operator): bool
+    {
+        return in_array($operator, ['h', 'W', 'W*'], true)
+            || $this->pathOperatorClearsCurrentPath($operator);
     }
 
     private function contentSegmentEndsInsidePdfComment(string $segment): bool
