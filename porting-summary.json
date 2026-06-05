@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 01:05:37 UTC",
-    "sourceCommit": "88a5cd417455b5b68a4b28e30f1be704484d2585",
-    "sourceCommitShort": "88a5cd417455",
+    "generated": "2026-06-05 01:05:53 UTC",
+    "sourceCommit": "ff1bbf5f8d9c071fd914992c9c09cfdff6799ed8",
+    "sourceCommitShort": "ff1bbf5f8d9c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "88a5cd417455b5b68a4b28e30f1be704484d2585",
-    "dashboardCommitShort": "88a5cd417455",
+    "dashboardCommit": "ff1bbf5f8d9c071fd914992c9c09cfdff6799ed8",
+    "dashboardCommitShort": "ff1bbf5f8d9c",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,315",
             "php": "488 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC charset/Unicode width slice on accepted base 7237c3c9b...",
-            "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence; cha...",
-            "nextTarget": "For charset/Unicode follow-up, keep full Unicode line-breakin...",
+            "audit": "2026-06-05 UTC upstream runner dependency audit on accepted base 30e2...",
+            "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
+            "nextTarget": "For XML/HTML5 DOM follow-up, keep full HTML5 tree-builder par...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
