@@ -37,10 +37,27 @@ $pdf = "%PDF-1.7\n"
     . "6 0 obj\n<< /Title (Info Boundary Title) /Author (Info Boundary Author) /Producer (Info Boundary Producer) /CreationDate (D:20260603093009Z) >>\nendobj\n"
     . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
 
-$metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
-$plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+$nonStreamContent = 'BT /F1 12 Tf 72 720 Td (Non Stream Metadata Boundary Body) Tj ET';
+$nonStreamPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 7 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($nonStreamContent) . " >>\nstream\n{$nonStreamContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Title (Info Boundary Title) /Author (Info Boundary Author) /Producer (Info Boundary Producer) /CreationDate (D:20260603093009Z) >>\nendobj\n"
+    . "7 0 obj\n<< /Type /Metadata /Subtype /XML /HiddenTitle (Hidden Non Stream Metadata Leak) /Length 321 >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
+$metadataExtractor = new PdfMetadataExtractor();
+$textExtractor = new PdfTextExtractor();
+
+$metadata = $metadataExtractor->extractDocumentMetadata($pdf);
+$plainText = $textExtractor->extractPlainText($pdf);
+$nonStreamMetadata = $metadataExtractor->extractDocumentMetadata($nonStreamPdf);
+$nonStreamText = $textExtractor->extractPlainText($nonStreamPdf);
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+$nonStreamEncoded = json_encode($nonStreamMetadata, JSON_UNESCAPED_SLASHES);
+$nonStreamReview = $nonStreamMetadata['catalog']['metadata_stream_review'] ?? [];
 
 if (($metadata['title'] ?? null) !== 'Info Boundary Title') {
     throw new RuntimeException('Expected trailer Info title to win when catalog Metadata points at an EmbeddedFile stream.');
@@ -53,6 +70,15 @@ if (!is_string($encoded) || str_contains($encoded, 'Hidden Embedded XML XMP Titl
 }
 if (str_contains($plainText, 'Hidden Embedded XML XMP Title')) {
     throw new RuntimeException('Rejected XMP stream leaked into visible WordPress text.');
+}
+if (($nonStreamReview['status'] ?? null) !== 'rejected_non_stream_metadata_object') {
+    throw new RuntimeException('Expected indirect non-stream catalog Metadata object to be rejected distinctly.');
+}
+if (!is_string($nonStreamEncoded) || str_contains($nonStreamEncoded, 'Hidden Non Stream Metadata Leak')) {
+    throw new RuntimeException('Non-stream catalog Metadata dictionary text leaked into metadata review output.');
+}
+if (str_contains($nonStreamText, 'Hidden Non Stream Metadata Leak')) {
+    throw new RuntimeException('Non-stream catalog Metadata dictionary leaked into visible WordPress text.');
 }
 
 $htmlJson = static fn (array $data): string => htmlspecialchars(
@@ -77,6 +103,13 @@ echo '<!-- markerpdf-pdf-xmp-metadata-boundary-currentbase ' . $htmlJson([
     'xmp_payload_values_redacted' => ($review['xmp_summary']['text_values_redacted'] ?? null) === true,
     'hidden_xmp_not_promoted' => !isset($metadata['xmp']['title']),
     'hidden_xmp_not_visible_text' => !str_contains($plainText, 'Hidden Embedded XML XMP Title'),
+    'non_stream_metadata_status' => $nonStreamReview['status'] ?? null,
+    'non_stream_metadata_type' => $nonStreamReview['type'] ?? null,
+    'non_stream_metadata_subtype' => $nonStreamReview['subtype'] ?? null,
+    'non_stream_metadata_declared_length' => $nonStreamReview['declared_length'] ?? null,
+    'non_stream_metadata_values_redacted' => is_string($nonStreamEncoded)
+        && !str_contains($nonStreamEncoded, 'Hidden Non Stream Metadata Leak'),
+    'non_stream_metadata_not_visible_text' => !str_contains($nonStreamText, 'Hidden Non Stream Metadata Leak'),
 ],) . " -->\n";
 
 echo "<!-- wp:paragraph -->\n";
@@ -90,6 +123,15 @@ echo '<!-- markerpdf:catalog-metadata-review ' . $htmlJson([
     'bytes' => $review['bytes'] ?? null,
     'sha256' => $review['sha256'] ?? null,
     'xmp_summary' => $review['xmp_summary'] ?? [],
+]) . " -->\n\n";
+
+echo '<!-- markerpdf:catalog-non-stream-metadata-review ' . $htmlJson([
+    'status' => $nonStreamReview['status'] ?? null,
+    'type' => $nonStreamReview['type'] ?? null,
+    'subtype' => $nonStreamReview['subtype'] ?? null,
+    'declared_length' => $nonStreamReview['declared_length'] ?? null,
+    'accepted_as_document_xmp' => $nonStreamReview['accepted_as_document_xmp'] ?? null,
+    'payload_included' => $nonStreamReview['payload_included'] ?? null,
 ]) . " -->\n\n";
 
 echo "<!-- wp:paragraph -->\n";

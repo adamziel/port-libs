@@ -708,11 +708,28 @@ final class PdfMetadataExtractor
 
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary !== null && !$this->streamObjectHasStreamKeyword($objectBody)) {
+                $review = $base + [
+                    'status' => 'rejected_non_stream_metadata_object',
+                    'object_number' => $objectNumber,
+                ];
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $declaredLength = $this->streamLength($dictionary, $objects);
+                if ($declaredLength !== null) {
+                    $review['declared_length'] = $declaredLength;
+                }
+
+                return $review;
+            }
+
             $review = $base + [
                 'status' => 'unreadable_metadata_stream',
                 'object_number' => $objectNumber,
             ];
-            $dictionary = $this->dictionaryObjectBody($objectBody);
             if ($dictionary !== null) {
                 foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
                     $review[$key] = $metadataValue;
@@ -843,6 +860,19 @@ final class PdfMetadataExtractor
         $afterEndstream = $this->skipPdfWhitespace($objectBody, $streamEnd + strlen('endstream'));
 
         return $afterEndstream >= strlen($objectBody);
+    }
+
+    private function streamObjectHasStreamKeyword(string $objectBody): bool
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($objectBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $dictionaryOffset);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $streamKeywordOffset = $this->skipPdfWhitespace($objectBody, $dictionaryOffset + strlen($dictionary) + 4);
+
+        return $this->pdfKeywordAt($objectBody, $streamKeywordOffset, 'stream');
     }
 
     /**

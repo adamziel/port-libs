@@ -90,6 +90,38 @@ return [
         $t->same(false, $review['accepted_as_document_xmp'] ?? null);
         $t->same(false, $review['payload_included'] ?? null);
     },
+    'rejects indirect catalog Metadata dictionaries that are not PDF streams' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf): void {
+        $metadataObject = "5 0 obj\n"
+            . "<< /Type /Metadata /Subtype /XML /HiddenTitle (Indirect Metadata Dictionary Leak) /Length 123 >>\n"
+            . "endobj\n";
+        $pdf = $xmpMetadataBoundaryPdf(
+            '5 0 R',
+            'Indirect Dictionary Metadata Boundary Body',
+            $metadataObject
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same('Indirect Dictionary Metadata Boundary Body', $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_non_stream_metadata_object', $review['status'] ?? null);
+        $t->same(5, $review['object_number'] ?? null);
+        $t->same('Metadata', $review['type'] ?? null);
+        $t->same('XML', $review['subtype'] ?? null);
+        $t->same(123, $review['declared_length'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Indirect Metadata Dictionary Leak'));
+        $t->true(!str_contains($plainText, 'Indirect Metadata Dictionary Leak'));
+    },
     'records unreadable XMP metadata stream filters without promoting payload text' => static function (
         TestRunner $t
     ) use ($xmpMetadataBoundaryPdf): void {
