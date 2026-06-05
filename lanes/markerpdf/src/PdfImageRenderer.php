@@ -137,7 +137,7 @@ final class PdfImageRenderer
      * decisions deterministic without rasterizing the whole JPEG stream.
      *
      * @param array<int, string> $objects
-     * @return array{filter: string, source_color_space: string, components: int|null, bits_per_component: int, adobe_app14_transform: int|null, decode_parms_color_transform: int|null, effective_color_transform: int|null, adobe_marker_overrides_decode_parms: bool, needs_cmyk_to_rgb: bool, uses_ycck_transform: bool, image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, image_decode_applied_before_rgb: bool, image_decode_component_mismatch: bool, output_color_mode: string, notes: list<string>}
+     * @return array{filter: string, source_color_space: string, components: int|null, bits_per_component: int, adobe_app14_transform: int|null, decode_parms_color_transform: int|null, decode_parms_color_transform_valid: bool, decode_parms_color_transform_ignored: bool, effective_color_transform: int|null, adobe_marker_overrides_decode_parms: bool, needs_cmyk_to_rgb: bool, uses_ycck_transform: bool, image_decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null, image_decode_applied_before_rgb: bool, image_decode_component_mismatch: bool, output_color_mode: string, notes: list<string>}
      */
     public function dctDecodeImageColorPlan(string $imageDictionary, string $jpegBytes, array $objects = []): array
     {
@@ -146,7 +146,9 @@ final class PdfImageRenderer
         $adobeTransform = $this->jpegAdobeApp14Transform($jpegBytes);
         $dctFilter = $this->dctDecodeFilterName($imageDictionary, $objects);
         $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
-        $effectiveTransform = $adobeTransform ?? $decodeParmsTransform ?? ($components === 3 ? 1 : 0);
+        $decodeParmsTransformValid = $decodeParmsTransform === null || in_array($decodeParmsTransform, [0, 1, 2], true);
+        $effectiveDecodeParmsTransform = $decodeParmsTransformValid ? $decodeParmsTransform : null;
+        $effectiveTransform = $adobeTransform ?? $effectiveDecodeParmsTransform ?? ($components === 3 ? 1 : 0);
         $needsCmykToRgb = $colorSpace === 'DeviceCMYK' || $components === 4;
         $imageDecode = $this->imageDecodeDetails($imageDictionary, $objects, $components);
         $imageDecodeValid = $imageDecode !== null && $imageDecode['valid_for_components'];
@@ -155,6 +157,9 @@ final class PdfImageRenderer
 
         if ($adobeTransform !== null && $decodeParmsTransform !== null) {
             $notes[] = 'adobe_app14_transform_overrides_decodeparms';
+        }
+        if (!$decodeParmsTransformValid) {
+            $notes[] = 'invalid_dctdecode_color_transform_ignored';
         }
         if ($needsCmykToRgb) {
             $notes[] = 'render_rgb_preview_from_cmyk';
@@ -178,6 +183,8 @@ final class PdfImageRenderer
             'bits_per_component' => $this->imageBitsPerComponent($imageDictionary, $objects) ?? 8,
             'adobe_app14_transform' => $adobeTransform,
             'decode_parms_color_transform' => $decodeParmsTransform,
+            'decode_parms_color_transform_valid' => $decodeParmsTransformValid,
+            'decode_parms_color_transform_ignored' => !$decodeParmsTransformValid,
             'effective_color_transform' => $effectiveTransform,
             'adobe_marker_overrides_decode_parms' => $adobeTransform !== null && $decodeParmsTransform !== null,
             'needs_cmyk_to_rgb' => $needsCmykToRgb,
@@ -5338,7 +5345,7 @@ final class PdfImageRenderer
             return null;
         }
 
-        return max(0, min(2, $colorTransform));
+        return $colorTransform;
     }
 
     private function componentCountForColorSpace(string $colorSpace): ?int

@@ -392,6 +392,84 @@ return [
         $t->same(2, $compactNullPlan['effective_color_transform']);
         $t->same(true, $compactNullPlan['uses_ycck_transform']);
     },
+    'ignores invalid DCTDecode ColorTransform DecodeParms before RGB preview conversion' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $segment = static fn (int $marker, string $payload): string => "\xff" . chr($marker) . pack('n', strlen($payload) + 2) . $payload;
+        $sofPayload = "\x08" . pack('n', 1) . pack('n', 1) . "\x04"
+            . "\x01\x11\x00"
+            . "\x02\x11\x00"
+            . "\x03\x11\x00"
+            . "\x04\x11\x00";
+        $jpegBytes = "\xff\xd8" . $segment(0xc0, $sofPayload) . "\xff\xd9";
+        $imageDictionary = '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /DCTDecode /DecodeParms << /ColorTransform 9 >> >>';
+
+        $plan = $renderer->dctDecodeImageColorPlan($imageDictionary, $jpegBytes);
+        $softMaskPlan = $renderer->imageColorSpaceSoftMaskPlan($imageDictionary);
+
+        $t->same(9, $plan['decode_parms_color_transform']);
+        $t->same(false, $plan['decode_parms_color_transform_valid']);
+        $t->same(true, $plan['decode_parms_color_transform_ignored']);
+        $t->same(0, $plan['effective_color_transform']);
+        $t->same(false, $plan['uses_ycck_transform']);
+        $t->same(['red' => 255, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([0, 255, 255, 0], $plan));
+        $t->same([
+            'invalid_dctdecode_color_transform_ignored',
+            'render_rgb_preview_from_cmyk',
+        ], $plan['notes']);
+        $t->same([
+            [
+                'filter' => 'DCTDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'DCTDecode',
+                    'color_transform' => 9,
+                    'valid_color_transform' => false,
+                ],
+            ],
+        ], $softMaskPlan['image_filter_details']);
+        $t->same(['DCTDecode'], $softMaskPlan['image_filter_boundary']['preview_only_filters']);
+        $t->same(false, $softMaskPlan['image_filter_boundary']['native_raster_decode']);
+        $t->contains('dctdecode_image_filter_review_only', implode(',', $softMaskPlan['notes']));
+
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before invalid DCT transform) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After invalid DCT transform) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0BT /F1 12 Tf 72 700 Td (Invalid DCT transform leak) Tj ET\xff\xd9";
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n{$imageDictionary}\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->same(['Before invalid DCT transform', 'After invalid DCT transform'], $extractor->extractTextLines($pdf));
+        $t->same("Before invalid DCT transform\nAfter invalid DCT transform", $plainText);
+        $t->true(!str_contains($plainText, 'Invalid DCT transform leak'));
+        $t->true(!str_contains($plainText, 'JFIF'));
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(['DCTDecode'], $entry['filters'] ?? null);
+        $t->same([
+            [
+                'filter' => 'DCTDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'DCTDecode',
+                    'color_transform' => 9,
+                    'valid_color_transform' => false,
+                ],
+            ],
+        ], $entry['filter_details'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
     'keeps direct renderer DCTDecode fake endstream bytes inside image stream previews' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
         $renderer = new PdfImageRenderer();
         $fakeObject = 'BT /F1 12 Tf 72 700 Td (Renderer DCT payload leak) Tj ET';
