@@ -1377,6 +1377,11 @@ final class PdfPagePropertyExtractor
                 }
             }
 
+            $procSetNames = $this->procSetNames($resourceBody, $objects);
+            if ($procSetNames !== []) {
+                $metadata['procset_names'] = $procSetNames;
+            }
+
             return $metadata;
         }
 
@@ -1443,6 +1448,33 @@ final class PdfPagePropertyExtractor
         $names = [];
         foreach ($this->dictionaryEntries($subdictionary['body']) as $name => $value) {
             if ($this->resourceSubdictionaryEntryIsResolvable($value, $objects, $key)) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function procSetNames(string $resourceDictionary, array $objects): array
+    {
+        $value = $this->dictionaryRawValue($resourceDictionary, 'ProcSet');
+        if ($value === null || $this->resourceCategoryValueResolvesToStreamObject($value, $objects)) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($this->arrayItemsFromValue($value, $objects) as $item) {
+            $resolved = trim($this->resolveRawValue($item, $objects) ?? $item);
+            if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $resolved, $match) !== 1) {
+                continue;
+            }
+
+            $name = $this->decodePdfName($match[1]);
+            if ($name !== '' && !in_array($name, $names, true)) {
                 $names[] = $name;
             }
         }
