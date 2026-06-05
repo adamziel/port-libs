@@ -679,7 +679,7 @@ final class PdfTextExtractor
         try {
             foreach ($definitions as $objectNumber => $objectDefinitions) {
                 foreach ($objectDefinitions as $definition) {
-                    if (preg_match('/\/Type\s*\/XRef\b/s', $definition['body']) !== 1) {
+                    if (!$this->objectBodyHasTypeName($definition['body'], 'XRef', $objects)) {
                         continue;
                     }
 
@@ -1089,7 +1089,7 @@ final class PdfTextExtractor
         try {
             foreach ($this->liveDirectObjectDefinitionsInFileOrder($definitions, $xrefEntries) as $definition) {
                 $body = $objects[$definition['objectNumber']] ?? null;
-                if ($body !== $definition['body'] || preg_match('/\/Type\s*\/ObjStm\b/s', $body) !== 1) {
+                if ($body !== $definition['body'] || !$this->objectBodyHasTypeName($body, 'ObjStm', $objects)) {
                     continue;
                 }
 
@@ -7304,8 +7304,10 @@ final class PdfTextExtractor
             return false;
         }
 
-        return preg_match('/\/(?:Type|Subtype)\s*\/(?:ObjStm|XRef|Image|Metadata|EmbeddedFile|XML)\b/s', $dict) !== 1
-            && preg_match('/\/Type\s*\/EmbeddedFile\b/s', $dict) !== 1;
+        return !$this->streamDictionaryHasAnyTypeOrSubtypeName(
+            $dict,
+            ['ObjStm', 'XRef', 'Image', 'Metadata', 'EmbeddedFile', 'XML']
+        );
     }
 
     /**
@@ -7348,7 +7350,7 @@ final class PdfTextExtractor
 
     private function isEmbeddedFileStreamDictionary(string $dict): bool
     {
-        return preg_match('/\/Type\s*\/EmbeddedFile\b/', $dict) === 1;
+        return $this->streamDictionaryHasName($dict, 'Type', 'EmbeddedFile');
     }
 
     /**
@@ -7356,12 +7358,7 @@ final class PdfTextExtractor
      */
     private function isObjectStreamDictionary(string $dict, array $objects): bool
     {
-        $offset = $this->topLevelNameValueOffset($dict, 'Type');
-        if ($offset === null) {
-            return false;
-        }
-
-        return $this->pdfNameValueAt($dict, $offset, $objects) === 'ObjStm';
+        return $this->streamDictionaryHasName($dict, 'Type', 'ObjStm', $objects);
     }
 
     /**
@@ -7369,12 +7366,50 @@ final class PdfTextExtractor
      */
     private function isXrefStreamDictionary(string $dict, array $objects): bool
     {
-        $offset = $this->topLevelNameValueOffset($dict, 'Type');
+        return $this->streamDictionaryHasName($dict, 'Type', 'XRef', $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyHasTypeName(string $body, string $expectedType, array $objects = []): bool
+    {
+        $dict = $this->dictionaryObjectBody($body) ?? $body;
+
+        return $this->streamDictionaryHasName($dict, 'Type', $expectedType, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamDictionaryHasName(string $dict, string $key, string $expectedValue, array $objects = []): bool
+    {
+        $offset = $this->topLevelNameValueOffset($dict, $key);
         if ($offset === null) {
             return false;
         }
 
-        return $this->pdfNameValueAt($dict, $offset, $objects) === 'XRef';
+        return $this->pdfNameValueAt($dict, $offset, $objects) === $expectedValue;
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function streamDictionaryHasAnyTypeOrSubtypeName(string $dict, array $names): bool
+    {
+        foreach (['Type', 'Subtype'] as $key) {
+            $offset = $this->topLevelNameValueOffset($dict, $key);
+            if ($offset === null) {
+                continue;
+            }
+
+            $value = $this->pdfNameValueAt($dict, $offset, []);
+            if (is_string($value) && in_array($value, $names, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -11792,7 +11827,7 @@ final class PdfTextExtractor
 
         foreach ($matches as $match) {
             $body = $match[1];
-            if (preg_match('/\/Type\s*\/XRef\b/s', $body) !== 1) {
+            if (!$this->objectBodyHasTypeName($body, 'XRef')) {
                 continue;
             }
 
@@ -12975,7 +13010,7 @@ final class PdfTextExtractor
     {
         $candidates = [];
         foreach ($definitions as $definition) {
-            if (preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) === 1) {
+            if ($this->objectBodyHasTypeName($definition['body'], 'ObjStm')) {
                 $candidates[] = $definition;
             }
         }
@@ -12995,7 +13030,7 @@ final class PdfTextExtractor
     {
         $candidates = [];
         foreach ($definitions as $definition) {
-            if (preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1) {
+            if ($this->objectBodyHasTypeName($definition['body'], 'XRef')) {
                 $candidates[] = $definition;
             }
         }
@@ -14148,7 +14183,7 @@ final class PdfTextExtractor
         }
 
         $previousDefinition = $this->xrefEntrySelectedDirectDefinition($objectNumber, $previousEntry, $definitions);
-        return $previousDefinition !== null && preg_match('/\/Type\s*\/ObjStm\b/s', $previousDefinition['body']) === 1;
+        return $previousDefinition !== null && $this->objectBodyHasTypeName($previousDefinition['body'], 'ObjStm');
     }
 
     /**
@@ -14249,7 +14284,7 @@ final class PdfTextExtractor
             if (
                 $definition['offset'] > $afterOffset
                 && $definition['offset'] < $beforeOffset
-                && preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) === 1
+                && $this->objectBodyHasTypeName($definition['body'], 'ObjStm')
             ) {
                 $candidates[] = $definition;
             }
@@ -14474,7 +14509,7 @@ final class PdfTextExtractor
         $hasSelectedXrefEntries = $xrefEntries !== [];
 
         foreach ($objects as $objectStreamNumber => $body) {
-            if (preg_match('/\/Type\s*\/ObjStm\b/', $body) !== 1) {
+            if (!$this->objectBodyHasTypeName($body, 'ObjStm', $objects)) {
                 continue;
             }
 
@@ -15492,7 +15527,7 @@ final class PdfTextExtractor
     {
         foreach ($definitions as $entries) {
             foreach ($entries as $definition) {
-                if ($definition['offset'] === $offset && preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1) {
+                if ($definition['offset'] === $offset && $this->objectBodyHasTypeName($definition['body'], 'XRef')) {
                     return $definition;
                 }
             }
@@ -15726,7 +15761,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if (preg_match('/\/Type\s*\/ObjStm\b/', $definition['body']) !== 1) {
+                if (!$this->objectBodyHasTypeName($definition['body'], 'ObjStm', $objects)) {
                     continue;
                 }
 
@@ -15877,7 +15912,7 @@ final class PdfTextExtractor
         $xrefStreams = [];
         foreach ($definitions as $entries) {
             foreach ($entries as $definition) {
-                if (preg_match('/\/Type\s*\/XRef\b/', $definition['body']) === 1) {
+                if ($this->objectBodyHasTypeName($definition['body'], 'XRef')) {
                     $xrefStreams[] = $definition;
                 }
             }
