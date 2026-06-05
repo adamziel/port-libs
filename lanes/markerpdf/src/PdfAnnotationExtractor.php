@@ -118,11 +118,11 @@ final class PdfAnnotationExtractor
                 continue;
             }
 
-            $reversePopups = $this->popupRecordsByParentObject($records);
+            $reversePopups = $this->popupRecordsByParentObject($records, $objects);
             $threadReview = $this->annotationThreadReviewForRecords($records, $objects);
             $annotations = [];
             foreach ($records as $record) {
-                $subtype = $this->subtypeFromAnnotation($record['body']);
+                $subtype = $this->subtypeFromAnnotation($record['body'], $objects);
                 if ($subtype === 'Popup' && $this->objectReferenceValueAfterName($record['body'], 'Parent') !== null) {
                     continue;
                 }
@@ -177,7 +177,7 @@ final class PdfAnnotationExtractor
     ): array
     {
         $body = $record['body'];
-        $subtype = $this->subtypeFromAnnotation($body);
+        $subtype = $this->subtypeFromAnnotation($body, $objects);
         $rect = $this->rectFromAnnotation($body, $objects);
         $actionReview = $actionReviewer->reviewAnnotationActions($body);
         $actionReview['actions'] = $this->actionsWithAnnotationTargetPageContext(
@@ -1023,12 +1023,13 @@ final class PdfAnnotationExtractor
         $subtypesByObject = [];
         foreach ($records as $record) {
             $object = $record['object'];
-            if ($object === null || $this->subtypeFromAnnotation($record['body']) === 'Popup') {
+            $subtype = $this->subtypeFromAnnotation($record['body'], $objects);
+            if ($object === null || $subtype === 'Popup') {
                 continue;
             }
 
             $bodiesByObject[$object] = $record['body'];
-            $subtypesByObject[$object] = $this->subtypeFromAnnotation($record['body']);
+            $subtypesByObject[$object] = $subtype;
         }
 
         if ($bodiesByObject === []) {
@@ -1254,9 +1255,9 @@ final class PdfAnnotationExtractor
         $fieldType = $this->pdfValueToStringFromFirst($effectiveBodies, 'FT', $objects);
         $fieldFlags = $this->intValueFromFirst($effectiveBodies, 'Ff', $objects) ?? 0;
         $annotationFlags = $this->intValueAfterName($body, 'F', $objects) ?? 0;
-        $appearanceState = $this->pdfNameValueAfterName($body, 'AS');
+        $appearanceState = $this->pdfNameValueAfterName($body, 'AS', $objects);
         $appearanceSummary = $this->widgetAppearanceSummary($appearance, $appearanceState);
-        $highlightMode = $this->pdfNameValueAfterName($body, 'H') ?? 'I';
+        $highlightMode = $this->pdfNameValueAfterName($body, 'H', $objects) ?? 'I';
 
         $review = [
             'source' => 'page_annotation_widget',
@@ -1935,13 +1936,14 @@ final class PdfAnnotationExtractor
 
     /**
      * @param list<array{body: string, object: int|null}> $records
+     * @param array<int, string> $objects
      * @return array<int, array{body: string, object: int|null}>
      */
-    private function popupRecordsByParentObject(array $records): array
+    private function popupRecordsByParentObject(array $records, array $objects): array
     {
         $popups = [];
         foreach ($records as $record) {
-            if ($this->subtypeFromAnnotation($record['body']) !== 'Popup') {
+            if ($this->subtypeFromAnnotation($record['body'], $objects) !== 'Popup') {
                 continue;
             }
 
@@ -1956,9 +1958,12 @@ final class PdfAnnotationExtractor
         return $popups;
     }
 
-    private function subtypeFromAnnotation(string $body): string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function subtypeFromAnnotation(string $body, array $objects = []): string
     {
-        return $this->pdfNameValueAfterName($body, 'Subtype') ?? 'Unknown';
+        return $this->pdfNameValueAfterName($body, 'Subtype', $objects) ?? 'Unknown';
     }
 
     /**
@@ -2002,7 +2007,7 @@ final class PdfAnnotationExtractor
             $dictionary = $this->resolvedDictionaryFromValue($bs, $objects);
             if ($dictionary !== null) {
                 $width = $this->floatValueAfterName($dictionary['body'], 'W', $objects) ?? 1.0;
-                $styleCode = $this->pdfNameValueAfterName($dictionary['body'], 'S') ?? 'S';
+                $styleCode = $this->pdfNameValueAfterName($dictionary['body'], 'S', $objects) ?? 'S';
                 $dashPattern = $this->numberArrayValueAfterName($dictionary['body'], 'D', $objects);
 
                 return [
@@ -2591,14 +2596,26 @@ final class PdfAnnotationExtractor
         return $value === 'null' ? null : null;
     }
 
-    private function pdfNameValueAfterName(string $body, string $name): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfNameValueAfterName(string $body, string $name, array $objects = []): ?string
     {
         $value = $this->valueAfterName($body, $name);
-        if ($value === null || !str_starts_with(trim($value), '/')) {
+        if ($value === null) {
             return null;
         }
 
-        return $this->decodePdfName($value);
+        $trimmed = trim($value);
+        $reference = $this->objectReferenceWithGenerationFromValue($trimmed);
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
+            if ($objectBody !== null) {
+                $trimmed = trim($objectBody);
+            }
+        }
+
+        return str_starts_with($trimmed, '/') ? $this->decodePdfName($trimmed) : null;
     }
 
     private function boolValueAfterName(string $body, string $name): ?bool

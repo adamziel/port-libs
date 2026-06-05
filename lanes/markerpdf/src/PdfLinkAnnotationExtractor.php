@@ -577,7 +577,7 @@ final class PdfLinkAnnotationExtractor
         array $pageGeometry
     ): ?array
     {
-        $subtype = $this->annotationSubtype($annotationBody);
+        $subtype = $this->annotationSubtype($annotationBody, $objects);
         if (!in_array($subtype, ['Link', 'Widget'], true)) {
             return null;
         }
@@ -1061,20 +1061,12 @@ final class PdfLinkAnnotationExtractor
         return $objectNumber . ':' . $generation;
     }
 
-    private function annotationSubtype(string $annotationBody): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function annotationSubtype(string $annotationBody, array $objects = []): ?string
     {
-        $value = $this->valueAfterName($annotationBody, 'Subtype');
-        if ($value === null) {
-            return null;
-        }
-
-        $trimmed = trim($value);
-        if ($trimmed === '' || $trimmed[0] !== '/') {
-            return null;
-        }
-
-        $end = $this->skipPdfName($trimmed, 0);
-        return $this->decodePdfName(substr($trimmed, 1, $end - 1));
+        return $this->nameValueAfterName($annotationBody, 'Subtype', $objects);
     }
 
     /**
@@ -1244,7 +1236,7 @@ final class PdfLinkAnnotationExtractor
             $review['border_color'] = $color;
         }
 
-        $highlightMode = $this->highlightModeFromAnnotation($annotationBody);
+        $highlightMode = $this->highlightModeFromAnnotation($annotationBody, $objects);
         if ($highlightMode !== null) {
             $review['highlight_mode'] = $highlightMode;
             $review['highlight_mode_label'] = self::HIGHLIGHT_MODE_LABELS[$highlightMode] ?? 'unknown';
@@ -1316,20 +1308,12 @@ final class PdfLinkAnnotationExtractor
         ];
     }
 
-    private function highlightModeFromAnnotation(string $annotationBody): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function highlightModeFromAnnotation(string $annotationBody, array $objects = []): ?string
     {
-        $value = $this->valueAfterName($annotationBody, 'H');
-        if ($value === null) {
-            return null;
-        }
-
-        $trimmed = trim($value);
-        if ($trimmed === '' || $trimmed[0] !== '/') {
-            return null;
-        }
-
-        $end = $this->skipPdfName($trimmed, 0);
-        return $this->decodePdfName(substr($trimmed, 1, $end - 1));
+        return $this->nameValueAfterName($annotationBody, 'H', $objects);
     }
 
     /**
@@ -1343,7 +1327,7 @@ final class PdfLinkAnnotationExtractor
             $dictionary = $this->dictionaryBodyFromValue($bs, $objects);
             if ($dictionary !== null) {
                 $width = $this->floatValueAfterName($dictionary, 'W', $objects) ?? 1.0;
-                $styleCode = $this->nameValueAfterName($dictionary, 'S') ?? 'S';
+                $styleCode = $this->nameValueAfterName($dictionary, 'S', $objects) ?? 'S';
                 $dashPattern = $this->arrayNumbersAfterName($dictionary, 'D', $objects) ?? [];
 
                 return [
@@ -2147,14 +2131,17 @@ final class PdfLinkAnnotationExtractor
         return $this->numberValueAfterName($body, $name, $objects);
     }
 
-    private function nameValueAfterName(string $body, string $name): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function nameValueAfterName(string $body, string $name, array $objects = []): ?string
     {
         $value = $this->valueAfterName($body, $name);
         if ($value === null) {
             return null;
         }
 
-        $trimmed = trim($value);
+        $trimmed = trim($this->resolveIndirectObjectValue($value, $objects));
         if ($trimmed === '' || $trimmed[0] !== '/') {
             return null;
         }
