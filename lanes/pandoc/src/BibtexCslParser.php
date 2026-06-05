@@ -1642,7 +1642,7 @@ final class BibtexCslParser
     {
         foreach ($dateFields as $field) {
             if (isset($fields[$field]) && trim($fields[$field]) !== '') {
-                return self::dateFromText(self::cleanBibtexText($fields[$field]), $field);
+                return self::dateFromText(self::cleanBibtexDateText($fields[$field]), $field);
             }
         }
 
@@ -1677,12 +1677,13 @@ final class BibtexCslParser
      */
     private static function dateFromText(string $date, string $field): array
     {
-        $rangeParts = self::dateRangePartsFromText($date, $field);
-        if ($rangeParts !== null) {
-            return ['date-parts' => $rangeParts];
+        $date = trim($date);
+        $range = self::dateRangeFromText($date, $field);
+        if ($range !== null) {
+            return $range;
         }
 
-        if (preg_match('/^(-?\d{1,6})(?:[-\/](\d{1,2})(?:[-\/](\d{1,2}))?)?$/', $date, $matches) !== 1) {
+        if (preg_match('/^(-?\d{1,6})(?:[-\/](\d{1,2})(?:[-\/](\d{1,2}))?)?([?~%])?$/', $date, $matches) !== 1) {
             return ['literal' => $date];
         }
 
@@ -1705,7 +1706,20 @@ final class BibtexCslParser
             $parts[] = $day;
         }
 
-        return ['date-parts' => [$parts]];
+        return self::dateObjectWithMarkers([$parts], (string) ($matches[4] ?? ''), $date);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function dateRangeFromText(string $date, string $field): ?array
+    {
+        $rangeParts = self::dateRangePartsFromText($date, $field);
+        if ($rangeParts === null) {
+            return null;
+        }
+
+        return self::dateObjectWithMarkers($rangeParts, self::dateRangeMarker($date), $date);
     }
 
     /**
@@ -1734,7 +1748,7 @@ final class BibtexCslParser
 
     private static function looksLikeDateRangeSide(string $value): bool
     {
-        return preg_match('/^-?\d{3,6}(?:-\d{1,2}(?:-\d{1,2})?)?$/', $value) === 1;
+        return preg_match('/^-?\d{3,6}(?:-\d{1,2}(?:-\d{1,2})?)?[?~%]?$/', $value) === 1;
     }
 
     /**
@@ -1742,7 +1756,7 @@ final class BibtexCslParser
      */
     private static function dateRangeSideParts(string $value, string $field): array
     {
-        if (preg_match('/^(-?\d{1,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/', $value, $matches) !== 1) {
+        if (preg_match('/^(-?\d{1,6})(?:-(\d{1,2})(?:-(\d{1,2}))?)?([?~%])?$/', $value, $matches) !== 1) {
             throw new \InvalidArgumentException('BibTeX ' . $field . ' date range endpoint is malformed');
         }
 
@@ -1766,6 +1780,63 @@ final class BibtexCslParser
         }
 
         return $parts;
+    }
+
+    private static function dateRangeMarker(string $date): string
+    {
+        $circa = false;
+        $uncertain = false;
+        foreach (array_map('trim', explode('/', $date, 2)) as $side) {
+            if (preg_match('/([?~%])$/', $side, $matches) !== 1) {
+                continue;
+            }
+
+            [$sideCirca, $sideUncertain] = self::dateMarkerFlags($matches[1]);
+            $circa = $circa || $sideCirca;
+            $uncertain = $uncertain || $sideUncertain;
+        }
+
+        if ($circa && $uncertain) {
+            return '%';
+        }
+
+        return $circa ? '~' : ($uncertain ? '?' : '');
+    }
+
+    /**
+     * @param list<list<int>> $dateParts
+     * @return array<string, mixed>
+     */
+    private static function dateObjectWithMarkers(array $dateParts, string $marker, string $raw): array
+    {
+        $date = ['date-parts' => $dateParts];
+        [$circa, $uncertain] = self::dateMarkerFlags($marker);
+        if ($circa) {
+            $date['circa'] = true;
+        }
+
+        if ($uncertain) {
+            $date['uncertain'] = true;
+        }
+
+        if ($circa || $uncertain) {
+            $date['raw'] = $raw;
+        }
+
+        return $date;
+    }
+
+    /**
+     * @return array{0:bool, 1:bool}
+     */
+    private static function dateMarkerFlags(string $marker): array
+    {
+        return match ($marker) {
+            '~' => [true, false],
+            '?' => [false, true],
+            '%' => [true, true],
+            default => [false, false],
+        };
     }
 
     private static function monthNumber(string $value, string $field): int
@@ -1827,6 +1898,19 @@ final class BibtexCslParser
         $value = preg_replace('/\\\\(?:emph|textit|textbf|enquote)\s*\{([^{}]*)\}/', '$1', $value) ?? $value;
         $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
         $value = preg_replace('/[{}]/', '', $value) ?? $value;
+
+        return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    private static function cleanBibtexDateText(string $value): string
+    {
+        $value = str_replace(["\r\n", "\r", "\n"], ' ', $value);
+        $value = self::decodeLatexText($value);
+        $value = preg_replace('/\\\\([&%$#_{}])/', '$1', $value) ?? $value;
+        $value = preg_replace('/\\\\(?:emph|textit|textbf|enquote)\s*\{([^{}]*)\}/', '$1', $value) ?? $value;
+        $value = preg_replace('/\\\\(?:textendash|textminus)\b/', '-', $value) ?? $value;
+        $value = preg_replace('/[{}]/', '', $value) ?? $value;
+        $value = preg_replace('/~(?!(?:\s*\/|\s*\z))/', ' ', $value) ?? $value;
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
     }

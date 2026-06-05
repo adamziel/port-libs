@@ -666,6 +666,15 @@ final class CitationCslProcessor
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList']);
+        $accessedDate = self::dateVariable($item['accessed'] ?? null, $id, 'accessed');
+        $originalDate = self::dateVariable($item['original-date'] ?? null, $id, 'original-date');
+        $eventDate = self::dateVariable($item['event-date'] ?? null, $id, 'event-date');
+        $dateMarkerSummary = self::dateMarkerSummary([
+            'issued' => $issuedDate,
+            'accessed' => $accessedDate,
+            'original-date' => $originalDate,
+            'event-date' => $eventDate,
+        ]);
 
         return [
             'id' => $id,
@@ -738,15 +747,16 @@ final class CitationCslProcessor
             'relatedItems' => self::relatedItemSummaries($item['relatedItems'] ?? [], $id),
             'missingRelatedKeys' => self::stringListFromFirstField($item, ['missingRelatedKeys', 'missing-related-keys']),
             'issuedDate' => $issuedDate,
-            'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
+            'accessedDate' => $accessedDate,
             'originalTitle' => self::stringField($item, 'original-title'),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
             'originalPublisherPlaceList' => $originalPublisherPlaceList !== [] ? $originalPublisherPlaceList : ($originalPublisherPlace !== '' ? [$originalPublisherPlace] : []),
             'originalLanguage' => self::stringField($item, 'original-language'),
-            'originalDate' => self::dateVariable($item['original-date'] ?? null, $id, 'original-date'),
-            'eventDate' => self::dateVariable($item['event-date'] ?? null, $id, 'event-date'),
+            'originalDate' => $originalDate,
+            'eventDate' => $eventDate,
+            'dateMarkerSummary' => $dateMarkerSummary,
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
@@ -1271,7 +1281,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, circa?:bool, uncertain?:bool, rangeParts?:list<list<int>>}
      */
     private static function dateVariable(mixed $date, string $id, string $field): array
     {
@@ -1289,14 +1299,30 @@ final class CitationCslProcessor
         }
 
         $literal = self::stringField($date, 'literal');
+        $raw = self::stringField($date, 'raw');
+        $circa = self::boolField($date, 'circa', false);
+        $uncertain = self::boolField($date, 'uncertain', false);
         $dateParts = $date['date-parts'] ?? null;
         if ($dateParts === null || $dateParts === []) {
-            return [
+            $normalized = [
                 'year' => null,
                 'parts' => [],
                 'display' => $literal,
                 'literal' => $literal,
             ];
+            if ($raw !== '') {
+                $normalized['raw'] = $raw;
+            }
+
+            if ($circa) {
+                $normalized['circa'] = true;
+            }
+
+            if ($uncertain) {
+                $normalized['uncertain'] = true;
+            }
+
+            return $normalized;
         }
 
         if (!is_array($dateParts) || !isset($dateParts[0]) || !is_array($dateParts[0]) || !isset($dateParts[0][0])) {
@@ -1323,7 +1349,56 @@ final class CitationCslProcessor
             $normalized['rangeParts'] = $rangeParts;
         }
 
+        if ($raw !== '') {
+            $normalized['raw'] = $raw;
+        }
+
+        if ($circa) {
+            $normalized['circa'] = true;
+        }
+
+        if ($uncertain) {
+            $normalized['uncertain'] = true;
+        }
+
         return $normalized;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $dates
+     */
+    private static function dateMarkerSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            $status = self::dateMarkerStatus($date);
+            if ($status === '') {
+                continue;
+            }
+
+            $raw = trim((string) ($date['raw'] ?? ''));
+            $parts[] = $label . ' ' . $status . ($raw === '' ? '' : ' (' . $raw . ')');
+        }
+
+        return $parts === [] ? '' : 'Date markers: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function dateMarkerStatus(array $date): string
+    {
+        $circa = ($date['circa'] ?? false) === true;
+        $uncertain = ($date['uncertain'] ?? false) === true;
+        if ($circa && $uncertain) {
+            return 'circa and uncertain';
+        }
+
+        if ($circa) {
+            return 'circa';
+        }
+
+        return $uncertain ? 'uncertain' : '';
     }
 
     /**
@@ -3530,6 +3605,11 @@ final class CitationCslProcessor
             $parts[] = $label . ': ' . $this->withTerminalPunctuation($value);
         }
 
+        $dateMarkerSummary = trim((string) ($item['dateMarkerSummary'] ?? ''));
+        if ($dateMarkerSummary !== '') {
+            $parts[] = $this->withTerminalPunctuation($dateMarkerSummary);
+        }
+
         return $parts;
     }
 
@@ -4759,6 +4839,15 @@ final class CitationCslProcessor
             'addendum' => (string) $item['addendum'],
             'name-addon' => (string) $item['nameAddon'],
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
+            'date-marker-summary', 'date-status', 'date-status-summary' => (string) ($item['dateMarkerSummary'] ?? ''),
+            'issued-status', 'issued-date-status' => $this->dateMarkerStatusForVariable($item, 'issued'),
+            'accessed-status', 'accessed-date-status' => $this->dateMarkerStatusForVariable($item, 'accessed'),
+            'event-date-status' => $this->dateMarkerStatusForVariable($item, 'event-date'),
+            'original-date-status' => $this->dateMarkerStatusForVariable($item, 'original-date'),
+            'issued-raw', 'issued-date-raw' => $this->dateRawForVariable($item, 'issued'),
+            'accessed-raw', 'accessed-date-raw' => $this->dateRawForVariable($item, 'accessed'),
+            'event-date-raw' => $this->dateRawForVariable($item, 'event-date'),
+            'original-date-raw' => $this->dateRawForVariable($item, 'original-date'),
             'related' => $this->relatedSummaryValues($item),
             'related-summary' => $this->relatedSummary($item),
             'related-keys' => implode(', ', is_array($item['relatedKeys'] ?? null) ? $item['relatedKeys'] : []),
@@ -4940,7 +5029,30 @@ final class CitationCslProcessor
 
     /**
      * @param array<string, mixed> $item
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}|null
+     */
+    private function dateMarkerStatusForVariable(array $item, string $variable): string
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+
+        return is_array($date) ? self::dateMarkerStatus($date) : '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function dateRawForVariable(array $item, string $variable): string
+    {
+        $date = $this->dateVariableForRendering($item, $variable);
+        if (!is_array($date)) {
+            return '';
+        }
+
+        return trim((string) ($date['raw'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, circa?:bool, uncertain?:bool, rangeParts?:list<list<int>>}|null
      */
     private function dateVariableForRendering(array $item, string $variable): ?array
     {

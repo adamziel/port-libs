@@ -33,6 +33,8 @@ Patent and legal sources @import-patent and @review-act preserve legal review me
 
 Date-range sources @range-manual and @range-rule preserve interval metadata for review.
 
+Approximate date source @circa-manual preserves review date markers.
+
 Title metadata sources @title-review and @chapter-title-review keep reviewer subtitles attached.
 
 Publication detail sources @journal-detail and @book-detail preserve volume, issue, series, and identifier metadata.
@@ -257,6 +259,16 @@ $bibtex = <<<'BIB'
   organization = {Migration Board},
   date         = {2024/2025},
   eventdate    = {2025-01-01/2025-01-31}
+}
+
+@book{circa-manual,
+  author    = {Smith, Ada},
+  title     = {Approximate Source Date},
+  date      = {2026~},
+  origdate  = {2020?},
+  publisher = {Review Press},
+  url       = {https://example.test/circa-manual},
+  urldate   = {2026-06-05~}
 }
 
 @book{title-review,
@@ -688,6 +700,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($rangeRule['eventDate']['display'] ?? null) !== '2025-01-01/2025-01-31') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve legal event date range metadata');
     }
+    $circaManual = $processor->item('circa-manual');
+    if (($circaManual['issuedDate']['circa'] ?? null) !== true) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve approximate issued date marker');
+    }
+    if (($circaManual['originalDate']['uncertain'] ?? null) !== true) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve uncertain original date marker');
+    }
+    if (($circaManual['dateMarkerSummary'] ?? null) !== 'Date markers: issued circa (2026~); accessed circa (2026-06-05~); original-date uncertain (2020?)') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize date markers for review');
+    }
     $titleReview = $processor->item('title-review');
     if (($titleReview['title'] ?? null) !== 'Migration Manual: Reviewer Packet Guide') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not compose title-review subtitle metadata');
@@ -1107,6 +1129,8 @@ XML);
         '<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>',
         '<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>',
         '<dt>Import Review Rule 2024/2025</dt><dd>Import Review Rule. Migration Board, 2024/2025. Regulation Rule 7. Authority: Migration Board. Event date 2025-01-01/2025-01-31.</dd>',
+        '<p>Approximate date source Smith (2026) preserves review date markers.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Approximate Source Date. Review Press, 2026. Date markers: issued circa (2026~); accessed circa (2026-06-05~); original-date uncertain (2020?). Original work published 2020. https://example.test/circa-manual. Accessed 2026-06-05.</dd>',
         '<p>Title metadata sources Curator (2026) and Ng (2025) keep reviewer subtitles attached.</p>',
         '<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>',
         '<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>',

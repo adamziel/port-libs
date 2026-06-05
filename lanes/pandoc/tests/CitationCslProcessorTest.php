@@ -891,6 +891,96 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'preserves bounded biblatex uncertain and approximate date markers in csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{circa-manual,
+  author    = {Smith, Ada},
+  title     = {Approximate Source Date},
+  date      = {2026~},
+  origdate  = {2020?},
+  publisher = {Review Press},
+  url       = {https://example.test/circa-manual},
+  urldate   = {2026-06-05~}
+}
+
+@legislation{uncertain-rule,
+  title        = {Uncertain Review Rule},
+  number       = {Rule 9},
+  type         = {regulation},
+  organization = {Migration Board},
+  date         = {2024?},
+  eventdate    = {2025-01-01%}
+}
+
+@online{range-circa-source,
+  author = {{Review Desk}},
+  title  = {Range Approximation Source},
+  date   = {2020~/2021?},
+  url    = {https://example.test/range-circa}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(['date-parts' => [[2026]], 'circa' => true, 'raw' => '2026~'], $items[0]['issued']);
+        $t->same(['date-parts' => [[2020]], 'uncertain' => true, 'raw' => '2020?'], $items[0]['original-date']);
+        $t->same(['date-parts' => [[2026, 6, 5]], 'circa' => true, 'raw' => '2026-06-05~'], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2024]], 'uncertain' => true, 'raw' => '2024?'], $items[1]['issued']);
+        $t->same(['date-parts' => [[2025, 1, 1]], 'circa' => true, 'uncertain' => true, 'raw' => '2025-01-01%'], $items[1]['event-date']);
+        $t->same(['date-parts' => [[2020], [2021]], 'circa' => true, 'uncertain' => true, 'raw' => '2020~/2021?'], $items[2]['issued']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('circa-manual');
+        $rule = $processor->item('uncertain-rule');
+        $range = $processor->item('range-circa-source');
+        $t->same([2026], $manual['issuedDate']['parts'] ?? null);
+        $t->same(true, $manual['issuedDate']['circa'] ?? null);
+        $t->same('2026~', $manual['issuedDate']['raw'] ?? null);
+        $t->same(true, $manual['originalDate']['uncertain'] ?? null);
+        $t->same(true, $manual['accessedDate']['circa'] ?? null);
+        $t->same(true, $rule['eventDate']['circa'] ?? null);
+        $t->same(true, $rule['eventDate']['uncertain'] ?? null);
+        $t->same([[2020], [2021]], $range['issuedDate']['rangeParts'] ?? null);
+        $t->same(true, $range['issuedDate']['circa'] ?? null);
+        $t->same(true, $range['issuedDate']['uncertain'] ?? null);
+        $t->same('Date markers: issued circa (2026~); accessed circa (2026-06-05~); original-date uncertain (2020?)', $manual['dateMarkerSummary'] ?? null);
+        $t->same('Date markers: issued uncertain (2024?); event-date circa and uncertain (2025-01-01%)', $rule['dateMarkerSummary'] ?? null);
+        $t->same('Date markers: issued circa and uncertain (2020~/2021?)', $range['dateMarkerSummary'] ?? null);
+        $t->same('(Smith 2026; Uncertain Review Rule 2024; Review Desk 2020/2021)', $processor->renderCitationCluster([
+            $citation('circa-manual', '[@circa-manual]'),
+            $citation('uncertain-rule', '[@uncertain-rule]'),
+            $citation('range-circa-source', '[@range-circa-source]'),
+        ]));
+        $t->same('Smith, Ada. Approximate Source Date. Review Press, 2026. Date markers: issued circa (2026~); accessed circa (2026-06-05~); original-date uncertain (2020?). Original work published 2020. https://example.test/circa-manual. Accessed 2026-06-05.', $processor->renderBibliographyEntry('circa-manual'));
+        $t->same('Uncertain Review Rule. Migration Board, 2024. Regulation Rule 9. Authority: Migration Board. Event date 2025-01-01. Date markers: issued uncertain (2024?); event-date circa and uncertain (2025-01-01%).', $processor->renderBibliographyEntry('uncertain-rule'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <text variable="title"/>
+        <text variable="issued-status"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="date-marker-summary"/>
+      <text variable="event-date-status"/>
+      <text variable="issued-raw"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Approximate Source Date circa; Uncertain Review Rule uncertain; Range Approximation Source circa and uncertain]', $styled->renderCitationCluster([
+            $citation('circa-manual', '[@circa-manual]'),
+            $citation('uncertain-rule', '[@uncertain-rule]'),
+            $citation('range-circa-source', '[@range-circa-source]'),
+        ]));
+        $t->same('Uncertain Review Rule | Date markers: issued uncertain (2024?); event-date circa and uncertain (2025-01-01%) | circa and uncertain | 2024?', $styled->renderBibliographyEntry('uncertain-rule'));
+    },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{split-url-date,
