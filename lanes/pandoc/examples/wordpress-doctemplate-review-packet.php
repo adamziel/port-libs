@@ -30,6 +30,8 @@ for $title$$~$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="labeled-note">$^$Note: $summaryNote$</p>
+<p>$^$$reviewStatus$
+   Owner: $reviewOwner$</p>
 <p class="comment-spacing">Before preserved comment whitespace</p>
   $-- indented reviewer comments preserve their line ending upstream
 <p class="comment-spacing">After preserved comment whitespace</p>
@@ -76,6 +78,8 @@ $context = [
         'review-id' => 'PR-42',
     ],
     'summaryNote' => "Review imported title blocks\nConfirm reviewer packet spacing",
+    'reviewStatus' => 'Ready for import',
+    'reviewOwner' => 'Migration desk',
     'suppressed' => false,
     'révision' => [
         'état' => 'prêt',
@@ -119,6 +123,7 @@ if (in_array('--self-test', $argv, true)) {
         $labeledNotePrefix . 'Note: Review imported title blocks' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($labeledNotePrefix))
             . 'Confirm reviewer packet spacing</p>',
+        "<p>Ready for import\n   Owner: Migration desk</p>",
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         "<p class=\"partial-spacing\">Partial spacing survives reviewer packet boundaries</p>\n\n</header>",

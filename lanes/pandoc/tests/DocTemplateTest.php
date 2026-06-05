@@ -283,6 +283,26 @@ TPL, [
         ]), $output);
     },
 
+    'dedents pandoc doctemplate source-aligned literal lines inside explicit nesting' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+<ul>
+<li>01 $^$$title$ ($status$)
+       Source: $source$</li>
+</ul>
+TPL, [
+            'title' => 'Imported heading',
+            'status' => 'queued',
+            'source' => 'DOCX',
+        ]);
+
+        $t->same(implode("\n", [
+            '<ul>',
+            '<li>01 Imported heading (queued)',
+            '       Source: DOCX</li>',
+            '</ul>',
+        ]), $output);
+    },
+
     'automatically nests multiline pandoc doctemplate variables that stand alone on indented lines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <section class="wp-import-body">

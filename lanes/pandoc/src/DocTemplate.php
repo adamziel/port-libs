@@ -472,7 +472,7 @@ final class DocTemplate
                     $text = $this->normalizeBreakableSpaces($text);
                 }
 
-                $this->appendRenderedChunk($output, $text, $pendingNestColumn);
+                $this->appendRenderedChunk($output, $text, $pendingNestColumn, true);
                 continue;
             }
 
@@ -1775,11 +1775,13 @@ final class DocTemplate
         return $prefix;
     }
 
-    private function appendRenderedChunk(string &$output, string $chunk, ?int &$pendingNestColumn): void
+    private function appendRenderedChunk(string &$output, string $chunk, ?int &$pendingNestColumn, bool $templateText = false): void
     {
         if ($pendingNestColumn !== null) {
-            if (str_contains($chunk, "\n")) {
-                $chunk = $this->nestMultiline($chunk, str_repeat(' ', $pendingNestColumn));
+            if (strpbrk($chunk, "\r\n") !== false) {
+                $chunk = $templateText
+                    ? $this->nestTemplateTextChunk($chunk, $pendingNestColumn)
+                    : $this->nestMultiline($chunk, str_repeat(' ', $pendingNestColumn));
                 $pendingNestColumn = null;
             }
 
@@ -1792,11 +1794,39 @@ final class DocTemplate
 
     private function nestMultiline(string $value, string $indent): string
     {
-        if ($indent === '' || !str_contains($value, "\n")) {
+        if ($indent === '' || strpbrk($value, "\r\n") === false) {
             return $value;
         }
 
-        return preg_replace('/\n(?!$)/', "\n" . $indent, $value) ?? $value;
+        return preg_replace('/(\r\n|\n|\r)(?!$)/', '$1' . $indent, $value) ?? $value;
+    }
+
+    private function nestTemplateTextChunk(string $value, int $column): string
+    {
+        $indent = str_repeat(' ', $column);
+
+        return preg_replace_callback(
+            '/(\r\n|\n|\r)([ \t]*)(?!$)/',
+            fn (array $matches): string => $matches[1] . $indent . $this->dropSourceIndentColumns($matches[2], $column),
+            $value,
+        ) ?? $value;
+    }
+
+    private function dropSourceIndentColumns(string $indent, int $columns): string
+    {
+        $offset = 0;
+        $length = strlen($indent);
+
+        while ($offset < $length && $columns > 0) {
+            if ($indent[$offset] !== ' ' && $indent[$offset] !== "\t") {
+                break;
+            }
+
+            $offset++;
+            $columns--;
+        }
+
+        return substr($indent, $offset);
     }
 
     /**
