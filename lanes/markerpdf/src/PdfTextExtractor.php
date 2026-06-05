@@ -14011,6 +14011,13 @@ final class PdfTextExtractor
             'rg',
             'K',
             'k',
+            'Tc',
+            'Tw',
+            'Tz',
+            'TL',
+            'Tf',
+            'Tr',
+            'Ts',
             'm',
             'l',
             'c',
@@ -14038,6 +14045,16 @@ final class PdfTextExtractor
             return count($operands) === 2
                 && $this->markedContentTagOperand($operands[0])
                 && $this->markedContentPropertyOperand($operands[1]);
+        }
+
+        if (in_array($token, ['Tc', 'Tw', 'Tz', 'TL', 'Tr', 'Ts'], true)) {
+            return count($operands) === 1 && $this->numericOperand($operands[0]) !== null;
+        }
+
+        if ($token === 'Tf') {
+            return count($operands) === 2
+                && str_starts_with($operands[0], '/')
+                && $this->numericOperand($operands[1]) !== null;
         }
 
         if ($token === 'BMC') {
