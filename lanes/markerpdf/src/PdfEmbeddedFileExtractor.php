@@ -2705,7 +2705,11 @@ final class PdfEmbeddedFileExtractor
         $foundSection = false;
         for ($lineIndex = 0, $lineCount = count($lines); $lineIndex < $lineCount; $lineIndex++) {
             $line = trim($lines[$lineIndex]);
-            if (preg_match('/^(\d+)\s+(\d+)$/', $line, $header) !== 1) {
+            if ($line === '' || str_starts_with($line, '%')) {
+                continue;
+            }
+
+            if (preg_match('/^(\d+)\s+(\d+)(?:\s*(?:%.*)?)$/', $line, $header) !== 1) {
                 continue;
             }
 
@@ -2718,7 +2722,7 @@ final class PdfEmbeddedFileExtractor
                 }
 
                 $row = trim($lines[$lineIndex]);
-                if ($row === '') {
+                if ($row === '' || str_starts_with($row, '%')) {
                     continue;
                 }
 

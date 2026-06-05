@@ -3069,7 +3069,11 @@ final class PdfAttachmentExtractor
         $lineCount = count($lines);
         for ($lineIndex = 0; $lineIndex < $lineCount; $lineIndex++) {
             $line = trim($lines[$lineIndex]);
-            if (preg_match('/^(\d+)\s+(\d+)$/', $line, $section) !== 1) {
+            if ($line === '' || str_starts_with($line, '%')) {
+                continue;
+            }
+
+            if (preg_match('/^(\d+)\s+(\d+)(?:\s*(?:%.*)?)$/', $line, $section) !== 1) {
                 continue;
             }
 
@@ -3079,7 +3083,7 @@ final class PdfAttachmentExtractor
             $rowIndex = 0;
             while ($rowIndex < $rowCount && ++$lineIndex < $lineCount) {
                 $row = trim($lines[$lineIndex]);
-                if ($row === '') {
+                if ($row === '' || str_starts_with($row, '%')) {
                     continue;
                 }
                 if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])(?:\s*(?:%.*)?)$/', $row, $match) !== 1) {
