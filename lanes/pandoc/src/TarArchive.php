@@ -58,6 +58,9 @@ final class TarArchive
                 if ($pendingGnuLongName !== null) {
                     throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
                 }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
                 self::assertTrailingZeroBlocks($bytes, $cursor);
                 $sawEndMarker = true;
                 break;
@@ -82,6 +85,9 @@ final class TarArchive
                 if ($pendingGnuLongName !== null) {
                     throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
                 }
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
 
                 $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
                 $cursor = $nextCursor;
@@ -90,6 +96,12 @@ final class TarArchive
 
             if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
                 $headers = self::parsePaxHeaders(substr($bytes, $dataOffset, $headerSize));
+                if ($pendingPaxHeaders !== []) {
+                    throw new \RuntimeException('TAR PAX extended metadata is not followed by an archive entry');
+                }
+                if ($pendingGnuLongName !== null) {
+                    throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
+                }
                 if ($typeFlag === self::TYPE_PAX_EXTENDED) {
                     $pendingPaxHeaders = $headers;
                 } else {
@@ -721,6 +733,10 @@ final class TarArchive
         }
 
         if (str_contains($path, "\0") || str_starts_with($path, '/') || str_contains($path, '\\')) {
+            throw new \RuntimeException("Unsafe {$label}: {$path}");
+        }
+
+        if (preg_match('/^[A-Za-z]:/', $path) === 1) {
             throw new \RuntimeException("Unsafe {$label}: {$path}");
         }
 

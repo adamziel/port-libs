@@ -825,6 +825,23 @@ try {
 } catch (RuntimeException $exception) {
     $missingTarEndMarkerRejected = str_contains($exception->getMessage(), 'end marker');
 }
+$danglingPaxMetadataRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('PaxHeaders/dangling', 'x', $buildPaxPayload([
+            'path' => 'packet/dangling/document.xml',
+        ]), $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $danglingPaxMetadataRejected = str_contains($exception->getMessage(), 'PAX extended metadata');
+}
+$tarDriveLetterRejected = false;
+try {
+    TarArchive::fromString($buildRawTarRecord('C:packet/document.xml', '0', '<w:document/>', $documentModifiedAt) . str_repeat("\0", 1024));
+} catch (RuntimeException $exception) {
+    $tarDriveLetterRejected = str_contains($exception->getMessage(), 'Unsafe TAR entry name');
+}
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -1060,6 +1077,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
     }
 
+    if (!$danglingPaxMetadataRejected) {
+        throw new RuntimeException('Expected dangling TAR PAX metadata review packets to be rejected before import');
+    }
+
+    if (!$tarDriveLetterRejected) {
+        throw new RuntimeException('Expected TAR drive-letter review packet paths to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -1113,6 +1138,8 @@ echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarDriveLetterPolicy=' . ($tarDriveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";

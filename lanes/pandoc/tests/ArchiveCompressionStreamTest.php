@@ -309,6 +309,59 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($singleZeroBlockEndMarker));
     },
 
+    'rejects dangling local pax metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $danglingPax = $rawTarHeader('PaxHeaders/dangling', 'x', $paxPayload([
+            'path' => 'packet/dangling/document.xml',
+        ]), 0, false)
+            . str_repeat("\0", 1024);
+        $overwrittenPax = $rawTarHeader('PaxHeaders/first', 'x', $paxPayload([
+            'path' => 'packet/first/document.xml',
+        ]), 0, false)
+            . $rawTarHeader('PaxHeaders/second', 'x', $paxPayload([
+                'path' => 'packet/second/document.xml',
+            ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $paxBeforeGnuLongName = $rawTarHeader('PaxHeaders/first', 'x', $paxPayload([
+            'path' => 'packet/first/document.xml',
+        ]), 0, false)
+            . $rawTarHeader('././@LongLink', 'L', 'packet/long/document.xml' . "\0", 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $paxBeforeGlobalPax = $rawTarHeader('PaxHeaders/first', 'x', $paxPayload([
+            'path' => 'packet/first/document.xml',
+        ]), 0, false)
+            . $rawTarHeader('GlobalHead/import', 'g', $paxPayload([
+                'comment' => 'review metadata',
+            ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($danglingPax));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($overwrittenPax));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxBeforeGnuLongName));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxBeforeGlobalPax));
+    },
+
+    'rejects windows drive-letter tar paths from headers pax and gnu metadata' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $headerDriveLetter = $rawTarHeader('C:packet/document.xml', '0', '<w:document/>');
+        $paxDriveLetter = $rawTarHeader('PaxHeaders/drive-letter', 'x', $paxPayload([
+            'path' => 'C:packet/document.xml',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $gnuDriveLetter = $rawTarHeader('././@LongLink', 'L', 'C:packet/document.xml' . "\0", 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => 'C:packet/document.xml', 'data' => '<w:document/>'],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($headerDriveLetter));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxDriveLetter));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuDriveLetter));
+    },
+
     'reads gzip wrapped tar streams for package handoff fixtures' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
