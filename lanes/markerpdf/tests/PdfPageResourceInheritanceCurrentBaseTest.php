@@ -301,6 +301,33 @@ $pageResourceFormNullCurrentBasePdf = static function () use ($pageResourceInher
         . "%%EOF";
 };
 
+$pageResourceFormWrappedNullCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'q /WrappedNullForm Do Q q /WrappedEmptyForm Do Q';
+    $wrappedNullForm = 'q /InheritedNestedForm Do Q';
+    $wrappedEmptyForm = 'q /InheritedNestedForm Do Q';
+    $nestedForm = 'BT /F1 12 Tf 12 24 Td <41> Tj ET';
+    $cmap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Wrapped null form inherited nested text',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources 12 0 R /Length " . strlen($wrappedNullForm) . " >>\nstream\n{$wrappedNullForm}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources 14 0 R /Length " . strlen($wrappedEmptyForm) . " >>\nstream\n{$wrappedEmptyForm}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($nestedForm) . " >>\nstream\n{$nestedForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WrappedNullFormInherited /Encoding /Identity-H /ToUnicode 9 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 8 0 R >> /XObject << /WrappedNullForm 5 0 R /WrappedEmptyForm 6 0 R /InheritedNestedForm 7 0 R >> >>\nendobj\n"
+        . "12 0 obj\n13 0 R\nendobj\n"
+        . "13 0 obj\nnull\nendobj\n"
+        . "14 0 obj\n15 0 R\nendobj\n"
+        . "15 0 obj\n<< >>\nendobj\n"
+        . "%%EOF";
+};
+
 $pageResourceFormPropertiesCurrentBasePdf = static function (): string {
     $content = '/Span /SharedActual BDC BT /F1 12 Tf 72 720 Td (Page glyph noise) Tj ET EMC '
         . 'q /ActualForm Do Q '
@@ -616,6 +643,20 @@ return [
         $t->same(2, substr_count($plainText, 'Null form inherited nested text'));
         $t->same(false, str_contains($plainText, 'InheritedNestedForm'));
         $t->same(false, str_contains($plainText, 'ExplicitEmptyForm'));
+    },
+    'inherits invoking page resources when Form XObject Resources resolves through an indirect null wrapper' => static function (TestRunner $t) use ($pageResourceFormWrappedNullCurrentBasePdf): void {
+        $pdf = $pageResourceFormWrappedNullCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = ['Wrapped null form inherited nested text'];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same('Wrapped null form inherited nested text', $plainText);
+        $t->same("Wrapped null form inherited nested text\n", $extractor->naiveGetText($pdf));
+        $t->same(1, substr_count($plainText, 'Wrapped null form inherited nested text'));
+        $t->same(false, str_contains($plainText, 'InheritedNestedForm'));
+        $t->same(false, str_contains($plainText, 'WrappedEmptyForm'));
     },
     'resolves form-local marked-content Properties without leaking page property names' => static function (TestRunner $t) use ($pageResourceFormPropertiesCurrentBasePdf): void {
         $pdf = $pageResourceFormPropertiesCurrentBasePdf();

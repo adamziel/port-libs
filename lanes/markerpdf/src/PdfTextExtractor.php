@@ -3618,13 +3618,13 @@ final class PdfTextExtractor
             return false;
         }
 
-        $objectBody = $this->objectBodyForResourceReference(
+        $resolved = $this->resolvedResourceObjectBody(
             $objects,
             (int) $match[1],
             (int) $match[2]
         );
 
-        return $objectBody !== null && trim($objectBody) === 'null';
+        return $resolved !== null && trim($resolved['body']) === 'null';
     }
 
     private function formatPdfNumber(float $value): string
