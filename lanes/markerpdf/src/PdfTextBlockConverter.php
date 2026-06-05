@@ -32,6 +32,7 @@ final class PdfTextBlockConverter
                     if (($span['superscript'] ?? false) === true || ($span['subscript'] ?? false) === true) {
                         $text = trim($text);
                     }
+                    $text = $this->fixUnicodeText($text);
 
                     $font = $span['font'];
                     $fontName = $this->fontName($font['name']);
@@ -158,6 +159,53 @@ final class PdfTextBlockConverter
     private function fontName(mixed $name): string
     {
         return $name === null ? 'None' : (string) $name;
+    }
+
+    /**
+     * Marker's Span model runs ftfy.fix_text on visible text after pdftext
+     * postprocessing. Keep this bounded to common UTF-8 bytes decoded through
+     * Windows-1252/Latin-1 so dictionary char_blocks stay source-faithful.
+     */
+    private function fixUnicodeText(string $text): string
+    {
+        if ($text === '' || !function_exists('iconv') || !$this->looksLikeMojibake($text)) {
+            return $text;
+        }
+
+        $score = $this->mojibakeScore($text);
+        foreach (['Windows-1252', 'ISO-8859-1'] as $encoding) {
+            $candidate = @iconv('UTF-8', $encoding, $text);
+            if (!is_string($candidate) || $candidate === '' || preg_match('//u', $candidate) !== 1) {
+                continue;
+            }
+
+            if ($this->mojibakeScore($candidate) < $score) {
+                return $candidate;
+            }
+        }
+
+        return $text;
+    }
+
+    private function looksLikeMojibake(string $text): bool
+    {
+        foreach (["\xC3\x83", "\xC3\x82", "\xC3\xA2", "\xEF\xBF\xBD"] as $marker) {
+            if (str_contains($text, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function mojibakeScore(string $text): int
+    {
+        $score = 0;
+        foreach (["\xC3\x83", "\xC3\x82", "\xC3\xA2", "\xEF\xBF\xBD"] as $marker) {
+            $score += substr_count($text, $marker);
+        }
+
+        return $score;
     }
 
     /**

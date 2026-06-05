@@ -249,6 +249,41 @@ $pdftextRotatedNormalizedPage = static function (): array {
     ];
 };
 
+$pdftextMojibakePage = static function (): array {
+    $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
+    $mojibakeEAcute = (string) hex2bin('c383c2a9');
+    $mojibakeRightQuote = (string) hex2bin('c3a2e282ace284a2');
+    $validATilde = (string) hex2bin('c3a3');
+    $validEAcute = (string) hex2bin('c3a9');
+
+    return [
+        'page' => 52,
+        'bbox' => [0.0, 0.0, 612.0, 792.0],
+        'width' => 612.0,
+        'height' => 792.0,
+        'rotation' => 0,
+        'blocks' => [[
+            'bbox' => [72.0, 144.0, 430.0, 176.0],
+            'lines' => [[
+                'bbox' => [72.0, 144.0, 430.0, 176.0],
+                'spans' => [
+                    [
+                        'text' => "Plugin caf{$mojibakeEAcute} d{$mojibakeRightQuote}import\n",
+                        'bbox' => [72.0, 144.0, 260.0, 158.0],
+                        'font' => $font,
+                        'raw_encoding_payload' => 'hidden mojibake payload must not cross dictionary_output',
+                    ],
+                    [
+                        'text' => " keeps S{$validATilde}o Paulo r{$validEAcute}sum{$validEAcute} intact\n",
+                        'bbox' => [260.0, 144.0, 430.0, 158.0],
+                        'font' => $font,
+                    ],
+                ],
+            ]],
+        ]],
+    ];
+};
+
 return [
     'preserves pdftext dictionary links and refs at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
@@ -838,6 +873,27 @@ return [
         $t->true(!str_contains($encoded, 'rotated normalized block payload'));
         $t->true(!str_contains($encoded, 'rotated normalized line payload'));
         $t->true(!str_contains($encoded, 'rotated normalized span payload'));
+    },
+    'repairs mojibake in visible marker spans while preserving pdftext dictionary text' => static function (TestRunner $t) use ($pdftextMojibakePage): void {
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextMojibakePage()], maxPages: 1);
+        $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
+        $charSpans = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $mojibakeEAcute = (string) hex2bin('c383c2a9');
+        $mojibakeRightQuote = (string) hex2bin('c3a2e282ace284a2');
+        $repairedEAcute = (string) hex2bin('c3a9');
+        $repairedRightQuote = (string) hex2bin('e28099');
+        $validATilde = (string) hex2bin('c3a3');
+
+        $t->same("Plugin caf{$repairedEAcute} d{$repairedRightQuote}import", $spans[0]['text']);
+        $t->same(" keeps S{$validATilde}o Paulo r{$repairedEAcute}sum{$repairedEAcute} intact", $spans[1]['text']);
+        $t->same("Plugin caf{$mojibakeEAcute} d{$mojibakeRightQuote}import\n", $charSpans[0]['text']);
+        $t->same("Plugin caf{$repairedEAcute} d{$repairedRightQuote}import keeps S{$validATilde}o Paulo r{$repairedEAcute}sum{$repairedEAcute} intact", $blocks[0]['text']);
+        $t->true(!str_contains($blocks[0]['text'], $mojibakeEAcute));
+        $t->true(!str_contains($blocks[0]['text'], $mojibakeRightQuote));
+        $t->true(str_contains($charSpans[0]['text'], $mojibakeEAcute), 'char_blocks preserve the pdftext dictionary source text for review.');
+        $t->true(!str_contains($encoded, 'hidden mojibake payload must not cross dictionary_output'));
     },
     'records pdftext quote loosebox option at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $defaultDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
