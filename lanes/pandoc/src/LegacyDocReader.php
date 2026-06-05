@@ -13,6 +13,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFFND_REF = 0x00ae;
     private const FIB_FC_PLCFFND_TXT = 0x00b2;
     private const FIB_LCB_PLCFFND_TXT = 0x00b6;
+    private const FIB_FC_PLCF_SED = 0x00ca;
+    private const FIB_LCB_PLCF_SED = 0x00ce;
     private const FIB_FC_STTBF_BKMK = 0x0142;
     private const FIB_LCB_STTBF_BKMK = 0x0146;
     private const FIB_FC_PLCF_BKF = 0x014a;
@@ -25,7 +27,7 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -33,7 +35,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -75,6 +77,11 @@ final class LegacyDocReader
         if ($timestampedDirectoryEntryCount > 0) {
             $metadata['cfbTimestampedDirectoryEntryCount'] = $timestampedDirectoryEntryCount;
         }
+        $sections = $this->sectionReport($wordDocument, $tableStream, $textResult['text']);
+        if ($sections !== []) {
+            $metadata['sectionCount'] = count($sections);
+            $metadata['sections'] = $sections;
+        }
         $bookmarks = $this->standardBookmarkReport($wordDocument, $tableStream, $textResult['text']);
         if ($bookmarks !== []) {
             $metadata['bookmarkCount'] = count($bookmarks);
@@ -109,6 +116,7 @@ final class LegacyDocReader
             'textSource' => $textResult['source'],
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
+            'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
             'endnotes' => $endnotes,
@@ -127,6 +135,7 @@ final class LegacyDocReader
             'streamDirectory' => $streamDirectory,
             'directoryEntries' => $directoryEntries,
             'fib' => $fib + ['textSource' => $textResult['source']],
+            'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
             'endnotes' => $endnotes,
@@ -2094,6 +2103,119 @@ final class LegacyDocReader
         }
 
         return '*';
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function sectionReport(string $wordDocument, ?string $tableStream, string $text): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_SED + 4) {
+            return [];
+        }
+
+        $fcPlcfSed = self::u32($wordDocument, self::FIB_FC_PLCF_SED);
+        $lcbPlcfSed = self::u32($wordDocument, self::FIB_LCB_PLCF_SED);
+        if ($lcbPlcfSed === 0) {
+            return [];
+        }
+
+        return $this->parsePlcfSed(
+            $this->tableStreamSlice($tableStream, $fcPlcfSed, $lcbPlcfSed, 'PlcfSed'),
+            $wordDocument,
+            $text
+        );
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parsePlcfSed(string $bytes, string $wordDocument, string $text): array
+    {
+        $length = strlen($bytes);
+        if ($length < 20 || (($length - 4) % 16) !== 0) {
+            throw new \RuntimeException('Legacy DOC section descriptor PLC has an invalid length');
+        }
+
+        $sectionCount = intdiv($length - 4, 16);
+        $cpCount = $sectionCount + 1;
+        $cps = [];
+        $previousCp = null;
+        for ($index = 0; $index < $cpCount; $index++) {
+            $cp = self::u32($bytes, $index * 4);
+            if ($previousCp !== null && $cp <= $previousCp) {
+                throw new \RuntimeException('Legacy DOC section descriptor PLC contains duplicate or unsorted CPs');
+            }
+            if ($index === 0 && $cp !== 0) {
+                throw new \RuntimeException('Legacy DOC section descriptor PLC must start at main-text CP 0');
+            }
+
+            $previousCp = $cp;
+            $cps[] = $cp;
+        }
+
+        $characters = $this->unicodeCharacters($text);
+        $textLength = count($characters);
+        if ($cps[$sectionCount] < $textLength) {
+            throw new \RuntimeException('Legacy DOC section descriptor PLC final CP is before the extracted main text ends');
+        }
+
+        $sections = [];
+        $sedOffset = $cpCount * 4;
+        for ($index = 0; $index < $sectionCount; $index++) {
+            $startCp = $cps[$index];
+            $endCp = $cps[$index + 1];
+            $hasSectionBreak = $index < $sectionCount - 1;
+            if ($startCp > $textLength || ($hasSectionBreak && $endCp > $textLength)) {
+                throw new \RuntimeException('Legacy DOC section descriptor PLC points outside the extracted main text');
+            }
+            if ($hasSectionBreak) {
+                $breakCharacter = $endCp > 0 ? ($characters[$endCp - 1] ?? '') : '';
+                if ($breakCharacter !== "\f") {
+                    throw new \RuntimeException('Legacy DOC section descriptor PLC is missing the required section-break character');
+                }
+            }
+
+            $offset = $sedOffset + ($index * 12);
+            $fcSepx = self::signed32(self::u32($bytes, $offset + 2));
+            $section = [
+                'index' => $index + 1,
+                'startCp' => $startCp,
+                'endCp' => min($endCp, $textLength),
+                'contentEndCp' => $hasSectionBreak ? $endCp - 1 : min($endCp, $textLength),
+                'hasSectionBreak' => $hasSectionBreak,
+                'hasSepx' => $fcSepx !== -1,
+            ];
+
+            if ($fcSepx !== -1) {
+                $section += $this->readSepxProvenance($wordDocument, $fcSepx);
+            }
+
+            $sections[] = $section;
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @return array{sepxFc:int,sepxByteCount:int,sprmByteCount:int}
+     */
+    private function readSepxProvenance(string $wordDocument, int $fcSepx): array
+    {
+        if ($fcSepx < 0 || $fcSepx + 2 > strlen($wordDocument)) {
+            throw new \RuntimeException('Legacy DOC section descriptor SEPX pointer points outside WordDocument');
+        }
+
+        $byteCount = self::signed16(self::u16($wordDocument, $fcSepx));
+        if ($byteCount < 0 || $fcSepx + 2 + $byteCount > strlen($wordDocument)) {
+            throw new \RuntimeException('Legacy DOC section descriptor SEPX byte count points outside WordDocument');
+        }
+
+        return [
+            'sepxFc' => $fcSepx,
+            'sepxByteCount' => $byteCount + 2,
+            'sprmByteCount' => $byteCount,
+        ];
     }
 
     /**

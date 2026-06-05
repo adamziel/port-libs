@@ -221,13 +221,16 @@ $firstPieceBytes = $utf16le($firstPieceText);
 $secondPieceBytes = $utf16le($secondPieceText);
 $firstPieceStart = 1024;
 $secondPieceStart = $firstPieceStart + strlen($firstPieceBytes);
+$mainTextByteEnd = $secondPieceStart + strlen($secondPieceBytes);
 
 $wordDocument = str_repeat("\0", $firstPieceStart) . $firstPieceBytes . $secondPieceBytes;
+$sepxFc = strlen($wordDocument) + 64;
+$wordDocument = str_pad($wordDocument, $sepxFc, "\0") . $u16(4) . "\x34\x12\x00\x00";
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x1204), 10, 2);
 $wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
-$wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 28, 4);
+$wordDocument = substr_replace($wordDocument, $u32($mainTextByteEnd), 28, 4);
 
 $firstPieceCharacters = intdiv(strlen($firstPieceBytes), 2);
 $secondPieceCharacters = intdiv(strlen($secondPieceBytes), 2);
@@ -269,6 +272,9 @@ $plcfendRef = $u32($endnoteReferenceCp)
 $plcfendTxt = $u32(0)
     . $u32(29)
     . $u32(30);
+$plcfSed = $u32(0)
+    . $u32($totalPieceCharacters + 1)
+    . $u16(0) . $u32($sepxFc) . $u16(0) . $u32(0);
 $fcSttbfBkmk = strlen($clx);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
@@ -276,7 +282,10 @@ $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
 $fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
 $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
 $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt;
+$fcPlcfSed = $fcPlcfendTxt + strlen($plcfendTxt);
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfSed;
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfSed), 0x00ca, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfSed)), 0x00ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndRef)), 0x00ae, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndTxt), 0x00b2, 4);
@@ -574,6 +583,7 @@ $summary = [
     'directoryEntries' => $result['directoryEntries'],
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
+    'sections' => $result['sections'],
     'bookmarks' => $result['bookmarks'],
     'footnotes' => $result['footnotes'],
     'endnotes' => $result['endnotes'],
@@ -639,6 +649,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['bookmarkCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing standard bookmark count');
+    }
+    if (($summary['metadata']['sectionCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing section descriptor count');
+    }
+    if (($summary['sections'][0]['hasSepx'] ?? null) !== true || ($summary['sections'][0]['sprmByteCount'] ?? null) !== 4) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SEPX section provenance');
+    }
+    if (($summary['sections'][0]['startCp'] ?? null) !== 0 || ($summary['sections'][0]['endCp'] ?? null) !== $totalPieceCharacters) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing section CP range');
     }
     if (($summary['bookmarks'][0]['name'] ?? '') !== 'legacy_anchor' || ($summary['bookmarks'][0]['canAnchor'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing standard bookmark anchor metadata');

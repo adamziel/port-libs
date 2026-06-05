@@ -585,6 +585,32 @@ $buildNoteTableDocStreams = static function () use ($u16, $u32): array {
     ];
 };
 
+$buildSectionTableDocStreams = static function () use ($u16, $u32): array {
+    $text = "Intro section\fSecond section\r";
+    $fibSize = 1024;
+    $sepxFc = 1536;
+    $sepx = $u16(4) . "\x12\x34\x56\x78";
+    $wordDocument = str_repeat("\0", $fibSize) . $text;
+    $wordDocument = str_pad($wordDocument, $sepxFc, "\0") . $sepx;
+    $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
+    $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
+    $wordDocument = substr_replace($wordDocument, $u32($fibSize), 24, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fibSize + strlen($text)), 28, 4);
+
+    $plcfSed = $u32(0)
+        . $u32(14)
+        . $u32(strlen($text))
+        . $u16(0) . $u32(0xffffffff) . $u16(0) . $u32(0)
+        . $u16(0) . $u32($sepxFc) . $u16(0) . $u32(0);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x00ca, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfSed)), 0x00ce, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $plcfSed,
+    ];
+};
+
 return [
     'reads CFB directory streams including MiniFAT-backed legacy streams' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
@@ -1244,6 +1270,51 @@ return [
         $t->contains('<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="6" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="17" data-legacy-doc-note-auto-numbered="true"><sup>1</sup></span>', $blocks);
         $t->contains('<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="13" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="11" data-legacy-doc-note-auto-numbered="false"><sup>*</sup></span>', $blocks);
         $t->true(!str_contains($blocks, "\x02"), 'Legacy DOC special footnote reference character should not render directly');
+    },
+    'extracts legacy DOC section descriptor PLCs as bounded layout review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSectionTableDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildSectionTableDocStreams()));
+        $document = $result['document'];
+        $sections = $result['sections'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($sections));
+        $t->same($sections, $document->attr('sections'));
+        $t->same($sections, $metadata['sections']);
+        $t->same(2, $metadata['sectionCount']);
+        $t->same(1, $sections[0]['index']);
+        $t->same(0, $sections[0]['startCp']);
+        $t->same(14, $sections[0]['endCp']);
+        $t->same(13, $sections[0]['contentEndCp']);
+        $t->same(true, $sections[0]['hasSectionBreak']);
+        $t->same(false, $sections[0]['hasSepx']);
+        $t->true(!isset($sections[0]['sepxFc']), 'Default section descriptors should not invent SEPX offsets');
+
+        $t->same(2, $sections[1]['index']);
+        $t->same(14, $sections[1]['startCp']);
+        $t->same(29, $sections[1]['endCp']);
+        $t->same(29, $sections[1]['contentEndCp']);
+        $t->same(false, $sections[1]['hasSectionBreak']);
+        $t->same(true, $sections[1]['hasSepx']);
+        $t->same(1536, $sections[1]['sepxFc']);
+        $t->same(6, $sections[1]['sepxByteCount']);
+        $t->same(4, $sections[1]['sprmByteCount']);
+        $t->contains('<p>Intro section<br/>Second section</p>', $blocks);
+    },
+    'rejects malformed legacy DOC section descriptor PLCs before rendering sections' => static function (TestRunner $t) use ($buildCfb, $buildSectionTableDocStreams, $u32): void {
+        $reader = new LegacyDocReader();
+
+        $duplicateCp = $buildSectionTableDocStreams();
+        $duplicateCp['0Table'] = substr_replace($duplicateCp['0Table'], $u32(0), 4, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($duplicateCp)));
+
+        $missingSectionBreak = $buildSectionTableDocStreams();
+        $missingSectionBreak['WordDocument'] = substr_replace($missingSectionBreak['WordDocument'], 'x', 1024 + 13, 1);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($missingSectionBreak)));
+
+        $badSepxPointer = $buildSectionTableDocStreams();
+        $badSepxPointer['0Table'] = substr_replace($badSepxPointer['0Table'], $u32(999999), 26, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badSepxPointer)));
     },
     'rejects malformed legacy DOC footnote and endnote PLCs before rendering references' => static function (TestRunner $t) use ($buildCfb, $buildNoteTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();
