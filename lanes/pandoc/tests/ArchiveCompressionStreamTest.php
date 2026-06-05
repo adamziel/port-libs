@@ -394,6 +394,32 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuDriveLetter));
     },
 
+    'rejects tar sparse file metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $gnuSparseType = $rawTarHeader('packet/sparse.bin', 'S', 'sparse map bytes');
+        $gnuPaxSparse = $rawTarHeader('PaxHeaders/gnu-sparse', 'x', $paxPayload([
+            'path' => 'packet/gnu-sparse.bin',
+            'GNU.sparse.major' => '1',
+            'GNU.sparse.minor' => '0',
+            'GNU.sparse.name' => 'packet/gnu-sparse.bin',
+            'GNU.sparse.realsize' => '4096',
+            'GNU.sparse.map' => '0,12,4090,6',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.bin', '0', 'sparse payload fragment', 0, false)
+            . str_repeat("\0", 1024);
+        $schilyPaxSparse = $rawTarHeader('PaxHeaders/schily-sparse', 'x', $paxPayload([
+            'path' => 'packet/schily-sparse.bin',
+            'SCHILY.filetype' => 'sparse',
+            'SCHILY.realsize' => '8192',
+            'SCHILY.sparse.map' => '0,16,8176,16',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.bin', '0', 'sparse payload fragment', 0, false)
+            . str_repeat("\0", 1024);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuSparseType));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($gnuPaxSparse));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($schilyPaxSparse));
+    },
+
     'reads gzip wrapped tar streams for package handoff fixtures' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

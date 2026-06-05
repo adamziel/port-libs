@@ -864,6 +864,22 @@ try {
 } catch (RuntimeException $exception) {
     $tarDriveLetterRejected = str_contains($exception->getMessage(), 'Unsafe TAR entry name');
 }
+$tarSparseRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('PaxHeaders/sparse', 'x', $buildPaxPayload([
+            'path' => 'packet/sparse-review.bin',
+            'GNU.sparse.major' => '1',
+            'GNU.sparse.minor' => '0',
+            'GNU.sparse.realsize' => '4096',
+            'GNU.sparse.map' => '0,16,4080,16',
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('placeholder-sparse.bin', '0', 'sparse payload fragment', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarSparseRejected = str_contains($exception->getMessage(), 'sparse file entries');
+}
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -1123,6 +1139,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR drive-letter review packet paths to be rejected before import');
     }
 
+    if (!$tarSparseRejected) {
+        throw new RuntimeException('Expected TAR sparse review packets to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -1179,6 +1199,7 @@ echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejecte
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDriveLetterPolicy=' . ($tarDriveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarSparsePolicy=' . ($tarSparseRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";

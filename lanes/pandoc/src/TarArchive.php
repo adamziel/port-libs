@@ -16,6 +16,7 @@ final class TarArchive
     private const TYPE_PAX_EXTENDED = 'x';
     private const TYPE_PAX_GLOBAL = 'g';
     private const TYPE_GNU_LONG_NAME = 'L';
+    private const TYPE_GNU_SPARSE = 'S';
 
     /**
      * @param array<string, TarArchiveEntry> $entriesByName
@@ -125,6 +126,10 @@ final class TarArchive
 
             if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
                 throw new \RuntimeException("TAR link entries are not supported by the pandoc archive reader: {$name}");
+            }
+
+            if ($typeFlag === self::TYPE_GNU_SPARSE || self::hasSparsePaxHeaders($metadataHeaders)) {
+                throw new \RuntimeException("TAR sparse file entries are not supported by the pandoc archive reader: {$name}");
             }
 
             if ($typeFlag !== self::TYPE_REGULAR && $typeFlag !== self::TYPE_DIRECTORY) {
@@ -623,6 +628,28 @@ final class TarArchive
         self::assertSafePath($name, 'TAR GNU long name');
 
         return $name;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function hasSparsePaxHeaders(array $headers): bool
+    {
+        foreach ($headers as $key => $value) {
+            if (str_starts_with($key, 'GNU.sparse.')) {
+                return true;
+            }
+
+            if (str_starts_with($key, 'SCHILY.sparse.')) {
+                return true;
+            }
+
+            if ($key === 'SCHILY.filetype' && strtolower(trim($value)) === 'sparse') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
