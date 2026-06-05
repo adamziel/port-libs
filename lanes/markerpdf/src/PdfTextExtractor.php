@@ -6437,6 +6437,11 @@ final class PdfTextExtractor
             if ($length >= 0 && $declaredEnd <= strlen($value)) {
                 $declaredTerminator = $this->streamLengthTerminatorOffset($value, $declaredEnd);
                 if ($declaredTerminator !== null) {
+                    $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+                    if ($dctJpegTerminator !== null && $dctJpegTerminator >= $declaredTerminator) {
+                        return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
+                    }
+
                     $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
                         $value,
                         $streamStart,
@@ -6462,6 +6467,11 @@ final class PdfTextExtractor
                     return substr($value, $streamStart, $length);
                 }
 
+                $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+                if ($dctJpegTerminator !== null) {
+                    return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
+                }
+
                 $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($value, $streamStart, $declaredEnd);
                 if ($end === null) {
@@ -6469,6 +6479,11 @@ final class PdfTextExtractor
                 }
 
                 return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $end - $streamStart));
+            }
+
+            $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects);
+            if ($dctJpegTerminator !== null) {
+                return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
             }
 
             $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
@@ -6482,6 +6497,7 @@ final class PdfTextExtractor
 
         $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
             ?? $this->endstreamTerminatorOffset($value, $streamStart, null);
+        $end = $this->dctStreamEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects) ?? $end;
         if ($end === null) {
             return null;
@@ -6696,6 +6712,97 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict, array $objects): ?int
+    {
+        $filters = $this->streamFilters($dict, $objects);
+        if ($filters === null || $filters === []) {
+            return null;
+        }
+
+        $firstFilter = null;
+        $firstFilterIndex = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter !== null) {
+                $firstFilter = $filter;
+                $firstFilterIndex = $index;
+                break;
+            }
+        }
+
+        if ($firstFilter === null || $firstFilterIndex === null) {
+            return null;
+        }
+
+        if ($firstFilter !== 'DCTDecode' && $firstFilter !== 'DCT') {
+            return $this->dctPrefixFilterEndstreamTerminatorOffset($value, $streamStart, $firstFilter, $filters, $firstFilterIndex);
+        }
+
+        $jpegStart = $streamStart;
+        $length = strlen($value);
+        while ($jpegStart < $length && str_contains("\x00\t\n\f\r ", $value[$jpegStart])) {
+            $jpegStart++;
+        }
+
+        if (substr($value, $jpegStart, 2) !== "\xff\xd8") {
+            return null;
+        }
+
+        $eoi = strpos($value, "\xff\xd9", $jpegStart + 2);
+        if ($eoi === false) {
+            return null;
+        }
+
+        $terminator = $this->skipPdfWhitespace($value, $eoi + 2);
+        return $this->endstreamKeywordAt($value, $terminator) ? $terminator : null;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function dctPrefixFilterEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $firstFilter,
+        array $filters,
+        int $firstFilterIndex
+    ): ?int {
+        $hasLaterDct = false;
+        for ($index = $firstFilterIndex + 1; $index < count($filters); $index++) {
+            $filter = $filters[$index];
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                $hasLaterDct = true;
+                break;
+            }
+        }
+
+        if (!$hasLaterDct) {
+            return null;
+        }
+
+        $payloadEnd = match ($firstFilter) {
+            'ASCIIHexDecode', 'AHx' => $this->firstFilterEndMarkerOffset($value, $streamStart, '>'),
+            'ASCII85Decode', 'A85' => $this->firstFilterEndMarkerOffset($value, $streamStart, '~>'),
+            'RunLengthDecode', 'RL' => $this->firstFilterEndMarkerOffset($value, $streamStart, chr(128)),
+            default => null,
+        };
+
+        if ($payloadEnd === null) {
+            return null;
+        }
+
+        $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
+        return $this->endstreamKeywordAt($value, $terminator) ? $terminator : null;
+    }
+
+    private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int
+    {
+        $offset = strpos($value, $marker, $streamStart);
+        return $offset === false ? null : $offset + strlen($marker);
     }
 
     private function contentStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict): ?int
@@ -11068,9 +11175,16 @@ final class PdfTextExtractor
         if ($declaredLength !== null && $declaredLength >= 0) {
             $declaredEnd = $streamStart + $declaredLength;
             if ($declaredEnd <= strlen($pdfBytes)) {
+                $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
                 $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
+                if (
+                    $dctJpegTerminator !== null
+                    && ($streamEnd === null || $dctJpegTerminator >= $streamEnd)
+                ) {
+                    $streamEnd = $dctJpegTerminator;
+                }
                 if ($streamEnd !== null) {
                     $filterStackRecoveredTerminator = $this->filterStackRecoveredStreamTerminatorOffset(
                         $pdfBytes,
@@ -11087,6 +11201,7 @@ final class PdfTextExtractor
         }
 
         $streamEnd ??= $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
+        $streamEnd ??= $this->dctStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
         if ($streamEnd === null) {
             return null;
         }
@@ -11395,6 +11510,16 @@ final class PdfTextExtractor
                     $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd);
                     if ($streamEnd !== null && $dict !== null) {
                         $filterObjects = $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart);
+                        $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $filterObjects
+                        );
+                        if ($dctJpegTerminator !== null && $dctJpegTerminator >= $streamEnd) {
+                            $streamEnd = $dctJpegTerminator;
+                        }
+
                         $recoveredTerminator = $this->startxrefRecoveredStreamTerminatorOffset(
                             $pdfBytes,
                             $streamStart,
@@ -11423,6 +11548,20 @@ final class PdfTextExtractor
                             $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                             ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
                         );
+                    if ($dict !== null) {
+                        $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset(
+                            $pdfBytes,
+                            $streamStart,
+                            $dict,
+                            $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                        );
+                        if (
+                            $dctJpegTerminator !== null
+                            && ($streamEnd === null || $dctJpegTerminator >= $streamEnd)
+                        ) {
+                            $streamEnd = $dctJpegTerminator;
+                        }
+                    }
                     if ($streamEnd !== null && $streamEnd >= $declaredEnd) {
                         $index = $streamEnd + strlen('endstream');
                         continue;
@@ -11432,6 +11571,12 @@ final class PdfTextExtractor
                 $streamEnd = null;
                 if ($dict !== null) {
                     $streamEnd = $this->filteredEndstreamTerminatorOffset(
+                        $pdfBytes,
+                        $streamStart,
+                        $dict,
+                        $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart)
+                    );
+                    $streamEnd ??= $this->dctStreamEndstreamTerminatorOffset(
                         $pdfBytes,
                         $streamStart,
                         $dict,

@@ -96,4 +96,43 @@ return [
             ],
         ], $entry['filter_details']);
     },
+    'keeps DCTDecode JPEG endstream decoys inside image payload boundaries' => static function (TestRunner $t): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before DCT stream boundary) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After DCT stream boundary) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Fake DCT stream object leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\xff\xd9";
+        $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused DCT fixture must contain a fake endstream terminator.');
+        }
+
+        $pdfWithStaleLength = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+        $pdfWithoutLength = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+        $ascii85WrappedPayload = "<~endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n~>";
+        $pdfWithAscii85Prefix = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/A85 /DCTDecode] >>\nstream\n{$ascii85WrappedPayload}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+
+        foreach ([$pdfWithStaleLength, $pdfWithoutLength, $pdfWithAscii85Prefix] as $pdf) {
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same(['Before DCT stream boundary', 'After DCT stream boundary'], $extractor->extractTextLines($pdf));
+            $t->same("Before DCT stream boundary\nAfter DCT stream boundary", $plainText);
+            $t->true(!str_contains($plainText, 'Fake DCT stream object leak'));
+            $t->true(!str_contains($plainText, 'JFIF'));
+            $t->true(!str_contains($plainText, 'endstream'));
+        }
+    },
 ];
