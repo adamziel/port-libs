@@ -7457,7 +7457,6 @@ final class PdfTextExtractor
             return null;
         }
 
-        preg_match_all('/[+-]?\d+/', $arrayBody, $matches);
         $items = $this->pdfArrayItems($arrayBody);
         if (count($items) >= 2) {
             $lower = $this->pageLabelLimitOperand($items[0], $objects);
@@ -7469,13 +7468,7 @@ final class PdfTextExtractor
             return $lower <= $upper ? [$lower, $upper] : null;
         }
 
-        if (count($matches[0]) < 2) {
-            return null;
-        }
-
-        $lower = (int) $matches[0][0];
-        $upper = (int) $matches[0][1];
-        return $lower <= $upper ? [$lower, $upper] : null;
+        return null;
     }
 
     /**
