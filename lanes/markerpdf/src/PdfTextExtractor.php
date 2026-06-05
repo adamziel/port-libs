@@ -11323,9 +11323,9 @@ final class PdfTextExtractor
      */
     private function fontEncodingMap(string $fontBody, array $objects = []): ?array
     {
-        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
-        if ($encodingObjectNumber !== null && isset($objects[$encodingObjectNumber])) {
-            $encodingObject = trim($objects[$encodingObjectNumber]);
+        $encodingObject = $this->objectBodyForExactReferenceAfterName($fontBody, 'Encoding', $objects);
+        if ($encodingObject !== null) {
+            $encodingObject = trim($encodingObject);
             if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $encodingObject, $match) === 1) {
                 return $this->namedEncodingMap($this->decodePdfName($match[1]));
             }
@@ -11382,12 +11382,16 @@ final class PdfTextExtractor
             return $this->cidEncodingMapFromNamedCMap($this->decodePdfName($nameMatch[1]), $namedCMapBodies);
         }
 
-        if (preg_match('/\/Encoding\s+(\d+)\s+\d+\s+R\b/s', $fontBody, $match) !== 1) {
+        $encodingReference = $this->objectReferenceAfterName($fontBody, 'Encoding');
+        if ($encodingReference === null) {
             return null;
         }
 
-        $encodingObjectNumber = (int) $match[1];
-        $encodingObject = $objects[$encodingObjectNumber] ?? null;
+        $encodingObject = $this->objectBodyForExactReference(
+            $objects,
+            $encodingReference['objectNumber'],
+            $encodingReference['generation']
+        );
         if ($encodingObject === null) {
             return null;
         }
@@ -11723,9 +11727,9 @@ final class PdfTextExtractor
      */
     private function baseEncodingGlyphNamesByCode(string $fontBody, array $objects): array
     {
-        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
-        if ($encodingObjectNumber !== null && isset($objects[$encodingObjectNumber])) {
-            $encodingObject = trim($objects[$encodingObjectNumber]);
+        $encodingObject = $this->objectBodyForExactReferenceAfterName($fontBody, 'Encoding', $objects);
+        if ($encodingObject !== null) {
+            $encodingObject = trim($encodingObject);
             if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $encodingObject, $match) === 1) {
                 return $this->namedEncodingGlyphNamesByCode($this->decodePdfName($match[1]));
             }
@@ -11754,9 +11758,9 @@ final class PdfTextExtractor
      */
     private function encodingDifferencesGlyphNames(string $fontBody, array $objects = []): array
     {
-        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
-        if ($encodingObjectNumber !== null && isset($objects[$encodingObjectNumber])) {
-            $encodingObject = trim($objects[$encodingObjectNumber]);
+        $encodingObject = $this->objectBodyForExactReferenceAfterName($fontBody, 'Encoding', $objects);
+        if ($encodingObject !== null) {
+            $encodingObject = trim($encodingObject);
             if (str_starts_with($encodingObject, '<<')) {
                 $objectGlyphNames = $this->encodingDifferencesGlyphNames($encodingObject, $objects);
                 if ($objectGlyphNames !== []) {
@@ -12422,12 +12426,9 @@ final class PdfTextExtractor
      */
     private function fontHasDecodedCMapEncoding(string $fontBody, array $objects): bool
     {
-        $encodingObjectNumber = $this->objectReferenceValueAfterName($fontBody, 'Encoding');
-        if ($encodingObjectNumber === null || !isset($objects[$encodingObjectNumber])) {
-            return false;
-        }
+        $encodingObject = $this->objectBodyForExactReferenceAfterName($fontBody, 'Encoding', $objects);
 
-        return $this->decodedCMapBody($objects[$encodingObjectNumber], $objects) !== null;
+        return $encodingObject !== null && $this->decodedCMapBody($encodingObject, $objects) !== null;
     }
 
     /**
@@ -13162,14 +13163,21 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) !== 1) {
+        $referenceOffset = $offset;
+        return $this->readPdfIndirectReferenceToken($body, $referenceOffset);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForExactReferenceAfterName(string $body, string $name, array $objects): ?string
+    {
+        $reference = $this->objectReferenceAfterName($body, $name);
+        if ($reference === null) {
             return null;
         }
 
-        return [
-            'objectNumber' => (int) $match[1],
-            'generation' => (int) $match[2],
-        ];
+        return $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
     }
 
     /**
