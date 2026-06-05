@@ -7,6 +7,11 @@ namespace PortLibs\MarkerPDF;
 final class PdfPagePropertyExtractor
 {
     /**
+     * @var array<int, int>
+     */
+    private array $currentObjectGenerations = [];
+
+    /**
      * Native boundary for page dictionary metadata that affects extraction but
      * should remain review-only for WordPress imports.
      *
@@ -1371,9 +1376,14 @@ final class PdfPagePropertyExtractor
             return true;
         }
 
-        $objectNumber = $this->objectNumberFromReference($trimmed);
-        return $objectNumber !== null
-            && isset($objects[$objectNumber])
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
+            return false;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        return isset($objects[$objectNumber])
+            && ($this->currentObjectGenerations[$objectNumber] ?? null) === $reference['generation']
             && trim($objects[$objectNumber]) === 'null';
     }
 
@@ -1388,6 +1398,7 @@ final class PdfPagePropertyExtractor
             'resolved' => false,
             'resource_owner_object' => $objectNumber,
             'resource_object' => $this->objectNumberFromReference($resourceValue),
+            'resource_generation' => $this->objectReferenceFromValue($resourceValue)['generation'] ?? null,
             'inherited' => $objectNumber !== $pageObjectNumber,
             'categories' => [],
         ];
@@ -2091,14 +2102,18 @@ final class PdfPagePropertyExtractor
      */
     private function pdfObjects(string $pdfBytes): array
     {
-        $matched = preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER);
+        $this->currentObjectGenerations = [];
+
+        $matched = preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER);
         if ($matched === false || $matched === 0) {
             return [];
         }
 
         $objects = [];
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = $match[2];
+            $objectNumber = (int) $match[1];
+            $objects[$objectNumber] = $match[3];
+            $this->currentObjectGenerations[$objectNumber] = (int) $match[2];
         }
 
         return $objects;
@@ -2274,9 +2289,14 @@ final class PdfPagePropertyExtractor
             return null;
         }
 
-        $objectNumber = $this->objectNumberFromReference($value);
-        if ($objectNumber !== null) {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
             if (!isset($objects[$objectNumber])) {
+                return null;
+            }
+
+            if (($this->currentObjectGenerations[$objectNumber] ?? null) !== $reference['generation']) {
                 return null;
             }
 
@@ -2299,9 +2319,14 @@ final class PdfPagePropertyExtractor
     private function resolveRawValue(string $value, array $objects): ?string
     {
         $trimmed = trim($value);
-        $objectNumber = $this->objectNumberFromReference($trimmed);
-        if ($objectNumber === null) {
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference === null) {
             return $trimmed;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        if (($this->currentObjectGenerations[$objectNumber] ?? null) !== $reference['generation']) {
+            return null;
         }
 
         return $objects[$objectNumber] ?? null;
@@ -2406,7 +2431,23 @@ final class PdfPagePropertyExtractor
 
     private function objectNumberFromReference(string $value): ?int
     {
-        return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+        $reference = $this->objectReferenceFromValue($value);
+        return $reference === null ? null : $reference['objectNumber'];
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function objectReferenceFromValue(string $value): ?array
+    {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => (int) $match[1],
+            'generation' => (int) $match[2],
+        ];
     }
 
     /**

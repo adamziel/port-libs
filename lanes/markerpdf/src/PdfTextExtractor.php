@@ -8488,17 +8488,19 @@ final class PdfTextExtractor
             return ['state' => 'inherit'];
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
-            if (!isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
                 return ['state' => 'blocked'];
             }
 
-            if (trim($objects[$objectNumber]) === 'null') {
+            if (trim($objectBody) === 'null') {
                 return ['state' => 'inherit'];
             }
 
-            $body = $this->dictionaryObjectBody($objects[$objectNumber]);
+            $body = $this->dictionaryObjectBody($objectBody);
             return $body === null
                 ? ['state' => 'blocked']
                 : ['state' => 'resolved', 'body' => $body];
@@ -8529,9 +8531,11 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+            $generation = (int) $match[2];
+            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+            return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
@@ -9882,9 +9886,11 @@ final class PdfTextExtractor
         }
 
         $value = trim($value);
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $value, $match) === 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
-            return isset($objects[$objectNumber]) ? $this->dictionaryObjectBody($objects[$objectNumber]) : null;
+            $generation = (int) $match[2];
+            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
+            return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;
@@ -12920,6 +12926,27 @@ final class PdfTextExtractor
         $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
         if ($body !== null) {
             return $body;
+        }
+
+        return $this->currentDirectObjectBodiesByGeneration[$objectNumber][$generation] ?? null;
+    }
+
+    /**
+     * Page and Form resource dictionaries are lookup roots. A nonzero
+     * generation resource reference must resolve to that exact generation, not
+     * to a stale generation-zero object with the same object number.
+     *
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForResourceReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        if ($objectNumber <= 0 || $generation < 0) {
+            return null;
+        }
+
+        $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
+        if ($owner !== null) {
+            return $owner['generation'] === $generation ? $owner['body'] : null;
         }
 
         return $this->currentDirectObjectBodiesByGeneration[$objectNumber][$generation] ?? null;

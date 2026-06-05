@@ -128,6 +128,33 @@ $pageResourceIndirectNullCurrentBasePdf = static function () use ($pageResourceI
         . "%%EOF";
 };
 
+$pageResourceGenerationBoundaryCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /SharedForm Do Q';
+    $parentForm = 'BT /F1 12 Tf 12 24 Td (Parent generation form leak) Tj ET';
+    $staleForm = 'BT /F1 12 Tf 12 24 Td (Stale generation form leak) Tj ET';
+    $parentCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Parent generation font leak',
+    ]);
+    $staleCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Stale generation font leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources 12 1 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ParentGenerationFont /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($parentCMap) . " >>\nstream\n{$parentCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($parentForm) . " >>\nstream\n{$parentForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /StaleGenerationFont /Encoding /Identity-H /ToUnicode 9 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($staleCMap) . " >>\nstream\n{$staleCMap}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /SharedForm 7 0 R >> >>\nendobj\n"
+        . "12 0 obj\n<< /Font << /F1 8 0 R >> /XObject << /SharedForm 11 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($staleForm) . " >>\nstream\n{$staleForm}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -226,5 +253,28 @@ return [
         $t->same(4, $boundary[1]['resources']['resource_owner_object'] ?? null);
         $t->same(13, $boundary[1]['resources']['resource_object'] ?? null);
         $t->same([], $boundary[1]['resources']['categories'] ?? null);
+    },
+    'fails closed on generation-mismatched page Resources references before stale resource reuse or parent inheritance' => static function (TestRunner $t) use ($pageResourceGenerationBoundaryCurrentBasePdf): void {
+        $pdf = $pageResourceGenerationBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resourceMetadata = $boundary[0]['resources'] ?? [];
+
+        $t->same(['A'], $extractor->extractTextLines($pdf));
+        $t->same(['A'], $extractor->extractTextRuns($pdf));
+        $t->same('A', $plainText);
+        $t->same("A\n", $extractor->naiveGetText($pdf));
+        $t->same('unresolved_or_malformed', $resourceMetadata['status'] ?? null);
+        $t->same(false, $resourceMetadata['resolved'] ?? null);
+        $t->same(3, $resourceMetadata['resource_owner_object'] ?? null);
+        $t->same(12, $resourceMetadata['resource_object'] ?? null);
+        $t->same(1, $resourceMetadata['resource_generation'] ?? null);
+        $t->same(false, $resourceMetadata['inherited'] ?? null);
+        $t->same([], $resourceMetadata['categories'] ?? null);
+        $t->same(false, str_contains($plainText, 'Stale generation font leak'));
+        $t->same(false, str_contains($plainText, 'Stale generation form leak'));
+        $t->same(false, str_contains($plainText, 'Parent generation font leak'));
+        $t->same(false, str_contains($plainText, 'Parent generation form leak'));
     },
 ];
