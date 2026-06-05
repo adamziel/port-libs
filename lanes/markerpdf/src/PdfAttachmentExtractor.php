@@ -103,7 +103,12 @@ final class PdfAttachmentExtractor
         $catalogObjectIds = $this->selectedCatalogObjectIds($pdfBytes, $objects);
         $encryptionPolicy = $this->attachmentEncryptionPolicy($pdfBytes, $objects);
         $attachments = [];
+        $seenEmbeddedFileNames = [];
         foreach ($this->embeddedFilesNameTreeEntries($objects, $catalogObjectIds) as $entry) {
+            if (isset($seenEmbeddedFileNames[$entry['name']])) {
+                continue;
+            }
+
             $context = [
                 'name_key' => $entry['name'],
             ];
@@ -119,6 +124,7 @@ final class PdfAttachmentExtractor
                 $encryptionPolicy
             );
             if ($attachment !== null) {
+                $seenEmbeddedFileNames[$entry['name']] = true;
                 $attachments[] = $attachment;
             }
         }
@@ -460,13 +466,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            $seenNames = [];
             foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects) as $entry) {
-                if (isset($seenNames[$entry['name']])) {
-                    continue;
-                }
-
-                $seenNames[$entry['name']] = true;
                 if ($portfolio !== []) {
                     $entry['portfolio'] = $portfolio;
                 }
