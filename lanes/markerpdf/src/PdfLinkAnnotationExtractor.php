@@ -157,20 +157,36 @@ final class PdfLinkAnnotationExtractor
                             $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_uri'] = $link['uri'];
                         }
 
-                        if (array_key_exists('destination', $link)) {
-                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_destination'] = $link['destination'];
-                        }
-                        if (array_key_exists('destination_page', $link)) {
-                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_destination_page'] = $link['destination_page'];
-                        }
-                        if (array_key_exists('view_mode', $link)) {
-                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_mode'] = $link['view_mode'];
-                        }
-                        if (array_key_exists('view_position', $link)) {
-                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_position'] = $link['view_position'];
-                        }
-                        if (array_key_exists('view_parameters', $link)) {
-                            $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_parameters'] = $link['view_parameters'];
+                        if (($link['safety'] ?? null) === 'remote-document-review') {
+                            foreach ([
+                                'file' => 'link_remote_file',
+                                'destination' => 'link_remote_destination',
+                                'destination_page' => 'link_remote_destination_page',
+                                'view_mode' => 'link_remote_view_mode',
+                                'view_position' => 'link_remote_view_position',
+                                'view_parameters' => 'link_remote_view_parameters',
+                                'new_window' => 'link_remote_new_window',
+                            ] as $sourceKey => $spanKey) {
+                                if (array_key_exists($sourceKey, $link)) {
+                                    $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex][$spanKey] = $link[$sourceKey];
+                                }
+                            }
+                        } else {
+                            if (array_key_exists('destination', $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_destination'] = $link['destination'];
+                            }
+                            if (array_key_exists('destination_page', $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_destination_page'] = $link['destination_page'];
+                            }
+                            if (array_key_exists('view_mode', $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_mode'] = $link['view_mode'];
+                            }
+                            if (array_key_exists('view_position', $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_position'] = $link['view_position'];
+                            }
+                            if (array_key_exists('view_parameters', $link)) {
+                                $page['blocks'][$blockIndex]['lines'][$lineIndex]['spans'][$spanIndex]['link_view_parameters'] = $link['view_parameters'];
+                            }
                         }
                         foreach ([
                             'destination_page_label' => 'link_destination_page_label',

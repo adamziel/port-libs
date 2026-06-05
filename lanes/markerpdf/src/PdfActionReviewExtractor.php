@@ -317,9 +317,9 @@ final class PdfActionReviewExtractor
                 'remote-document-review',
                 $target['page'],
                 $target['destination'],
-                null,
-                [],
-                [],
+                $target['view_mode'],
+                $target['view_position'],
+                $target['view_parameters'],
                 null,
                 $target['file'],
                 null,
@@ -555,7 +555,7 @@ final class PdfActionReviewExtractor
     }
 
     /**
-     * @return array{file: string, destination: string|null, page: int|null, new_window: bool|null}|null
+     * @return array{file: string, destination: string|null, page: int|null, view_mode: string|null, view_position: list<float|null>, view_parameters: array<string, float|null>, new_window: bool|null}|null
      */
     private function remoteGoToTargetFromAction(array $action): ?array
     {
@@ -573,19 +573,28 @@ final class PdfActionReviewExtractor
             'file' => $file,
             'destination' => $destination['destination'],
             'page' => $destination['page'],
+            'view_mode' => $destination['view_mode'],
+            'view_position' => $destination['view_position'],
+            'view_parameters' => $destination['view_parameters'],
             'new_window' => is_bool($action['NewWindow'] ?? null) ? $action['NewWindow'] : null,
         ];
     }
 
     /**
-     * @return array{destination: string|null, page: int|null}|null
+     * @return array{destination: string|null, page: int|null, view_mode: string|null, view_position: list<float|null>, view_parameters: array<string, float|null>}|null
      */
     private function remoteDestinationValue(mixed $value): ?array
     {
         $resolved = $this->resolveValue($value);
         $name = $this->stringOrNameValue($resolved);
         if ($name !== null) {
-            return ['destination' => $name, 'page' => null];
+            return [
+                'destination' => $name,
+                'page' => null,
+                'view_mode' => null,
+                'view_position' => [],
+                'view_parameters' => [],
+            ];
         }
 
         $dict = $this->dictionaryItems($resolved);
@@ -600,12 +609,33 @@ final class PdfActionReviewExtractor
 
         $first = $this->resolveValue($array[0]);
         if (is_int($first) && $first >= 0) {
-            return ['destination' => null, 'page' => $first];
+            $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null));
+            $viewPosition = [];
+            for ($index = 2, $count = count($array); $index < $count; $index++) {
+                $viewPosition[] = $this->numericOrNullValue($this->resolveValue($array[$index]));
+            }
+            if ($viewMode === 'XYZ' && array_key_exists(2, $viewPosition) && $viewPosition[2] === 0.0) {
+                $viewPosition[2] = null;
+            }
+
+            return [
+                'destination' => null,
+                'page' => $first,
+                'view_mode' => $viewMode,
+                'view_position' => $viewPosition,
+                'view_parameters' => $this->viewParameters($viewMode, $viewPosition),
+            ];
         }
 
         $name = $this->stringOrNameValue($first);
         if ($name !== null) {
-            return ['destination' => $name, 'page' => null];
+            return [
+                'destination' => $name,
+                'page' => null,
+                'view_mode' => null,
+                'view_position' => [],
+                'view_parameters' => [],
+            ];
         }
 
         return null;
