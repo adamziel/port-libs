@@ -1222,6 +1222,87 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfNamedDestinations']);
     },
 
+    'fake runner extracts bounded pdf tagging and structure-root metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/tagged.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo 8 0 R /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Marked true /UserProperties true /Suspects false >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] /RoleMap << /H1 /H /Aside /Sect /Figure /Figure >> /ParentTree 12 0 R /ParentTreeNextKey 5 /IDTree 13 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /H1 /P 9 0 R /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /P /P 9 0 R /K 1 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Nums [0 [10 0 R] 1 [11 0 R]] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Names [(intro) 10 0 R (body) 11 0 R] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/tagged.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/tagged.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'marked' => true,
+            'userProperties' => true,
+            'suspects' => false,
+            'structTreeRoot' => '9 0 R',
+            'roleMap' => [
+                'Aside' => 'Sect',
+                'Figure' => 'Figure',
+                'H1' => 'H',
+            ],
+            'structureChildren' => 2,
+            'parentTree' => '12 0 R',
+            'parentTreeNextKey' => 5,
+            'idTree' => '13 0 R',
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfTaggingMetadata']);
+        $t->contains('pdf-byte-tagging-metadata:9', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-tagged', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-root:9 0 R', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-role-map:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-children:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfTaggingMetadata']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

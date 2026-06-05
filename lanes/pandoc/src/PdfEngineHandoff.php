@@ -262,6 +262,7 @@ final class PdfEngineHandoff
      *     pdfOpenAction: array<string, mixed>|null,
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     pdfViewerPreferences: array<string, bool|int|string>,
+     *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfAnnotationTypes: array<string, int>,
@@ -641,6 +642,7 @@ final class PdfEngineHandoff
         $pdfOpenAction = null;
         $pdfNamedDestinations = [];
         $pdfViewerPreferences = [];
+        $pdfTaggingMetadata = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
         $pdfAnnotationTypes = [];
@@ -678,6 +680,7 @@ final class PdfEngineHandoff
                 $pdfOpenAction = $pdfInspection['openAction'];
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
+                $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
@@ -774,6 +777,21 @@ final class PdfEngineHandoff
                 }
                 if ($pdfViewerPreferences !== []) {
                     $diagnostics[] = 'pdf-byte-viewer-preferences:' . count($pdfViewerPreferences);
+                }
+                if ($pdfTaggingMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-tagging-metadata:' . count($pdfTaggingMetadata);
+                    if (($pdfTaggingMetadata['marked'] ?? null) === true) {
+                        $diagnostics[] = 'pdf-byte-tagged';
+                    }
+                    if (is_string($pdfTaggingMetadata['structTreeRoot'] ?? null) && $pdfTaggingMetadata['structTreeRoot'] !== '') {
+                        $diagnostics[] = 'pdf-byte-structure-root:' . $pdfTaggingMetadata['structTreeRoot'];
+                    }
+                    if (isset($pdfTaggingMetadata['roleMap']) && is_array($pdfTaggingMetadata['roleMap']) && $pdfTaggingMetadata['roleMap'] !== []) {
+                        $diagnostics[] = 'pdf-byte-structure-role-map:' . count($pdfTaggingMetadata['roleMap']);
+                    }
+                    if (isset($pdfTaggingMetadata['structureChildren']) && is_int($pdfTaggingMetadata['structureChildren'])) {
+                        $diagnostics[] = 'pdf-byte-structure-children:' . $pdfTaggingMetadata['structureChildren'];
+                    }
                 }
                 if ($pdfActiveActions !== []) {
                     $diagnostics[] = 'pdf-byte-active-actions:' . count($pdfActiveActions);
@@ -954,6 +972,7 @@ final class PdfEngineHandoff
             'pdfOpenAction' => $pdfOpenAction,
             'pdfNamedDestinations' => $pdfNamedDestinations,
             'pdfViewerPreferences' => $pdfViewerPreferences,
+            'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
@@ -1012,6 +1031,7 @@ final class PdfEngineHandoff
      *     finalPdfOpenAction: array<string, mixed>|null,
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
+     *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfAnnotationTypes: array<string, int>,
@@ -1184,6 +1204,7 @@ final class PdfEngineHandoff
             'finalPdfOpenAction' => is_array($finalRun) && is_array($finalRun['pdfOpenAction'] ?? null) ? $finalRun['pdfOpenAction'] : null,
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
+            'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
@@ -2248,6 +2269,7 @@ final class PdfEngineHandoff
      *     openAction:array<string, mixed>|null,
      *     namedDestinations:list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     viewerPreferences:array<string, bool|int|string>,
+     *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
      *     annotationTypes:array<string, int>,
@@ -2293,6 +2315,7 @@ final class PdfEngineHandoff
             'openAction' => $this->extractPdfOpenAction($pdfBytes, $catalog),
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
+            'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
@@ -3845,6 +3868,125 @@ final class PdfEngineHandoff
         }
 
         return $preferences;
+    }
+
+    /**
+     * @return array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{}
+     */
+    private function extractPdfTaggingMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || (!str_contains($catalog, '/MarkInfo') && !str_contains($catalog, '/StructTreeRoot'))) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $markInfo = $this->extractPdfDictionaryOrReferenceValue($catalog, 'MarkInfo', $objects);
+        $structTreeRootReference = $this->extractPdfReferenceToken($catalog, 'StructTreeRoot');
+        $structTreeRoot = $this->extractPdfDictionaryOrReferenceValue($catalog, 'StructTreeRoot', $objects);
+
+        if ($markInfo === null && $structTreeRootReference === null && $structTreeRoot === null) {
+            return [];
+        }
+
+        $metadata = [
+            'marked' => null,
+            'userProperties' => null,
+            'suspects' => null,
+            'structTreeRoot' => $structTreeRootReference,
+            'roleMap' => [],
+            'structureChildren' => null,
+            'parentTree' => null,
+            'parentTreeNextKey' => null,
+            'idTree' => null,
+        ];
+
+        if ($markInfo !== null) {
+            $metadata['marked'] = $this->extractPdfBooleanToken($markInfo, 'Marked');
+            $metadata['userProperties'] = $this->extractPdfBooleanToken($markInfo, 'UserProperties');
+            $metadata['suspects'] = $this->extractPdfBooleanToken($markInfo, 'Suspects');
+        }
+
+        if ($structTreeRoot !== null) {
+            if ($metadata['structTreeRoot'] === null) {
+                $metadata['structTreeRoot'] = 'inline';
+            }
+            $metadata['roleMap'] = $this->extractPdfStructureRoleMap($structTreeRoot, $objects);
+            $metadata['structureChildren'] = $this->countPdfStructureChildren($structTreeRoot);
+            $metadata['parentTree'] = $this->extractPdfReferenceToken($structTreeRoot, 'ParentTree');
+            $metadata['parentTreeNextKey'] = $this->extractPdfIntegerToken($structTreeRoot, 'ParentTreeNextKey');
+            $metadata['idTree'] = $this->extractPdfReferenceToken($structTreeRoot, 'IDTree');
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array<string, string>
+     */
+    private function extractPdfStructureRoleMap(string $structTreeRoot, array $objects): array
+    {
+        $roleMap = $this->extractPdfDictionaryOrReferenceValue($structTreeRoot, 'RoleMap', $objects);
+        if ($roleMap === null) {
+            return [];
+        }
+
+        $mapped = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($roleMap) as $entry) {
+            $value = $entry['value'];
+            if (!in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+                continue;
+            }
+
+            $role = trim($entry['key']);
+            $mapsTo = trim($value['value']);
+            if ($role === '' || $mapsTo === '') {
+                continue;
+            }
+
+            $mapped[$role] = $mapsTo;
+        }
+
+        ksort($mapped);
+
+        return $mapped;
+    }
+
+    private function countPdfStructureChildren(string $structTreeRoot): ?int
+    {
+        $value = $this->extractPdfValueForName($structTreeRoot, 'K');
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value['kind'] !== 'array') {
+            return 1;
+        }
+
+        return $this->countPdfTopLevelArrayValues($value['value']);
+    }
+
+    private function countPdfTopLevelArrayValues(string $array): int
+    {
+        $cursor = str_starts_with($array, '[') ? 1 : 0;
+        $length = strlen($array);
+        if (str_ends_with($array, ']')) {
+            $length--;
+        }
+
+        $count = 0;
+        while ($cursor < $length && $count < 1024) {
+            $value = $this->parsePdfValueAt($array, $cursor);
+            if ($value === null) {
+                $cursor++;
+                continue;
+            }
+
+            $count++;
+            $cursor = max($cursor + 1, min($length, $value['next']));
+        }
+
+        return $count;
     }
 
     private function extractPdfNestedDictionary(string $dictionary, string $name): ?string
