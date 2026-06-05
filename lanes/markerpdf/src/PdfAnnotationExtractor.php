@@ -2999,17 +2999,19 @@ final class PdfAnnotationExtractor
      */
     private function objectReferenceValues(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
+        $references = [];
+        foreach ($this->arrayItemsFromBody($value) as $item) {
+            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($item), $match) !== 1) {
+                continue;
+            }
 
-        return array_map(
-            static fn (array $match): array => [
+            $references[] = [
                 'object' => (int) $match[1],
                 'generation' => (int) $match[2],
-            ],
-            $matches
-        );
+            ];
+        }
+
+        return $references;
     }
 
     /**
@@ -3046,11 +3048,10 @@ final class PdfAnnotationExtractor
      */
     private function objectReferences(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $value, $matches)) {
-            return [];
-        }
-
-        return array_map('intval', $matches[1]);
+        return array_map(
+            static fn (array $reference): int => $reference['object'],
+            $this->objectReferenceValues($value)
+        );
     }
 
     private function objectNumberFromReference(string $value): ?int

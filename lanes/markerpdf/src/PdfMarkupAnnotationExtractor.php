@@ -1537,11 +1537,10 @@ final class PdfMarkupAnnotationExtractor
      */
     private function objectReferences(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+\d+\s+R\b/', $value, $matches)) {
-            return [];
-        }
-
-        return array_map('intval', $matches[1]);
+        return array_map(
+            static fn (array $reference): int => $reference['object'],
+            $this->objectReferenceValues($value)
+        );
     }
 
     /**
@@ -1549,17 +1548,34 @@ final class PdfMarkupAnnotationExtractor
      */
     private function objectReferenceValues(string $value): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
-            return [];
+        $references = [];
+        $offset = 0;
+        $length = strlen($value);
+
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($value, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $endOffset = null;
+            $item = $this->valueStartingAtOffsetWithEnd($value, $offset, $endOffset);
+            if ($item === null || $endOffset === null || $endOffset <= $offset) {
+                $offset++;
+                continue;
+            }
+
+            if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($item), $match) === 1) {
+                $references[] = [
+                    'object' => (int) $match[1],
+                    'generation' => (int) $match[2],
+                ];
+            }
+
+            $offset = $endOffset;
         }
 
-        return array_map(
-            static fn (array $match): array => [
-                'object' => (int) $match[1],
-                'generation' => (int) $match[2],
-            ],
-            $matches
-        );
+        return $references;
     }
 
     private function dictionaryObjectBody(string $objectBody): ?string
