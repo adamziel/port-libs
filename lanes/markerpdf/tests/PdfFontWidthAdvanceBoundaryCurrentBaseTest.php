@@ -346,6 +346,18 @@ $fontWidthRotatedTextMatrixBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthRotatedTdAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Frotd 12 Tf '
+        . '0 1 -1 0 72 720 Tm <4142> Tj 48 0 Td <4344> Tj '
+        . 'T* 0.6 0.8 0 1 72 704 Tm <4142> Tj 40 0 Td <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Frotd 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+RotatedTdAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontWidthTextObjectResetBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Freset 12 Tf 0.5 0 0 1 72 720 Tm <4142> Tj ET '
         . 'BT /Freset 12 Tf 72 704 Td [(CD) -1000 (EF)] TJ ET';
@@ -1344,6 +1356,37 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 1.0, 12.0], [1.0, 0.0, 15.4, 12.0]]);
         $t->true(!str_contains($plainText, 'RotatedAdvance'));
         $t->true(!str_contains($plainText, 'Frot'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses rotated text matrix vector advance before relative Td word gaps on current base' => static function (TestRunner $t) use ($fontWidthRotatedTdAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthRotatedTdAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['AB CD', 'AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("AB CD\nAB CD", $plainText);
+        $t->same("AB CD\nAB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 72.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same(['AB', 'CD'], array_column($secondLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [40.0, 0.0, 64.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 64.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, "ABCD\nABCD"));
+        $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]]);
+        $t->true(array_column($secondLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'RotatedTdAdvance'));
+        $t->true(!str_contains($plainText, 'Frotd'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'resets text matrix horizontal scale between text objects before styled TJ word gaps on current base' => static function (TestRunner $t) use ($fontWidthTextObjectResetBoundaryCurrentBasePdf): void {
