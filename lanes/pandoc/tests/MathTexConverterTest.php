@@ -70,6 +70,18 @@ return [
         $t->contains('<mo fence="true" stretchy="true">[</mo><mfrac linethickness="0"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">]</mo>', $delimitedMathml);
         $t->contains('<mo fence="true" stretchy="true">{</mo><mfrac linethickness="0"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mi>z</mi></mfrac><mo fence="true" stretchy="true">}</mo>', $delimitedMathml);
     },
+    'converts bounded tex infix fractions with explicit delimiters to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $withDelimsMathml = $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}', true);
+        $invisibleDelimsMathml = $converter->texToMathMl('{x \\overwithdelims.\\rbrace y}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $withDelimsMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mfrac><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mrow><mi>c</mi><mo>+</mo><mi>d</mi></mrow></mfrac><mo fence="true" stretchy="true">)</mo>', $withDelimsMathml);
+        $t->contains('<mo fence="true" stretchy="true">⟨</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo fence="true" stretchy="true">⟩</mo>', $withDelimsMathml);
+        $t->contains('<mo fence="true" stretchy="true">[</mo><mfrac linethickness="1pt"><msub><mi>p</mi><mi>i</mi></msub><msub><mi>m</mi><mi>i</mi></msub></mfrac><mo fence="true" stretchy="true">]</mo>', $withDelimsMathml);
+        $t->contains('<annotation encoding="application/x-tex">{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}</annotation>', $withDelimsMathml);
+        $t->contains('<mfrac><mi>x</mi><mi>y</mi></mfrac><mo fence="true" stretchy="true">}</mo>', $invisibleDelimsMathml);
+    },
     'adds source tex semantics annotations to bounded mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $annotated = $converter->texToMathMl('\\text{posts & media} \\in S');
@@ -287,6 +299,11 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('n \\choose'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{a \\over}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{\\atop b}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overwithdelims() k'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\overwithdelims\\unknown) k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\atopwithdelims( k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\abovewithdelims()bad k}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('{n \\abovewithdelims()1pt }'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));

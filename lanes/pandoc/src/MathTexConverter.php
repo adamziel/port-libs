@@ -409,13 +409,13 @@ final class MathTexConverter
             $infixCommand = $this->readInfixFractionCommand($source, $infixOffset);
             if ($infixCommand !== null) {
                 if ($nodes === []) {
-                    throw new \InvalidArgumentException('Expected TeX infix numerator before \\' . $infixCommand . ' at offset ' . $offset);
+                    throw new \InvalidArgumentException('Expected TeX infix numerator before \\' . $infixCommand['command'] . ' at offset ' . $offset);
                 }
 
                 $offset = $infixOffset;
                 $denominator = $this->parseExpression($source, $offset, $stopChar);
                 if ($denominator === []) {
-                    throw new \InvalidArgumentException('Expected TeX infix denominator after \\' . $infixCommand . ' at offset ' . $offset);
+                    throw new \InvalidArgumentException('Expected TeX infix denominator after \\' . $infixCommand['command'] . ' at offset ' . $offset);
                 }
 
                 return [$this->renderInfixFractionCommand($nodes, $denominator, $infixCommand)];
@@ -713,10 +713,10 @@ final class MathTexConverter
     /**
      * @param list<string> $numerator
      * @param list<string> $denominator
+     * @param array{command:string, lineThickness?:string, open?:string, close?:string} $spec
      */
-    private function renderInfixFractionCommand(array $numerator, array $denominator, string $command): string
+    private function renderInfixFractionCommand(array $numerator, array $denominator, array $spec): string
     {
-        $spec = self::INFIX_FRACTION_COMMANDS[$command];
         $fraction = '<mfrac'
             . (isset($spec['lineThickness']) ? ' linethickness="' . $this->esc($spec['lineThickness']) . '"' : '')
             . '>'
@@ -724,14 +724,16 @@ final class MathTexConverter
             . $this->row($denominator)
             . '</mfrac>';
 
-        if (!isset($spec['open']) && !isset($spec['close'])) {
+        $open = $spec['open'] ?? '';
+        $close = $spec['close'] ?? '';
+        if ($open === '' && $close === '') {
             return $fraction;
         }
 
         return '<mrow>'
-            . (isset($spec['open']) ? '<mo fence="true" stretchy="true">' . $this->esc($spec['open']) . '</mo>' : '')
+            . ($open !== '' ? '<mo fence="true" stretchy="true">' . $this->esc($open) . '</mo>' : '')
             . $fraction
-            . (isset($spec['close']) ? '<mo fence="true" stretchy="true">' . $this->esc($spec['close']) . '</mo>' : '')
+            . ($close !== '' ? '<mo fence="true" stretchy="true">' . $this->esc($close) . '</mo>' : '')
             . '</mrow>';
     }
 
@@ -1230,7 +1232,10 @@ final class MathTexConverter
         throw new \InvalidArgumentException('Unclosed TeX text group at offset ' . $start);
     }
 
-    private function readInfixFractionCommand(string $source, int &$offset): ?string
+    /**
+     * @return array{command:string, lineThickness?:string, open?:string, close?:string}|null
+     */
+    private function readInfixFractionCommand(string $source, int &$offset): ?array
     {
         if (($source[$offset] ?? '') !== '\\') {
             return null;
@@ -1238,13 +1243,57 @@ final class MathTexConverter
 
         $commandOffset = $offset + 1;
         $command = $this->readCommandName($source, $commandOffset);
-        if (!isset(self::INFIX_FRACTION_COMMANDS[$command])) {
+        if (isset(self::INFIX_FRACTION_COMMANDS[$command])) {
+            $offset = $commandOffset;
+
+            return ['command' => $command] + self::INFIX_FRACTION_COMMANDS[$command];
+        }
+
+        if (!in_array($command, ['overwithdelims', 'atopwithdelims', 'abovewithdelims'], true)) {
             return null;
         }
 
-        $offset = $commandOffset;
+        $withDelimsOffset = $commandOffset;
+        $spec = [
+            'command' => $command,
+            'open' => $this->readFenceDelimiter($source, $withDelimsOffset),
+            'close' => $this->readFenceDelimiter($source, $withDelimsOffset),
+        ];
 
-        return $command;
+        if ($command === 'atopwithdelims') {
+            $spec['lineThickness'] = '0';
+        } elseif ($command === 'abovewithdelims') {
+            $spec['lineThickness'] = $this->readAboveWithDelimsLineThickness($source, $withDelimsOffset);
+        }
+
+        $offset = $withDelimsOffset;
+
+        return $spec;
+    }
+
+    private function readAboveWithDelimsLineThickness(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        $length = strlen($source);
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if (ctype_space($char) || $char === '{' || $char === '}' || $char === '\\' || $char === '_' || $char === '^') {
+                break;
+            }
+            $offset++;
+        }
+
+        if ($offset === $start) {
+            throw new \InvalidArgumentException('Expected TeX abovewithdelims line thickness at offset ' . $offset);
+        }
+
+        $lineThickness = $this->normalizeGeneralizedFractionLineThickness(substr($source, $start, $offset - $start));
+        if ($lineThickness === null) {
+            throw new \InvalidArgumentException('Expected TeX abovewithdelims line thickness at offset ' . $start);
+        }
+
+        return $lineThickness;
     }
 
     private function readCommandName(string $source, int &$offset): string
