@@ -25,6 +25,44 @@ $pdfDctDecodeFilterBoundaryCurrentBaseZlibStored = static function (string $byte
         . pack('N', ($s2 << 16) | $s1);
 };
 
+$pdfDctDecodeFilterBoundaryCurrentBaseLzwPackCodes = static function (array $codes, int $earlyChange = 1): string {
+    $dictSize = 258;
+    $codeSize = 9;
+    $bits = '';
+    foreach ($codes as $code) {
+        for ($bit = $codeSize - 1; $bit >= 0; $bit--) {
+            $bits .= (($code >> $bit) & 1) === 1 ? '1' : '0';
+        }
+        if ($code === 256) {
+            $dictSize = 258;
+            $codeSize = 9;
+            continue;
+        }
+        if ($code !== 257) {
+            $dictSize++;
+            if ($codeSize < 12 && $dictSize + $earlyChange >= (1 << $codeSize)) {
+                $codeSize++;
+            }
+        }
+    }
+
+    $out = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        $out .= chr(bindec(str_pad($byte, 8, '0')));
+    }
+
+    return $out;
+};
+
+$pdfDctDecodeFilterBoundaryCurrentBaseLzwLiteralEncode = static function (string $bytes) use ($pdfDctDecodeFilterBoundaryCurrentBaseLzwPackCodes): string {
+    return $pdfDctDecodeFilterBoundaryCurrentBaseLzwPackCodes([
+        256,
+        ...array_map('ord', str_split($bytes)),
+        257,
+    ]);
+};
+
 $pdfDctDecodeFilterBoundaryCurrentBaseIndirectFilterFixture = static function (): array {
     $before = 'BT /F1 12 Tf 72 720 Td (Before indirect DCT filter) Tj ET';
     $after = 'BT /F1 12 Tf 72 680 Td (After indirect DCT filter) Tj ET';
@@ -61,6 +99,56 @@ $pdfDctDecodeFilterBoundaryCurrentBaseIndirectFilterFixture = static function ()
         'fake_terminator_offset' => $fakeTerminatorOffset,
         'stream_only_pdf' => $streamOnlyPdf,
         'page_pdf' => $pagePdf,
+    ];
+};
+
+$pdfDctDecodeFilterBoundaryCurrentBaseLzwPrefixFixture = static function () use ($pdfDctDecodeFilterBoundaryCurrentBaseLzwLiteralEncode): array {
+    $before = 'BT /F1 12 Tf 72 720 Td (Before LZW DCT stream) Tj ET';
+    $after = 'BT /F1 12 Tf 72 680 Td (After LZW DCT stream) Tj ET';
+    $fakeObject = 'BT /F1 12 Tf 72 700 Td (LZW DCT early EOD leak) Tj ET';
+    $incompleteJpeg = "\xff\xd8\xff\xe0\x00\x10JFIF\0incomplete";
+    $completeJpeg = "\xff\xd8\xff\xe0\x00\x10JFIF\0complete!\xff\xd9";
+    $encodedPayload = $pdfDctDecodeFilterBoundaryCurrentBaseLzwLiteralEncode($incompleteJpeg)
+        . "\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+        . $pdfDctDecodeFilterBoundaryCurrentBaseLzwLiteralEncode($completeJpeg);
+    $fakeTerminatorOffset = strpos($encodedPayload, "\nendstream\n");
+    if ($fakeTerminatorOffset === false) {
+        throw new RuntimeException('Focused LZW DCT fixture must expose a fake early EOD endstream marker.');
+    }
+
+    $buildStreamOnlyPdf = static function (?int $declaredLength) use ($before, $after, $encodedPayload): string {
+        $lengthOperand = $declaredLength === null ? '' : " /Length {$declaredLength}";
+
+        return "%PDF-1.4\n"
+            . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/LZWDecode /DCTDecode]{$lengthOperand} >>\nstream\n{$encodedPayload}\nendstream\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+    };
+
+    $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+    $pagePdf = "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/LZWDecode /DCTDecode] /Length {$fakeTerminatorOffset} >>\nstream\n{$encodedPayload}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+    $rendererImage = "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [/ICCBased 30 0 R] /BitsPerComponent 8 /Filter [/LZWDecode /DCTDecode] /Length {$fakeTerminatorOffset} >>\nstream\n{$encodedPayload}\nendstream";
+
+    return [
+        'before' => $before,
+        'after' => $after,
+        'incomplete_jpeg' => $incompleteJpeg,
+        'fake_terminator_offset' => $fakeTerminatorOffset,
+        'encoded_payload' => $encodedPayload,
+        'stream_without_length' => $buildStreamOnlyPdf(null),
+        'stream_with_stale_length' => $buildStreamOnlyPdf($fakeTerminatorOffset),
+        'page_pdf' => $pagePdf,
+        'renderer_image' => $rendererImage,
+        'renderer_objects' => [
+            30 => "<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nPROFILE\nendstream",
+        ],
     ];
 };
 
@@ -664,6 +752,55 @@ return [
             $t->true(!str_contains($plainText, 'JFIF'));
             $t->true(!str_contains($plainText, 'endstream'));
         }
+    },
+    'keeps LZWDecode prefix DCTDecode EOD decoys inside image payload boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseLzwPrefixFixture): void {
+        $fixture = $pdfDctDecodeFilterBoundaryCurrentBaseLzwPrefixFixture();
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $expected = [
+            'Before LZW DCT stream',
+            'After LZW DCT stream',
+        ];
+
+        foreach ([$fixture['stream_without_length'], $fixture['stream_with_stale_length'], $fixture['page_pdf']] as $pdf) {
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same($expected, $extractor->extractTextLines($pdf));
+            $t->same($expected, $extractor->extractTextRuns($pdf));
+            $t->same("Before LZW DCT stream\nAfter LZW DCT stream", $plainText);
+            $t->same("Before LZW DCT stream\nAfter LZW DCT stream\n", $extractor->naiveGetText($pdf));
+            $t->true(!str_contains($plainText, 'LZW DCT early EOD leak'));
+            $t->true(!str_contains($plainText, 'JFIF'));
+            $t->true(!str_contains($plainText, 'endstream'));
+        }
+
+        $review = $extractor->extractImageXObjectBoundaryReview($fixture['page_pdf']);
+        $entry = $review['entries'][0] ?? null;
+        $rendererPreview = $renderer->iccBasedImageStreamPreviewRows($fixture['renderer_image'], $fixture['renderer_objects']);
+
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(strlen($fixture['encoded_payload']), $entry['raw_length'] ?? null);
+        $t->true(($entry['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
+        $t->same(['LZWDecode', 'DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+
+        $t->same(true, $rendererPreview['review_only_image_stream']);
+        $t->same(['LZWDecode', 'DCTDecode'], $rendererPreview['image_stream']['filters']);
+        $t->same(['DCTDecode'], $rendererPreview['image_stream']['preview_only_filters']);
+        $t->same(strlen($fixture['encoded_payload']), $rendererPreview['image_stream']['raw_length']);
+        $t->true(($rendererPreview['image_stream']['raw_length'] ?? 0) > $fixture['fake_terminator_offset']);
+        $t->same(false, $rendererPreview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $rendererPreview['image_stream']['decode_failed']);
+        $t->same(true, $rendererPreview['image_stream']['native_prefix_decoded']);
+        $t->same(strlen($fixture['incomplete_jpeg']), $rendererPreview['image_stream']['native_prefix_decoded_length']);
+        $t->same('DCTDecode', $rendererPreview['image_stream']['stopped_before_filter']);
+        $t->same([], $rendererPreview['pixels']);
+        $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $rendererPreview['notes']));
     },
     'ignores null-filter DecodeParms slots before Flate-wrapped DCTDecode JPEG boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();

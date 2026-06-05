@@ -11350,6 +11350,9 @@ final class PdfTextExtractor
             if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
                 return $candidate;
             }
+            if ($this->dctPrefixFirstFilterHasBoundedEndBeforeTerminator($dict, $payload, $objects, $filters, $firstFilterIndex)) {
+                $fallbackTerminator = $candidate;
+            }
         }
 
         if ($fallbackTerminator !== null) {
@@ -11361,6 +11364,61 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     */
+    private function dctPrefixFirstFilterHasBoundedEndBeforeTerminator(
+        string $dict,
+        string $payload,
+        array $objects,
+        array $filters,
+        int $firstFilterIndex
+    ): bool {
+        $firstFilter = $filters[$firstFilterIndex] ?? null;
+        if ($firstFilter !== 'LZWDecode' && $firstFilter !== 'LZW') {
+            return false;
+        }
+        $decodeParms = $this->streamDecodeParmsForFilters($dict, $objects, $filters);
+        if ($decodeParms === null) {
+            return false;
+        }
+        $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $firstFilterIndex);
+        if (!$this->canApplyDecodeParms($firstFilter, $filterDecodeParms, $objects)) {
+            return false;
+        }
+
+        return $this->dctPrefixLzwMemberCompletesAtTerminator($payload, $filterDecodeParms, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctPrefixLzwMemberCompletesAtTerminator(string $payload, ?string $decodeParms, array $objects): bool
+    {
+        $candidateStarts = [0];
+        $offset = 0;
+        while (($candidateStart = strpos($payload, "\x80", $offset)) !== false) {
+            $candidateStarts[] = $candidateStart;
+            $offset = $candidateStart + 1;
+        }
+
+        foreach (array_values(array_unique($candidateStarts)) as $candidateStart) {
+            $tail = substr($payload, $candidateStart);
+            $endOffset = $this->lzwExplicitEndByteOffset($tail, $decodeParms, $objects);
+            if ($endOffset === null || !$this->streamHasOnlyWhitespaceAfterOffset($tail, $endOffset)) {
+                continue;
+            }
+
+            $decoded = $this->decodeLzwStream(substr($tail, 0, $endOffset), $decodeParms, $objects);
+            if ($decoded !== null && $this->dctPreviewBytesAreCompleteJpeg($decoded)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function dctPrefixFilterCanUseRawJpegBoundaryFallback(string $firstFilter): bool
