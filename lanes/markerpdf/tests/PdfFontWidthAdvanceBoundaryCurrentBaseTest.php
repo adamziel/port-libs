@@ -190,6 +190,104 @@ $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$fontWidthIndirectCidArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "17 beginbfchar\n"
+        . "<0001> <0057>\n"
+        . "<0002> <0069>\n"
+        . "<0003> <0064>\n"
+        . "<0004> <0065>\n"
+        . "<0005> <0042>\n"
+        . "<0006> <006C>\n"
+        . "<0007> <006F>\n"
+        . "<0008> <0063>\n"
+        . "<0009> <006B>\n"
+        . "<0014> <0054>\n"
+        . "<0015> <0068>\n"
+        . "<0016> <0069>\n"
+        . "<0017> <006E>\n"
+        . "<0018> <0054>\n"
+        . "<0019> <0065>\n"
+        . "<001A> <0078>\n"
+        . "<001B> <0074>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf '
+        . '1 0 0 1 72 720 Tm <0001000200030004> Tj '
+        . '1 0 0 1 118 720 Tm <00050006000700080009> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <0014001500160017> Tj '
+        . '1 0 0 1 96 704 Tm <00180019001A001B> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IndirectCidWidthArray /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /IndirectCidWidthArray /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [1 6 0 R 20 27 250] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n[1000 1000 1000 1000 1000 1000 1000 1000 1000]\nendobj\n%%EOF";
+};
+
+$fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/WMode 1 def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "2 begincidrange\n"
+        . "<0001> <0004> 40\n"
+        . "<0005> <000A> 50\n"
+        . "endcidrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "10 beginbfchar\n"
+        . "<0001> <0056>\n"
+        . "<0002> <0065>\n"
+        . "<0003> <0072>\n"
+        . "<0004> <0074>\n"
+        . "<0005> <0049>\n"
+        . "<0006> <006D>\n"
+        . "<0007> <0070>\n"
+        . "<0008> <006F>\n"
+        . "<0009> <0072>\n"
+        . "<000A> <0074>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fv 12 Tf 1 0 0 1 72 720 Tm <0001000200030004> Tj 0 -24 Td <00050006000700080009000A> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /IndirectVerticalArrayCID /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /CMap /CMapName /IndirectVerticalArrayCID-V /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /IndirectVerticalArrayCID /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [40 7 0 R 50 55 -250 500 880] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "7 0 obj\n[-500 500 880 -500 500 880 -500 500 880 -500 500 880]\nendobj\n%%EOF";
+};
+
 return [
     'uses simple-font average positive width fallback for missing glyph advances on current base' => static function (TestRunner $t) use ($fontWidthAdvanceBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -462,6 +560,46 @@ return [
         $t->same('VerticalAdvanceCID_', $spans[0]['font'] ?? null);
         $t->true(!str_contains($plainText, 'Vert Import'));
         $t->true(!str_contains($plainText, 'Fv'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'resolves indirect CIDFont W width arrays before current text advance gaps on current base' => static function (TestRunner $t) use ($fontWidthIndirectCidArrayAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthIndirectCidArrayAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstLine = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+
+        $t->same(['WideBlock', 'Thin Text'], $extractor->extractTextLines($pdf));
+        $t->same(['Wide', 'Block', 'Thin', 'Text'], $extractor->extractTextRuns($pdf));
+        $t->same("WideBlock\nThin Text", $plainText);
+        $t->same("WideBlock\nThin Text\n", $extractor->naiveGetText($pdf));
+        $t->same(['Wide', 'Block'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 108.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 108.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Wide Block'));
+        $t->true(!str_contains($plainText, 'ThinText'));
+        $t->true(!str_contains($plainText, 'IndirectCidWidthArray'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'resolves indirect CIDFont W2 metric arrays before vertical styled span bboxes on current base' => static function (TestRunner $t) use ($fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthIndirectW2ArrayAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['VertImport'], $extractor->extractTextLines($pdf));
+        $t->same(['Vert', 'Import'], $extractor->extractTextRuns($pdf));
+        $t->same('VertImport', $plainText);
+        $t->same("VertImport\n", $extractor->naiveGetText($pdf));
+        $t->same(['Vert', 'Import'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 12.0, 24.0], [12.0, 0.0, 24.0, 18.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 24.0, 24.0], $line['bbox'] ?? null);
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 48.0], [12.0, 0.0, 24.0, 72.0]]);
+        $t->true(!str_contains($plainText, 'Vert Import'));
+        $t->true(!str_contains($plainText, 'IndirectVerticalArrayCID'));
         $t->true(!str_contains($plainText, "\0"));
     },
 ];
