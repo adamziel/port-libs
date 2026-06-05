@@ -30460,6 +30460,10 @@ final class PdfTextExtractor
 
         $decoded = $this->decodeStream($dictionary, $candidate, [], true, false, true);
         if ($decoded === null) {
+            if ($this->inlinePreviewFilterStackCandidateCompletesBeforeFirstFilterSurplus($filters, $dictionary, $candidate)) {
+                return true;
+            }
+
             return $expectedLength !== null
                 && (
                     $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength)
@@ -30501,6 +30505,106 @@ final class PdfTextExtractor
         }
 
         return $expectedLength === null || strlen($decoded) >= $expectedLength;
+    }
+
+    /**
+     * Native-filter-wrapped preview images such as Flate + JPX can omit
+     * ColorSpace/BPC because the preview codestream carries that metadata.
+     * Close only after the native filter is complete and a later fake EI has
+     * already stayed image-owned.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlinePreviewFilterStackCandidateCompletesBeforeFirstFilterSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if (count($nonNullFilters) < 2) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $firstFilterIndex = null;
+        $firstFilter = null;
+        $previewFilter = null;
+        $previewDecodeParms = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            if ($firstFilterIndex === null) {
+                $firstFilterIndex = $index;
+                $firstFilter = $filter;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if (!$this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])) {
+                $previewFilter = $filter;
+                $previewDecodeParms = $filterDecodeParms;
+                break;
+            }
+        }
+
+        if ($firstFilterIndex === null || $firstFilter === null || $previewFilter === null) {
+            return false;
+        }
+
+        $firstDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $firstFilterIndex);
+        if (!$this->canApplyDecodeParms($firstFilter, $firstDecodeParms, [])) {
+            return false;
+        }
+
+        $firstFilterEnd = $this->streamFilterInputEndByteOffset($firstFilter, $candidate, $firstDecodeParms, []);
+        if ($firstFilterEnd === null) {
+            return false;
+        }
+
+        $postFirstFilter = substr($candidate, $firstFilterEnd);
+        if (
+            $postFirstFilter === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $firstFilterEnd)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postFirstFilter) !== 1
+        ) {
+            return false;
+        }
+
+        $nativePrefix = $this->decodeInlineImageNativePrefixBeforePreviewFilter(
+            $filters,
+            $decodeParms,
+            $dictionary,
+            substr($candidate, 0, $firstFilterEnd)
+        );
+        if ($nativePrefix === null) {
+            return false;
+        }
+
+        return $this->inlinePreviewFilterCandidateState($previewFilter, $nativePrefix, $previewDecodeParms, $dictionary) === 'complete';
+    }
+
+    private function inlinePreviewFilterCandidateState(
+        string $filter,
+        string $candidate,
+        ?string $decodeParms,
+        string $dictionary
+    ): string {
+        return match ($filter) {
+            'JPXDecode' => $this->inlineJpxCandidateState($candidate),
+            'DCTDecode', 'DCT' => $this->inlineDctCandidateState($candidate),
+            'CCITTFaxDecode', 'CCF' => $this->inlineCcittFaxCandidateState(
+                $candidate,
+                $decodeParms,
+                [],
+                $this->pdfIntegerValueAfterName($dictionary, 'Height')
+            ),
+            default => 'unknown',
+        };
     }
 
     /**

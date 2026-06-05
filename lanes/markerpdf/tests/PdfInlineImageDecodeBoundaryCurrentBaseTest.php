@@ -446,6 +446,39 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'keeps Flate wrapped JPX surplus closed without decoded sample floor' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $jpxBytes = "\xFF\x4F\xFF\xD9";
+        $compressedJpx = gzcompress($jpxBytes, 0);
+        if (!is_string($compressedJpx)) {
+            throw new RuntimeException('Unable to build Flate wrapped JPX inline image fixture.');
+        }
+
+        $postStreamSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Flate Wrapped JPX Inline Noise) Tj ET rawtail';
+        $payload = $compressedJpx . $postStreamSurplus;
+        $dictionary = '/W 2 /H 1 /F [/Fl /JPXDecode]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Flate JPX No Floor) Tj ET\n"
+            . "BI {$dictionary} ID "
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Flate JPX No Floor) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before Flate JPX No Floor',
+            'After Flate JPX No Floor',
+        ];
+        $t->true(str_contains($postStreamSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Flate Wrapped JPX Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'aligns null filter DecodeParms slots before inline image RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $decodedImageBytes = 'ABC';
