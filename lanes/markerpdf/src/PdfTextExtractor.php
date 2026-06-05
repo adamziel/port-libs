@@ -1837,6 +1837,10 @@ final class PdfTextExtractor
         $infoReference = $this->currentTrailerInfoReference($pdfBytes);
         $infoObjectNumber = $infoReference['objectNumber'] ?? null;
         if ($infoObjectNumber === null && preg_match('/\/Info\s+(\d+)\s+\d+\s+R\b/s', $pdfBytes, $match) === 1) {
+            if ($this->currentTrailerInfoExplicitlyCleared($pdfBytes)) {
+                return [];
+            }
+
             $infoObjectNumber = (int) $match[1];
         }
 
@@ -1874,15 +1878,32 @@ final class PdfTextExtractor
     {
         $definitions = $this->directObjectDefinitions($pdfBytes);
         if ($definitions !== []) {
-            $reference = $this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $definitions)
-                ?? $this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
+            $reference = $this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $definitions);
             if ($reference !== null) {
                 return $reference;
+            }
+
+            if ($this->trailerInfoClearedByStartxrefChain($pdfBytes, $definitions)) {
+                return null;
+            }
+
+            $reference = $this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
+            if ($reference !== null) {
+                return $reference;
+            }
+
+            if ($this->trailerInfoClearedByLatestClassicXrefTable($pdfBytes, $definitions)) {
+                return null;
             }
         }
 
         $trailers = $this->trailerDictionaryBodies($pdfBytes);
         for ($index = count($trailers) - 1; $index >= 0; $index--) {
+            $infoValue = $this->topLevelPdfValueAfterName($trailers[$index], 'Info');
+            if ($infoValue !== null && trim($infoValue) === 'null') {
+                return null;
+            }
+
             $reference = $this->objectReferenceAfterName($trailers[$index], 'Info');
             if ($reference !== null) {
                 return $reference;
@@ -1890,6 +1911,40 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    private function currentTrailerInfoExplicitlyCleared(string $pdfBytes): bool
+    {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions !== []) {
+            if ($this->trailerInfoClearedByStartxrefChain($pdfBytes, $definitions)) {
+                return true;
+            }
+
+            if ($this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $definitions) !== null) {
+                return false;
+            }
+
+            if ($this->trailerInfoClearedByLatestClassicXrefTable($pdfBytes, $definitions)) {
+                return true;
+            }
+
+            if ($this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $definitions) !== null) {
+                return false;
+            }
+        }
+
+        $trailers = $this->trailerDictionaryBodies($pdfBytes);
+        for ($index = count($trailers) - 1; $index >= 0; $index--) {
+            $infoValue = $this->topLevelPdfValueAfterName($trailers[$index], 'Info');
+            if ($infoValue === null) {
+                continue;
+            }
+
+            return trim($infoValue) === 'null';
+        }
+
+        return false;
     }
 
     /**
@@ -1927,6 +1982,106 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function trailerInfoClearedByStartxrefChain(string $pdfBytes, array $definitions): bool
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->trailerInfoClearedByOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function trailerInfoClearedByLatestClassicXrefTable(string $pdfBytes, array $definitions): bool
+    {
+        $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $offset = $this->latestClassicXrefTableOffset(
+            $pdfBytes,
+            $definitions,
+            $startxrefEntry['tokenOffset'] ?? null
+        );
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->trailerInfoClearedByOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     */
+    private function trailerInfoClearedByOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): bool {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return false;
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            if ($this->trailerExplicitlyClearsInfo($tableSection['trailer'])) {
+                return true;
+            }
+
+            if ($this->objectReferenceAfterName($tableSection['trailer'], 'Info') !== null) {
+                return false;
+            }
+
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
+                if ($streamSection !== null) {
+                    if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+                        return true;
+                    }
+
+                    if ($this->objectReferenceAfterName($streamSection['body'], 'Info') !== null) {
+                        return false;
+                    }
+                }
+            }
+
+            $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $tableSection['trailer'], $offset, $definitions);
+            return $previousOffset !== null
+                && $this->trailerInfoClearedByOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
+        if ($streamSection === null) {
+            return false;
+        }
+
+        if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+            return true;
+        }
+
+        if ($this->objectReferenceAfterName($streamSection['body'], 'Info') !== null) {
+            return false;
+        }
+
+        $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions);
+        return $previousOffset !== null
+            && $this->trailerInfoClearedByOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+    }
+
+    private function trailerExplicitlyClearsInfo(string $body): bool
+    {
+        $info = $this->topLevelPdfValueAfterName($body, 'Info');
+
+        return $info !== null && trim($info) === 'null';
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
      * @param array<int, bool> $seenOffsets
      * @return array{objectNumber: int, generation: int}|null
      */
@@ -1948,6 +2103,10 @@ final class PdfTextExtractor
                 return $info;
             }
 
+            if ($this->trailerExplicitlyClearsInfo($tableSection['trailer'])) {
+                return null;
+            }
+
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
                 $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
@@ -1955,6 +2114,10 @@ final class PdfTextExtractor
                     $info = $this->objectReferenceAfterName($streamSection['body'], 'Info');
                     if ($info !== null) {
                         return $info;
+                    }
+
+                    if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+                        return null;
                     }
                 }
             }
@@ -1973,6 +2136,10 @@ final class PdfTextExtractor
         $info = $this->objectReferenceAfterName($streamSection['body'], 'Info');
         if ($info !== null) {
             return $info;
+        }
+
+        if ($this->trailerExplicitlyClearsInfo($streamSection['body'])) {
+            return null;
         }
 
         $previousOffset = $this->previousXrefOffsetForSectionBody($pdfBytes, $streamSection['body'], $offset, $definitions);

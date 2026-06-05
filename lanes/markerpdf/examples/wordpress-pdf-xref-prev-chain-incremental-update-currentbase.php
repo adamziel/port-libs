@@ -770,9 +770,11 @@ $sparseInfoEncoded = json_encode([
 ], JSON_UNESCAPED_SLASHES);
 $infoNullMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($infoNullPdf);
 $infoNullPlainText = $extractor->extractPlainText($infoNullPdf);
+$infoNullOutline = $extractor->extractOutlineMetadata($infoNullPdf);
 $infoNullEncoded = json_encode([
     'metadata' => $infoNullMetadata,
     'text' => $infoNullPlainText,
+    'outline' => $infoNullOutline,
 ], JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialchars(json_encode([
@@ -847,6 +849,8 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'info_null_latest_xref_stream_current_catalog_selected' => ($infoNullMetadata['language'] ?? null) === 'en-US'
         && (($infoNullMetadata['viewer_preferences']['display_doc_title'] ?? null) === true),
     'info_null_latest_xref_stream_current_text_selected' => str_contains($infoNullPlainText, 'Current Info null smoke page'),
+    'info_null_outline_metadata_stops_prev_info' => ($infoNullOutline['document_info'] ?? null) === []
+        && ($infoNullOutline['pages'] ?? null) === 1,
     'info_null_latest_xref_stream_stale_prev_excluded' => is_string($infoNullEncoded)
         && !str_contains($infoNullEncoded, 'Stale Info Null')
         && !str_contains($infoNullEncoded, 'Stale Info null smoke page'),

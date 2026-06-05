@@ -2249,6 +2249,22 @@ return [
         $t->true(!str_contains($text, 'Stale Info null Prev page'));
         $t->true(!str_contains($text, "\0"));
     },
+    'stops previous Info inheritance in lightweight outline metadata when latest xref-stream trailer sets Info null' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainLatestInfoNullPdf): void {
+        $pdf = $xrefPrevChainLatestInfoNullPdf();
+        $outline = (new PdfTextExtractor())->extractOutlineMetadata($pdf);
+        $encodedOutline = json_encode($outline, JSON_UNESCAPED_SLASHES);
+
+        $t->same([], $outline['document_info']);
+        $t->same(1, $outline['pages']);
+        $t->same([], $outline['pdf_toc']);
+        $t->true(str_contains($pdf, '/Info null'));
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(is_string($encodedOutline) && !str_contains($encodedOutline, 'Stale Info Null'));
+        $t->true(is_string($encodedOutline) && !str_contains($encodedOutline, 'Stale Info null Prev page'));
+        $t->same(['Current Info null page', 'Previous Info cleared'], (new PdfTextExtractor())->extractTextLines($pdf));
+    },
     'suppresses previous metadata text and attachments when latest xref-stream rows free those objects' => static function (
         TestRunner $t
     ) use ($xrefPrevChainLatestFreeRowsSuppressPrevPdf): void {
