@@ -17633,7 +17633,7 @@ final class PdfTextExtractor
      */
     private function predefinedCidCMap(string $name): ?array
     {
-        if ($name !== 'Identity-H' && $name !== 'Identity-V') {
+        if ($name !== 'Identity-H' && $name !== 'Identity-V' && !$this->isPredefinedUcs2CMapName($name)) {
             return null;
         }
 
@@ -17642,7 +17642,7 @@ final class PdfTextExtractor
             'codeSpaceRanges' => [
                 ['start' => 0, 'end' => 0xffff, 'width' => 4],
             ],
-            'writingMode' => $name === 'Identity-V' ? 1 : 0,
+            'writingMode' => ($name === 'Identity-V' || str_ends_with($name, '-V')) ? 1 : 0,
         ];
     }
 
