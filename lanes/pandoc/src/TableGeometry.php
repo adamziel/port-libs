@@ -164,6 +164,7 @@ final class TableGeometry
         foreach (self::sectionRowGroups($table, $columnCount) as $group) {
             $sectionGrids[] = [
                 'section' => $group['section'],
+                'node' => $group['node'],
                 'columnCount' => $columnCount,
                 'rowEntries' => $group['rowEntries'],
                 'rows' => self::sectionGridForEntries($group['rowEntries'], $columnCount),
@@ -611,7 +612,7 @@ final class TableGeometry
             ? self::accessibilityAttributes($table, self::reviewPacketIdPrefix($table, $options))
             : [];
 
-        return [
+        $packet = [
             'caption' => (string) $table->attr('caption', ''),
             'columnCount' => $columnCount,
             'declaredColumnCount' => self::declaredColumnCount($table),
@@ -622,6 +623,13 @@ final class TableGeometry
             'accessibility' => $accessibility,
             'summary' => self::reviewPacketSummary($sections, $coverage, $diagnostics),
         ];
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $packet['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $packet;
     }
 
     /**
@@ -804,22 +812,34 @@ final class TableGeometry
                     $slots[] = self::serializableGridSlot($slot);
                 }
 
-                $rows[] = [
+                $rowRecord = [
                     'row' => $rowIndex,
                     'rowRole' => (string) $entry['rowRole'],
                     'header' => (bool) $entry['header'],
                     'rowHeadColumns' => (int) $entry['rowHeadColumns'],
                     'slots' => $slots,
                 ];
+                $sourceAttributes = self::sourceAttributeSummary($entry['row'] ?? null);
+                if ($sourceAttributes !== []) {
+                    $rowRecord['sourceAttributes'] = $sourceAttributes;
+                }
+
+                $rows[] = $rowRecord;
             }
 
-            $reports[] = [
+            $report = [
                 'section' => (string) $section['section'],
                 'columnCount' => (int) $section['columnCount'],
                 'rowCount' => count($rows),
                 'summary' => self::sectionGridSummary($section['rows']),
                 'rows' => $rows,
             ];
+            $sourceAttributes = self::sourceAttributeSummary($section['node'] ?? null);
+            if ($sourceAttributes !== []) {
+                $report['sourceAttributes'] = $sourceAttributes;
+            }
+
+            $reports[] = $report;
         }
 
         return $reports;
@@ -835,6 +855,10 @@ final class TableGeometry
         unset($slot['node']);
         if ($node instanceof AstNode) {
             $slot['text'] = self::plainText($node);
+            $sourceAttributes = self::sourceAttributeSummary($node);
+            if ($sourceAttributes !== []) {
+                $slot['sourceAttributes'] = $sourceAttributes;
+            }
         }
 
         return $slot;
@@ -947,6 +971,10 @@ final class TableGeometry
             unset($record['node']);
             if ($node instanceof AstNode) {
                 $record['text'] = self::plainText($node);
+                $sourceAttributes = self::sourceAttributeSummary($node);
+                if ($sourceAttributes !== []) {
+                    $record['sourceAttributes'] = $sourceAttributes;
+                }
                 $nestedTables = self::nestedTableSummaries($node);
                 if ($nestedTables !== []) {
                     $record['nestedTables'] = $nestedTables;
@@ -1126,6 +1154,106 @@ final class TableGeometry
         }
 
         return '';
+    }
+
+    /**
+     * @return array{id?:string,classes?:list<string>,attributes?:array<string, string>,htmlAttributes?:array<string, string>}
+     */
+    private static function sourceAttributeSummary(mixed $node): array
+    {
+        if (!$node instanceof AstNode) {
+            return [];
+        }
+
+        $summary = [];
+        $id = trim((string) $node->attr('id', ''));
+        if ($id === '') {
+            $htmlAttributes = $node->attr('htmlAttributes', []);
+            if (is_array($htmlAttributes) && isset($htmlAttributes['id']) && is_scalar($htmlAttributes['id'])) {
+                $id = trim((string) $htmlAttributes['id']);
+            }
+        }
+        if ($id !== '') {
+            $summary['id'] = $id;
+        }
+
+        $classes = self::sourceClasses($node);
+        if ($classes !== []) {
+            $summary['classes'] = $classes;
+        }
+
+        $attributes = self::stringAttributeMap($node->attr('attributes', []), false);
+        if ($attributes !== []) {
+            $summary['attributes'] = $attributes;
+        }
+
+        $htmlAttributes = self::stringAttributeMap($node->attr('htmlAttributes', []), true);
+        if ($htmlAttributes !== []) {
+            $summary['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function sourceClasses(AstNode $node): array
+    {
+        $classes = $node->attr('classes', []);
+        if (is_array($classes)) {
+            $normalized = [];
+            foreach ($classes as $class) {
+                if (!is_scalar($class)) {
+                    continue;
+                }
+
+                $class = trim((string) $class);
+                if ($class !== '') {
+                    $normalized[] = $class;
+                }
+            }
+
+            if ($normalized !== []) {
+                return array_values(array_unique($normalized));
+            }
+        }
+
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes) || !isset($htmlAttributes['class']) || !is_scalar($htmlAttributes['class'])) {
+            return [];
+        }
+
+        $classes = preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_unique($classes));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function stringAttributeMap(mixed $attributes, bool $lowercaseKeys): array
+    {
+        if (!is_array($attributes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($attributes as $name => $value) {
+            $name = trim((string) $name);
+            if ($name === '' || !is_scalar($value)) {
+                continue;
+            }
+
+            if ($lowercaseKeys) {
+                $name = strtolower($name);
+            }
+            $normalized[$name] = (string) $value;
+        }
+
+        ksort($normalized);
+
+        return $normalized;
     }
 
     private static function tableAttributeColumnCount(mixed $columns): int
@@ -1378,6 +1506,7 @@ final class TableGeometry
                 $entries = self::rowEntries(self::sectionRows($section), true, 0, 'head');
                 $groups[] = [
                     'section' => 'head',
+                    'node' => $section,
                     'rows' => self::entryRows($entries),
                     'rowEntries' => $entries,
                 ];
@@ -1403,6 +1532,7 @@ final class TableGeometry
                 array_push($entries, ...self::rowEntries(self::sectionRows($section), false, $rowHeadColumns, 'body'));
                 $groups[] = [
                     'section' => 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex),
+                    'node' => $section,
                     'rows' => self::entryRows($entries),
                     'rowEntries' => $entries,
                 ];
@@ -1414,6 +1544,7 @@ final class TableGeometry
                 $entries = self::rowEntries(self::sectionRows($section), false, 0, 'foot');
                 $groups[] = [
                     'section' => 'foot',
+                    'node' => $section,
                     'rows' => self::entryRows($entries),
                     'rowEntries' => $entries,
                 ];

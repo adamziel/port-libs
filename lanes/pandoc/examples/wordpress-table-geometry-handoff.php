@@ -171,9 +171,29 @@ $document = new AstNode('document', [], [
         'alignments' => ['left', 'right'],
         'accessibilityHeaders' => true,
         'accessibilityIdPrefix' => 'Source Grid',
+        'id' => 'source-grid',
+        'classes' => ['wp-import', 'needs-review'],
+        'attributes' => [
+            'origin' => 'docx',
+        ],
+        'htmlAttributes' => [
+            'id' => 'source-grid',
+            'class' => 'wp-import needs-review',
+            'data-origin' => 'docx',
+            'aria-label' => 'Source attributed review grid',
+        ],
     ], [
-        new AstNode('table_head', [], [
-            new AstNode('table_row', [], [
+        new AstNode('table_head', [
+            'htmlAttributes' => [
+                'id' => 'source-grid-head',
+                'data-section' => 'thead',
+            ],
+        ], [
+            new AstNode('table_row', [
+                'htmlAttributes' => [
+                    'data-row' => 'source-head-1',
+                ],
+            ], [
                 new AstNode('table_cell', [
                     'text' => 'Scope',
                     'htmlAttributes' => [
@@ -189,8 +209,17 @@ $document = new AstNode('document', [], [
                 ], [new AstNode('text', ['text' => 'Status'])]),
             ]),
         ]),
-        new AstNode('table_body', [], [
-            new AstNode('table_row', [], [
+        new AstNode('table_body', [
+            'htmlAttributes' => [
+                'id' => 'source-grid-body',
+                'data-section' => 'tbody',
+            ],
+        ], [
+            new AstNode('table_row', [
+                'htmlAttributes' => [
+                    'data-row' => 'source-body-1',
+                ],
+            ], [
                 new AstNode('table_cell', [
                     'text' => 'Posts',
                     'htmlAttributes' => [
@@ -457,6 +486,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>')) {
         throw new RuntimeException('Table geometry self-test missing source headers override preservation');
     }
+    $sourceAttributePacket = TableGeometry::reviewPacket($document->children[6], ['idPrefix' => 'Source Grid']);
+    if (($sourceAttributePacket['sourceAttributes']['id'] ?? null) !== 'source-grid' || ($sourceAttributePacket['sourceAttributes']['classes'] ?? null) !== ['wp-import', 'needs-review']) {
+        throw new RuntimeException('Table geometry self-test missing table source attribute packet');
+    }
+    if (($sourceAttributePacket['sections'][0]['sourceAttributes']['htmlAttributes']['data-section'] ?? null) !== 'thead') {
+        throw new RuntimeException('Table geometry self-test missing section source attribute packet');
+    }
+    if (($sourceAttributePacket['sections'][0]['rows'][0]['sourceAttributes']['htmlAttributes']['data-row'] ?? null) !== 'source-head-1') {
+        throw new RuntimeException('Table geometry self-test missing row source attribute packet');
+    }
+    if (($sourceAttributePacket['coverage'][0]['sourceAttributes']['id'] ?? null) !== 'docx-source-scope') {
+        throw new RuntimeException('Table geometry self-test missing cell source attribute packet');
+    }
+    json_encode($sourceAttributePacket, JSON_THROW_ON_ERROR);
 
     $sourceScopeAccessibility = TableGeometry::accessibilityAttributes($document->children[7], 'Source Scope Grid');
     if (($sourceScopeAccessibility['body:0:0:0']['scope'] ?? null) !== 'row') {

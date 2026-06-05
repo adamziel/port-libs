@@ -208,4 +208,45 @@ HTML;
         $t->contains('<td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>a1</td><td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>1</td><td>2</td></tr></tbody></table></td></tr></tbody></table></td><td>b</td>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html table section row and cell attributes into geometry review packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="source-grid" class="wp-import needs-review" data-origin="html-reader" aria-label="Review source table">
+<caption>Attributed source grid</caption>
+<thead id="source-head" data-section="thead">
+<tr data-row="head-1"><th id="source-scope" class="header-cell" data-origin="docx">Scope</th><th data-origin="manual">State</th></tr>
+</thead>
+<tbody id="source-body" data-section="tbody">
+<tr data-row="body-1"><td title="Imported posts" data-origin="docx">Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('source-grid', $packet['sourceAttributes']['id'] ?? null);
+        $t->same(['wp-import', 'needs-review'], $packet['sourceAttributes']['classes'] ?? null);
+        $t->same('html-reader', $packet['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('Review source table', $packet['sourceAttributes']['htmlAttributes']['aria-label'] ?? null);
+        $t->same('source-head', $packet['sections'][0]['sourceAttributes']['id'] ?? null);
+        $t->same('thead', $packet['sections'][0]['sourceAttributes']['htmlAttributes']['data-section'] ?? null);
+        $t->same('head-1', $packet['sections'][0]['rows'][0]['sourceAttributes']['htmlAttributes']['data-row'] ?? null);
+        $t->same('source-body', $packet['sections'][1]['sourceAttributes']['id'] ?? null);
+        $t->same('tbody', $packet['sections'][1]['sourceAttributes']['htmlAttributes']['data-section'] ?? null);
+        $t->same('body-1', $packet['sections'][1]['rows'][0]['sourceAttributes']['htmlAttributes']['data-row'] ?? null);
+        $t->same('source-scope', $packet['coverage'][0]['sourceAttributes']['id'] ?? null);
+        $t->same(['header-cell'], $packet['coverage'][0]['sourceAttributes']['classes'] ?? null);
+        $t->same('docx', $packet['coverage'][0]['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('manual', $packet['coverage'][1]['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+        $t->same('Imported posts', $packet['coverage'][2]['sourceAttributes']['htmlAttributes']['title'] ?? null);
+        $t->true(!array_key_exists('sourceAttributes', $packet['coverage'][3]), 'Reader cells without source attributes should stay compact');
+        $t->contains('<table id="source-grid" class="wp-import needs-review" data-origin="html-reader" aria-label="Review source table">', $blocks);
+        $t->contains('<thead id="source-head" data-section="thead"><tr data-row="head-1"><th id="source-scope" class="header-cell" data-origin="docx">Scope</th><th data-origin="manual">State</th></tr></thead>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];

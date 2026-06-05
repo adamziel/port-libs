@@ -441,6 +441,81 @@ $buildRowspanOverlapDocument = static function (): AstNode {
     ]);
 };
 
+$buildSourceAttributedReviewPacketDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Attributed source audit',
+            'alignments' => ['left', 'right'],
+            'id' => 'source-audit',
+            'classes' => ['wp-import', 'needs-review'],
+            'attributes' => [
+                'origin' => 'html-reader',
+                'batch' => '42',
+            ],
+            'htmlAttributes' => [
+                'id' => 'source-audit',
+                'class' => 'wp-import needs-review',
+                'data-origin' => 'html-reader',
+                'aria-label' => 'Source audit table',
+            ],
+        ], [
+            new AstNode('table_head', [
+                'htmlAttributes' => [
+                    'id' => 'source-head',
+                    'data-section' => 'thead',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'htmlAttributes' => [
+                        'data-row' => 'head-1',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Scope',
+                        'header' => true,
+                        'htmlAttributes' => [
+                            'id' => 'source-scope',
+                            'class' => 'review-header',
+                            'data-origin' => 'docx',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'header' => true,
+                        'attributes' => [
+                            'source' => 'manual',
+                        ],
+                        'htmlAttributes' => [
+                            'data-origin' => 'manual',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'htmlAttributes' => [
+                    'id' => 'source-body',
+                    'data-section' => 'tbody',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'htmlAttributes' => [
+                        'data-row' => 'body-1',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'htmlAttributes' => [
+                            'title' => 'Imported posts',
+                            'data-origin' => 'docx',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -1001,6 +1076,38 @@ return [
         $t->same(0, $deep['nestedTableCount'] ?? null);
         $t->same(false, $deep['hasNestedTables'] ?? null);
         $t->same(false, array_key_exists('node', $outerCell));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'serializes source attributes for table sections rows and cell coverage audits' => static function (TestRunner $t) use ($buildSourceAttributedReviewPacketDocument): void {
+        $table = $buildSourceAttributedReviewPacketDocument()->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('source-audit', $packet['sourceAttributes']['id'] ?? null);
+        $t->same(['wp-import', 'needs-review'], $packet['sourceAttributes']['classes'] ?? null);
+        $t->same(['batch' => '42', 'origin' => 'html-reader'], $packet['sourceAttributes']['attributes'] ?? null);
+        $t->same('Source audit table', $packet['sourceAttributes']['htmlAttributes']['aria-label'] ?? null);
+        $t->same('html-reader', $packet['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+
+        $t->same('source-head', $packet['sections'][0]['sourceAttributes']['id'] ?? null);
+        $t->same('thead', $packet['sections'][0]['sourceAttributes']['htmlAttributes']['data-section'] ?? null);
+        $t->same('source-body', $packet['sections'][1]['sourceAttributes']['id'] ?? null);
+        $t->same('tbody', $packet['sections'][1]['sourceAttributes']['htmlAttributes']['data-section'] ?? null);
+        $t->same('head-1', $packet['sections'][0]['rows'][0]['sourceAttributes']['htmlAttributes']['data-row'] ?? null);
+        $t->same('body-1', $packet['sections'][1]['rows'][0]['sourceAttributes']['htmlAttributes']['data-row'] ?? null);
+
+        $headScope = $packet['sections'][0]['rows'][0]['slots'][0]['sourceAttributes'] ?? [];
+        $stateCoverage = $packet['coverage'][1]['sourceAttributes'] ?? [];
+        $postsCoverage = $packet['coverage'][2]['sourceAttributes'] ?? [];
+        $readyCoverage = $packet['coverage'][3] ?? [];
+
+        $t->same('source-scope', $headScope['id'] ?? null);
+        $t->same(['review-header'], $headScope['classes'] ?? null);
+        $t->same('docx', $headScope['htmlAttributes']['data-origin'] ?? null);
+        $t->same(['source' => 'manual'], $stateCoverage['attributes'] ?? null);
+        $t->same('manual', $stateCoverage['htmlAttributes']['data-origin'] ?? null);
+        $t->same('Imported posts', $postsCoverage['htmlAttributes']['title'] ?? null);
+        $t->true(!array_key_exists('sourceAttributes', $readyCoverage), 'Cells without source attributes should not add empty packet noise');
+        $t->true(!array_key_exists('node', $packet['coverage'][0]), 'Source attribute packets remain serializable and do not leak AstNode references');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
 ];
