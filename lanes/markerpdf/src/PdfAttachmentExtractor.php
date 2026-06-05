@@ -1403,7 +1403,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $trailerOffset + strlen('trailer'));
+            $dictionaryOffset = $this->skipPdfWhitespaceOffset($pdfBytes, $trailerOffset + strlen('trailer'));
             if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
                 $searchOffset = $trailerOffset + strlen('trailer');
                 continue;
@@ -3628,6 +3628,14 @@ final class PdfAttachmentExtractor
     {
         $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
+            $trailer = $this->selectedTrailerDictionary($pdfBytes, $definitions);
+            if ($trailer !== null && array_key_exists('Root', $trailer)) {
+                return [
+                    'present' => true,
+                    'reference' => $this->refObjectReference($trailer['Root']),
+                ];
+            }
+
             return [
                 'present' => false,
                 'reference' => null,
@@ -4238,7 +4246,7 @@ final class PdfAttachmentExtractor
         }
 
         $afterKeyword = $pdfBytes[$sectionBodyOffset];
-        if ($afterKeyword !== '%' && !ctype_space($afterKeyword)) {
+        if ($afterKeyword !== '%' && !$this->isPdfWhitespace($afterKeyword)) {
             return null;
         }
 
@@ -4247,7 +4255,7 @@ final class PdfAttachmentExtractor
             return null;
         }
 
-        $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $trailerOffset + strlen('trailer'));
+        $dictionaryOffset = $this->skipPdfWhitespaceOffset($pdfBytes, $trailerOffset + strlen('trailer'));
         if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
             return null;
         }
@@ -4307,10 +4315,12 @@ final class PdfAttachmentExtractor
 
             if ($char === '(') {
                 $end = $this->literalTokenEndOffset($pdfBytes, $offset);
-                if ($end !== null) {
-                    $offset = $end;
-                    continue;
+                if ($end === null) {
+                    return null;
                 }
+
+                $offset = $end;
+                continue;
             }
 
             $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
@@ -4328,7 +4338,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($this->pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
-                $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $offset + strlen('trailer'));
+                $dictionaryOffset = $this->skipPdfWhitespaceOffset($pdfBytes, $offset + strlen('trailer'));
                 if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
                     return $offset;
                 }
@@ -4369,10 +4379,12 @@ final class PdfAttachmentExtractor
 
             if ($char === '(') {
                 $end = $this->literalTokenEndOffset($pdfBytes, $offset);
-                if ($end !== null) {
-                    $offset = $end;
-                    continue;
+                if ($end === null) {
+                    return $offsets;
                 }
+
+                $offset = $end;
+                continue;
             }
 
             $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
@@ -4498,7 +4510,7 @@ final class PdfAttachmentExtractor
 
         if ($offset > 0) {
             $before = $pdfBytes[$offset - 1];
-            if ($before === '/' || (!ctype_space($before) && !str_contains('[]()<>{}%', $before))) {
+            if ($before === '/' || (!$this->isPdfWhitespace($before) && !str_contains('[]()<>{}%', $before))) {
                 return false;
             }
         }
@@ -4510,7 +4522,7 @@ final class PdfAttachmentExtractor
 
         $after = $pdfBytes[$afterOffset];
 
-        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
+        return $this->isPdfWhitespace($after) || str_contains('[]()<>{}/%', $after);
     }
 
     /**
@@ -4649,6 +4661,7 @@ final class PdfAttachmentExtractor
      */
     private function xrefTableRows(string $sectionBody): ?array
     {
+        $sectionBody = str_replace("\0", ' ', $sectionBody);
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', $sectionBody);
         if (!is_array($lines)) {
@@ -5041,6 +5054,28 @@ final class PdfAttachmentExtractor
     private function skipWhitespaceOffset(string $text, int $index): int
     {
         $this->skipWhitespaceAndComments($text, $index);
+
+        return $index;
+    }
+
+    private function skipPdfWhitespaceOffset(string $text, int $index): int
+    {
+        $length = strlen($text);
+        while ($index < $length) {
+            if ($this->isPdfWhitespace($text[$index])) {
+                $index++;
+                continue;
+            }
+
+            if ($text[$index] === '%') {
+                while ($index < $length && !in_array($text[$index], ["\r", "\n"], true)) {
+                    $index++;
+                }
+                continue;
+            }
+
+            break;
+        }
 
         return $index;
     }
@@ -5516,6 +5551,11 @@ final class PdfAttachmentExtractor
     private function isDelimiter(string $char): bool
     {
         return ctype_space($char) || str_contains('()<>[]{}/%', $char);
+    }
+
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || ctype_space($char);
     }
 
     private function isNumericToken(string $token): bool

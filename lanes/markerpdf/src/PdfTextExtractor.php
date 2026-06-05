@@ -20035,7 +20035,7 @@ final class PdfTextExtractor
 
         if ($offset > 0) {
             $before = $value[$offset - 1];
-            if ($before === '/' || (!ctype_space($before) && !str_contains('[]()<>{}%', $before))) {
+            if ($before === '/' || (!$this->isPdfWhitespace($before) && !str_contains('[]()<>{}%', $before))) {
                 return false;
             }
         }
@@ -20046,7 +20046,7 @@ final class PdfTextExtractor
         }
 
         $after = $value[$afterOffset];
-        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
+        return $this->isPdfWhitespace($after) || str_contains('[]()<>{}/%', $after);
     }
 
     /**
@@ -22568,7 +22568,7 @@ final class PdfTextExtractor
         }
 
         $afterKeyword = $pdfBytes[$afterKeywordOffset];
-        if ($afterKeyword !== '%' && !ctype_space($afterKeyword)) {
+        if ($afterKeyword !== '%' && !$this->isPdfWhitespace($afterKeyword)) {
             return null;
         }
 
@@ -22734,6 +22734,7 @@ final class PdfTextExtractor
      */
     private function xrefTableRows(string $sectionBody): ?array
     {
+        $sectionBody = str_replace("\0", ' ', $sectionBody);
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', trim($sectionBody));
         if ($lines === false) {

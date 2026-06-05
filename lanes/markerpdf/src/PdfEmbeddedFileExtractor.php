@@ -2865,7 +2865,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $afterKeyword = $pdfBytes[$afterKeywordOffset];
-        if ($afterKeyword !== '%' && !ctype_space($afterKeyword)) {
+        if ($afterKeyword !== '%' && !$this->isPdfWhitespace($afterKeyword)) {
             return null;
         }
 
@@ -2925,6 +2925,7 @@ final class PdfEmbeddedFileExtractor
      */
     private function xrefTableRows(string $sectionBody): ?array
     {
+        $sectionBody = str_replace("\0", ' ', $sectionBody);
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', trim($sectionBody));
         if ($lines === false) {
@@ -3525,6 +3526,11 @@ final class PdfEmbeddedFileExtractor
         return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || ctype_space($char);
+    }
+
     private function readUnsignedIntegerToken(string $value, int &$offset): ?int
     {
         $offset = $this->skipWhitespace($value, $offset);
@@ -3777,7 +3783,7 @@ final class PdfEmbeddedFileExtractor
 
         if ($offset > 0) {
             $before = $value[$offset - 1];
-            if ($before === '/' || (!ctype_space($before) && !str_contains('[]()<>{}%', $before))) {
+            if ($before === '/' || (!$this->isPdfWhitespace($before) && !str_contains('[]()<>{}%', $before))) {
                 return false;
             }
         }
@@ -3788,7 +3794,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $after = $value[$afterOffset];
-        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
+        return $this->isPdfWhitespace($after) || str_contains('[]()<>{}/%', $after);
     }
 
     /**
@@ -4285,10 +4291,12 @@ final class PdfEmbeddedFileExtractor
 
             if ($char === '(') {
                 $literal = $this->readLiteralStringAt($pdfBytes, $offset);
-                if ($literal !== null) {
-                    $offset = $literal['end'];
-                    continue;
+                if ($literal === null) {
+                    return $offsets;
                 }
+
+                $offset = $literal['end'];
+                continue;
             }
 
             $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
@@ -4385,10 +4393,12 @@ final class PdfEmbeddedFileExtractor
 
             if ($char === '(') {
                 $literal = $this->readLiteralStringAt($pdfBytes, $offset);
-                if ($literal !== null) {
-                    $offset = $literal['end'];
-                    continue;
+                if ($literal === null) {
+                    return null;
                 }
+
+                $offset = $literal['end'];
+                continue;
             }
 
             $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
@@ -4406,7 +4416,7 @@ final class PdfEmbeddedFileExtractor
             }
 
             if ($this->pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
-                $dictionaryOffset = $this->skipWhitespace($pdfBytes, $offset + strlen('trailer'));
+                $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $offset + strlen('trailer'));
                 if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
                     return $offset;
                 }
@@ -5859,6 +5869,27 @@ final class PdfEmbeddedFileExtractor
     {
         for ($length = strlen($value); $offset < $length;) {
             if (ctype_space($value[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($value[$offset] === '%') {
+                while ($offset < $length && $value[$offset] !== "\n" && $value[$offset] !== "\r") {
+                    $offset++;
+                }
+                continue;
+            }
+
+            break;
+        }
+
+        return $offset;
+    }
+
+    private function skipPdfWhitespace(string $value, int $offset): int
+    {
+        for ($length = strlen($value); $offset < $length;) {
+            if ($this->isPdfWhitespace($value[$offset])) {
                 $offset++;
                 continue;
             }
