@@ -1045,13 +1045,23 @@ final class TableFormatter
                 continue;
             }
 
-            $bbox = $this->bbox($box);
+            $bbox = $this->tableRegionBbox($box);
             if ($bbox !== null) {
                 $tableBoxes[] = $bbox;
             }
         }
 
         return $tableBoxes;
+    }
+
+    /**
+     * @param array<string, mixed> $box
+     * @return list<float>|null
+     */
+    private function tableRegionBbox(array $box): ?array
+    {
+        return $this->polygonBbox($box['polygon'] ?? null)
+            ?? $this->bbox($box);
     }
 
     /**

@@ -2004,13 +2004,15 @@ final class TableRecognizer
             }
         }
 
-        if (isset($table['bbox']) && $this->bboxFromGeometryValue($table['bbox']) !== null) {
-            return [
-                'bbox' => $this->bboxFromGeometryValue($table['bbox']),
-                'source' => is_array($table['bbox'])
-                ? ($this->bboxNamedFieldSource($table['bbox']) ?? 'bbox_array')
-                : 'bbox_array',
-            ];
+        $polygonBbox = $this->polygonBboxFromRecord($table);
+        if ($polygonBbox !== null) {
+            $source = $this->polygonCoordinateSourceFromRecord($table);
+            if ($source !== null) {
+                return [
+                    'bbox' => $polygonBbox,
+                    'source' => $source,
+                ];
+            }
         }
 
         $tableNested = $this->nestedTableCropBboxCandidate($table);
@@ -2023,15 +2025,13 @@ final class TableRecognizer
             return $imageNested;
         }
 
-        $polygonBbox = $this->polygonBboxFromRecord($table);
-        if ($polygonBbox !== null) {
-            $source = $this->polygonCoordinateSourceFromRecord($table);
-            if ($source !== null) {
-                return [
-                    'bbox' => $polygonBbox,
-                    'source' => $source,
-                ];
-            }
+        if (isset($table['bbox']) && $this->bboxFromGeometryValue($table['bbox']) !== null) {
+            return [
+                'bbox' => $this->bboxFromGeometryValue($table['bbox']),
+                'source' => is_array($table['bbox'])
+                ? ($this->bboxNamedFieldSource($table['bbox']) ?? 'bbox_array')
+                : 'bbox_array',
+            ];
         }
 
         return null;

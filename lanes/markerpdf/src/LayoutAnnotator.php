@@ -611,18 +611,31 @@ final class LayoutAnnotator
             if (!is_array($box)) {
                 continue;
             }
-            $bbox = $this->bbox($box);
+            $label = (string) ($box['label'] ?? '');
+            $bbox = $label === 'Table'
+                ? $this->tableRegionBbox($box)
+                : $this->bbox($box);
             if ($bbox === null) {
                 continue;
             }
 
             $layoutBoxes[] = [
-                'label' => (string) ($box['label'] ?? ''),
+                'label' => $label,
                 'bbox' => $bbox,
             ];
         }
 
         return $layoutBoxes;
+    }
+
+    /**
+     * @param array<string, mixed> $box
+     * @return list<float>|null
+     */
+    private function tableRegionBbox(array $box): ?array
+    {
+        return $this->polygonBbox($box['polygon'] ?? null)
+            ?? $this->bbox($box);
     }
 
     /**
