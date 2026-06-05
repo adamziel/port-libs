@@ -432,6 +432,20 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Implicit source shift review',
+        'id' => 'implicit-source-shift-grid',
+    ], [
+        new AstNode('table_body', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Merged source', 'rowspan' => 2, 'colspan' => 2], [new AstNode('text', ['text' => 'Merged source'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Unexpected source cell'], [new AstNode('text', ['text' => 'Unexpected source cell'])]),
+                new AstNode('table_cell', ['text' => 'Second conflict'], [new AstNode('text', ['text' => 'Second conflict'])]),
+            ]),
+        ]),
+    ]),
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
     ...$colgroupMismatchTables,
@@ -714,6 +728,37 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Nested table packet review</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing nested table packet WordPress output');
     }
+
+    $sourceShiftTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'implicit-source-shift-grid') {
+            $sourceShiftTable = $node;
+            break;
+        }
+    }
+    $sourceShiftPacket = $sourceShiftTable instanceof AstNode ? TableGeometry::reviewPacket($sourceShiftTable, ['accessibility' => false]) : null;
+    if (
+        !is_array($sourceShiftPacket)
+        || ($sourceShiftPacket['summary']['hasSourceCoordinateShifts'] ?? null) !== true
+        || ($sourceShiftPacket['summary']['sourceCoordinateShiftCount'] ?? null) !== 2
+        || ($sourceShiftPacket['summary']['maxVisualShift'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source-to-visual shift summary');
+    }
+    if (
+        ($sourceShiftPacket['coverage'][1]['sourceColumns'] ?? null) !== [0]
+        || ($sourceShiftPacket['coverage'][1]['visualShift'] ?? null) !== 2
+        || ($sourceShiftPacket['coverage'][2]['sourceEndColumn'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source-to-visual shift coverage metadata');
+    }
+    if (($sourceShiftPacket['summary']['diagnosticCodes'] ?? null) !== []) {
+        throw new RuntimeException('Table geometry self-test incorrectly diagnosed normalized implicit source shifts');
+    }
+    if (!str_contains($blocks, '<table id="implicit-source-shift-grid"><tbody><tr><td colspan="2" rowspan="2">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody></table>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for implicit source shift table');
+    }
+    json_encode($sourceShiftPacket, JSON_THROW_ON_ERROR);
 
     $rowspanZeroTable = null;
     foreach ($document->children as $node) {

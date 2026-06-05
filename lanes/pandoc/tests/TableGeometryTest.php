@@ -466,6 +466,24 @@ $buildRowspanOverlapDocument = static function (): AstNode {
     ]);
 };
 
+$buildImplicitColumnRowspanOverlapDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Implicit column overlap review',
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Merged source', 'rowspan' => 2, 'colspan' => 2], [new AstNode('text', ['text' => 'Merged source'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Unexpected source cell'], [new AstNode('text', ['text' => 'Unexpected source cell'])]),
+                    new AstNode('table_cell', ['text' => 'Second conflict'], [new AstNode('text', ['text' => 'Second conflict'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildSourceAttributedReviewPacketDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -789,6 +807,46 @@ return [
         $t->same(false, $coverage[1]['headerCell']);
         $t->contains('<tbody><tr><th colspan="2" rowspan="2" style="text-align:left">Posts</th></tr><tr><td>Unexpected source cell</td></tr></tbody>', $blocks);
         $t->contains('|       |     | Unexpected source cell |', $markdown);
+    },
+    'serializes source-to-visual column shifts for implicit rowspan handoffs' => static function (TestRunner $t) use ($buildImplicitColumnRowspanOverlapDocument): void {
+        $document = $buildImplicitColumnRowspanOverlapDocument();
+        $table = $document->children[0];
+        $body = $table->children[0];
+        $layout = TableGeometry::layoutRows($body->children, TableGeometry::columnCount($table));
+        $diagnostics = TableGeometry::diagnostics($table);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(4, TableGeometry::columnCount($table));
+        $t->same(0, $packet['declaredColumnCount']);
+        $t->same([2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
+        $t->same([0, 1], array_map(static fn (array $cell): int => $cell['sourceColumn'], $layout[1]['cells']));
+        $t->same([], $diagnostics);
+        $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(0, $packet['summary']['diagnosticCount'] ?? null);
+        $t->same(true, $packet['summary']['hasSourceCoordinateShifts'] ?? null);
+        $t->same(2, $packet['summary']['sourceCoordinateShiftCount'] ?? null);
+        $t->same(2, $packet['summary']['maxVisualShift'] ?? null);
+        $t->same([0, 1], $packet['coverage'][0]['sourceColumns'] ?? null);
+        $t->same([0, 1], $packet['coverage'][0]['columns'] ?? null);
+        $t->same(0, $packet['coverage'][0]['visualShift'] ?? null);
+        $t->same('Unexpected source cell', $packet['coverage'][1]['text'] ?? null);
+        $t->same(2, $packet['coverage'][1]['column'] ?? null);
+        $t->same(0, $packet['coverage'][1]['sourceColumn'] ?? null);
+        $t->same(1, $packet['coverage'][1]['sourceEndColumn'] ?? null);
+        $t->same([0], $packet['coverage'][1]['sourceColumns'] ?? null);
+        $t->same(2, $packet['coverage'][1]['visualShift'] ?? null);
+        $t->same('Second conflict', $packet['coverage'][2]['text'] ?? null);
+        $t->same(3, $packet['coverage'][2]['column'] ?? null);
+        $t->same(1, $packet['coverage'][2]['sourceColumn'] ?? null);
+        $t->same(2, $packet['coverage'][2]['sourceEndColumn'] ?? null);
+        $t->same([1], $packet['coverage'][2]['sourceColumns'] ?? null);
+        $t->same(2, $packet['coverage'][2]['visualShift'] ?? null);
+        $t->contains('<tbody><tr><td colspan="2" rowspan="2">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
+        $t->contains('| Merged source |     |                        |                 |', $markdown);
+        $t->contains('|               |     | Unexpected source cell | Second conflict |', $markdown);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'builds section grids with covered and missing visual slots for importer audits' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
         $document = $buildSectionGridDocument();

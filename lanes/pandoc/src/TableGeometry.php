@@ -250,6 +250,9 @@ final class TableGeometry
      *     columns:list<int>,
      *     sourceCell:int,
      *     sourceColumn:int,
+     *     sourceEndColumn:int,
+     *     sourceColumns:list<int>,
+     *     visualShift:int,
      *     colspan:int,
      *     rawColspan:int,
      *     rowspan:int,
@@ -308,6 +311,7 @@ final class TableGeometry
 
                     $rawColspan = self::cellColspan($cell['node']);
                     $rawRowspan = self::cellRowspanForRows($cell['node'], $rowIndex, $sectionRowCount);
+                    $sourceEndColumn = $cell['sourceColumn'] + $rawColspan;
                     $record = [
                         'section' => $group['section'],
                         'row' => $rowIndex,
@@ -321,6 +325,9 @@ final class TableGeometry
                         'headerCell' => self::isHeaderCell($headerRow, $rowHeadColumns, $cell['column'], $cell['node']),
                         'sourceCell' => $cell['sourceCell'],
                         'sourceColumn' => $cell['sourceColumn'],
+                        'sourceEndColumn' => $sourceEndColumn,
+                        'sourceColumns' => self::sourceColumns($cell['sourceColumn'], $rawColspan),
+                        'visualShift' => $cell['column'] - $cell['sourceColumn'],
                         'colspan' => $cell['colspan'],
                         'rawColspan' => $rawColspan,
                         'rowspan' => $cell['rowspan'],
@@ -1360,6 +1367,8 @@ final class TableGeometry
 
         $headerCellCount = 0;
         $hasSpans = false;
+        $sourceCoordinateShiftCount = 0;
+        $maxVisualShift = 0;
         $nestedTableCellCount = 0;
         $nestedTableCount = 0;
         foreach ($coverage as $record) {
@@ -1369,6 +1378,12 @@ final class TableGeometry
 
             if ((int) ($record['rawColspan'] ?? 1) > 1 || (int) ($record['rawRowspan'] ?? 1) > 1) {
                 $hasSpans = true;
+            }
+
+            $visualShift = abs((int) ($record['visualShift'] ?? 0));
+            if ($visualShift > 0) {
+                $sourceCoordinateShiftCount++;
+                $maxVisualShift = max($maxVisualShift, $visualShift);
             }
 
             $nestedTables = $record['nestedTables'] ?? [];
@@ -1426,6 +1441,9 @@ final class TableGeometry
                 is_array($captions['short']['inlineTypes'] ?? null) ? $captions['short']['inlineTypes'] : []
             )),
             'hasSpans' => $hasSpans,
+            'hasSourceCoordinateShifts' => $sourceCoordinateShiftCount > 0,
+            'sourceCoordinateShiftCount' => $sourceCoordinateShiftCount,
+            'maxVisualShift' => $maxVisualShift,
             'nestedTableCount' => $nestedTableCount,
             'nestedTableCellCount' => $nestedTableCellCount,
             'writerDowngradeCount' => $writerDowngradeCount,
@@ -1623,6 +1641,19 @@ final class TableGeometry
         }
 
         return array_values(array_map(static fn (mixed $value): int => (int) $value, $values));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function sourceColumns(int $sourceColumn, int $colspan): array
+    {
+        $columns = [];
+        for ($column = $sourceColumn; $column < $sourceColumn + max(1, $colspan); $column++) {
+            $columns[] = $column;
+        }
+
+        return $columns;
     }
 
     /**
