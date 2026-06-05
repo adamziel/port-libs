@@ -11089,7 +11089,8 @@ final class PdfTextExtractor
         }
 
         $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
-        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects);
+        $imageHeight = $this->pdfIntegerValueAfterName($dict, 'Height');
+        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects, $imageHeight);
         if ($markers === []) {
             return null;
         }
@@ -11101,7 +11102,7 @@ final class PdfTextExtractor
                 $terminator = $this->skipPdfWhitespace($value, $afterMarker);
                 if ($this->endstreamKeywordAt($value, $terminator)) {
                     $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
-                    if ($this->ccittFaxBytesReachBoundaryForDecodeParms($payload, $filterDecodeParms, $objects)) {
+                    if ($this->ccittFaxBytesReachBoundaryForDecodeParms($payload, $filterDecodeParms, $objects, false, $imageHeight)) {
                         return $terminator;
                     }
                 }
@@ -11156,7 +11157,9 @@ final class PdfTextExtractor
             ? null
             : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
 
-        return $this->ccittFaxBytesReachBoundaryForDecodeParms($faxBytes, $filterDecodeParms, $objects, true);
+        $imageHeight = $this->pdfIntegerValueAfterName($dict, 'Height');
+
+        return $this->ccittFaxBytesReachBoundaryForDecodeParms($faxBytes, $filterDecodeParms, $objects, true, $imageHeight);
     }
 
     /**
@@ -11166,7 +11169,8 @@ final class PdfTextExtractor
         string $faxBytes,
         ?string $decodeParms,
         array $objects,
-        bool $acceptWithoutExplicitMarkers = false
+        bool $acceptWithoutExplicitMarkers = false,
+        ?int $imageHeight = null
     ): bool
     {
         $bytes = rtrim($faxBytes, "\x00\t\n\f\r ");
@@ -11174,7 +11178,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        $rowCount = $this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects);
+        $rowCount = $this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects, $imageHeight);
         if ($rowCount !== null) {
             $rowEndMarker = "\x00\x10\x01";
 
@@ -11182,7 +11186,7 @@ final class PdfTextExtractor
                 && substr_count($bytes, $rowEndMarker) >= $rowCount;
         }
 
-        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($decodeParms, $objects);
+        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($decodeParms, $objects, $imageHeight);
         if ($markers === []) {
             return $acceptWithoutExplicitMarkers;
         }
@@ -11216,12 +11220,12 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return list<string>
      */
-    private function ccittFaxEndOfBlockMarkersForOwnership(?string $decodeParms, array $objects): array
+    private function ccittFaxEndOfBlockMarkersForOwnership(?string $decodeParms, array $objects, ?int $imageHeight = null): array
     {
         if ($decodeParms !== null && $this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
             $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
             if ($endOfBlock === false) {
-                return $this->ccittFaxEndOfLineMarkersForOwnership($decodeParms, $objects);
+                return $this->ccittFaxEndOfLineMarkersForOwnership($decodeParms, $objects, $imageHeight);
             }
         }
 
@@ -11237,9 +11241,9 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return list<string>
      */
-    private function ccittFaxEndOfLineMarkersForOwnership(?string $decodeParms, array $objects): array
+    private function ccittFaxEndOfLineMarkersForOwnership(?string $decodeParms, array $objects, ?int $imageHeight = null): array
     {
-        if ($this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects) === null) {
+        if ($this->ccittFaxEndOfLineRowCountForOwnership($decodeParms, $objects, $imageHeight) === null) {
             return [];
         }
 
@@ -11249,7 +11253,7 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function ccittFaxEndOfLineRowCountForOwnership(?string $decodeParms, array $objects): ?int
+    private function ccittFaxEndOfLineRowCountForOwnership(?string $decodeParms, array $objects, ?int $imageHeight = null): ?int
     {
         if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'EndOfLine')) {
             return null;
@@ -11274,7 +11278,11 @@ final class PdfTextExtractor
             return $rows;
         }
 
-        return 1;
+        if ($imageHeight !== null && $imageHeight > 0) {
+            return $imageHeight;
+        }
+
+        return null;
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int
@@ -29327,14 +29335,19 @@ final class PdfTextExtractor
      *
      * @param array<int, string> $objects
      */
-    private function inlineCcittFaxCandidateState(string $candidate, ?string $decodeParms = null, array $objects = []): string
+    private function inlineCcittFaxCandidateState(
+        string $candidate,
+        ?string $decodeParms = null,
+        array $objects = [],
+        ?int $imageHeight = null
+    ): string
     {
         $bytes = rtrim($candidate, "\x00\t\n\f\r ");
         if ($bytes === '') {
             return 'unknown';
         }
 
-        if ($this->ccittFaxBytesReachBoundaryForDecodeParms($bytes, $decodeParms, $objects)) {
+        if ($this->ccittFaxBytesReachBoundaryForDecodeParms($bytes, $decodeParms, $objects, false, $imageHeight)) {
             return 'complete';
         }
 
@@ -29367,7 +29380,12 @@ final class PdfTextExtractor
             ? null
             : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
 
-        return $this->inlineCcittFaxCandidateState($bytes, $filterDecodeParms);
+        return $this->inlineCcittFaxCandidateState(
+            $bytes,
+            $filterDecodeParms,
+            [],
+            $this->pdfIntegerValueAfterName($dictionary, 'Height')
+        );
     }
 
     /**
