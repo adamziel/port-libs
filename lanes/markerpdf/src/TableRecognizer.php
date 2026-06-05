@@ -5976,6 +5976,9 @@ final class TableRecognizer
     {
         $sets = [
             ['x1', 'y1', 'x2', 'y2'],
+            ['x0', 'y0', 'x1', 'y1'],
+            ['xmin', 'ymin', 'xmax', 'ymax'],
+            ['x_min', 'y_min', 'x_max', 'y_max'],
             ['x_start', 'y_start', 'x_end', 'y_end'],
             ['left', 'top', 'right', 'bottom'],
         ];
@@ -6085,6 +6088,9 @@ final class TableRecognizer
     {
         $sets = [
             'bbox_xyxy_named_fields' => ['x1', 'y1', 'x2', 'y2'],
+            'bbox_x0_y0_x1_y1_fields' => ['x0', 'y0', 'x1', 'y1'],
+            'bbox_xmin_ymin_xmax_ymax_fields' => ['xmin', 'ymin', 'xmax', 'ymax'],
+            'bbox_x_min_y_min_x_max_y_max_fields' => ['x_min', 'y_min', 'x_max', 'y_max'],
             'bbox_x_start_y_start_fields' => ['x_start', 'y_start', 'x_end', 'y_end'],
             'bbox_left_top_right_bottom_fields' => ['left', 'top', 'right', 'bottom'],
             'bbox_xy_width_height_fields' => ['x', 'y', 'width', 'height'],
@@ -6123,6 +6129,9 @@ final class TableRecognizer
     {
         $sets = [
             ['x1', 'y1', 'x2', 'y2'],
+            ['x0', 'y0', 'x1', 'y1'],
+            ['xmin', 'ymin', 'xmax', 'ymax'],
+            ['x_min', 'y_min', 'x_max', 'y_max'],
             ['x_start', 'y_start', 'x_end', 'y_end'],
             ['left', 'top', 'right', 'bottom'],
         ];
