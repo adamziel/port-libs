@@ -32,6 +32,8 @@ final class EpubReader
      *     spine:list<array<string, mixed>>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
+     *     guide:array<string, mixed>,
+     *     collections:list<array<string, mixed>>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
@@ -50,7 +52,9 @@ final class EpubReader
             $opf['metadata'],
             $opfPart,
             $opf['spine'],
-            $opf['xhtmlAssets']
+            $opf['xhtmlAssets'],
+            $opf['guide'],
+            $opf['collections']
         );
 
         return [
@@ -63,6 +67,8 @@ final class EpubReader
             'spine' => $opf['spine'],
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
+            'guide' => $opf['guide'],
+            'collections' => $opf['collections'],
             'encryption' => $opf['encryption'],
             'mediaOverlays' => $opf['mediaOverlays'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
@@ -85,6 +91,8 @@ final class EpubReader
                 ],
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
+                'guide' => $opf['guide'],
+                'collections' => $opf['collections'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'assets' => [
@@ -196,6 +204,8 @@ final class EpubReader
      *     spine:list<array<string, mixed>>,
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
+     *     guide:array<string, mixed>,
+     *     collections:list<array<string, mixed>>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
@@ -228,6 +238,8 @@ final class EpubReader
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement);
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
+        $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
+        $collections = $this->readCollections($package, $opfPart, $root, $manifestById);
         $spine = $this->readSpine($spineElement, $manifestById);
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById);
         $manifest = array_values($manifestById);
@@ -247,6 +259,8 @@ final class EpubReader
             'spine' => $spine,
             'nav' => $navItem === null ? null : $this->readNavDocument($package, $navItem),
             'ncx' => $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem),
+            'guide' => $guide,
+            'collections' => $collections,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
@@ -566,6 +580,269 @@ final class EpubReader
         }
 
         return $spine;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return array{present:bool, items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     */
+    private function readGuide(
+        ZipPackage $package,
+        string $opfPart,
+        ?\DOMElement $guideElement,
+        array $manifestById
+    ): array {
+        if (!$guideElement instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'items' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $manifestByPart = self::manifestByPart($manifestById);
+        $items = [];
+        $diagnostics = [];
+        foreach (self::childElements($guideElement, 'reference', self::OPF_NS) as $index => $referenceElement) {
+            $href = trim($referenceElement->getAttribute('href'));
+            $reference = $this->packageReference($package, $opfPart, $href, $manifestByPart, 'guide');
+            $item = [
+                'index' => $index,
+                'type' => self::nullableAttribute($referenceElement, 'type'),
+                'title' => self::nullableAttribute($referenceElement, 'title'),
+                'href' => $href === '' ? null : $href,
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
+                'diagnostics' => $reference['diagnostics'],
+            ];
+
+            foreach ($reference['diagnostics'] as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+            $items[] = $item;
+        }
+
+        return [
+            'present' => true,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function readCollections(
+        ZipPackage $package,
+        string $opfPart,
+        \DOMElement $packageElement,
+        array $manifestById
+    ): array {
+        $manifestByPart = self::manifestByPart($manifestById);
+        $collections = [];
+        foreach (self::childElements($packageElement, 'collection', self::OPF_NS) as $collectionElement) {
+            $collections[] = $this->readCollectionElement($package, $opfPart, $collectionElement, $manifestByPart);
+        }
+
+        return $collections;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function readCollectionElement(
+        ZipPackage $package,
+        string $opfPart,
+        \DOMElement $collectionElement,
+        array $manifestByPart
+    ): array {
+        $links = [];
+        foreach (self::childElements($collectionElement, 'link', self::OPF_NS) as $linkElement) {
+            $links[] = $this->readCollectionLink($package, $opfPart, $linkElement, $manifestByPart);
+        }
+
+        $children = [];
+        foreach (self::childElements($collectionElement, 'collection', self::OPF_NS) as $childCollection) {
+            $children[] = $this->readCollectionElement($package, $opfPart, $childCollection, $manifestByPart);
+        }
+
+        $metadataElement = self::firstChildElement($collectionElement, 'metadata', self::OPF_NS);
+
+        return [
+            'id' => self::nullableAttribute($collectionElement, 'id'),
+            'role' => self::nullableAttribute($collectionElement, 'role'),
+            'language' => self::xmlLang($collectionElement),
+            'dir' => self::nullableAttribute($collectionElement, 'dir'),
+            'metadata' => $metadataElement instanceof \DOMElement ? $this->readMetadata($metadataElement, '') : [],
+            'links' => $links,
+            'children' => $children,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function readCollectionLink(
+        ZipPackage $package,
+        string $opfPart,
+        \DOMElement $linkElement,
+        array $manifestByPart
+    ): array {
+        $href = self::nullableAttribute($linkElement, 'href');
+        $reference = $this->packageReference($package, $opfPart, $href ?? '', $manifestByPart, 'collection');
+        $declaredMediaType = self::nullableAttribute($linkElement, 'media-type');
+
+        return [
+            'id' => self::nullableAttribute($linkElement, 'id'),
+            'rel' => self::spaceDelimited($linkElement->getAttribute('rel')),
+            'href' => $href,
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'mediaType' => $declaredMediaType ?? $reference['mediaType'],
+            'manifestId' => $reference['manifestId'],
+            'manifestMediaType' => $reference['mediaType'],
+            'properties' => self::spaceDelimited($linkElement->getAttribute('properties')),
+            'title' => self::nullableAttribute($linkElement, 'title'),
+            'refines' => self::nullableAttribute($linkElement, 'refines'),
+            'encrypted' => $reference['encrypted'],
+            'canExposeBytes' => $reference['canExposeBytes'],
+            'diagnostics' => $reference['diagnostics'],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array{
+     *     target:?string,
+     *     part:?string,
+     *     external:bool,
+     *     exists:bool,
+     *     byteLength:?int,
+     *     crc32:?string,
+     *     manifestId:?string,
+     *     mediaType:?string,
+     *     encrypted:bool,
+     *     canExposeBytes:bool,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private function packageReference(
+        ZipPackage $package,
+        string $basePart,
+        string $href,
+        array $manifestByPart,
+        string $context
+    ): array {
+        $href = trim($href);
+        if ($href === '') {
+            return [
+                'target' => null,
+                'part' => null,
+                'external' => false,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'manifestId' => null,
+                'mediaType' => null,
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'missing-' . $context . '-href',
+                    'message' => 'EPUB OPF ' . $context . ' reference is missing href',
+                ]],
+            ];
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1 || str_starts_with($href, '//')) {
+            return [
+                'target' => $href,
+                'part' => null,
+                'external' => true,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'manifestId' => null,
+                'mediaType' => null,
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => $context === 'collection' ? 'external-collection-link' : 'external-' . $context . '-reference',
+                    'href' => $href,
+                    'message' => 'EPUB OPF ' . $context . ' reference points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
+        try {
+            $target = OpcPackagePath::resolveInternalTarget($basePart, $href);
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'part' => null,
+                'external' => false,
+                'exists' => false,
+                'byteLength' => null,
+                'crc32' => null,
+                'manifestId' => null,
+                'mediaType' => null,
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'invalid-' . $context . '-reference',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        $part = OpcPackagePath::stripQueryAndFragment($target);
+        $exists = $package->has($part);
+        $entry = $exists ? $package->entry($part) : null;
+        $manifestItem = $manifestByPart[$part] ?? null;
+
+        $diagnostics = [];
+        if (!$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-' . $context . '-reference',
+                'href' => $href,
+                'part' => $part,
+                'message' => 'EPUB OPF ' . $context . ' reference target is missing from the package',
+            ];
+        }
+
+        return [
+            'target' => $target,
+            'part' => $part,
+            'external' => false,
+            'exists' => $exists,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'manifestId' => is_array($manifestItem) ? (string) $manifestItem['id'] : null,
+            'mediaType' => is_array($manifestItem) ? (string) $manifestItem['mediaType'] : null,
+            'encrypted' => is_array($manifestItem) && self::isEncryptedManifestItem($manifestItem),
+            'canExposeBytes' => is_array($manifestItem) ? (bool) ($manifestItem['canExposeBytes'] ?? true) : $exists,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
@@ -1100,9 +1377,17 @@ final class EpubReader
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $spine
      * @param list<array<string, mixed>> $xhtmlAssets
+     * @param array<string, mixed> $guide
+     * @param list<array<string, mixed>> $collections
      */
-    private function documentNode(array $metadata, string $opfPart, array $spine, array $xhtmlAssets): AstNode
-    {
+    private function documentNode(
+        array $metadata,
+        string $opfPart,
+        array $spine,
+        array $xhtmlAssets,
+        array $guide,
+        array $collections
+    ): AstNode {
         $assetsByPart = [];
         foreach ($xhtmlAssets as $asset) {
             $assetsByPart[(string) $asset['part']] = $asset;
@@ -1134,6 +1419,8 @@ final class EpubReader
             'source' => 'epub3',
             'opfPart' => $opfPart,
             'metadata' => $metadata,
+            'guide' => $guide,
+            'collections' => $collections,
             'title' => $metadata['title'] ?? '',
         ], $children);
     }

@@ -39,6 +39,18 @@ $opfXml = <<<'XML'
   <spine toc="toc">
     <itemref idref="chapter"/>
   </spine>
+  <guide>
+    <reference type="text" title="Begin source" href="text/chapter.xhtml#source"/>
+    <reference type="cover" title="Cover image" href="images/cover.png"/>
+  </guide>
+  <collection id="source-set" role="set" xml:lang="en">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>WordPress source collection</dc:title>
+      <meta property="group-position">1</meta>
+    </metadata>
+    <link rel="first" href="text/chapter.xhtml#source" media-type="application/xhtml+xml" properties="preview"/>
+    <link rel="record" href="https://example.invalid/wp-source" media-type="text/html"/>
+  </collection>
 </package>
 XML;
 
@@ -151,6 +163,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['nav']['pageList'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#page-1') {
         throw new RuntimeException('Expected EPUB page-list target to resolve to the source page marker');
     }
+    if (($result['guide']['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
+        throw new RuntimeException('Expected EPUB OPF guide text target to resolve to the source chapter');
+    }
+    if (($result['guide']['items'][1]['manifestId'] ?? null) !== 'cover-image') {
+        throw new RuntimeException('Expected EPUB OPF guide cover reference to match the cover manifest item');
+    }
+    if (($result['collections'][0]['role'] ?? null) !== 'set') {
+        throw new RuntimeException('Expected EPUB OPF collection role to be preserved');
+    }
+    if (($result['collections'][0]['metadata']['title'] ?? null) !== 'WordPress source collection') {
+        throw new RuntimeException('Expected EPUB OPF collection metadata title');
+    }
+    if (($result['collections'][0]['links'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
+        throw new RuntimeException('Expected EPUB OPF collection internal link to resolve to the source chapter');
+    }
+    if (($result['collections'][0]['links'][1]['diagnostics'][0]['type'] ?? null) !== 'external-collection-link') {
+        throw new RuntimeException('Expected EPUB OPF collection external link to be reported without fetching');
+    }
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
@@ -188,6 +218,10 @@ echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'pageListTarget=' . ($result['nav']['pageList'][0]['target'] ?? '') . "\n";
+echo 'guideReferences=' . count($result['guide']['items'] ?? []) . "\n";
+echo 'guideTextTarget=' . ($result['guide']['items'][0]['target'] ?? '') . "\n";
+echo 'collectionRole=' . ($result['collections'][0]['role'] ?? '') . "\n";
+echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target'] ?? '') . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";

@@ -38,6 +38,25 @@ $opfXml = <<<'XML'
     <itemref idref="chapter-1"/>
     <itemref idref="chapter-2" linear="no"/>
   </spine>
+  <guide>
+    <reference type="cover" title="Cover image" href="images/cover.png"/>
+    <reference type="text" title="Start reading" href="text/chapter1.xhtml#intro"/>
+    <reference type="glossary" title="Missing glossary" href="text/missing.xhtml"/>
+  </guide>
+  <collection id="series" role="series" xml:lang="en">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Migration packets</dc:title>
+      <meta property="group-position">2</meta>
+    </metadata>
+    <link rel="first" href="text/chapter1.xhtml#intro" media-type="application/xhtml+xml" properties="preview"/>
+    <link rel="record" href="https://example.invalid/source-record" media-type="text/html"/>
+    <collection id="review" role="preview">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Reviewer extracts</dc:title>
+      </metadata>
+      <link rel="sample" href="text/chapter2.xhtml#media" media-type="application/xhtml+xml"/>
+    </collection>
+  </collection>
 </package>
 XML;
 
@@ -257,6 +276,55 @@ return [
         $t->same('2', $nav['pageList'][1]['title']);
         $t->same('/OEBPS/text/chapter2.xhtml#page-2', $nav['pageList'][1]['target']);
         $t->same($nav['items'], $nav['sections'][0]['items']);
+    },
+    'parses OPF guide references and collection review metadata' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $result = (new EpubReader())->readPackage($buildEpubPackage());
+
+        $guide = $result['guide'];
+        $t->same(true, $guide['present']);
+        $t->same(3, count($guide['items']));
+        $t->same('cover', $guide['items'][0]['type']);
+        $t->same('Cover image', $guide['items'][0]['title']);
+        $t->same('images/cover.png', $guide['items'][0]['href']);
+        $t->same('/OEBPS/images/cover.png', $guide['items'][0]['target']);
+        $t->same('/OEBPS/images/cover.png', $guide['items'][0]['part']);
+        $t->same(true, $guide['items'][0]['exists']);
+        $t->same('cover-image', $guide['items'][0]['manifestId']);
+        $t->same('image/png', $guide['items'][0]['mediaType']);
+        $t->same([], $guide['items'][0]['diagnostics']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $guide['items'][1]['target']);
+        $t->same('chapter-1', $guide['items'][1]['manifestId']);
+        $t->same(false, $guide['items'][2]['exists']);
+        $t->same('/OEBPS/text/missing.xhtml', $guide['items'][2]['part']);
+        $t->same('missing-guide-reference', $guide['items'][2]['diagnostics'][0]['type']);
+        $t->same($guide, $result['importReport']['guide']);
+
+        $collections = $result['collections'];
+        $t->same(1, count($collections));
+        $series = $collections[0];
+        $t->same('series', $series['id']);
+        $t->same('series', $series['role']);
+        $t->same('en', $series['language']);
+        $t->same('Migration packets', $series['metadata']['title']);
+        $t->same('2', $series['metadata']['metaProperties']['group-position'][0]['text']);
+        $t->same(2, count($series['links']));
+        $t->same(['first'], $series['links'][0]['rel']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $series['links'][0]['target']);
+        $t->same('chapter-1', $series['links'][0]['manifestId']);
+        $t->same(['preview'], $series['links'][0]['properties']);
+        $t->same(['record'], $series['links'][1]['rel']);
+        $t->same('https://example.invalid/source-record', $series['links'][1]['target']);
+        $t->same(true, $series['links'][1]['external']);
+        $t->same(null, $series['links'][1]['part']);
+        $t->same(false, $series['links'][1]['exists']);
+        $t->same('external-collection-link', $series['links'][1]['diagnostics'][0]['type']);
+        $t->same(1, count($series['children']));
+        $t->same('preview', $series['children'][0]['role']);
+        $t->same('Reviewer extracts', $series['children'][0]['metadata']['title']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $series['children'][0]['links'][0]['target']);
+        $t->same($collections, $result['importReport']['collections']);
+        $t->same($guide, $result['document']->attr('guide'));
+        $t->same($collections, $result['document']->attr('collections'));
     },
     'reports missing non-spine package assets without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithMissingAudio = str_replace(
