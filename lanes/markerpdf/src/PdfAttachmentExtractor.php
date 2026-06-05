@@ -343,7 +343,7 @@ final class PdfAttachmentExtractor
     {
         $catalogReference = $this->latestTrailerRootCatalogReference($pdfBytes);
         if ($catalogReference === null) {
-            return null;
+            return $this->latestTrailerHasRootCatalogEntry($pdfBytes) ? [] : null;
         }
 
         $catalogObjectId = $catalogReference['objectNumber'];
@@ -389,6 +389,30 @@ final class PdfAttachmentExtractor
         }
 
         return null;
+    }
+
+    private function latestTrailerHasRootCatalogEntry(string $pdfBytes): bool
+    {
+        $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $offset = $definitions === []
+            ? $this->latestStartxrefOffset($pdfBytes)
+            : $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions === [] ? null : $definitions);
+        if ($table !== null) {
+            return array_key_exists('Root', $table['trailer']);
+        }
+
+        $stream = $this->xrefStreamSectionAt($offset, $definitions);
+        if ($stream !== null) {
+            return array_key_exists('Root', $stream['dictionary']);
+        }
+
+        return false;
     }
 
     /**

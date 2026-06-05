@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
+use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -80,18 +82,32 @@ return [
         $pdf = $xrefPrevChainRootNullCurrentBasePdf();
         $extractor = new PdfTextExtractor();
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
         $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 
         $t->same([], $extractor->extractTextLines($pdf));
         $t->same('', $extractor->extractPlainText($pdf));
+        $t->same([], $files);
+        $t->same(0, $attachmentSummary['attachment_count']);
+        $t->same(0, $attachmentSummary['total_bytes']);
+        $t->same([], $attachmentSummary['filenames']);
+        $t->same([], $attachmentSummary['attachments']);
         $t->same(['info'], $metadata['source']);
         $t->same('Current Root Null Info Title', $metadata['title']);
         $t->same('Current Root Null Info Title', $metadata['info']['Title']);
         $t->same(['Current Root Null Author'], $metadata['authors']);
         $t->same('Current Root Null Producer', $metadata['producer']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
         $t->true(str_contains($pdf, '/Root null'));
         $t->true(str_contains($pdf, '/Prev '));
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Root Null'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-root-null.xml'));
+        $t->true(is_string($encodedAttachmentSummary) && !str_contains($encodedAttachmentSummary, 'stale-root-null.xml'));
+        $t->true(is_string($encodedAttachmentSummary) && !str_contains($encodedAttachmentSummary, 'Stale Root null attachment'));
         $t->true(!isset($metadata['catalog']));
         $t->true(!isset($metadata['language']));
         $t->true(!isset($metadata['embedded_files']));

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
+use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -70,7 +72,11 @@ $pdf .= "20 0 obj\n"
 
 $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
 $lines = (new PdfTextExtractor())->extractTextLines($pdf);
+$embeddedFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+$attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
 $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+$encodedEmbeddedFiles = json_encode($embeddedFiles, JSON_UNESCAPED_SLASHES);
+$encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 
 echo '<!-- markerpdf-xref-prev-chain-root-null-currentbase '
     . htmlspecialchars(json_encode([
@@ -83,6 +89,15 @@ echo '<!-- markerpdf-xref-prev-chain-root-null-currentbase '
         'stale_prev_metadata_excluded' => is_string($encodedMetadata)
             && !str_contains($encodedMetadata, 'Stale Root Null Smoke')
             && !str_contains($encodedMetadata, 'stale-root-null-smoke'),
+        'stale_prev_embedded_files_excluded' => $embeddedFiles === []
+            && is_string($encodedEmbeddedFiles)
+            && !str_contains($encodedEmbeddedFiles, 'stale-root-null-smoke'),
+        'attachment_summary_empty' => ($attachmentSummary['attachment_count'] ?? null) === 0
+            && ($attachmentSummary['total_bytes'] ?? null) === 0
+            && ($attachmentSummary['filenames'] ?? null) === []
+            && ($attachmentSummary['attachments'] ?? null) === []
+            && is_string($encodedAttachmentSummary)
+            && !str_contains($encodedAttachmentSummary, 'stale-root-null-smoke'),
         'executes_python_or_models' => false,
         'executes_external_pdf_tools' => false,
     ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";

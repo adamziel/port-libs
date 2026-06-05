@@ -3731,10 +3731,20 @@ final class PdfEmbeddedFileExtractor
     private function catalogObjectBody(string $pdfBytes, array $objects): ?string
     {
         $trailer = $this->trailerDictionaryBody($pdfBytes);
-        if ($trailer !== null && preg_match('/\/Root\s+(\d+)\s+\d+\s+R\b/s', $trailer, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            if (isset($objects[$objectNumber])) {
-                return $this->dictionaryObjectBody($objects[$objectNumber]);
+        if ($trailer !== null) {
+            $rootValue = $this->dictionaryRawValue($trailer, 'Root');
+            if ($rootValue !== null) {
+                $rootReference = $this->objectReferenceFromValue($rootValue);
+                if ($rootReference === null) {
+                    return null;
+                }
+
+                $objectNumber = $rootReference['objectNumber'];
+                if (isset($objects[$objectNumber])) {
+                    return $this->dictionaryObjectBody($objects[$objectNumber]);
+                }
+
+                return null;
             }
         }
 
