@@ -458,6 +458,8 @@ final class CitationCslProcessor
             'titleAddon' => self::stringField($item, 'title-addon'),
             'containerTitle' => self::stringField($item, 'container-title'),
             'containerTitleAddon' => self::stringField($item, 'container-title-addon'),
+            'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle']),
+            'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
             'publisher' => self::stringField($item, 'publisher'),
             'publisherPlace' => self::stringField($item, 'publisher-place'),
             'page' => self::stringField($item, 'page'),
@@ -467,6 +469,10 @@ final class CitationCslProcessor
             'edition' => self::stringField($item, 'edition'),
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle']),
             'collectionNumber' => self::firstStringField($item, ['collection-number', 'collectionNumber']),
+            'numberOfVolumes' => self::firstStringField($item, ['number-of-volumes', 'numberOfVolumes']),
+            'numberOfPages' => self::firstStringField($item, ['number-of-pages', 'numberOfPages']),
+            'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber']),
+            'part' => self::stringField($item, 'part'),
             'genre' => self::stringField($item, 'genre'),
             'authority' => self::stringField($item, 'authority'),
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
@@ -1851,18 +1857,36 @@ final class CitationCslProcessor
     private function publicationDetailBibliographyParts(array $item): array
     {
         $parts = [];
+        $mainTitle = (string) ($item['mainTitle'] ?? '');
+        if ($mainTitle !== '') {
+            $parts[] = 'Main title: ' . rtrim($mainTitle, '.') . '.';
+        }
+
+        $mainTitleAddon = (string) ($item['mainTitleAddon'] ?? '');
+        if ($mainTitleAddon !== '') {
+            $parts[] = 'Main title addendum: ' . rtrim($mainTitleAddon, '.') . '.';
+        }
+
         $volume = (string) ($item['volume'] ?? '');
         $issue = (string) ($item['issue'] ?? '');
+        $numberOfVolumes = (string) ($item['numberOfVolumes'] ?? '');
         if ($volume !== '' || $issue !== '') {
             $details = [];
             if ($volume !== '') {
-                $details[] = ucfirst($this->style->term('volume', 'short')) . ' ' . $volume;
+                $volumeDetail = ucfirst($this->style->term('volume', 'short')) . ' ' . $volume;
+                if ($numberOfVolumes !== '') {
+                    $volumeDetail .= ' of ' . $numberOfVolumes;
+                }
+
+                $details[] = $volumeDetail;
             }
             if ($issue !== '') {
                 $details[] = $this->style->term('issue', 'short') . ' ' . $issue;
             }
 
             $parts[] = implode(', ', $details) . '.';
+        } elseif ($numberOfVolumes !== '') {
+            $parts[] = $numberOfVolumes . ' ' . $this->style->term('volume', 'short', true);
         }
 
         $edition = (string) ($item['edition'] ?? '');
@@ -1878,6 +1902,21 @@ final class CitationCslProcessor
             $parts[] = 'Series: ' . rtrim($collectionTitle, '.') . '.';
         } elseif ($collectionNumber !== '') {
             $parts[] = 'Series ' . $this->style->term('number', 'short') . ' ' . $collectionNumber . '.';
+        }
+
+        $part = (string) ($item['part'] ?? '');
+        if ($part !== '') {
+            $parts[] = 'Part ' . $part . '.';
+        }
+
+        $chapterNumber = (string) ($item['chapterNumber'] ?? '');
+        if ($chapterNumber !== '') {
+            $parts[] = ucfirst($this->style->term('chapter', 'short')) . ' ' . $chapterNumber . '.';
+        }
+
+        $numberOfPages = (string) ($item['numberOfPages'] ?? '');
+        if ($numberOfPages !== '') {
+            $parts[] = $numberOfPages . ' ' . $this->style->term('page', 'short', true);
         }
 
         return $parts;
@@ -2773,6 +2812,8 @@ final class CitationCslProcessor
             'title-addon' => (string) $item['titleAddon'],
             'container-title' => (string) $item['containerTitle'],
             'container-title-addon' => (string) $item['containerTitleAddon'],
+            'main-title' => (string) $item['mainTitle'],
+            'main-title-addon' => (string) $item['mainTitleAddon'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
             'page' => (string) $item['page'],
@@ -2782,6 +2823,10 @@ final class CitationCslProcessor
             'edition' => (string) $item['edition'],
             'collection-title' => (string) $item['collectionTitle'],
             'collection-number' => (string) $item['collectionNumber'],
+            'number-of-volumes' => (string) $item['numberOfVolumes'],
+            'number-of-pages' => (string) $item['numberOfPages'],
+            'chapter-number' => (string) $item['chapterNumber'],
+            'part' => (string) $item['part'],
             'genre' => (string) $item['genre'],
             'authority' => (string) $item['authority'],
             'jurisdiction' => (string) $item['jurisdiction'],

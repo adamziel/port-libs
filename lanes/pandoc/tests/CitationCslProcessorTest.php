@@ -998,6 +998,127 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex main title and multi volume metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@inbook{volume-chapter,
+  author         = {Smith, Ada},
+  title          = {Review Checklist},
+  booktitle      = {Import Handbook},
+  booksubtitle   = {Volume Desk Edition},
+  maintitle      = {Migration Source Dossier},
+  mainsubtitle   = {Multi-volume Reviewer Set},
+  maintitleaddon = {Internal archive packet},
+  date           = {2026},
+  volume         = {2},
+  volumes        = {4},
+  part           = {1},
+  chapter        = {7},
+  pagetotal      = {320},
+  pages          = {33--39}
+}
+
+@mvbook{dossier-set,
+  editor    = {Curator, Eli},
+  title     = {Migration Source Dossier},
+  subtitle  = {Multi-volume Reviewer Set},
+  volumes   = {4},
+  publisher = {Review Press},
+  date      = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('volume-chapter', $items[0]['id']);
+        $t->same('chapter', $items[0]['type']);
+        $t->same('Review Checklist', $items[0]['title']);
+        $t->same('Import Handbook: Volume Desk Edition', $items[0]['container-title']);
+        $t->same('Migration Source Dossier: Multi-volume Reviewer Set', $items[0]['main-title']);
+        $t->same('Internal archive packet', $items[0]['main-title-addon']);
+        $t->same('2', $items[0]['volume']);
+        $t->same('4', $items[0]['number-of-volumes']);
+        $t->same('1', $items[0]['part']);
+        $t->same('7', $items[0]['chapter-number']);
+        $t->same('320', $items[0]['number-of-pages']);
+        $t->same('4', $items[1]['number-of-volumes']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $chapter = $processor->item('volume-chapter');
+        $set = $processor->item('dossier-set');
+        $t->same('Migration Source Dossier: Multi-volume Reviewer Set', $chapter['mainTitle'] ?? null);
+        $t->same('Internal archive packet', $chapter['mainTitleAddon'] ?? null);
+        $t->same('4', $chapter['numberOfVolumes'] ?? null);
+        $t->same('1', $chapter['part'] ?? null);
+        $t->same('7', $chapter['chapterNumber'] ?? null);
+        $t->same('320', $chapter['numberOfPages'] ?? null);
+        $t->same('4', $set['numberOfVolumes'] ?? null);
+        $t->same('(Smith 2026; Curator 2025)', $processor->renderCitationCluster([
+            $citation('volume-chapter', '[@volume-chapter]'),
+            $citation('dossier-set', '[@dossier-set]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.',
+            $processor->renderBibliographyEntry('volume-chapter')
+        );
+        $t->same('Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.', $processor->renderBibliographyEntry('dossier-set'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <choose>
+          <if variable="main-title" match="any">
+            <text variable="main-title"/>
+          </if>
+          <else>
+            <text variable="title"/>
+          </else>
+        </choose>
+        <text variable="container-title"/>
+        <group delimiter=" ">
+          <label variable="volume" form="short"/>
+          <number variable="volume"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="number-of-volumes" form="short" plural="always"/>
+          <number variable="number-of-volumes"/>
+        </group>
+        <group delimiter=" ">
+          <label variable="chapter-number" form="short"/>
+          <number variable="chapter-number"/>
+        </group>
+        <text variable="part" prefix="part "/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <number variable="number-of-volumes"/>
+      <number variable="chapter-number" form="ordinal"/>
+      <text variable="part"/>
+      <number variable="number-of-pages"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Migration Source Dossier: Multi-volume Reviewer Set | Import Handbook: Volume Desk Edition | vol. 2 | vols. 4 | chap. 7 | part 1; Migration Source Dossier: Multi-volume Reviewer Set | vols. 4]', $styled->renderCitationCluster([
+            $citation('volume-chapter', '[@volume-chapter]'),
+            $citation('dossier-set', '[@dossier-set]'),
+        ]));
+        $t->same('Review Checklist :: Migration Source Dossier: Multi-volume Reviewer Set :: Internal archive packet :: 4 :: 7th :: 1 :: 320', $styled->renderBibliographyEntry('volume-chapter'));
+        $t->same('Migration Source Dossier: Multi-volume Reviewer Set :: 4', $styled->renderBibliographyEntry('dossier-set'));
+
+        $document = (new MarkdownReader())->read('Multi-volume source @volume-chapter and dossier [@dossier-set] remain reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Multi-volume source Smith (2026) and dossier (Curator 2025) remain reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>', $blocks);
+        $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.</dd>', $blocks);
+    },
     'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{role-review,

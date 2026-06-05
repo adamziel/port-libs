@@ -35,6 +35,8 @@ Title metadata sources @title-review and @chapter-title-review keep reviewer sub
 
 Publication detail sources @journal-detail and @book-detail preserve volume, issue, series, and identifier metadata.
 
+Multi-volume source @volume-chapter and dossier [@dossier-set] preserve main-title and volume-family metadata.
+
 Role-rich source @role-review keeps editorial review names attached.
 
 Secondary editor source @secondary-editor-review preserves compiler, editorial director, and reviewer roles.
@@ -258,6 +260,32 @@ $bibtex = <<<'BIB'
   isbn         = {978-1-2345-6789-0}
 }
 
+@inbook{volume-chapter,
+  author         = {Smith, Ada},
+  title          = {Review Checklist},
+  booktitle      = {Import Handbook},
+  booksubtitle   = {Volume Desk Edition},
+  maintitle      = {Migration Source Dossier},
+  mainsubtitle   = {Multi-volume Reviewer Set},
+  maintitleaddon = {Internal archive packet},
+  date           = {2026},
+  volume         = {2},
+  volumes        = {4},
+  part           = {1},
+  chapter        = {7},
+  pagetotal      = {320},
+  pages          = {33--39}
+}
+
+@mvbook{dossier-set,
+  editor    = {Curator, Eli},
+  title     = {Migration Source Dossier},
+  subtitle  = {Multi-volume Reviewer Set},
+  volumes   = {4},
+  publisher = {Review Press},
+  date      = {2025}
+}
+
 @book{role-review,
   author       = {Smith, Ada},
   title        = {Annotated Migration Manual},
@@ -398,6 +426,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bookDetail['isbn'] ?? null) !== '978-1-2345-6789-0') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book ISBN metadata');
     }
+    $volumeChapter = $processor->item('volume-chapter');
+    if (($volumeChapter['mainTitle'] ?? null) !== 'Migration Source Dossier: Multi-volume Reviewer Set') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve volume-chapter main title metadata');
+    }
+    if (($volumeChapter['mainTitleAddon'] ?? null) !== 'Internal archive packet') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve volume-chapter main title addon metadata');
+    }
+    if (($volumeChapter['numberOfVolumes'] ?? null) !== '4' || ($volumeChapter['chapterNumber'] ?? null) !== '7') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve volume/chapter number metadata');
+    }
+    if (($volumeChapter['part'] ?? null) !== '1' || ($volumeChapter['numberOfPages'] ?? null) !== '320') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve part/page-count metadata');
+    }
+    $dossierSet = $processor->item('dossier-set');
+    if (($dossierSet['numberOfVolumes'] ?? null) !== '4') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve dossier-set volume count metadata');
+    }
     $roleReview = $processor->item('role-review');
     if (($roleReview['originalAuthors'][0]['family'] ?? null) !== 'García') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original author role metadata');
@@ -463,6 +508,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Publication detail sources Doe (2026) and Curator (2025) preserve volume, issue, series, and identifier metadata.</p>',
         '<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>',
         '<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>',
+        '<p>Multi-volume source Smith (2026) and dossier (Curator 2025) preserve main-title and volume-family metadata.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>',
+        '<dt>Curator 2025</dt><dd>Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.</dd>',
         '<p>Role-rich source Smith (2026) keeps editorial review names attached.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.</dd>',
         '<p>Secondary editor source Smith (2026) preserves compiler, editorial director, and reviewer roles.</p>',
