@@ -91,7 +91,12 @@ final class EpubReader
                     'items' => $opf['manifest'],
                     'missingItems' => array_values(array_filter(
                         $opf['manifest'],
-                        static fn (array $item): bool => ($item['exists'] ?? false) !== true,
+                        static fn (array $item): bool => ($item['exists'] ?? false) !== true
+                            && ($item['external'] ?? false) !== true,
+                    )),
+                    'externalItems' => array_values(array_filter(
+                        $opf['manifest'],
+                        static fn (array $item): bool => ($item['external'] ?? false) === true,
                     )),
                 ],
                 'spine' => [
@@ -624,6 +629,32 @@ final class EpubReader
                 throw new \RuntimeException('Duplicate EPUB manifest id: ' . $id);
             }
 
+            if (self::isExternalReference($href)) {
+                $manifest[$id] = [
+                    'id' => $id,
+                    'href' => $href,
+                    'target' => $href,
+                    'part' => null,
+                    'external' => true,
+                    'mediaType' => $mediaType,
+                    'properties' => self::spaceDelimited($item->getAttribute('properties')),
+                    'fallback' => self::nullableAttribute($item, 'fallback'),
+                    'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
+                    'exists' => false,
+                    'byteLength' => null,
+                    'crc32' => null,
+                    'encrypted' => false,
+                    'canExposeBytes' => false,
+                    'encryption' => null,
+                    'diagnostics' => [[
+                        'type' => 'external-manifest-resource',
+                        'href' => $href,
+                        'message' => 'EPUB OPF manifest item points outside the package and was not fetched',
+                    ]],
+                ];
+                continue;
+            }
+
             $target = OpcPackagePath::resolveInternalTarget($opfPart, $href);
             $part = OpcPackagePath::stripQueryAndFragment($target);
             $exists = $package->has($part);
@@ -633,6 +664,7 @@ final class EpubReader
                 'href' => $href,
                 'target' => $target,
                 'part' => $part,
+                'external' => false,
                 'mediaType' => $mediaType,
                 'properties' => self::spaceDelimited($item->getAttribute('properties')),
                 'fallback' => self::nullableAttribute($item, 'fallback'),
@@ -643,6 +675,7 @@ final class EpubReader
                 'encrypted' => false,
                 'canExposeBytes' => true,
                 'encryption' => null,
+                'diagnostics' => [],
             ];
         }
 
@@ -779,7 +812,12 @@ final class EpubReader
                 continue;
             }
 
-            $encryptionByPart[(string) $item['part']][] = $item;
+            $part = $item['part'];
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $encryptionByPart[$part][] = $item;
         }
 
         foreach ($manifestById as $id => $item) {
@@ -1953,7 +1991,11 @@ final class EpubReader
         $assets = [];
         $manifestParts = [];
         foreach ($manifest as $item) {
-            $manifestParts[(string) $item['part']] = true;
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $manifestParts[$part] = true;
+            }
+
             if ($item['mediaType'] === self::XHTML_MEDIA_TYPE) {
                 continue;
             }
@@ -1963,7 +2005,7 @@ final class EpubReader
             $canExposeBytes = (bool) ($item['canExposeBytes'] ?? true);
             $exportCandidate = self::isExportCandidate($item, $role);
             $byteSha256 = null;
-            $diagnostics = [];
+            $diagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
             if (($item['exists'] ?? false) === true && $canExposeBytes && $exportCandidate) {
                 try {
                     $byteSha256 = hash('sha256', $package->read((string) $item['part']));
@@ -1981,6 +2023,7 @@ final class EpubReader
                 'href' => $item['href'],
                 'target' => $item['target'],
                 'part' => $item['part'],
+                'external' => (bool) ($item['external'] ?? false),
                 'mediaType' => $item['mediaType'],
                 'properties' => $item['properties'],
                 'exists' => $item['exists'],
@@ -2424,7 +2467,12 @@ final class EpubReader
     {
         $byPart = [];
         foreach ($manifestById as $item) {
-            $byPart[(string) $item['part']] = $item;
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $byPart[$part] = $item;
         }
 
         return $byPart;

@@ -576,6 +576,52 @@ return [
         $t->same(2, count($result['document']->children));
         $t->contains('Review appendix', $result['document']->children[1]->attr('html'));
     },
+    'reports remote OPF manifest resources without fetching or marking them missing' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithRemoteAudio = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="remote-audio" href="https://cdn.example.test/audio/source-note.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithRemoteAudio));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $remoteManifest = $manifestById['remote-audio'];
+        $t->same('https://cdn.example.test/audio/source-note.mp3', $remoteManifest['target']);
+        $t->same(null, $remoteManifest['part']);
+        $t->same(true, $remoteManifest['external']);
+        $t->same(false, $remoteManifest['exists']);
+        $t->same(false, $remoteManifest['canExposeBytes']);
+        $t->same(null, $remoteManifest['byteLength']);
+        $t->same(null, $remoteManifest['crc32']);
+        $t->same('external-manifest-resource', $remoteManifest['diagnostics'][0]['type']);
+
+        $t->same([], $result['importReport']['manifest']['missingItems']);
+        $t->same(1, count($result['importReport']['manifest']['externalItems']));
+        $t->same('remote-audio', $result['importReport']['manifest']['externalItems'][0]['id']);
+        $t->same('https://cdn.example.test/audio/source-note.mp3', $result['importReport']['manifest']['externalItems'][0]['href']);
+
+        $remoteAsset = $assetById['remote-audio'];
+        $t->same(true, $remoteAsset['external']);
+        $t->same(null, $remoteAsset['part']);
+        $t->same('audio/mpeg', $remoteAsset['mediaType']);
+        $t->same('audio', $remoteAsset['role']);
+        $t->same(false, $remoteAsset['exists']);
+        $t->same(false, $remoteAsset['exportCandidate']);
+        $t->same(false, $remoteAsset['attachmentCandidate']);
+        $t->same(null, $remoteAsset['byteSha256']);
+        $t->same(false, $remoteAsset['canExposeBytes']);
+        $t->same('external-manifest-resource', $remoteAsset['diagnostics'][0]['type']);
+        $t->same(2, count($result['document']->children));
+        $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,
@@ -766,8 +812,5 @@ return [
 
         $missingSpineOpf = str_replace('<itemref idref="chapter-2" linear="no"/>', '<itemref idref="missing"/>', $opfXml);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildEpubPackage($missingSpineOpf)));
-
-        $absoluteHrefOpf = str_replace('href="styles/book.css"', 'href="https://example.test/book.css"', $opfXml);
-        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildEpubPackage($absoluteHrefOpf)));
     },
 ];

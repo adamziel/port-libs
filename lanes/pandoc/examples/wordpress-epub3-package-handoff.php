@@ -34,6 +34,7 @@ $opfXml = <<<'XML'
     <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
     <item id="audio-chapter" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+    <item id="remote-audio-note" href="https://cdn.example.test/audio/source-note.mp3" media-type="audio/mpeg"/>
     <item id="style" href="styles/review.css" media-type="text/css"/>
     <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
@@ -291,7 +292,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['mediaOverlays']['mo-chapter']['items'][2]['audioExternal'] ?? null) !== true || ($result['mediaOverlays']['mo-chapter']['items'][2]['diagnostics'][0]['type'] ?? null) !== 'external-media-overlay-reference') {
         throw new RuntimeException('Expected remote EPUB media-overlay audio to stay unfetched for review');
     }
+    if (($result['importReport']['manifest']['externalItems'][0]['id'] ?? null) !== 'remote-audio-note') {
+        throw new RuntimeException('Expected remote EPUB manifest resource to be reported separately from missing ZIP assets');
+    }
+    if (($result['importReport']['manifest']['missingItems'] ?? null) !== []) {
+        throw new RuntimeException('Expected remote EPUB manifest resource not to be counted as a missing package item');
+    }
     $foundEncryptedFont = false;
+    $foundRemoteAudio = false;
     foreach ($result['assets'] as $asset) {
         if ($asset['id'] === 'font-main' && (($asset['encrypted'] ?? false) !== true || ($asset['canExposeBytes'] ?? true) !== false)) {
             throw new RuntimeException('Expected obfuscated font asset bytes to require follow-up review');
@@ -299,9 +307,21 @@ if (($argv[1] ?? '') === '--self-test') {
         if ($asset['id'] === 'font-main') {
             $foundEncryptedFont = true;
         }
+        if ($asset['id'] === 'remote-audio-note') {
+            if (($asset['external'] ?? false) !== true || ($asset['diagnostics'][0]['type'] ?? null) !== 'external-manifest-resource') {
+                throw new RuntimeException('Expected remote EPUB manifest audio to stay unfetched with a review diagnostic');
+            }
+            if (($asset['byteSha256'] ?? null) !== null || ($asset['attachmentCandidate'] ?? true) !== false) {
+                throw new RuntimeException('Expected remote EPUB manifest audio bytes not to be exposed as an attachment');
+            }
+            $foundRemoteAudio = true;
+        }
     }
     if (!$foundEncryptedFont) {
         throw new RuntimeException('Expected obfuscated font asset in EPUB import report');
+    }
+    if (!$foundRemoteAudio) {
+        throw new RuntimeException('Expected remote EPUB manifest audio in EPUB import report');
     }
     if (($result['importReport']['assets']['coverImage']['id'] ?? null) !== 'cover-image') {
         throw new RuntimeException('Expected EPUB asset report to identify the cover image');
@@ -350,6 +370,7 @@ echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n"
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
 echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['audioTarget'] ?? '') . "\n";
+echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
 echo 'coverAttachment=' . ($result['importReport']['assets']['coverImage']['part'] ?? '') . "\n";
 echo 'coverSha256=' . ($result['importReport']['assets']['coverImage']['byteSha256'] ?? '') . "\n";
