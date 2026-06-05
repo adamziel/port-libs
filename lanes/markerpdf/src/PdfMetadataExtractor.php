@@ -5127,6 +5127,13 @@ final class PdfMetadataExtractor
             $metadata['standard_authentication_review'] = $authReview;
         }
 
+        $standardParameterDeclarationReview = ($metadata['filter'] ?? null) === 'Standard'
+            ? $this->standardSecurityHandlerParameterDeclarationReview($dictionary)
+            : [];
+        if ($standardParameterDeclarationReview !== []) {
+            $metadata['standard_security_handler_parameter_declaration_review'] = $standardParameterDeclarationReview;
+        }
+
         $standardParameterReview = $this->standardSecurityHandlerParameterReview($metadata);
         if ($standardParameterReview !== []) {
             $metadata['standard_security_handler_parameter_review'] = $standardParameterReview;
@@ -6050,6 +6057,13 @@ final class PdfMetadataExtractor
         $permissionWordDeclaredEntryCount = (int) ($permissionWordReview['declared_entry_count'] ?? 0);
         $permissionWordPresent = $permissionWordDeclaredEntryCount > 0
             || is_array($metadata['standard_permissions'] ?? null);
+        $parameterDeclarationReview = is_array($metadata['standard_security_handler_parameter_declaration_review'] ?? null)
+            ? $metadata['standard_security_handler_parameter_declaration_review']
+            : [];
+        $duplicateParameterNames = array_values(array_filter(
+            $parameterDeclarationReview['duplicate_parameter_names'] ?? [],
+            static fn (mixed $name): bool => is_string($name)
+        ));
 
         $violations = [];
         if ($version === null) {
@@ -6073,6 +6087,9 @@ final class PdfMetadataExtractor
         if (!$permissionWordPresent) {
             $violations[] = 'missing_standard_permission_word';
         }
+        if ($duplicateParameterNames !== []) {
+            $violations[] = 'duplicate_standard_security_handler_parameter_entries';
+        }
 
         return [
             'source' => 'standard_security_handler_parameter_review',
@@ -6093,6 +6110,9 @@ final class PdfMetadataExtractor
             'key_length_status' => $keyLength['status'],
             'minimum_key_length_bits' => $keyLength['minimum_key_length_bits'],
             'maximum_key_length_bits' => $keyLength['maximum_key_length_bits'],
+            'parameter_declaration_review' => $parameterDeclarationReview,
+            'duplicate_parameter_names' => $duplicateParameterNames,
+            'duplicate_parameter_count' => count($duplicateParameterNames),
             'parameters_well_formed' => $violations === [],
             'status' => $violations === []
                 ? 'standard_security_handler_parameters_well_formed'
@@ -6104,6 +6124,116 @@ final class PdfMetadataExtractor
             'executes_decryption' => false,
             'executes_permission_enforcement' => false,
         ];
+    }
+
+    /**
+     * Security-handler parameters are dictionary keys, so duplicate
+     * declarations are ambiguous even when the last value is syntactically
+     * valid. Keep them as review metadata and let preflight fail closed.
+     *
+     * @return array<string, mixed>
+     */
+    private function standardSecurityHandlerParameterDeclarationReview(string $dictionary): array
+    {
+        $rows = [];
+        $entryCounts = [];
+        $duplicateNames = [];
+
+        foreach ([
+            'Filter' => 'filter',
+            'V' => 'version',
+            'R' => 'revision',
+            'Length' => 'key_length_bits',
+        ] as $pdfName => $metadataKey) {
+            $values = $this->dictionaryTopLevelRawValues($dictionary, $pdfName);
+            $entryCount = count($values);
+            if ($entryCount === 0) {
+                continue;
+            }
+
+            $entryCounts[$pdfName] = $entryCount;
+            $entries = [];
+            foreach ($values as $index => $value) {
+                $entries[] = [
+                    'source' => 'standard_security_handler_parameter_entry_review',
+                    'index' => $index,
+                    'pdf_name' => $pdfName,
+                    'metadata_key' => $metadataKey,
+                    'operand_shape' => $this->standardSecurityHandlerParameterOperandShape($value),
+                    'review_only' => true,
+                ];
+            }
+
+            $duplicate = $entryCount > 1;
+            if ($duplicate) {
+                $duplicateNames[] = $pdfName;
+            }
+
+            $rows[] = [
+                'source' => 'standard_security_handler_parameter_declaration_row',
+                'pdf_name' => $pdfName,
+                'metadata_key' => $metadataKey,
+                'declared_entry_count' => $entryCount,
+                'duplicate_entries' => $duplicate,
+                'selected_entry_index' => $entryCount - 1,
+                'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                    array_map(
+                        static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                        $entries
+                    ),
+                    static fn (mixed $shape): bool => is_string($shape)
+                ))),
+                'entries' => $entries,
+                'review_only' => true,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+            ];
+        }
+
+        if ($duplicateNames === []) {
+            return [];
+        }
+
+        return [
+            'source' => 'standard_security_handler_parameter_declaration_review',
+            'duplicate_parameter_names' => $duplicateNames,
+            'duplicate_parameter_count' => count($duplicateNames),
+            'parameter_entry_counts' => $entryCounts,
+            'status' => 'duplicate_standard_security_handler_parameter_entries_review',
+            'fail_closed' => true,
+            'rows' => $rows,
+            'review_only' => true,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    private function standardSecurityHandlerParameterOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+
+        return 'token';
     }
 
     private function standardSecurityHandlerVersionRevisionCompatible(int $version, int $revision): bool
