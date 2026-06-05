@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 01:37:41 UTC",
-    "sourceCommit": "ec3992d17a839c45c9056001a1235d4d2f2a27f6",
-    "sourceCommitShort": "ec3992d17a83",
+    "generated": "2026-06-05 01:37:59 UTC",
+    "sourceCommit": "a2e7adb1c6fc80ae9058b353b45997b578cbedcf",
+    "sourceCommitShort": "a2e7adb1c6fc",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ec3992d17a839c45c9056001a1235d4d2f2a27f6",
-    "dashboardCommitShort": "ec3992d17a83",
+    "dashboardCommit": "a2e7adb1c6fc80ae9058b353b45997b578cbedcf",
+    "dashboardCommitShort": "a2e7adb1c6fc",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,294",
             "php": "507 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC table-geometry slice on accepted base 72233410189f75bf...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit revalidated accepted...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For table-geometry follow-up, keep importer-level attachment...",
+            "nextTarget": "For Math/TeX follow-up, keep binomial commands, richer array...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
