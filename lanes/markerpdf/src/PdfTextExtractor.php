@@ -29990,6 +29990,7 @@ final class PdfTextExtractor
         $closedTextObject = false;
         $graphicsStateDepth = 0;
         $markedContentDepth = 0;
+        $compatibilityDepth = 0;
         $outsideTextOperands = [];
 
         while ($index < $length) {
@@ -30014,7 +30015,12 @@ final class PdfTextExtractor
 
             if ($char === '(') {
                 if (!$insideTextObject) {
-                    return false;
+                    if ($compatibilityDepth <= 0) {
+                        return false;
+                    }
+
+                    $outsideTextOperands[] = $this->readLiteralToken($segment, $index);
+                    continue;
                 }
                 $this->readLiteralToken($segment, $index);
                 continue;
@@ -30023,12 +30029,23 @@ final class PdfTextExtractor
             if ($char === '<') {
                 if (!$insideTextObject) {
                     if (($segment[$index + 1] ?? '') !== '<') {
-                        return false;
+                        if ($compatibilityDepth <= 0) {
+                            return false;
+                        }
+
+                        $outsideTextOperands[] = $this->readHexToken($segment, $index);
+                        continue;
                     }
 
                     $token = $this->readDictionaryToken($segment, $index);
-                    if (!$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)) {
+                    if (
+                        $compatibilityDepth <= 0
+                        && !$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)
+                    ) {
                         return false;
+                    }
+                    if ($compatibilityDepth > 0) {
+                        $outsideTextOperands[] = $token;
                     }
 
                     continue;
@@ -30044,7 +30061,7 @@ final class PdfTextExtractor
 
             if ($char === '[') {
                 if (!$insideTextObject) {
-                    if (count($outsideTextOperands) >= 2) {
+                    if ($compatibilityDepth <= 0 && count($outsideTextOperands) >= 2) {
                         return false;
                     }
 
@@ -30058,8 +30075,14 @@ final class PdfTextExtractor
             if ($char === '/') {
                 if (!$insideTextObject) {
                     $token = $this->readNameToken($segment, $index);
-                    if (!$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)) {
+                    if (
+                        $compatibilityDepth <= 0
+                        && !$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)
+                    ) {
                         return false;
+                    }
+                    if ($compatibilityDepth > 0) {
+                        $outsideTextOperands[] = $token;
                     }
 
                     continue;
@@ -30080,19 +30103,46 @@ final class PdfTextExtractor
             $token = substr($segment, $start, $index - $start);
             if (!$lineSeparated) {
                 if (
+                    $token === 'BX'
+                    && !$insideTextObject
+                    && $outsideTextOperands === []
+                    && $graphicsStateDepth === 0
+                    && $markedContentDepth === 0
+                    && $compatibilityDepth === 0
+                ) {
+                    $lineSeparated = true;
+                } elseif (
                     $token !== 'BT'
                     || $insideTextObject
                     || $outsideTextOperands !== []
                     || $graphicsStateDepth !== 0
                     || $markedContentDepth !== 0
+                    || $compatibilityDepth !== 0
                 ) {
                     return false;
                 }
 
-                $lineSeparated = true;
+                if ($token === 'BT') {
+                    $lineSeparated = true;
+                }
             }
 
             if (!$insideTextObject) {
+                if ($token === 'BX') {
+                    if ($outsideTextOperands !== []) {
+                        return false;
+                    }
+
+                    $compatibilityDepth++;
+                    continue;
+                }
+
+                if ($token === 'EX' && $compatibilityDepth > 0) {
+                    $outsideTextOperands = [];
+                    $compatibilityDepth--;
+                    continue;
+                }
+
                 if ($token === 'cm') {
                     if (!$this->contentSegmentGraphicsMatrixOperands($outsideTextOperands)) {
                         return false;
@@ -30169,6 +30219,11 @@ final class PdfTextExtractor
                 }
 
                 if ($outsideTextOperands !== []) {
+                    if ($compatibilityDepth > 0) {
+                        $outsideTextOperands = [];
+                        continue;
+                    }
+
                     return false;
                 }
 
@@ -30188,6 +30243,10 @@ final class PdfTextExtractor
                 }
 
                 if ($token !== 'BT') {
+                    if ($compatibilityDepth > 0) {
+                        continue;
+                    }
+
                     return false;
                 }
 
@@ -30213,7 +30272,8 @@ final class PdfTextExtractor
             && !$insideTextObject
             && $outsideTextOperands === []
             && $graphicsStateDepth === 0
-            && $markedContentDepth === 0;
+            && $markedContentDepth === 0
+            && $compatibilityDepth === 0;
     }
 
     /**

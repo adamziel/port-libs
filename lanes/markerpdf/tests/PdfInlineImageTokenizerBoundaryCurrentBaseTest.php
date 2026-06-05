@@ -676,6 +676,42 @@ $inlineImageTokenizerDashPatternStrayEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerCompatibilitySectionStrayEiPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Compatibility Stray) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (Compatibility Payload Noise) Tj ET rawtail\n"
+        . "EI\n"
+        . "BX\n"
+        . "/FutureOperand FutureOp\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible Compatibility Before Stray) Tj ET\n"
+        . "EX\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Compatibility Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$inlineImageTokenizerSameLineCompatibilitySectionStrayEiPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Same Line Compatibility Stray) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI BX /FutureOperand FutureOp BT /F1 12 Tf 72 704 Td (Visible Same Line Compatibility Before Stray) Tj ET EX EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Same Line Compatibility Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -1444,5 +1480,48 @@ return [
         $t->true(!str_contains($plainText, 'Dash Pattern Payload Noise'));
         $t->true(!str_contains($plainText, '[3 1] 0 d'));
         $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'closes preview-only fallback before compatibility-section text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerCompatibilitySectionStrayEiPdf, $inlineImageTokenizerSameLineCompatibilitySectionStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerCompatibilitySectionStrayEiPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Compatibility Stray',
+            'Visible Compatibility Before Stray',
+            'Visible After Compatibility Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Compatibility Before Stray'));
+        $t->true(str_contains($plainText, 'Visible After Compatibility Stray'));
+        $t->true(!str_contains($plainText, 'Compatibility Payload Noise'));
+        $t->true(!str_contains($plainText, '/FutureOperand'));
+        $t->true(!str_contains($plainText, 'FutureOp'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+
+        $sameLinePdf = $inlineImageTokenizerSameLineCompatibilitySectionStrayEiPdf();
+        $sameLinePlainText = $extractor->extractPlainText($sameLinePdf);
+        $sameLineExpected = [
+            'Before Same Line Compatibility Stray',
+            'Visible Same Line Compatibility Before Stray',
+            'Visible After Same Line Compatibility Stray',
+        ];
+
+        $t->same($sameLineExpected, $extractor->extractTextLines($sameLinePdf));
+        $t->same($sameLineExpected, $extractor->extractTextRuns($sameLinePdf));
+        $t->same(implode("\n", $sameLineExpected), $sameLinePlainText);
+        $t->same(implode("\n", $sameLineExpected) . "\n", $extractor->naiveGetText($sameLinePdf));
+        $t->same(['1'], $extractor->extractPageLabels($sameLinePdf));
+        $t->same(1, $extractor->extractOutlineMetadata($sameLinePdf)['pages']);
+        $t->true(str_contains($sameLinePlainText, 'Visible Same Line Compatibility Before Stray'));
+        $t->true(str_contains($sameLinePlainText, 'Visible After Same Line Compatibility Stray'));
+        $t->true(!str_contains($sameLinePlainText, '/FutureOperand'));
+        $t->true(!str_contains($sameLinePlainText, 'FutureOp'));
+        $t->true(!str_contains($sameLinePlainText, "\x80 EI BX"));
     },
 ];
