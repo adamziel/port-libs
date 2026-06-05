@@ -82,6 +82,26 @@ return [
         $t->same(['checked' => 'checked'], $summary[3]['attributes']);
         $t->same("Text\u{00A0}<span title=\"A &quot;quote&quot; &amp; source\">source &lt;em&gt;</span><!--review--><input checked>", $html);
     },
+    'normalizes unsafe html comment boundaries before raw block serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<!--review---><p>Imported comment boundary</p><!--source -- boundary--><!--triple---tail--->',
+            'comment boundary HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('comment', $summary[0]['type']);
+        $t->same('review-', $summary[0]['text']);
+        $t->same('p', $summary[1]['name']);
+        $t->same('comment', $summary[2]['type']);
+        $t->same('source -- boundary', $summary[2]['text']);
+        $t->same('comment', $summary[3]['type']);
+        $t->same('triple---tail-', $summary[3]['text']);
+        $t->same('<!--review- --><p>Imported comment boundary</p><!--source - - boundary--><!--triple- - -tail- -->', $html);
+        $t->true(!str_contains($html, '--->'), 'Expected trailing hyphen comments to be padded before the closing delimiter');
+        $t->true(!str_contains($html, 'source -- boundary'), 'Expected interior comment delimiters to be split before serialization');
+        $t->true(!str_contains($html, 'triple---tail'), 'Expected overlapping comment delimiters to be split before serialization');
+    },
     'serializes raw text elements and expanded html5 boolean attributes' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script>'
@@ -114,6 +134,8 @@ return [
         $t->same('<section hidden><p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source--></section>', XmlHtmlDom::serializeHtmlNode($fragment));
         $t->same('<p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source-->', XmlHtmlDom::serializeHtmlChildren($section));
         $t->same('<section hidden><p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source--></section>', XmlHtmlDom::serializeHtmlNode($section));
+        $t->same('<!--detached- -->', XmlHtmlDom::serializeHtmlNode($dom->createComment('detached-')));
+        $t->same('<!--detached- - -tail- -->', XmlHtmlDom::serializeHtmlNode($dom->createComment('detached---tail-')));
     },
     'preserves svg and mathml foreign content names in deterministic html serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(

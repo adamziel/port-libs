@@ -457,7 +457,7 @@ final class XmlHtmlDom
         }
 
         if ($node instanceof \DOMComment) {
-            $text = str_replace('--', '- -', $node->nodeValue ?? '');
+            $text = self::safeHtmlCommentText($node->nodeValue ?? '');
 
             return '<!--' . $text . '-->';
         }
@@ -662,6 +662,15 @@ final class XmlHtmlDom
     private static function escapeHtmlRcdataContent(string $content): string
     {
         return strtr($content, ['<' => '&lt;', '>' => '&gt;']);
+    }
+
+    private static function safeHtmlCommentText(string $text): string
+    {
+        while (str_contains($text, '--')) {
+            $text = str_replace('--', '- -', $text);
+        }
+
+        return str_ends_with($text, '-') ? $text . ' ' : $text;
     }
 
     private static function serializeAttributes(\DOMElement $element): string

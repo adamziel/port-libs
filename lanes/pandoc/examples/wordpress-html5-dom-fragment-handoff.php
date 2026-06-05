@@ -12,6 +12,7 @@ $source = <<<'HTML'
 <base href="https://source.example.test/import/posts/post-42.html?draft=1">
 <article id="legacy-post-42" data-source="html-export">
   <h1>Imported source packet</h1>
+  <!--review--->
   <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href="../media/source.html#note">source note</a>.</p>
   <figure><img src="cover.png" srcset="cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
 </article>
@@ -35,13 +36,14 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
         '<img src="https://source.example.test/import/posts/cover.png" srcset="https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover">',
+        '<!--review- -->',
         '<!-- wp:html -->',
     ] as $expected) {
         if (!str_contains($blocks, $expected)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', 'javascript:'] as $blocked) {
+    foreach (['<base', 'javascript:', '--->'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }

@@ -365,9 +365,7 @@ final class Html5DomFragment
         }
 
         if ($node instanceof \DOMComment) {
-            $text = str_replace('--', '-', $node->nodeValue ?? '');
-
-            return [['type' => 'comment', 'text' => $text]];
+            return [['type' => 'comment', 'text' => $node->nodeValue ?? '']];
         }
 
         if (!$node instanceof \DOMElement) {
@@ -1215,7 +1213,7 @@ final class Html5DomFragment
             return htmlspecialchars((string) ($node['text'] ?? ''), ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
         if ($type === 'comment') {
-            return '<!--' . str_replace('--', '-', (string) ($node['text'] ?? '')) . '-->';
+            return '<!--' . self::safeCommentText((string) ($node['text'] ?? '')) . '-->';
         }
         if ($type !== 'element') {
             return '';
@@ -1254,6 +1252,15 @@ final class Html5DomFragment
         }
 
         return $serialized;
+    }
+
+    private static function safeCommentText(string $text): string
+    {
+        while (str_contains($text, '--')) {
+            $text = str_replace('--', '- -', $text);
+        }
+
+        return str_ends_with($text, '-') ? $text . ' ' : $text;
     }
 
     private static function isHtmlVoidElement(string $name): bool

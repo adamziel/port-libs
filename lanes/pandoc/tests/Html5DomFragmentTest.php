@@ -26,6 +26,34 @@ return [
         $t->same('br', $nodes[0]['children'][0]['children'][1]['name']);
         $t->same(['libxml-repair'], $fragment->diagnosticCodes());
     },
+    'normalizes unsafe comment boundaries before sanitized raw html handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<!--review---><p>Imported comment boundary</p><!--source -- boundary--><!--triple---tail--->'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/comment-boundary-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $html = $fragment->serialize();
+
+        $t->same('<!--review- --><p>Imported comment boundary</p><!--source - - boundary--><!--triple- - -tail- -->', $html);
+        $t->contains($html, $blocks);
+        $t->same(4, $summary['topLevelNodes']);
+        $t->same(1, $summary['elements']);
+        $t->same(3, $summary['comments']);
+        $t->same(['p'], $summary['elementNames']);
+        $t->same('comment', $nodes[0]['type']);
+        $t->same('review-', $nodes[0]['text']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('comment', $nodes[2]['type']);
+        $t->same('source -- boundary', $nodes[2]['text']);
+        $t->same('triple---tail-', $nodes[3]['text']);
+        $t->same('/migration/comment-boundary-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '--->'), 'Expected trailing hyphen comments to be padded before the closing delimiter');
+        $t->true(!str_contains($html, 'source -- boundary'), 'Expected interior comment delimiters to be split before serialization');
+    },
     'filters active tags unsafe attributes and unsafe URLs before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p onclick="alert(1)">'
