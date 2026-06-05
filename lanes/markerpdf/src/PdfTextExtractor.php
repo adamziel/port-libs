@@ -3980,6 +3980,8 @@ final class PdfTextExtractor
             $imageVisibleBbox = $this->pdfRectangleUnion($imageVisibleBbox, $bbox);
         }
         $imageVisibleBbox = $imageVisibleBbox === null ? null : $this->normalizedPdfReviewNumbers($imageVisibleBbox);
+        $imageWidth = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects);
+        $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects);
 
         return [
             'page_index' => $pageIndex,
@@ -4005,8 +4007,8 @@ final class PdfTextExtractor
             'clip_excluded_invocation_count' => $clipExcludedInvocationCount,
             'placement_review_only' => true,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
-            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
-            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'width' => $imageWidth,
+            'height' => $imageHeight,
             'color_space' => $colorSpace,
             'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
             'image_mask' => $imageMask,
@@ -4030,6 +4032,7 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             'filter_details' => $filterDetails,
+            'ccitt_fax_decode_boundary' => $this->ccittFaxDecodeBoundaryReview($filterDetails, $imageWidth, $imageHeight),
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -4523,6 +4526,148 @@ final class PdfTextExtractor
         }
 
         return $details;
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}> $filterDetails
+     * @return array<string, mixed>|null
+     */
+    private function ccittFaxDecodeBoundaryReview(array $filterDetails, ?int $dictionaryWidth, ?int $dictionaryHeight): ?array
+    {
+        $detail = null;
+        foreach ($filterDetails as $candidate) {
+            if (($candidate['filter'] ?? null) === 'CCITTFaxDecode' || ($candidate['filter'] ?? null) === 'CCF') {
+                $detail = $candidate;
+                break;
+            }
+        }
+
+        if ($detail === null) {
+            return null;
+        }
+
+        $decodeParms = is_array($detail['decode_parms'] ?? null) ? $detail['decode_parms'] : null;
+        $invalidFields = is_array($decodeParms)
+            ? array_values(array_filter(
+                $decodeParms['invalid_decode_parms_fields'] ?? [],
+                static fn (mixed $field): bool => is_string($field)
+            ))
+            : [];
+        $invalidLookup = array_fill_keys($invalidFields, true);
+
+        $effective = [
+            'k' => $this->ccittEffectiveInt($decodeParms, 'k', 0, $invalidLookup),
+            'columns' => $this->ccittEffectivePositiveInt($decodeParms, 'columns', 1728, $invalidLookup),
+            'rows' => $this->ccittEffectiveNonNegativeInt($decodeParms, 'rows', 0, $invalidLookup),
+            'black_is_1' => $this->ccittEffectiveBool($decodeParms, 'black_is_1', false, $invalidLookup),
+            'encoded_byte_align' => $this->ccittEffectiveBool($decodeParms, 'encoded_byte_align', false, $invalidLookup),
+            'end_of_line' => $this->ccittEffectiveBool($decodeParms, 'end_of_line', false, $invalidLookup),
+            'end_of_block' => $this->ccittEffectiveBool($decodeParms, 'end_of_block', true, $invalidLookup),
+            'damaged_rows_before_error' => $this->ccittEffectiveNonNegativeInt($decodeParms, 'damaged_rows_before_error', 0, $invalidLookup),
+        ];
+        $defaultsApplied = $this->ccittDefaultsApplied($decodeParms, $invalidLookup, [
+            'k',
+            'columns',
+            'rows',
+            'black_is_1',
+            'encoded_byte_align',
+            'end_of_line',
+            'end_of_block',
+            'damaged_rows_before_error',
+        ]);
+
+        $effectiveWidth = $dictionaryWidth ?? $effective['columns'];
+        $effectiveHeight = $dictionaryHeight ?? ($effective['rows'] > 0 ? $effective['rows'] : null);
+        $columnsMatchWidth = $dictionaryWidth === null ? null : $dictionaryWidth === $effective['columns'];
+        $rowsMatchHeight = $dictionaryHeight === null || $effective['rows'] === 0
+            ? null
+            : $dictionaryHeight === $effective['rows'];
+
+        return [
+            'filter' => (string) $detail['filter'],
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => $decodeParms !== null,
+            'invalid_decode_parms' => $invalidFields !== [],
+            'invalid_decode_parms_fields' => $invalidFields,
+            'effective_decode_parms' => $effective,
+            'defaults_applied' => $defaultsApplied,
+            'dictionary_width' => $dictionaryWidth,
+            'dictionary_height' => $dictionaryHeight,
+            'effective_width' => $effectiveWidth,
+            'effective_height' => $effectiveHeight,
+            'width_source' => $dictionaryWidth === null
+                ? ($decodeParms !== null && !isset($invalidLookup['columns']) && is_int($decodeParms['columns'] ?? null) ? 'decodeparms_columns' : 'decodeparms_columns_default')
+                : 'image_dictionary',
+            'height_source' => $dictionaryHeight === null
+                ? ($effective['rows'] > 0 ? 'decodeparms_rows' : 'unbounded_rows')
+                : 'image_dictionary',
+            'columns_match_width' => $columnsMatchWidth,
+            'rows_match_height' => $rowsMatchHeight,
+            'dimension_mismatch' => $columnsMatchWidth === false || $rowsMatchHeight === false,
+        ];
+    }
+
+    /**
+     * @param array<string, int|bool|string|null|list<string>>|null $decodeParms
+     * @param array<string, true> $invalidLookup
+     */
+    private function ccittEffectiveInt(?array $decodeParms, string $field, int $default, array $invalidLookup): int
+    {
+        $value = $decodeParms[$field] ?? null;
+
+        return is_int($value) && !isset($invalidLookup[$field]) ? $value : $default;
+    }
+
+    /**
+     * @param array<string, int|bool|string|null|list<string>>|null $decodeParms
+     * @param array<string, true> $invalidLookup
+     */
+    private function ccittEffectivePositiveInt(?array $decodeParms, string $field, int $default, array $invalidLookup): int
+    {
+        $value = $this->ccittEffectiveInt($decodeParms, $field, $default, $invalidLookup);
+
+        return $value >= 1 ? $value : $default;
+    }
+
+    /**
+     * @param array<string, int|bool|string|null|list<string>>|null $decodeParms
+     * @param array<string, true> $invalidLookup
+     */
+    private function ccittEffectiveNonNegativeInt(?array $decodeParms, string $field, int $default, array $invalidLookup): int
+    {
+        $value = $this->ccittEffectiveInt($decodeParms, $field, $default, $invalidLookup);
+
+        return $value >= 0 ? $value : $default;
+    }
+
+    /**
+     * @param array<string, int|bool|string|null|list<string>>|null $decodeParms
+     * @param array<string, true> $invalidLookup
+     */
+    private function ccittEffectiveBool(?array $decodeParms, string $field, bool $default, array $invalidLookup): bool
+    {
+        $value = $decodeParms[$field] ?? null;
+
+        return is_bool($value) && !isset($invalidLookup[$field]) ? $value : $default;
+    }
+
+    /**
+     * @param array<string, int|bool|string|null|list<string>>|null $decodeParms
+     * @param array<string, true> $invalidLookup
+     * @param list<string> $fields
+     * @return list<string>
+     */
+    private function ccittDefaultsApplied(?array $decodeParms, array $invalidLookup, array $fields): array
+    {
+        $defaults = [];
+        foreach ($fields as $field) {
+            if ($decodeParms === null || !array_key_exists($field, $decodeParms) || $decodeParms[$field] === null || isset($invalidLookup[$field])) {
+                $defaults[] = $field;
+            }
+        }
+
+        return $defaults;
     }
 
     /**

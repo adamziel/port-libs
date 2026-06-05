@@ -372,4 +372,105 @@ return [
             $t->same(false, $entry['payload_in_visible_text'] ?? null);
         }
     },
+    'records effective CCITT Fax DecodeParms defaults and geometry boundaries before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $inlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT default payload noise) Tj ET final";
+        $inlinePlan = $renderer->inlineImageReviewPlan(
+            '/W 8 /H 3 /IM true /F /CCF /DP << /Columns 16 /Rows 4 /BlackIs1 true >>',
+            $inlinePayload
+        );
+
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'invalid_decode_parms_fields' => [],
+            'effective_decode_parms' => [
+                'k' => 0,
+                'columns' => 16,
+                'rows' => 4,
+                'black_is_1' => true,
+                'encoded_byte_align' => false,
+                'end_of_line' => false,
+                'end_of_block' => true,
+                'damaged_rows_before_error' => 0,
+            ],
+            'defaults_applied' => [
+                'k',
+                'encoded_byte_align',
+                'end_of_line',
+                'end_of_block',
+                'damaged_rows_before_error',
+            ],
+            'dictionary_width' => 8,
+            'dictionary_height' => 3,
+            'effective_width' => 8,
+            'effective_height' => 3,
+            'width_source' => 'image_dictionary',
+            'height_source' => 'image_dictionary',
+            'columns_match_width' => false,
+            'rows_match_height' => false,
+            'dimension_mismatch' => true,
+        ], $inlinePlan['ccitt_fax_decode_boundary']);
+        $t->true(!str_contains(json_encode($inlinePlan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline CCITT default payload noise'));
+
+        $before = 'BT /F1 12 Tf 72 720 Td (Before CCITT geometry) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After CCITT geometry) Tj ET';
+        $faxPayload = 'BT /F1 12 Tf 72 700 Td (Geometry fallback fax payload noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxGeometry 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /Columns 16 /Rows 4 /BlackIs1 true >> /Length " . strlen($faxPayload) . " >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(true, array_key_exists('width', $entry));
+        $t->same(true, array_key_exists('height', $entry));
+        $t->same(null, $entry['width']);
+        $t->same(null, $entry['height']);
+        $t->same([
+            'filter' => 'CCITTFaxDecode',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'invalid_decode_parms_fields' => [],
+            'effective_decode_parms' => [
+                'k' => 0,
+                'columns' => 16,
+                'rows' => 4,
+                'black_is_1' => true,
+                'encoded_byte_align' => false,
+                'end_of_line' => false,
+                'end_of_block' => true,
+                'damaged_rows_before_error' => 0,
+            ],
+            'defaults_applied' => [
+                'k',
+                'encoded_byte_align',
+                'end_of_line',
+                'end_of_block',
+                'damaged_rows_before_error',
+            ],
+            'dictionary_width' => null,
+            'dictionary_height' => null,
+            'effective_width' => 16,
+            'effective_height' => 4,
+            'width_source' => 'decodeparms_columns',
+            'height_source' => 'decodeparms_rows',
+            'columns_match_width' => null,
+            'rows_match_height' => null,
+            'dimension_mismatch' => false,
+        ], $entry['ccitt_fax_decode_boundary']);
+        $t->same(['Before CCITT geometry', 'After CCITT geometry'], $extractor->extractTextLines($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Geometry fallback fax payload noise'));
+    },
 ];

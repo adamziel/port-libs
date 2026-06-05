@@ -53,6 +53,10 @@ $invalidInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 8 /H 1 /IM true /F /CCF /DP << /K /TwoD /Columns 0 /Rows -1 /BlackIs1 /Maybe /EncodedByteAlign true /EndOfLine /No /EndOfBlock true /DamagedRowsBeforeError -2 >> /D [1 0]',
     $invalidInlinePayload
 );
+$inlineGeometryReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 8 /H 3 /IM true /F /CCF /DP << /Columns 16 /Rows 4 /BlackIs1 true >>',
+    "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT geometry payload noise) Tj ET final"
+);
 $fakeObject = 'BT /F1 12 Tf 72 700 Td (WordPress Flate CCITT prefix leak) Tj ET';
 $flateWrappedFaxPayload = "\x00\x11\x22\x33\n"
     . "endstream\nendobj\n"
@@ -75,8 +79,22 @@ $boundaryPdf = "%PDF-1.4\n"
 $boundaryExtractor = new PdfTextExtractor();
 $boundaryLines = $boundaryExtractor->extractTextLines($boundaryPdf);
 $boundaryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($boundaryPdf);
+$geometryBefore = 'BT /F1 12 Tf 72 720 Td (Before CCITT geometry import) Tj ET';
+$geometryAfter = 'BT /F1 12 Tf 72 680 Td (After CCITT geometry import) Tj ET';
+$geometryPayload = 'BT /F1 12 Tf 72 700 Td (WordPress CCITT geometry payload noise) Tj ET';
+$geometryPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxGeometry 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($geometryBefore) . " >>\nstream\n{$geometryBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /Columns 16 /Rows 4 /BlackIs1 true >> /Length " . strlen($geometryPayload) . " >>\nstream\n{$geometryPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($geometryAfter) . " >>\nstream\n{$geometryAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$geometryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($geometryPdf);
 $inlineNotes = $inlineReview['notes'] ?? [];
 $invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
+$inlineGeometryBoundary = $inlineGeometryReview['ccitt_fax_decode_boundary'] ?? [];
+$geometryBoundary = $geometryReview['entries'][0]['ccitt_fax_decode_boundary'] ?? [];
 if (!in_array('inline_ccitt_fax_image_filter_review_only', $inlineNotes, true)) {
     throw new RuntimeException('Inline CCITT Fax review boundary smoke failed.');
 }
@@ -94,6 +112,16 @@ if (
 ) {
     throw new RuntimeException('Flate-wrapped CCITT Fax stale-length boundary smoke failed.');
 }
+if (
+    ($inlineGeometryBoundary['effective_decode_parms']['end_of_block'] ?? null) !== true
+    || ($inlineGeometryBoundary['dimension_mismatch'] ?? null) !== true
+    || ($geometryBoundary['effective_width'] ?? null) !== 16
+    || ($geometryBoundary['effective_height'] ?? null) !== 4
+    || ($geometryBoundary['width_source'] ?? null) !== 'decodeparms_columns'
+    || str_contains($boundaryExtractor->extractPlainText($geometryPdf), 'WordPress CCITT geometry payload noise')
+) {
+    throw new RuntimeException('CCITT effective DecodeParms geometry boundary smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
@@ -105,6 +133,13 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'inline_invalid_decode_parms_valid' => $invalidInlineParms['valid_decode_parms'] ?? null,
     'inline_invalid_decode_parms_fields' => $invalidInlineParms['invalid_decode_parms_fields'] ?? [],
     'inline_invalid_payload_excluded_from_review' => !str_contains(json_encode($invalidInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidInlinePayload),
+    'inline_effective_decode_parms' => $inlineGeometryBoundary['effective_decode_parms'] ?? [],
+    'inline_geometry_dimension_mismatch' => $inlineGeometryBoundary['dimension_mismatch'] ?? null,
+    'inline_geometry_defaults_applied' => $inlineGeometryBoundary['defaults_applied'] ?? [],
+    'xobject_geometry_effective_width' => $geometryBoundary['effective_width'] ?? null,
+    'xobject_geometry_effective_height' => $geometryBoundary['effective_height'] ?? null,
+    'xobject_geometry_width_source' => $geometryBoundary['width_source'] ?? null,
+    'xobject_geometry_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($geometryPdf), 'WordPress CCITT geometry payload noise'),
     'flate_wrapped_ccitt_stale_length_repaired' => true,
     'flate_wrapped_ccitt_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($boundaryPdf), 'WordPress Flate CCITT prefix leak'),
     'flate_wrapped_ccitt_raw_length' => $boundaryReview['entries'][0]['raw_length'] ?? null,
