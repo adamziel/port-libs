@@ -1882,6 +1882,68 @@ return [
         $t->true(!str_contains($encoded, $backgroundPayload));
         $t->true(!str_contains($encoded, $contentPayload));
     },
+    'rejects malformed image XObject Do invocations with extra operands' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before malformed image Do) Tj ET\n"
+            . "q 16 0 0 8 72 690 cm 99 /Malformed#20Image Do Q\n"
+            . "q 12 0 0 6 104 690 cm /Valid#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After malformed image Do) Tj ET';
+        $malformedPayload = 'BT /F1 12 Tf 72 720 Td (Malformed Do Image Payload Noise) Tj ET';
+        $validPayload = 'BT /F1 12 Tf 72 720 Td (Valid Do Image Payload Noise) Tj ET';
+        $malformedCompressed = gzcompress($malformedPayload);
+        $validCompressed = gzcompress($validPayload);
+        if (!is_string($malformedCompressed) || !is_string($validCompressed)) {
+            throw new RuntimeException('Unable to compress malformed Do image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Malformed#20Image 5 0 R /Valid#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($malformedCompressed) . " >>\nstream\n{$malformedCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($validCompressed) . " >>\nstream\n{$validCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+
+        $malformed = $entriesByName['Malformed Image'];
+        $t->same(false, $malformed['invoked']);
+        $t->same(0, $malformed['invocation_count']);
+        $t->same([], $malformed['invocation_matrices']);
+        $t->same(null, $malformed['image_unit_bbox']);
+        $t->same(true, $malformed['decoded_with_current_filters']);
+        $t->same(hash('sha256', $malformedPayload), $malformed['decoded_sha256']);
+        $t->same(false, $malformed['payload_in_visible_text']);
+
+        $valid = $entriesByName['Valid Image'];
+        $t->same(true, $valid['invoked']);
+        $t->same(1, $valid['invocation_count']);
+        $t->same([[12.0, 0.0, 0.0, 6.0, 104.0, 690.0]], $valid['invocation_matrices']);
+        $t->same([104.0, 690.0, 116.0, 696.0], $valid['image_unit_bbox']);
+        $t->same(true, $valid['decoded_with_current_filters']);
+        $t->same(hash('sha256', $validPayload), $valid['decoded_sha256']);
+        $t->same(false, $valid['payload_in_visible_text']);
+
+        $t->same(['Before malformed image Do', 'After malformed image Do'], $extractor->extractTextLines($pdf));
+        $t->same("Before malformed image Do\nAfter malformed image Do", $plainText);
+        $t->true(!str_contains($plainText, 'Malformed Do Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Valid Do Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $malformedPayload));
+        $t->true(!str_contains($encoded, $validPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"

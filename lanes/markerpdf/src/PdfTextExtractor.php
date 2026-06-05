@@ -7568,6 +7568,10 @@ final class PdfTextExtractor
      */
     private function xObjectNameOperand(array $operands): ?string
     {
+        if (count($operands) !== 1) {
+            return null;
+        }
+
         $operand = end($operands);
         if (!is_string($operand) || !str_starts_with($operand, '/')) {
             return null;
