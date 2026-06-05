@@ -1812,7 +1812,7 @@ final class PdfAnnotationExtractor
     {
         $dictionary = $this->dictionaryObjectBody($pageBody);
         if ($dictionary !== null) {
-            return $this->dictionaryRawValue($dictionary, $name);
+            return $this->lastDictionaryRawValue($dictionary, $name);
         }
 
         return $this->valueAfterName($pageBody, $name);
@@ -2721,6 +2721,18 @@ final class PdfAnnotationExtractor
         }
 
         return null;
+    }
+
+    private function lastDictionaryRawValue(string $body, string $name): ?string
+    {
+        $selected = null;
+        foreach ($this->dictionaryEntries($body) as $entry) {
+            if ($entry['name'] === $name) {
+                $selected = $entry['value'];
+            }
+        }
+
+        return $selected;
     }
 
     /**

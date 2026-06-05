@@ -437,10 +437,11 @@ final class PdfMarkupAnnotationExtractor
             return $this->valueAfterName($pageBody, $name);
         }
 
+        $selected = null;
         $offset = 0;
         $length = strlen($dictionary);
         while ($offset < $length) {
-            $this->skipWhitespace($dictionary, $offset);
+            $this->skipWhitespaceAndComments($dictionary, $offset);
             if ($offset >= $length) {
                 break;
             }
@@ -460,13 +461,13 @@ final class PdfMarkupAnnotationExtractor
             }
 
             if ($key === $name) {
-                return $value;
+                $selected = $value;
             }
 
             $offset = $valueEnd;
         }
 
-        return null;
+        return $selected;
     }
 
     /**

@@ -1959,6 +1959,7 @@ final class PdfLinkAnnotationExtractor
 
     private function dictionaryValueAfterName(string $dictionary, string $name): ?string
     {
+        $selected = null;
         $offset = 0;
         $length = strlen($dictionary);
         while ($offset < $length) {
@@ -1982,13 +1983,13 @@ final class PdfLinkAnnotationExtractor
             }
 
             if ($key === $name) {
-                return $value;
+                $selected = $value;
             }
 
             $offset = $valueEnd;
         }
 
-        return null;
+        return $selected;
     }
 
     private function skipWhitespaceAndComments(string $value, int &$offset): void
