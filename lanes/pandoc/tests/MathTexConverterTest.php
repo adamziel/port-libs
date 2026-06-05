@@ -353,6 +353,58 @@ return [
             new AstNode('math', ['text' => 'y \\label{eq:dup}', 'display' => true]),
         ])));
     },
+    'resolves bounded automatic numbers for untagged display equation references' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'text' => 'p_i + m_i \\label{eq:first}',
+                    'display' => true,
+                ]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'text' => 'inline \\label{eq:inline}',
+                    'display' => false,
+                ]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('math', [
+                    'text' => '\\begin{align}x_i &= y_i \\label{eq:row-one} \\\\ u_i &= v_i \\tag{manual}\\end{align}',
+                    'display' => true,
+                ]),
+            ]),
+        ]);
+
+        $labels = $converter->equationReferenceLabelsFromDocument($document);
+        $resolvedMathml = $converter->texToMathMl('\\eqref{eq:first} + \\eqref{eq:inline} + \\eqref{eq:row-one} + \\eqref{eq:missing}', false, [], $labels);
+
+        $t->same([
+            'eq:first' => [
+                'label' => 'eq:first',
+                'id' => 'eq:first',
+                'reference' => '1',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+            'eq:inline' => [
+                'label' => 'eq:inline',
+                'id' => 'eq:inline',
+                'reference' => 'eq:inline',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+            'eq:row-one' => [
+                'label' => 'eq:row-one',
+                'id' => 'eq:row-one',
+                'reference' => '2',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+        ], $labels);
+        $t->contains('<mrow><mo>(</mo><mtext href="#eq:first">1</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:inline">eq:inline</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:row-one">2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:missing">eq:missing</mtext><mo>)</mo></mrow>', $resolvedMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\eqref{eq:first} + \\eqref{eq:inline} + \\eqref{eq:row-one} + \\eqref{eq:missing}</annotation>', $resolvedMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);

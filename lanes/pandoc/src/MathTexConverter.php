@@ -805,7 +805,8 @@ final class MathTexConverter
     public function equationReferenceLabelsFromDocument(AstNode $node): array
     {
         $labels = [];
-        $this->collectEquationReferenceLabelsFromDocument($node, $labels);
+        $nextAutomaticNumber = 1;
+        $this->collectEquationReferenceLabelsFromDocument($node, $labels, $nextAutomaticNumber);
 
         return $labels;
     }
@@ -2313,34 +2314,45 @@ final class MathTexConverter
     /**
      * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
      */
-    private function collectEquationReferenceLabelsFromDocument(AstNode $node, array &$labels): void
+    private function collectEquationReferenceLabelsFromDocument(AstNode $node, array &$labels, int &$nextAutomaticNumber): void
     {
         if ($node->type === 'math') {
-            $this->collectEquationReferenceLabelsFromTex((string) $node->attr('text', ''), $labels);
+            $this->collectEquationReferenceLabelsFromTex(
+                (string) $node->attr('text', ''),
+                $labels,
+                $nextAutomaticNumber,
+                $node->attr('display') === true
+            );
         }
 
         foreach ($node->children as $child) {
-            $this->collectEquationReferenceLabelsFromDocument($child, $labels);
+            $this->collectEquationReferenceLabelsFromDocument($child, $labels, $nextAutomaticNumber);
         }
     }
 
     /**
      * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
      */
-    private function collectEquationReferenceLabelsFromTex(string $source, array &$labels): void
+    private function collectEquationReferenceLabelsFromTex(string $source, array &$labels, int &$nextAutomaticNumber, bool $numberUntagged): void
     {
         $equation = $this->extractEquationMetadata($source);
         if ($equation['label'] !== null) {
-            $this->registerEquationReferenceLabel($labels, $equation['label'], $equation['tag'], $equation['tagStarred']);
+            $automaticReference = null;
+            if ($numberUntagged && $equation['tag'] === null) {
+                $automaticReference = (string) $nextAutomaticNumber;
+                $nextAutomaticNumber++;
+            }
+
+            $this->registerEquationReferenceLabel($labels, $equation['label'], $equation['tag'], $equation['tagStarred'], $automaticReference);
         }
 
-        $this->collectEnvironmentEquationReferenceLabelsFromTex($source, $labels);
+        $this->collectEnvironmentEquationReferenceLabelsFromTex($source, $labels, $nextAutomaticNumber, $numberUntagged);
     }
 
     /**
      * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
      */
-    private function collectEnvironmentEquationReferenceLabelsFromTex(string $source, array &$labels): void
+    private function collectEnvironmentEquationReferenceLabelsFromTex(string $source, array &$labels, int &$nextAutomaticNumber, bool $numberUntagged): void
     {
         $offset = 0;
         $length = strlen($source);
@@ -2374,7 +2386,7 @@ final class MathTexConverter
 
                 $rows = $this->splitAlignmentRows($content, $environment);
                 $this->validateAmsRowEnvironmentRows($rows, $environment, self::AMS_ROW_ENVIRONMENTS[$environment]['columns']);
-                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels);
+                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
             } elseif ($alignedAtPairs !== null) {
                 if ($this->endsWithTopLevelRowSeparator($content)) {
                     throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
@@ -2382,10 +2394,10 @@ final class MathTexConverter
 
                 $rows = $this->splitAlignmentRows($content, $environment);
                 $this->validateAmsRowEnvironmentRows($rows, $environment, $alignedAtPairs * 2);
-                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels);
+                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
             }
 
-            $this->collectEnvironmentEquationReferenceLabelsFromTex($content, $labels);
+            $this->collectEnvironmentEquationReferenceLabelsFromTex($content, $labels, $nextAutomaticNumber, $numberUntagged);
             $offset = $contentOffset;
         }
     }
@@ -2394,12 +2406,18 @@ final class MathTexConverter
      * @param list<list<string>> $rows
      * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
      */
-    private function collectEquationReferenceLabelsFromEnvironmentRows(array $rows, string $environment, array &$labels): void
+    private function collectEquationReferenceLabelsFromEnvironmentRows(array $rows, string $environment, array &$labels, int &$nextAutomaticNumber, bool $numberUntagged): void
     {
         foreach ($rows as $rowIndex => $row) {
             $parsed = $this->extractEnvironmentRowMetadata($row, $environment, $rowIndex);
             if ($parsed['label'] !== null) {
-                $this->registerEquationReferenceLabel($labels, $parsed['label'], $parsed['tag'], $parsed['tagStarred']);
+                $automaticReference = null;
+                if ($numberUntagged && $parsed['tag'] === null) {
+                    $automaticReference = (string) $nextAutomaticNumber;
+                    $nextAutomaticNumber++;
+                }
+
+                $this->registerEquationReferenceLabel($labels, $parsed['label'], $parsed['tag'], $parsed['tagStarred'], $automaticReference);
             }
         }
     }
@@ -2407,7 +2425,7 @@ final class MathTexConverter
     /**
      * @param array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> $labels
      */
-    private function registerEquationReferenceLabel(array &$labels, string $label, ?string $tag, bool $tagStarred): void
+    private function registerEquationReferenceLabel(array &$labels, string $label, ?string $tag, bool $tagStarred, ?string $automaticReference = null): void
     {
         $label = trim($label);
         if ($label === '') {
@@ -2419,7 +2437,7 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Duplicate TeX equation label ' . $label);
         }
 
-        $reference = $tag !== null ? trim($tag) : $label;
+        $reference = $tag !== null ? trim($tag) : ($automaticReference ?? $label);
         if ($reference === '') {
             throw new \InvalidArgumentException('Expected TeX equation reference text for ' . $label);
         }

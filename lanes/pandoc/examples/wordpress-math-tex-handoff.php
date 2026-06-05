@@ -62,6 +62,14 @@ Equation reference audit $\label{eq:plain}x_i + \eqref{eq:plain} + \ref{review r
 
 Resolved equation reference audit $\eqref{eq:review-flow} + \eqref{eq:row-review}$ keeps known tags.
 
+Automatic numbering audit:
+$$p_i + m_i \label{eq:auto-one}$$
+
+Automatic row numbering audit:
+$$\begin{align}x_i &= y_i \label{eq:auto-row} \\ u_i &= v_i \tag{manual}\end{align}$$
+
+Resolved automatic numbering audit $\eqref{eq:auto-one} + \eqref{eq:auto-row} + \eqref{eq:plain}$ keeps bounded references.
+
 Accessible MathML audit $\frac{a_1}{\sqrt{b^2}} + \alpha$ keeps alt text and intent.
 MARKDOWN;
 
@@ -120,6 +128,7 @@ $summary = [
     'equationReferenceMathml' => $converter->texToMathMl('\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}', true),
     'equationReferenceLabels' => $equationReferenceLabels,
     'resolvedEquationReferenceMathml' => $converter->texToMathMl('\\eqref{eq:review-flow} + \\eqref{eq:row-review}', false, [], $equationReferenceLabels),
+    'automaticNumberReferenceMathml' => $converter->texToMathMl('\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}', false, [], $equationReferenceLabels),
     'accessibleMathml' => $converter->texToAccessibleMathMl('\\frac{a_1}{\\sqrt{b^2}} + \\alpha', true),
 ];
 $summaryJson = json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
@@ -171,6 +180,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math display">\\[p_i + m_i \\label{eq:review-flow} \\tag{WP-2}\\]</span>',
         '<span class="math inline">\\(\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}\\)</span>',
         '<span class="math inline">\\(\\eqref{eq:review-flow} + \\eqref{eq:row-review}\\)</span>',
+        '<span class="math display">\\[p_i + m_i \\label{eq:auto-one}\\]</span>',
+        '<span class="math display">\\[\\begin{align}x_i &amp;= y_i \\label{eq:auto-row} \\\\ u_i &amp;= v_i \\tag{manual}\\end{align}\\]</span>',
+        '<span class="math inline">\\(\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}\\)</span>',
         '<span class="math inline">\\(\\frac{a_1}{\\sqrt{b^2}} + \\alpha\\)</span>',
         '<mo>⟨</mo>',
         '<mo>⟩</mo>',
@@ -280,8 +292,14 @@ if (($argv[1] ?? '') === '--self-test') {
         '"reference": "WP-2"',
         '"eq:row-review"',
         '"reference": "review"',
+        '"eq:auto-one"',
+        '"reference": "1"',
+        '"eq:auto-row"',
+        '"reference": "2"',
         '<annotation encoding="application/x-tex">\\eqref{eq:review-flow} + \\eqref{eq:row-review}</annotation>',
         '<mrow><mo>(</mo><mtext href="#eq:review-flow">WP-2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:row-review">review</mtext><mo>)</mo></mrow>',
+        '<annotation encoding="application/x-tex">\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}</annotation>',
+        '<mrow><mo>(</mo><mtext href="#eq:auto-one">1</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:auto-row">2</mtext><mo>)</mo></mrow><mo>+</mo><mrow><mo>(</mo><mtext href="#eq:plain">eq:plain</mtext><mo>)</mo></mrow>',
         'display="block" alttext="fraction a sub 1 over square root of b superscript 2 plus alpha" intent="row(fraction(subscript(a,1),sqrt(superscript(b,2))),plus,alpha)"',
         '<annotation encoding="application/x-portlibs-math-alttext">fraction a sub 1 over square root of b superscript 2 plus alpha</annotation>',
         '<annotation encoding="application/x-portlibs-math-intent">row(fraction(subscript(a,1),sqrt(superscript(b,2))),plus,alpha)</annotation>',
