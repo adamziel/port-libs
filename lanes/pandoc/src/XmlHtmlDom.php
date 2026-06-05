@@ -60,6 +60,109 @@ final class XmlHtmlDom
         'style' => true,
     ];
 
+    /** @var array<string, string> */
+    private const HTML5_FOREIGN_ELEMENT_NAMES = [
+        'altglyph' => 'altGlyph',
+        'altglyphdef' => 'altGlyphDef',
+        'altglyphitem' => 'altGlyphItem',
+        'animatecolor' => 'animateColor',
+        'animatemotion' => 'animateMotion',
+        'animatetransform' => 'animateTransform',
+        'clippath' => 'clipPath',
+        'feblend' => 'feBlend',
+        'fecolormatrix' => 'feColorMatrix',
+        'fecomponenttransfer' => 'feComponentTransfer',
+        'fecomposite' => 'feComposite',
+        'feconvolvematrix' => 'feConvolveMatrix',
+        'fediffuselighting' => 'feDiffuseLighting',
+        'fedisplacementmap' => 'feDisplacementMap',
+        'fedistantlight' => 'feDistantLight',
+        'fedropshadow' => 'feDropShadow',
+        'feflood' => 'feFlood',
+        'fefunca' => 'feFuncA',
+        'fefuncb' => 'feFuncB',
+        'fefuncg' => 'feFuncG',
+        'fefuncr' => 'feFuncR',
+        'fegaussianblur' => 'feGaussianBlur',
+        'feimage' => 'feImage',
+        'femerge' => 'feMerge',
+        'femergenode' => 'feMergeNode',
+        'femorphology' => 'feMorphology',
+        'feoffset' => 'feOffset',
+        'fepointlight' => 'fePointLight',
+        'fespecularlighting' => 'feSpecularLighting',
+        'fespotlight' => 'feSpotLight',
+        'fetile' => 'feTile',
+        'feturbulence' => 'feTurbulence',
+        'foreignobject' => 'foreignObject',
+        'glyphref' => 'glyphRef',
+        'lineargradient' => 'linearGradient',
+        'radialgradient' => 'radialGradient',
+        'textpath' => 'textPath',
+    ];
+
+    /** @var array<string, string> */
+    private const HTML5_FOREIGN_ATTRIBUTE_NAMES = [
+        'attributename' => 'attributeName',
+        'attributetype' => 'attributeType',
+        'basefrequency' => 'baseFrequency',
+        'baseprofile' => 'baseProfile',
+        'calcmode' => 'calcMode',
+        'clippathunits' => 'clipPathUnits',
+        'diffuseconstant' => 'diffuseConstant',
+        'definitionurl' => 'definitionURL',
+        'edgemode' => 'edgeMode',
+        'filterunits' => 'filterUnits',
+        'glyphref' => 'glyphRef',
+        'gradienttransform' => 'gradientTransform',
+        'gradientunits' => 'gradientUnits',
+        'kernelmatrix' => 'kernelMatrix',
+        'kernelunitlength' => 'kernelUnitLength',
+        'keypoints' => 'keyPoints',
+        'keysplines' => 'keySplines',
+        'keytimes' => 'keyTimes',
+        'lengthadjust' => 'lengthAdjust',
+        'limitingconeangle' => 'limitingConeAngle',
+        'markerheight' => 'markerHeight',
+        'markerunits' => 'markerUnits',
+        'markerwidth' => 'markerWidth',
+        'maskcontentunits' => 'maskContentUnits',
+        'maskunits' => 'maskUnits',
+        'numoctaves' => 'numOctaves',
+        'pathlength' => 'pathLength',
+        'patterncontentunits' => 'patternContentUnits',
+        'patterntransform' => 'patternTransform',
+        'patternunits' => 'patternUnits',
+        'pointsatx' => 'pointsAtX',
+        'pointsaty' => 'pointsAtY',
+        'pointsatz' => 'pointsAtZ',
+        'preservealpha' => 'preserveAlpha',
+        'preserveaspectratio' => 'preserveAspectRatio',
+        'primitiveunits' => 'primitiveUnits',
+        'refx' => 'refX',
+        'refy' => 'refY',
+        'repeatcount' => 'repeatCount',
+        'repeatdur' => 'repeatDur',
+        'requiredextensions' => 'requiredExtensions',
+        'requiredfeatures' => 'requiredFeatures',
+        'specularconstant' => 'specularConstant',
+        'specularexponent' => 'specularExponent',
+        'spreadmethod' => 'spreadMethod',
+        'startoffset' => 'startOffset',
+        'stddeviation' => 'stdDeviation',
+        'surfacescale' => 'surfaceScale',
+        'systemlanguage' => 'systemLanguage',
+        'tablevalues' => 'tableValues',
+        'targetx' => 'targetX',
+        'targety' => 'targetY',
+        'textlength' => 'textLength',
+        'viewbox' => 'viewBox',
+        'viewtarget' => 'viewTarget',
+        'xchannelselector' => 'xChannelSelector',
+        'ychannelselector' => 'yChannelSelector',
+        'zoomandpan' => 'zoomAndPan',
+    ];
+
     public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true): \DOMDocument
     {
         self::assertSafeSource($xml, $label);
@@ -159,6 +262,51 @@ final class XmlHtmlDom
         return self::serializeNode($node);
     }
 
+    public static function htmlElementName(\DOMElement $element): string
+    {
+        $name = strtolower($element->tagName);
+
+        return self::isHtmlForeignElement($element)
+            ? self::adjustHtmlForeignElementName($name)
+            : $name;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function htmlAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        $isForeignElement = self::isHtmlForeignElement($element);
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = strtolower($attribute->name);
+            if ($name === self::FRAGMENT_ROOT_ATTRIBUTE) {
+                continue;
+            }
+            if ($isForeignElement) {
+                $name = self::adjustHtmlForeignAttributeName($name);
+            }
+            $attributes[$name] = $attribute->value;
+        }
+        ksort($attributes);
+
+        return $attributes;
+    }
+
+    public static function adjustHtmlForeignElementName(string $lowercaseName): string
+    {
+        return self::HTML5_FOREIGN_ELEMENT_NAMES[$lowercaseName] ?? $lowercaseName;
+    }
+
+    public static function adjustHtmlForeignAttributeName(string $lowercaseName): string
+    {
+        return self::HTML5_FOREIGN_ATTRIBUTE_NAMES[$lowercaseName] ?? $lowercaseName;
+    }
+
     public static function normalizedText(\DOMNode $node): string
     {
         $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $node->textContent) ?? $node->textContent;
@@ -205,33 +353,11 @@ final class XmlHtmlDom
 
         return [
             'type' => 'element',
-            'name' => strtolower($node->tagName),
-            'attributes' => self::attributeMap($node),
+            'name' => self::htmlElementName($node),
+            'attributes' => self::htmlAttributes($node),
             'text' => self::normalizedText($node),
             'children' => $children,
         ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private static function attributeMap(\DOMElement $element): array
-    {
-        $attributes = [];
-        foreach ($element->attributes ?? [] as $attribute) {
-            if (!$attribute instanceof \DOMAttr) {
-                continue;
-            }
-
-            $name = strtolower($attribute->name);
-            if ($name === self::FRAGMENT_ROOT_ATTRIBUTE) {
-                continue;
-            }
-            $attributes[$name] = $attribute->value;
-        }
-        ksort($attributes);
-
-        return $attributes;
     }
 
     private static function serializeNode(\DOMNode $node): string
@@ -259,14 +385,14 @@ final class XmlHtmlDom
             return '';
         }
 
-        $name = strtolower($node->tagName);
+        $name = self::htmlElementName($node);
         $html = '<' . $name . self::serializeAttributes($node);
-        if (isset(self::HTML5_VOID_ELEMENTS[$name])) {
+        if (isset(self::HTML5_VOID_ELEMENTS[strtolower($name)])) {
             return $html . '>';
         }
 
         $html .= '>';
-        if (isset(self::HTML5_RAW_TEXT_ELEMENTS[$name])) {
+        if (isset(self::HTML5_RAW_TEXT_ELEMENTS[strtolower($name)])) {
             $html .= self::rawTextContent($node);
         } else {
             foreach ($node->childNodes as $child) {
@@ -289,14 +415,15 @@ final class XmlHtmlDom
 
     private static function serializeAttributes(\DOMElement $element): string
     {
-        $attributes = self::attributeMap($element);
+        $attributes = self::htmlAttributes($element);
         if ($attributes === []) {
             return '';
         }
 
         $html = '';
         foreach ($attributes as $name => $value) {
-            if (isset(self::HTML5_BOOLEAN_ATTRIBUTES[$name]) && ($value === '' || strtolower($value) === $name)) {
+            $lowerName = strtolower($name);
+            if (isset(self::HTML5_BOOLEAN_ATTRIBUTES[$lowerName]) && ($value === '' || strtolower($value) === $lowerName)) {
                 $html .= ' ' . $name;
                 continue;
             }
@@ -319,6 +446,25 @@ final class XmlHtmlDom
         if (preg_match('/<!DOCTYPE\b/i', $source) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare a document type');
         }
+    }
+
+    private static function isHtmlForeignElement(\DOMElement $element): bool
+    {
+        $node = $element;
+        while ($node instanceof \DOMElement) {
+            $name = strtolower($node->localName);
+            if ($name === 'svg' || $name === 'math') {
+                return true;
+            }
+            if ($name === 'html' || $name === 'body') {
+                return false;
+            }
+
+            $parent = $node->parentNode;
+            $node = $parent instanceof \DOMElement ? $parent : null;
+        }
+
+        return false;
     }
 
     /**

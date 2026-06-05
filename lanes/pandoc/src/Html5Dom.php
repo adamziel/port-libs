@@ -69,11 +69,7 @@ final class Html5Dom
 
         $html = '';
         foreach ($element->childNodes as $child) {
-            $serialized = $document->saveHTML($child);
-            if ($serialized === false) {
-                throw new \RuntimeException('Failed to serialize HTML fragment child');
-            }
-            $html .= $serialized;
+            $html .= XmlHtmlDom::serializeHtmlNode($child);
         }
 
         return $html;
@@ -150,9 +146,15 @@ final class Html5Dom
     public static function attributes(\DOMElement $element): array
     {
         $attributes = [];
+        $isHtmlForeignElement = self::isHtmlDocumentElement($element) && self::isHtmlForeignElement($element);
         foreach ($element->attributes as $attribute) {
             if ($attribute instanceof \DOMAttr) {
-                $name = $attribute->prefix !== '' ? $attribute->prefix . ':' . $attribute->localName : $attribute->name;
+                $name = self::isHtmlDocumentElement($element)
+                    ? strtolower($attribute->name)
+                    : ($attribute->prefix !== '' ? $attribute->prefix . ':' . $attribute->localName : $attribute->name);
+                if ($isHtmlForeignElement) {
+                    $name = XmlHtmlDom::adjustHtmlForeignAttributeName($name);
+                }
                 $attributes[$name] = $attribute->value;
             }
         }
@@ -217,8 +219,13 @@ final class Html5Dom
 
     private static function elementMatches(\DOMElement $element, ?string $localName, ?string $namespace): bool
     {
-        if ($localName !== null && $element->localName !== $localName) {
-            return false;
+        if ($localName !== null) {
+            $matchesRawName = $element->localName === $localName;
+            $matchesAdjustedName = self::isHtmlDocumentElement($element)
+                && XmlHtmlDom::htmlElementName($element) === $localName;
+            if (!$matchesRawName && !$matchesAdjustedName) {
+                return false;
+            }
         }
 
         if ($namespace !== null && $element->namespaceURI !== $namespace) {
@@ -247,6 +254,33 @@ final class Html5Dom
         if (str_contains($source, "\0")) {
             throw new \InvalidArgumentException($label . ' must not contain NUL bytes');
         }
+    }
+
+    private static function isHtmlDocumentElement(\DOMElement $element): bool
+    {
+        $document = $element->ownerDocument;
+        $root = $document instanceof \DOMDocument ? $document->documentElement : null;
+
+        return $root instanceof \DOMElement && strtolower($root->localName) === 'html';
+    }
+
+    private static function isHtmlForeignElement(\DOMElement $element): bool
+    {
+        $node = $element;
+        while ($node instanceof \DOMElement) {
+            $name = strtolower($node->localName);
+            if ($name === 'svg' || $name === 'math') {
+                return true;
+            }
+            if ($name === 'html' || $name === 'body') {
+                return false;
+            }
+
+            $parent = $node->parentNode;
+            $node = $parent instanceof \DOMElement ? $parent : null;
+        }
+
+        return false;
     }
 
     private static function textForNormalization(\DOMNode $node): string

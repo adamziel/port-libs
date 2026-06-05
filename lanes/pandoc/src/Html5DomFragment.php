@@ -239,11 +239,11 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>
      */
-    private static function normalizeChildren(\DOMNode $parent, string $mode, array &$diagnostics): array
+    private static function normalizeChildren(\DOMNode $parent, string $mode, array &$diagnostics, ?string $foreignContext = null): array
     {
         $nodes = [];
         foreach ($parent->childNodes as $child) {
-            $normalized = self::normalizeNode($child, $mode, $diagnostics);
+            $normalized = self::normalizeNode($child, $mode, $diagnostics, $foreignContext);
             if ($normalized === null) {
                 continue;
             }
@@ -257,7 +257,7 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>|null
      */
-    private static function normalizeNode(\DOMNode $node, string $mode, array &$diagnostics): ?array
+    private static function normalizeNode(\DOMNode $node, string $mode, array &$diagnostics, ?string $foreignContext = null): ?array
     {
         if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
             return [['type' => 'text', 'text' => $node->nodeValue ?? '']];
@@ -273,7 +273,9 @@ final class Html5DomFragment
             return null;
         }
 
-        $name = self::normalizedElementName($node, $mode);
+        $rawName = self::rawElementName($node, $mode);
+        $elementForeignContext = self::elementForeignContext($rawName, $mode, $foreignContext);
+        $name = self::normalizedElementName($rawName, $elementForeignContext);
         if (!self::isSafeElementName($name)) {
             $diagnostics[] = [
                 'code' => 'blocked-tag',
@@ -295,18 +297,46 @@ final class Html5DomFragment
         return [[
             'type' => 'element',
             'name' => $name,
-            'attrs' => self::normalizeAttributes($node, $name, $mode, $diagnostics),
-            'children' => self::normalizeChildren($node, $mode, $diagnostics),
+            'attrs' => self::normalizeAttributes($node, $name, $mode, $diagnostics, $elementForeignContext),
+            'children' => self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($rawName, $elementForeignContext)),
         ]];
     }
 
-    private static function normalizedElementName(\DOMElement $element, string $mode): string
+    private static function rawElementName(\DOMElement $element, string $mode): string
     {
         if ($mode === 'xml') {
             return $element->tagName;
         }
 
         return strtolower($element->tagName);
+    }
+
+    private static function normalizedElementName(string $rawName, ?string $foreignContext): string
+    {
+        return $foreignContext !== null
+            ? XmlHtmlDom::adjustHtmlForeignElementName($rawName)
+            : $rawName;
+    }
+
+    private static function elementForeignContext(string $rawName, string $mode, ?string $parentForeignContext): ?string
+    {
+        if ($mode !== 'html') {
+            return null;
+        }
+        if ($rawName === 'svg' || $rawName === 'math') {
+            return $rawName;
+        }
+
+        return $parentForeignContext;
+    }
+
+    private static function childForeignContext(string $rawName, ?string $elementForeignContext): ?string
+    {
+        if ($elementForeignContext === 'svg' && $rawName === 'foreignobject') {
+            return null;
+        }
+
+        return $elementForeignContext;
     }
 
     private static function isSafeElementName(string $name): bool
@@ -341,7 +371,7 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return array<string, string>
      */
-    private static function normalizeAttributes(\DOMElement $element, string $tagName, string $mode, array &$diagnostics): array
+    private static function normalizeAttributes(\DOMElement $element, string $tagName, string $mode, array &$diagnostics, ?string $foreignContext): array
     {
         if (!$element->hasAttributes()) {
             return [];
@@ -352,6 +382,9 @@ final class Html5DomFragment
             $name = $mode === 'xml'
                 ? self::xmlAttributeName($attribute)
                 : strtolower($attribute->name);
+            if ($foreignContext !== null) {
+                $name = XmlHtmlDom::adjustHtmlForeignAttributeName($name);
+            }
             $value = str_replace("\0", '', $attribute->value);
 
             if (!self::isSafeAttributeName($name)) {

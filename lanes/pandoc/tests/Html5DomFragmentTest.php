@@ -67,6 +67,28 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<root><unclosed></root>'));
         $t->throws(\InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<!DOCTYPE root [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'));
     },
+    'normalizes svg and mathml foreign content for raw html review packets' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<aside><svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>'
+                . '<math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math></aside>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+
+        $t->contains('<svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>', $fragment->serialize());
+        $t->contains('<math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $fragment->serialize());
+        $t->same('Logoxx', $fragment->textContent());
+        $t->true(in_array('linearGradient', $summary['elementNames'], true), 'Expected adjusted SVG linearGradient element in summary');
+        $t->true(in_array('textPath', $summary['elementNames'], true), 'Expected adjusted SVG textPath element in summary');
+        $t->same('svg', $nodes[0]['children'][0]['name']);
+        $t->same([
+            'viewBox' => '0 0 10 10',
+            'preserveAspectRatio' => 'xMidYMid meet',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('linearGradient', $nodes[0]['children'][0]['children'][0]['name']);
+        $t->same('definitionURL', array_key_first($nodes[0]['children'][1]['children'][0]['attrs']));
+        $t->same([], $summary['blockedTags']);
+    },
     'hands normalized HTML fragments to WordPress raw HTML blocks without browser or Pandoc execution' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml('<h1 id="review">Import</h1><p>Manual<br>break &amp; reviewer note</p>');
         $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [

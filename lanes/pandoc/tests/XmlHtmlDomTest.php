@@ -96,6 +96,26 @@ return [
         $t->same('<p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source-->', XmlHtmlDom::serializeHtmlChildren($section));
         $t->same('<section hidden><p>Detached &lt;text&gt; &amp; notes</p><br><!--review - - source--></section>', XmlHtmlDom::serializeHtmlNode($section));
     },
+    'preserves svg and mathml foreign content names in deterministic html serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>'
+                . '<math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>',
+            'foreign content HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('svg', $summary[0]['name']);
+        $t->same([
+            'preserveAspectRatio' => 'xMidYMid meet',
+            'viewBox' => '0 0 10 10',
+        ], $summary[0]['attributes']);
+        $t->same('linearGradient', $summary[0]['children'][0]['name']);
+        $t->same('textPath', $summary[0]['children'][1]['name']);
+        $t->same('math', $summary[1]['name']);
+        $t->same('definitionURL', array_key_first($summary[1]['children'][0]['attributes']));
+        $t->same('<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg><math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $html);
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',
