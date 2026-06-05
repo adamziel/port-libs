@@ -1492,12 +1492,17 @@ return [
         $t->same(2, $review['image_decode']['component_count']);
         $t->same(1, $review['image_decode']['expected_components']);
         $t->same(false, $review['image_decode']['valid_for_components']);
+        $t->same(true, $review['inline_image_review_only']);
+        $t->same(false, $review['inline_image']['native_raster_decode']);
         $t->contains('image_decode_component_mismatch', implode(',', $review['notes']));
+        $t->contains('inline_image_decode_operand_review_only', implode(',', $review['notes']));
         $t->same(true, $unresolvedReview['image_decode_component_mismatch']);
         $t->same('invalid', $unresolvedReview['image_decode']['source']);
         $t->same(0, $unresolvedReview['image_decode']['component_count']);
         $t->same(1, $unresolvedReview['image_decode']['expected_components']);
         $t->same(false, $unresolvedReview['image_decode']['valid_for_components']);
+        $t->same(true, $unresolvedReview['inline_image_review_only']);
+        $t->same(false, $unresolvedReview['inline_image']['native_raster_decode']);
         $t->throws(
             InvalidArgumentException::class,
             static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows(
@@ -1535,5 +1540,34 @@ return [
                 1
             )
         );
+    },
+    'marks invalid inline image Decode operands as review-only before native raster metadata' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+
+        $explicitMismatch = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 1 0 1]',
+            "\x00",
+            $objects
+        );
+        $unresolvedDecode = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D 99 0 R',
+            "\x00",
+            $objects
+        );
+
+        foreach ([$explicitMismatch, $unresolvedDecode] as $review) {
+            $t->same(true, $review['image_decode_component_mismatch']);
+            $t->same(false, $review['image_decode']['valid_for_components']);
+            $t->same(true, $review['inline_image_review_only']);
+            $t->same(false, $review['inline_image']['native_raster_decode']);
+            $t->contains('inline_image_decode_operand_review_only', implode(',', $review['notes']));
+            $t->same(true, $review['inline_image_payload_excluded_from_text']);
+        }
+
+        $t->same('explicit', $explicitMismatch['image_decode']['source']);
+        $t->same('invalid', $unresolvedDecode['image_decode']['source']);
     },
 ];

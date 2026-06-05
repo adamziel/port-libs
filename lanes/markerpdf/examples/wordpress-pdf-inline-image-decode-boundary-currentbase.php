@@ -603,6 +603,11 @@ $malformedInlineDecodeReview = $renderer->inlineImageReviewPlan(
     "\x00",
     $inlineReviewObjects
 );
+$unresolvedInlineDecodeReview = $renderer->inlineImageReviewPlan(
+    '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D 99 0 R',
+    "\x00",
+    $inlineReviewObjects
+);
 $malformedInlineDecodeRejected = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -918,7 +923,11 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'invalid_lzw_earlychange_decode_failed' => $invalidLzwEarlyChangeDecodeFailed,
     'malformed_inline_decode_source' => $malformedInlineDecodeReview['image_decode']['source'] ?? null,
     'malformed_inline_decode_component_mismatch' => $malformedInlineDecodeReview['image_decode_component_mismatch'] ?? null,
+    'malformed_inline_decode_review_only' => $malformedInlineDecodeReview['inline_image_review_only'] ?? null,
+    'malformed_inline_decode_native_raster_decode' => $malformedInlineDecodeReview['inline_image']['native_raster_decode'] ?? null,
     'malformed_inline_decode_preview_rejected' => $malformedInlineDecodeRejected,
+    'unresolved_inline_decode_review_only' => $unresolvedInlineDecodeReview['inline_image_review_only'] ?? null,
+    'unresolved_inline_decode_native_raster_decode' => $unresolvedInlineDecodeReview['inline_image']['native_raster_decode'] ?? null,
     'unresolved_inline_decode_preview_rejected' => $unresolvedInlineDecodeRejected,
     'malformed_inline_imagemask_decode_preview_rejected' => $malformedInlineMaskDecodeRejected,
     'malformed_inline_jpx_colorkey_decode_preview_rejected' => $malformedInlineJpxDecodeRejected,

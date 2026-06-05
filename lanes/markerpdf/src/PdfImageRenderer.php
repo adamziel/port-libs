@@ -865,6 +865,7 @@ final class PdfImageRenderer
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
         $unsupportedFilters = $this->unsupportedInlineImageFilters($filters, $canonical, $objects);
+        $decodeOperandInvalid = ($plan['image_decode_component_mismatch'] ?? false) === true;
         if ($unsupportedFilters !== []) {
             $plan['image_filter_boundary']['unsupported_filters'] = $unsupportedFilters;
             $plan['image_filter_boundary']['native_raster_decode'] = false;
@@ -884,7 +885,10 @@ final class PdfImageRenderer
             'excluded_from_visible_text' => true,
             'review_only_filters' => $previewOnlyFilters,
             'unsupported_filters' => $unsupportedFilters,
-            'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [] && $unsupportedFilters === [],
+            'native_raster_decode' => $previewOnlyFilters === []
+                && $operandBoundaryFilters === []
+                && $unsupportedFilters === []
+                && !$decodeOperandInvalid,
             'soft_mask_present' => $softMask !== null && ($softMask['present'] ?? false) === true,
             'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
             'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
@@ -896,9 +900,14 @@ final class PdfImageRenderer
         ];
         $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
         $plan['inline_image_payload_excluded_from_text'] = true;
-        $plan['inline_image_review_only'] = $previewOnlyFilters !== [] || $unsupportedFilters !== [];
+        $plan['inline_image_review_only'] = $previewOnlyFilters !== []
+            || $unsupportedFilters !== []
+            || $decodeOperandInvalid;
         $plan['notes'][] = 'inline_image_dictionary_abbreviations_expanded';
         $plan['notes'][] = 'inline_image_payload_excluded_from_visible_text';
+        if ($decodeOperandInvalid) {
+            $plan['notes'][] = 'inline_image_decode_operand_review_only';
+        }
         if (in_array('JBIG2Decode', $filters, true)) {
             $plan['notes'][] = 'inline_jbig2_image_filter_review_only';
         }
