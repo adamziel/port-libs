@@ -87,18 +87,55 @@ final class PdfNamedDestinationExtractor
         $pageIndexes = $this->pageIndexesByObjectId($objects, $cache, $catalog);
         $destinations = [];
         $seenNames = [];
+        $nameTreeEntries = [];
+        $legacyDestinationValues = [];
 
         $namesDictionary = $this->resolve($catalog['Names'] ?? null, $objects, $cache);
         if ($this->isDictionary($namesDictionary) && array_key_exists('Dests', $namesDictionary)) {
-            $nameTreeDestinations = [];
             foreach ($this->collectNameTreeEntries($namesDictionary['Dests'], $objects, $cache) as $entry) {
+                $nameTreeEntries[] = $entry;
+            }
+        }
+
+        $legacyDests = $this->resolve($catalog['Dests'] ?? null, $objects, $cache);
+        if ($this->isDictionary($legacyDests)) {
+            foreach ($legacyDests as $name => $value) {
+                $legacyDestinationValues[(string) $name] = $value;
+            }
+        }
+
+        $destinationValuesByName = $legacyDestinationValues;
+        foreach ($nameTreeEntries as $entry) {
+            if ($this->destinationAliasNameFromDestinationValue($entry['value'], $objects, $cache) !== null) {
+                $destinationValuesByName[$entry['name']] = $entry['value'];
+                continue;
+            }
+
+            $destination = $this->normalizeDestination(
+                $entry['name'],
+                $entry['value'],
+                'names-tree',
+                $pageIndexes,
+                $objects,
+                $cache,
+                $destinationValuesByName
+            );
+            if ($destination !== null) {
+                $destinationValuesByName[$entry['name']] = $entry['value'];
+            }
+        }
+
+        if ($nameTreeEntries !== []) {
+            $nameTreeDestinations = [];
+            foreach ($nameTreeEntries as $entry) {
                 $destination = $this->normalizeDestination(
                     $entry['name'],
                     $entry['value'],
                     'names-tree',
                     $pageIndexes,
                     $objects,
-                    $cache
+                    $cache,
+                    $destinationValuesByName
                 );
                 if ($destination === null) {
                     continue;
@@ -113,24 +150,22 @@ final class PdfNamedDestinationExtractor
             }
         }
 
-        $legacyDests = $this->resolve($catalog['Dests'] ?? null, $objects, $cache);
-        if ($this->isDictionary($legacyDests)) {
-            foreach ($legacyDests as $name => $value) {
-                $destination = $this->normalizeDestination(
-                    (string) $name,
-                    $value,
-                    'legacy-dests',
-                    $pageIndexes,
-                    $objects,
-                    $cache
-                );
-                if ($destination === null || isset($seenNames[$destination['name']])) {
-                    continue;
-                }
-
-                $destinations[] = $destination;
-                $seenNames[$destination['name']] = true;
+        foreach ($legacyDestinationValues as $name => $value) {
+            $destination = $this->normalizeDestination(
+                (string) $name,
+                $value,
+                'legacy-dests',
+                $pageIndexes,
+                $objects,
+                $cache,
+                $destinationValuesByName
+            );
+            if ($destination === null || isset($seenNames[$destination['name']])) {
+                continue;
             }
+
+            $destinations[] = $destination;
+            $seenNames[$destination['name']] = true;
         }
 
         return $destinations;
@@ -1238,6 +1273,8 @@ final class PdfNamedDestinationExtractor
      * @param array<string, int> $pageIndexes
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
+     * @param array<string, mixed> $destinationValuesByName
+     * @param array<string, true> $seenAliases
      * @return array{name: string, page: int|null, page_object_id: int|null, fit: string, coordinates: array<string, float|null>, source: string}|null
      */
     private function normalizeDestination(
@@ -1246,7 +1283,9 @@ final class PdfNamedDestinationExtractor
         string $source,
         array $pageIndexes,
         array $objects,
-        array &$cache
+        array &$cache,
+        array $destinationValuesByName = [],
+        array $seenAliases = []
     ): ?array {
         $destinationValue = $value;
         $destination = $this->resolve($destinationValue, $objects, $cache);
@@ -1260,6 +1299,26 @@ final class PdfNamedDestinationExtractor
 
             $destinationValue = $destination['D'];
             $destination = $this->resolve($destinationValue, $objects, $cache);
+        }
+
+        $aliasName = $this->destinationAliasName($destinationValue, $objects, $cache);
+        if ($aliasName !== null) {
+            if (!array_key_exists($aliasName, $destinationValuesByName) || isset($seenAliases[$aliasName])) {
+                return null;
+            }
+
+            $seenAliases[$aliasName] = true;
+
+            return $this->normalizeDestination(
+                $name,
+                $destinationValuesByName[$aliasName],
+                $source,
+                $pageIndexes,
+                $objects,
+                $cache,
+                $destinationValuesByName,
+                $seenAliases
+            );
         }
 
         $pageOnly = $this->pageOnlyDestinationDetails($destinationValue, $pageIndexes, $objects, $cache);
@@ -1762,6 +1821,43 @@ final class PdfNamedDestinationExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function destinationAliasName(mixed $value, array $objects, array &$cache): ?string
+    {
+        $resolved = $this->resolve($value, $objects, $cache);
+        $string = $this->pdfStringDetails($resolved);
+        if ($string !== null && $string['text'] !== '') {
+            return $string['text'];
+        }
+
+        $name = $this->nameValue($resolved);
+
+        return $name === '' ? null : $name;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @param array<int, mixed> $cache
+     */
+    private function destinationAliasNameFromDestinationValue(mixed $value, array $objects, array &$cache): ?string
+    {
+        $destinationValue = $value;
+        $destination = $this->resolve($destinationValue, $objects, $cache);
+        while (
+            $this->isDictionary($destination)
+            && $this->nameValue($destination['S'] ?? null) === 'GoTo'
+            && array_key_exists('D', $destination)
+        ) {
+            $destinationValue = $destination['D'];
+            $destination = $this->resolve($destinationValue, $objects, $cache);
+        }
+
+        return $this->destinationAliasName($destinationValue, $objects, $cache);
     }
 
     /**

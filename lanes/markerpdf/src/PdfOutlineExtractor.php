@@ -2734,7 +2734,7 @@ final class PdfOutlineExtractor
         $names = $this->resolveDictionary($catalog['Names'] ?? null, $objects);
         $nameTreeRoot = $names === null ? null : $this->resolveDictionary($names['Dests'] ?? null, $objects);
         if ($nameTreeRoot !== null) {
-            $this->collectNameTreeDestinations($nameTreeRoot, $objects, $rawDestinations);
+            $this->collectNameTreeDestinations($nameTreeRoot, $objects, $rawDestinations, [], [], $pageIndexes);
         }
 
         if ($pageIndexes === []) {
