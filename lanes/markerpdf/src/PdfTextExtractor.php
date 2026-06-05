@@ -326,12 +326,14 @@ final class PdfTextExtractor
      *     strict_dependency_rejection_count: int,
      *     stream_member_rejection_count: int,
      *     duplicate_member_offset_rejection_count: int,
+     *     malformed_xref_stream_width_count: int,
      *     direct_xref_stream_owner_cycle_count: int,
      *     suppressed_hybrid_type2_entry_count: int,
      *     hybrid_table_free_owner_count: int,
      *     xref_stream_free_entry_count: int,
      *     xref_stream_free_owner_count: int,
      *     entries: list<array<string, mixed>>,
+     *     malformed_xref_stream_width_entries: list<array<string, mixed>>,
      *     suppressed_hybrid_entries: list<array<string, mixed>>,
      *     free_entries: list<array<string, mixed>>,
      *     executes_python_or_models: false,
@@ -353,12 +355,14 @@ final class PdfTextExtractor
             'strict_dependency_rejection_count' => 0,
             'stream_member_rejection_count' => 0,
             'duplicate_member_offset_rejection_count' => 0,
+            'malformed_xref_stream_width_count' => 0,
             'direct_xref_stream_owner_cycle_count' => 0,
             'suppressed_hybrid_type2_entry_count' => 0,
             'hybrid_table_free_owner_count' => 0,
             'xref_stream_free_entry_count' => 0,
             'xref_stream_free_owner_count' => 0,
             'entries' => [],
+            'malformed_xref_stream_width_entries' => [],
             'suppressed_hybrid_entries' => [],
             'free_entries' => [],
             'executes_python_or_models' => false,
@@ -376,6 +380,12 @@ final class PdfTextExtractor
 
         $preliminaryObjects = $this->latestDirectObjects($definitions);
         $xrefEntries = $this->xrefEntries($pdfBytes, $preliminaryObjects, $definitions);
+        $review['malformed_xref_stream_width_entries'] = $this->xrefStreamMalformedWidthEntries(
+            $pdfBytes,
+            $preliminaryObjects,
+            $definitions
+        );
+        $review['malformed_xref_stream_width_count'] = count($review['malformed_xref_stream_width_entries']);
         if ($xrefEntries === []) {
             return $review;
         }
@@ -13987,6 +13997,11 @@ final class PdfTextExtractor
             $definitions,
             $definition['offset']
         );
+        $dictionary = $this->dictionaryObjectBody($definition['body']) ?? $definition['body'];
+        if ($this->xrefStreamFieldWidthProblem($dictionary, $streamObjects) !== null) {
+            return true;
+        }
+
         $entry = $this->streamDictionaryAndPayload($definition['body'], $streamObjects);
         if ($entry === null) {
             return true;
@@ -14002,6 +14017,118 @@ final class PdfTextExtractor
         }
 
         return $this->decodeStream($entry['dict'], $entry['stream'], $streamObjects) === null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamMalformedWidthEntries(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes, $definitions);
+        if ($offset === null) {
+            return [];
+        }
+
+        return $this->xrefStreamMalformedWidthEntriesFromOffsetChain($pdfBytes, $offset, $objects, $definitions);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return list<array<string, mixed>>
+     */
+    private function xrefStreamMalformedWidthEntriesFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [];
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $entries = [];
+            $trailer = $tableSection['trailer'];
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamMalformedWidthEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $hybridStreamOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects);
+            if ($previousOffset !== null && $previousOffset >= 0) {
+                $entries = array_merge(
+                    $entries,
+                    $this->xrefStreamMalformedWidthEntriesFromOffsetChain(
+                        $pdfBytes,
+                        $previousOffset,
+                        $objects,
+                        $definitions,
+                        $seenOffsets
+                    )
+                );
+            }
+
+            return $entries;
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return [];
+        }
+
+        $streamObjects = $this->objectsWithDirectStreamDictionaryOperandOwners(
+            $objects,
+            $streamSection['definition']['body'],
+            $definitions,
+            $streamSection['definition']['offset']
+        );
+        $dictionary = $this->dictionaryObjectBody($streamSection['body']) ?? $streamSection['body'];
+        $problem = $this->xrefStreamFieldWidthProblem($dictionary, $streamObjects);
+        $entries = [];
+        if ($problem !== null) {
+            $entries[] = [
+                'xref_offset' => $streamSection['definition']['offset'],
+                'selected_generation' => $streamSection['definition']['generation'],
+                'width_array' => $problem['width_array'],
+                'widths' => $problem['widths'],
+                'malformed_width_indexes' => $problem['malformed_indexes'],
+                'owner_policy' => $problem['owner_policy'],
+                'rejected_before_row_decode' => true,
+                'review_only' => true,
+            ];
+        }
+
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body'], $streamObjects);
+        if ($previousOffset !== null && $previousOffset >= 0) {
+            $entries = array_merge(
+                $entries,
+                $this->xrefStreamMalformedWidthEntriesFromOffsetChain(
+                    $pdfBytes,
+                    $previousOffset,
+                    $objects,
+                    $definitions,
+                    $seenOffsets
+                )
+            );
+        }
+
+        return $entries;
     }
 
     /**
@@ -16681,16 +16808,10 @@ final class PdfTextExtractor
         $streamObjects = $definitions === null
             ? $objects
             : $this->objectsWithDirectStreamDictionaryOperandOwners($objects, $body, $definitions, $definition['offset']);
-        $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'W', $streamObjects);
-        if ($widthArray === null) {
+        $widths = $this->xrefStreamFieldWidths($dictionary, $streamObjects);
+        if ($widths === null) {
             return $entries;
         }
-
-        $widths = $this->integersFromPdfArray($widthArray);
-        if (count($widths) < 3) {
-            return $entries;
-        }
-        $widths = array_slice($widths, 0, 3);
         $entryWidth = array_sum($widths);
         if ($entryWidth <= 0) {
             return $entries;
@@ -16777,6 +16898,84 @@ final class PdfTextExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<int>|null
+     */
+    private function xrefStreamFieldWidths(string $dictionary, array $objects): ?array
+    {
+        $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'W', $objects);
+        if ($widthArray === null) {
+            return null;
+        }
+
+        $widths = array_slice($this->integersFromPdfArray($widthArray), 0, 3);
+        if (count($widths) < 3) {
+            return null;
+        }
+
+        foreach ($widths as $width) {
+            if ($width < 0) {
+                return null;
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{width_array: string|null, widths: list<int>, malformed_indexes: list<int>, owner_policy: string}|null
+     */
+    private function xrefStreamFieldWidthProblem(string $dictionary, array $objects): ?array
+    {
+        $widthArray = $this->pdfArrayValueAfterNameResolvingObjects($dictionary, 'W', $objects);
+        if ($widthArray === null) {
+            return [
+                'width_array' => null,
+                'widths' => [],
+                'malformed_indexes' => [],
+                'owner_policy' => 'missing_xref_stream_w_array',
+            ];
+        }
+
+        $widths = array_slice($this->integersFromPdfArray($widthArray), 0, 3);
+        if (count($widths) < 3) {
+            return [
+                'width_array' => $widthArray,
+                'widths' => $widths,
+                'malformed_indexes' => [],
+                'owner_policy' => 'incomplete_xref_stream_w_array',
+            ];
+        }
+
+        $malformedIndexes = [];
+        foreach ($widths as $index => $width) {
+            if ($width < 0) {
+                $malformedIndexes[] = $index;
+            }
+        }
+        if ($malformedIndexes !== []) {
+            return [
+                'width_array' => $widthArray,
+                'widths' => $widths,
+                'malformed_indexes' => $malformedIndexes,
+                'owner_policy' => 'negative_xref_stream_field_width',
+            ];
+        }
+
+        if (array_sum($widths) <= 0) {
+            return [
+                'width_array' => $widthArray,
+                'widths' => $widths,
+                'malformed_indexes' => [0, 1, 2],
+                'owner_policy' => 'zero_xref_stream_entry_width',
+            ];
+        }
+
+        return null;
     }
 
     /**
