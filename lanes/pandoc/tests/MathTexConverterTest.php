@@ -198,6 +198,17 @@ return [
         $t->contains('<mtable columnalign="right left"><mtr><mtd><mi>S</mi></mtd><mtd><mo>=</mo><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd></mtd><mtd><mo>=</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd></mtr></mtable>', $splitMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>', $splitMathml);
     },
+    'converts bounded tex alignedat environments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignedAtMathml = $converter->texToMathMl('\\begin{alignedat}{2}p_i &= m_i & a_i &= b_i \\\\ x &= y & u &= v\\end{alignedat}', true);
+        $alignAtMathml = $converter->texToMathMl('\\begin{alignat*}{2}f(x) &= x^2 & g(x) &= x + 1\\end{alignat*}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alignedAtMathml);
+        $t->contains('<mtable columnalign="right left right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd><msub><mi>a</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>b</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mi>x</mi></mtd><mtd><mo>=</mo><mi>y</mi></mtd><mtd><mi>u</mi></mtd><mtd><mo>=</mo><mi>v</mi></mtd></mtr></mtable>', $alignedAtMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{alignedat}{2}p_i &amp;= m_i &amp; a_i &amp;= b_i \\\\ x &amp;= y &amp; u &amp;= v\\end{alignedat}</annotation>', $alignedAtMathml);
+        $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignAtMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{alignat*}{2}f(x) &amp;= x^2 &amp; g(x) &amp;= x + 1\\end{alignat*}</annotation>', $alignAtMathml);
+    },
     'converts bounded tex spacing commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $punctuationSpacingMathml = $converter->texToMathMl('p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c', true);
@@ -391,6 +402,11 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{gather}a & b\\end{gather}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{split}S &= x \\\\ \\end{split}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{gathered}\\end{gathered}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}a &= b\\end{alignedat}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{0}a &= b\\end{alignedat}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{5}a &= b\\end{alignedat}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{2}a &= b & c\\end{alignedat}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignat}{1}a &= b \\\\ \\end{alignat}'));
     },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

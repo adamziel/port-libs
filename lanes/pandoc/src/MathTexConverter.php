@@ -196,6 +196,14 @@ final class MathTexConverter
         'split' => ['columnalign' => 'right left', 'columns' => 2],
     ];
 
+    /** @var array<string, true> */
+    private const AMS_ALIGNEDAT_ENVIRONMENTS = [
+        'alignat' => true,
+        'alignat*' => true,
+        'alignedat' => true,
+        'alignedat*' => true,
+    ];
+
     private int $activeLeftFenceDepth = 0;
 
     public function latexFor(AstNode $node): string
@@ -719,6 +727,10 @@ final class MathTexConverter
             return $this->parseAmsRowEnvironment($source, $offset, $environment);
         }
 
+        if (isset(self::AMS_ALIGNEDAT_ENVIRONMENTS[$environment])) {
+            return $this->parseAmsAlignedAtEnvironment($source, $offset, $environment);
+        }
+
         if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
@@ -909,6 +921,35 @@ final class MathTexConverter
         $this->validateAmsRowEnvironmentRows($rows, $environment, $spec['columns']);
 
         return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"');
+    }
+
+    private function parseAmsAlignedAtEnvironment(string $source, int &$offset, string $environment): string
+    {
+        $pairs = $this->normalizeAmsAlignedAtPairCount($this->readRequiredGroupText($source, $offset), $environment);
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, $environment);
+        $this->validateAmsRowEnvironmentRows($rows, $environment, $pairs * 2);
+
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"');
+    }
+
+    private function normalizeAmsAlignedAtPairCount(string $pairCount, string $environment): int
+    {
+        $pairCount = trim($pairCount);
+        if (preg_match('/^[1-9][0-9]*$/', $pairCount) !== 1) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' positive column pair count');
+        }
+
+        $pairs = (int) $pairCount;
+        if ($pairs > 4) {
+            throw new \InvalidArgumentException('Unsupported TeX ' . $environment . ' column pair count ' . $pairCount);
+        }
+
+        return $pairs;
     }
 
     private function parseColorCommand(string $source, int &$offset, string $command): string
