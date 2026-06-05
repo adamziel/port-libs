@@ -161,6 +161,8 @@ $malformedFilterPayload = 'abc EI BT /F1 12 Tf 72 574 Td (Malformed Filter Inlin
 $unresolvedFilterPayload = 'abc EI BT /F1 12 Tf 72 546 Td (Unresolved Filter Inline Noise) Tj ET rawtail';
 $unsupportedCryptFilterPayload = 'abc EI BT /F1 12 Tf 72 530 Td (Crypt Inline Decode Noise) Tj ET rawtail';
 $unsupportedCryptFilterDictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Crypt /D [0 1]';
+$identityCryptFilterPayload = 'ABC EI BT /F1 12 Tf 72 516 Td (Identity Crypt Inline Noise) Tj ET rawtail';
+$identityCryptFilterDictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F /Crypt /DP << /Name /Identity >> /D [0 1 0 1 0 1]';
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -200,7 +202,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 531 Td (Before Crypt Inline Review) Tj ET\n"
     . "BI {$unsupportedCryptFilterDictionary} ID\n"
     . $unsupportedCryptFilterPayload . "\nEI\n"
-    . "BT /F1 12 Tf 72 528 Td (After Crypt Inline Review) Tj ET";
+    . "BT /F1 12 Tf 72 528 Td (After Crypt Inline Review) Tj ET\n"
+    . "BT /F1 12 Tf 72 520 Td (Before Identity Crypt Inline) Tj ET\n"
+    . "BI {$identityCryptFilterDictionary} ID\n"
+    . $identityCryptFilterPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 512 Td (After Identity Crypt Inline) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -353,6 +359,13 @@ $unsupportedCryptFilterReview = $renderer->inlineImageReviewPlan(
     $unsupportedCryptFilterDictionary,
     $unsupportedCryptFilterPayload
 );
+$identityCryptFilterPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $identityCryptFilterDictionary,
+    $identityCryptFilterPayload,
+    [],
+    2
+);
+$identityCryptBoundary = $identityCryptFilterPreview['image_sample_boundary'] ?? [];
 $unsupportedCryptFilterPreviewRejected = false;
 try {
     $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
@@ -419,6 +432,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Unresolved Filter Inline',
         'Before Crypt Inline Review',
         'After Crypt Inline Review',
+        'Before Identity Crypt Inline',
+        'After Identity Crypt Inline',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
@@ -464,6 +479,15 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && ($unsupportedCryptFilterReview['image_filter_boundary']['native_raster_decode'] ?? null) === false
         && ($unsupportedCryptFilterReview['image_filter_boundary']['unsupported_filters'] ?? []) === ['Crypt'],
     'unsupported_inline_filter_preview_rejected' => $unsupportedCryptFilterPreviewRejected,
+    'identity_crypt_inline_filter_payload_excluded_until_sample_floor' => in_array('After Identity Crypt Inline', $lines, true)
+        && !str_contains($plainText, 'Identity Crypt Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'identity_crypt_inline_filter_native_decode' => ($identityCryptFilterPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($identityCryptFilterPreview['image_stream']['unsupported_filters'] ?? []) === [],
+    'identity_crypt_inline_filter_preview_pixels' => $identityCryptFilterPreview['preview_pixel_count'] ?? null,
+    'identity_crypt_inline_filter_first_pixel' => $identityCryptFilterPreview['pixels'][0]['output_rgba'] ?? null,
+    'identity_crypt_inline_filter_second_raw_sample' => $identityCryptFilterPreview['pixels'][1]['raw_sample'] ?? null,
+    'identity_crypt_inline_filter_surplus_byte_count' => $identityCryptBoundary['surplus_byte_count'] ?? null,
     'invalid_lzw_earlychange_decode_failed' => $invalidLzwEarlyChangeDecodeFailed,
     'malformed_inline_decode_source' => $malformedInlineDecodeReview['image_decode']['source'] ?? null,
     'malformed_inline_decode_component_mismatch' => $malformedInlineDecodeReview['image_decode_component_mismatch'] ?? null,
@@ -488,6 +512,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Malformed Filter Inline Noise')
         && !str_contains($plainText, 'Unresolved Filter Inline Noise')
         && !str_contains($plainText, 'Crypt Inline Decode Noise')
+        && !str_contains($plainText, 'Identity Crypt Inline Noise')
         && !str_contains($plainText, 'rawtail'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 

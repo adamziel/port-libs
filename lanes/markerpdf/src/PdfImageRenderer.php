@@ -842,7 +842,7 @@ final class PdfImageRenderer
         $filters = $plan['image_filters'];
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
-        $unsupportedFilters = $this->unsupportedInlineImageFilters($filters);
+        $unsupportedFilters = $this->unsupportedInlineImageFilters($filters, $canonical, $objects);
         if ($unsupportedFilters !== []) {
             $plan['image_filter_boundary']['unsupported_filters'] = $unsupportedFilters;
             $plan['image_filter_boundary']['native_raster_decode'] = false;
@@ -4274,17 +4274,25 @@ final class PdfImageRenderer
 
     /**
      * @param list<string> $filters
+     * @param array<int, string> $objects
      * @return list<string>
      */
-    private function unsupportedInlineImageFilters(array $filters): array
+    private function unsupportedInlineImageFilters(array $filters, string $dictionary, array $objects): array
     {
         $unsupported = [];
-        foreach ($filters as $filter) {
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        foreach ($filters as $index => $filter) {
             if (
                 $this->isPreviewOnlyStreamFilter($filter)
                 || $this->isNativeImageStreamFilter($filter)
                 || in_array($filter, [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND], true)
             ) {
+                continue;
+            }
+
+            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
+            $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
+            if ($filter === 'Crypt' && $this->cryptIdentityFilterIsSupported($resolvedDecodeParms, $objects)) {
                 continue;
             }
 
@@ -4414,6 +4422,16 @@ final class PdfImageRenderer
                 'type' => 'DCTDecode',
                 'color_transform' => $colorTransform,
                 'valid_color_transform' => $colorTransform === null || in_array($colorTransform, [0, 1, 2], true),
+            ];
+        }
+
+        if ($filter === 'Crypt') {
+            $name = $this->pdfNameValue($this->extractPdfNameValue($resolved, 'Name') ?? '');
+
+            return [
+                'type' => 'Crypt',
+                'name' => $name,
+                'identity' => $name === 'Identity',
             ];
         }
 
@@ -6075,6 +6093,7 @@ final class PdfImageRenderer
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $resolvedDecodeParms, $objects),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $resolvedDecodeParms, $objects),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $resolvedDecodeParms, $objects),
                 default => null,
             };
 
@@ -6190,6 +6209,31 @@ final class PdfImageRenderer
         }
 
         return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeCryptIdentityStream(string $stream, ?string $decodeParms, array $objects = []): ?string
+    {
+        return $this->cryptIdentityFilterIsSupported($decodeParms, $objects) ? $stream : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cryptIdentityFilterIsSupported(?string $decodeParms, array $objects = []): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return false;
+        }
+
+        $value = $this->pdfDictionaryValueForName($decodeParms, 'Name');
+        if ($value === null) {
+            return false;
+        }
+
+        return $this->pdfNameValue(trim($this->resolvePdfValue($value, $objects))) === 'Identity';
     }
 
     /**

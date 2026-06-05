@@ -637,6 +637,57 @@ return [
             static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
         );
     },
+    'treats identity Crypt inline image filters as pass-through before RGB preview' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $payload = "ABC EI BT /F1 12 Tf 72 660 Td (Identity Crypt Inline Noise) Tj ET rawtail";
+        $dictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F /Crypt /DP << /Name /Identity >> /D [0 1 0 1 0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Identity Crypt Inline) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Identity Crypt Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 2);
+
+        $t->same([
+            'Before Identity Crypt Inline',
+            'After Identity Crypt Inline',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Identity Crypt Inline\nAfter Identity Crypt Inline", $plainText);
+        $t->true(!str_contains($plainText, 'Identity Crypt Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->same(['Crypt'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(strlen($payload), $preview['image_stream']['raw_length']);
+        $t->same(strlen($payload), $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $payload), $preview['image_stream']['decoded_sha256']);
+        $t->same('414243204549204254202F4631203132', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(false, $preview['review_only_image_stream']);
+        $t->same(true, $preview['native_raster_decode']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same(2, $preview['preview_pixel_count']);
+        $t->same([65.0, 66.0, 67.0], $preview['pixels'][0]['raw_sample']);
+        $t->same([32.0, 69.0, 73.0], $preview['pixels'][1]['raw_sample']);
+        $t->same([65 / 255, 66 / 255, 67 / 255], $preview['pixels'][0]['decoded_components']);
+        $t->same(['red' => 65, 'green' => 66, 'blue' => 67, 'alpha' => 1.0], $preview['pixels'][0]['output_rgba']);
+        $t->same([32 / 255, 69 / 255, 73 / 255], $preview['pixels'][1]['decoded_components']);
+        $t->same(['red' => 32, 'green' => 69, 'blue' => 73, 'alpha' => 1.0], $preview['pixels'][1]['output_rgba']);
+        $t->same(2, $preview['image_sample_boundary']['expected_pixel_count']);
+        $t->same(intdiv(strlen($payload), 3), $preview['image_sample_boundary']['available_pixel_count']);
+        $t->same(6, $preview['image_sample_boundary']['expected_sample_count']);
+        $t->same(strlen($payload), $preview['image_sample_boundary']['available_sample_count']);
+        $t->same(strlen($payload) - 6, $preview['image_sample_boundary']['surplus_sample_count']);
+        $t->same(6, $preview['image_sample_boundary']['expected_byte_count']);
+        $t->same(strlen($payload), $preview['image_sample_boundary']['decoded_byte_count']);
+        $t->same(strlen($payload) - 6, $preview['image_sample_boundary']['surplus_byte_count']);
+        $t->same(true, $preview['image_sample_boundary']['truncated_to_declared_samples']);
+        $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
+        $t->contains('inline_image_decoded_surplus_samples_review_only', implode(',', $preview['stream_notes']));
+    },
     'closes malformed inline image filter fallbacks before the next inline image preamble' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $malformedPayload = 'abcdefgh EI BT /F1 12 Tf 72 660 Td (First Malformed Inline Noise) Tj ET rawtail';

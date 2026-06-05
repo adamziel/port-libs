@@ -23781,7 +23781,7 @@ final class PdfTextExtractor
             return true;
         }
 
-        if ($this->inlineImageUsesUnsupportedFilter($filters)) {
+        if ($this->inlineImageUsesUnsupportedFilter($filters, $dictionary)) {
             return false;
         }
 
@@ -23794,7 +23794,7 @@ final class PdfTextExtractor
             return $this->inlineImageMinimumUnfilteredLength($dictionary) === null;
         }
 
-        if (!$this->hasVerifiableInlineImageFilter($filters)) {
+        if (!$this->hasVerifiableInlineImageFilter($filters, $dictionary)) {
             return true;
         }
 
@@ -23878,7 +23878,7 @@ final class PdfTextExtractor
                 && $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
             )
             || (
-                $this->inlineImageUsesUnsupportedFilter($filters)
+                $this->inlineImageUsesUnsupportedFilter($filters, $dictionary)
                 && $this->inlineUnsupportedFilterCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
             );
     }
@@ -23946,7 +23946,7 @@ final class PdfTextExtractor
 
         $previewFilters = array_merge(
             ['JBIG2Decode', 'CCITTFaxDecode', 'CCF'],
-            $this->inlineImageUnsupportedFilters($filters)
+            $this->inlineImageUnsupportedFilters($filters, $dictionary)
         );
         $hasOpenEndedPreviewFilter = false;
         foreach ($filters as $filter) {
@@ -24023,20 +24023,32 @@ final class PdfTextExtractor
     /**
      * @param list<string|null> $filters
      */
-    private function inlineImageUsesUnsupportedFilter(array $filters): bool
+    private function inlineImageUsesUnsupportedFilter(array $filters, string $dictionary): bool
     {
-        return $this->inlineImageUnsupportedFilters($filters) !== [];
+        return $this->inlineImageUnsupportedFilters($filters, $dictionary) !== [];
     }
 
     /**
      * @param list<string|null> $filters
      * @return list<string>
      */
-    private function inlineImageUnsupportedFilters(array $filters): array
+    private function inlineImageUnsupportedFilters(array $filters, ?string $dictionary = null): array
     {
         $unsupported = [];
-        foreach ($filters as $filter) {
-            if ($filter === null || $this->inlineImageFilterHasTokenizerBoundary($filter)) {
+        $decodeParms = $dictionary === null ? null : $this->streamDecodeParms($dictionary, []);
+        foreach ($filters as $index => $filter) {
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $decodeParms === null
+                ? null
+                : $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if ($filter === 'Crypt' && $this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])) {
+                continue;
+            }
+
+            if ($this->inlineImageFilterHasTokenizerBoundary($filter)) {
                 continue;
             }
 
@@ -24259,7 +24271,7 @@ final class PdfTextExtractor
      */
     private function inlineUnsupportedFilterCandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
     {
-        $unsupportedFilters = $this->inlineImageUnsupportedFilters($filters);
+        $unsupportedFilters = $this->inlineImageUnsupportedFilters($filters, $dictionary);
         if ($unsupportedFilters === []) {
             return 'unknown';
         }
@@ -24312,6 +24324,7 @@ final class PdfTextExtractor
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, []),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, []),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms, []),
                 default => null,
             };
 
@@ -24328,9 +24341,10 @@ final class PdfTextExtractor
     /**
      * @param list<string|null> $filters
      */
-    private function hasVerifiableInlineImageFilter(array $filters): bool
+    private function hasVerifiableInlineImageFilter(array $filters, string $dictionary): bool
     {
-        foreach ($filters as $filter) {
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        foreach ($filters as $index => $filter) {
             if (in_array($filter, [
                 'ASCII85Decode',
                 'ASCIIHexDecode',
@@ -24339,6 +24353,13 @@ final class PdfTextExtractor
                 'RunLengthDecode',
             ], true)) {
                 return true;
+            }
+
+            if ($filter === 'Crypt' && $decodeParms !== null) {
+                $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+                if ($this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])) {
+                    return true;
+                }
             }
         }
 
