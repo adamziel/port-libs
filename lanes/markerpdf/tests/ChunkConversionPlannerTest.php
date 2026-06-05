@@ -5,6 +5,71 @@ declare(strict_types=1);
 use PortLibs\MarkerPDF\ChunkConversionPlanner;
 
 return [
+    'records chunk_convert.py raw shell wrapper boundary before chunk shell validation' => static function (TestRunner $t): void {
+        $plan = (new ChunkConversionPlanner())->wrapperRuntimePreflightPlan(
+            [
+                '/wp/uploads/pdf imports; touch /tmp/markerpdf-owned',
+                '/wp/uploads/marker output',
+            ],
+            '/opt/marker/chunk_convert.sh'
+        );
+
+        $t->same('markerpdf.chunk_convert_wrapper_preflight.v1', $plan['schema']);
+        $t->contains('chunk_convert.py::main', $plan['source']);
+        $t->same([
+            '/wp/uploads/pdf imports; touch /tmp/markerpdf-owned',
+            '/wp/uploads/marker output',
+        ], $plan['argv']);
+        $t->same(true, $plan['parse_args']['parse_args_success']);
+        $t->same('/opt/marker/chunk_convert.sh', $plan['resource_script']['script_path']);
+        $t->same('pkg_resources.resource_filename(__name__, "chunk_convert.sh")', $plan['resource_script']['lookup_call']);
+        $t->same('/opt/marker/chunk_convert.sh /wp/uploads/pdf imports; touch /tmp/markerpdf-owned /wp/uploads/marker output', $plan['subprocess']['command']);
+        $t->same(true, $plan['subprocess']['shell']);
+        $t->same(true, $plan['subprocess']['check']);
+        $t->same('subprocess.run(cmd, shell=True, check=True)', $plan['subprocess']['call']);
+        $t->same(false, $plan['subprocess']['argv_list_used']);
+        $t->same(false, $plan['subprocess']['argument_escaping_applied']);
+        $t->same(false, $plan['subprocess']['quotes_positionals']);
+        $t->same('/wp/uploads/pdf imports; touch /tmp/markerpdf-owned', $plan['subprocess']['raw_in_folder_fragment']);
+        $t->same('/wp/uploads/marker output', $plan['subprocess']['raw_out_folder_fragment']);
+        $t->same(false, $plan['shell_boundary']['env_validation_before_subprocess']);
+        $t->same(true, $plan['shell_boundary']['chunk_convert_sh_validates_environment_after_subprocess_launch']);
+        $t->same(true, $plan['shell_boundary']['positionals_contain_shell_whitespace']);
+        $t->same(true, $plan['shell_boundary']['positionals_contain_shell_metacharacters']);
+        $t->same(true, $plan['shell_boundary']['raw_shell_command_path_hazard']);
+        $t->same('chunk_convert.sh', $plan['next_stage']);
+        $t->same(true, $plan['review_only']);
+        $t->same(false, $plan['executes_subprocess']);
+        $t->same(false, $plan['executes_python_or_models']);
+        $t->same(false, $plan['executes_external_pdf_tools']);
+    },
+    'blocks chunk_convert.py wrapper argparse errors before resource lookup or subprocess launch' => static function (TestRunner $t): void {
+        $missing = (new ChunkConversionPlanner())->wrapperRuntimePreflightPlan(['/wp/uploads/pdf-import']);
+        $extra = (new ChunkConversionPlanner())->wrapperRuntimePreflightPlan([
+            '/wp/uploads/pdf-import',
+            '/wp/uploads/marker-output',
+            'unexpected',
+        ]);
+
+        $t->same('markerpdf.chunk_convert_wrapper_preflight.v1', $missing['schema']);
+        $t->same(false, $missing['parse_args']['parse_args_success']);
+        $t->same('argparse-system-exit', $missing['parse_args']['error_boundary']);
+        $t->same('SystemExit', $missing['parse_args']['error_class']);
+        $t->same(['out_folder'], $missing['parse_args']['missing_required_arguments']);
+        $t->same(true, $missing['resource_script']['blocked']);
+        $t->same(true, $missing['subprocess']['blocked']);
+        $t->same(true, $missing['subprocess']['blocks_chunk_shell']);
+        $t->same('parse_args', $missing['blocked_by']);
+        $t->same(null, $missing['next_stage']);
+        $t->same(false, $missing['executes_subprocess']);
+
+        $t->same(false, $extra['parse_args']['parse_args_success']);
+        $t->same('unrecognized arguments: unexpected', $extra['parse_args']['error_message']);
+        $t->same('unexpected', $extra['parse_args']['error_argument']);
+        $t->same(true, $extra['resource_script']['blocked']);
+        $t->same(true, $extra['subprocess']['blocked']);
+        $t->same(false, $extra['executes_subprocess']);
+    },
     'plans chunk_convert.sh marker jobs across CUDA devices' => static function (TestRunner $t): void {
         $plan = (new ChunkConversionPlanner())->planFromEnvironment('/srv/incoming-pdfs', '/srv/marker-output', [
             'NUM_DEVICES' => '3',
