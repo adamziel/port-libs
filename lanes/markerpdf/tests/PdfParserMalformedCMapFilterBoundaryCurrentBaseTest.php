@@ -566,6 +566,51 @@ $parserMalformedCMapStaleReferenceFilterBoundaryCurrentBasePdf = static function
     return $pdf;
 };
 
+$parserMalformedCMapPostEndOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /PostEndCMapBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('PostEnd Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('PostEnd CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "/CMapName /PostEndCMapDecoy-H def\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused post-endcmap CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PostEndCMapBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /PostEndCMapBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'fails closed on malformed CMap Filter array operands before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapFilterBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -1097,6 +1142,35 @@ return [
             '<< /Owner (xref-selected dictionary is not a decoder) /StaleValidFilter 7 0 R >>',
             $filterOperand['value_preview'] ?? null
         );
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores decoded CMap operators after endcmap before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapPostEndOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapPostEndOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['PostEnd Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['PostEnd Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('PostEnd Safe Import', $text);
+        $t->same("PostEnd Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'PostEnd CMap Leak'));
+        $t->true(!str_contains($text, 'PostEndCMapDecoy-H'));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('PostEndCMapBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['post_endcmap_bytes_excluded'] ?? false) === true);
+        $t->true(($entry['post_endcmap_byte_count'] ?? 0) > 0);
+        $t->true(($entry['bounded_cmap_length'] ?? 0) < ($entry['decoded_cmap_length'] ?? 0));
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },

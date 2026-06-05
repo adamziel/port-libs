@@ -887,6 +887,7 @@ final class PdfTextExtractor
             $malformedDecodeParmsOperandCount = $this->malformedStreamDecodeParmsOperandCount($operandGroups['DecodeParms']);
             $invalidDecodeParmsParameterCount = $this->invalidDecodeParmsParameterCount($filters, $decodeParms, $objects);
             $decoded = $this->decodedCMapBody($body, $objects);
+            $boundedDecoded = $decoded === null ? null : $this->boundedCMapProgram($decoded);
             $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
             $generation = $owner['generation']
                 ?? ($xrefEntries[$objectNumber]['generation'] ?? null);
@@ -949,6 +950,13 @@ final class PdfTextExtractor
                 ),
                 'decoded_cmap_length' => $decoded === null ? null : strlen($decoded),
                 'decoded_cmap_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+                'bounded_cmap_length' => $boundedDecoded === null ? null : strlen($boundedDecoded),
+                'post_endcmap_byte_count' => ($decoded === null || $boundedDecoded === null)
+                    ? 0
+                    : max(0, strlen($decoded) - strlen($boundedDecoded)),
+                'post_endcmap_bytes_excluded' => $decoded !== null
+                    && $boundedDecoded !== null
+                    && strlen($boundedDecoded) < strlen($decoded),
                 'operand_groups' => $operandGroups,
                 'filter_operands' => $operandGroups['Filter'],
                 'decodeparms_operands' => $operandGroups['DecodeParms'],
@@ -17719,6 +17727,58 @@ final class PdfTextExtractor
         return $this->decodePdfName($match[1]);
     }
 
+    private function boundedCMapProgram(string $cmap): string
+    {
+        $endOffset = $this->cMapEndOperatorOffset($cmap);
+        if ($endOffset === null) {
+            return $cmap;
+        }
+
+        return substr($cmap, 0, $endOffset + strlen('endcmap'));
+    }
+
+    private function cMapEndOperatorOffset(string $cmap): ?int
+    {
+        $lastEndOffset = null;
+        $length = strlen($cmap);
+        for ($index = 0; $index < $length;) {
+            $char = $cmap[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($cmap, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($cmap, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($cmap[$index + 1] ?? '') === '<') {
+                    $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
+                    if ($dictionaryEnd !== null) {
+                        $index = $dictionaryEnd + 1;
+                        continue;
+                    }
+                }
+
+                $this->readHexToken($cmap, $index);
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($cmap, $index, 'endcmap')) {
+                $lastEndOffset = $index;
+                $index += strlen('endcmap');
+                continue;
+            }
+
+            $index++;
+        }
+
+        return $lastEndOffset;
+    }
+
     /**
      * @param array<int, string> $objects
      */
@@ -17819,7 +17879,7 @@ final class PdfTextExtractor
      */
     private function parseToUnicodeCMap(string $cmap, array $namedCMapBodies = [], array $seenCMaps = []): array
     {
-        $cmap = $this->stripPdfLineComments($cmap);
+        $cmap = $this->boundedCMapProgram($this->stripPdfLineComments($cmap));
         $map = [];
         $codeSpaceRanges = [];
         $writingMode = null;
@@ -17894,7 +17954,7 @@ final class PdfTextExtractor
      */
     private function parseCidCMap(string $cmap, array $namedCMapBodies = [], array $seenCMaps = []): array
     {
-        $cmap = $this->stripPdfLineComments($cmap);
+        $cmap = $this->boundedCMapProgram($this->stripPdfLineComments($cmap));
         $cidMap = [];
         $codeSpaceRanges = [];
         $writingMode = null;
@@ -18167,6 +18227,7 @@ final class PdfTextExtractor
      */
     private function parseCMapCodeSpaceRanges(string $cmap): array
     {
+        $cmap = $this->boundedCMapProgram($cmap);
         $ranges = [];
         if (!preg_match_all('/(?:(\d+)\s+)?begincodespacerange(.*?)endcodespacerange/s', $cmap, $blocks, PREG_SET_ORDER)) {
             return [];

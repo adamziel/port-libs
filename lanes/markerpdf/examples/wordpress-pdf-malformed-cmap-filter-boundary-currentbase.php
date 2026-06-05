@@ -416,6 +416,42 @@ $buildStaleReferenceCMapFilterPdf = static function () use ($utf16beHex): string
     return $pdf;
 };
 
+$buildPostEndCMapOperatorPdf = static function () use ($utf16beHex): string {
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPPostEndCMapBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('PostEnd Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('PostEnd CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "/CMapName /WPPostEndCMapDecoy-H def\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress post-endcmap CMap filter-boundary fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPPostEndCMapBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPPostEndCMapBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $dictionaryPdf = $buildMalformedCMapFilterPdf(
     'WPMalformedFilterBoundary-H',
     'WPMalformedFilterBoundary',
@@ -436,6 +472,7 @@ $generationPdf = $buildGenerationCMapFilterPdf();
 $decodeParmsPdf = $buildDecodeParmsCMapFilterPdf();
 $trailingDecodeParmsPdf = $buildTrailingDecodeParmsCMapFilterPdf();
 $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
+$postEndPdf = $buildPostEndCMapOperatorPdf();
 
 $extractor = new PdfTextExtractor();
 $dictionaryLines = $extractor->extractTextLines($dictionaryPdf);
@@ -446,6 +483,7 @@ $generationLines = $extractor->extractTextLines($generationPdf);
 $decodeParmsLines = $extractor->extractTextLines($decodeParmsPdf);
 $trailingDecodeParmsLines = $extractor->extractTextLines($trailingDecodeParmsPdf);
 $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
+$postEndLines = $extractor->extractTextLines($postEndPdf);
 $dictionaryPlainText = implode("\n", $dictionaryLines);
 $literalPlainText = implode("\n", $literalLines);
 $indirectLiteralPlainText = implode("\n", $indirectLiteralLines);
@@ -454,6 +492,7 @@ $generationPlainText = implode("\n", $generationLines);
 $decodeParmsPlainText = implode("\n", $decodeParmsLines);
 $trailingDecodeParmsPlainText = implode("\n", $trailingDecodeParmsLines);
 $staleReferencePlainText = implode("\n", $staleReferenceLines);
+$postEndPlainText = implode("\n", $postEndLines);
 $dictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($dictionaryPdf);
 $literalReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalPdf);
 $indirectLiteralReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectLiteralPdf);
@@ -462,6 +501,7 @@ $generationReview = $extractor->extractCMapStreamFilterLengthOwnerReview($genera
 $decodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($decodeParmsPdf);
 $trailingDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($trailingDecodeParmsPdf);
 $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($staleReferencePdf);
+$postEndReview = $extractor->extractCMapStreamFilterLengthOwnerReview($postEndPdf);
 $dictionaryEntry = $dictionaryReview['entries'][0] ?? [];
 $literalEntry = $literalReview['entries'][0] ?? [];
 $indirectLiteralEntry = $indirectLiteralReview['entries'][0] ?? [];
@@ -470,6 +510,7 @@ $generationEntry = $generationReview['entries'][0] ?? [];
 $decodeParmsEntry = $decodeParmsReview['entries'][0] ?? [];
 $trailingDecodeParmsEntry = $trailingDecodeParmsReview['entries'][0] ?? [];
 $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
+$postEndEntry = $postEndReview['entries'][0] ?? [];
 
 if ($dictionaryLines !== ['Safe Import']) {
     throw new RuntimeException('Expected malformed dictionary CMap filter fallback text.');
@@ -503,6 +544,10 @@ if ($staleReferenceLines !== ['Stale Reference Safe Import']) {
     throw new RuntimeException('Expected stale-reference malformed CMap filter fallback text.');
 }
 
+if ($postEndLines !== ['PostEnd Safe Import']) {
+    throw new RuntimeException('Expected post-endcmap CMap operator payload to stay excluded from WordPress text.');
+}
+
 if (
     str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
     || str_contains($dictionaryPlainText, 'Filter dictionary is not a decoder')
@@ -520,6 +565,8 @@ if (
     || str_contains($trailingDecodeParmsPlainText, 'Twelve')
     || str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
     || str_contains($staleReferencePlainText, 'xref-selected dictionary is not a decoder')
+    || str_contains($postEndPlainText, 'PostEnd CMap Leak')
+    || str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H')
 ) {
     throw new RuntimeException('Expected malformed CMap filter payloads to stay excluded.');
 }
@@ -628,6 +675,22 @@ if (($staleReferenceEntry['filter_operands'][0]['dictionary_filter_operand'] ?? 
     throw new RuntimeException('Expected stale-reference CMap filter operand to expose dictionary_filter_operand=true.');
 }
 
+if (($postEndReview['decoded_cmap_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected post-endcmap CMap stream to decode before parser-boundary filtering.');
+}
+
+if (($postEndEntry['cmap_name'] ?? null) !== 'WPPostEndCMapBoundary-H') {
+    throw new RuntimeException('Expected post-endcmap decoy CMapName to stay excluded.');
+}
+
+if (($postEndEntry['post_endcmap_bytes_excluded'] ?? null) !== true) {
+    throw new RuntimeException('Expected post-endcmap decoded CMap bytes to be marked excluded.');
+}
+
+if (($postEndEntry['post_endcmap_byte_count'] ?? 0) <= 0) {
+    throw new RuntimeException('Expected nonzero post-endcmap decoded CMap byte count.');
+}
+
 $lines = array_merge(
     $dictionaryLines,
     $literalLines,
@@ -636,13 +699,14 @@ $lines = array_merge(
     $generationLines,
     $decodeParmsLines,
     $trailingDecodeParmsLines,
-    $staleReferenceLines
+    $staleReferenceLines,
+    $postEndLines
 );
 
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'malformed ToUnicode CMap Filter array operands fail closed before WordPress text import',
+    'native_boundary' => 'malformed ToUnicode CMap Filter array operands and post-endcmap decoded operators stay bounded before WordPress text import',
     'fallback_text' => implode(' | ', $lines),
     'dictionary_decoded_cmap_count' => $dictionaryReview['decoded_cmap_count'] ?? null,
     'dictionary_invalid_filter_operand_count' => $dictionaryReview['invalid_filter_operand_count'] ?? null,
@@ -694,6 +758,14 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'stale_reference_valid_filter_rejected' => ($staleReferenceReview['decoded_cmap_count'] ?? null) === 0
         && (($staleReferenceEntry['filter_operands'][0]['generation'] ?? null) === 0)
         && (($staleReferenceEntry['filter_operands'][0]['selected_generation'] ?? null) === 1),
+    'post_endcmap_decoded_cmap_count' => $postEndReview['decoded_cmap_count'] ?? null,
+    'post_endcmap_cmap_name' => $postEndEntry['cmap_name'] ?? null,
+    'post_endcmap_bounded_cmap_length' => $postEndEntry['bounded_cmap_length'] ?? null,
+    'post_endcmap_decoded_cmap_length' => $postEndEntry['decoded_cmap_length'] ?? null,
+    'post_endcmap_byte_count' => $postEndEntry['post_endcmap_byte_count'] ?? null,
+    'post_endcmap_bytes_excluded' => ($postEndEntry['post_endcmap_bytes_excluded'] ?? null) === true,
+    'post_endcmap_operator_payload_excluded' => !str_contains($postEndPlainText, 'PostEnd CMap Leak')
+        && !str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H'),
     'leaking_cmap_text_excluded' => !str_contains($dictionaryPlainText, 'Dictionary Filter Leak')
         && !str_contains($literalPlainText, 'Literal Filter Leak')
         && !str_contains($indirectLiteralPlainText, 'Indirect Literal Filter Leak')
@@ -701,7 +773,8 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($generationPlainText, 'Stale Generation CMap Leak')
         && !str_contains($decodeParmsPlainText, 'DecodeParms CMap Leak')
         && !str_contains($trailingDecodeParmsPlainText, 'Trailing DecodeParms CMap Leak')
-        && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak'),
+        && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
+        && !str_contains($postEndPlainText, 'PostEnd CMap Leak'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {
