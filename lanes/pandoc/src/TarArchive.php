@@ -106,6 +106,7 @@ final class TarArchive
                     throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
                 }
                 if ($typeFlag === self::TYPE_PAX_EXTENDED) {
+                    self::assertLocalPaxHeaders($headers);
                     $pendingPaxHeaders = $headers;
                 } else {
                     self::assertGlobalPaxHeaders($headers);
@@ -656,6 +657,18 @@ final class TarArchive
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function assertLocalPaxHeaders(array $headers): void
+    {
+        foreach (array_keys($headers) as $key) {
+            if ($key === 'linkpath') {
+                throw new \RuntimeException('TAR local PAX linkpath metadata is not supported by the pandoc archive reader');
+            }
+        }
     }
 
     /**
