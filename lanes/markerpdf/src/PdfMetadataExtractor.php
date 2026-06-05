@@ -6707,9 +6707,9 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $trimmed, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            return isset($objects[$objectNumber]) ? $this->pdfStringBytesFromValue($objects[$objectNumber], $objects) : null;
+        if (preg_match('/^\d+\s+\d+\s+R\b/s', $trimmed) === 1) {
+            $objectBody = $this->objectBodyFromReferenceValue($trimmed, $objects);
+            return $objectBody === null ? null : $this->pdfStringBytesFromValue($objectBody, $objects);
         }
 
         if ($trimmed[0] === '(') {
