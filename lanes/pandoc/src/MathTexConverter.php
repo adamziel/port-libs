@@ -459,6 +459,18 @@ final class MathTexConverter
             return '<msqrt>' . $radicand . '</msqrt>';
         }
 
+        if ($command === 'binom') {
+            return $this->parseBinomialCommand($source, $offset, null);
+        }
+
+        if ($command === 'tbinom') {
+            return $this->parseBinomialCommand($source, $offset, false);
+        }
+
+        if ($command === 'dbinom') {
+            return $this->parseBinomialCommand($source, $offset, true);
+        }
+
         if ($command === 'text') {
             return '<mtext>' . $this->esc($this->readRequiredGroupText($source, $offset)) . '</mtext>';
         }
@@ -584,6 +596,23 @@ final class MathTexConverter
         }
 
         return $table;
+    }
+
+    private function parseBinomialCommand(string $source, int &$offset, ?bool $displaystyle): string
+    {
+        $numerator = $this->parseRequiredNonEmptyGroup($source, $offset, 'binomial numerator');
+        $denominator = $this->parseRequiredNonEmptyGroup($source, $offset, 'binomial denominator');
+        $binomial = '<mrow>'
+            . '<mo fence="true" stretchy="true">(</mo>'
+            . '<mfrac linethickness="0">' . $numerator . $denominator . '</mfrac>'
+            . '<mo fence="true" stretchy="true">)</mo>'
+            . '</mrow>';
+
+        if ($displaystyle === null) {
+            return $binomial;
+        }
+
+        return '<mstyle displaystyle="' . ($displaystyle ? 'true' : 'false') . '">' . $binomial . '</mstyle>';
     }
 
     private function parseArrayEnvironment(string $source, int &$offset): string
