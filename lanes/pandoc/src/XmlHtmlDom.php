@@ -345,28 +345,42 @@ final class XmlHtmlDom
 
     public static function protectHtmlRcdataElements(string $html): string
     {
-        $protected = preg_replace_callback(
-            '~(<(?P<name>xmp|noembed|noframes)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>)(?P<content>.*?)(</\s*(?P=name)\s*>)~is',
-            static function (array $matches): string {
-                return $matches[1]
-                    . strtr((string) $matches['content'], ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;'])
-                    . $matches[4];
-            },
-            $html
-        );
+        $offset = 0;
+        $protected = '';
+        $pattern = '~<(?P<name>xmp|noembed|noframes|title|textarea|plaintext)(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
 
-        $html = is_string($protected) ? $protected : $html;
-        $protected = preg_replace_callback(
-            '~(<(?P<name>title|textarea)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>)(?P<content>.*?)(</\s*(?P=name)\s*>)~is',
-            static function (array $matches): string {
-                return $matches[1]
-                    . strtr((string) $matches['content'], ['<' => '&lt;', '>' => '&gt;'])
-                    . $matches[4];
-            },
-            $html
-        );
+        while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $startTag = (string) $matches[0][0];
+            $startOffset = (int) $matches[0][1];
+            $name = strtolower((string) $matches['name'][0]);
+            $contentStart = $startOffset + strlen($startTag);
 
-        return is_string($protected) ? $protected : $html;
+            $protected .= substr($html, $offset, $startOffset - $offset) . $startTag;
+
+            if ($name === 'plaintext') {
+                $protected .= self::escapeHtmlRawTextContent(substr($html, $contentStart)) . '</plaintext>';
+
+                return $protected;
+            }
+
+            $endPattern = '~</\s*' . preg_quote($name, '~') . '\s*>~i';
+            if (preg_match($endPattern, $html, $endMatches, PREG_OFFSET_CAPTURE, $contentStart) !== 1) {
+                $protected .= substr($html, $contentStart);
+
+                return $protected;
+            }
+
+            $endTag = (string) $endMatches[0][0];
+            $endOffset = (int) $endMatches[0][1];
+            $content = substr($html, $contentStart, $endOffset - $contentStart);
+            $protected .= in_array($name, ['title', 'textarea'], true)
+                ? self::escapeHtmlRcdataContent($content)
+                : self::escapeHtmlRawTextContent($content);
+            $protected .= $endTag;
+            $offset = $endOffset + strlen($endTag);
+        }
+
+        return $protected . substr($html, $offset);
     }
 
     public static function normalizedText(\DOMNode $node): string
@@ -638,6 +652,16 @@ final class XmlHtmlDom
         }
 
         return $text;
+    }
+
+    private static function escapeHtmlRawTextContent(string $content): string
+    {
+        return strtr($content, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;']);
+    }
+
+    private static function escapeHtmlRcdataContent(string $content): string
+    {
+        return strtr($content, ['<' => '&lt;', '>' => '&gt;']);
     }
 
     private static function serializeAttributes(\DOMElement $element): string

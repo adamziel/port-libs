@@ -210,6 +210,26 @@ return [
         $t->true(!str_contains($html, '<textarea>'), 'Expected raw text textarea-looking source to stay escaped');
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
     },
+    'treats html plaintext as escaped source text through end of fragment' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<plaintext data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>after</p>',
+            'plaintext review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $expectedText = 'Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>after</p>';
+
+        $t->same(1, count($summary));
+        $t->same('plaintext', $summary[0]['name']);
+        $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
+        $t->same($expectedText, $summary[0]['text']);
+        $t->same('text', $summary[0]['children'][0]['type']);
+        $t->same($expectedText, $summary[0]['children'][0]['text']);
+        $t->same('<plaintext data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/plaintext&gt;&lt;p&gt;after&lt;/p&gt;</plaintext>', $html);
+        $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected plaintext script-looking source to stay escaped');
+        $t->true(!str_contains($html, '<p>after</p>'), 'Expected following paragraph source to stay plaintext text');
+    },
     'foster-parents invalid table children before deterministic html serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>',

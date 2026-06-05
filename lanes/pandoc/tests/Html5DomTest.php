@@ -153,6 +153,28 @@ return [
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected tag-looking raw text to serialize as escaped text');
         $t->true(!str_contains($serialized, '<img src=x>'), 'Expected fallback image-looking source text to serialize as escaped text');
     },
+    'treats html plaintext as escaped source text without capturing wrapper tags' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<textarea><plaintext>literal</textarea><p>after</p>'
+                . '<plaintext data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>hidden</p>'
+        );
+        $textarea = Html5Dom::firstChildElement($body, 'textarea');
+        $plaintext = Html5Dom::firstChildElement($body, 'plaintext');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+        $expectedPlaintext = 'Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>hidden</p>';
+
+        $t->true($textarea instanceof DOMElement, 'Expected textarea to stay separate from plaintext handling');
+        $t->same('<plaintext>literal', $textarea instanceof DOMElement ? $textarea->textContent : null);
+        $t->true($plaintext instanceof DOMElement, 'Expected plaintext review source to survive DOM parsing');
+        $t->same(['data-source' => 'legacy'], $plaintext instanceof DOMElement ? Html5Dom::attributes($plaintext) : []);
+        $t->same($expectedPlaintext, $plaintext instanceof DOMElement ? $plaintext->textContent : null);
+        $t->same(
+            '<textarea>&lt;plaintext&gt;literal</textarea><p>after</p><plaintext data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/plaintext&gt;&lt;p&gt;hidden&lt;/p&gt;</plaintext>',
+            $serialized
+        );
+        $t->true(!str_contains($serialized, '</body>'), 'Expected synthetic wrapper close tags not to leak into plaintext text');
+        $t->true(!str_contains($serialized, '<p>hidden</p>'), 'Expected following paragraph source to stay plaintext text');
+    },
     'serializes invalid table-scope children before the table for html5 reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>'

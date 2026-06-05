@@ -583,6 +583,7 @@ final class Html5DomFragment
             'noframes',
             'optgroup',
             'option',
+            'plaintext',
             'select',
             'textarea',
             'xmp',

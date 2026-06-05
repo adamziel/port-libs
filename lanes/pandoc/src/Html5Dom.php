@@ -13,10 +13,12 @@ final class Html5Dom
     {
         self::assertNoNullByte($html, 'HTML fragment');
         self::assertNoHtmlFragmentDeclarations($html, 'HTML fragment');
+        $html = XmlHtmlDom::protectHtmlRcdataElements($html);
 
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
-            'HTML fragment'
+            'HTML fragment',
+            protectRcdata: false
         );
 
         return self::requireBody($dom, 'HTML fragment');
@@ -171,13 +173,15 @@ final class Html5Dom
         return trim($text);
     }
 
-    private static function loadHtml(string $html, string $label): \DOMDocument
+    private static function loadHtml(string $html, string $label, bool $protectRcdata = true): \DOMDocument
     {
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->resolveExternals = false;
         $dom->substituteEntities = false;
-        $html = XmlHtmlDom::protectHtmlRcdataElements($html);
+        if ($protectRcdata) {
+            $html = XmlHtmlDom::protectHtmlRcdataElements($html);
+        }
         $loaded = $dom->loadHTML(
             '<?xml encoding="UTF-8">' . $html,
             LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING

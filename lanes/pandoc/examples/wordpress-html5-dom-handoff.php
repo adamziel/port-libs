@@ -23,6 +23,7 @@ $sourceHtml = <<<'HTML'
   <figure class="foreign-content"><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></figure>
   <script>alert("legacy embed")</script>
 </section>
+<plaintext data-source="legacy-plaintext">Plain reviewer <script>alert(1)</script> &amp; <b>tail</b></plaintext><p>suppressed tail</p>
 HTML;
 
 $fragment = Html5DomFragment::fromHtml($sourceHtml);
@@ -45,6 +46,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
         '<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>',
         '<annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>',
+        'Plain reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;tail&lt;/b&gt;&lt;/plaintext&gt;&lt;p&gt;suppressed tail&lt;/p&gt;',
         '<!-- wp:html -->',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
@@ -52,14 +54,14 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<xmp', '<script>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
     }
 
-    if ($fragment->summary()['blockedTags'] !== ['button', 'form', 'input', 'option', 'script', 'select', 'textarea', 'xmp']) {
-        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/script tags');
+    if ($fragment->summary()['blockedTags'] !== ['button', 'form', 'input', 'option', 'plaintext', 'script', 'select', 'textarea', 'xmp']) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/script/plaintext tags');
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');

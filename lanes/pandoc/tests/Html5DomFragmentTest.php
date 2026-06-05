@@ -349,6 +349,38 @@ return [
         $t->true(!str_contains($fragment->serialize(), '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
         $t->true(!str_contains($fragment->serialize(), '<img src=x>'), 'Expected fallback image-looking source to stay escaped');
     },
+    'unwraps html plaintext as escaped reviewer text through fragment end' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<plaintext data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/plaintext-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expectedText = 'Reviewer <script>alert(1)</script> &amp; <b>note</b></plaintext><p>after</p>';
+        $expectedHtml = 'Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/plaintext&gt;&lt;p&gt;after&lt;/p&gt;';
+
+        $t->same($expectedHtml, $fragment->serialize());
+        $t->same($expectedText, $fragment->textContent());
+        $t->same('text', $nodes[0]['type']);
+        $t->same($expectedText, $nodes[0]['text']);
+        $t->same([], $summary['elementNames']);
+        $t->same(['plaintext'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['blocked-tag'], $policyDiagnostics);
+        $t->same('/migration/plaintext-review.html', $document->children[0]->attr('part'));
+        $t->contains($expectedHtml, $blocks);
+        $t->true(!str_contains($fragment->serialize(), '<plaintext'), 'Expected plaintext wrapper to be stripped from sanitized output');
+        $t->true(!str_contains($fragment->serialize(), '<script>alert(1)</script>'), 'Expected plaintext script-looking source to stay escaped');
+        $t->true(!str_contains($fragment->serialize(), '<p>after</p>'), 'Expected following paragraph source to stay plaintext text');
+    },
     'foster-parents invalid table children before sanitized WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<table class="legacy"><caption>Review rows</caption><p data-review="loose">Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>'
