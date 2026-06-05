@@ -6432,7 +6432,7 @@ final class PdfImageRenderer
     {
         $length = strlen($stream);
         for ($index = $offset; $index < $length; $index++) {
-            if (!ctype_space($stream[$index])) {
+            if (!$this->isPdfWhitespace($stream[$index])) {
                 return false;
             }
         }
@@ -6755,7 +6755,7 @@ final class PdfImageRenderer
             $body = $stream;
         }
 
-        $hex = preg_replace('/\s+/', '', $body);
+        $hex = preg_replace('/[\x00\s]+/', '', $body);
         if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
             return null;
         }
@@ -6786,7 +6786,7 @@ final class PdfImageRenderer
         $length = strlen($body);
         for ($index = 0; $index < $length; $index++) {
             $char = $body[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 continue;
             }
 
@@ -7735,7 +7735,12 @@ final class PdfImageRenderer
         }
 
         $after = $offset + 9;
-        return $after >= strlen($value) || ctype_space($value[$after]);
+        return $after >= strlen($value) || $this->isPdfWhitespace($value[$after]);
+    }
+
+    private function isPdfWhitespace(string $char): bool
+    {
+        return $char === "\0" || ctype_space($char);
     }
 
     private function streamEndTerminatorAt(string $value, int $offset, int $streamStart): bool

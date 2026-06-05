@@ -13194,7 +13194,7 @@ final class PdfTextExtractor
             $body = $stream;
         }
 
-        $hex = preg_replace('/\s+/', '', $body);
+        $hex = preg_replace('/[\x00\s]+/', '', $body);
         if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
             return null;
         }
@@ -13224,7 +13224,7 @@ final class PdfTextExtractor
         $length = strlen($body);
         for ($index = 0; $index < $length; $index++) {
             $char = $body[$index];
-            if (ctype_space($char)) {
+            if ($this->isPdfWhitespace($char)) {
                 continue;
             }
 

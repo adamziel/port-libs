@@ -275,6 +275,50 @@ return [
             static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows($dictionary, $incompletePayload, $objects, 3)
         );
     },
+    'treats NUL as PDF whitespace around inline native filter EOD boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $ascii85Dictionary = '/W 4 /H 1 /CS /G /BPC 8 /F /A85 /D [0 1]';
+        $asciiHexDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]';
+        $ascii85Payload = "z~>\0";
+        $asciiHexPayload = "41\0>";
+        $content = "BT /F1 12 Tf 72 720 Td (Before NUL Filter Boundary) Tj ET\n"
+            . "BI {$ascii85Dictionary} ID {$ascii85Payload}EI\n"
+            . "BT /F1 12 Tf 72 704 Td (Between NUL Filter Boundary) Tj ET\n"
+            . "BI {$asciiHexDictionary} ID {$asciiHexPayload}\nEI\n"
+            . "BT /F1 12 Tf 72 688 Td (After NUL Filter Boundary) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $ascii85Preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($ascii85Dictionary, $ascii85Payload, [], 4);
+        $asciiHexPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($asciiHexDictionary, $asciiHexPayload, [], 1);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before NUL Filter Boundary',
+            'Between NUL Filter Boundary',
+            'After NUL Filter Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'z~>'));
+        $t->true(!str_contains($plainText, '41'));
+        $t->same(['ASCII85Decode'], $ascii85Preview['image_stream']['filters']);
+        $t->same(4, $ascii85Preview['image_stream']['decoded_length']);
+        $t->same('00000000', $ascii85Preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $ascii85Preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $ascii85Preview['image_stream']['decode_failed']);
+        $t->same([[0.0], [0.0], [0.0], [0.0]], array_column($ascii85Preview['pixels'], 'raw_sample'));
+        $t->same(0, $ascii85Preview['image_sample_boundary']['surplus_byte_count']);
+        $t->same(['ASCIIHexDecode'], $asciiHexPreview['image_stream']['filters']);
+        $t->same(1, $asciiHexPreview['image_stream']['decoded_length']);
+        $t->same('41', $asciiHexPreview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $asciiHexPreview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $asciiHexPreview['image_stream']['decode_failed']);
+        $t->same([65.0], $asciiHexPreview['pixels'][0]['raw_sample']);
+        $t->same(0, $asciiHexPreview['image_sample_boundary']['surplus_byte_count']);
+    },
     'decodes Flate DecodeParms inline image payload before accepting EI boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payloadText = 'raw EI BT /F1 12 Tf 72 690 Td (Inline DP Image Noise) Tj ET';
