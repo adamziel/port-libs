@@ -78,6 +78,31 @@ $buildDefaultColumnSpecDocument = static function (): AstNode {
     ]);
 };
 
+$buildOverfullColumnWidthDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Overfull source width audit',
+            'alignments' => ['left', 'right', 'center'],
+            'widths' => [0.6, 0.6, 0.3],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowHeadColumnDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -584,6 +609,36 @@ return [
         $t->same([], TableGeometry::columnSpecs($table, -2));
         $t->contains('<tbody><tr><td style="text-align:left">Declared</td><td>Default</td><td style="text-align:right">Right</td><td>Implicit</td></tr></tbody>', $blocks);
         $t->true(!str_contains($blocks, '<colgroup>'), 'Invalid/default Pandoc widths should not emit a misleading WordPress colgroup');
+    },
+    'reports normalized relative widths when source colspecs exceed full table width' => static function (TestRunner $t) use ($buildOverfullColumnWidthDocument): void {
+        $table = $buildOverfullColumnWidthDocument()->children[0];
+        $summary = TableGeometry::columnWidthSummary($table);
+        $specs = TableGeometry::columnSpecs($table, 3);
+        $diagnostics = TableGeometry::diagnostics($table);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same(3, $summary['columnCount']);
+        $t->same(true, $summary['hasExplicitWidths']);
+        $t->same(true, $summary['hasCompleteWidths']);
+        $t->same(false, $summary['hasPartialWidths']);
+        $t->same(1.5, $summary['widthTotal']);
+        $t->same(0.5, $summary['overflowAmount']);
+        $t->same(true, $summary['overfull']);
+        $t->same(false, $summary['underfull']);
+        $t->same([], $summary['missingColumns']);
+        $t->same([0.4, 0.4, 0.2], $summary['normalizedWidths']);
+        $t->same([60.0, 60.0, 30.0], $summary['percentWidths']);
+
+        $t->same([0.4, 0.4, 0.2], array_map(static fn (array $spec): ?float => $spec['normalizedWidth'], $specs));
+        $t->same([60.0, 60.0, 30.0], array_map(static fn (array $spec): ?float => $spec['percentWidth'], $specs));
+        $t->same(['table-widths-exceed-full-width'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same(1.5, $diagnostics[0]['widthTotal'] ?? null);
+        $t->same(0.5, $diagnostics[0]['overflowAmount'] ?? null);
+        $t->same([0, 1, 2], $diagnostics[0]['columns'] ?? null);
+        $t->same($summary, $packet['widthSummary'] ?? null);
+        $t->same(['table-widths-exceed-full-width'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same([0.4, 0.4, 0.2], array_map(static fn (array $spec): ?float => $spec['normalizedWidth'], $packet['columns']));
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'renders table body row head columns by visual column for wordpress handoff' => static function (TestRunner $t) use ($buildRowHeadColumnDocument): void {
         $document = $buildRowHeadColumnDocument();

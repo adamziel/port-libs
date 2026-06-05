@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class TableGeometry
 {
+    private const WIDTH_EPSILON = 0.000001;
+
     public static function columnCount(AstNode $table): int
     {
         $columnCount = max(
@@ -467,6 +469,7 @@ final class TableGeometry
     public static function diagnostics(AstNode $table): array
     {
         $diagnostics = self::columnDiagnostics($table);
+        array_push($diagnostics, ...self::widthDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
@@ -517,6 +520,35 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function widthDiagnostics(AstNode $table): array
+    {
+        $summary = self::columnWidthSummary($table);
+        if (($summary['overfull'] ?? false) !== true) {
+            return [];
+        }
+
+        $columns = [];
+        foreach ($summary['percentWidths'] as $column => $percentWidth) {
+            if ($percentWidth !== null) {
+                $columns[] = (int) $column;
+            }
+        }
+
+        return [[
+            'code' => 'table-widths-exceed-full-width',
+            'source' => 'table-widths',
+            'columnCount' => (int) $summary['columnCount'],
+            'columns' => $columns,
+            'widthTotal' => (float) $summary['widthTotal'],
+            'overflowAmount' => (float) $summary['overflowAmount'],
+            'normalizedWidths' => $summary['normalizedWidths'],
+            'percentWidths' => $summary['percentWidths'],
+        ]];
     }
 
     /**
@@ -618,6 +650,7 @@ final class TableGeometry
 
         $declaredColumnCount = self::declaredColumnCount($table);
         $columnSources = self::columnSources($table);
+        $widthTotal = self::positiveWidthTotal($widths, $columnCount);
         $specs = [];
         for ($column = 0; $column < $columnCount; $column++) {
             $width = null;
@@ -629,6 +662,8 @@ final class TableGeometry
                 'column' => $column,
                 'alignment' => $alignments[$column] ?? 'default',
                 'width' => $width,
+                'normalizedWidth' => $width !== null && $widthTotal > 0.0 ? self::roundWidth($width / $widthTotal) : null,
+                'percentWidth' => $width !== null ? self::roundWidth($width * 100.0) : null,
                 'declared' => $column < $declaredColumnCount,
             ];
             if (isset($columnSources[$column])) {
@@ -639,6 +674,77 @@ final class TableGeometry
         }
 
         return $specs;
+    }
+
+    /**
+     * @return array{
+     *     columnCount:int,
+     *     hasExplicitWidths:bool,
+     *     explicitWidthCount:int,
+     *     validWidthCount:int,
+     *     missingWidthCount:int,
+     *     hasCompleteWidths:bool,
+     *     hasPartialWidths:bool,
+     *     widthTotal:float,
+     *     normalizedWidths:list<?float>,
+     *     percentWidths:list<?float>,
+     *     missingColumns:list<int>,
+     *     overfull:bool,
+     *     underfull:bool,
+     *     overflowAmount:float
+     * }
+     */
+    public static function columnWidthSummary(AstNode $table, ?int $columnCount = null): array
+    {
+        $columnCount = max(0, $columnCount ?? self::columnCount($table));
+        $rawWidths = $table->attr('widths', []);
+        $hasExplicitWidths = is_array($rawWidths) && $rawWidths !== [];
+        $explicitWidthCount = is_array($rawWidths) ? count($rawWidths) : 0;
+        $specs = self::columnSpecs($table, $columnCount);
+
+        $widthTotal = 0.0;
+        $validWidthCount = 0;
+        $missingColumns = [];
+        foreach ($specs as $spec) {
+            $width = $spec['width'];
+            if ($width === null) {
+                $missingColumns[] = (int) $spec['column'];
+                continue;
+            }
+
+            $widthTotal += $width;
+            $validWidthCount++;
+        }
+
+        $normalizedWidths = [];
+        $percentWidths = [];
+        foreach ($specs as $spec) {
+            $width = $spec['width'];
+            $normalizedWidths[] = $width !== null && $widthTotal > 0.0 ? self::roundWidth($width / $widthTotal) : null;
+            $percentWidths[] = $width !== null ? self::roundWidth($width * 100.0) : null;
+        }
+
+        $hasCompleteWidths = $columnCount > 0 && $validWidthCount === $columnCount;
+        $hasPartialWidths = $hasExplicitWidths && $validWidthCount > 0 && !$hasCompleteWidths;
+        $overfull = $widthTotal > 1.0 + self::WIDTH_EPSILON;
+        $underfull = $hasCompleteWidths && $widthTotal > self::WIDTH_EPSILON && $widthTotal < 1.0 - self::WIDTH_EPSILON;
+
+        return [
+            'columnCount' => $columnCount,
+            'hasExplicitWidths' => $hasExplicitWidths,
+            'explicitWidthCount' => $explicitWidthCount,
+            'validWidthCount' => $validWidthCount,
+            'missingWidthCount' => count($missingColumns),
+            'hasCompleteWidths' => $hasCompleteWidths,
+            'hasPartialWidths' => $hasPartialWidths,
+            'widthTotal' => self::roundWidth($widthTotal),
+            'normalizedWidths' => $normalizedWidths,
+            'percentWidths' => $percentWidths,
+            'missingColumns' => $missingColumns,
+            'overfull' => $overfull,
+            'underfull' => $underfull,
+            'overflowAmount' => $overfull ? self::roundWidth($widthTotal - 1.0) : 0.0,
+        ];
     }
 
     public static function rowHeadColumns(AstNode $body, int $columnCount): int
@@ -694,6 +800,7 @@ final class TableGeometry
         $coverage = self::serializableCoverage($coverageRecords);
         $diagnostics = self::diagnostics($table);
         $captions = self::captionMetadata($table);
+        $widthSummary = self::columnWidthSummary($table, $columnCount);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
             $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer);
@@ -709,6 +816,7 @@ final class TableGeometry
             'columnCount' => $columnCount,
             'declaredColumnCount' => self::declaredColumnCount($table),
             'columns' => self::columnSpecs($table, $columnCount),
+            'widthSummary' => $widthSummary,
             'sections' => self::serializableSectionGrids($sections),
             'coverage' => $coverage,
             'diagnostics' => $diagnostics,
@@ -1738,6 +1846,27 @@ final class TableGeometry
             self::tableAttributeColumnCount($table->attr('alignments', [])),
             self::tableAttributeColumnCount($table->attr('widths', []))
         );
+    }
+
+    /**
+     * @param list<mixed> $widths
+     */
+    private static function positiveWidthTotal(array $widths, int $columnCount): float
+    {
+        $total = 0.0;
+        for ($column = 0; $column < max(0, $columnCount); $column++) {
+            $width = $widths[$column] ?? null;
+            if (is_numeric($width) && (float) $width > 0.0) {
+                $total += (float) $width;
+            }
+        }
+
+        return $total;
+    }
+
+    private static function roundWidth(float $width): float
+    {
+        return round($width, 6);
     }
 
     /**

@@ -108,6 +108,27 @@ $captionMetadataTables = [
     ]),
 ];
 
+$overfullWidthTable = new AstNode('table', [
+    'caption' => 'Overfull source width audit',
+    'alignments' => ['left', 'right', 'center'],
+    'widths' => [0.6, 0.6, 0.3],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -421,6 +442,18 @@ $document = new AstNode('document', [], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
+    $overfullWidthPacket = TableGeometry::reviewPacket($overfullWidthTable, ['accessibility' => false]);
+    if (($overfullWidthPacket['widthSummary']['normalizedWidths'] ?? null) !== [0.4, 0.4, 0.2]) {
+        throw new RuntimeException('Table geometry self-test missing normalized overfull source width metadata');
+    }
+    if (($overfullWidthPacket['summary']['diagnosticCodes'] ?? null) !== ['table-widths-exceed-full-width']) {
+        throw new RuntimeException('Table geometry self-test missing overfull source width diagnostic');
+    }
+    if (($overfullWidthPacket['columns'][0]['percentWidth'] ?? null) !== 60.0 || ($overfullWidthPacket['columns'][2]['normalizedWidth'] ?? null) !== 0.2) {
+        throw new RuntimeException('Table geometry self-test missing per-column width percentages');
+    }
+    json_encode($overfullWidthPacket, JSON_THROW_ON_ERROR);
+
     $migrationGrids = TableGeometry::sectionGrids($document->children[0]);
     $columnSpecs = TableGeometry::columnSpecs($document->children[0], 5);
     $cellCoverage = TableGeometry::cellCoverage($document->children[0]);
