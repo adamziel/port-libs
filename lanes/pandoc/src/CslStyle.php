@@ -106,6 +106,8 @@ final class CslStyle
             'etAlSubsequentMin' => null,
             'etAlSubsequentUseFirst' => null,
             'delimiterPrecedesEtAl' => 'contextual',
+            'delimiterPrecedesLast' => 'contextual',
+            'delimiterPrecedesLastExplicit' => false,
             'etAl' => [
                 'term' => 'et-al',
                 'prefix' => '',
@@ -131,6 +133,8 @@ final class CslStyle
             'etAlSubsequentMin' => null,
             'etAlSubsequentUseFirst' => null,
             'delimiterPrecedesEtAl' => 'contextual',
+            'delimiterPrecedesLast' => 'contextual',
+            'delimiterPrecedesLastExplicit' => false,
             'etAl' => [
                 'term' => 'et-al',
                 'prefix' => '',
@@ -771,6 +775,8 @@ final class CslStyle
             'etAlSubsequentMin' => is_int($overrides['etAlSubsequentMin'] ?? null) ? $overrides['etAlSubsequentMin'] : ($defaults['etAlSubsequentMin'] ?? null),
             'etAlSubsequentUseFirst' => is_int($overrides['etAlSubsequentUseFirst'] ?? null) ? $overrides['etAlSubsequentUseFirst'] : ($defaults['etAlSubsequentUseFirst'] ?? null),
             'delimiterPrecedesEtAl' => is_string($overrides['delimiterPrecedesEtAl'] ?? null) ? $overrides['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
+            'delimiterPrecedesLast' => is_string($overrides['delimiterPrecedesLast'] ?? null) ? $overrides['delimiterPrecedesLast'] : ($defaults['delimiterPrecedesLast'] ?? 'contextual'),
+            'delimiterPrecedesLastExplicit' => ($overrides['delimiterPrecedesLastExplicit'] ?? false) === true || ($defaults['delimiterPrecedesLastExplicit'] ?? false) === true,
             'etAl' => self::mergeEtAlRenderingOptions(
                 is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
                 is_array($overrides['etAl'] ?? null) ? $overrides['etAl'] : []
@@ -892,6 +898,16 @@ final class CslStyle
             }
 
             $overrides['delimiterPrecedesEtAl'] = $delimiterPrecedesEtAl;
+        }
+
+        $delimiterPrecedesLast = self::optionalNameAttribute($name, $names, 'delimiter-precedes-last');
+        if ($delimiterPrecedesLast !== null) {
+            if (!in_array($delimiterPrecedesLast, ['contextual', 'after-inverted-name', 'always', 'never'], true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' delimiter-precedes-last must be contextual, after-inverted-name, always, or never');
+            }
+
+            $overrides['delimiterPrecedesLast'] = $delimiterPrecedesLast;
+            $overrides['delimiterPrecedesLastExplicit'] = true;
         }
 
         $etAl = self::etAlRenderingOptions($names, $scope);

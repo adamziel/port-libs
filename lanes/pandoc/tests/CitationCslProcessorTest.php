@@ -4279,6 +4279,127 @@ XML
 XML
         ));
     },
+    'applies bounded csl delimiter precedes last for name lists' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'three-name-source',
+                'type' => 'report',
+                'title' => 'Three Name Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Smith', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'two-name-source',
+                'type' => 'report',
+                'title' => 'Two Name Source Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                    ['family' => 'Patel', 'given' => 'Ira'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Delimiter Precedes Last Review Style</title>
+    <id>https://example.test/styles/bounded-delimiter-precedes-last-review</id>
+    <updated>2026-06-05T19:54:33+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", " delimiter-precedes-last="never" et-al-min="4">
+          <name and="text"/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter=", " delimiter-precedes-last="always">
+        <name initialize-with=". " name-as-sort-order="all" and="symbol"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0]['nameRendering'] ?? [];
+        $bibliographyNames = $summary['bibliographyRendering'][0]['nameRendering'] ?? [];
+        $t->same('Bounded Delimiter Precedes Last Review Style', $summary['title'] ?? null);
+        $t->same('never', $summary['nameRendering']['citation']['delimiterPrecedesLast'] ?? null);
+        $t->same('never', $citationNames['delimiterPrecedesLast'] ?? null);
+        $t->same('always', $summary['nameRendering']['bibliography']['delimiterPrecedesLast'] ?? null);
+        $t->same('always', $bibliographyNames['delimiterPrecedesLast'] ?? null);
+        $t->same('symbol', $bibliographyNames['and'] ?? null);
+
+        $t->same('[de la Cruz, Ng and Smith 2026; Roe and Patel 2025]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'three-name-source', 'text' => '[@three-name-source]']),
+            new AstNode('citation', ['id' => 'two-name-source', 'text' => '[@two-name-source]']),
+        ]));
+        $t->same('de la Cruz, A. M., Ng, N., & Smith, S. :: Three Name Source Packet', $processor->renderBibliographyEntry('three-name-source'));
+        $t->same('Roe, P., & Patel, I. :: Two Name Source Packet', $processor->renderBibliographyEntry('two-name-source'));
+
+        $afterInverted = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", " delimiter-precedes-last="always" et-al-min="4">
+          <name and="text"/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter=", " delimiter-precedes-last="after-inverted-name">
+        <name initialize-with=". " name-as-sort-order="first" and="text"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('[de la Cruz, Ng, and Smith 2026; Roe, and Patel 2025]', $afterInverted->renderCitationCluster([
+            new AstNode('citation', ['id' => 'three-name-source', 'text' => '[@three-name-source]']),
+            new AstNode('citation', ['id' => 'two-name-source', 'text' => '[@two-name-source]']),
+        ]));
+        $t->same('de la Cruz, A. M., N. Ng and S. Smith :: Three Name Source Packet', $afterInverted->renderBibliographyEntry('three-name-source'));
+        $t->same('Roe, P., and I. Patel :: Two Name Source Packet', $afterInverted->renderBibliographyEntry('two-name-source'));
+
+        $document = (new MarkdownReader())->read('Delimiter source [@three-name-source] and paired source @two-name-source keep CSL name-list punctuation visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Delimiter source [de la Cruz, Ng and Smith 2026] and paired source Roe and Patel (2025) keep CSL name-list punctuation visible.</p>', $blocks);
+        $t->contains('<dt>de la Cruz, Ng and Smith 2026</dt><dd>de la Cruz, A. M., Ng, N., &amp; Smith, S. :: Three Name Source Packet</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <names variable="author" delimiter-precedes-last="sometimes"><name/></names>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl et al use last for truncated name lists' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

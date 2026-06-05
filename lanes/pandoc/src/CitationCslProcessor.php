@@ -4421,6 +4421,8 @@ final class CitationCslProcessor
             'etAlSubsequentMin' => is_int($options['etAlSubsequentMin'] ?? null) ? $options['etAlSubsequentMin'] : ($defaults['etAlSubsequentMin'] ?? null),
             'etAlSubsequentUseFirst' => is_int($options['etAlSubsequentUseFirst'] ?? null) ? $options['etAlSubsequentUseFirst'] : ($defaults['etAlSubsequentUseFirst'] ?? null),
             'delimiterPrecedesEtAl' => is_string($options['delimiterPrecedesEtAl'] ?? null) ? $options['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
+            'delimiterPrecedesLast' => is_string($options['delimiterPrecedesLast'] ?? null) ? $options['delimiterPrecedesLast'] : ($defaults['delimiterPrecedesLast'] ?? 'contextual'),
+            'delimiterPrecedesLastExplicit' => ($options['delimiterPrecedesLastExplicit'] ?? false) === true || ($defaults['delimiterPrecedesLastExplicit'] ?? false) === true,
             'etAl' => $this->normalizedEtAlRenderingOptions(
                 is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
                 is_array($options['etAl'] ?? null) ? $options['etAl'] : []
@@ -5383,9 +5385,10 @@ final class CitationCslProcessor
         }
 
         if ($bibliography && is_array($bibliographyState)) {
+            $renderedNames = $this->joinNamesWithLastDelimiter($rendered, $options, true);
             $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan(
                 $rendered,
-                implode($options['delimiter'], $rendered),
+                $renderedNames,
                 $bibliographyState
             );
             if (($substitution['type'] ?? '') === 'full') {
@@ -5397,8 +5400,8 @@ final class CitationCslProcessor
         }
 
         return $bibliography
-            ? implode($options['delimiter'], $rendered)
-            : $this->joinCitationNames($rendered, $options);
+            ? $this->joinNamesWithLastDelimiter($rendered, $options, true)
+            : $this->joinNamesWithLastDelimiter($rendered, $options, false);
     }
 
     private function citationUsesSubsequentNameOptions(?AstNode $citation): bool
@@ -5650,7 +5653,7 @@ final class CitationCslProcessor
      * @param list<string> $names
      * @param array<string, mixed> $options
      */
-    private function joinCitationNames(array $names, array $options): string
+    private function joinNamesWithLastDelimiter(array $names, array $options, bool $bibliography): string
     {
         $count = count($names);
         if ($count === 0) {
@@ -5661,20 +5664,49 @@ final class CitationCslProcessor
             return $names[0];
         }
 
+        if ($bibliography && ($options['delimiterPrecedesLastExplicit'] ?? false) !== true) {
+            return implode($options['delimiter'], $names);
+        }
+
         $and = $this->andJoiner($options);
         if ($and === '') {
             return implode($options['delimiter'], $names);
         }
 
+        $delimiter = (string) ($options['delimiter'] ?? '');
         if ($count === 2) {
-            return $names[0] . ' ' . $and . ' ' . $names[1];
+            $separator = $this->delimiterBeforeLastName($options, $bibliography, 0) ? $delimiter : ' ';
+            if ($separator === '') {
+                $separator = ' ';
+            }
+
+            return $names[0] . $separator . $and . ' ' . $names[1];
         }
 
-        return implode($options['delimiter'], array_slice($names, 0, -1))
-            . $options['delimiter']
+        $previousNameIndex = $count - 2;
+        $separator = $this->delimiterBeforeLastName($options, $bibliography, $previousNameIndex) ? $delimiter : ' ';
+        if ($separator === '') {
+            $separator = ' ';
+        }
+
+        return implode($delimiter, array_slice($names, 0, -1))
+            . $separator
             . $and
             . ' '
             . $names[$count - 1];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function delimiterBeforeLastName(array $options, bool $bibliography, int $previousNameIndex): bool
+    {
+        return match ((string) ($options['delimiterPrecedesLast'] ?? 'contextual')) {
+            'always' => true,
+            'never' => false,
+            'after-inverted-name' => $bibliography && $this->visibleNameWasInvertedForEtAl($options, $previousNameIndex),
+            default => $previousNameIndex > 0,
+        };
     }
 
     /**
