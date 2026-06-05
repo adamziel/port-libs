@@ -437,6 +437,12 @@ final class BatchConverter
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
             ? null
             : $this->absolutePath($metadataFile);
+        $metadataPath = $this->runtimeMetadataFilePathPlan(
+            $metadataFile,
+            $absoluteMetadataFile,
+            $absoluteInputFolder,
+            $absoluteOutputFolder
+        );
 
         if ($outputCreation['output_folder_creation_blocked']) {
             return [
@@ -502,6 +508,7 @@ final class BatchConverter
                 'metadata' => [
                     'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                     'metadata_load_reached' => false,
                     'metadata_filenames' => [],
                     'selected_metadata_filenames' => [],
@@ -640,6 +647,7 @@ final class BatchConverter
                 'metadata' => [
                     'source' => 'metadata_file json.load keyed by basename',
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                     'metadata_load_reached' => true,
                     'metadata_load_success' => false,
                     'metadata_error_boundary' => 'metadata-file-json-load-failed',
@@ -784,6 +792,7 @@ final class BatchConverter
                 'metadata' => [
                     'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                     'metadata_load_reached' => true,
                     'metadata_load_success' => true,
                     'metadata_error_boundary' => null,
@@ -908,6 +917,7 @@ final class BatchConverter
                 'metadata' => [
                     'source' => 'metadata_file json.load keyed by basename',
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                     'metadata_load_reached' => true,
                     'metadata_load_success' => true,
                     'metadata_error_boundary' => null,
@@ -1049,6 +1059,7 @@ final class BatchConverter
             'metadata' => [
                 'source' => $absoluteMetadataFile === null ? 'metadataByFilename argument' : 'metadata_file json.load keyed by basename',
                 'metadata_file' => $absoluteMetadataFile,
+                ...$metadataPath,
                 'metadata_load_reached' => true,
                 'metadata_load_success' => true,
                 'metadata_error_boundary' => null,
@@ -1139,6 +1150,12 @@ final class BatchConverter
         $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
             ? null
             : $this->absolutePath($metadataFile);
+        $metadataPath = $this->runtimeMetadataFilePathPlan(
+            $metadataFile,
+            $absoluteMetadataFile,
+            $absoluteInputFolder,
+            $absoluteOutputFolder
+        );
 
         try {
             $plan = $this->runtimeMainPreflightPlan(
@@ -1174,6 +1191,7 @@ final class BatchConverter
                     'input_path_type' => $this->filesystemPathType($absoluteInputFolder),
                     'output_folder_creation_reached' => true,
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
@@ -1214,6 +1232,7 @@ final class BatchConverter
                     'output_folder_creation_required' => false,
                     'output_folder_creation_blocked' => false,
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
@@ -1229,6 +1248,7 @@ final class BatchConverter
                 ],
                 'metadata' => [
                     'metadata_file' => $absoluteMetadataFile,
+                    ...$metadataPath,
                     'metadata_load_reached' => false,
                     'metadata_filenames' => [],
                     'selected_metadata_filenames' => [],
@@ -2923,16 +2943,66 @@ final class BatchConverter
 
     private function absolutePath(string $path): string
     {
-        $real = realpath($path);
-        if (is_string($real)) {
-            return $real;
+        $absolute = str_starts_with($path, DIRECTORY_SEPARATOR)
+            ? $path
+            : rtrim((string) getcwd(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $path;
+
+        return $this->normalizeAbsolutePath($absolute);
+    }
+
+    private function normalizeAbsolutePath(string $path): string
+    {
+        $parts = preg_split('#/+#', $path);
+        $segments = [];
+        foreach ($parts === false ? [] : $parts as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($segments);
+                continue;
+            }
+
+            $segments[] = $part;
         }
 
-        if (str_starts_with($path, DIRECTORY_SEPARATOR)) {
-            return rtrim($path, DIRECTORY_SEPARATOR);
-        }
+        return DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $segments);
+    }
 
-        return rtrim((string) getcwd(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $path;
+    /**
+     * @return array<string, mixed>
+     */
+    private function runtimeMetadataFilePathPlan(
+        ?string $metadataFile,
+        ?string $absoluteMetadataFile,
+        string $absoluteInputFolder,
+        string $absoluteOutputFolder
+    ): array {
+        $hasMetadataFile = $absoluteMetadataFile !== null;
+        $input = $hasMetadataFile ? (string) $metadataFile : null;
+        $isAbsoluteInput = $input !== null && str_starts_with($input, DIRECTORY_SEPARATOR);
+        $processCwd = $hasMetadataFile ? $this->absolutePath('.') : null;
+        $inputFolderCandidate = $hasMetadataFile && !$isAbsoluteInput
+            ? $this->normalizeAbsolutePath($absoluteInputFolder . DIRECTORY_SEPARATOR . $input)
+            : null;
+        $outputFolderCandidate = $hasMetadataFile && !$isAbsoluteInput
+            ? $this->normalizeAbsolutePath($absoluteOutputFolder . DIRECTORY_SEPARATOR . $input)
+            : null;
+
+        return [
+            'metadata_file_input' => $input,
+            'metadata_file_abspath_call' => $hasMetadataFile ? 'os.path.abspath(args.metadata_file)' : null,
+            'metadata_file_abspath_order' => $hasMetadataFile ? 'after_chunk_files_before_json_load' : null,
+            'metadata_file_abspath_base' => $hasMetadataFile ? ($isAbsoluteInput ? 'already_absolute' : 'process_cwd') : null,
+            'metadata_file_process_cwd' => $processCwd,
+            'metadata_file_relative_to_process_cwd' => $hasMetadataFile && !$isAbsoluteInput,
+            'metadata_file_relative_to_input_folder' => false,
+            'metadata_file_relative_to_output_folder' => false,
+            'metadata_file_input_folder_candidate' => $inputFolderCandidate,
+            'metadata_file_output_folder_candidate' => $outputFolderCandidate,
+            'metadata_file_input_folder_candidate_exists' => $inputFolderCandidate === null ? false : file_exists($inputFolderCandidate),
+            'metadata_file_output_folder_candidate_exists' => $outputFolderCandidate === null ? false : file_exists($outputFolderCandidate),
+        ];
     }
 
     /**

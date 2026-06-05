@@ -1259,6 +1259,84 @@ return [
             $removeTree($output);
         }
     },
+    'resolves relative metadata_file paths against process cwd before json load' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        $previousCwd = getcwd();
+        if (!is_string($previousCwd)) {
+            throw new RuntimeException('Unable to capture current working directory.');
+        }
+
+        try {
+            $input = $root . DIRECTORY_SEPARATOR . 'uploads';
+            $output = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            $relativeDir = $root . DIRECTORY_SEPARATOR . 'runtime';
+            mkdir($input);
+            mkdir($output);
+            mkdir($relativeDir);
+
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($root . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
+                'alpha.pdf' => ['title' => 'Process CWD Metadata'],
+            ], JSON_THROW_ON_ERROR));
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
+                'beta.pdf' => ['title' => 'Input Folder Decoy'],
+            ], JSON_THROW_ON_ERROR));
+            file_put_contents($output . DIRECTORY_SEPARATOR . 'relative-metadata.json', '{"beta.pdf": {"title": "Output folder decoy",}');
+
+            if (!chdir($root)) {
+                throw new RuntimeException('Unable to enter temporary metadata cwd.');
+            }
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 4,
+                metadataFile: './runtime/../relative-metadata.json',
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $metadata = $plan['metadata'];
+            $t->same('metadata_file json.load keyed by basename', $metadata['source']);
+            $t->same('./runtime/../relative-metadata.json', $metadata['metadata_file_input']);
+            $t->same($root . DIRECTORY_SEPARATOR . 'relative-metadata.json', $metadata['metadata_file']);
+            $t->same('os.path.abspath(args.metadata_file)', $metadata['metadata_file_abspath_call']);
+            $t->same('after_chunk_files_before_json_load', $metadata['metadata_file_abspath_order']);
+            $t->same('process_cwd', $metadata['metadata_file_abspath_base']);
+            $t->same($root, $metadata['metadata_file_process_cwd']);
+            $t->same(true, $metadata['metadata_file_relative_to_process_cwd']);
+            $t->same(false, $metadata['metadata_file_relative_to_input_folder']);
+            $t->same(false, $metadata['metadata_file_relative_to_output_folder']);
+            $t->same($input . DIRECTORY_SEPARATOR . 'relative-metadata.json', $metadata['metadata_file_input_folder_candidate']);
+            $t->same($output . DIRECTORY_SEPARATOR . 'relative-metadata.json', $metadata['metadata_file_output_folder_candidate']);
+            $t->same(true, $metadata['metadata_file_input_folder_candidate_exists']);
+            $t->same(true, $metadata['metadata_file_output_folder_candidate_exists']);
+            $t->same(true, $metadata['metadata_load_success']);
+            $t->same(['alpha.pdf'], $metadata['metadata_filenames']);
+            $t->same(['alpha.pdf'], $metadata['selected_metadata_filenames']);
+            $t->same(['beta.pdf', 'relative-metadata.json'], $metadata['missing_metadata_filenames']);
+            $t->same(['alpha.pdf', 'beta.pdf', 'relative-metadata.json'], $plan['chunking']['selected_filenames']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['title' => 'Process CWD Metadata'], $taskArgsByName['alpha.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['beta.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['relative-metadata.json']['metadata']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same(3, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            chdir($previousCwd);
+            $removeTree($root);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

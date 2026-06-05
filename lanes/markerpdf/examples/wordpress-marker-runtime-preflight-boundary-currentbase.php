@@ -11,9 +11,11 @@ $runId = bin2hex(random_bytes(4));
 $input = sys_get_temp_dir() . '/markerpdf-runtime-preflight-input-' . $runId;
 $output = sys_get_temp_dir() . '/markerpdf-runtime-preflight-output-' . $runId;
 $blockedOutputRoot = sys_get_temp_dir() . '/markerpdf-runtime-preflight-blocked-output-' . $runId;
+$relativeMetadataRoot = sys_get_temp_dir() . '/markerpdf-runtime-preflight-relative-metadata-' . $runId;
 @mkdir($input, 0777, true);
 @mkdir($output, 0777, true);
 @mkdir($blockedOutputRoot, 0777, true);
+@mkdir($relativeMetadataRoot, 0777, true);
 
 $removeTree = static function (string $path) use (&$removeTree): void {
     if (!is_dir($path)) {
@@ -201,6 +203,40 @@ try {
         torchDevice: 'cuda',
         torchDeviceModel: 'cpu'
     );
+    $relativeInput = $relativeMetadataRoot . DIRECTORY_SEPARATOR . 'uploads';
+    $relativeOutput = $relativeMetadataRoot . DIRECTORY_SEPARATOR . 'marker-output';
+    $relativeDotDir = $relativeMetadataRoot . DIRECTORY_SEPARATOR . 'runtime';
+    mkdir($relativeInput);
+    mkdir($relativeOutput);
+    mkdir($relativeDotDir);
+    $writePdf($relativeInput . DIRECTORY_SEPARATOR . 'alpha.pdf', 'Relative metadata process cwd alpha');
+    $writePdf($relativeInput . DIRECTORY_SEPARATOR . 'beta.pdf', 'Relative metadata process cwd beta');
+    file_put_contents($relativeMetadataRoot . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
+        'alpha.pdf' => ['title' => 'Process CWD Metadata'],
+    ], JSON_THROW_ON_ERROR));
+    file_put_contents($relativeInput . DIRECTORY_SEPARATOR . 'relative-metadata.json', json_encode([
+        'beta.pdf' => ['title' => 'Input Folder Decoy'],
+    ], JSON_THROW_ON_ERROR));
+    file_put_contents($relativeOutput . DIRECTORY_SEPARATOR . 'relative-metadata.json', '{"beta.pdf": {"title": "Output Folder Decoy",}');
+    $previousCwd = getcwd();
+    if (!is_string($previousCwd)) {
+        throw new RuntimeException('Unable to capture current working directory for relative metadata smoke.');
+    }
+    try {
+        if (!chdir($relativeMetadataRoot)) {
+            throw new RuntimeException('Unable to enter relative metadata smoke directory.');
+        }
+        $relativeMetadataPlan = $batch->runtimeMainPreflightPlan(
+            $relativeInput,
+            $relativeOutput,
+            metadataFile: './runtime/../relative-metadata.json',
+            workers: 4,
+            torchDevice: 'cuda',
+            torchDeviceModel: 'cpu'
+        );
+    } finally {
+        chdir($previousCwd);
+    }
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -464,6 +500,21 @@ try {
     ) {
         throw new RuntimeException('Expected per-file scalar/list metadata values to pass task tuple construction while recording convert_single_pdf metadata.get risk.');
     }
+    if (
+        $relativeMetadataPlan['metadata']['metadata_file'] !== $relativeMetadataRoot . DIRECTORY_SEPARATOR . 'relative-metadata.json'
+        || $relativeMetadataPlan['metadata']['metadata_file_abspath_base'] !== 'process_cwd'
+        || $relativeMetadataPlan['metadata']['metadata_file_relative_to_process_cwd'] !== true
+        || $relativeMetadataPlan['metadata']['metadata_file_relative_to_input_folder'] !== false
+        || $relativeMetadataPlan['metadata']['metadata_file_relative_to_output_folder'] !== false
+        || $relativeMetadataPlan['metadata']['metadata_filenames'] !== ['alpha.pdf']
+        || $relativeMetadataPlan['metadata']['selected_metadata_filenames'] !== ['alpha.pdf']
+        || $relativeMetadataPlan['metadata']['missing_metadata_filenames'] !== ['beta.pdf', 'relative-metadata.json']
+        || $relativeMetadataPlan['worker_pool']['task_args'][0]['metadata'] !== ['title' => 'Process CWD Metadata']
+        || $relativeMetadataPlan['worker_pool']['task_args'][1]['metadata'] !== null
+        || $relativeMetadataPlan['worker_pool']['task_args'][2]['metadata'] !== null
+    ) {
+        throw new RuntimeException('Expected relative metadata_file paths to resolve against process cwd after chunking, not input/output folders.');
+    }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
     }
@@ -688,6 +739,22 @@ try {
         'metadata_value_blocks_pool_launch' => $metadataValuePlan['metadata']['metadata_value_review']['blocks_pool_launch'],
         'metadata_value_pool_launchable' => $metadataValuePlan['worker_pool']['pool_launchable'],
         'metadata_value_task_args_count' => $metadataValuePlan['worker_pool']['task_args_count'],
+        'relative_metadata_file_input' => $relativeMetadataPlan['metadata']['metadata_file_input'],
+        'relative_metadata_file' => $relativeMetadataPlan['metadata']['metadata_file'],
+        'relative_metadata_abspath_call' => $relativeMetadataPlan['metadata']['metadata_file_abspath_call'],
+        'relative_metadata_abspath_order' => $relativeMetadataPlan['metadata']['metadata_file_abspath_order'],
+        'relative_metadata_abspath_base' => $relativeMetadataPlan['metadata']['metadata_file_abspath_base'],
+        'relative_metadata_process_cwd' => $relativeMetadataPlan['metadata']['metadata_file_process_cwd'],
+        'relative_metadata_relative_to_process_cwd' => $relativeMetadataPlan['metadata']['metadata_file_relative_to_process_cwd'],
+        'relative_metadata_relative_to_input_folder' => $relativeMetadataPlan['metadata']['metadata_file_relative_to_input_folder'],
+        'relative_metadata_relative_to_output_folder' => $relativeMetadataPlan['metadata']['metadata_file_relative_to_output_folder'],
+        'relative_metadata_input_folder_candidate_exists' => $relativeMetadataPlan['metadata']['metadata_file_input_folder_candidate_exists'],
+        'relative_metadata_output_folder_candidate_exists' => $relativeMetadataPlan['metadata']['metadata_file_output_folder_candidate_exists'],
+        'relative_metadata_selected_filenames' => $relativeMetadataPlan['chunking']['selected_filenames'],
+        'relative_metadata_selected_metadata_filenames' => $relativeMetadataPlan['metadata']['selected_metadata_filenames'],
+        'relative_metadata_missing_metadata_filenames' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'],
+        'relative_metadata_loaded_from_process_cwd' => $relativeMetadataPlan['metadata']['metadata_filenames'] === ['alpha.pdf'],
+        'relative_metadata_ignored_input_output_decoys' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'] === ['beta.pdf', 'relative-metadata.json'],
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
@@ -775,4 +842,5 @@ try {
     $removeTree($input);
     $removeTree($output);
     $removeTree($blockedOutputRoot);
+    $removeTree($relativeMetadataRoot);
 }
