@@ -49,6 +49,15 @@ blank-note: # intentionally blank in source packet
 explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
 typed-flow-review: {priority: !!int "4", enabled: !!bool "false", ticket: !!str 009}
+non-specific-review:
+  owner: ! "Import Desk"
+  status: ! queued
+  labels: [! front-matter, ! "WordPress #import"]
+flow-non-specific-review: {owner: ! "Flow Desk", status: ! approved, labels: [! yaml, ! metadata]}
+non-specific-defaults_: ! &non_specific_defaults {status: queued, priority: 8}
+non-specific-merge:
+  <<: ! *non_specific_defaults
+  status: ! approved
 multiline-flow-labels: [
   migration,
   "Data Liberation",
@@ -296,6 +305,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['typed-flow-review']['ticket'] ?? null) !== '009') {
         throw new RuntimeException('YAML metadata self-test missing flow explicit string tag preservation');
+    }
+    if (($meta['non-specific-review']['owner'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test leaked bare non-specific tag on owner metadata');
+    }
+    if (($meta['non-specific-review']['labels'] ?? []) !== ['front-matter', 'WordPress #import']) {
+        throw new RuntimeException('YAML metadata self-test missing bare non-specific tag sequence metadata');
+    }
+    if (($meta['flow-non-specific-review']['labels'] ?? []) !== ['yaml', 'metadata']) {
+        throw new RuntimeException('YAML metadata self-test missing bare non-specific tag flow metadata');
+    }
+    if (($meta['non-specific-merge']['priority'] ?? null) !== 8 || ($meta['non-specific-merge']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing bare non-specific tag alias merge metadata');
     }
     if (($meta['multiline-flow-labels'] ?? []) !== ['migration', 'Data Liberation', 'wordpress']) {
         throw new RuntimeException('YAML metadata self-test missing multiline flow sequence metadata');
@@ -547,6 +568,7 @@ echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
+echo 'Non-specific tag review: ' . ($meta['non-specific-review']['owner'] ?? '') . ' / ' . implode(', ', $meta['non-specific-review']['labels'] ?? []) . "\n";
 echo 'Source captured at: ' . ($meta['source-captured-at'] ?? '') . "\n";
 echo 'Review binary bytes: ' . ($meta['review-binary']['note-bytes'] ?? '') . ' / ' . ($meta['review-binary']['digest-bytes'] ?? '') . "\n";
 echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";

@@ -1546,6 +1546,55 @@ return [
         $t->same('explicit-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-tag-yaml-body">Explicit tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml non-specific tag metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: ! "Non-specific **Packet**"',
+            'review:',
+            '  owner: ! "Import Desk"',
+            '  status: ! queued',
+            '  labels: [! front-matter, ! "WordPress #import"]',
+            '  flow: {owner: ! "Flow Desk", status: ! approved, labels: [! yaml, ! metadata]}',
+            'review-defaults_: ! &review_defaults {status: queued, priority: 5}',
+            'aliased-review: ! *review_defaults',
+            'references:',
+            '  - ! &tagged_ref',
+            '    id: tagged-ref',
+            '    title: ! "Source: tagged"',
+            '  - ! *tagged_ref',
+            'sequence:',
+            '  - ! front-matter',
+            '  - ! "WordPress #import"',
+            '...',
+            '',
+            '# Non-specific YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Non-specific **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['front-matter', 'WordPress #import'], $meta['review']['labels']);
+        $t->same('Flow Desk', $meta['review']['flow']['owner']);
+        $t->same('approved', $meta['review']['flow']['status']);
+        $t->same(['yaml', 'metadata'], $meta['review']['flow']['labels']);
+        $t->same(null, $meta['review-defaults_'] ?? null);
+        $t->same('queued', $meta['aliased-review']['status']);
+        $t->same(5, $meta['aliased-review']['priority']);
+        $t->same('tagged-ref', $meta['references'][0]['id']);
+        $t->same('Source: tagged', $meta['references'][0]['title']);
+        $t->same($meta['references'][0], $meta['references'][1]);
+        $t->same(['front-matter', 'WordPress #import'], $meta['sequence']);
+        $t->same(false, str_starts_with($meta['review']['owner'], '!'));
+        $t->same(false, str_starts_with($meta['sequence'][0], '!'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('non-specific-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="non-specific-yaml-body">Non-specific YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

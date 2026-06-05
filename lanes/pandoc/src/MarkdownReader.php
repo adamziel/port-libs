@@ -2014,6 +2014,12 @@ final class MarkdownReader
                 continue;
             }
 
+            if (preg_match('/^!(?=$|[ \t])/', $value) === 1) {
+                $tags[] = '!';
+                $value = ltrim(substr($value, 1));
+                continue;
+            }
+
             if (preg_match('/^(!{1,2}[A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1) {
                 $tags[] = $m[1];
                 $value = ltrim(substr($value, strlen($m[0])));
