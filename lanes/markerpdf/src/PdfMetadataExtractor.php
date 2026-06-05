@@ -4879,21 +4879,21 @@ final class PdfMetadataExtractor
         foreach ($values as $index => $value) {
             $resolved = $this->resolvePdfValue($value, $objects);
             $valueForReview = trim($resolved ?? $value);
+            $operandShape = $this->standardPermissionWordOperandShape($valueForReview);
             $entry = [
                 'source' => 'standard_permission_word_entry_review',
                 'index' => $index,
                 'pdf_name' => 'P',
                 'present' => true,
                 'resolved' => $resolved !== null,
+                'operand_shape' => $operandShape,
                 'integer' => false,
                 'review_only' => true,
             ];
 
             if (preg_match('/^[+-]?\d+$/', $valueForReview) !== 1) {
                 $entries[] = $entry + [
-                    'status' => $resolved === null && $this->objectReferenceFromValue($value) !== null
-                        ? 'permission_word_unresolved_reference'
-                        : 'permission_word_non_integer_review',
+                    'status' => $this->standardPermissionWordOperandStatus($value, $operandShape, $resolved !== null),
                 ];
                 continue;
             }
@@ -4977,6 +4977,46 @@ final class PdfMetadataExtractor
             'decryption_performed' => false,
             'executes_permission_enforcement' => false,
         ];
+    }
+
+    private function standardPermissionWordOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+
+        return 'token';
+    }
+
+    private function standardPermissionWordOperandStatus(string $rawValue, string $operandShape, bool $resolved): string
+    {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'permission_word_unresolved_reference';
+        }
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'permission_word_composite_operand_review';
+        }
+
+        return 'permission_word_non_integer_review';
     }
 
     /**
