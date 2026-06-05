@@ -1246,14 +1246,18 @@ final class DocxReader
         }
 
         if ($this->isWordElement($element, 'ins')) {
-            return $this->trackedInsertionNodes($element, $package, $relationships, $referencedNotes);
+            return $this->trackedAcceptedChangeNodes($element, $package, $relationships, $referencedNotes, 'insertion');
+        }
+
+        if ($this->isWordElement($element, 'moveTo')) {
+            return $this->trackedAcceptedChangeNodes($element, $package, $relationships, $referencedNotes, 'move-to');
         }
 
         if ($this->isWordElement($element, 'smartTag')) {
             return $this->inlineContainerNodes($element, $package, $relationships, $referencedNotes);
         }
 
-        if ($this->isWordElement($element, 'del')) {
+        if ($this->isWordElement($element, 'del') || $this->isWordElement($element, 'moveFrom')) {
             return [];
         }
 
@@ -1414,14 +1418,20 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function trackedInsertionNodes(\DOMElement $insertion, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
+    private function trackedAcceptedChangeNodes(
+        \DOMElement $change,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        string $type
+    ): array
     {
-        $children = $this->inlineContainerNodes($insertion, $package, $relationships, $referencedNotes);
+        $children = $this->inlineContainerNodes($change, $package, $relationships, $referencedNotes);
         if ($children === []) {
             return [];
         }
 
-        return [new AstNode('span', $this->trackedChangeSpanAttrs($insertion, 'insertion'), $children)];
+        return [new AstNode('span', $this->trackedChangeSpanAttrs($change, $type), $children)];
     }
 
     /**
@@ -2488,9 +2498,9 @@ final class DocxReader
         $insertionCount = 0;
         $deletionCount = 0;
         foreach ($items as $item) {
-            if ($item['type'] === 'insertion') {
+            if (in_array($item['type'], ['insertion', 'move-to'], true)) {
                 $insertionCount++;
-            } elseif ($item['type'] === 'deletion') {
+            } elseif (in_array($item['type'], ['deletion', 'move-from'], true)) {
                 $deletionCount++;
             }
         }
@@ -2507,11 +2517,21 @@ final class DocxReader
      */
     private function collectTrackedChanges(\DOMElement $element, array &$items): void
     {
-        if ($this->isWordElement($element, 'ins') || $this->isWordElement($element, 'del')) {
-            $type = $this->isWordElement($element, 'ins') ? 'insertion' : 'deletion';
+        $type = null;
+        if ($this->isWordElement($element, 'ins')) {
+            $type = 'insertion';
+        } elseif ($this->isWordElement($element, 'del')) {
+            $type = 'deletion';
+        } elseif ($this->isWordElement($element, 'moveFrom')) {
+            $type = 'move-from';
+        } elseif ($this->isWordElement($element, 'moveTo')) {
+            $type = 'move-to';
+        }
+
+        if ($type !== null) {
             $items[] = [
                 'type' => $type,
-                'accepted' => $type === 'insertion',
+                'accepted' => in_array($type, ['insertion', 'move-to'], true),
                 'id' => $this->wordAttr($element, 'id'),
                 'author' => $this->wordAttr($element, 'author'),
                 'date' => $this->wordAttr($element, 'date'),

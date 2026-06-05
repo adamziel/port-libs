@@ -341,6 +341,23 @@ $trackedChangesDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$moveTrackedChangesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Moved review note </w:t></w:r>
+      <w:moveFrom w:id="12" w:author="Source Editor" w:date="2026-06-04T18:05:00Z">
+        <w:r><w:delText>from old section</w:delText></w:r>
+      </w:moveFrom>
+      <w:moveTo w:id="13" w:author="Migration Editor" w:date="2026-06-04T18:07:00Z">
+        <w:r><w:t>to publication checklist</w:t></w:r>
+      </w:moveTo>
+      <w:r><w:t xml:space="preserve"> for import.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $bookmarkDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -599,6 +616,14 @@ $buildTrackedChangesPackage = static function () use ($contentTypesXml, $package
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $trackedChangesDocumentXml],
+    ]);
+};
+
+$buildMoveTrackedChangesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $moveTrackedChangesDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $moveTrackedChangesDocumentXml],
     ]);
 };
 
@@ -1018,6 +1043,49 @@ return [
         $t->same('Migration Editor', $revisions['items'][1]['author']);
         $t->same('2026-06-04T17:50:00Z', $revisions['items'][1]['date']);
         $t->same('approved copy', $revisions['items'][1]['text']);
+    },
+    'preserves accepted DOCX moved text and reports suppressed move sources' => static function (TestRunner $t) use ($buildMoveTrackedChangesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildMoveTrackedChangesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Moved review note ', $paragraph->children[0]->attr('text'));
+
+        $moveTo = $paragraph->children[1];
+        $t->same('span', $moveTo->type);
+        $t->same(['docx-move-to'], $moveTo->attr('classes'));
+        $t->same('move-to', $moveTo->attr('attributes')['data-docx-change']);
+        $t->same('13', $moveTo->attr('attributes')['data-docx-change-id']);
+        $t->same('Migration Editor', $moveTo->attr('attributes')['data-docx-author']);
+        $t->same('2026-06-04T18:07:00Z', $moveTo->attr('attributes')['data-docx-date']);
+        $t->same('to publication checklist', $moveTo->children[0]->attr('text'));
+        $t->same(' for import.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Moved review note [to publication checklist]{.docx-move-to data-docx-change="move-to" data-docx-change-id="13" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"} for import.', $markdown);
+        $t->true(!str_contains($markdown, 'from old section'), 'Moved-from DOCX text should not render to Markdown');
+        $t->contains('<p>Moved review note <span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="13" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z">to publication checklist</span> for import.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'from old section'), 'Moved-from DOCX text should not render to WordPress blocks');
+
+        $revisions = $result['importReport']['revisions'];
+        $t->same(1, $revisions['insertionCount']);
+        $t->same(1, $revisions['deletionCount']);
+        $t->same(2, count($revisions['items']));
+        $t->same('move-from', $revisions['items'][0]['type']);
+        $t->same(false, $revisions['items'][0]['accepted']);
+        $t->same('12', $revisions['items'][0]['id']);
+        $t->same('Source Editor', $revisions['items'][0]['author']);
+        $t->same('2026-06-04T18:05:00Z', $revisions['items'][0]['date']);
+        $t->same('from old section', $revisions['items'][0]['text']);
+        $t->same('move-to', $revisions['items'][1]['type']);
+        $t->same(true, $revisions['items'][1]['accepted']);
+        $t->same('13', $revisions['items'][1]['id']);
+        $t->same('Migration Editor', $revisions['items'][1]['author']);
+        $t->same('2026-06-04T18:07:00Z', $revisions['items'][1]['date']);
+        $t->same('to publication checklist', $revisions['items'][1]['text']);
     },
     'preserves DOCX bookmarks as anchor spans for internal hyperlink targets' => static function (TestRunner $t) use ($buildBookmarkPackage): void {
         $document = (new DocxReader())->readDocument($buildBookmarkPackage());

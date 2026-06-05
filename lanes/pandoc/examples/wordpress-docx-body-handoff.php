@@ -105,6 +105,12 @@ XML],
       <w:ins w:id="8" w:author="Migration Editor" w:date="2026-06-04T17:50:00Z">
         <w:r><w:t xml:space="preserve"> Approved tracked wording.</w:t></w:r>
       </w:ins>
+      <w:moveFrom w:id="16" w:author="Source Editor" w:date="2026-06-04T18:05:00Z">
+        <w:r><w:delText> moved from an obsolete review section.</w:delText></w:r>
+      </w:moveFrom>
+      <w:moveTo w:id="17" w:author="Migration Editor" w:date="2026-06-04T18:07:00Z">
+        <w:r><w:t xml:space="preserve"> Moved into import checklist.</w:t></w:r>
+      </w:moveTo>
       <w:r><w:footnoteReference w:id="2"/></w:r>
       <w:r><w:t xml:space="preserve"> Also keep endnote context</w:t></w:r>
       <w:r><w:endnoteReference w:id="5"/></w:r>
@@ -267,7 +273,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][0]['bytes'] ?? 0) !== 7) {
         throw new RuntimeException('DOCX body handoff self-test missing media byte count');
     }
-    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 1 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 1) {
+    if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 2 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
     if (($summary['importReport']['sections']['count'] ?? 0) !== 1) {
@@ -311,6 +317,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($blocks, 'Old reviewer draft.')) {
         throw new RuntimeException('DOCX body handoff self-test rendered deleted tracked-change text');
     }
+    if (str_contains($blocks, 'moved from an obsolete review section')) {
+        throw new RuntimeException('DOCX body handoff self-test rendered moved-from tracked-change text');
+    }
 
     foreach ([
         '<h1 id="docx-source-packet">DOCX source packet</h1>',
@@ -323,6 +332,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
+        '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
         '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
         '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
         '<p>Plain text source note<br/>Second imported line</p>',
