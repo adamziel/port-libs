@@ -2187,6 +2187,98 @@ MARKDOWN);
         $t->same($result['pdfFormFieldTypes'], $sequence['finalPdfFormFieldTypes']);
     },
 
+    'fake runner extracts bounded pdf digital signature metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed.pdf']);
+        $signatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.signature) /TU (Reviewer signature) /V 9 0 R /Ff 3 >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R] /SigFlags 3 >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /Reason (Review packet approval) /Location <FEFF00520065006D006F007400650020007200650076006900650077> /ContactInfo (review@example.test) /M (D:20260605121500Z) /ByteRange [0 123 456 789] /Contents <3082010A0282010100AABBCC> /Reference [<< /TransformMethod /DocMDP /TransformParams << /Type /TransformParams /P 2 /V /1.2 >> >> << /TransformMethod /FieldMDP /TransformParams << /Action /Include /Fields [(reviewer.name) (approved)] >> >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signed.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signed.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'fieldName' => 'review.signature',
+                'fieldObject' => '4 0 R',
+                'signatureObject' => '9 0 R',
+                'filter' => 'Adobe.PPKLite',
+                'subFilter' => 'ETSI.CAdES.detached',
+                'name' => 'Migration Desk',
+                'reason' => 'Review packet approval',
+                'location' => 'Remote review',
+                'contactInfo' => 'review@example.test',
+                'signingTime' => 'D:20260605121500Z',
+                'byteRange' => [0, 123, 456, 789],
+                'byteRangeSegmentCount' => 2,
+                'coveredBytes' => 912,
+                'contentsBytes' => strlen($signatureBytes),
+                'contentsSha256' => hash('sha256', $signatureBytes),
+                'contentsSkipped' => null,
+                'referenceTransforms' => [
+                    [
+                        'transformMethod' => 'DocMDP',
+                        'transformParamsType' => 'TransformParams',
+                        'permissions' => 2,
+                        'action' => null,
+                        'fields' => [],
+                    ],
+                    [
+                        'transformMethod' => 'FieldMDP',
+                        'transformParamsType' => null,
+                        'permissions' => null,
+                        'action' => 'Include',
+                        'fields' => ['reviewer.name', 'approved'],
+                    ],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatures']);
+        $t->same(['ETSI.CAdES.detached' => 1], $result['pdfSignatureSubFilters']);
+        $t->contains('pdf-byte-signatures:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-signature-subfilters:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-signature-byte-ranges:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-signature-reference-transforms:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfSignatures']);
+        $t->same(['ETSI.CAdES.detached' => 1], $sequence['finalPdfSignatureSubFilters']);
+    },
+
     'fake runner extracts bounded pdf active actions and javascript hashes from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/active.pdf']);

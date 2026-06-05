@@ -12,6 +12,7 @@ final class PdfEngineHandoff
     private const MAX_XMP_METADATA_BYTES = 262144;
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
     private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
+    private const MAX_SIGNATURE_CONTENTS_BYTES = 262144;
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
     private const MAX_XREF_STREAM_BYTES = 262144;
@@ -282,6 +283,8 @@ final class PdfEngineHandoff
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
+     *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfAnnotationTypes: array<string, int>,
@@ -677,6 +680,8 @@ final class PdfEngineHandoff
         $pdfStructureElements = [];
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
+        $pdfSignatures = [];
+        $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
         $pdfAnnotationTypes = [];
@@ -730,6 +735,8 @@ final class PdfEngineHandoff
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
+                $pdfSignatures = $pdfInspection['signatures'];
+                $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
@@ -1014,6 +1021,45 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-optional-content-order:' . count($pdfOptionalContentConfig['order']);
                     }
                 }
+                if ($pdfSignatures !== []) {
+                    $diagnostics[] = 'pdf-byte-signatures:' . count($pdfSignatures);
+                    $byteRangeCount = 0;
+                    $contentsCount = 0;
+                    $transformCount = 0;
+                    $contentSkips = [];
+                    foreach ($pdfSignatures as $signature) {
+                        if (($signature['byteRange'] ?? []) !== []) {
+                            $byteRangeCount++;
+                        }
+                        if (($signature['contentsBytes'] ?? null) !== null) {
+                            $contentsCount++;
+                        }
+                        if (isset($signature['referenceTransforms']) && is_array($signature['referenceTransforms'])) {
+                            $transformCount += count($signature['referenceTransforms']);
+                        }
+                        if (is_string($signature['contentsSkipped'] ?? null) && $signature['contentsSkipped'] !== '') {
+                            $contentSkips[$signature['contentsSkipped']] = true;
+                        }
+                    }
+                    if ($byteRangeCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-byte-ranges:' . $byteRangeCount;
+                    }
+                    if ($contentsCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-contents:' . $contentsCount;
+                    }
+                    if ($transformCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-reference-transforms:' . $transformCount;
+                    }
+                    foreach (array_keys($contentSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-signature-contents-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfSignatureSubFilters !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-subfilters:' . count($pdfSignatureSubFilters);
+                    foreach ($pdfSignatureSubFilters as $subFilter => $subFilterCount) {
+                        $diagnostics[] = 'pdf-byte-signature-subfilter:' . $subFilter . ':' . $subFilterCount;
+                    }
+                }
                 if ($pdfActiveActions !== []) {
                     $diagnostics[] = 'pdf-byte-active-actions:' . count($pdfActiveActions);
                 }
@@ -1227,6 +1273,8 @@ final class PdfEngineHandoff
             'pdfStructureElements' => $pdfStructureElements,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
+            'pdfSignatures' => $pdfSignatures,
+            'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
@@ -1301,6 +1349,8 @@ final class PdfEngineHandoff
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
+     *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfAnnotationTypes: array<string, int>,
@@ -1489,6 +1539,8 @@ final class PdfEngineHandoff
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
+            'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
+            'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
@@ -2567,6 +2619,8 @@ final class PdfEngineHandoff
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
+     *     signatureSubFilters:array<string, int>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
      *     annotationTypes:array<string, int>,
@@ -2599,6 +2653,7 @@ final class PdfEngineHandoff
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
         $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
+        $signatures = $this->extractPdfSignatures($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
@@ -2646,6 +2701,8 @@ final class PdfEngineHandoff
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
+            'signatures' => $signatures,
+            'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
@@ -4682,6 +4739,289 @@ final class PdfEngineHandoff
             'order' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
             'orderLabels' => $this->collectPdfStringsFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
         ];
+    }
+
+    /**
+     * @return list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>
+     */
+    private function extractPdfSignatures(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $signatures = [];
+        $visitedFields = [];
+        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
+
+        if ($acroForm !== null) {
+            foreach ($this->extractPdfReferenceArray($acroForm, 'Fields') as $reference) {
+                $this->collectPdfSignatureFields($signatures, $objects, $reference, $visitedFields, 0);
+            }
+        }
+
+        foreach ($objects as $reference => $body) {
+            if ($this->extractPdfNameToken($body, 'FT') === 'Sig') {
+                $this->addPdfSignatureFromField($signatures, $reference . ' R', $body, $objects);
+                continue;
+            }
+
+            if (
+                $this->extractPdfNameToken($body, 'Type') === 'Sig'
+                || (str_contains($body, '/ByteRange') && str_contains($body, '/Contents'))
+            ) {
+                $this->addPdfSignatureEntry(
+                    $signatures,
+                    $this->summarizePdfSignatureDictionary($body, null, null, $reference . ' R', $objects)
+                );
+            }
+        }
+
+        $signatures = array_values($signatures);
+        usort(
+            $signatures,
+            static fn (array $a, array $b): int => [
+                $a['fieldName'] ?? '',
+                $a['fieldObject'] ?? '',
+                $a['signatureObject'] ?? '',
+            ] <=> [
+                $b['fieldName'] ?? '',
+                $b['fieldObject'] ?? '',
+                $b['signatureObject'] ?? '',
+            ]
+        );
+
+        return $signatures;
+    }
+
+    /**
+     * @param array<string, array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}> $signatures
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfSignatureFields(array &$signatures, array $objects, string $reference, array &$visited, int $depth): void
+    {
+        if ($depth > 16 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+
+        $visited[$reference] = true;
+        $body = $objects[$reference];
+        $this->addPdfSignatureFromField($signatures, $reference . ' R', $body, $objects);
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfSignatureFields($signatures, $objects, $kidReference, $visited, $depth + 1);
+        }
+    }
+
+    /**
+     * @param array<string, array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}> $signatures
+     * @param array<string, string> $objects
+     */
+    private function addPdfSignatureFromField(array &$signatures, string $fieldReference, string $fieldDictionary, array $objects): void
+    {
+        if ($this->extractPdfNameToken($fieldDictionary, 'FT') !== 'Sig') {
+            return;
+        }
+
+        $fieldName = $this->extractPdfStringOrNameValue($fieldDictionary, 'T')
+            ?? $this->extractPdfStringOrNameValue($fieldDictionary, 'TU')
+            ?? $this->extractPdfStringOrNameValue($fieldDictionary, 'TM');
+        $value = $this->extractPdfValueForName($fieldDictionary, 'V');
+        if ($value === null) {
+            return;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body !== null) {
+                $this->addPdfSignatureEntry(
+                    $signatures,
+                    $this->summarizePdfSignatureDictionary($body, $fieldName, $fieldReference, $value['value'], $objects)
+                );
+            }
+
+            return;
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            $this->addPdfSignatureEntry(
+                $signatures,
+                $this->summarizePdfSignatureDictionary($value['value'], $fieldName, $fieldReference, 'inline', $objects)
+            );
+        }
+    }
+
+    /**
+     * @param array<string, array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}> $signatures
+     * @param array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>} $entry
+     */
+    private function addPdfSignatureEntry(array &$signatures, array $entry): void
+    {
+        $key = $entry['signatureObject'] ?? $entry['fieldObject'] ?? hash('sha256', json_encode($entry) ?: serialize($entry));
+        if (
+            !isset($signatures[$key])
+            || (($signatures[$key]['fieldName'] ?? null) === null && ($entry['fieldName'] ?? null) !== null)
+        ) {
+            $signatures[$key] = $entry;
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}
+     */
+    private function summarizePdfSignatureDictionary(
+        string $dictionary,
+        ?string $fieldName,
+        ?string $fieldObject,
+        ?string $signatureObject,
+        array $objects
+    ): array {
+        $byteRange = $this->extractPdfIntegerArrayToken($dictionary, 'ByteRange');
+        $contents = $this->summarizePdfSignatureContents($dictionary);
+
+        return [
+            'fieldName' => $fieldName === '' ? null : $fieldName,
+            'fieldObject' => $fieldObject,
+            'signatureObject' => $signatureObject,
+            'filter' => $this->extractPdfStringOrNameValue($dictionary, 'Filter'),
+            'subFilter' => $this->extractPdfStringOrNameValue($dictionary, 'SubFilter'),
+            'name' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'reason' => $this->extractPdfStringOrNameValue($dictionary, 'Reason'),
+            'location' => $this->extractPdfStringOrNameValue($dictionary, 'Location'),
+            'contactInfo' => $this->extractPdfStringOrNameValue($dictionary, 'ContactInfo'),
+            'signingTime' => $this->extractPdfStringOrNameValue($dictionary, 'M'),
+            'byteRange' => $byteRange,
+            'byteRangeSegmentCount' => intdiv(count($byteRange), 2),
+            'coveredBytes' => $this->coveredBytesForPdfSignatureRange($byteRange),
+            'contentsBytes' => $contents['bytes'],
+            'contentsSha256' => $contents['sha256'],
+            'contentsSkipped' => $contents['skipped'],
+            'referenceTransforms' => $this->extractPdfSignatureReferenceTransforms($dictionary, $objects),
+        ];
+    }
+
+    /**
+     * @return array{bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function summarizePdfSignatureContents(string $dictionary): array
+    {
+        $hex = $this->extractPdfByteStringHexValue($dictionary, 'Contents');
+        if ($hex === null) {
+            return ['bytes' => null, 'sha256' => null, 'skipped' => null];
+        }
+
+        $bytes = hex2bin($hex);
+        if ($bytes === false) {
+            return ['bytes' => null, 'sha256' => null, 'skipped' => null];
+        }
+
+        if (strlen($bytes) > self::MAX_SIGNATURE_CONTENTS_BYTES) {
+            return ['bytes' => strlen($bytes), 'sha256' => null, 'skipped' => 'too-large'];
+        }
+
+        return ['bytes' => strlen($bytes), 'sha256' => hash('sha256', $bytes), 'skipped' => null];
+    }
+
+    /**
+     * @param list<int> $byteRange
+     */
+    private function coveredBytesForPdfSignatureRange(array $byteRange): ?int
+    {
+        if (count($byteRange) < 2 || count($byteRange) % 2 !== 0) {
+            return null;
+        }
+
+        $coveredBytes = 0;
+        for ($index = 1; $index < count($byteRange); $index += 2) {
+            $coveredBytes += $byteRange[$index];
+        }
+
+        return $coveredBytes;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>
+     */
+    private function extractPdfSignatureReferenceTransforms(string $dictionary, array $objects): array
+    {
+        $array = $this->extractPdfArrayOrReferenceValue($dictionary, 'Reference', $objects);
+        if ($array === null) {
+            return [];
+        }
+
+        $transforms = [];
+        $cursor = str_starts_with($array, '[') ? 1 : 0;
+        $length = strlen($array);
+        if (str_ends_with($array, ']')) {
+            $length--;
+        }
+
+        while ($cursor < $length && count($transforms) < 16) {
+            $value = $this->parsePdfValueAt($array, $cursor);
+            if ($value === null) {
+                $cursor++;
+                continue;
+            }
+
+            $summary = null;
+            if ($value['kind'] === 'dictionary') {
+                $summary = $this->summarizePdfSignatureReferenceTransform($value['value'], $objects);
+            } elseif ($value['kind'] === 'reference') {
+                $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+                if ($body !== null) {
+                    $summary = $this->summarizePdfSignatureReferenceTransform($body, $objects);
+                }
+            }
+            if ($summary !== null) {
+                $transforms[] = $summary;
+            }
+
+            $cursor = max($cursor + 1, min($length, $value['next']));
+        }
+
+        return $transforms;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}|null
+     */
+    private function summarizePdfSignatureReferenceTransform(string $dictionary, array $objects): ?array
+    {
+        $params = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'TransformParams', $objects);
+        $transformMethod = $this->extractPdfNameToken($dictionary, 'TransformMethod');
+        if ($transformMethod === null && $params === null) {
+            return null;
+        }
+
+        return [
+            'transformMethod' => $transformMethod,
+            'transformParamsType' => $params === null ? null : $this->extractPdfNameToken($params, 'Type'),
+            'permissions' => $params === null ? null : $this->extractPdfIntegerToken($params, 'P'),
+            'action' => $params === null ? null : $this->extractPdfNameToken($params, 'Action'),
+            'fields' => $params === null ? [] : $this->extractPdfStringArrayValue($params, 'Fields'),
+        ];
+    }
+
+    /**
+     * @param list<array{subFilter:string|null}> $signatures
+     * @return array<string, int>
+     */
+    private function summarizePdfSignatureSubFilters(array $signatures): array
+    {
+        $subFilters = [];
+        foreach ($signatures as $signature) {
+            $subFilter = $signature['subFilter'] ?? null;
+            if (!is_string($subFilter) || $subFilter === '') {
+                continue;
+            }
+
+            $subFilters[$subFilter] = ($subFilters[$subFilter] ?? 0) + 1;
+        }
+
+        ksort($subFilters);
+
+        return $subFilters;
     }
 
     /**
