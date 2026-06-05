@@ -184,6 +184,12 @@ if (!$nixCodeBlock instanceof PortLibs\Pandoc\AstNode || $nixCodeBlock->type !==
 }
 $nix = $highlighter->highlightCodeBlock($nixCodeBlock, 'kate');
 $nixWordpressBlock = $highlighter->wordpressHtmlBlock($nixCodeBlock, 'kate');
+$scssCodeBlock = $document->children[24] ?? null;
+if (!$scssCodeBlock instanceof PortLibs\Pandoc\AstNode || $scssCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an SCSS code block');
+}
+$scss = $highlighter->highlightCodeBlock($scssCodeBlock, 'espresso');
+$scssWordpressBlock = $highlighter->wordpressHtmlBlock($scssCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -728,6 +734,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($nixWordpressBlock, '<span class="va">pkgs</span><span class="op">.</span><span class="va">writeText</span>')) {
         throw new RuntimeException('Expected Nix function-application handoff');
     }
+    if (($scss['language'] ?? '') !== 'scss') {
+        throw new RuntimeException('Expected SCSS language handoff');
+    }
+    if (($scss['lineNumbering']['start'] ?? null) !== 120) {
+        throw new RuntimeException('Expected SCSS source startFrom line-number handoff');
+    }
+    if (!str_contains($scss['html'], '<span class="va">$accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span> <span class="kw">!default</span>')) {
+        throw new RuntimeException('Expected SCSS variable, color, and default flag token handoff');
+    }
+    if (!str_contains($scss['html'], '<span class="kw">@mixin</span> <span class="fu">import-card</span><span class="op">(</span><span class="va">$selector</span>')) {
+        throw new RuntimeException('Expected SCSS mixin token handoff');
+    }
+    if (!str_contains($scss['html'], '<span class="op">&amp;</span><span class="fu">:hover</span>')) {
+        throw new RuntimeException('Expected SCSS parent selector pseudo-class token handoff');
+    }
+    if (!str_contains($scss['html'], '<span class="kw">@include</span> <span class="fu">import-card</span>')) {
+        throw new RuntimeException('Expected SCSS include token handoff');
+    }
+    if (!str_contains($scssWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected SCSS WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -776,6 +803,7 @@ echo "tokenTitleHighlightedHtml:\n" . $tokenTitle['html'] . "\n";
 echo "cssHighlightedHtml:\n" . $css['html'] . "\n";
 echo "rustHighlightedHtml:\n" . $rust['html'] . "\n";
 echo "nixHighlightedHtml:\n" . $nix['html'] . "\n";
+echo "scssHighlightedHtml:\n" . $scss['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -795,4 +823,5 @@ echo "tokenTitleWordpressBlock:\n" . $tokenTitleWordpressBlock . "\n";
 echo "cssWordpressBlock:\n" . $cssWordpressBlock . "\n";
 echo "rustWordpressBlock:\n" . $rustWordpressBlock . "\n";
 echo "nixWordpressBlock:\n" . $nixWordpressBlock . "\n";
+echo "scssWordpressBlock:\n" . $scssWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

@@ -118,6 +118,8 @@ final class SyntaxHighlighter
         'rake' => 'ruby',
         'rb' => 'ruby',
         'ruby' => 'ruby',
+        'sass' => 'sass',
+        'scss' => 'scss',
         'rs' => 'rust',
         'rust' => 'rust',
         's' => 'r',
@@ -568,6 +570,7 @@ final class SyntaxHighlighter
             'r' => $this->tokenizeR($code),
             'ruby' => $this->tokenizeRuby($code),
             'rust' => $this->tokenizeRust($code),
+            'sass', 'scss' => $this->tokenizeScss($code),
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
@@ -1433,6 +1436,37 @@ final class SyntaxHighlighter
             ['keyword', '/^\\b(?:auto|block|border-box|center|flex|grid|inherit|initial|inline|none|relative|repeat|solid|transparent|unset)\\b/i'],
             ['datatype', '/^[A-Za-z][A-Za-z0-9_-]*(?=(?:[#.:\\s,{>+~]|$))/'],
             ['operator', '/^(?:~=|\\|=|\\^=|\\$=|\\*=|::|[{}()[\\]:;,.#>+~=*!\\/|-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeScss(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^@(?>at-root|content|debug|each|else|error|extend|for|forward|function|if|import|include|mixin|return|use|warn|while)\\b/'],
+            ['keyword', '/^!default\\b|^!global\\b|^!important\\b/i'],
+            ['variable', '/^\\$[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['operator', '/^#\\{/'],
+            ['constant', '/^#[0-9A-Fa-f]{3,8}\\b/'],
+            ['datatype', '/^%[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['datatype', '/^\\.[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['datatype', '/^#[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['operator', '/^&/'],
+            ['function', '/^::?[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['function', '/^(?:adjust-color|append|darken|if|lighten|list\\.[A-Za-z_-]+|map\\.[A-Za-z_-]+|map-get|map-has-key|math\\.[A-Za-z_-]+|meta\\.[A-Za-z_-]+|mix|nth|rgba|selector\\.[A-Za-z_-]+|string\\.[A-Za-z_-]+|transparentize)(?=\\s*\\()/'],
+            ['function', '/^[A-Za-z_-][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['attribute', '/^--[A-Za-z0-9_-]+|^[A-Za-z-]+(?=\\s*:\\s)/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['number', '/^-?(?:\\d+\\.\\d+|\\.\\d+|\\d+)(?:ch|cm|deg|dppx|em|ex|fr|in|mm|ms|pc|pt|px|rem|s|turn|vh|vmax|vmin|vw|%)?(?=$|[^A-Za-z0-9_])/i'],
+            ['keyword', '/^\\b(?:and|as|auto|block|border-box|center|flex|from|grid|inherit|initial|inline|none|not|only|or|relative|repeat|solid|through|to|transparent|unset)\\b/i'],
+            ['datatype', '/^[A-Za-z][A-Za-z0-9_-]*(?=(?:[#.:\\s,{>+~]|$))/'],
+            ['operator', '/^(?:\\.\\.\\.|~=|\\|=|\\^=|\\$=|\\*=|==|!=|<=|>=|::|=>|[{}()[\\]:;,.#>+~=*!\\/|%-])/'],
         ]);
     }
 

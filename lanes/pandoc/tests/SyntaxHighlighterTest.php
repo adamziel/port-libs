@@ -79,6 +79,9 @@ return [
         $t->same('rust', SyntaxHighlighter::normalizeLanguage('rs'));
         $t->same('rust', SyntaxHighlighter::normalizeLanguage('rust'));
         $t->same('rust', SyntaxHighlighter::normalizeLanguage('language-rs'));
+        $t->same('scss', SyntaxHighlighter::normalizeLanguage('scss'));
+        $t->same('scss', SyntaxHighlighter::normalizeLanguage('language-scss'));
+        $t->same('sass', SyntaxHighlighter::normalizeLanguage('sass'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('bash'));
@@ -366,6 +369,51 @@ return [
         $t->same('nix-expr', $directNix['requestedLanguage']);
         $t->contains('<span class="op">{</span> <span class="va">lib</span> <span class="op">?</span> <span class="fu">import</span> <span class="cn">&lt;nixpkgs/lib&gt;</span>', $directNix['html']);
         $t->contains('<span class="kw">rec</span> <span class="op">{</span> <span class="ot">enabled</span> <span class="op">=</span> <span class="cn">true</span><span class="op">;</span>', $directNix['html']);
+    },
+    'highlights scss block theme snippets with sass aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[24] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an SCSS code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directSass = (new SyntaxHighlighter())->highlight(implode("\n", [
+            '@use "sass:color"',
+            '$gap: 1rem',
+            '.wp-block',
+            '  margin: $gap',
+        ]), 'sass');
+
+        $t->same('scss', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('scss', $highlighted['language']);
+        $t->same('scss', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(120, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource scss numberLines"><code class="sourceCode scss" style="counter-reset: source-line 119;">', $highlighted['html']);
+        $t->contains('<span id="scss-review-120"><a href="#scss-review-120"></a><span class="co">// WordPress theme Sass review</span></span>', $highlighted['html']);
+        $t->contains('<span class="va">$accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span> <span class="kw">!default</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$breakpoints</span><span class="op">:</span> <span class="op">(</span><span class="st">&quot;desktop&quot;</span><span class="op">:</span> <span class="dv">48rem</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@mixin</span> <span class="fu">import-card</span><span class="op">(</span><span class="va">$selector</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">#{</span><span class="va">$selector</span><span class="op">}</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">color</span><span class="op">:</span> <span class="va">$accent-color</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="op">&amp;</span><span class="fu">:hover</span> <span class="op">{</span> <span class="ot">color</span><span class="op">:</span> <span class="fu">darken</span><span class="op">(</span><span class="va">$accent-color</span><span class="op">,</span> <span class="dv">10%</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@include</span> <span class="fu">import-card</span><span class="op">(</span><span class="st">&quot;.wp-block-import-card&quot;</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="kw">@include</span> <span class="fu">import-card</span>', $wordpressBlock);
+        $t->same('sass', $directSass['language']);
+        $t->same('sass', $directSass['requestedLanguage']);
+        $t->contains('<span class="kw">@use</span> <span class="st">&quot;sass:color&quot;</span>', $directSass['html']);
+        $t->contains('<span class="va">$gap</span><span class="op">:</span> <span class="dv">1rem</span>', $directSass['html']);
+        $t->contains('<span class="dt">.wp-block</span>', $directSass['html']);
+        $t->contains('<span class="ot">margin</span><span class="op">:</span> <span class="va">$gap</span>', $directSass['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

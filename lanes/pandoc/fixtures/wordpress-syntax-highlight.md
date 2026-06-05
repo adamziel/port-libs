@@ -317,3 +317,18 @@ pkgs.writeText "${pluginSlug}-review.json" ''
   {"reviewer":"${reviewer}","media":${builtins.toJSON mediaPaths}}
 ''
 ```
+
+``` {.scss #scss-review .numberLines startFrom=120}
+// WordPress theme Sass review
+$accent-color: #005cc5 !default;
+$breakpoints: ("desktop": 48rem, "wide": 72rem);
+
+@mixin import-card($selector) {
+  #{$selector} {
+    color: $accent-color;
+    &:hover { color: darken($accent-color, 10%); }
+  }
+}
+
+@include import-card(".wp-block-import-card");
+```
