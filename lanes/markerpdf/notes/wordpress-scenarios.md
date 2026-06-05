@@ -424,6 +424,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-type3-charprocs-fontmatrix-boundary-currentbase.php` maps Type3 `/CharProcs` `d0`/`d1` widths through a non-default `/FontMatrix` into a WordPress paragraph import path. It normalizes glyph-space width `500` with matrix scale `0.002` into the expected text advance, emitting `WideBlock` and `Thin Text` while excluding CharProc payload text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, or external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-layout-order-string-marker-currentbase.php` maps pdftext dictionary layout/order artifact alignment when adapter page identity arrives as whitespace-padded numeric strings. It normalizes the string markers before selected-page matching, orders the selected WordPress paragraph columns with the selected artifact, excludes cover/appendix artifacts, and avoids Python, pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

@@ -613,6 +613,60 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'normalizes whitespace numeric page markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(200, [
+                    ['text' => 'Whitespace keyed cover page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+                $pdftextLinesPage(201, [
+                    ['text' => 'Second whitespace selected column', 'bbox' => [330.0, 112.0, 540.0, 126.0]],
+                    ['text' => 'First whitespace selected column', 'bbox' => [72.0, 112.0, 270.0, 126.0]],
+                ]),
+                $pdftextLinesPage(202, [
+                    ['text' => 'Whitespace keyed appendix page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => " 200\t",
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                    ],
+                ],
+                [
+                    'page' => "\n201 ",
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 286.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 560.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => " 200\t", 'image' => 'whitespace-cover-order-render'],
+                ['page' => "\n201 ", 'image' => 'whitespace-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(201, $result['pages'][0]['pnum']);
+        $t->same(['First whitespace selected column', 'Second whitespace selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First whitespace selected column Second whitespace selected column', $blocks[0]['text']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'does not positionally assign selected-count keyed order artifacts for skipped pdftext pages' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

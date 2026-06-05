@@ -273,8 +273,11 @@ final class PdfPageArtifactSelector
             return (int) $value;
         }
 
-        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
-            return (int) $value;
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if (preg_match('/^-?\d+$/', $trimmed) === 1) {
+                return (int) $trimmed;
+            }
         }
 
         return null;
