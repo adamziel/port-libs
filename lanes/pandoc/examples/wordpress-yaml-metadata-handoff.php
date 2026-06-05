@@ -32,6 +32,13 @@ reviewOverride_: &merge_review_override
 review:
   <<: *review_defaults
   owner: !wp-reviewer "Import Desk"
+review-notes:
+  - |-
+    Preserve original front matter.
+    Keep reviewer line breaks.
+  - >-
+    Fold reviewer note before
+    block rendering.
 merge-sequence-review:
   <<: [*merge_review_override, *merge_review_base]
   priority: 1
@@ -91,6 +98,12 @@ $blocks = (new WordPressBlockWriter())->write($document);
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
+    }
+    if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
+        throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
+    }
+    if (($meta['review-notes'][1] ?? '') !== 'Fold reviewer note before block rendering.') {
+        throw new RuntimeException('YAML metadata self-test missing folded sequence block scalar note');
     }
     if (($meta['merge-sequence-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing earlier merge-sequence precedence');

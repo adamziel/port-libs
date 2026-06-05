@@ -1297,6 +1297,51 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('single-quoted-yaml-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml block scalar sequence metadata values' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sequence block scalar **Packet**',
+            'authors:',
+            '  - |-',
+            '    Reviewer One',
+            '    Import Desk',
+            '  - >-',
+            '    Reviewer Two',
+            '    Editorial Desk',
+            'review:',
+            '  notes:',
+            '    - |',
+            '      Keep source line one.',
+            '      Keep source line two.',
+            '    - >-',
+            '      Fold imported reviewer',
+            '      note before rendering.',
+            'references:',
+            '  - id: block-scalar-ref',
+            '    title: >-',
+            '      Source reference',
+            '      with folded title',
+            '...',
+            '',
+            '# Sequence block body',
+        ]));
+        $meta = $document->attr('meta');
+        $authorInlines = $meta['authorInlines'] ?? [];
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same('Sequence block scalar **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same("Reviewer One\nImport Desk", $meta['authors'][0]);
+        $t->same('Reviewer Two Editorial Desk', $meta['authors'][1]);
+        $t->same(2, count($authorInlines));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $authorInlines[0]));
+        $t->same('Import Desk', $authorInlines[0][2]->attr('text'));
+        $t->same("Keep source line one.\nKeep source line two.", $meta['review']['notes'][0]);
+        $t->same('Fold imported reviewer note before rendering.', $meta['review']['notes'][1]);
+        $t->same('Source reference with folded title', $meta['references'][0]['title']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sequence-block-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -633,6 +633,19 @@ final class MarkdownReader
                 $index++;
             }
 
+            $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
+            if ($blockScalarHeader !== null) {
+                $value = $this->parseYamlBlockScalar(
+                    $children,
+                    $blockScalarHeader['style'],
+                    $blockScalarHeader['chomp'],
+                    $blockScalarHeader['indent']
+                );
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
+                continue;
+            }
+
             $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children)
                 ?? $this->parseYamlMultilineSingleQuotedScalar($sourceValue, $children);
             if ($multiline !== null) {
