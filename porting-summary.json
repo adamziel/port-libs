@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 05:13:03 UTC",
-    "sourceCommit": "7cc2513a315963d4f72f40b0c03bfc27eb3187b0",
-    "sourceCommitShort": "7cc2513a3159",
+    "generated": "2026-06-05 05:13:20 UTC",
+    "sourceCommit": "5d55427c63ac56518a126a8279316a4e43286189",
+    "sourceCommitShort": "5d55427c63ac",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7cc2513a315963d4f72f40b0c03bfc27eb3187b0",
-    "dashboardCommitShort": "7cc2513a3159",
+    "dashboardCommit": "5d55427c63ac56518a126a8279316a4e43286189",
+    "dashboardCommitShort": "5d55427c63ac",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,158",
             "php": "643 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC archive/compression stream sparse-TAR policy slice on...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit slice on accepted bas...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For archive follow-up, keep hardlink/symlink extraction polic...",
+            "nextTarget": "For upstream-runner dependency closure, hydrate a local Pando...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
