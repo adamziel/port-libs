@@ -880,6 +880,22 @@ $symbolRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$reviewMarkupRunDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Reviewer marked </w:t></w:r>
+      <w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t>priority update</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:shd w:val="clear" w:fill="D9EAF7" w:color="auto"/></w:rPr><w:t>source shading</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r><w:rPr><w:b/><w:highlight w:val="green"/><w:shd w:fill="FFE699"/></w:rPr><w:t>bold flagged text</w:t></w:r>
+      <w:r><w:rPr><w:highlight w:val="none"/></w:rPr><w:t xml:space="preserve"> plain text.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $sectionPropertiesDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdHeaderDefault" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
@@ -1180,6 +1196,14 @@ $buildSymbolRunPackage = static function () use ($contentTypesXml, $packageRelat
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $symbolRunDocumentXml],
+    ]);
+};
+
+$buildReviewMarkupRunPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $reviewMarkupRunDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $reviewMarkupRunDocumentXml],
     ]);
 };
 
@@ -2206,6 +2230,51 @@ return [
         $t->contains('<p>Checklist symbols α/α • ✓ ← remain visible.</p>', $blocks);
         $t->true(!str_contains($markdown, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into Markdown output');
         $t->true(!str_contains($blocks, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into WordPress blocks');
+    },
+    'preserves DOCX highlighted and shaded reviewer run markup as spans' => static function (TestRunner $t) use ($buildReviewMarkupRunPackage): void {
+        $document = (new DocxReader())->readDocument($buildReviewMarkupRunPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(7, count($paragraph->children));
+        $t->same('Reviewer marked ', $paragraph->children[0]->attr('text'));
+
+        $highlight = $paragraph->children[1];
+        $t->same('span', $highlight->type);
+        $t->same(['docx-highlight', 'docx-highlight-yellow'], $highlight->attr('classes'));
+        $t->same('yellow', $highlight->attr('attributes')['data-docx-highlight']);
+        $t->same('priority update', $highlight->children[0]->attr('text'));
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $shading = $paragraph->children[3];
+        $t->same('span', $shading->type);
+        $t->same(['docx-shading'], $shading->attr('classes'));
+        $t->same('clear', $shading->attr('attributes')['data-docx-shading-val']);
+        $t->same('D9EAF7', $shading->attr('attributes')['data-docx-shading-fill']);
+        $t->same('auto', $shading->attr('attributes')['data-docx-shading-color']);
+        $t->same('source shading', $shading->children[0]->attr('text'));
+
+        $t->same(' plus ', $paragraph->children[4]->attr('text'));
+        $combined = $paragraph->children[5];
+        $t->same('span', $combined->type);
+        $t->same(['docx-highlight', 'docx-highlight-green', 'docx-shading'], $combined->attr('classes'));
+        $t->same('green', $combined->attr('attributes')['data-docx-highlight']);
+        $t->same('FFE699', $combined->attr('attributes')['data-docx-shading-fill']);
+        $t->same('strong', $combined->children[0]->type);
+        $t->same('bold flagged text', $combined->children[0]->children[0]->attr('text'));
+        $t->same(' plain text.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('[priority update]{.docx-highlight .docx-highlight-yellow data-docx-highlight="yellow"}', $markdown);
+        $t->contains('[source shading]{.docx-shading data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7" data-docx-shading-color="auto"}', $markdown);
+        $t->contains('[**bold flagged text**]{.docx-highlight .docx-highlight-green .docx-shading data-docx-highlight="green" data-docx-shading-fill="FFE699"} plain text.', $markdown);
+
+        $t->contains('<span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span>', $blocks);
+        $t->contains('<span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7" data-docx-shading-color="auto">source shading</span>', $blocks);
+        $t->contains('<span class="docx-highlight docx-highlight-green docx-shading" data-docx-highlight="green" data-docx-shading-fill="FFE699"><strong>bold flagged text</strong></span> plain text.', $blocks);
+        $t->true(!str_contains($markdown, 'data-docx-highlight="none"'), 'DOCX highlight none should not create reviewer markup');
+        $t->true(!str_contains($blocks, 'data-docx-highlight="none"'), 'DOCX highlight none should not create WordPress reviewer markup');
     },
     'reports DOCX section page geometry margins columns and header footer relationships' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $reader = new DocxReader();

@@ -163,6 +163,13 @@ XML],
       <w:r><w:t xml:space="preserve"> remain visible.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Reviewer marks </w:t></w:r>
+      <w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t>priority update</w:t></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:rPr><w:shd w:val="clear" w:fill="D9EAF7"/></w:rPr><w:t>source shading</w:t></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Textbox lead </w:t></w:r>
       <w:r>
         <w:pict>
@@ -486,6 +493,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Compatibility branch fallback reviewer text and <strong>supported reviewer branch</strong>.</p>',
         '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
+        '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',

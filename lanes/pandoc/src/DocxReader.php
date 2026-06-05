@@ -2343,7 +2343,74 @@ final class DocxReader
             $nodes = $wrap('strong', $nodes);
         }
 
+        $reviewMarkupAttrs = $this->runReviewMarkupAttrs($properties);
+        if ($reviewMarkupAttrs !== null) {
+            $nodes = [new AstNode('span', $reviewMarkupAttrs, $nodes)];
+        }
+
         return $nodes;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function runReviewMarkupAttrs(\DOMElement $properties): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        $highlight = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'highlight');
+        if ($highlight instanceof \DOMElement) {
+            $value = strtolower(trim((string) ($this->wordAttr($highlight, 'val') ?? '')));
+            if ($value !== '' && !in_array($value, ['none', '0', 'false', 'off'], true)) {
+                $classes[] = 'docx-highlight';
+                $suffix = $this->metadataClassSuffix($value);
+                if ($suffix !== null) {
+                    $classes[] = 'docx-highlight-' . $suffix;
+                }
+                $attributes['data-docx-highlight'] = $value;
+            }
+        }
+
+        $shading = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'shd');
+        if ($shading instanceof \DOMElement) {
+            $shadingAttributes = [];
+            foreach ([
+                'val' => 'val',
+                'fill' => 'fill',
+                'color' => 'color',
+                'themeFill' => 'theme-fill',
+                'themeColor' => 'theme-color',
+            ] as $source => $target) {
+                $value = $this->wordAttr($shading, $source);
+                if ($value !== null && trim($value) !== '') {
+                    $shadingAttributes['data-docx-shading-' . $target] = trim($value);
+                }
+            }
+
+            if ($shadingAttributes !== []) {
+                $classes[] = 'docx-shading';
+                $attributes += $shadingAttributes;
+            }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function metadataClassSuffix(string $value): ?string
+    {
+        $suffix = strtolower(trim($value));
+        $suffix = preg_replace('/[^a-z0-9]+/', '-', $suffix) ?? '';
+        $suffix = trim($suffix, '-');
+
+        return $suffix === '' ? null : $suffix;
     }
 
     /**
