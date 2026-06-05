@@ -1625,6 +1625,66 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString('not a zip package'));
     },
 
+    'preflights unsupported compression methods before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>compression preflight</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review-bzip2.bin',
+                'data' => 'Unsupported method bytes stay blocked before media handoff',
+                'method' => 12,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+        $summary = $package->compressionMethodPreflight();
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['supportedEntryCount']);
+        $t->same(1, $summary['unsupportedCompressionMethodCount']);
+        $t->same(1, $summary['storedEntryCount']);
+        $t->same(1, $summary['deflatedEntryCount']);
+        $t->same('word/media/review-bzip2.bin', $summary['unsupportedEntries'][0]['name']);
+        $t->same(12, $summary['unsupportedEntries'][0]['compressionMethod']);
+        $t->same(false, $summary['unsupportedEntries'][0]['isDirectory']);
+        $t->same('word/media/review-bzip2.bin', $summary['entries'][1]['name']);
+        $t->same('unsupported', $summary['entries'][1]['compressionMethodName']);
+        $t->same(false, $summary['entries'][1]['isSupported']);
+        $t->same('stored', $summary['entries'][2]['compressionMethodName']);
+        $t->same(true, $summary['entries'][2]['isSupported']);
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertSupportedCompressionMethods());
+
+        $safePackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>supported methods</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => 'stored media note',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+        $safeSummary = $safePackage->assertSupportedCompressionMethods();
+
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(3, $safeSummary['supportedEntryCount']);
+        $t->same(0, $safeSummary['unsupportedCompressionMethodCount']);
+        $t->same([], $safeSummary['unsupportedEntries']);
+    },
+
     'rejects zip64 extra field metadata before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip64Extra = pack('vv', 0x0001, 8) . str_repeat("\0", 8);
 

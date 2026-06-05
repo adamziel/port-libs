@@ -804,6 +804,95 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     supportedEntryCount:int,
+     *     unsupportedCompressionMethodCount:int,
+     *     storedEntryCount:int,
+     *     deflatedEntryCount:int,
+     *     unsupportedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int}>,
+     *     entries:list<array{name:string, compressionMethod:int, compressionMethodName:string, isSupported:bool, isDirectory:bool, compressedSize:int, uncompressedSize:int}>
+     * }
+     */
+    public function compressionMethodPreflight(): array
+    {
+        $storedEntryCount = 0;
+        $deflatedEntryCount = 0;
+        $unsupportedEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            if ($entry->compressionMethod === 0) {
+                $storedEntryCount++;
+            } elseif ($entry->compressionMethod === 8) {
+                $deflatedEntryCount++;
+            }
+
+            $isSupported = $entry->compressionMethod === 0 || $entry->compressionMethod === 8;
+            $summary = [
+                'name' => $entry->name,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                'isSupported' => $isSupported,
+                'isDirectory' => $entry->isDirectory(),
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+            ];
+            $entries[] = $summary;
+            if (!$isSupported) {
+                $unsupportedEntries[] = [
+                    'name' => $entry->name,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'isDirectory' => $entry->isDirectory(),
+                    'compressedSize' => $entry->compressedSize,
+                    'uncompressedSize' => $entry->uncompressedSize,
+                ];
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'supportedEntryCount' => count($this->entries) - count($unsupportedEntries),
+            'unsupportedCompressionMethodCount' => count($unsupportedEntries),
+            'storedEntryCount' => $storedEntryCount,
+            'deflatedEntryCount' => $deflatedEntryCount,
+            'unsupportedEntries' => $unsupportedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     supportedEntryCount:int,
+     *     unsupportedCompressionMethodCount:int,
+     *     storedEntryCount:int,
+     *     deflatedEntryCount:int,
+     *     unsupportedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int}>,
+     *     entries:list<array{name:string, compressionMethod:int, compressionMethodName:string, isSupported:bool, isDirectory:bool, compressedSize:int, uncompressedSize:int}>
+     * }
+     */
+    public function assertSupportedCompressionMethods(): array
+    {
+        $summary = $this->compressionMethodPreflight();
+        if ($summary['unsupportedCompressionMethodCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' method ' . $entry['compressionMethod'],
+                    $summary['unsupportedEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains unsupported compression methods for native pandoc package import: ' . $entries
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     unixModeEntryCount:int,
      *     executableFileCount:int,
      *     executableEntries:list<array{name:string, isDirectory:bool, madeByHostSystem:int, unixMode:?int, permissions:?int, isExecutableFile:bool, externalAttributes:int}>,
@@ -1253,6 +1342,15 @@ final class ZipPackage
         }
 
         return $uncompressedBytes / $compressedBytes;
+    }
+
+    private static function compressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     private function normalizeLookupPartName(string $partName): string

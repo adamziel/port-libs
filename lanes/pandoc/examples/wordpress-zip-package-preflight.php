@@ -889,6 +889,53 @@ $buildUnsupportedVersionNeededBackedPackage = static function () use ($crc32): s
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/bzip2-review.bin';
+    $data = "Unsupported compression method should stay blocked before media bytes\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        12,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        12,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): string {
     $centralName = 'word/document.xml';
     $localName = 'word/other.xml';
@@ -1005,6 +1052,7 @@ $package = ZipPackage::fromParts([
     ],
 ], 'wordpress import package');
 $packageSizePreflight = $package->sizePreflight();
+$packageCompressionPreflight = $package->compressionMethodPreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageSizeRejected = false;
@@ -1018,6 +1066,14 @@ try {
     $package->assertSizePreflight(null, max(0.0, ($packageSizePreflight['expansionRatio'] ?? 0.0) - 0.01));
 } catch (RuntimeException $exception) {
     $packageExpansionRejected = str_contains($exception->getMessage(), 'expansion ratio');
+}
+$unsupportedCompressionMethodPackage = ZipPackage::fromString($buildUnsupportedCompressionMethodBackedPackage());
+$unsupportedCompressionMethodPreflight = $unsupportedCompressionMethodPackage->compressionMethodPreflight();
+$unsupportedCompressionMethodRejected = false;
+try {
+    $unsupportedCompressionMethodPackage->assertSupportedCompressionMethods();
+} catch (RuntimeException $exception) {
+    $unsupportedCompressionMethodRejected = str_contains($exception->getMessage(), 'unsupported compression methods');
 }
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
@@ -1531,6 +1587,27 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($package->assertSizePreflight($packageSizePreflight['uncompressedBytes'], $packageSizePreflight['expansionRatio']) !== $packageSizePreflight) {
         throw new RuntimeException('Expected ZIP package size preflight limits to return the accepted summary');
+    }
+
+    if (
+        ($packageCompressionPreflight['entryCount'] ?? null) !== 3
+        || ($packageCompressionPreflight['supportedEntryCount'] ?? null) !== 3
+        || ($packageCompressionPreflight['unsupportedCompressionMethodCount'] ?? null) !== 0
+        || ($packageCompressionPreflight['deflatedEntryCount'] ?? null) !== 2
+    ) {
+        throw new RuntimeException('Expected ZIP compression method preflight to accept generated stored/deflated import parts');
+    }
+
+    if ($package->assertSupportedCompressionMethods() !== $packageCompressionPreflight) {
+        throw new RuntimeException('Expected ZIP compression method preflight to return the accepted summary');
+    }
+
+    if (($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['compressionMethod'] ?? null) !== 12) {
+        throw new RuntimeException('Expected ZIP compression method preflight to expose unsupported method 12');
+    }
+
+    if (!$unsupportedCompressionMethodRejected) {
+        throw new RuntimeException('Expected unsupported ZIP compression methods to be rejected before media import');
     }
 
     if (($packagePermissionPreflight['entryCount'] ?? null) !== 3 || ($packagePermissionPreflight['executableFileCount'] ?? null) !== 0) {
@@ -2050,6 +2127,8 @@ echo 'packageSize.uncompressedBytes=' . $packageSizePreflight['uncompressedBytes
 echo 'packageSize.compressedBytes=' . $packageSizePreflight['compressedBytes'] . "\n";
 echo 'packageSize.expansionRatio=' . ($packageSizePreflight['expansionRatio'] === null ? 'unknown' : (string) $packageSizePreflight['expansionRatio']) . "\n";
 echo 'packageSize.largestEntry=' . ($packageSizePreflight['largestEntry']['name'] ?? 'none') . "\n";
+echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['supportedEntryCount'] . "\n";
+echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
@@ -2073,6 +2152,8 @@ echo 'zipCentralDirectorySignatureVerification=' . $centralDirectorySignaturePre
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
