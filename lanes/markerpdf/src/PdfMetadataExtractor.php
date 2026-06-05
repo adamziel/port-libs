@@ -3502,6 +3502,9 @@ final class PdfMetadataExtractor
         foreach ($this->documentOutlineActionChainMetadata($this->dictionaryTopLevelRawValue($dictionary, 'A'), $objects) as $key => $value) {
             $row[$key] = $value;
         }
+        foreach ($this->documentOutlineDestinationActionChainMetadata($destination['value'], $objects, $destinationsByName, $destination['name']) as $key => $value) {
+            $row[$key] = $value;
+        }
 
         $structureElement = $this->documentOutlineItemStructureElementMetadata(
             $this->dictionaryTopLevelRawValue($dictionary, 'SE'),
@@ -3547,6 +3550,89 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * Name-tree destinations can resolve to action dictionaries instead of
+     * plain destination arrays. Keep a payload-free summary on document outline
+     * rows so metadata reviewers see the action boundary without URI/JS text.
+     *
+     * @param array<int, string> $objects
+     * @param array<string, string> $destinationsByName
+     * @param array<string, true> $seenNames
+     * @return array<string, mixed>
+     */
+    private function documentOutlineDestinationActionChainMetadata(
+        ?string $value,
+        array $objects,
+        array $destinationsByName,
+        ?string $destinationName = null,
+        array $seenNames = []
+    ): array {
+        if ($value === null) {
+            return [];
+        }
+
+        $name = $this->destinationNameFromRaw($value, $objects);
+        if ($name !== null && array_key_exists($name, $destinationsByName)) {
+            if (isset($seenNames[$name])) {
+                return [];
+            }
+            $seenNames[$name] = true;
+
+            return $this->documentOutlineDestinationActionChainMetadata(
+                $destinationsByName[$name],
+                $objects,
+                $destinationsByName,
+                $name,
+                $seenNames
+            );
+        }
+
+        $dictionary = $this->resolveDictionaryFromValue($value, $objects);
+        if ($dictionary === null) {
+            return [];
+        }
+
+        $entries = $this->dictionaryTopLevelEntries($dictionary['body']);
+        if (!isset($entries['S']) && !isset($entries['Next'])) {
+            return [];
+        }
+
+        $actionMetadata = $this->documentOutlineActionChainMetadata($value, $objects);
+        if ($actionMetadata === []) {
+            return [];
+        }
+
+        $metadata = [
+            'destination_action_review_only' => true,
+            'destination_action_payload_included' => false,
+            'destination_action_executes_action' => false,
+            'destination_action_chain_count' => $actionMetadata['action_chain_count'] ?? 0,
+            'destination_action_chain_types' => $actionMetadata['action_chain_types'] ?? [],
+            'destination_action_chain_has_next' => $actionMetadata['action_chain_has_next'] ?? false,
+            'destination_action_chain_has_javascript' => $actionMetadata['action_chain_has_javascript'] ?? false,
+            'destination_action_chain_has_launch' => $actionMetadata['action_chain_has_launch'] ?? false,
+        ];
+
+        if ($destinationName !== null) {
+            $metadata['destination_action_name'] = $destinationName;
+        }
+
+        if ($dictionary['object'] !== null) {
+            $metadata['destination_action_object'] = $dictionary['object'];
+        }
+
+        $actionType = $this->dictionaryNameValue($dictionary['body'], 'S', $objects);
+        if ($actionType !== null) {
+            $metadata['destination_action_type'] = $actionType;
+        }
+
+        if (isset($actionMetadata['action_chain_objects'])) {
+            $metadata['destination_action_chain_objects'] = $actionMetadata['action_chain_objects'];
+        }
+
+        return $metadata;
     }
 
     /**
