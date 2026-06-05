@@ -64,6 +64,9 @@ final class PdfEmbeddedFileExtractor
         0xa0 => 0x20ac,
     ];
 
+    /** @var array<int, int> */
+    private array $objectGenerations = [];
+
     /**
      * Native boundary for catalog /Names /EmbeddedFiles and /AF attachment lookup.
      *
@@ -901,7 +904,7 @@ final class PdfEmbeddedFileExtractor
         $objectNumber = $this->objectNumberFromReference($value);
         $body = $objectNumber === null
             ? trim($this->resolveRawValue($value, $objects) ?? $value)
-            : ($objects[$objectNumber] ?? null);
+            : $this->objectBodyFromReferenceValue($value, $objects);
         if ($body === null || $body === '') {
             return [];
         }
@@ -1173,11 +1176,12 @@ final class PdfEmbeddedFileExtractor
         }
 
         $objectNumber = $this->objectNumberFromReference($value);
-        if ($objectNumber === null || !isset($objects[$objectNumber])) {
+        $body = $objectNumber === null ? null : $this->objectBodyFromReferenceValue($value, $objects);
+        if ($body === null) {
             return null;
         }
 
-        $stream = $this->decodeStreamObject($objects[$objectNumber], $objects);
+        $stream = $this->decodeStreamObject($body, $objects);
         if ($stream === null) {
             return null;
         }
@@ -1445,7 +1449,7 @@ final class PdfEmbeddedFileExtractor
     private function embeddedFileStreamFromValue(string $value, array $objects): ?array
     {
         $objectNumber = $this->objectNumberFromReference($value);
-        $body = $objectNumber !== null ? ($objects[$objectNumber] ?? null) : trim($value);
+        $body = $objectNumber !== null ? $this->objectBodyFromReferenceValue($value, $objects) : trim($value);
         if ($body === null || $body === '') {
             return null;
         }
@@ -2089,7 +2093,7 @@ final class PdfEmbeddedFileExtractor
     private function pieceInfoPrivateStreamMetadata(string $value, array $objects): ?array
     {
         $objectNumber = $this->objectNumberFromReference($value);
-        $body = $objectNumber !== null ? ($objects[$objectNumber] ?? null) : trim($value);
+        $body = $objectNumber !== null ? $this->objectBodyFromReferenceValue($value, $objects) : trim($value);
         if ($body === null || $body === '') {
             return null;
         }
@@ -2221,11 +2225,13 @@ final class PdfEmbeddedFileExtractor
      */
     private function latestDirectObjects(array $definitions): array
     {
+        $this->objectGenerations = [];
         $objects = [];
         foreach ($definitions as $objectNumber => $entries) {
             $selected = $this->latestDirectObjectDefinition($entries);
             if ($selected !== null) {
                 $objects[$objectNumber] = $selected['body'];
+                $this->objectGenerations[$objectNumber] = $selected['generation'];
             }
         }
 
@@ -2258,11 +2264,13 @@ final class PdfEmbeddedFileExtractor
      */
     private function liveDirectObjects(array $definitions, array $xrefEntries): array
     {
+        $this->objectGenerations = [];
         $objects = [];
         foreach ($definitions as $objectNumber => $entries) {
             $selected = $this->liveDirectObjectDefinition($entries, $xrefEntries[$objectNumber] ?? null);
             if ($selected !== null) {
                 $objects[$objectNumber] = $selected['body'];
+                $this->objectGenerations[$objectNumber] = $selected['generation'];
             }
         }
 
@@ -2346,6 +2354,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $objects[$reference['objectNumber']] = $definition['body'];
+        $this->objectGenerations[$reference['objectNumber']] = $definition['generation'];
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
@@ -2386,6 +2395,7 @@ final class PdfEmbeddedFileExtractor
                     }
 
                     $repaired[$objectNumber] = $definition['body'];
+                    $this->objectGenerations[$objectNumber] = $definition['generation'];
                     $added = true;
                     break;
                 }
@@ -2424,6 +2434,7 @@ final class PdfEmbeddedFileExtractor
             }
 
             $expanded[(int) $objectNumber] = $body;
+            $this->objectGenerations[(int) $objectNumber] = 0;
         }
 
         ksort($expanded, SORT_NUMERIC);
@@ -3968,8 +3979,9 @@ final class PdfEmbeddedFileExtractor
                 }
 
                 $objectNumber = $rootReference['objectNumber'];
-                if (isset($objects[$objectNumber])) {
-                    return $this->dictionaryObjectBody($objects[$objectNumber]);
+                $body = $this->objectBodyFromReferenceValue($rootValue, $objects);
+                if ($body !== null) {
+                    return $this->dictionaryObjectBody($body);
                 }
 
                 return null;
@@ -4697,11 +4709,12 @@ final class PdfEmbeddedFileExtractor
 
         $objectNumber = $this->objectNumberFromReference($value);
         if ($objectNumber !== null) {
-            if (!isset($objects[$objectNumber])) {
+            $body = $this->objectBodyFromReferenceValue($value, $objects);
+            if ($body === null) {
                 return null;
             }
 
-            $body = $this->dictionaryObjectBody($objects[$objectNumber]);
+            $body = $this->dictionaryObjectBody($body);
             return $body === null ? null : ['body' => $body, 'object' => $objectNumber];
         }
 
@@ -4725,7 +4738,7 @@ final class PdfEmbeddedFileExtractor
             return $trimmed;
         }
 
-        return $objects[$objectNumber] ?? null;
+        return $this->objectBodyFromReferenceValue($trimmed, $objects);
     }
 
     /**
@@ -4849,14 +4862,15 @@ final class PdfEmbeddedFileExtractor
         $reference = $this->objectReferenceFromValue($trimmed);
         if ($reference !== null) {
             $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
-            if ($reference['objectNumber'] <= 0 || isset($seen[$objectKey]) || !isset($objects[$reference['objectNumber']])) {
+            $body = $this->objectBodyFromReferenceValue($trimmed, $objects);
+            if ($reference['objectNumber'] <= 0 || isset($seen[$objectKey]) || $body === null) {
                 return null;
             }
 
             $nextSeen = $seen;
             $nextSeen[$objectKey] = true;
             return $this->streamFilterSlotsFromValue(
-                $objects[$reference['objectNumber']],
+                $body,
                 $objects,
                 $nextSeen,
                 $allowArray
@@ -4997,13 +5011,14 @@ final class PdfEmbeddedFileExtractor
         $reference = $this->objectReferenceFromValue($trimmed);
         if ($reference !== null) {
             $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
-            if ($reference['objectNumber'] <= 0 || isset($seen[$objectKey]) || !isset($objects[$reference['objectNumber']])) {
+            $body = $this->objectBodyFromReferenceValue($trimmed, $objects);
+            if ($reference['objectNumber'] <= 0 || isset($seen[$objectKey]) || $body === null) {
                 return null;
             }
 
             $nextSeen = $seen;
             $nextSeen[$objectKey] = true;
-            return $this->decodeParmsValueList($objects[$reference['objectNumber']], $objects, $nextSeen);
+            return $this->decodeParmsValueList($body, $objects, $nextSeen);
         }
 
         if ($trimmed === 'null') {
@@ -6230,6 +6245,28 @@ final class PdfEmbeddedFileExtractor
     private function objectNumberFromReference(string $value): ?int
     {
         return preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) === 1 ? (int) $match[1] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyFromReferenceValue(?string $value, array $objects): ?string
+    {
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        $objectNumber = $reference['objectNumber'];
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        if (($this->objectGenerations[$objectNumber] ?? null) !== $reference['generation']) {
+            return null;
+        }
+
+        return $objects[$objectNumber];
     }
 
     /**
