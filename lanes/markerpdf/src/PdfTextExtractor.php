@@ -3646,6 +3646,133 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<string, array<string, mixed>>
+     * @param array<int, string> $objects
+     */
+    private function extGStateResourceReviews(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $extGStateDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ExtGState');
+        if ($extGStateDictionary === null) {
+            return [];
+        }
+
+        $reviews = [];
+        foreach ($this->topLevelResourceReferenceEntries($extGStateDictionary) as $resourceName => $resource) {
+            $objectBody = $this->objectBodyForExactReference($objects, $resource['objectNumber'], $resource['generation']);
+            if ($objectBody === null) {
+                continue;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $softMaskValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'SMask');
+            $reviews[$resourceName] = [
+                'resource_name' => $resourceName,
+                'object_number' => $resource['objectNumber'],
+                'object_generation' => $resource['generation'],
+                'type' => $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'Type', $objects) ?? 'ExtGState',
+                'stroking_alpha' => $this->pdfNumberValueAfterNameResolvingObjects($dictionary, 'CA', $objects),
+                'nonstroking_alpha' => $this->pdfNumberValueAfterNameResolvingObjects($dictionary, 'ca', $objects),
+                'alpha_source' => $this->pdfBooleanValueAfterNameResolvingObjects($dictionary, 'AIS', $objects),
+                'blend_modes' => $this->extGStateBlendModes($dictionary, $objects),
+                'has_soft_mask' => $softMaskValue !== null,
+                'soft_mask' => $softMaskValue === null ? null : $this->extGStateSoftMaskReview($softMaskValue, $objects),
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function extGStateBlendModes(string $dictionary, array $objects): array
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'BM');
+        if ($value === null) {
+            return [];
+        }
+
+        $name = $this->pdfNameValueAt($value, 0, $objects);
+        if ($name !== null) {
+            return [$name];
+        }
+
+        $arrayBody = $this->pdfArrayFromValue($value, $objects);
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $modes = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $mode = $this->pdfNameValueAt(trim($item), 0, $objects);
+            if ($mode !== null) {
+                $modes[] = $mode;
+            }
+        }
+
+        return $modes;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function extGStateSoftMaskReview(string $value, array $objects): ?array
+    {
+        $softMaskName = $this->pdfNameValueAt($value, 0, $objects);
+        if ($softMaskName === 'None') {
+            return [
+                'type' => 'graphics_state_soft_mask_none',
+                'present' => false,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        $reference = $this->objectReferencePairs($value)[0] ?? null;
+        $dictionary = null;
+        if ($reference !== null) {
+            $objectBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
+        } else {
+            $dictionary = $this->pdfDictionaryFromValue($value, $objects);
+        }
+
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $groupReference = $this->objectReferenceAfterName($dictionary, 'G');
+        $transferReference = $this->objectReferenceAfterName($dictionary, 'TR');
+
+        return [
+            'type' => 'graphics_state_soft_mask',
+            'object_number' => $reference['objectNumber'] ?? null,
+            'object_generation' => $reference['generation'] ?? null,
+            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'S', $objects),
+            'group_object' => $groupReference['objectNumber'] ?? null,
+            'group_generation' => $groupReference['generation'] ?? null,
+            'transfer_function' => $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'TR', $objects),
+            'transfer_function_object' => $transferReference['objectNumber'] ?? null,
+            'transfer_function_generation' => $transferReference['generation'] ?? null,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ];
+    }
+
+    /**
      * @return array<string, array{objectNumber: int, generation: int}>
      */
     private function topLevelResourceReferenceEntries(string $dictionary): array
@@ -3728,10 +3855,15 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null}> $baseStates
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool}>>
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
+     * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>}>>
      */
-    private function contentXObjectInvocationDetails(string $content, array $baseStates = []): array
+    private function contentXObjectInvocationDetails(
+        string $content,
+        array $baseStates = [],
+        array $graphicsStateResourceReviews = []
+    ): array
     {
         $currentStates = $this->normalizedInvocationBaseStates($baseStates);
         $graphicsStateStack = [];
@@ -3782,6 +3914,21 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($token === 'gs') {
+                $resourceName = $this->xObjectNameOperand($operands);
+                if ($resourceName !== null && isset($graphicsStateResourceReviews[$resourceName])) {
+                    foreach ($currentStates as $index => $state) {
+                        $currentStates[$index]['graphics_state'] = $this->applyExtGStateReviewToInvocationState(
+                            $state['graphics_state'] ?? $this->defaultInvocationGraphicsState(),
+                            $resourceName,
+                            $graphicsStateResourceReviews[$resourceName]
+                        );
+                    }
+                }
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'Do') {
                 $resourceName = $this->xObjectNameOperand($operands);
                 if ($resourceName !== null) {
@@ -3798,6 +3945,10 @@ final class PdfTextExtractor
                             'clipped' => $clipRectangle !== null
                                 && ($visibleBbox === null || !$this->pdfRectanglesEqual($bbox, $visibleBbox)),
                         ];
+                        $graphicsState = $this->nonDefaultInvocationGraphicsState($state['graphics_state'] ?? null);
+                        if ($graphicsState !== null) {
+                            $invocations[$resourceName][array_key_last($invocations[$resourceName])]['graphics_state'] = $graphicsState;
+                        }
                     }
                 }
                 $operands = [];
@@ -3811,8 +3962,8 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null}> $baseStates
-     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null}>
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
+     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, graphics_state: array<string, mixed>}>
      */
     private function normalizedInvocationBaseStates(array $baseStates): array
     {
@@ -3821,6 +3972,7 @@ final class PdfTextExtractor
                 'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 'clip_bbox' => null,
                 'path_bbox' => null,
+                'graphics_state' => $this->defaultInvocationGraphicsState(),
             ]];
         }
 
@@ -3840,6 +3992,7 @@ final class PdfTextExtractor
                 'matrix' => $matrix,
                 'clip_bbox' => $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null),
                 'path_bbox' => null,
+                'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
             ];
         }
 
@@ -3847,6 +4000,7 @@ final class PdfTextExtractor
             'matrix' => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             'clip_bbox' => null,
             'path_bbox' => null,
+            'graphics_state' => $this->defaultInvocationGraphicsState(),
         ]] : $normalized;
     }
 
@@ -3954,6 +4108,129 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{
+     *     ext_gstate_resources: list<string>,
+     *     applied_extgstates: list<array{resource_name: string, object_number: int|null, object_generation: int|null}>,
+     *     stroking_alpha: float|null,
+     *     nonstroking_alpha: float|null,
+     *     alpha_source: bool|null,
+     *     blend_modes: list<string>,
+     *     soft_mask: array<string, mixed>|null,
+     *     review_only: true
+     * }
+     */
+    private function defaultInvocationGraphicsState(): array
+    {
+        return [
+            'ext_gstate_resources' => [],
+            'applied_extgstates' => [],
+            'stroking_alpha' => null,
+            'nonstroking_alpha' => null,
+            'alpha_source' => null,
+            'blend_modes' => [],
+            'soft_mask' => null,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function normalizeInvocationGraphicsState(mixed $state): array
+    {
+        $default = $this->defaultInvocationGraphicsState();
+        if (!is_array($state)) {
+            return $default;
+        }
+
+        $default['ext_gstate_resources'] = array_values(array_filter(
+            $state['ext_gstate_resources'] ?? [],
+            static fn (mixed $resource): bool => is_string($resource) && $resource !== ''
+        ));
+        $default['applied_extgstates'] = array_values(array_filter(
+            $state['applied_extgstates'] ?? [],
+            static fn (mixed $resource): bool => is_array($resource)
+        ));
+        foreach (['stroking_alpha', 'nonstroking_alpha'] as $key) {
+            if (is_int($state[$key] ?? null) || is_float($state[$key] ?? null)) {
+                $default[$key] = (float) $state[$key];
+            }
+        }
+        if (is_bool($state['alpha_source'] ?? null)) {
+            $default['alpha_source'] = $state['alpha_source'];
+        }
+        $default['blend_modes'] = array_values(array_filter(
+            $state['blend_modes'] ?? [],
+            static fn (mixed $mode): bool => is_string($mode) && $mode !== ''
+        ));
+        if (is_array($state['soft_mask'] ?? null)) {
+            $default['soft_mask'] = $state['soft_mask'];
+        }
+
+        return $default;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @param array<string, mixed> $review
+     * @return array<string, mixed>
+     */
+    private function applyExtGStateReviewToInvocationState(array $state, string $resourceName, array $review): array
+    {
+        $state = $this->normalizeInvocationGraphicsState($state);
+        if (!in_array($resourceName, $state['ext_gstate_resources'], true)) {
+            $state['ext_gstate_resources'][] = $resourceName;
+        }
+        $state['applied_extgstates'][] = [
+            'resource_name' => $resourceName,
+            'object_number' => is_int($review['object_number'] ?? null) ? $review['object_number'] : null,
+            'object_generation' => is_int($review['object_generation'] ?? null) ? $review['object_generation'] : null,
+        ];
+
+        if (is_int($review['stroking_alpha'] ?? null) || is_float($review['stroking_alpha'] ?? null)) {
+            $state['stroking_alpha'] = (float) $review['stroking_alpha'];
+        }
+        if (is_int($review['nonstroking_alpha'] ?? null) || is_float($review['nonstroking_alpha'] ?? null)) {
+            $state['nonstroking_alpha'] = (float) $review['nonstroking_alpha'];
+        }
+        if (is_bool($review['alpha_source'] ?? null)) {
+            $state['alpha_source'] = $review['alpha_source'];
+        }
+        if (($review['blend_modes'] ?? []) !== [] && is_array($review['blend_modes'])) {
+            $state['blend_modes'] = array_values(array_filter(
+                $review['blend_modes'],
+                static fn (mixed $mode): bool => is_string($mode) && $mode !== ''
+            ));
+        }
+        if (($review['has_soft_mask'] ?? false) === true) {
+            $state['soft_mask'] = is_array($review['soft_mask'] ?? null) ? $review['soft_mask'] : null;
+        }
+
+        return $state;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function nonDefaultInvocationGraphicsState(mixed $state): ?array
+    {
+        $state = $this->normalizeInvocationGraphicsState($state);
+        if (
+            $state['ext_gstate_resources'] === []
+            && $state['applied_extgstates'] === []
+            && $state['stroking_alpha'] === null
+            && $state['nonstroking_alpha'] === null
+            && $state['alpha_source'] === null
+            && $state['blend_modes'] === []
+            && $state['soft_mask'] === null
+        ) {
+            return null;
+        }
+
+        return $state;
+    }
+
+    /**
      * @param list<float> $values
      * @return list<float>
      */
@@ -4019,9 +4296,10 @@ final class PdfTextExtractor
             );
         }
 
+        $graphicsStateResourceReviews = $this->extGStateResourceReviews($resourceOwnerBody, $objects);
         $invocations = [];
         foreach ($decodedContents as $content) {
-            foreach ($this->contentXObjectInvocationDetails($content, $ownerInvocationMatrices) as $resourceName => $details) {
+            foreach ($this->contentXObjectInvocationDetails($content, $ownerInvocationMatrices, $graphicsStateResourceReviews) as $resourceName => $details) {
                 $invocations[$resourceName] = array_merge($invocations[$resourceName] ?? [], $details);
             }
         }
@@ -4091,6 +4369,7 @@ final class PdfTextExtractor
                 $formInvocationStates[] = [
                     'matrix' => $formBaseMatrix,
                     'clip_bbox' => $formClipBbox,
+                    'graphics_state' => $detail['graphics_state'] ?? null,
                 ];
             }
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
@@ -4234,6 +4513,7 @@ final class PdfTextExtractor
         $invocationBboxes = [];
         $invocationClipBboxes = [];
         $invocationVisibleBboxes = [];
+        $invocationGraphicsStates = [];
         $clipApplied = false;
         $clipReducesPaintedBbox = false;
         $clipExcludedInvocationCount = 0;
@@ -4242,6 +4522,7 @@ final class PdfTextExtractor
             $bbox = $detail['bbox'] ?? null;
             $clipBbox = $detail['clip_bbox'] ?? null;
             $visibleBbox = $detail['visible_bbox'] ?? null;
+            $graphicsState = $this->nonDefaultInvocationGraphicsState($detail['graphics_state'] ?? null);
             if (is_array($matrix) && count($matrix) >= 6) {
                 $invocationMatrices[] = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
             }
@@ -4259,6 +4540,9 @@ final class PdfTextExtractor
             }
             if (($detail['clipped'] ?? false) === true) {
                 $clipReducesPaintedBbox = true;
+            }
+            if ($graphicsState !== null) {
+                $invocationGraphicsStates[] = $graphicsState;
             }
         }
         $imageUnitBbox = null;
@@ -4291,6 +4575,8 @@ final class PdfTextExtractor
             'invocation_bboxes' => $invocationBboxes,
             'invocation_clip_bboxes' => $invocationClipBboxes,
             'invocation_visible_bboxes' => $invocationVisibleBboxes,
+            'invocation_graphics_states' => $invocationGraphicsStates,
+            'graphics_state_review_only' => $invocationGraphicsStates !== [],
             'image_unit_bbox' => $imageUnitBbox,
             'image_visible_bbox' => $imageVisibleBbox,
             'clip_applied' => $clipApplied,

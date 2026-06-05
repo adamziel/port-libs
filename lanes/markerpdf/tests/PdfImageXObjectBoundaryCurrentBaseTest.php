@@ -1326,6 +1326,97 @@ return [
         $t->true(!str_contains($encoded, $hiddenPayload));
         $t->true(!str_contains($encoded, $visiblePayload));
     },
+    'records ExtGState transparency at image XObject invocation boundaries' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before ExtGState images) Tj ET\n"
+            . "q /Alpha#20State gs 20 0 0 10 72 690 cm /Alpha#20Image Do Q\n"
+            . "q /Soft#20Mask#20State gs 12 0 0 12 110 690 cm /Soft#20Image Do Q\n"
+            . "q /Private#20State gs 8 0 0 8 140 690 cm /PlainImage Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After ExtGState images) Tj ET';
+        $alphaPayload = 'BT /F1 12 Tf 72 720 Td (Alpha ExtGState Image Noise) Tj ET';
+        $softPayload = 'BT /F1 12 Tf 72 720 Td (Soft Mask ExtGState Image Noise) Tj ET';
+        $plainPayload = 'BT /F1 12 Tf 72 720 Td (Plain ExtGState Image Noise) Tj ET';
+        $alphaCompressed = gzcompress($alphaPayload);
+        $softCompressed = gzcompress($softPayload);
+        $plainCompressed = gzcompress($plainPayload);
+        if (!is_string($alphaCompressed) || !is_string($softCompressed) || !is_string($plainCompressed)) {
+            throw new RuntimeException('Unable to compress ExtGState image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ExtGState << /Alpha#20State 20 0 R /Soft#20Mask#20State 21 0 R /Private << /Private#20State 24 0 R >> >> /XObject << /Alpha#20Image 5 0 R /Soft#20Image 6 0 R /PlainImage 7 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($alphaCompressed) . " >>\nstream\n{$alphaCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($softCompressed) . " >>\nstream\n{$softCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($plainCompressed) . " >>\nstream\n{$plainCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /ExtGState /CA 0.75 /ca 0.42 /BM /Multiply /AIS true >>\nendobj\n"
+            . "21 0 obj\n<< /Type /ExtGState /ca 0.5 /BM [/Screen /Normal] /SMask 22 0 R >>\nendobj\n"
+            . "22 0 obj\n<< /Type /Mask /S /Luminosity /G 23 0 R /TR /Identity >>\nendobj\n"
+            . "23 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] /Length 0 >>\nstream\n\nendstream\nendobj\n"
+            . "24 0 obj\n<< /Type /ExtGState /ca 0.1 /BM /Difference >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(3, $review['image_xobject_count']);
+        $t->same(3, $review['invoked_image_xobject_count']);
+
+        $alpha = $entriesByName['Alpha Image'];
+        $t->same([['Alpha State']], array_column($alpha['invocation_graphics_states'], 'ext_gstate_resources'));
+        $t->same(0.75, $alpha['invocation_graphics_states'][0]['stroking_alpha']);
+        $t->same(0.42, $alpha['invocation_graphics_states'][0]['nonstroking_alpha']);
+        $t->same(true, $alpha['invocation_graphics_states'][0]['alpha_source']);
+        $t->same(['Multiply'], $alpha['invocation_graphics_states'][0]['blend_modes']);
+        $t->same(null, $alpha['invocation_graphics_states'][0]['soft_mask']);
+        $t->same(true, $alpha['graphics_state_review_only']);
+        $t->same(false, $alpha['payload_in_visible_text']);
+
+        $soft = $entriesByName['Soft Image'];
+        $t->same([['Soft Mask State']], array_column($soft['invocation_graphics_states'], 'ext_gstate_resources'));
+        $t->same(null, $soft['invocation_graphics_states'][0]['stroking_alpha']);
+        $t->same(0.5, $soft['invocation_graphics_states'][0]['nonstroking_alpha']);
+        $t->same(['Screen', 'Normal'], $soft['invocation_graphics_states'][0]['blend_modes']);
+        $t->same([
+            'type' => 'graphics_state_soft_mask',
+            'object_number' => 22,
+            'object_generation' => 0,
+            'subtype' => 'Luminosity',
+            'group_object' => 23,
+            'group_generation' => 0,
+            'transfer_function' => 'Identity',
+            'transfer_function_object' => null,
+            'transfer_function_generation' => null,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
+        ], $soft['invocation_graphics_states'][0]['soft_mask']);
+
+        $plain = $entriesByName['PlainImage'];
+        $t->same([], $plain['invocation_graphics_states']);
+        $t->same(false, $plain['graphics_state_review_only']);
+        $t->same(true, $plain['decoded_with_current_filters']);
+        $t->same(hash('sha256', $plainPayload), $plain['decoded_sha256']);
+
+        $t->same(['Before ExtGState images', 'After ExtGState images'], $extractor->extractTextLines($pdf));
+        $t->same("Before ExtGState images\nAfter ExtGState images", $plainText);
+        $t->true(!str_contains($plainText, 'Alpha ExtGState Image Noise'));
+        $t->true(!str_contains($plainText, 'Soft Mask ExtGState Image Noise'));
+        $t->true(!str_contains($plainText, 'Plain ExtGState Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, 'Private State'));
+        $t->true(!str_contains($encoded, 'Difference'));
+        $t->true(!str_contains($encoded, $alphaPayload));
+        $t->true(!str_contains($encoded, $softPayload));
+        $t->true(!str_contains($encoded, $plainPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
