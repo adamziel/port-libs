@@ -121,7 +121,7 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @return array<int, array{generation: int, body: string}>
+     * @return array<int, array{generation: int, body: string, generations: array<int, string>}>
      */
     private function pdfObjects(string $pdfBytes): array
     {
@@ -132,10 +132,13 @@ final class PdfNamedDestinationExtractor
 
         $objects = [];
         foreach ($matches as $match) {
-            $objects[(int) $match[1]] = [
-                'generation' => (int) $match[2],
-                'body' => $match[3],
-            ];
+            $objectId = (int) $match[1];
+            $generation = (int) $match[2];
+            $body = $match[3];
+
+            $objects[$objectId]['generation'] = $generation;
+            $objects[$objectId]['body'] = $body;
+            $objects[$objectId]['generations'][$generation] = $body;
         }
         ksort($objects, SORT_NUMERIC);
 
@@ -165,7 +168,7 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @return array<string, mixed>|null
      */
@@ -182,65 +185,89 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @return array<int, int>
+     * @return array<string, int>
      */
     private function pageIndexesByObjectId(array $objects, array &$cache, array $catalog): array
     {
         $pages = [];
-        $pagesObjectId = $this->validRefObjectId($catalog['Pages'] ?? null, $objects);
+        $pagesRef = $catalog['Pages'] ?? null;
+        $pagesObjectId = $this->validRefObjectId($pagesRef, $objects);
         if ($pagesObjectId !== null) {
-            $pages = $this->collectPageObjectIds($pagesObjectId, $objects, $cache);
+            $pages = $this->collectPageObjectIds(
+                $pagesObjectId,
+                $objects,
+                $cache,
+                $this->refGeneration($pagesRef)
+            );
         }
 
         if ($pages === []) {
             foreach (array_keys($objects) as $objectId) {
                 $dictionary = $this->objectDictionary($objectId, $objects, $cache);
                 if ($dictionary !== null && $this->nameValue($dictionary['Type'] ?? null) === 'Page') {
-                    $pages[] = $objectId;
+                    $pages[] = [
+                        'object_id' => $objectId,
+                        'generation' => $objects[$objectId]['generation'],
+                    ];
                 }
             }
         }
 
         $indexes = [];
-        foreach (array_values($pages) as $index => $objectId) {
-            $indexes[$objectId] = $index;
+        foreach (array_values($pages) as $index => $pageRef) {
+            $indexes[$this->objectGenerationKey($pageRef['object_id'], $pageRef['generation'])] = $index;
         }
 
         return $indexes;
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @param list<int> $seen
-     * @return list<int>
+     * @param array<string, true> $seen
+     * @return list<array{object_id: int, generation: int}>
      */
-    private function collectPageObjectIds(int $objectId, array $objects, array &$cache, array $seen = []): array
+    private function collectPageObjectIds(
+        int $objectId,
+        array $objects,
+        array &$cache,
+        ?int $generation = null,
+        array $seen = []
+    ): array
     {
-        if (in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+        if (!isset($objects[$objectId])) {
             return [];
         }
 
-        $seen[] = $objectId;
-        $dictionary = $this->objectDictionary($objectId, $objects, $cache);
+        $effectiveGeneration = $generation ?? $objects[$objectId]['generation'];
+        $seenKey = $objectId . ':' . $effectiveGeneration;
+        if (isset($seen[$seenKey])) {
+            return [];
+        }
+
+        $seen[$seenKey] = true;
+        $dictionary = $this->objectDictionary($objectId, $objects, $cache, $effectiveGeneration);
         if ($dictionary === null) {
             return [];
         }
 
         $type = $this->nameValue($dictionary['Type'] ?? null);
         if ($type === 'Page') {
-            return [$objectId];
+            return [[
+                'object_id' => $objectId,
+                'generation' => $effectiveGeneration,
+            ]];
         }
         if ($type !== 'Pages') {
             return [];
         }
 
         $pages = [];
-        foreach ($this->arrayRefs($dictionary['Kids'] ?? null, $objects) as $kidId) {
-            foreach ($this->collectPageObjectIds($kidId, $objects, $cache, $seen) as $pageId) {
-                $pages[] = $pageId;
+        foreach ($this->arrayRefsWithGenerations($dictionary['Kids'] ?? null, $objects) as $kidRef) {
+            foreach ($this->collectPageObjectIds($kidRef['object_id'], $objects, $cache, $kidRef['generation'], $seen) as $pageRef) {
+                $pages[] = $pageRef;
             }
         }
 
@@ -248,42 +275,50 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @return array<string, mixed>|null
      */
-    private function objectDictionary(int $objectId, array $objects, array &$cache): ?array
+    private function objectDictionary(int $objectId, array $objects, array &$cache, ?int $generation = null): ?array
     {
-        $value = $this->objectValue($objectId, $objects, $cache);
+        $value = $this->objectValue($objectId, $objects, $cache, $generation);
         $resolved = $this->resolve($value, $objects, $cache);
 
         return $this->isDictionary($resolved) ? $resolved : null;
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      */
-    private function objectValue(int $objectId, array $objects, array &$cache): mixed
+    private function objectValue(int $objectId, array $objects, array &$cache, ?int $generation = null): mixed
     {
         if (!isset($objects[$objectId])) {
             return null;
         }
-        if (array_key_exists($objectId, $cache)) {
-            return $cache[$objectId];
+
+        $effectiveGeneration = $generation ?? $objects[$objectId]['generation'];
+        $body = $this->objectBody($objectId, $objects, $effectiveGeneration);
+        if ($body === null) {
+            return null;
         }
 
-        $tokens = $this->tokens($objects[$objectId]['body']);
-        $index = 0;
-        $cache[$objectId] = $this->parseValue($tokens, $index);
+        $cacheKey = $objectId . ':' . $effectiveGeneration;
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
+        }
 
-        return $cache[$objectId];
+        $tokens = $this->tokens($body);
+        $index = 0;
+        $cache[$cacheKey] = $this->parseValue($tokens, $index);
+
+        return $cache[$cacheKey];
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
-     * @param list<int> $seen
+     * @param list<string> $seen
      */
     private function resolve(mixed $value, array $objects, array &$cache, array $seen = []): mixed
     {
@@ -294,16 +329,19 @@ final class PdfNamedDestinationExtractor
         if ($objectId === null) {
             return $value;
         }
-        if (in_array($objectId, $seen, true)) {
+
+        $generation = $this->refGeneration($value);
+        $seenKey = $objectId . ':' . $generation;
+        if (in_array($seenKey, $seen, true)) {
             return null;
         }
 
-        $seen[] = $objectId;
-        return $this->resolve($this->objectValue($objectId, $objects, $cache), $objects, $cache, $seen);
+        $seen[] = $seenKey;
+        return $this->resolve($this->objectValue($objectId, $objects, $cache, $generation), $objects, $cache, $seen);
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @param list<int> $seenObjects
      * @param array{lower: string, upper: string}|null $inheritedLimits
@@ -371,7 +409,7 @@ final class PdfNamedDestinationExtractor
 
     /**
      * @param array<string, mixed> $node
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @param array{lower: string, upper: string}|null $inheritedLimits
      * @return array{lower: string, upper: string}|null
@@ -398,7 +436,7 @@ final class PdfNamedDestinationExtractor
 
     /**
      * @param array<string, mixed> $node
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @return array{lower: string, upper: string}|null
      */
@@ -437,7 +475,7 @@ final class PdfNamedDestinationExtractor
 
     /**
      * @param list<mixed> $items
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @param array{lower: string, upper: string}|null $limits
      */
@@ -458,8 +496,8 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param array<int, int> $pageIndexes
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<string, int> $pageIndexes
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      * @return array{name: string, page: int|null, page_object_id: int|null, fit: string, coordinates: array<string, float|null>, source: string}|null
      */
@@ -484,7 +522,10 @@ final class PdfNamedDestinationExtractor
         $pageObjectId = $this->validRefObjectId($pageOperand, $objects);
         $pageIndex = null;
         if ($pageObjectId !== null) {
-            $pageIndex = $pageIndexes[$pageObjectId] ?? null;
+            $pageIndex = $pageIndexes[$this->objectGenerationKey($pageObjectId, $this->refGeneration($pageOperand))] ?? null;
+            if ($pageIndex === null) {
+                return null;
+            }
         } elseif ($this->isRefValue($pageOperand)) {
             return null;
         } elseif (is_int($pageOperand)) {
@@ -549,7 +590,7 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      */
     private function destinationNameValue(mixed $value, array $objects, array &$cache): ?string
@@ -558,15 +599,19 @@ final class PdfNamedDestinationExtractor
     }
 
     /**
-     * @return list<int>
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     * @return list<array{object_id: int, generation: int}>
      */
-    private function arrayRefs(mixed $value, array $objects): array
+    private function arrayRefsWithGenerations(mixed $value, array $objects): array
     {
         $refs = [];
         foreach ($this->arrayValues($value) as $entry) {
             $objectId = $this->validRefObjectId($entry, $objects);
             if ($objectId !== null) {
-                $refs[] = $objectId;
+                $refs[] = [
+                    'object_id' => $objectId,
+                    'generation' => $this->refGeneration($entry),
+                ];
             }
         }
 
@@ -595,8 +640,13 @@ final class PdfNamedDestinationExtractor
             : 0;
     }
 
+    private function objectGenerationKey(int $objectId, int $generation): string
+    {
+        return $objectId . ':' . $generation;
+    }
+
     /**
-     * @param array<int, array{generation: int, body: string}> $objects
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      */
     private function validRefObjectId(mixed $value, array $objects): ?int
     {
@@ -605,9 +655,24 @@ final class PdfNamedDestinationExtractor
             return null;
         }
 
-        return $objects[$objectId]['generation'] === $this->refGeneration($value)
+        return $this->objectBody($objectId, $objects, $this->refGeneration($value)) !== null
             ? $objectId
             : null;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
+     */
+    private function objectBody(int $objectId, array $objects, ?int $generation = null): ?string
+    {
+        if (!isset($objects[$objectId])) {
+            return null;
+        }
+        if ($generation === null) {
+            return $objects[$objectId]['body'];
+        }
+
+        return $objects[$objectId]['generations'][$generation] ?? null;
     }
 
     private function isRefValue(mixed $value): bool
