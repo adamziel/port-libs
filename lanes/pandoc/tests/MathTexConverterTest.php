@@ -276,6 +276,31 @@ return [
         $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignAtMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{alignat*}{2}f(x) &amp;= x^2 &amp; g(x) &amp;= x + 1\\end{alignat*}</annotation>', $alignAtMathml);
     },
+    'converts bounded tex flalign environments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $flalignMathml = $converter->texToMathMl('\\begin{flalign}\\text{source} && p_i &= m_i && \\text{review} \\\\ \\text{target} && x_i &= y_i \\tag{F-1} && \\text{done}\\end{flalign}', true);
+        $starredMathml = $converter->texToMathMl('\\begin{flalign*}a &= b & c &= d\\end{flalign*}');
+        $document = new AstNode('document', [], [
+            new AstNode('math', [
+                'text' => '\\begin{flalign}p_i &= m_i \\label{eq:flush-row} & \\text{review}\\end{flalign}',
+                'display' => true,
+            ]),
+        ]);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $flalignMathml);
+        $t->contains('<mtable columnalign="left right left right left right"><mtr><mtd><mtext>source</mtext></mtd><mtd></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd></mtd><mtd><mtext>review</mtext></mtd></mtr><mlabeledtr><mtd><mtext>(F-1)</mtext></mtd><mtd><mtext>target</mtext></mtd><mtd></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd><mtd></mtd><mtd><mtext>done</mtext></mtd></mlabeledtr></mtable>', $flalignMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{flalign}\\text{source} &amp;&amp; p_i &amp;= m_i &amp;&amp; \\text{review} \\\\ \\text{target} &amp;&amp; x_i &amp;= y_i \\tag{F-1} &amp;&amp; \\text{done}\\end{flalign}</annotation>', $flalignMathml);
+        $t->contains('<mtable columnalign="left right left right"><mtr><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mtr></mtable>', $starredMathml);
+        $t->same([
+            'eq:flush-row' => [
+                'label' => 'eq:flush-row',
+                'id' => 'eq:flush-row',
+                'reference' => '1',
+                'tag' => null,
+                'tagStarred' => false,
+            ],
+        ], $converter->equationReferenceLabelsFromDocument($document));
+    },
     'converts bounded tex multline environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $multlineMathml = $converter->texToMathMl('\\begin{multline}p_i + m_i \\\\[.5em] = a_i + b_i \\\\ + \\frac{x}{y}\\end{multline}', true);
@@ -756,6 +781,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{5}a &= b\\end{alignedat}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{2}a &= b & c\\end{alignedat}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignat}{1}a &= b \\\\ \\end{alignat}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{flalign}x\\end{flalign}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{flalign}a &= b & c &= d & e &= f & g &= h & i &= j\\end{flalign}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{flalign}a &= b \\\\ \\end{flalign}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multline}\\end{multline}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multline}a & b\\end{multline}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{multlined}a \\\\\\end{multlined}'));

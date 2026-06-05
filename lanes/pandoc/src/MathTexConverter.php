@@ -238,6 +238,14 @@ final class MathTexConverter
         'alignedat*' => true,
     ];
 
+    /** @var array<string, true> */
+    private const AMS_FLUSH_ALIGNED_ENVIRONMENTS = [
+        'flalign' => true,
+        'flalign*' => true,
+        'flaligned' => true,
+        'flaligned*' => true,
+    ];
+
     /** @var array<string, bool> */
     private const EQUATION_WRAPPER_ENVIRONMENTS = [
         'equation' => true,
@@ -1448,6 +1456,10 @@ final class MathTexConverter
             return $this->parseAmsAlignedAtEnvironment($source, $offset, $environment);
         }
 
+        if (isset(self::AMS_FLUSH_ALIGNED_ENVIRONMENTS[$environment])) {
+            return $this->parseAmsFlushAlignedEnvironment($source, $offset, $environment);
+        }
+
         if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
@@ -1753,6 +1765,19 @@ final class MathTexConverter
         $this->validateAmsRowEnvironmentRows($rows, $environment, $pairs * 2);
 
         return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"', true, $environment);
+    }
+
+    private function parseAmsFlushAlignedEnvironment(string $source, int &$offset, string $environment): string
+    {
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, $environment);
+        $columns = $this->validateAmsFlushAlignedRows($rows, $environment);
+
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($this->flushAlignedColumnAlign($columns)) . '"', true, $environment);
     }
 
     private function normalizeAmsAlignedAtPairCount(string $pairCount, string $environment): int
@@ -2163,6 +2188,50 @@ final class MathTexConverter
         }
     }
 
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function validateAmsFlushAlignedRows(array $rows, string $environment): int
+    {
+        $columns = 0;
+        foreach ($rows as $rowIndex => $row) {
+            $rowColumns = count($row);
+            if ($rowColumns < 2) {
+                throw new \InvalidArgumentException('Expected TeX ' . $environment . ' alignment markers at row ' . ($rowIndex + 1));
+            }
+
+            if ($rowColumns > 8) {
+                throw new \InvalidArgumentException('Unsupported TeX ' . $environment . ' column count ' . $rowColumns . ' at row ' . ($rowIndex + 1));
+            }
+
+            $hasContent = false;
+            foreach ($row as $cell) {
+                if (trim($cell) !== '') {
+                    $hasContent = true;
+                    break;
+                }
+            }
+
+            if (!$hasContent) {
+                throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at row ' . ($rowIndex + 1));
+            }
+
+            $columns = max($columns, $rowColumns);
+        }
+
+        return $columns;
+    }
+
+    private function flushAlignedColumnAlign(int $columns): string
+    {
+        $alignments = [];
+        for ($index = 0; $index < $columns; $index++) {
+            $alignments[] = $index % 2 === 0 ? 'left' : 'right';
+        }
+
+        return implode(' ', $alignments);
+    }
+
     private function endsWithTopLevelRowSeparator(string $content): bool
     {
         $depth = 0;
@@ -2542,6 +2611,14 @@ final class MathTexConverter
 
                 $rows = $this->splitAlignmentRows($content, $environment);
                 $this->validateAmsRowEnvironmentRows($rows, $environment, self::AMS_ROW_ENVIRONMENTS[$environment]['columns']);
+                $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
+            } elseif (isset(self::AMS_FLUSH_ALIGNED_ENVIRONMENTS[$environment])) {
+                if ($this->endsWithTopLevelRowSeparator($content)) {
+                    throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+                }
+
+                $rows = $this->splitAlignmentRows($content, $environment);
+                $this->validateAmsFlushAlignedRows($rows, $environment);
                 $this->collectEquationReferenceLabelsFromEnvironmentRows($rows, $environment, $labels, $nextAutomaticNumber, $numberUntagged);
             } elseif ($alignedAtPairs !== null) {
                 if ($this->endsWithTopLevelRowSeparator($content)) {
