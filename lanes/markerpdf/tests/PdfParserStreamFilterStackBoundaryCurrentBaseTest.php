@@ -470,6 +470,28 @@ $parserStreamFilterStackBoundaryCurrentBaseCryptIdentityPdf = static function ()
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseIndirectCryptNamePdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $identityContent = 'BT /F1 12 Tf 72 720 Td (Indirect Identity Crypt Import) Tj ET';
+    $identityCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($identityContent);
+    $privateContent = 'BT /F1 12 Tf 72 704 Td (Indirect Private Crypt Leak) Tj ET';
+    $privateCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($privateContent);
+    $visibleAfter = 'BT /F1 12 Tf 72 688 Td (Visible After Indirect Crypt) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name 10 0 R >> null ] /Length " . strlen($identityCompressed) . " >>\nstream\n{$identityCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name 11 0 R >> null ] /Length " . strlen($privateCompressed) . " >>\nstream\n{$privateCompressed}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "10 0 obj\n/Identity\nendobj\n"
+        . "11 0 obj\n/PrivateCF\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -718,6 +740,26 @@ return [
         $t->true(!str_contains($text, 'PrivateCF'));
         $t->true(!str_contains($text, 'CryptFilterDecodeParms'));
         $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'resolves indirect Crypt filter names before choosing identity pass-through' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseIndirectCryptNamePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseIndirectCryptNamePdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Indirect Identity Crypt Import',
+            'Visible After Indirect Crypt',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Indirect Private Crypt Leak'));
+        $t->true(!str_contains($text, 'PrivateCF'));
+        $t->true(!str_contains($text, 'FlateDecode'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

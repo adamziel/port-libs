@@ -360,6 +360,23 @@ $cryptIdentityPdf = "%PDF-1.4\n"
     . "8 0 obj\n<< /Length " . strlen($cryptBoundaryVisibleAfter) . " >>\nstream\n{$cryptBoundaryVisibleAfter}\nendstream\nendobj\n"
     . "%%EOF";
 
+$indirectCryptIdentityContent = 'BT /F1 12 Tf 72 720 Td (Indirect Identity Crypt Import) Tj ET';
+$indirectCryptIdentityCompressed = $zlibStored($indirectCryptIdentityContent);
+$indirectCryptPrivateContent = 'BT /F1 12 Tf 72 704 Td (Indirect Private Crypt Leak) Tj ET';
+$indirectCryptPrivateCompressed = $zlibStored($indirectCryptPrivateContent);
+$indirectCryptVisibleAfter = 'BT /F1 12 Tf 72 688 Td (Visible After Indirect Crypt) Tj ET';
+$indirectCryptNamePdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name 10 0 R >> null ] /Length " . strlen($indirectCryptIdentityCompressed) . " >>\nstream\n{$indirectCryptIdentityCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name 11 0 R >> null ] /Length " . strlen($indirectCryptPrivateCompressed) . " >>\nstream\n{$indirectCryptPrivateCompressed}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Length " . strlen($indirectCryptVisibleAfter) . " >>\nstream\n{$indirectCryptVisibleAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n/Identity\nendobj\n"
+    . "11 0 obj\n/PrivateCF\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -376,6 +393,7 @@ $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
 $allNullFilterLines = $extractor->extractTextLines($allNullFilterPdf);
 $indirectNullFilterLines = $extractor->extractTextLines($indirectNullFilterPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
+$indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -392,6 +410,7 @@ $allLines = [
     ...$allNullFilterLines,
     ...$indirectNullFilterLines,
     ...$cryptIdentityLines,
+    ...$indirectCryptNameLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -415,6 +434,8 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         [null, 'FlateDecode'],
         ['Crypt', 'FlateDecode'],
         ['FlateDecode', 'Crypt'],
+        ['Crypt', 'FlateDecode'],
+        ['Crypt', 'FlateDecode'],
         ['Crypt', 'FlateDecode'],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
@@ -453,6 +474,11 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'Visible After Crypt Boundary',
     ],
     'named_crypt_filter_fail_closed' => !str_contains($joined, 'Non Identity Crypt Leak'),
+    'indirect_crypt_identity_name_resolved' => $indirectCryptNameLines === [
+        'Indirect Identity Crypt Import',
+        'Visible After Indirect Crypt',
+    ],
+    'indirect_private_crypt_name_fail_closed' => !str_contains($joined, 'Indirect Private Crypt Leak'),
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,
@@ -466,6 +492,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'all_null_decodeparms_helper_excluded' => !str_contains($joined, 'All Null DecodeParms Helper Leak'),
     'indirect_null_decodeparms_helper_excluded' => !str_contains($joined, 'Indirect Null DecodeParms Helper Leak'),
     'crypt_filter_decodeparms_excluded' => !str_contains($joined, 'CryptFilterDecodeParms') && !str_contains($joined, 'PrivateCF'),
+    'indirect_crypt_name_objects_excluded' => !str_contains($joined, '10 0 obj') && !str_contains($joined, '11 0 obj'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'paragraphs' => $allLines,

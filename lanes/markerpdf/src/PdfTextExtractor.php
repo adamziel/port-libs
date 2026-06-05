@@ -9393,7 +9393,7 @@ final class PdfTextExtractor
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
-                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms, $objects),
                 default => null,
             };
 
@@ -9746,7 +9746,7 @@ final class PdfTextExtractor
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
-                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms, $objects),
                 'DCTDecode', 'DCT' => null,
                 'CCITTFaxDecode', 'CCF' => null,
                 'JPXDecode', 'JBIG2Decode' => null,
@@ -10510,14 +10510,18 @@ final class PdfTextExtractor
         return $this->applyDecodeParmsPredictor($inflated, $decodeParms, $objects);
     }
 
-    private function decodeCryptIdentityStream(string $stream, ?string $decodeParms): ?string
+    private function decodeCryptIdentityStream(string $stream, ?string $decodeParms, array $objects = []): ?string
     {
         if ($decodeParms === null || trim($decodeParms) === '') {
             return null;
         }
 
-        $name = $this->pdfNameValueAfterName($decodeParms, 'Name');
-        return $name === null || $name === 'Identity' ? $stream : null;
+        $nameOffset = $this->topLevelNameValueOffset($decodeParms, 'Name');
+        if ($nameOffset === null) {
+            return $stream;
+        }
+
+        return $this->pdfNameValueAt($decodeParms, $nameOffset, $objects) === 'Identity' ? $stream : null;
     }
 
     /**
@@ -18522,7 +18526,7 @@ final class PdfTextExtractor
         }
 
         return $this->canApplyDecodeParms($filter, $decodeParms, $objects)
-            && $this->decodeCryptIdentityStream('', $decodeParms) !== null;
+            && $this->decodeCryptIdentityStream('', $decodeParms, $objects) !== null;
     }
 
     /**
