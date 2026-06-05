@@ -95,7 +95,8 @@ $directoryEntry = static function (
     ?string $createdAt = null,
     ?string $modifiedAt = null,
     ?string $clsid = null,
-    int $stateBits = 0
+    int $stateBits = 0,
+    int $colorFlag = 1
 ) use ($u16, $u32, $u64, $filetime, $clsidBytes, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
     if (strlen($nameBytes) > 64) {
@@ -105,7 +106,7 @@ $directoryEntry = static function (
     return str_pad($nameBytes, 64, "\0")
         . $u16(strlen($nameBytes))
         . chr($type)
-        . "\x01"
+        . chr($colorFlag)
         . $u32($leftSibling)
         . $u32($rightSibling)
         . $u32($child)
@@ -267,6 +268,7 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
     $leftSiblings = [];
     $rightSiblings = [];
     $childIds = [];
+    $nodeColors = array_fill(0, count($nodes), 1);
     $buildSiblingTree = static function (array $children) use (&$buildSiblingTree, &$nodes, &$leftSiblings, &$rightSiblings, $compareCfbDirectoryNames, $free): int {
         usort($children, static fn (int $left, int $right): int => $compareCfbDirectoryNames((string) $nodes[$left]['name'], (string) $nodes[$right]['name']));
         $middle = intdiv(count($children), 2);
@@ -282,6 +284,54 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
         $children = $node['children'];
         if ($children !== []) {
             $childIds[$nodeIndex] = $buildSiblingTree($children);
+        }
+    }
+    $colorSiblingTree = static function (int $nodeId, bool $forceBlack = false) use (&$colorSiblingTree, &$leftSiblings, &$rightSiblings, $free): array {
+        if ($nodeId === $free) {
+            return [[
+                'blackHeight' => 1,
+                'rootColor' => 1,
+                'colors' => [],
+            ]];
+        }
+
+        $leftOptions = $colorSiblingTree($leftSiblings[$nodeId] ?? $free);
+        $rightOptions = $colorSiblingTree($rightSiblings[$nodeId] ?? $free);
+        $options = [];
+        foreach ([1, 0] as $colorFlag) {
+            if ($forceBlack && $colorFlag !== 1) {
+                continue;
+            }
+            foreach ($leftOptions as $leftOption) {
+                foreach ($rightOptions as $rightOption) {
+                    if ($leftOption['blackHeight'] !== $rightOption['blackHeight']) {
+                        continue;
+                    }
+                    if ($colorFlag === 0 && ($leftOption['rootColor'] === 0 || $rightOption['rootColor'] === 0)) {
+                        continue;
+                    }
+
+                    $colors = $leftOption['colors'] + $rightOption['colors'];
+                    $colors[$nodeId] = $colorFlag;
+                    $options[] = [
+                        'blackHeight' => $leftOption['blackHeight'] + ($colorFlag === 1 ? 1 : 0),
+                        'rootColor' => $colorFlag,
+                        'colors' => $colors,
+                    ];
+                }
+            }
+        }
+
+        return $options;
+    };
+    foreach ($childIds as $childId) {
+        $options = $colorSiblingTree($childId, true);
+        if ($options === []) {
+            throw new RuntimeException('Unable to color CFB fixture directory tree');
+        }
+        usort($options, static fn (array $left, array $right): int => $left['blackHeight'] <=> $right['blackHeight']);
+        foreach ($options[0]['colors'] as $nodeIndex => $colorFlag) {
+            $nodeColors[(int) $nodeIndex] = (int) $colorFlag;
         }
     }
 
@@ -303,7 +353,8 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
             $metadata['createdAt'],
             $metadata['modifiedAt'],
             $metadata['clsid'] ?? null,
-            (int) ($metadata['stateBits'] ?? 0)
+            (int) ($metadata['stateBits'] ?? 0),
+            $nodeColors[$nodeIndex] ?? 1
         );
     }
     $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
@@ -1347,6 +1398,17 @@ return [
         $redRoot = substr_replace($bytes, "\0", $bbColorOffset, 1);
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($redRoot));
+    },
+    'rejects unequal black-height CFB directory sibling trees before stream lookup' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'A' => 'a',
+            'BB' => 'bb',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $aColorOffset = $directorySectorOffset + 128 + 67;
+        $imbalancedBlackHeight = substr_replace($bytes, "\x01", $aColorOffset, 1);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($imbalancedBlackHeight));
     },
     'rejects duplicate and misclassified CFB FAT sectors before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([

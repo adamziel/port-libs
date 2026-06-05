@@ -660,9 +660,9 @@ final class CompoundFileBinary
         ?array $maxEntry,
         bool $parentIsRed,
         bool $treeRoot = false
-    ): void {
+    ): int {
         if (!self::isRegularSector($nodeId)) {
-            return;
+            return 1;
         }
         if (!array_key_exists($nodeId, $rawEntries) || $rawEntries[$nodeId] === null) {
             throw new \RuntimeException('CFB directory tree points outside the directory');
@@ -690,7 +690,7 @@ final class CompoundFileBinary
         }
 
         $entryIsRed = $entry['colorFlag'] === 0;
-        self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $minEntry, $entry, $entryIsRed, false);
+        $leftBlackHeight = self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $minEntry, $entry, $entryIsRed, false);
 
         $entry['path'] = $parentPath === '' ? $entry['name'] : $parentPath . '/' . $entry['name'];
         $entryIndex = count($entries);
@@ -713,7 +713,12 @@ final class CompoundFileBinary
             self::collectDirectoryTree($entry['childId'], $entry['path'], $rawEntries, $entries, $byName, $visited, null, null, false, true);
         }
 
-        self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $entry, $maxEntry, $entryIsRed, false);
+        $rightBlackHeight = self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $entry, $maxEntry, $entryIsRed, false);
+        if ($leftBlackHeight !== $rightBlackHeight) {
+            throw new \RuntimeException('CFB directory sibling tree has unequal black height: ' . $entry['name']);
+        }
+
+        return $leftBlackHeight + ($entryIsRed ? 0 : 1);
     }
 
     /**

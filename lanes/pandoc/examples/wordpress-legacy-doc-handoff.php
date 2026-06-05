@@ -102,14 +102,15 @@ $directoryEntry = static function (
     ?string $createdAt = null,
     ?string $modifiedAt = null,
     ?string $clsid = null,
-    int $stateBits = 0
+    int $stateBits = 0,
+    int $colorFlag = 1
 ) use ($u16, $u32, $u64, $filetime, $clsidBytes, $utf16le): string {
     $nameBytes = $utf16le($name . "\0");
 
     return str_pad($nameBytes, 64, "\0")
         . $u16(strlen($nameBytes))
         . chr($type)
-        . "\x01"
+        . chr($colorFlag)
         . $u32($leftSibling)
         . $u32($rightSibling)
         . $u32($child)
@@ -749,6 +750,7 @@ foreach ($streams as $name => $_data) {
 $leftSiblings = [];
 $rightSiblings = [];
 $childIds = [];
+$nodeColors = array_fill(0, count($nodes), 1);
 $buildSiblingTree = static function (array $children) use (&$buildSiblingTree, &$nodes, &$leftSiblings, &$rightSiblings, $compareCfbDirectoryNames, $free): int {
     usort($children, static fn (int $left, int $right): int => $compareCfbDirectoryNames((string) $nodes[$left]['name'], (string) $nodes[$right]['name']));
     $middle = intdiv(count($children), 2);
@@ -763,6 +765,54 @@ $buildSiblingTree = static function (array $children) use (&$buildSiblingTree, &
 foreach ($nodes as $nodeIndex => $node) {
     if ($node['children'] !== []) {
         $childIds[$nodeIndex] = $buildSiblingTree($node['children']);
+    }
+}
+$colorSiblingTree = static function (int $nodeId, bool $forceBlack = false) use (&$colorSiblingTree, &$leftSiblings, &$rightSiblings, $free): array {
+    if ($nodeId === $free) {
+        return [[
+            'blackHeight' => 1,
+            'rootColor' => 1,
+            'colors' => [],
+        ]];
+    }
+
+    $leftOptions = $colorSiblingTree($leftSiblings[$nodeId] ?? $free);
+    $rightOptions = $colorSiblingTree($rightSiblings[$nodeId] ?? $free);
+    $options = [];
+    foreach ([1, 0] as $colorFlag) {
+        if ($forceBlack && $colorFlag !== 1) {
+            continue;
+        }
+        foreach ($leftOptions as $leftOption) {
+            foreach ($rightOptions as $rightOption) {
+                if ($leftOption['blackHeight'] !== $rightOption['blackHeight']) {
+                    continue;
+                }
+                if ($colorFlag === 0 && ($leftOption['rootColor'] === 0 || $rightOption['rootColor'] === 0)) {
+                    continue;
+                }
+
+                $colors = $leftOption['colors'] + $rightOption['colors'];
+                $colors[$nodeId] = $colorFlag;
+                $options[] = [
+                    'blackHeight' => $leftOption['blackHeight'] + ($colorFlag === 1 ? 1 : 0),
+                    'rootColor' => $colorFlag,
+                    'colors' => $colors,
+                ];
+            }
+        }
+    }
+
+    return $options;
+};
+foreach ($childIds as $childId) {
+    $options = $colorSiblingTree($childId, true);
+    if ($options === []) {
+        throw new RuntimeException('Unable to color CFB fixture directory tree');
+    }
+    usort($options, static fn (array $left, array $right): int => $left['blackHeight'] <=> $right['blackHeight']);
+    foreach ($options[0]['colors'] as $nodeIndex => $colorFlag) {
+        $nodeColors[(int) $nodeIndex] = (int) $colorFlag;
     }
 }
 
@@ -837,7 +887,8 @@ foreach ($nodes as $nodeIndex => $node) {
         $timestamps['createdAt'],
         $timestamps['modifiedAt'],
         $timestamps['clsid'] ?? null,
-        (int) ($timestamps['stateBits'] ?? 0)
+        (int) ($timestamps['stateBits'] ?? 0),
+        $nodeColors[$nodeIndex] ?? 1
     );
 }
 $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
@@ -1280,6 +1331,16 @@ if (($argv[1] ?? '') === '--self-test') {
     $wordDocumentMiniStreamOffset = 512
         + ($rootMiniStart * $sectorSize)
         + ((int) $locations['WordDocument']['startSector'] * $miniSectorSize);
+    $redDirectoryId = null;
+    foreach ($nodeColors as $directoryId => $colorFlag) {
+        if ((int) $directoryId !== 0 && (int) $colorFlag === 0) {
+            $redDirectoryId = (int) $directoryId;
+            break;
+        }
+    }
+    if ($redDirectoryId === null) {
+        throw new RuntimeException('Legacy DOC handoff self-test fixture did not produce a red CFB directory node');
+    }
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -1293,6 +1354,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB storage stream-data bytes' => substr_replace($docBytes, $u64(64), $directoryFieldOffset($objectPoolDirectoryId, 120), 8),
         'red CFB sibling-tree root' => substr_replace($docBytes, "\0", $directoryFieldOffset((int) ($childIds[0] ?? $wordDocumentDirectoryId), 67), 1),
+        'unequal CFB sibling-tree black height' => substr_replace($docBytes, "\x01", $directoryFieldOffset($redDirectoryId, 67), 1),
         'duplicate CFB FAT sector' => substr_replace(substr_replace($docBytes, $u32(2), 44, 4), $u32(0), 80, 4),
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
