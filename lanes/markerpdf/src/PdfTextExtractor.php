@@ -8488,7 +8488,11 @@ final class PdfTextExtractor
 
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
             $faxBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $ccittFilterIndex);
-            if ($faxBytes !== null && $faxBytes !== '') {
+            if (
+                $faxBytes !== null
+                && $faxBytes !== ''
+                && $this->ccittFaxDecodedBytesReachBoundary($faxBytes, $dict, $objects, $filters, $ccittFilterIndex)
+            ) {
                 return $candidate;
             }
         }
@@ -8564,6 +8568,36 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     */
+    private function ccittFaxDecodedBytesReachBoundary(
+        string $faxBytes,
+        string $dict,
+        array $objects,
+        array $filters,
+        int $ccittFilterIndex
+    ): bool {
+        $decodeParms = $this->streamDecodeParms($dict, $objects);
+        $filterDecodeParms = $decodeParms === null
+            ? null
+            : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
+
+        if (!$this->ccittFaxDecodeParmsUsesEndOfBlock($filterDecodeParms, $objects)) {
+            return true;
+        }
+
+        $bytes = rtrim($faxBytes, "\x00\t\n\f\r ");
+        foreach ($this->ccittFaxEndOfBlockMarkers($filterDecodeParms, $objects) as $marker) {
+            if (str_ends_with($bytes, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

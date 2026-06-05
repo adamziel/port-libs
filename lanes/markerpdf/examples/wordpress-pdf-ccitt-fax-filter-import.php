@@ -89,6 +89,28 @@ $boundaryPdf = "%PDF-1.4\n"
 $boundaryExtractor = new PdfTextExtractor();
 $boundaryLines = $boundaryExtractor->extractTextLines($boundaryPdf);
 $boundaryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($boundaryPdf);
+$cryptFakeObject = 'BT /F1 12 Tf 72 700 Td (WordPress Crypt CCITT prefix leak) Tj ET';
+$cryptCcittEofb = "\x00\x10\x01";
+$cryptWrappedFaxPayload = "\x01\x02\x03\n"
+    . "endstream\nendobj\n"
+    . "9 0 obj\n<< /Length " . strlen($cryptFakeObject) . " >>\nstream\n{$cryptFakeObject}\nendstream\nendobj\n"
+    . "\x04\x05{$cryptCcittEofb}";
+$cryptStaleLength = strpos($cryptWrappedFaxPayload, "\nendstream\n");
+if ($cryptStaleLength === false) {
+    throw new RuntimeException('Unable to build Crypt-wrapped CCITT stale-length fixture.');
+}
+$cryptBoundaryBefore = 'BT /F1 12 Tf 72 720 Td (Before Crypt CCITT import) Tj ET';
+$cryptBoundaryAfter = 'BT /F1 12 Tf 72 680 Td (After Crypt CCITT import) Tj ET';
+$cryptBoundaryPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Fax#20Crypt 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($cryptBoundaryBefore) . " >>\nstream\n{$cryptBoundaryBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/Crypt /CCITTFaxDecode] /DecodeParms [<< /Name /Identity >> << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>] /Length {$cryptStaleLength} >>\nstream\n{$cryptWrappedFaxPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($cryptBoundaryAfter) . " >>\nstream\n{$cryptBoundaryAfter}\nendstream\nendobj\n%%EOF";
+$cryptBoundaryLines = $boundaryExtractor->extractTextLines($cryptBoundaryPdf);
+$cryptBoundaryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($cryptBoundaryPdf);
+$cryptBoundaryEntry = $cryptBoundaryReview['entries'][0] ?? [];
 $directBefore = 'BT /F1 12 Tf 72 720 Td (Before direct CCITT EOB import) Tj ET';
 $directBetween = 'BT /F1 12 Tf 72 690 Td (Between direct CCITT EOB import) Tj ET';
 $directAfter = 'BT /F1 12 Tf 72 660 Td (After direct CCITT EOB import) Tj ET';
@@ -174,6 +196,14 @@ if (
     || (($boundaryReview['entries'][0]['raw_length'] ?? null) !== strlen($compressedFaxPayload))
 ) {
     throw new RuntimeException('Flate-wrapped CCITT Fax stale-length boundary smoke failed.');
+}
+if (
+    $cryptBoundaryLines !== ['Before Crypt CCITT import', 'After Crypt CCITT import']
+    || str_contains($boundaryExtractor->extractPlainText($cryptBoundaryPdf), 'WordPress Crypt CCITT prefix leak')
+    || (($cryptBoundaryEntry['raw_length'] ?? null) !== strlen($cryptWrappedFaxPayload))
+    || (($cryptBoundaryEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null) !== true)
+) {
+    throw new RuntimeException('Identity-Crypt-wrapped CCITT Fax EOFB boundary smoke failed.');
 }
 if (
     $directBoundaryLines !== ['Before direct CCITT EOB import', 'Between direct CCITT EOB import', 'After direct CCITT EOB import']
@@ -288,6 +318,11 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'flate_wrapped_ccitt_stale_length_repaired' => true,
     'flate_wrapped_ccitt_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($boundaryPdf), 'WordPress Flate CCITT prefix leak'),
     'flate_wrapped_ccitt_raw_length' => $boundaryReview['entries'][0]['raw_length'] ?? null,
+    'identity_crypt_wrapped_ccitt_eofb_boundary_repaired' => ($cryptBoundaryEntry['raw_length'] ?? null) === strlen($cryptWrappedFaxPayload),
+    'identity_crypt_wrapped_ccitt_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($cryptBoundaryPdf), 'WordPress Crypt CCITT prefix leak'),
+    'identity_crypt_wrapped_ccitt_raw_length' => $cryptBoundaryEntry['raw_length'] ?? null,
+    'identity_crypt_wrapped_ccitt_filters' => $cryptBoundaryEntry['filters'] ?? [],
+    'identity_crypt_wrapped_ccitt_end_of_block' => $cryptBoundaryEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null,
     'direct_ccitt_eofb_boundary_repaired' => ($directG4Entry['raw_length'] ?? null) === strlen($directG4Payload),
     'direct_ccitt_rtc_boundary_repaired' => ($directRtcEntry['raw_length'] ?? null) === strlen($directRtcPayload),
     'direct_ccitt_payload_excluded' => !str_contains($boundaryExtractor->extractPlainText($directBoundaryPdf), 'WordPress direct G4 CCITT leak')

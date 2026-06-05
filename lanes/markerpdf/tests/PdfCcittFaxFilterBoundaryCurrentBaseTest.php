@@ -613,6 +613,51 @@ return [
             $t->same(false, $entry['payload_in_visible_text'] ?? null);
         }
     },
+    'requires CCITT end-of-block markers after identity Crypt prefixes before fake stream owners' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before Crypt CCITT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After Crypt CCITT stream) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Fake Crypt CCITT owner leak) Tj ET';
+        $eofb = "\x00\x10\x01";
+        $faxPayload = "\x01\x02\x03\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\x04\x05{$eofb}";
+        $fakeTerminatorOffset = strpos($faxPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused Crypt-wrapped CCITT fixture must expose a raw fake endstream marker.');
+        }
+
+        $buildPdf = static function (?int $declaredLength) use ($before, $after, $faxPayload): string {
+            $lengthOperand = $declaredLength === null ? '' : " /Length {$declaredLength}";
+
+            return "%PDF-1.4\n"
+                . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Fax#20Crypt 5 0 R >> >> >>\nendobj\n"
+                . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+                . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+                . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/Crypt /CCITTFaxDecode] /DecodeParms [<< /Name /Identity >> << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>]{$lengthOperand} >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+                . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+        };
+
+        foreach ([$buildPdf(null), $buildPdf($fakeTerminatorOffset)] as $pdf) {
+            $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+            $plainText = $extractor->extractPlainText($pdf);
+            $entry = $review['entries'][0] ?? [];
+
+            $t->same(['Before Crypt CCITT stream', 'After Crypt CCITT stream'], $extractor->extractTextLines($pdf));
+            $t->same("Before Crypt CCITT stream\nAfter Crypt CCITT stream", $plainText);
+            $t->true(!str_contains($plainText, 'Fake Crypt CCITT owner leak'));
+            $t->true(!str_contains($plainText, 'endstream'));
+            $t->same(['Crypt', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+            $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+            $t->same(strlen($faxPayload), $entry['raw_length'] ?? null);
+            $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+            $t->same(false, $entry['payload_in_visible_text'] ?? null);
+            $t->same(-1, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+            $t->same(true, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null);
+        }
+    },
     'uses direct CCITT EOFB and RTC markers before accepting fake endstream owners' => static function (TestRunner $t) use ($ccittFaxDirectEndBlockBoundaryPdf): void {
         [$pdf, $g4Payload, $rtcPayload] = $ccittFaxDirectEndBlockBoundaryPdf();
         $extractor = new PdfTextExtractor();
