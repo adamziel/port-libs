@@ -412,6 +412,49 @@ return [
         $t->same('definitionURL', array_key_first($nodes[0]['children'][1]['children'][0]['attrs']));
         $t->same([], $summary['blockedTags']);
     },
+    'filters svg resource URLs while preserving local references before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/post.html">'
+            . '<figure><svg xmlns:xlink="http://www.w3.org/1999/xlink">'
+            . '<symbol id="icon"><path d="M0 0"></path></symbol>'
+            . '<use href="#icon"></use>'
+            . '<image href="mailto:cover@example.test" xlink:href="https://cdn.example.test/cover.svg"></image>'
+            . '<feImage href="tel:+15550100"></feImage>'
+            . '<textPath href="#label">Logo</textPath>'
+            . '<a href="mailto:review@example.test">mail</a>'
+            . '</svg></figure>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/svg-resource-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $svg = $nodes[0]['children'][0];
+
+        $t->same('https://source.example.test/import/post.html', $fragment->baseUrl());
+        $t->same('<figure><svg xmlns:xlink="http://www.w3.org/1999/xlink"><symbol id="icon"><path d="M0 0"></path></symbol><use href="#icon"></use><image xlink:href="https://cdn.example.test/cover.svg"></image><feImage></feImage><textPath href="#label">Logo</textPath><a href="mailto:review@example.test">mail</a></svg></figure>', $html);
+        $t->contains($html, $blocks);
+        $t->same(['href' => '#icon'], $svg['children'][1]['attrs']);
+        $t->same(['xlink:href' => 'https://cdn.example.test/cover.svg'], $svg['children'][2]['attrs']);
+        $t->same([], $svg['children'][3]['attrs']);
+        $t->same(['href' => '#label'], $svg['children'][4]['attrs']);
+        $t->same(['href' => 'mailto:review@example.test'], $svg['children'][5]['attrs']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['blocked-tag', 'unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same('/migration/svg-resource-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'mailto:cover@example.test'), 'Expected mailto SVG image resource URL to be removed');
+        $t->true(!str_contains($html, 'tel:+15550100'), 'Expected tel SVG filter resource URL to be removed');
+        $t->true(!str_contains($html, 'https://source.example.test/import/post.html#icon'), 'Expected SVG use reference to stay local under base URL metadata');
+        $t->true(!str_contains($html, 'https://source.example.test/import/post.html#label'), 'Expected SVG textPath reference to stay local under base URL metadata');
+    },
     'keeps html integration point descendants lowercase in sanitized fragments' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'

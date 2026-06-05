@@ -25,7 +25,7 @@ $sourceHtml = <<<'HTML'
   <xmp data-source="legacy-raw">Reviewer <script>alert(1)</script> &amp; <b>source</b></xmp>
   <table class="legacy-table"><caption>Review rows</caption><p data-review="loose-table">Loose table note</p><tr><td>Cell A</td></tr>orphan table text<tr><td>Cell B</td></tr></table>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
-  <figure class="foreign-content"><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></figure>
+  <figure class="foreign-content"><svg xmlns:xlink="http://www.w3.org/1999/xlink"><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject><symbol id="review-icon"><path d="M0 0"></path></symbol><use href="#review-icon"></use><image href="mailto:cover@example.test" xlink:href="https://example.test/review.svg"></image><feImage href="tel:+15550100"></feImage><textPath href="#review-label">Logo</textPath></svg><math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></figure>
   <script>alert("legacy embed")</script>
 </section>
 <plaintext data-source="legacy-plaintext">Plain reviewer <script>alert(1)</script> &amp; <b>tail</b></plaintext><p>suppressed tail</p>
@@ -55,6 +55,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p data-review="loose-table">Loose table note</p>orphan table text<table class="legacy-table"><caption>Review rows</caption><tr><td>Cell A</td></tr><tr><td>Cell B</td></tr></table>',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
         '<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>',
+        '<use href="#review-icon"></use><image xlink:href="https://example.test/review.svg"></image><feImage></feImage><textPath href="#review-label">Logo</textPath>',
         '<annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>',
         'Plain reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;tail&lt;/b&gt;&lt;/plaintext&gt;&lt;p&gt;suppressed tail&lt;/p&gt;',
         '<!-- wp:html -->',
@@ -64,7 +65,7 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'poster="tel:', 'href="mailto:cover@example.test"', 'href="tel:+15550100"', '<form', '<input', '<button', '<select', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }

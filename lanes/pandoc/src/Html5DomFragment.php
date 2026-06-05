@@ -691,7 +691,7 @@ final class Html5DomFragment
             }
 
             if (self::isUrlAttribute($name)) {
-                if (!self::isSafeUrlAttributeValue($name, $value)) {
+                if (!self::isSafeUrlAttributeValue($tagName, $name, $value, $foreignContext)) {
                     $diagnostics[] = [
                         'code' => 'unsafe-url',
                         'tag' => $tagName,
@@ -709,7 +709,9 @@ final class Html5DomFragment
                     ];
                 }
 
-                $value = $mode === 'html' && $baseUrl !== null
+                $value = $mode === 'html'
+                    && $baseUrl !== null
+                    && !self::isLocalSvgReferenceUrl($tagName, $name, $normalizedUrl, $foreignContext)
                     ? self::resolveRelativeUrl($baseUrl, $normalizedUrl)
                     : $normalizedUrl;
             }
@@ -811,8 +813,12 @@ final class Html5DomFragment
         ], true);
     }
 
-    private static function isSafeUrlAttributeValue(string $name, string $value): bool
+    private static function isSafeUrlAttributeValue(string $tagName, string $name, string $value, ?string $foreignContext): bool
     {
+        if (self::isSvgResourceReferenceAttribute($tagName, $name, $foreignContext)) {
+            return self::isSafeFetchUrl($value);
+        }
+
         if (in_array(strtolower($name), [
             'action',
             'background',
@@ -829,6 +835,19 @@ final class Html5DomFragment
         }
 
         return self::isSafeUrl($value);
+    }
+
+    private static function isSvgResourceReferenceAttribute(string $tagName, string $name, ?string $foreignContext): bool
+    {
+        return $foreignContext === 'svg'
+            && strtolower($tagName) !== 'a'
+            && in_array(strtolower($name), ['href', 'xlink:href'], true);
+    }
+
+    private static function isLocalSvgReferenceUrl(string $tagName, string $name, string $value, ?string $foreignContext): bool
+    {
+        return self::isSvgResourceReferenceAttribute($tagName, $name, $foreignContext)
+            && str_starts_with($value, '#');
     }
 
     private static function isSafeFetchUrl(string $value): bool
