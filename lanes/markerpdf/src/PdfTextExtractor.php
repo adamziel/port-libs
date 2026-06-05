@@ -20831,7 +20831,74 @@ final class PdfTextExtractor
             return 'unknown';
         }
 
+        $structuredComplete = $this->jpxPreviewBytesAreCompleteCodestream($bytes);
+        if ($structuredComplete !== null) {
+            return $structuredComplete ? 'complete' : 'incomplete';
+        }
+
         return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
+    }
+
+    private function jpxPreviewBytesAreCompleteCodestream(string $bytes): ?bool
+    {
+        if (!str_starts_with($bytes, "\xff\x4f")) {
+            return null;
+        }
+
+        $offset = 2;
+        $length = strlen($bytes);
+        while ($offset + 1 < $length) {
+            if ($bytes[$offset] !== "\xff") {
+                return null;
+            }
+
+            while ($offset < $length && $bytes[$offset] === "\xff") {
+                $offset++;
+            }
+            if ($offset >= $length) {
+                return false;
+            }
+
+            $marker = ord($bytes[$offset]);
+            $offset++;
+            if ($marker === 0x00) {
+                return null;
+            }
+            if ($marker === 0xd9) {
+                return true;
+            }
+            if ($marker === 0x93) {
+                return strpos($bytes, "\xff\xd9", $offset) !== false;
+            }
+            if (!$this->jpxMarkerSegmentHasLength($marker)) {
+                continue;
+            }
+            if ($offset + 2 > $length) {
+                return false;
+            }
+
+            $segmentLength = unpack('n', substr($bytes, $offset, 2))[1];
+            if (!is_int($segmentLength) || $segmentLength < 2) {
+                return null;
+            }
+
+            $segmentEnd = $offset + $segmentLength;
+            if ($segmentEnd > $length) {
+                return false;
+            }
+            $offset = $segmentEnd;
+        }
+
+        return false;
+    }
+
+    private function jpxMarkerSegmentHasLength(int $marker): bool
+    {
+        if ($marker === 0x01 || $marker === 0x4f || $marker === 0x92 || $marker === 0x93 || $marker === 0xd9) {
+            return false;
+        }
+
+        return $marker < 0xd0 || $marker > 0xd7;
     }
 
     /**

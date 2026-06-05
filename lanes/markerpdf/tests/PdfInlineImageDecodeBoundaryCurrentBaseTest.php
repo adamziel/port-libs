@@ -152,6 +152,15 @@ $runLengthLiteralEncode = static function (string $bytes, bool $includeEod = tru
     return $encoded . ($includeEod ? chr(128) : '');
 };
 
+$jpxCodestreamWithLengthSegmentFalseEoc = static function (): string {
+    $leak = 'BT /F1 12 Tf 72 690 Td (Inline JPX Segment Noise) Tj ET';
+    $segmentPayload = "SIZ segment before false EOC \xff\xd9 EI {$leak} still inside segment";
+
+    return "\xff\x4f"
+        . "\xff\x51" . pack('n', strlen($segmentPayload) + 2) . $segmentPayload
+        . "\xff\xd9";
+};
+
 return [
     'requires ASCII85 inline image end marker before accepting delimiter-looking EI bytes' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -232,6 +241,32 @@ return [
         $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($plainText, 'Inline DP Image Noise'));
         $t->true(!str_contains($plainText, 'raw EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
+    'ignores false inline JPX EOC markers inside length-coded codestream segments' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $jpxCodestreamWithLengthSegmentFalseEoc): void {
+        $extractor = new PdfTextExtractor();
+        $jpxPayload = $jpxCodestreamWithLengthSegmentFalseEoc();
+        $content = "BT /F1 12 Tf 72 720 Td (Before JPX Segment Inline Image) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode ID\n"
+            . $jpxPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After JPX Segment Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before JPX Segment Inline Image',
+            'After JPX Segment Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($jpxPayload, "\xff\xd9 EI"));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Inline JPX Segment Noise'));
+        $t->true(!str_contains($plainText, 'SIZ segment before false EOC'));
+        $t->true(!str_contains($plainText, 'still inside segment'));
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
