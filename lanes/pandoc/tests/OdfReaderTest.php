@@ -256,6 +256,70 @@ return [
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('Ready for review', $table->children[1]->children[0]->children[0]->attr('text'));
     },
+    'maps ODT footnotes endnotes and bookmark references into reviewable AST nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithNotesAndBookmarks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Bookmark <text:bookmark-start text:name="Review Anchor"/>target<text:bookmark-end text:name="Review Anchor"/> and <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">jump back</text:bookmark-ref>.</text:p>
+      <text:p>Footnote<text:note text:id="ftn1" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODF footnote body.</text:p></text:note-body></text:note> Endnote<text:note text:id="edn1" text:note-class="endnote"><text:note-citation>i</text:note-citation><text:note-body><text:p>ODF endnote body with <text:a xlink:href="https://example.test/review">review link</text:a>.</text:p></text:note-body></text:note></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithNotesAndBookmarks));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $bookmarkParagraph = $blocks[0];
+        $bookmark = $bookmarkParagraph->children[1];
+        $reference = $bookmarkParagraph->children[3];
+        $t->same('span', $bookmark->type);
+        $t->same('review-anchor', $bookmark->attr('id'));
+        $t->same(['anchor', 'odf-bookmark'], $bookmark->attr('classes'));
+        $t->same('Review Anchor', $bookmark->attr('attributes')['data-odf-bookmark-name']);
+        $t->same('link', $reference->type);
+        $t->same('#review-anchor', $reference->attr('url'));
+        $t->same(['odf-bookmark-ref'], $reference->attr('classes'));
+        $t->same('Review Anchor', $reference->attr('attributes')['data-odf-ref-name']);
+        $t->same('text', $reference->attr('attributes')['data-odf-reference-format']);
+        $t->same('jump back', $reference->children[0]->attr('text'));
+
+        $noteParagraph = $blocks[1];
+        $footnote = $noteParagraph->children[1];
+        $endnote = $noteParagraph->children[3];
+        $t->same('note', $footnote->type);
+        $t->same('footnote', $footnote->attr('noteClass'));
+        $t->same('ftn1', $footnote->attr('id'));
+        $t->same('1', $footnote->attr('citation'));
+        $t->same('ODF footnote body.', $footnote->children[0]->attr('text'));
+        $t->same('note', $endnote->type);
+        $t->same('endnote', $endnote->attr('noteClass'));
+        $t->same('edn1', $endnote->attr('id'));
+        $t->same('i', $endnote->attr('citation'));
+        $t->same('ODF endnote body with review link.', $endnote->children[0]->attr('text'));
+        $t->same('link', $endnote->children[0]->children[1]->type);
+        $t->same('https://example.test/review', $endnote->children[0]->children[1]->attr('url'));
+
+        $t->same(2, $result['importReport']['content']['noteCount']);
+        $t->same(1, $result['importReport']['content']['bookmarkCount']);
+        $t->same(1, $result['importReport']['content']['bookmarkReferenceCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[]{#review-anchor .anchor .odf-bookmark data-odf-bookmark-name="Review Anchor"}', $markdown);
+        $t->contains('[jump back](#review-anchor){.odf-bookmark-ref data-odf-ref-name="Review Anchor" data-odf-reference-format="text"}', $markdown);
+        $t->contains('[^1]: ODF footnote body.', $markdown);
+        $t->contains('[^2]: ODF endnote body with [review link](https://example.test/review).', $markdown);
+        $t->contains('<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor"></span>', $blocksHtml);
+        $t->contains('<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">jump back</a>', $blocksHtml);
+        $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
+        $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);

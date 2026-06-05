@@ -37,6 +37,7 @@ final class OdfReader
         $manifest = $this->readManifest($package);
         $styleCatalog = $this->readStyles($package);
         $content = $this->readContent($package, $styleCatalog);
+        $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
         $metadata = $this->readMeta($package);
         $media = $this->mediaReport($package, $manifest);
@@ -92,6 +93,9 @@ final class OdfReader
                 'content' => [
                     'blockCount' => count($content['blocks']),
                     'automaticStyleCount' => $content['automaticStyleCount'],
+                    'noteCount' => $contentStats['noteCount'],
+                    'bookmarkCount' => $contentStats['bookmarkCount'],
+                    'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
                 ],
             ],
         ];
@@ -332,11 +336,11 @@ final class OdfReader
             }
 
             if ($this->isElement($child, self::TEXT_NS, 'h')) {
-                $blocks[] = $this->headingNode($child, $catalog);
+                $blocks[] = $this->headingNode($child, $catalog, $package);
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 'p')) {
-                $paragraph = $this->paragraphNode($child, $catalog);
+                $paragraph = $this->paragraphNode($child, $catalog, $package);
                 if ($paragraph !== null) {
                     $blocks[] = $paragraph;
                 }
@@ -372,7 +376,7 @@ final class OdfReader
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      */
-    private function headingNode(\DOMElement $heading, array $catalog): AstNode
+    private function headingNode(\DOMElement $heading, array $catalog, ?ZipPackage $package = null): AstNode
     {
         $styleName = self::attr($heading, self::TEXT_NS, 'style-name');
         $style = $this->resolveStyle($styleName, $catalog);
@@ -387,17 +391,17 @@ final class OdfReader
             $attrs['style'] = $style;
         }
 
-        return new AstNode('heading', $attrs, $this->coalesceTextNodes($this->inlineNodes($heading, $catalog)));
+        return new AstNode('heading', $attrs, $this->coalesceTextNodes($this->inlineNodes($heading, $catalog, $package)));
     }
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      */
-    private function paragraphNode(\DOMElement $paragraph, array $catalog): ?AstNode
+    private function paragraphNode(\DOMElement $paragraph, array $catalog, ?ZipPackage $package = null): ?AstNode
     {
         $styleName = self::attr($paragraph, self::TEXT_NS, 'style-name');
         $style = $this->resolveStyle($styleName, $catalog);
-        $inlines = $this->coalesceTextNodes($this->inlineNodes($paragraph, $catalog));
+        $inlines = $this->coalesceTextNodes($this->inlineNodes($paragraph, $catalog, $package));
         $text = $this->plainInlineText($inlines);
         if ($inlines === [] && trim($text) === '') {
             return null;
@@ -656,7 +660,7 @@ final class OdfReader
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      * @return list<AstNode>
      */
-    private function inlineNodes(\DOMElement $parent, array $catalog): array
+    private function inlineNodes(\DOMElement $parent, array $catalog, ?ZipPackage $package = null): array
     {
         $nodes = [];
         foreach ($parent->childNodes as $child) {
@@ -671,7 +675,7 @@ final class OdfReader
             }
 
             if ($this->isElement($child, self::TEXT_NS, 'span')) {
-                array_push($nodes, ...$this->spanNodes($child, $catalog));
+                array_push($nodes, ...$this->spanNodes($child, $catalog, $package));
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 'a')) {
@@ -680,7 +684,7 @@ final class OdfReader
                 if ($title !== '') {
                     $attrs['title'] = $title;
                 }
-                $nodes[] = new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($child, $catalog)));
+                $nodes[] = new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($child, $catalog, $package)));
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 's')) {
@@ -697,9 +701,27 @@ final class OdfReader
                 continue;
             }
             if ($this->isElement($child, self::DRAW_NS, 'frame')) {
-                $image = $this->frameImageNode($child, null);
+                $image = $this->frameImageNode($child, $package);
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'note')) {
+                $nodes[] = $this->noteNode($child, $package, $catalog);
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'bookmark-start') || $this->isElement($child, self::TEXT_NS, 'bookmark')) {
+                $bookmark = $this->bookmarkAnchorNode($child);
+                if ($bookmark instanceof AstNode) {
+                    $nodes[] = $bookmark;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'bookmark-ref')) {
+                $bookmarkRef = $this->bookmarkReferenceNode($child, $catalog, $package);
+                if ($bookmarkRef instanceof AstNode) {
+                    $nodes[] = $bookmarkRef;
                 }
                 continue;
             }
@@ -715,11 +737,11 @@ final class OdfReader
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      * @return list<AstNode>
      */
-    private function spanNodes(\DOMElement $span, array $catalog): array
+    private function spanNodes(\DOMElement $span, array $catalog, ?ZipPackage $package = null): array
     {
         $styleName = self::attr($span, self::TEXT_NS, 'style-name');
         $style = $this->resolveStyle($styleName, $catalog);
-        $children = $this->coalesceTextNodes($this->inlineNodes($span, $catalog));
+        $children = $this->coalesceTextNodes($this->inlineNodes($span, $catalog, $package));
         if ($children === []) {
             return [];
         }
@@ -754,6 +776,105 @@ final class OdfReader
         }
 
         return $children;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function noteNode(\DOMElement $note, ?ZipPackage $package, array $catalog): AstNode
+    {
+        $noteClass = self::attr($note, self::TEXT_NS, 'note-class');
+        $noteClass = $noteClass === '' ? 'footnote' : $noteClass;
+        $citation = self::firstChildElement($note, 'note-citation', self::TEXT_NS);
+        $body = self::firstChildElement($note, 'note-body', self::TEXT_NS);
+        $blocks = [];
+        if ($body instanceof \DOMElement) {
+            $blocks = $package instanceof ZipPackage
+                ? $this->blockNodes($body, $package, $catalog)
+                : $this->noteFallbackBlocks($body, $catalog);
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'noteClass' => $noteClass,
+        ];
+        $id = self::attr($note, self::TEXT_NS, 'id');
+        if ($id !== '') {
+            $attrs['id'] = $id;
+        }
+        if ($citation instanceof \DOMElement) {
+            $attrs['citation'] = self::normalizedText($citation);
+        }
+
+        return new AstNode('note', $attrs, $blocks);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @return list<AstNode>
+     */
+    private function noteFallbackBlocks(\DOMElement $body, array $catalog): array
+    {
+        $blocks = [];
+        foreach (self::childElements($body, 'p', self::TEXT_NS) as $paragraph) {
+            $node = $this->paragraphNode($paragraph, $catalog);
+            if ($node instanceof AstNode) {
+                $blocks[] = $node;
+            }
+        }
+
+        return $blocks;
+    }
+
+    private function bookmarkAnchorNode(\DOMElement $bookmark): ?AstNode
+    {
+        $name = self::attr($bookmark, self::TEXT_NS, 'name');
+        if ($name === '') {
+            return null;
+        }
+
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'id' => self::bookmarkId($name),
+            'classes' => ['anchor', 'odf-bookmark'],
+            'attributes' => [
+                'data-odf-bookmark-name' => $name,
+            ],
+        ]);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function bookmarkReferenceNode(\DOMElement $reference, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $name = self::attr($reference, self::TEXT_NS, 'ref-name');
+        if ($name === '') {
+            $name = self::attr($reference, self::TEXT_NS, 'name');
+        }
+        if ($name === '') {
+            return null;
+        }
+
+        $children = $this->coalesceTextNodes($this->inlineNodes($reference, $catalog, $package));
+        if ($children === []) {
+            $children = [new AstNode('text', ['text' => $name])];
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'url' => '#' . self::bookmarkId($name),
+            'classes' => ['odf-bookmark-ref'],
+            'attributes' => [
+                'data-odf-ref-name' => $name,
+            ],
+        ];
+        $format = self::attr($reference, self::TEXT_NS, 'reference-format');
+        if ($format !== '') {
+            $attrs['attributes']['data-odf-reference-format'] = $format;
+        }
+
+        return new AstNode('link', $attrs, $children);
     }
 
     /**
@@ -1097,6 +1218,47 @@ final class OdfReader
         return $media;
     }
 
+    /**
+     * @param list<AstNode> $nodes
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int}
+     */
+    private function contentNodeStats(array $nodes): array
+    {
+        $stats = [
+            'noteCount' => 0,
+            'bookmarkCount' => 0,
+            'bookmarkReferenceCount' => 0,
+        ];
+        foreach ($nodes as $node) {
+            if ($node->type === 'note') {
+                $stats['noteCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
+                $stats['bookmarkCount']++;
+            }
+            if ($node->type === 'link' && $this->nodeHasClass($node, 'odf-bookmark-ref')) {
+                $stats['bookmarkReferenceCount']++;
+            }
+
+            $childStats = $this->contentNodeStats($node->children);
+            foreach ($childStats as $name => $count) {
+                $stats[$name] += $count;
+            }
+        }
+
+        return $stats;
+    }
+
+    private function nodeHasClass(AstNode $node, string $class): bool
+    {
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            return false;
+        }
+
+        return in_array($class, array_map(static fn (mixed $value): string => (string) $value, $classes), true);
+    }
+
     private function manifestPackagePart(string $path): string
     {
         $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
@@ -1294,5 +1456,13 @@ final class OdfReader
         $slug = trim($slug, '-');
 
         return $slug === '' ? 'odf-section' : $slug;
+    }
+
+    private static function bookmarkId(string $name): string
+    {
+        $id = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', trim($name)) ?? '');
+        $id = trim($id, '-');
+
+        return $id === '' ? 'odf-bookmark' : $id;
     }
 }

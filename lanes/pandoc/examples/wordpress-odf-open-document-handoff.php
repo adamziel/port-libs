@@ -48,7 +48,7 @@ $contentXml = <<<'XML'
   <office:body>
     <office:text>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:a xlink:href="https://example.test/odt-source">source URL</text:a> and annotations<office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
@@ -115,8 +115,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<a href="https://example.test/odt-source">source URL</a>')) {
         throw new RuntimeException('Expected ODT source link to render in WordPress blocks');
     }
+    if (!str_contains($blocks, '<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor"></span>')) {
+        throw new RuntimeException('Expected ODT bookmark anchor to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">internal reference</a>')) {
+        throw new RuntimeException('Expected ODT bookmark reference to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
+        throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
+    }
     if (!str_contains($blocks, '<section class="footnotes" role="doc-endnotes">')) {
         throw new RuntimeException('Expected ODT annotation to render as a review footnote');
+    }
+    if (!str_contains($blocks, 'ODT footnote reviewer context.')) {
+        throw new RuntimeException('Expected ODT footnote body to render in WordPress footnotes');
     }
     if (!str_contains($blocks, '<td colspan="2"><p>Ready for block import review</p></td>')) {
         throw new RuntimeException('Expected ODT table colspan to survive WordPress table handoff');
