@@ -7002,8 +7002,18 @@ final class PdfTextExtractor
             return null;
         }
 
-        $terminator = $this->skipPdfWhitespace($value, $eoi + 2);
+        $terminator = $this->skipDctPreviewPadding($value, $eoi + 2);
         return $this->endstreamKeywordAt($value, $terminator) ? $terminator : null;
+    }
+
+    private function skipDctPreviewPadding(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && str_contains("\x00\t\n\f\r ", $value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     /**

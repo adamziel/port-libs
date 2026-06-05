@@ -12,7 +12,7 @@ $fakeObject = 'BT /F1 12 Tf 72 700 Td (JPEG Payload Object Leak) Tj ET';
 $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
     . "endstream\nendobj\n"
     . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
-    . "\xff\xd9";
+    . "\xff\xd9\0\0";
 $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
 if ($fakeTerminatorOffset === false) {
     throw new RuntimeException('DCT stream terminator fixture must contain an embedded fake endstream marker.');
@@ -54,6 +54,7 @@ echo '<!-- markerpdf:pdf-dctdecode-stream-terminator-boundary-currentbase ' . ht
     'upstream_boundary' => 'marker.pdf.extract_text.get_text_blocks',
     'stream_filters' => ['DCTDecode'],
     'jpeg_soi_eoi_delimiter_guard' => true,
+    'nul_padded_jpeg_eoi_boundary' => true,
     'prefix_filter_eod_guard' => true,
     'stale_length_fake_endstream_rejected' => true,
     'embedded_fake_object_rejected' => $payloadExcluded && $prefixPayloadExcluded,

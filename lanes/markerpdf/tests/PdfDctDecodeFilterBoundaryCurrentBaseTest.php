@@ -156,6 +156,41 @@ return [
             $t->true(!str_contains($plainText, 'endstream'));
         }
     },
+    'keeps NUL-padded DCTDecode JPEG EOI boundaries before fake endstream payloads' => static function (TestRunner $t): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before padded DCT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After padded DCT stream) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Padded DCT payload leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\xff\xd9\0\0";
+        $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused padded DCT fixture must contain a fake endstream terminator.');
+        }
+
+        $buildPdf = static function (?int $declaredLength) use ($before, $after, $jpegPayload): string {
+            $lengthOperand = $declaredLength === null ? '' : " /Length {$declaredLength}";
+
+            return "%PDF-1.4\n"
+                . "1 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+                . "2 0 obj\n<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode{$lengthOperand} >>\nstream\n{$jpegPayload}\nendstream\nendobj\n"
+                . "3 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n%%EOF";
+        };
+
+        foreach ([$buildPdf(null), $buildPdf($fakeTerminatorOffset)] as $pdf) {
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same(['Before padded DCT stream', 'After padded DCT stream'], $extractor->extractTextLines($pdf));
+            $t->same(['Before padded DCT stream', 'After padded DCT stream'], $extractor->extractTextRuns($pdf));
+            $t->same("Before padded DCT stream\nAfter padded DCT stream", $plainText);
+            $t->same("Before padded DCT stream\nAfter padded DCT stream\n", $extractor->naiveGetText($pdf));
+            $t->true(!str_contains($plainText, 'Padded DCT payload leak'));
+            $t->true(!str_contains($plainText, 'JFIF'));
+            $t->true(!str_contains($plainText, 'endstream'));
+        }
+    },
     'keeps Flate-wrapped DCTDecode JPEG endstream decoys inside image payload boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before Flate DCT stream) Tj ET';
