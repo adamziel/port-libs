@@ -7438,14 +7438,72 @@ final class PdfMetadataExtractor
      */
     private function boundedXmpXmlRootCandidates(string $xml): array
     {
+        $packetCandidates = [];
         foreach ($this->xmpPacketContentCandidates($xml) as $packetXml) {
             $candidates = $this->boundedXmpXmlRootCandidatesFromXml($packetXml);
             if ($candidates !== []) {
-                return $candidates;
+                foreach ($candidates as $candidate) {
+                    if (!in_array($candidate, $packetCandidates, true)) {
+                        $packetCandidates[] = $candidate;
+                    }
+                }
+
+                if (!$this->xmpXmlRootCandidatesAreOnlyEmptyXmpmetaWrappers($candidates)) {
+                    return $packetCandidates;
+                }
             }
+        }
+        if ($packetCandidates !== []) {
+            return $packetCandidates;
         }
 
         return $this->boundedXmpXmlRootCandidatesFromXml($xml);
+    }
+
+    /**
+     * @param list<string> $candidates
+     */
+    private function xmpXmlRootCandidatesAreOnlyEmptyXmpmetaWrappers(array $candidates): bool
+    {
+        if ($candidates === []) {
+            return false;
+        }
+
+        foreach ($candidates as $candidate) {
+            if (!$this->xmpXmlRootCandidateIsEmptyXmpmetaWrapper($candidate)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function xmpXmlRootCandidateIsEmptyXmpmetaWrapper(string $xml): bool
+    {
+        $root = $this->xmlRootStartForLocalName($xml, 'xmpmeta');
+        if ($root === null || $root['offset'] !== 0 || !$this->xmpmetaRootDeclaresAdobeNamespace($xml)) {
+            return false;
+        }
+
+        $openEnd = $this->xmlTagEndOffset($xml, 0);
+        if ($openEnd === null) {
+            return false;
+        }
+
+        $openTag = substr($xml, 0, $openEnd);
+        if (str_ends_with(rtrim($openTag), '/>')) {
+            return true;
+        }
+
+        $closeStart = strrpos($xml, '</');
+        if ($closeStart === false || $closeStart < $openEnd) {
+            return false;
+        }
+
+        $inner = substr($xml, $openEnd, $closeStart - $openEnd);
+        $inner = preg_replace('/<!--.*?-->|<\?.*?\?>/s', '', $inner) ?? $inner;
+
+        return trim($inner, " \t\r\n\0") === '';
     }
 
     /**
