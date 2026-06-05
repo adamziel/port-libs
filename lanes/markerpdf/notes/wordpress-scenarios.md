@@ -446,6 +446,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-image-xobject-imagemask-pattern-currentbase.php` maps ImageMask XObject stencil paint colors through named nonstroking `/ColorSpace` and `/Pattern` resources into WordPress media-review metadata. It resolves the named RGB color space, verifies the tiling pattern resource, emits only surrounding Gutenberg paragraphs, and excludes stencil payload bytes without Python, pdftext, pypdfium/PDFium execution, PIL, Poppler, Ghostscript, models, OCR, or external PDF tools.
 
+`examples/wordpress-pdf-image-xobject-tiling-pattern-currentbase.php` maps Image XObjects invoked from painted PatternType 1 tiling-pattern streams into WordPress media-review metadata. It records the pattern resource/object, paint bbox, pattern matrix, image placement bbox, safe decoded hashes for painted and unpainted pattern resources, emits only surrounding Gutenberg paragraphs, and excludes pattern image payload bytes without Python, pdftext, pypdfium/PDFium execution, PIL, Poppler, Ghostscript, models, OCR, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

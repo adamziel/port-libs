@@ -314,6 +314,7 @@ final class PdfTextExtractor
                 $optionalContentStates,
                 [],
                 [],
+                [],
                 null,
                 true,
                 $baseInvocationStates,
@@ -4109,6 +4110,32 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<string, array{objectNumber: int, generation: int, body: string|null}>
+     * @param array<int, string> $objects
+     */
+    private function patternResourceReferences(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $patternDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Pattern');
+        if ($patternDictionary === null) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($this->topLevelResourceReferenceEntries($patternDictionary) as $resourceName => $resource) {
+            $objectNumber = $resource['objectNumber'];
+            $generation = $resource['generation'];
+            $references[$resourceName] = [
+                'objectNumber' => $objectNumber,
+                'generation' => $generation,
+                'body' => $this->objectBodyForExactReference($objects, $objectNumber, $generation),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
      * @return array<string, array<string, mixed>>
      * @param array<int, string> $objects
      */
@@ -4472,6 +4499,167 @@ final class PdfTextExtractor
         }
 
         return $invocations;
+    }
+
+    /**
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
+     * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>}>>
+     */
+    private function contentPatternPaintInvocationDetails(
+        string $content,
+        array $baseStates = [],
+        array $graphicsStateResourceReviews = []
+    ): array
+    {
+        $currentStates = $this->normalizedInvocationBaseStates($baseStates);
+        $graphicsStateStack = [];
+        $paints = [];
+        $operands = [];
+        $insideTextObject = false;
+        $compatibilityDepth = 0;
+
+        foreach ($this->contentTokens($content) as $token) {
+            if (!$this->isOperator($token)) {
+                $operands[] = $token;
+                continue;
+            }
+
+            if ($insideTextObject) {
+                if ($token === 'ET') {
+                    $insideTextObject = false;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                $operands = [];
+                continue;
+            }
+
+            if ($compatibilityDepth > 0) {
+                if ($token === 'EX') {
+                    $compatibilityDepth--;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'ET') {
+                $insideTextObject = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'q') {
+                $graphicsStateStack[] = $currentStates;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $restoredStates = array_pop($graphicsStateStack);
+                if (is_array($restoredStates)) {
+                    $currentStates = $restoredStates;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($this->isNonstrokingPatternPaintOperator($token)) {
+                foreach ($currentStates as $index => $state) {
+                    $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+                    $patternName = is_string($graphicsState['nonstroking_pattern_name'] ?? null)
+                        ? $graphicsState['nonstroking_pattern_name']
+                        : null;
+                    $pathBbox = $this->normalizedPdfRectangleOrNull($state['path_bbox'] ?? null);
+                    if (
+                        $patternName !== null
+                        && ($graphicsState['nonstroking_color_space'] ?? null) === 'Pattern'
+                        && $pathBbox !== null
+                    ) {
+                        $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox'] ?? null);
+                        $visibleBbox = $this->visibleImageInvocationBbox($pathBbox, $clipRectangle);
+                        $paints[$patternName][] = [
+                            'matrix' => $this->normalizedPdfReviewNumbers($state['matrix']),
+                            'bbox' => $pathBbox,
+                            'clip_bbox' => $clipRectangle,
+                            'visible_bbox' => $visibleBbox,
+                            'clipped' => $clipRectangle !== null
+                                && ($visibleBbox === null || !$this->pdfRectanglesEqual($pathBbox, $visibleBbox)),
+                            'graphics_state' => $graphicsState,
+                        ];
+                    }
+
+                    $currentStates[$index]['path_bbox'] = null;
+                    $currentStates[$index]['path_current_point'] = null;
+                    $currentStates[$index]['path_start_point'] = null;
+                }
+                $operands = [];
+                continue;
+            }
+
+            $clipPathOperatorHandled = false;
+            foreach ($currentStates as $index => $state) {
+                $matrix = $state['matrix'];
+                $clipRectangle = $state['clip_bbox'];
+                $currentPathRectangle = $state['path_bbox'];
+                $currentPathPoint = $state['path_current_point'];
+                $currentSubpathStartPoint = $state['path_start_point'];
+                if ($this->applyClipPathStateOperator(
+                    $token,
+                    $operands,
+                    $clipRectangle,
+                    $currentPathRectangle,
+                    $matrix,
+                    $currentPathPoint,
+                    $currentSubpathStartPoint
+                )) {
+                    $currentStates[$index]['matrix'] = $matrix;
+                    $currentStates[$index]['clip_bbox'] = $clipRectangle;
+                    $currentStates[$index]['path_bbox'] = $currentPathRectangle;
+                    $currentStates[$index]['path_current_point'] = $currentPathPoint;
+                    $currentStates[$index]['path_start_point'] = $currentSubpathStartPoint;
+                    $clipPathOperatorHandled = true;
+                }
+            }
+            if ($clipPathOperatorHandled) {
+                $operands = [];
+                continue;
+            }
+
+            if ($this->applyNonstrokingColorStateOperator($token, $operands, $currentStates)) {
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'gs') {
+                $resourceName = $this->xObjectNameOperand($operands);
+                if ($resourceName !== null && isset($graphicsStateResourceReviews[$resourceName])) {
+                    foreach ($currentStates as $index => $state) {
+                        $currentStates[$index]['graphics_state'] = $this->applyExtGStateReviewToInvocationState(
+                            $state['graphics_state'] ?? $this->defaultInvocationGraphicsState(),
+                            $resourceName,
+                            $graphicsStateResourceReviews[$resourceName]
+                        );
+                    }
+                }
+                $operands = [];
+                continue;
+            }
+
+            $operands = [];
+        }
+
+        return $paints;
     }
 
     /**
@@ -5115,6 +5303,7 @@ final class PdfTextExtractor
         array $optionalContentStates = [],
         array $resourcePath = [],
         array $activeFormObjectNumbers = [],
+        array $activePatternObjectNumbers = [],
         ?int $parentFormObjectNumber = null,
         bool $includeUninvokedImageResources = true,
         array $ownerInvocationMatrices = [],
@@ -5122,7 +5311,8 @@ final class PdfTextExtractor
         ?array $pageResourceReview = null
     ): array {
         $xObjectMap = $this->xObjectResourceReferences($resourceOwnerBody, $objects);
-        if ($xObjectMap === []) {
+        $patternMap = $this->patternResourceReferences($resourceOwnerBody, $objects);
+        if ($xObjectMap === [] && $patternMap === []) {
             return [];
         }
 
@@ -5155,9 +5345,13 @@ final class PdfTextExtractor
 
         $graphicsStateResourceReviews = $this->extGStateResourceReviews($resourceOwnerBody, $objects);
         $invocations = [];
+        $patternPaints = [];
         foreach ($decodedContents as $content) {
             foreach ($this->contentXObjectInvocationDetails($content, $ownerInvocationMatrices, $graphicsStateResourceReviews) as $resourceName => $details) {
                 $invocations[$resourceName] = array_merge($invocations[$resourceName] ?? [], $details);
+            }
+            foreach ($this->contentPatternPaintInvocationDetails($content, $ownerInvocationMatrices, $graphicsStateResourceReviews) as $resourceName => $details) {
+                $patternPaints[$resourceName] = array_merge($patternPaints[$resourceName] ?? [], $details);
             }
         }
 
@@ -5240,6 +5434,7 @@ final class PdfTextExtractor
                 $optionalContentStates,
                 $entryResourcePath,
                 $nextActiveForms,
+                $activePatternObjectNumbers,
                 $objectNumber,
                 $formHasOwnResources,
                 $formInvocationStates,
@@ -5247,6 +5442,96 @@ final class PdfTextExtractor
                 $formHasOwnResources ? null : $pageResourceReview
             ) as $nestedEntry) {
                 $entries[] = $nestedEntry;
+            }
+        }
+
+        foreach ($patternMap as $patternName => $reference) {
+            $paintDetails = $patternPaints[$patternName] ?? [];
+            if ($paintDetails === []) {
+                continue;
+            }
+
+            $activePatternKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($activePatternObjectNumbers[$activePatternKey])) {
+                continue;
+            }
+
+            $pattern = $this->decodedTilingPatternBody($reference['body'], $objects);
+            if ($pattern === null) {
+                continue;
+            }
+
+            $nextActivePatterns = $activePatternObjectNumbers;
+            $nextActivePatterns[$activePatternKey] = true;
+            $patternMatrix = $this->pdfMatrixValueAfterName($pattern['dict'], 'Matrix', $objects)
+                ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+            $patternBbox = $this->pdfRectangleValueAfterName($pattern['dict'], 'BBox', $objects);
+            $patternInvocationStates = [];
+            $patternMatrices = [];
+            $patternBboxes = [];
+            $patternVisibleBboxes = [];
+            foreach ($paintDetails as $detail) {
+                $matrix = $detail['matrix'] ?? null;
+                if (!is_array($matrix) || count($matrix) < 6) {
+                    continue;
+                }
+
+                $patternBaseMatrix = $this->pdfMatrixMultiply($matrix, $patternMatrix);
+                $patternClipBbox = $this->normalizedPdfRectangleOrNull($detail['visible_bbox'] ?? null)
+                    ?? $this->normalizedPdfRectangleOrNull($detail['bbox'] ?? null)
+                    ?? $this->normalizedPdfRectangleOrNull($detail['clip_bbox'] ?? null);
+                if ($patternBbox !== null) {
+                    $patternClipBbox = $this->pdfRectangleIntersection(
+                        $patternClipBbox,
+                        $this->pdfRectangleTransform($patternBaseMatrix, $patternBbox)
+                    );
+                }
+
+                $patternInvocationStates[] = [
+                    'matrix' => $patternBaseMatrix,
+                    'clip_bbox' => $patternClipBbox,
+                    'graphics_state' => $detail['graphics_state'] ?? null,
+                ];
+                $patternMatrices[] = $this->normalizedPdfReviewNumbers($patternBaseMatrix);
+                if (isset($detail['bbox']) && is_array($detail['bbox']) && count($detail['bbox']) >= 4) {
+                    $patternBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($detail['bbox'], 0, 4));
+                }
+                if (isset($detail['visible_bbox']) && is_array($detail['visible_bbox']) && count($detail['visible_bbox']) >= 4) {
+                    $patternVisibleBboxes[] = $this->normalizedPdfReviewNumbers(array_slice($detail['visible_bbox'], 0, 4));
+                }
+            }
+
+            if ($patternInvocationStates === []) {
+                continue;
+            }
+
+            foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
+                $pageIndex,
+                $pageObjectNumber,
+                $pattern['body'],
+                $objects,
+                [$pattern['stream']],
+                $optionalContentStates,
+                [...$resourcePath, $patternName],
+                $activeFormObjectNumbers,
+                $nextActivePatterns,
+                $parentFormObjectNumber,
+                true,
+                $patternInvocationStates,
+                $pageBoundaryClipReview,
+                $pageResourceReview
+            ) as $patternEntry) {
+                $entries[] = [
+                    ...$patternEntry,
+                    'pattern_resource_name' => $patternName,
+                    'parent_pattern_object' => $reference['objectNumber'],
+                    'parent_pattern_generation' => $reference['generation'],
+                    'pattern_paint_count' => count($patternInvocationStates),
+                    'pattern_matrices' => $patternMatrices,
+                    'pattern_bboxes' => $patternBboxes,
+                    'pattern_visible_bboxes' => $patternVisibleBboxes,
+                    'pattern_review_only' => true,
+                ];
             }
         }
 
@@ -6937,6 +7222,37 @@ final class PdfTextExtractor
 
         return [
             'body' => $objectBody,
+            'stream' => $decoded,
+        ];
+    }
+
+    /**
+     * @return array{body: string, dict: string, stream: string}|null
+     * @param array<int, string> $objects
+     */
+    private function decodedTilingPatternBody(?string $objectBody, array $objects): ?array
+    {
+        if ($objectBody === null) {
+            return null;
+        }
+
+        $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
+        if ($entry === null) {
+            return null;
+        }
+
+        if ($this->pdfIntegerValueAfterNameResolvingObjects($entry['dict'], 'PatternType', $objects) !== 1) {
+            return null;
+        }
+
+        $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
+        if ($decoded === null) {
+            return null;
+        }
+
+        return [
+            'body' => $objectBody,
+            'dict' => $entry['dict'],
             'stream' => $decoded,
         ];
     }
@@ -16436,6 +16752,11 @@ final class PdfTextExtractor
     private function pathOperatorClearsCurrentPath(string $operator): bool
     {
         return in_array($operator, ['n', 'S', 's', 'f', 'F', 'f*', 'B', 'B*', 'b', 'b*'], true);
+    }
+
+    private function isNonstrokingPatternPaintOperator(string $operator): bool
+    {
+        return in_array($operator, ['f', 'F', 'f*', 'B', 'B*', 'b', 'b*'], true);
     }
 
     private function pdfNumberValueAfterName(string $body, string $name): ?float
