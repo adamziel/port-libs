@@ -15233,7 +15233,7 @@ final class PdfTextExtractor
                         continue;
                     }
 
-                    $entries[$objectNumber] = $this->xrefEntryInheritedFromPreviousSection($entry, $previousOffset);
+                    $entries[$objectNumber] = $entry;
                 }
             }
 
