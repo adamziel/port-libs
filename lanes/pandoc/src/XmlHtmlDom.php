@@ -60,6 +60,46 @@ final class XmlHtmlDom
         'style' => true,
     ];
 
+    /** @var array<string, array<string, true>> */
+    private const HTML5_TABLE_ALLOWED_CHILDREN = [
+        'table' => [
+            'caption' => true,
+            'colgroup' => true,
+            'script' => true,
+            'tbody' => true,
+            'template' => true,
+            'tfoot' => true,
+            'thead' => true,
+            'tr' => true,
+        ],
+        'colgroup' => [
+            'col' => true,
+            'script' => true,
+            'template' => true,
+        ],
+        'thead' => [
+            'script' => true,
+            'template' => true,
+            'tr' => true,
+        ],
+        'tbody' => [
+            'script' => true,
+            'template' => true,
+            'tr' => true,
+        ],
+        'tfoot' => [
+            'script' => true,
+            'template' => true,
+            'tr' => true,
+        ],
+        'tr' => [
+            'script' => true,
+            'td' => true,
+            'template' => true,
+            'th' => true,
+        ],
+    ];
+
     /** @var array<string, string> */
     private const HTML5_FOREIGN_ELEMENT_NAMES = [
         'altglyph' => 'altGlyph',
@@ -231,16 +271,8 @@ final class XmlHtmlDom
     public static function summarizeHtmlFragment(\DOMDocument $dom): array
     {
         $root = self::requireFragmentRoot($dom);
-        $summary = [];
 
-        foreach ($root->childNodes as $child) {
-            $node = self::summarizeNode($child);
-            if ($node !== null) {
-                $summary[] = $node;
-            }
-        }
-
-        return $summary;
+        return self::summarizeChildNodes($root);
     }
 
     public static function serializeHtmlFragment(\DOMDocument $dom): string
@@ -355,39 +387,53 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return list<array<string, mixed>>
      */
-    private static function summarizeNode(\DOMNode $node): ?array
+    private static function summarizeChildNodes(\DOMNode $parent): array
+    {
+        $summary = [];
+        foreach ($parent->childNodes as $child) {
+            array_push($summary, ...self::summarizeNode($child));
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function summarizeNode(\DOMNode $node): array
     {
         if ($node instanceof \DOMText) {
             $text = $node->nodeValue ?? '';
 
-            return $text === '' ? null : ['type' => 'text', 'text' => $text];
+            return $text === '' ? [] : [['type' => 'text', 'text' => $text]];
         }
 
         if ($node instanceof \DOMComment) {
-            return ['type' => 'comment', 'text' => $node->nodeValue ?? ''];
+            return [['type' => 'comment', 'text' => $node->nodeValue ?? '']];
         }
 
         if (!$node instanceof \DOMElement) {
-            return null;
+            return [];
         }
 
-        $children = [];
-        foreach ($node->childNodes as $child) {
-            $summary = self::summarizeNode($child);
-            if ($summary !== null) {
-                $children[] = $summary;
-            }
+        $name = self::htmlElementName($node);
+        if (self::isHtmlTableModelContext($name)) {
+            [$fostered, $summary] = self::summarizeTableElementParts($node, $name);
+
+            return [...$fostered, $summary];
         }
 
-        return [
+        $children = self::summarizeChildNodes($node);
+
+        return [[
             'type' => 'element',
-            'name' => self::htmlElementName($node),
+            'name' => $name,
             'attributes' => self::htmlAttributes($node),
             'text' => self::normalizedText($node),
             'children' => $children,
-        ];
+        ]];
     }
 
     private static function serializeNode(\DOMNode $node): string
@@ -416,13 +462,25 @@ final class XmlHtmlDom
         }
 
         $name = self::htmlElementName($node);
+        if (self::isHtmlTableModelContext($name)) {
+            return self::serializeTableElementWithFostered($node, $name);
+        }
+
+        return self::serializeElementWithChildren($node, null);
+    }
+
+    private static function serializeElementWithChildren(\DOMElement $node, ?string $childrenHtml): string
+    {
+        $name = self::htmlElementName($node);
         $html = '<' . $name . self::serializeAttributes($node);
         if (isset(self::HTML5_VOID_ELEMENTS[strtolower($name)])) {
             return $html . '>';
         }
 
         $html .= '>';
-        if (isset(self::HTML5_RAW_TEXT_ELEMENTS[strtolower($name)])) {
+        if ($childrenHtml !== null) {
+            $html .= $childrenHtml;
+        } elseif (isset(self::HTML5_RAW_TEXT_ELEMENTS[strtolower($name)])) {
             $html .= self::rawTextContent($node);
         } else {
             foreach ($node->childNodes as $child) {
@@ -431,6 +489,145 @@ final class XmlHtmlDom
         }
 
         return $html . '</' . $name . '>';
+    }
+
+    private static function serializeTableElementWithFostered(\DOMElement $element, string $context): string
+    {
+        [$fosteredHtml, $childrenHtml] = self::serializeTableChildren($element, $context);
+
+        return $fosteredHtml . self::serializeElementWithChildren($element, $childrenHtml);
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function serializeTableElementParts(\DOMElement $element, string $context): array
+    {
+        [$fosteredHtml, $childrenHtml] = self::serializeTableChildren($element, $context);
+
+        return [$fosteredHtml, self::serializeElementWithChildren($element, $childrenHtml)];
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private static function serializeTableChildren(\DOMElement $element, string $context): array
+    {
+        $fosteredHtml = '';
+        $childrenHtml = '';
+
+        foreach ($element->childNodes as $child) {
+            if (self::isFosteredHtmlTableChild($child, $context)) {
+                $fosteredHtml .= self::serializeNode($child);
+                continue;
+            }
+
+            if ($child instanceof \DOMElement) {
+                $childName = self::htmlElementName($child);
+                if (self::isHtmlTableModelContext($childName)) {
+                    [$nestedFosteredHtml, $childHtml] = self::serializeTableElementParts($child, $childName);
+                    $fosteredHtml .= $nestedFosteredHtml;
+                    $childrenHtml .= $childHtml;
+                    continue;
+                }
+            }
+
+            $childrenHtml .= self::serializeNode($child);
+        }
+
+        return [$fosteredHtml, $childrenHtml];
+    }
+
+    /**
+     * @return array{0:list<array<string, mixed>>, 1:array<string, mixed>}
+     */
+    private static function summarizeTableElementParts(\DOMElement $element, string $context): array
+    {
+        [$fostered, $children] = self::summarizeTableChildren($element, $context);
+
+        return [$fostered, [
+            'type' => 'element',
+            'name' => self::htmlElementName($element),
+            'attributes' => self::htmlAttributes($element),
+            'text' => self::summaryText($children),
+            'children' => $children,
+        ]];
+    }
+
+    /**
+     * @return array{0:list<array<string, mixed>>, 1:list<array<string, mixed>>}
+     */
+    private static function summarizeTableChildren(\DOMElement $element, string $context): array
+    {
+        $fostered = [];
+        $children = [];
+
+        foreach ($element->childNodes as $child) {
+            if (self::isFosteredHtmlTableChild($child, $context)) {
+                array_push($fostered, ...self::summarizeNode($child));
+                continue;
+            }
+
+            if ($child instanceof \DOMElement) {
+                $childName = self::htmlElementName($child);
+                if (self::isHtmlTableModelContext($childName)) {
+                    [$nestedFostered, $summary] = self::summarizeTableElementParts($child, $childName);
+                    array_push($fostered, ...$nestedFostered);
+                    $children[] = $summary;
+                    continue;
+                }
+            }
+
+            array_push($children, ...self::summarizeNode($child));
+        }
+
+        return [$fostered, $children];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $summary
+     */
+    private static function summaryText(array $summary): string
+    {
+        $text = '';
+        foreach ($summary as $node) {
+            if (($node['type'] ?? '') === 'text') {
+                $text .= (string) ($node['text'] ?? '');
+                continue;
+            }
+            if (($node['type'] ?? '') === 'element') {
+                $text .= (string) ($node['text'] ?? '');
+            }
+        }
+
+        $normalized = preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text;
+
+        return trim($normalized);
+    }
+
+    private static function isHtmlTableModelContext(string $name): bool
+    {
+        return isset(self::HTML5_TABLE_ALLOWED_CHILDREN[strtolower($name)]);
+    }
+
+    private static function isFosteredHtmlTableChild(\DOMNode $node, string $context): bool
+    {
+        $allowed = self::HTML5_TABLE_ALLOWED_CHILDREN[strtolower($context)] ?? null;
+        if ($allowed === null) {
+            return false;
+        }
+
+        if ($node instanceof \DOMText) {
+            return preg_match('/\S/u', $node->nodeValue ?? '') === 1;
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return false;
+        }
+
+        $name = strtolower(self::htmlElementName($node));
+
+        return !isset($allowed[$name]);
     }
 
     private static function rawTextContent(\DOMElement $element): string

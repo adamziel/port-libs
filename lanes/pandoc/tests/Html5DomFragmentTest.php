@@ -349,6 +349,32 @@ return [
         $t->true(!str_contains($fragment->serialize(), '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
         $t->true(!str_contains($fragment->serialize(), '<img src=x>'), 'Expected fallback image-looking source to stay escaped');
     },
+    'foster-parents invalid table children before sanitized WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<table class="legacy"><caption>Review rows</caption><p data-review="loose">Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/table-foster-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p data-review="loose">Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>';
+        $t->same($expected, $fragment->serialize());
+        $t->contains($expected, $blocks);
+        $t->same('p', $nodes[0]['name']);
+        $t->same('text', $nodes[1]['type']);
+        $t->same('table', $nodes[2]['name']);
+        $t->same('caption', $nodes[2]['children'][0]['name']);
+        $t->same('tr', $nodes[2]['children'][1]['name']);
+        $t->same('tr', $nodes[2]['children'][2]['name']);
+        $t->same(2, $summary['diagnostics']);
+        $t->same(['table-foster-parented-content', 'table-foster-parented-content'], $fragment->diagnosticCodes());
+        $t->same('/migration/table-foster-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($fragment->serialize(), '</caption><p data-review="loose">'), 'Expected paragraph to move outside table');
+        $t->true(!str_contains($fragment->serialize(), '</tr>orphan text<tr>'), 'Expected loose text to move outside table rows');
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

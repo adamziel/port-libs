@@ -210,6 +210,25 @@ return [
         $t->true(!str_contains($html, '<textarea>'), 'Expected raw text textarea-looking source to stay escaped');
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
     },
+    'foster-parents invalid table children before deterministic html serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>',
+            'table foster-parenting review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('p', $summary[0]['name']);
+        $t->same('Loose note', $summary[0]['text']);
+        $t->same('text', $summary[1]['type']);
+        $t->same('orphan text', $summary[1]['text']);
+        $t->same('table', $summary[2]['name']);
+        $t->same(['class' => 'legacy'], $summary[2]['attributes']);
+        $t->same('caption', $summary[2]['children'][0]['name']);
+        $t->same('tr', $summary[2]['children'][1]['name']);
+        $t->same('tr', $summary[2]['children'][2]['name']);
+        $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>', $html);
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',

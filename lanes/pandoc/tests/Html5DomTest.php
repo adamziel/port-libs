@@ -153,6 +153,16 @@ return [
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected tag-looking raw text to serialize as escaped text');
         $t->true(!str_contains($serialized, '<img src=x>'), 'Expected fallback image-looking source text to serialize as escaped text');
     },
+    'serializes invalid table-scope children before the table for html5 reader handoff' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<table class="legacy"><caption>Review rows</caption><p>Loose note</p><tr><td>A</td></tr>orphan text<tr><td>B</td></tr></table><p>after</p>'
+        );
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->same('<p>Loose note</p>orphan text<table class="legacy"><caption>Review rows</caption><tr><td>A</td></tr><tr><td>B</td></tr></table><p>after</p>', $serialized);
+        $t->true(!str_contains($serialized, '</caption><p>Loose note</p>'), 'Expected loose paragraph to move outside the table');
+        $t->true(!str_contains($serialized, '</tr>orphan text<tr>'), 'Expected loose text to move outside the table rows');
+    },
     'parses XML fragments with namespaces and serializes multiple root children' => static function (TestRunner $t): void {
         $fragment = Html5Dom::parseXmlFragment(
             '<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math><w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>'

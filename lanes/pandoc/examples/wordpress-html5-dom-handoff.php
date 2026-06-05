@@ -18,6 +18,7 @@ $sourceHtml = <<<'HTML'
   <p><a href="mailto:review@example.test">Mail reviewer</a><img src="mailto:review@example.test" alt="Unsafe media link"></p>
   <form action="/submit" onsubmit="alert(1)"><p>Reviewer choice <input name="status" value="draft"><button formaction="javascript:alert(1)">Keep visible label</button></p><p><select><option>Draft</option><option>Final</option></select></p><textarea>Visible reviewer note</textarea></form>
   <xmp data-source="legacy-raw">Reviewer <script>alert(1)</script> &amp; <b>source</b></xmp>
+  <table class="legacy-table"><caption>Review rows</caption><p data-review="loose-table">Loose table note</p><tr><td>Cell A</td></tr>orphan table text<tr><td>Cell B</td></tr></table>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
   <figure class="foreign-content"><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></figure>
   <script>alert("legacy embed")</script>
@@ -40,6 +41,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
         '<p>Reviewer choice Keep visible label</p><p>DraftFinal</p>Visible reviewer note',
         'Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; &lt;b&gt;source&lt;/b&gt;',
+        '<p data-review="loose-table">Loose table note</p>orphan table text<table class="legacy-table"><caption>Review rows</caption><tr><td>Cell A</td></tr><tr><td>Cell B</td></tr></table>',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
         '<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>',
         '<annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>',
@@ -66,6 +68,13 @@ if (($argv[1] ?? '') === '--self-test') {
         if (!in_array($filteredAttribute, $fragment->summary()['filteredAttributes'], true)) {
             throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered ' . $filteredAttribute . ' attribute');
         }
+    }
+    $tableFosterDiagnostics = array_values(array_filter(
+        $fragment->diagnosticCodes(),
+        static fn (string $code): bool => $code === 'table-foster-parented-content'
+    ));
+    if (count($tableFosterDiagnostics) !== 2) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not report foster-parented table content');
     }
     foreach ([
         '<!DOCTYPE html><p>legacy doctype</p>',

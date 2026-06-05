@@ -35,6 +35,46 @@ final class Html5DomFragment
         'selected' => true,
     ];
 
+    /** @var array<string, array<string, true>> */
+    private const HTML5_TABLE_ALLOWED_CHILDREN = [
+        'table' => [
+            'caption' => true,
+            'colgroup' => true,
+            'script' => true,
+            'tbody' => true,
+            'template' => true,
+            'tfoot' => true,
+            'thead' => true,
+            'tr' => true,
+        ],
+        'colgroup' => [
+            'col' => true,
+            'script' => true,
+            'template' => true,
+        ],
+        'thead' => [
+            'script' => true,
+            'template' => true,
+            'tr' => true,
+        ],
+        'tbody' => [
+            'script' => true,
+            'template' => true,
+            'tr' => true,
+        ],
+        'tfoot' => [
+            'script' => true,
+            'template' => true,
+            'tr' => true,
+        ],
+        'tr' => [
+            'script' => true,
+            'td' => true,
+            'template' => true,
+            'th' => true,
+        ],
+    ];
+
     /** @var list<array<string, mixed>> */
     private array $nodes;
 
@@ -347,7 +387,120 @@ final class Html5DomFragment
             return [$element, ...$children];
         }
 
+        if ($mode === 'html' && $name === 'table') {
+            return self::normalizeHtmlTableElement($element, $diagnostics);
+        }
+
         return [$element];
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeHtmlTableElement(array $element, array &$diagnostics): array
+    {
+        [$fostered, $children] = self::normalizeHtmlTableChildren(
+            is_array($element['children'] ?? null) ? $element['children'] : [],
+            (string) ($element['name'] ?? ''),
+            $diagnostics
+        );
+        $element['children'] = $children;
+
+        return [...$fostered, $element];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:list<array<string, mixed>>, 1:list<array<string, mixed>>}
+     */
+    private static function normalizeHtmlTableChildren(array $children, string $context, array &$diagnostics): array
+    {
+        $fostered = [];
+        $cleanChildren = [];
+
+        foreach ($children as $child) {
+            if (self::isFosteredHtmlTableNode($child, $context)) {
+                $diagnostics[] = self::htmlTableFosterDiagnostic($child, $context);
+                $fostered[] = $child;
+                continue;
+            }
+
+            if (($child['type'] ?? '') === 'element' && self::isHtmlTableModelContext((string) ($child['name'] ?? ''))) {
+                [$nestedFostered, $cleanChild] = self::normalizeHtmlTableElementParts($child, $diagnostics);
+                array_push($fostered, ...$nestedFostered);
+                $cleanChildren[] = $cleanChild;
+                continue;
+            }
+
+            $cleanChildren[] = $child;
+        }
+
+        return [$fostered, $cleanChildren];
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array{0:list<array<string, mixed>>, 1:array<string, mixed>}
+     */
+    private static function normalizeHtmlTableElementParts(array $element, array &$diagnostics): array
+    {
+        [$fostered, $children] = self::normalizeHtmlTableChildren(
+            is_array($element['children'] ?? null) ? $element['children'] : [],
+            (string) ($element['name'] ?? ''),
+            $diagnostics
+        );
+        $element['children'] = $children;
+
+        return [$fostered, $element];
+    }
+
+    private static function isHtmlTableModelContext(string $name): bool
+    {
+        return isset(self::HTML5_TABLE_ALLOWED_CHILDREN[strtolower($name)]);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     */
+    private static function isFosteredHtmlTableNode(array $node, string $context): bool
+    {
+        $allowed = self::HTML5_TABLE_ALLOWED_CHILDREN[strtolower($context)] ?? null;
+        if ($allowed === null) {
+            return false;
+        }
+
+        $type = (string) ($node['type'] ?? '');
+        if ($type === 'text') {
+            return preg_match('/\S/u', (string) ($node['text'] ?? '')) === 1;
+        }
+        if ($type !== 'element') {
+            return false;
+        }
+
+        return !isset($allowed[strtolower((string) ($node['name'] ?? ''))]);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private static function htmlTableFosterDiagnostic(array $node, string $context): array
+    {
+        $diagnostic = [
+            'code' => 'table-foster-parented-content',
+            'context' => strtolower($context),
+            'nodeType' => (string) ($node['type'] ?? ''),
+        ];
+
+        if (($node['type'] ?? '') === 'element') {
+            $diagnostic['tag'] = (string) ($node['name'] ?? '');
+        }
+
+        return $diagnostic;
     }
 
     private static function rawElementName(\DOMElement $element, string $mode): string
