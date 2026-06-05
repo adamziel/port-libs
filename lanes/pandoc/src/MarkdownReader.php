@@ -574,6 +574,13 @@ final class MarkdownReader
     private function parseYamlMetadataValue(string $sourceValue, array $children): array
     {
         [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
+        if ($this->yamlHasExplicitTag($tags, 'set')) {
+            $value = $this->parseYamlExplicitSetValue($sourceValue, $children);
+            $this->rememberYamlAnchor($anchorName, $value);
+
+            return [$value, $anchorName];
+        }
+
         $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
         $multilineFlow = $this->parseYamlMultilineFlowCollection($sourceValue, $children);
 
@@ -754,6 +761,13 @@ final class MarkdownReader
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
                 $children[] = $lines[$index];
                 $index++;
+            }
+
+            if ($this->yamlHasExplicitTag($tags, 'set')) {
+                $value = $this->parseYamlExplicitSetValue($sourceValue, $children);
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
+                continue;
             }
 
             $blockScalarHeader = $this->parseYamlBlockScalarHeader($sourceValue);
@@ -1083,6 +1097,12 @@ final class MarkdownReader
             return $parsed;
         }
 
+        if ($this->yamlHasExplicitTag($tags, 'set')) {
+            $parsed = $this->parseYamlExplicitSetValue($value, []);
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
+        }
+
         $explicitScalarTag = $this->yamlExplicitScalarTag($tags);
         if ($explicitScalarTag !== null) {
             $parsed = $this->parseYamlExplicitTaggedScalar($value, $explicitScalarTag);
@@ -1283,6 +1303,127 @@ final class MarkdownReader
         }
 
         return $map;
+    }
+
+    /**
+     * @param list<string> $children
+     * @return array<string, null>
+     */
+    private function parseYamlExplicitSetValue(string $sourceValue, array $children): array
+    {
+        $sourceValue = ltrim($sourceValue);
+        if ($sourceValue !== '') {
+            $candidate = $children === []
+                ? trim($this->stripYamlTrailingComment($sourceValue))
+                : $this->stripYamlTrailingComment(
+                    trim($this->stripYamlFlowComments($sourceValue . "\n" . implode("\n", $children)))
+                );
+
+            if ($candidate !== '' && $candidate[0] === '{' && str_ends_with(rtrim($candidate), '}') && $this->isBalancedYamlFlowCollection($candidate)) {
+                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1));
+            }
+
+            return [];
+        }
+
+        $normalized = $this->stripYamlCommonIndent($children);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+        }
+
+        if ($normalized !== []) {
+            $first = trim($normalized[0]);
+            $candidate = $this->stripYamlTrailingComment(
+                trim($this->stripYamlFlowComments(implode("\n", $normalized)))
+            );
+            if ($first !== '' && $first[0] === '{' && str_ends_with(rtrim($candidate), '}') && $this->isBalancedYamlFlowCollection($candidate)) {
+                return $this->parseYamlFlowSet(substr(rtrim($candidate), 1, -1));
+            }
+        }
+
+        return $this->parseYamlBlockSet($normalized);
+    }
+
+    /**
+     * @return array<string, null>
+     */
+    private function parseYamlFlowSet(string $source): array
+    {
+        $set = [];
+        foreach ($this->splitYamlFlowItems($source) as $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            if ($item[0] === '?') {
+                $item = trim(substr($item, 1));
+            }
+
+            if ($item === '') {
+                continue;
+            }
+
+            $key = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue($item));
+            if ($key === null || $key === '') {
+                continue;
+            }
+
+            $set[$key] = null;
+        }
+
+        return $set;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array<string, null>
+     */
+    private function parseYamlBlockSet(array $lines): array
+    {
+        $set = [];
+        $count = count($lines);
+        for ($index = 0; $index < $count; $index++) {
+            $trimmed = trim($this->stripYamlTrailingComment($lines[$index]));
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            if ($this->parseYamlExplicitMappingValueLine($trimmed) !== null) {
+                continue;
+            }
+
+            if ($this->isYamlExplicitMappingKeyLine($trimmed)) {
+                $keySource = trim(substr($trimmed, 1));
+                if ($keySource === '') {
+                    $keyLines = [];
+                    for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+                        $candidate = trim($lines[$cursor]);
+                        if ($this->isYamlExplicitMappingKeyLine($candidate) || $this->parseYamlExplicitMappingValueLine($candidate) !== null) {
+                            break;
+                        }
+                        $keyLines[] = $lines[$cursor];
+                    }
+                    $keyValue = $keyLines === [] ? null : $this->parseYamlIndentedValue($keyLines);
+                } else {
+                    $keyValue = $this->parseYamlScalarValue($keySource);
+                }
+            } else {
+                $keyValue = $this->parseYamlScalarValue($trimmed);
+            }
+
+            $key = $this->normalizeYamlExplicitMappingKey($keyValue ?? null);
+            if ($key === null || $key === '') {
+                continue;
+            }
+
+            $set[$key] = null;
+        }
+
+        return $set;
     }
 
     /**
@@ -1722,14 +1863,7 @@ final class MarkdownReader
     private function yamlExplicitScalarTag(array $tags): ?string
     {
         foreach ($tags as $tag) {
-            $normalized = strtolower($tag);
-            if (str_starts_with($normalized, 'tag:yaml.org,2002:')) {
-                $normalized = substr($normalized, strlen('tag:yaml.org,2002:'));
-            } elseif (str_starts_with($normalized, '!!')) {
-                $normalized = substr($normalized, 2);
-            } elseif (str_starts_with($normalized, '!')) {
-                $normalized = substr($normalized, 1);
-            }
+            $normalized = $this->normalizeYamlTag($tag);
 
             if (in_array($normalized, ['str', 'int', 'float', 'bool', 'null'], true)) {
                 return $normalized;
@@ -1737,6 +1871,38 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function yamlHasExplicitTag(array $tags, string $expected): bool
+    {
+        foreach ($tags as $tag) {
+            if ($this->normalizeYamlTag($tag) === $expected) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeYamlTag(string $tag): string
+    {
+        $normalized = strtolower($tag);
+        if (str_starts_with($normalized, 'tag:yaml.org,2002:')) {
+            return substr($normalized, strlen('tag:yaml.org,2002:'));
+        }
+
+        if (str_starts_with($normalized, '!!')) {
+            return substr($normalized, 2);
+        }
+
+        if (str_starts_with($normalized, '!')) {
+            return substr($normalized, 1);
+        }
+
+        return $normalized;
     }
 
     private function parseYamlExplicitTaggedScalar(string $value, string $tag): mixed

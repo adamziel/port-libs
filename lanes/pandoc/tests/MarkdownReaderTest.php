@@ -1458,6 +1458,45 @@ return [
         $t->same('explicit-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-tag-yaml-body">Explicit tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Set tag **Packet**',
+            'review-labels: !!set {front-matter, wordpress, "source:key", 7, true}',
+            'block-labels: !!set',
+            '  ? migration',
+            '  ? "qa:review"',
+            '  ? 2026',
+            'review:',
+            '  required-labels: !!set {import, approved}',
+            '  nested-labels:',
+            '    - !!set {draft, published}',
+            '    - !!set',
+            '      ? queued',
+            '      ? "needs:review"',
+            '...',
+            '',
+            '# Set tag YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Set tag **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(['front-matter', 'wordpress', 'source:key', 7, 'true'], array_keys($meta['review-labels']));
+        $t->true(array_key_exists('source:key', $meta['review-labels']) && $meta['review-labels']['source:key'] === null);
+        $t->true(array_key_exists(7, $meta['review-labels']) && $meta['review-labels'][7] === null);
+        $t->true(array_key_exists('true', $meta['review-labels']) && $meta['review-labels']['true'] === null);
+        $t->same(['migration', 'qa:review', 2026], array_keys($meta['block-labels']));
+        $t->true(array_key_exists('qa:review', $meta['block-labels']) && $meta['block-labels']['qa:review'] === null);
+        $t->same(['import', 'approved'], array_keys($meta['review']['required-labels']));
+        $t->same(['draft', 'published'], array_keys($meta['review']['nested-labels'][0]));
+        $t->same(['queued', 'needs:review'], array_keys($meta['review']['nested-labels'][1]));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('set-tag-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="set-tag-yaml-body">Set tag YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml multiline double quoted metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

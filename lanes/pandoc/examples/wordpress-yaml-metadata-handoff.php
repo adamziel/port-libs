@@ -81,6 +81,15 @@ flow-comment-review: {
   source-uri: /exports/packet#commented-flow,
   note: "Keep # quoted hash"
 }
+review-label-set: !!set {front-matter, wordpress, "source:key"}
+block-label-set: !!set
+  ? migration
+  ? "qa:review"
+sequence-label-sets:
+  - !!set {draft, published}
+  - !!set
+    ? queued
+    ? "needs:review"
 review-notes:
   - |-
     Preserve original front matter.
@@ -250,6 +259,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-comment-review']['note'] ?? '') !== 'Keep # quoted hash') {
         throw new RuntimeException('YAML metadata self-test stripped quoted flow comment hash');
+    }
+    if (!array_key_exists('source:key', $meta['review-label-set'] ?? []) || $meta['review-label-set']['source:key'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit flow set tag metadata');
+    }
+    if (!array_key_exists('qa:review', $meta['block-label-set'] ?? []) || $meta['block-label-set']['qa:review'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing explicit block set tag metadata');
+    }
+    if (!array_key_exists('published', $meta['sequence-label-sets'][0] ?? []) || $meta['sequence-label-sets'][0]['published'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing sequence flow set tag metadata');
+    }
+    if (!array_key_exists('needs:review', $meta['sequence-label-sets'][1] ?? []) || $meta['sequence-label-sets'][1]['needs:review'] !== null) {
+        throw new RuntimeException('YAML metadata self-test missing sequence block set tag metadata');
     }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
