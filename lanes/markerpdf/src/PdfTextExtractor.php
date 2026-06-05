@@ -5829,16 +5829,22 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decodeParmsValue = $decodeParms === null
+            $decodeParmsIndex = $decodeParms === null
                 ? null
-                : $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+                : $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $index);
+            $decodeParmsValue = $decodeParmsIndex === null || $decodeParms === null
+                ? null
+                : ($decodeParms[$decodeParmsIndex] ?? null);
 
             $details[] = [
                 'filter' => $filter,
                 'preview_only' => in_array($filter, ['DCTDecode', 'DCT', 'CCITTFaxDecode', 'CCF', 'JPXDecode', 'JBIG2Decode'], true),
                 'decode_parms' => ($decodeParmsValue === null && $decodeParmsOperandFailure !== null && ($filter === 'CCITTFaxDecode' || $filter === 'CCF'))
                     ? $decodeParmsOperandFailure
-                    : $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects),
+                    : (
+                        $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                        ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
+                    ),
             ];
         }
 
@@ -5942,6 +5948,54 @@ final class PdfTextExtractor
         }
 
         return ['type' => $filter];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function ccittFaxUnalignedDecodeParmsReview(
+        string $filter,
+        array $filters,
+        array $decodeParms,
+        ?int $decodeParmsIndex
+    ): ?array {
+        if (($filter !== 'CCITTFaxDecode' && $filter !== 'CCF') || $decodeParmsIndex !== null) {
+            return null;
+        }
+
+        $hasDeclaredNonNullDecodeParms = false;
+        foreach ($decodeParms as $value) {
+            if ($value !== null && trim($value) !== '') {
+                $hasDeclaredNonNullDecodeParms = true;
+                break;
+            }
+        }
+        if (!$hasDeclaredNonNullDecodeParms) {
+            return null;
+        }
+
+        $filterSlots = count($filters);
+        $decodeParmsSlots = count($decodeParms);
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_ccitt_decodeparms_fail_closed',
+            'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
+            'filter_slot_count' => $filterSlots,
+            'decode_parms_slot_count' => $decodeParmsSlots,
+        ];
     }
 
     /**

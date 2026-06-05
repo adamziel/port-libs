@@ -4232,11 +4232,13 @@ final class PdfImageRenderer
                 continue;
             }
 
-            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
+            $decodeParmsIndex = $this->decodeParmsIndexForImageFilterIndex($filters, $decodeParms, $index);
+            $decodeParmsValue = $decodeParmsIndex === null ? null : ($decodeParms[$decodeParmsIndex] ?? null);
             $details[] = [
                 'filter' => $filter,
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
-                'decode_parms' => $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects),
+                'decode_parms' => $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                    ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex),
             ];
         }
 
@@ -4248,6 +4250,17 @@ final class PdfImageRenderer
      * @param list<string|null> $decodeParms
      */
     private function decodeParmsValueForImageFilterIndex(array $filters, array $decodeParms, int $index): ?string
+    {
+        $decodeParmsIndex = $this->decodeParmsIndexForImageFilterIndex($filters, $decodeParms, $index);
+
+        return $decodeParmsIndex === null ? null : ($decodeParms[$decodeParmsIndex] ?? null);
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeParmsIndexForImageFilterIndex(array $filters, array $decodeParms, int $index): ?int
     {
         $nonNullFilterIndexes = [];
         foreach ($filters as $filterIndex => $filter) {
@@ -4262,12 +4275,12 @@ final class PdfImageRenderer
                 $decodeParmsIndexes = array_keys($decodeParms);
                 $decodeParmsIndex = $decodeParmsIndexes[$compactPosition] ?? null;
 
-                return is_int($decodeParmsIndex) ? ($decodeParms[$decodeParmsIndex] ?? null) : null;
+                return is_int($decodeParmsIndex) ? $decodeParmsIndex : null;
             }
         }
 
         if (array_key_exists($index, $decodeParms)) {
-            return $decodeParms[$index];
+            return $index;
         }
 
         if (count($decodeParms) !== 1 || $nonNullFilterIndexes !== [$index]) {
@@ -4276,7 +4289,7 @@ final class PdfImageRenderer
 
         $decodeParmsIndex = array_key_first($decodeParms);
 
-        return is_int($decodeParmsIndex) ? ($decodeParms[$decodeParmsIndex] ?? null) : null;
+        return is_int($decodeParmsIndex) ? $decodeParmsIndex : null;
     }
 
     private function isPreviewOnlyImageFilter(string $filter): bool
@@ -4448,6 +4461,54 @@ final class PdfImageRenderer
         }
 
         return ['type' => $filter];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function ccittFaxUnalignedDecodeParmsReview(
+        string $filter,
+        array $filters,
+        array $decodeParms,
+        ?int $decodeParmsIndex
+    ): ?array {
+        if (($filter !== 'CCITTFaxDecode' && $filter !== 'CCF') || $decodeParmsIndex !== null) {
+            return null;
+        }
+
+        $hasDeclaredNonNullDecodeParms = false;
+        foreach ($decodeParms as $value) {
+            if ($value !== null && trim($value) !== '') {
+                $hasDeclaredNonNullDecodeParms = true;
+                break;
+            }
+        }
+        if (!$hasDeclaredNonNullDecodeParms) {
+            return null;
+        }
+
+        $filterSlots = count($filters);
+        $decodeParmsSlots = count($decodeParms);
+
+        return [
+            'type' => 'CCITTFaxDecode',
+            'k' => null,
+            'columns' => null,
+            'rows' => null,
+            'black_is_1' => null,
+            'encoded_byte_align' => null,
+            'end_of_line' => null,
+            'end_of_block' => null,
+            'damaged_rows_before_error' => null,
+            'valid_decode_parms' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_ccitt_decodeparms_fail_closed',
+            'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
+            'filter_slot_count' => $filterSlots,
+            'decode_parms_slot_count' => $decodeParmsSlots,
+        ];
     }
 
     /**
