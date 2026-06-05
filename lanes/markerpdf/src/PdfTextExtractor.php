@@ -26910,12 +26910,15 @@ final class PdfTextExtractor
 
         if (
             !$this->sourceKeysAreCidMapped($fallbackKeys, $toUnicodeMap)
-            || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)
         ) {
             return [];
         }
 
-        return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
+        if (!$this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)) {
+            return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
+        }
+
+        return $this->cidMappedSourceKeysForPartialMetricMiss($sourceKeys, $hex, $toUnicodeMap);
     }
 
     /**
@@ -26978,6 +26981,58 @@ final class PdfTextExtractor
                 $fallbackKeys === []
                 || $fallbackKeys === [$sourceKey]
                 || !$this->sourceKeysAreMapped($fallbackKeys, $toUnicodeMap)
+                || !$this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap)
+            ) {
+                return [];
+            }
+
+            array_push($keys, ...$fallbackKeys);
+            $offset += $sourceLength;
+            $replaced = true;
+        }
+
+        return $replaced && $offset === strlen($normalized) && count($keys) > count($sourceKeys) ? $keys : [];
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<string>
+     */
+    private function cidMappedSourceKeysForPartialMetricMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
+    {
+        $cidMap = $toUnicodeMap['cidMap'] ?? [];
+        if (!is_array($cidMap) || $cidMap === []) {
+            return [];
+        }
+
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $keys = [];
+        $offset = 0;
+        $replaced = false;
+        foreach ($sourceKeys as $sourceKey) {
+            $sourceLength = strlen($sourceKey);
+            if ($sourceLength <= 0 || substr($normalized, $offset, $sourceLength) !== $sourceKey) {
+                return [];
+            }
+
+            if ($this->sourceKeyHasDirectFontMetric($sourceKey, $toUnicodeMap)) {
+                $keys[] = $sourceKey;
+                $offset += $sourceLength;
+                continue;
+            }
+
+            $fallbackKeys = $this->textOperandSourceKeys($sourceKey, [
+                'map' => $cidMap,
+                'codeSpaceRanges' => [],
+            ]);
+            if (
+                $fallbackKeys === []
+                || $fallbackKeys === [$sourceKey]
+                || !$this->sourceKeysAreCidMapped($fallbackKeys, $toUnicodeMap)
                 || !$this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap)
             ) {
                 return [];
