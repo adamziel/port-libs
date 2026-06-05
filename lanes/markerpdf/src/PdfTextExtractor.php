@@ -11291,7 +11291,7 @@ final class PdfTextExtractor
         }
         $operands = [];
 
-        foreach ($this->contentTokens($charProc) as $token) {
+        foreach ($this->contentTokens($charProc, true) as $token) {
             if ($token === 'd0') {
                 if (count($operands) < 2) {
                     return null;
@@ -20700,7 +20700,7 @@ final class PdfTextExtractor
     /**
      * @return list<string>
      */
-    private function contentTokens(string $stream): array
+    private function contentTokens(string $stream, bool $preserveInlineImageOperator = false): array
     {
         $tokens = [];
         $length = strlen($stream);
@@ -20757,6 +20757,9 @@ final class PdfTextExtractor
             if ($token === 'BI') {
                 $inlineImageEnd = $index;
                 if ($this->skipInlineImage($stream, $inlineImageEnd)) {
+                    if ($preserveInlineImageOperator) {
+                        $tokens[] = $token;
+                    }
                     $index = $inlineImageEnd;
                     continue;
                 }
