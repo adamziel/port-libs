@@ -1199,7 +1199,19 @@ final class PdfAttachmentExtractor
         $rows = [];
         foreach ($relatedFiles as $row) {
             if ($stringsEncrypted) {
-                unset($row['related_filename'], $row['related_filename_source']);
+                foreach ([
+                    'related_filename',
+                    'related_filename_source',
+                    'related_filename_leaf',
+                    'related_filename_storage_name',
+                    'related_filename_path_status',
+                    'related_filename_has_path_segments',
+                    'related_filename_contains_parent_segment',
+                    'related_filename_absolute_path',
+                    'related_filename_url_scheme',
+                ] as $key) {
+                    unset($row[$key]);
+                }
             }
             if ($payloadEncrypted) {
                 foreach ([
@@ -1936,6 +1948,9 @@ final class PdfAttachmentExtractor
             if ($relatedFilename !== null && $relatedFilename !== '') {
                 $row['related_filename'] = $relatedFilename;
                 $row['related_filename_source'] = 'rf_name_pair';
+                foreach ($this->relatedFilenamePathReview($relatedFilename) as $key => $metadataValue) {
+                    $row[$key] = $metadataValue;
+                }
             }
 
             return $row;
@@ -1970,6 +1985,9 @@ final class PdfAttachmentExtractor
         if ($relatedFilename !== null && $relatedFilename !== '') {
             $row['related_filename'] = $relatedFilename;
             $row['related_filename_source'] = 'rf_name_pair';
+            foreach ($this->relatedFilenamePathReview($relatedFilename) as $key => $metadataValue) {
+                $row[$key] = $metadataValue;
+            }
         }
         if ($filters !== []) {
             $row['filters'] = $filters;
@@ -2116,6 +2134,19 @@ final class PdfAttachmentExtractor
         }
         if ($urlScheme !== null) {
             $review['filename_url_scheme'] = $urlScheme;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function relatedFilenamePathReview(string $filename): array
+    {
+        $review = [];
+        foreach ($this->filenamePathReview($filename) as $key => $value) {
+            $review['related_' . $key] = $value;
         }
 
         return $review;

@@ -622,6 +622,9 @@ final class PdfEmbeddedFileExtractor
         if ($relatedFilename !== null && $relatedFilename !== '') {
             $row['related_filename'] = $relatedFilename;
             $row['related_filename_source'] = 'rf_name_pair';
+            foreach ($this->relatedFilenamePathReview($relatedFilename) as $key => $metadataValue) {
+                $row[$key] = $metadataValue;
+            }
         }
 
         $mimeType = $this->dictionaryNameValue($stream['dictionary'], 'Subtype', $objects);
@@ -1322,6 +1325,19 @@ final class PdfEmbeddedFileExtractor
         }
         if ($urlScheme !== null) {
             $review['filename_url_scheme'] = $urlScheme;
+        }
+
+        return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function relatedFilenamePathReview(string $filename): array
+    {
+        $review = [];
+        foreach ($this->filenamePathReview($filename) as $key => $value) {
+            $review['related_' . $key] = $value;
         }
 
         return $review;
