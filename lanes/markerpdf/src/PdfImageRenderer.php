@@ -387,7 +387,7 @@ final class PdfImageRenderer
      * @param array<int, string> $objects
      * @return array{
      *     image_filters: list<string>,
-     *     image_filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null>|null}>,
+     *     image_filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>,
      *     image_filter_boundary: array{preview_only_filters: list<string>, jbig2_globals_present: bool, native_raster_decode: bool},
      *     source_color_space: string,
      *     color_space_resource_name: string|null,
@@ -4079,7 +4079,7 @@ final class PdfImageRenderer
 
     /**
      * @param array<int, string> $objects
-     * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null>|null}>
+     * @return list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>
      */
     private function imageFilterDetails(string $dictionary, array $objects): array
     {
@@ -4162,7 +4162,7 @@ final class PdfImageRenderer
 
     /**
      * @param array<int, string> $objects
-     * @return array<string, int|bool|string|null>|null
+     * @return array<string, int|bool|string|null|list<string>>|null
      */
     private function imageFilterDecodeParms(string $filter, ?string $value, array $objects): ?array
     {
@@ -4176,17 +4176,7 @@ final class PdfImageRenderer
         }
 
         if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
-            return [
-                'type' => 'CCITTFaxDecode',
-                'k' => $this->integerNameValue($resolved, 'K'),
-                'columns' => $this->integerNameValue($resolved, 'Columns'),
-                'rows' => $this->integerNameValue($resolved, 'Rows'),
-                'black_is_1' => $this->booleanNameValue($resolved, 'BlackIs1'),
-                'encoded_byte_align' => $this->booleanNameValue($resolved, 'EncodedByteAlign'),
-                'end_of_line' => $this->booleanNameValue($resolved, 'EndOfLine'),
-                'end_of_block' => $this->booleanNameValue($resolved, 'EndOfBlock'),
-                'damaged_rows_before_error' => $this->integerNameValue($resolved, 'DamagedRowsBeforeError'),
-            ];
+            return $this->ccittFaxDecodeParmsReview($resolved, $objects);
         }
 
         if ($filter === 'JBIG2Decode') {
@@ -4214,6 +4204,81 @@ final class PdfImageRenderer
         }
 
         return ['type' => $filter];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, int|bool|string|null|list<string>>
+     */
+    private function ccittFaxDecodeParmsReview(string $decodeParms, array $objects): array
+    {
+        $details = [
+            'type' => 'CCITTFaxDecode',
+            'k' => $this->decodeParmsInt($decodeParms, 'K', $objects),
+            'columns' => $this->decodeParmsInt($decodeParms, 'Columns', $objects),
+            'rows' => $this->decodeParmsInt($decodeParms, 'Rows', $objects),
+            'black_is_1' => $this->decodeParmsBool($decodeParms, 'BlackIs1', $objects),
+            'encoded_byte_align' => $this->decodeParmsBool($decodeParms, 'EncodedByteAlign', $objects),
+            'end_of_line' => $this->decodeParmsBool($decodeParms, 'EndOfLine', $objects),
+            'end_of_block' => $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects),
+            'damaged_rows_before_error' => $this->decodeParmsInt($decodeParms, 'DamagedRowsBeforeError', $objects),
+        ];
+
+        $invalidFields = [];
+        foreach (['K' => 'k'] as $pdfName => $field) {
+            if ($this->decodeParmsHasName($decodeParms, $pdfName) && $details[$field] === null) {
+                $invalidFields[$field] = true;
+            }
+        }
+
+        foreach (['Columns' => 'columns'] as $pdfName => $field) {
+            if (
+                $this->decodeParmsHasName($decodeParms, $pdfName)
+                && (!is_int($details[$field]) || $details[$field] < 1)
+            ) {
+                $invalidFields[$field] = true;
+            }
+        }
+
+        foreach (['Rows' => 'rows', 'DamagedRowsBeforeError' => 'damaged_rows_before_error'] as $pdfName => $field) {
+            if (
+                $this->decodeParmsHasName($decodeParms, $pdfName)
+                && (!is_int($details[$field]) || $details[$field] < 0)
+            ) {
+                $invalidFields[$field] = true;
+            }
+        }
+
+        foreach ([
+            'BlackIs1' => 'black_is_1',
+            'EncodedByteAlign' => 'encoded_byte_align',
+            'EndOfLine' => 'end_of_line',
+            'EndOfBlock' => 'end_of_block',
+        ] as $pdfName => $field) {
+            if ($this->decodeParmsHasName($decodeParms, $pdfName) && !is_bool($details[$field])) {
+                $invalidFields[$field] = true;
+            }
+        }
+
+        if ($invalidFields !== []) {
+            $details['valid_decode_parms'] = false;
+            $details['invalid_decode_parms_fields'] = array_values(array_filter(
+                [
+                    'k',
+                    'columns',
+                    'rows',
+                    'black_is_1',
+                    'encoded_byte_align',
+                    'end_of_line',
+                    'end_of_block',
+                    'damaged_rows_before_error',
+                ],
+                static fn (string $field): bool => isset($invalidFields[$field])
+            ));
+            $details['decode_parms_review'] = 'invalid_ccitt_decodeparms_fail_closed';
+        }
+
+        return $details;
     }
 
     private function imageColorSpace(string $dictionary): ?string
@@ -5584,6 +5649,52 @@ final class PdfImageRenderer
         }
 
         return $this->integerFromPdfValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsBool(?string $decodeParms, string $name, array $objects): ?bool
+    {
+        if ($decodeParms === null) {
+            return null;
+        }
+
+        $value = $this->extractPdfNameValue($decodeParms, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        return $this->booleanFromPdfValue($value, $objects);
+    }
+
+    private function decodeParmsHasName(?string $decodeParms, string $name): bool
+    {
+        return $decodeParms !== null && $this->extractPdfNameValue($decodeParms, $name) !== null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
+     */
+    private function booleanFromPdfValue(string $value, array $objects, array $seenObjects = []): ?bool
+    {
+        $trimmed = trim($value);
+        if ($trimmed === 'true') {
+            return true;
+        }
+        if ($trimmed === 'false') {
+            return false;
+        }
+
+        $objectNumber = $this->objectReferenceNumber($trimmed);
+        if ($objectNumber === null || isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $seenObjects[$objectNumber] = true;
+
+        return $this->booleanFromPdfValue(trim($objects[$objectNumber]), $objects, $seenObjects);
     }
 
     private function decodeAsciiHexStream(string $stream): ?string

@@ -261,4 +261,51 @@ return [
         $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
         $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline CCITT fax payload noise'));
     },
+    'marks malformed inline CCITT Fax DecodeParms fail closed before RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $payload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline invalid CCITT fax payload noise) Tj ET final";
+        $plan = $renderer->inlineImageReviewPlan(
+            '/W 8 /H 1 /IM true /F /CCF /DP << /K /TwoD /Columns 0 /Rows -1 /BlackIs1 /Maybe /EncodedByteAlign true /EndOfLine /No /EndOfBlock true /DamagedRowsBeforeError -2 >> /D [1 0]',
+            $payload
+        );
+
+        $t->same(['CCITTFaxDecode'], $plan['image_filters']);
+        $t->same([
+            [
+                'filter' => 'CCITTFaxDecode',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => null,
+                    'columns' => 0,
+                    'rows' => -1,
+                    'black_is_1' => null,
+                    'encoded_byte_align' => true,
+                    'end_of_line' => null,
+                    'end_of_block' => true,
+                    'damaged_rows_before_error' => -2,
+                    'valid_decode_parms' => false,
+                    'invalid_decode_parms_fields' => [
+                        'k',
+                        'columns',
+                        'rows',
+                        'black_is_1',
+                        'end_of_line',
+                        'damaged_rows_before_error',
+                    ],
+                    'decode_parms_review' => 'invalid_ccitt_decodeparms_fail_closed',
+                ],
+            ],
+        ], $plan['image_filter_details']);
+        $t->same([
+            'preview_only_filters' => ['CCITTFaxDecode'],
+            'jbig2_globals_present' => false,
+            'native_raster_decode' => false,
+        ], $plan['image_filter_boundary']);
+        $t->same(true, $plan['inline_image_review_only']);
+        $t->same(false, $plan['inline_image']['native_raster_decode']);
+        $t->same(true, $plan['inline_image_payload_excluded_from_text']);
+        $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
+        $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline invalid CCITT fax payload noise'));
+    },
 ];

@@ -27,9 +27,22 @@ $inlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 16 /H 1 /IM true /F /CCF /DP << /K 0 /Columns 16 /Rows 1 /BlackIs1 false /EncodedByteAlign true /EndOfLine false /EndOfBlock true >> /D [1 0]',
     "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline CCITT fax payload noise) Tj ET final"
 );
+$invalidInlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline invalid CCITT fax payload noise) Tj ET final";
+$invalidInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 8 /H 1 /IM true /F /CCF /DP << /K /TwoD /Columns 0 /Rows -1 /BlackIs1 /Maybe /EncodedByteAlign true /EndOfLine /No /EndOfBlock true /DamagedRowsBeforeError -2 >> /D [1 0]',
+    $invalidInlinePayload
+);
 $inlineNotes = $inlineReview['notes'] ?? [];
+$invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 if (!in_array('inline_ccitt_fax_image_filter_review_only', $inlineNotes, true)) {
     throw new RuntimeException('Inline CCITT Fax review boundary smoke failed.');
+}
+if (
+    ($invalidInlineParms['valid_decode_parms'] ?? null) !== false
+    || !in_array('columns', $invalidInlineParms['invalid_decode_parms_fields'] ?? [], true)
+    || !in_array('damaged_rows_before_error', $invalidInlineParms['invalid_decode_parms_fields'] ?? [], true)
+) {
+    throw new RuntimeException('Inline CCITT Fax invalid DecodeParms smoke failed.');
 }
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
@@ -39,6 +52,9 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'inline_review_only_filters' => $inlineReview['inline_image']['review_only_filters'] ?? [],
     'inline_ccitt_review_only' => $inlineReview['inline_image_review_only'] ?? null,
     'inline_ccitt_note' => 'inline_ccitt_fax_image_filter_review_only',
+    'inline_invalid_decode_parms_valid' => $invalidInlineParms['valid_decode_parms'] ?? null,
+    'inline_invalid_decode_parms_fields' => $invalidInlineParms['invalid_decode_parms_fields'] ?? [],
+    'inline_invalid_payload_excluded_from_review' => !str_contains(json_encode($invalidInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidInlinePayload),
     'decode_parms' => [
         ['K' => -1, 'Columns' => 1728, 'Rows' => 1, 'BlackIs1' => true],
         ['K' => 0, 'Columns' => 8, 'Rows' => 1, 'EncodedByteAlign' => true],
