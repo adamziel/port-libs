@@ -168,6 +168,7 @@ final class DocxReader
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
             'embeddedObjects' => $this->embeddedObjectImportReport($package, $reachableRelationships, $document),
             'alternativeFormats' => $alternativeFormats,
+            'notes' => $this->notesImportReport($document),
             'revisions' => $revisions,
             'settings' => $settings,
             'sections' => [
@@ -175,6 +176,48 @@ final class DocxReader
                 'items' => $document->attr('sectionProperties', []),
             ],
         ];
+    }
+
+    /**
+     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}
+     */
+    private function notesImportReport(AstNode $document): array
+    {
+        $items = [];
+        $this->collectNoteImportReportItems($document, $items);
+
+        return [
+            'count' => count($items),
+            'footnoteCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'footnote')),
+            'endnoteCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'endnote')),
+            'commentCount' => count(array_filter($items, static fn (array $item): bool => $item['sourceType'] === 'comment')),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['missing'] === true)),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array{id:?string, sourceType:string, missing:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}> $items
+     */
+    private function collectNoteImportReportItems(AstNode $node, array &$items): void
+    {
+        if ($node->type === 'note') {
+            $sourceType = $node->attr('sourceType', 'note');
+            $items[] = [
+                'id' => is_string($node->attr('id')) ? $node->attr('id') : null,
+                'sourceType' => is_string($sourceType) && $sourceType !== '' ? $sourceType : 'note',
+                'missing' => $node->attr('missing') === true,
+                'blockCount' => count($node->children),
+                'text' => $this->plainBlockText($node->children),
+                'author' => is_string($node->attr('author')) ? $node->attr('author') : null,
+                'initials' => is_string($node->attr('initials')) ? $node->attr('initials') : null,
+                'date' => is_string($node->attr('date')) ? $node->attr('date') : null,
+            ];
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectNoteImportReportItems($child, $items);
+        }
     }
 
     /**
@@ -2705,7 +2748,14 @@ final class DocxReader
         $key = $sourceType . ':' . $id;
         if (isset($referencedNotes[$key])) {
             $nodes[] = $referencedNotes[$key];
+            return;
         }
+
+        $nodes[] = new AstNode('note', [
+            'id' => $id,
+            'sourceType' => $sourceType,
+            'missing' => true,
+        ]);
     }
 
     /**

@@ -579,6 +579,20 @@ $crossParagraphCommentsXml = <<<'XML'
 </w:comments>
 XML;
 
+$missingNotesDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Missing source note </w:t></w:r>
+      <w:r><w:footnoteReference w:id="77"/></w:r>
+      <w:r><w:t xml:space="preserve"> and missing endnote </w:t></w:r>
+      <w:r><w:endnoteReference w:id="88"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $mathDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
@@ -1328,6 +1342,14 @@ $buildCrossParagraphCommentRangePackage = static function () use (
         ['name' => 'word/document.xml', 'data' => $crossParagraphCommentRangeDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $commentsOnlyDocumentRelationshipsXml],
         ['name' => 'word/comments.xml', 'data' => $crossParagraphCommentsXml],
+    ]);
+};
+
+$buildMissingNotesPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $missingNotesDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $missingNotesDocumentXml],
     ]);
 };
 
@@ -2152,6 +2174,55 @@ return [
         $t->contains('<p>Before <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">first paragraph note</span></p>', $blocks);
         $t->contains('<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">second paragraph note</span> after range <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
         $t->contains('<li id="fn-1"><p>Comment spans two DOCX paragraphs.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'preserves missing DOCX footnote and endnote references as empty note placeholders' => static function (TestRunner $t) use ($buildMissingNotesPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildMissingNotesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Missing source note ', $paragraph->children[0]->attr('text'));
+
+        $footnote = $paragraph->children[1];
+        $t->same('note', $footnote->type);
+        $t->same('77', $footnote->attr('id'));
+        $t->same('footnote', $footnote->attr('sourceType'));
+        $t->same(true, $footnote->attr('missing'));
+        $t->same([], $footnote->children);
+
+        $t->same(' and missing endnote ', $paragraph->children[2]->attr('text'));
+        $endnote = $paragraph->children[3];
+        $t->same('note', $endnote->type);
+        $t->same('88', $endnote->attr('id'));
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same(true, $endnote->attr('missing'));
+        $t->same([], $endnote->children);
+        $t->same('.', $paragraph->children[4]->attr('text'));
+
+        $t->contains('Missing source note [^1] and missing endnote [^2].', $markdown);
+        $t->contains('[^1]:', $markdown);
+        $t->contains('[^2]:', $markdown);
+        $t->contains('<p>Missing source note <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> and missing endnote <sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup>.</p>', $blocks);
+        $t->contains('<li id="fn-1"> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+
+        $notes = $result['importReport']['notes'];
+        $t->same(2, $notes['count']);
+        $t->same(1, $notes['footnoteCount']);
+        $t->same(1, $notes['endnoteCount']);
+        $t->same(0, $notes['commentCount']);
+        $t->same(2, $notes['missingCount']);
+        $t->same('77', $notes['items'][0]['id']);
+        $t->same('footnote', $notes['items'][0]['sourceType']);
+        $t->same(true, $notes['items'][0]['missing']);
+        $t->same('', $notes['items'][0]['text']);
+        $t->same(0, $notes['items'][0]['blockCount']);
+        $t->same('88', $notes['items'][1]['id']);
+        $t->same('endnote', $notes['items'][1]['sourceType']);
+        $t->same(true, $notes['items'][1]['missing']);
     },
     'maps DOCX OMML inline and display formulas into math AST nodes' => static function (TestRunner $t) use ($buildMathPackage): void {
         $document = (new DocxReader())->readDocument($buildMathPackage());
