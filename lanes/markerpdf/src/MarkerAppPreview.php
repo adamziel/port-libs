@@ -1659,10 +1659,11 @@ final class MarkerAppPreview
                 $directKidBody = $this->pageLabelDictionaryToken($kid);
                 if ($directKidBody !== null) {
                     $kidLocalLimits = $this->pageLabelLimits($directKidBody, $objects, $seen);
+                    $kidMergedLimits = $this->mergePageLabelLimits($limits, $kidLocalLimits);
                     $kidNodes[] = [
                         'body' => $directKidBody,
                         'seen' => $seen,
-                        'limits' => $this->mergePageLabelLimits($limits, $kidLocalLimits),
+                        'limits' => $kidMergedLimits,
                         'local_limits' => $kidLocalLimits,
                         'order' => $kidOrder++,
                     ];
@@ -1683,25 +1684,36 @@ final class MarkerAppPreview
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
                 $kidLocalLimits = $this->pageLabelLimits($kidBody, $objects, $kidSeen);
+                $kidMergedLimits = $this->mergePageLabelLimits($limits, $kidLocalLimits);
                 $kidNodes[] = [
                     'body' => $kidBody,
                     'seen' => $kidSeen,
-                    'limits' => $this->mergePageLabelLimits($limits, $kidLocalLimits),
+                    'limits' => $kidMergedLimits,
                     'local_limits' => $kidLocalLimits,
                     'order' => $kidOrder++,
                 ];
             }
 
-            usort(
-                $kidNodes,
-                static function (array $left, array $right): int {
-                    $leftLimits = $left['limits'];
-                    $rightLimits = $right['limits'];
-
-                    return ($leftLimits[0] ?? PHP_INT_MAX) <=> ($rightLimits[0] ?? PHP_INT_MAX)
-                        ?: $left['order'] <=> $right['order'];
+            $sortableKidLimits = true;
+            foreach ($kidNodes as $kidNode) {
+                if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
+                    $sortableKidLimits = false;
+                    break;
                 }
-            );
+            }
+
+            if ($sortableKidLimits) {
+                usort(
+                    $kidNodes,
+                    static function (array $left, array $right): int {
+                        $leftLimits = $left['limits'];
+                        $rightLimits = $right['limits'];
+
+                        return $leftLimits[0] <=> $rightLimits[0]
+                            ?: $left['order'] <=> $right['order'];
+                    }
+                );
+            }
 
             $sameLowerKidLimits = [];
             foreach ($kidNodes as $kidNode) {

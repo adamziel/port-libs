@@ -10799,25 +10799,36 @@ final class PdfTextExtractor
         foreach ($this->pageLabelKidDictionaryNodes($dictionary, $objects, $seen) as $kidDictionaryNode) {
             $kidDictionary = $kidDictionaryNode['dictionary'];
             $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
+            $kidMergedLimits = $this->pageLabelMergedLimits($limits, $kidLocalLimits);
             $kidNodes[] = [
                 'dictionary' => $kidDictionary,
                 'seen' => $kidDictionaryNode['seen'],
-                'limits' => $this->pageLabelMergedLimits($limits, $kidLocalLimits),
+                'limits' => $kidMergedLimits,
                 'local_limits' => $kidLocalLimits,
                 'order' => $kidOrder++,
             ];
         }
 
-        usort(
-            $kidNodes,
-            static function (array $left, array $right): int {
-                $leftLimits = $left['limits'];
-                $rightLimits = $right['limits'];
-
-                return ($leftLimits[0] ?? PHP_INT_MAX) <=> ($rightLimits[0] ?? PHP_INT_MAX)
-                    ?: $left['order'] <=> $right['order'];
+        $sortableKidLimits = true;
+        foreach ($kidNodes as $kidNode) {
+            if ($kidNode['local_limits'] === null || $kidNode['limits'] === null) {
+                $sortableKidLimits = false;
+                break;
             }
-        );
+        }
+
+        if ($sortableKidLimits) {
+            usort(
+                $kidNodes,
+                static function (array $left, array $right): int {
+                    $leftLimits = $left['limits'];
+                    $rightLimits = $right['limits'];
+
+                    return $leftLimits[0] <=> $rightLimits[0]
+                        ?: $left['order'] <=> $right['order'];
+                }
+            );
+        }
 
         $sameLowerKidLimits = [];
         foreach ($kidNodes as $kidNode) {
