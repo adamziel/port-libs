@@ -31,6 +31,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-missing-rels.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -115,6 +116,21 @@ $selectorShapeSignatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$missingRelationshipPartSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/missing-comments.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdMissingCommentImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $draftRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
@@ -145,6 +161,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
     ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
     ['name' => '_xmlsignatures/sig-selector-shape.xml', 'data' => $selectorShapeSignatureXml],
+    ['name' => '_xmlsignatures/sig-missing-rels.xml', 'data' => $missingRelationshipPartSignatureXml],
 ]);
 
 $aliasCollisionContentTypesXml = <<<'XML'
@@ -543,6 +560,7 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'referenceIndex' => $transform['referenceIndex'],
         'referenceUri' => $transform['referenceUri'],
         'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
         'referenceTargetContentType' => $transform['referenceTargetContentType'],
         'referenceContentType' => $transform['referenceContentType'],
         'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
@@ -566,6 +584,7 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-s
         'signaturePart' => $transform['signaturePart'],
         'referenceUri' => $transform['referenceUri'],
         'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
         'referenceTargetContentType' => $transform['referenceTargetContentType'],
         'referenceContentType' => $transform['referenceContentType'],
         'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
@@ -576,6 +595,28 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-s
         'relationshipCount' => $transform['relationshipCount'],
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
+    ];
+}
+$signatureMissingRelationshipPartGuards = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-missing-rels.xml') as $transform) {
+    $signatureMissingRelationshipPartGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'sourceTypes' => $transform['sourceTypes'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXml' => $transform['relationshipXml'],
     ];
 }
 
@@ -746,6 +787,7 @@ $summary = [
     ],
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
+    'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -1090,6 +1132,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransforms'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig1.xml'
         || ($summary['signatureRelationshipTransforms'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['signatureRelationshipTransforms'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransforms'][0]['referenceRelationshipPartExists'] ?? null) !== true
         || ($summary['signatureRelationshipTransforms'][0]['referenceTargetContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['signatureRelationshipTransforms'][0]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['signatureRelationshipTransforms'][0]['referenceContentTypeMatches'] ?? null) !== true
@@ -1110,6 +1153,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-selector-shape.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['signatureRelationshipTransformGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransformGuards'][0]['referenceRelationshipPartExists'] ?? null) !== true
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceTargetContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceContentType'] ?? null) !== null
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceContentTypeMatches'] ?? null) !== null
@@ -1124,6 +1168,28 @@ if (($argv[1] ?? '') === '--self-test') {
             'unsupported-relationship-transform-selector-child',
             'unsupported-relationship-transform-selector-content',
         ]
+        || count($summary['signatureMissingRelationshipPartGuards'] ?? []) !== 1
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-missing-rels.xml'
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/missing-comments.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/missing-comments.xml.rels'
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['referenceRelationshipPartExists'] ?? null) !== false
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['referenceTargetContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['referenceContentTypeMatches'] ?? null) !== true
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['source'] ?? null) !== '/word/missing-comments.xml'
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['sourceIds'] ?? null) !== ['rIdMissingCommentImage']
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['relationshipIds'] ?? null) !== []
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['relationshipCount'] ?? null) !== 0
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['selectorValid'] ?? null) !== false
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['valid'] ?? null) !== false
+        || ($summary['signatureMissingRelationshipPartGuards'][0]['issues'] ?? null) !== [
+            'reference-relationship-part-missing-in-package',
+            'relationship-source-not-loaded',
+            'unmatched-source-id',
+        ]
+        || !array_key_exists('relationshipXml', $summary['signatureMissingRelationshipPartGuards'][0] ?? [])
+        || $summary['signatureMissingRelationshipPartGuards'][0]['relationshipXml'] !== null
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'

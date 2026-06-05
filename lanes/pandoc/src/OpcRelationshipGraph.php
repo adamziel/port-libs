@@ -1253,7 +1253,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, followingCanonicalizationAlgorithm:?string, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, followingCanonicalizationAlgorithm:?string, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -1281,6 +1281,7 @@ final class OpcRelationshipGraph
                 }
 
                 $relationshipPartName = null;
+                $referenceRelationshipPartExists = null;
                 $referenceTargetContentType = null;
                 $referenceContentType = null;
                 $referenceContentTypeMatches = null;
@@ -1297,6 +1298,10 @@ final class OpcRelationshipGraph
                         if (!OpcRelationships::isRelationshipPartName($relationshipPartName)) {
                             $issues[] = 'reference-not-relationship-part';
                         } else {
+                            $referenceRelationshipPartExists = $this->packagePartNameForEquivalent($relationshipPartName) !== null;
+                            if (!$referenceRelationshipPartExists) {
+                                $issues[] = 'reference-relationship-part-missing-in-package';
+                            }
                             $referenceTargetContentType = $this->contentTypes->contentTypeForPart($relationshipPartName);
                             $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
                             $rowsByRelationshipPart[$relationshipPartName][] = count($rows);
@@ -1362,6 +1367,7 @@ final class OpcRelationshipGraph
                     'referenceIndex' => $referenceIndex,
                     'referenceUri' => $referenceUri,
                     'relationshipPartName' => $relationshipPartName,
+                    'referenceRelationshipPartExists' => $referenceRelationshipPartExists,
                     'referenceTargetContentType' => $referenceTargetContentType,
                     'referenceContentType' => $referenceContentType,
                     'referenceContentTypeMatches' => $referenceContentTypeMatches,
