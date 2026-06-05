@@ -458,7 +458,8 @@ final class MarkdownReader
             } elseif ($sourceValue === '') {
                 $value = $this->parseYamlIndentedValue($children);
             } else {
-                $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
+                $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children);
+                $value = $multiline ?? $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
             }
 
             $this->rememberYamlAnchor($anchorName, $value);
@@ -626,6 +627,13 @@ final class MarkdownReader
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
                 $children[] = $lines[$index];
                 $index++;
+            }
+
+            $multiline = $this->parseYamlMultilineDoubleQuotedScalar($sourceValue, $children);
+            if ($multiline !== null) {
+                $this->rememberYamlAnchor($anchorName, $multiline);
+                $items[] = $multiline;
+                continue;
             }
 
             if ($sourceValue === '') {
@@ -1093,6 +1101,80 @@ final class MarkdownReader
         }
 
         return $key;
+    }
+
+    /**
+     * @param list<string> $continuationLines
+     */
+    private function parseYamlMultilineDoubleQuotedScalar(string $sourceValue, array $continuationLines): ?string
+    {
+        $sourceValue = ltrim($sourceValue);
+        if ($continuationLines === [] || $sourceValue === '' || $sourceValue[0] !== '"') {
+            return null;
+        }
+
+        if ($this->extractYamlDoubleQuotedInner($sourceValue) !== null) {
+            return null;
+        }
+
+        $raw = $sourceValue . "\n" . implode("\n", $continuationLines);
+        $inner = $this->extractYamlDoubleQuotedInner($raw);
+        if ($inner === null) {
+            return null;
+        }
+
+        return $this->decodeYamlDoubleQuotedScalar($this->foldYamlDoubleQuotedContinuationLines($inner));
+    }
+
+    private function extractYamlDoubleQuotedInner(string $source): ?string
+    {
+        $source = ltrim($source);
+        if ($source === '' || $source[0] !== '"') {
+            return null;
+        }
+
+        $length = strlen($source);
+        for ($offset = 1; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+
+            if ($char === '"') {
+                return substr($source, 1, $offset - 1);
+            }
+        }
+
+        return null;
+    }
+
+    private function foldYamlDoubleQuotedContinuationLines(string $inner): string
+    {
+        if (!str_contains($inner, "\n")) {
+            return $inner;
+        }
+
+        $lines = explode("\n", $inner);
+        $folded = (string) array_shift($lines);
+        foreach ($lines as $line) {
+            $content = ltrim($line, " \t");
+            if (str_ends_with($folded, '\\')) {
+                $folded = substr($folded, 0, -1) . $content;
+                continue;
+            }
+
+            if (trim($line) === '') {
+                $folded = rtrim($folded, " \t") . "\n";
+                continue;
+            }
+
+            $folded = str_ends_with($folded, "\n")
+                ? $folded . $content
+                : rtrim($folded, " \t") . ' ' . $content;
+        }
+
+        return $folded;
     }
 
     private function unquoteYamlScalar(string $value): string

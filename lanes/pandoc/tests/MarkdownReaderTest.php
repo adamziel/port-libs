@@ -1171,6 +1171,44 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('escaped-yaml-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml multiline double quoted metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: "Migrated',
+            '  **Packet**"',
+            'authors:',
+            '  - "Reviewer',
+            '    One"',
+            '  - "Editor\\',
+            '    Two"',
+            'review:',
+            '  note: "Line one',
+            '    line two"',
+            '  source-uri: "https://example.test/\\',
+            '    exports/packet#front-matter"',
+            'references:',
+            '  - id: multiline-ref',
+            '    title: "Source',
+            '      **Export**"',
+            '...',
+            '',
+            '# Multiline YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+
+        $t->same('Migrated **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('Reviewer One', $meta['authors'][0]);
+        $t->same('EditorTwo', $meta['authors'][1]);
+        $t->same('Line one line two', $meta['review']['note']);
+        $t->same('https://example.test/exports/packet#front-matter', $meta['review']['source-uri']);
+        $t->same('multiline-ref', $meta['references'][0]['id']);
+        $t->same('Source **Export**', $meta['references'][0]['title']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('multiline-yaml-body', $document->children[0]->attr('id'));
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

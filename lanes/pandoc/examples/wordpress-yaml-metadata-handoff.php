@@ -27,6 +27,10 @@ review:
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
+multiline-source-title: "Imported
+  **Metadata** packet"
+source-continuation-uri: "https://example.test/\
+  exports/packet#front-matter"
 source-summary: >- # folded source note for reviewer queue
   Preserve front matter
   comments before rendering.
@@ -95,6 +99,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['escaped-source-uri'] ?? '') !== 'https://example.test/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test missing escaped source URI');
     }
+    if (($meta['multiline-source-title'] ?? '') !== 'Imported **Metadata** packet') {
+        throw new RuntimeException('YAML metadata self-test missing folded multiline source title');
+    }
+    if (($meta['source-continuation-uri'] ?? '') !== 'https://example.test/exports/packet#front-matter') {
+        throw new RuntimeException('YAML metadata self-test missing escaped continuation source URI');
+    }
     if (($meta['source-revision'] ?? '') !== '007') {
         throw new RuntimeException('YAML metadata self-test missing tagged string revision');
     }
@@ -113,5 +123,6 @@ echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
+echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";
 echo 'Reference: ' . ($meta['references'][0]['id'] ?? '') . ' / ' . ($meta['references'][0]['title'] ?? '') . "\n\n";
 echo $blocks . "\n";
