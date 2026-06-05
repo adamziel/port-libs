@@ -26,6 +26,44 @@ $ccittFaxFilterBoundaryZlibStored = static function (string $bytes): string {
         . pack('N', ($s2 << 16) | $s1);
 };
 
+$ccittFaxFilterBoundaryLzwPackCodes = static function (array $codes, int $earlyChange = 1): string {
+    $dictSize = 258;
+    $codeSize = 9;
+    $bits = '';
+    foreach ($codes as $code) {
+        for ($bit = $codeSize - 1; $bit >= 0; $bit--) {
+            $bits .= (($code >> $bit) & 1) === 1 ? '1' : '0';
+        }
+        if ($code === 256) {
+            $dictSize = 258;
+            $codeSize = 9;
+            continue;
+        }
+        if ($code !== 257) {
+            $dictSize++;
+            if ($codeSize < 12 && $dictSize + $earlyChange >= (1 << $codeSize)) {
+                $codeSize++;
+            }
+        }
+    }
+
+    $out = '';
+    for ($offset = 0, $length = strlen($bits); $offset < $length; $offset += 8) {
+        $byte = substr($bits, $offset, 8);
+        $out .= chr(bindec(str_pad($byte, 8, '0')));
+    }
+
+    return $out;
+};
+
+$ccittFaxFilterBoundaryLzwLiteralEncode = static function (string $bytes) use ($ccittFaxFilterBoundaryLzwPackCodes): string {
+    return $ccittFaxFilterBoundaryLzwPackCodes([
+        256,
+        ...array_map('ord', str_split($bytes)),
+        257,
+    ]);
+};
+
 $ccittFaxFilterBoundaryPdf = static function (): array {
     $content = "BT /F1 12 Tf 72 720 Td (Before CCITT XObject) Tj ET\n"
         . "q 172.8 0 0 0.2 72 700 cm /Fax#20Scan Do Q\n"
@@ -1090,6 +1128,76 @@ return [
             $t->same(false, $entry['decoded_with_current_filters'] ?? null);
             $t->same(strlen($compressedPayload), $entry['raw_length'] ?? null);
             $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        }
+    },
+    'keeps LZW-wrapped CCITT Fax EOD decoys inside image payload boundaries' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryLzwLiteralEncode): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before LZW CCITT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After LZW CCITT stream) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (LZW CCITT early EOD leak) Tj ET';
+        $ccittEofb = "\x00\x10\x01";
+        $encodedPayload = $ccittFaxFilterBoundaryLzwLiteralEncode("\x11\x22\x33")
+            . "\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . $ccittFaxFilterBoundaryLzwLiteralEncode("\x44\x55{$ccittEofb}");
+        $staleTerminatorOffset = strpos($encodedPayload, "\nendstream\n");
+        if ($staleTerminatorOffset === false) {
+            throw new RuntimeException('Focused LZW-wrapped CCITT fixture must expose a stale endstream marker.');
+        }
+
+        $buildPdf = static function (?int $declaredLength) use ($before, $after, $encodedPayload): string {
+            $lengthOperand = $declaredLength === null ? '' : " /Length {$declaredLength}";
+
+            return "%PDF-1.4\n"
+                . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxLzw 5 0 R >> >> >>\nendobj\n"
+                . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+                . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+                . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter [/LZWDecode /CCITTFaxDecode] /DecodeParms [<< /EarlyChange 1 >> << /K -1 /Columns 16 /Rows 0 /EndOfBlock true >>]{$lengthOperand} >>\nstream\n{$encodedPayload}\nendstream\nendobj\n"
+                . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+                . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        };
+
+        foreach ([$buildPdf(null), $buildPdf($staleTerminatorOffset)] as $pdf) {
+            $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+            $entry = $review['entries'][0] ?? [];
+            $plainText = $extractor->extractPlainText($pdf);
+
+            $t->same(['Before LZW CCITT stream', 'After LZW CCITT stream'], $extractor->extractTextLines($pdf));
+            $t->same("Before LZW CCITT stream\nAfter LZW CCITT stream", $plainText);
+            $t->true(!str_contains($plainText, 'LZW CCITT early EOD leak'));
+            $t->true(!str_contains($plainText, 'endstream'));
+            $t->same(['LZWDecode', 'CCITTFaxDecode'], $entry['filters'] ?? null);
+            $t->same(['CCITTFaxDecode'], $entry['preview_only_filters'] ?? null);
+            $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+            $t->same(false, $entry['native_raster_decode'] ?? null);
+            $t->same(strlen($encodedPayload), $entry['raw_length'] ?? null);
+            $t->same(false, $entry['payload_in_visible_text'] ?? null);
+            $t->same([
+                'declared_filter' => 'CCITTFaxDecode',
+                'canonical_filter' => 'CCITTFaxDecode',
+                'alias_used' => false,
+                'non_null_filter_index' => 1,
+                'filters_before_ccitt' => ['LZWDecode'],
+                'native_prefix_filters' => ['LZWDecode'],
+                'preview_only_filters_before_ccitt' => [],
+                'filters_after_ccitt' => [],
+                'native_filters_after_ccitt' => [],
+                'preview_only_filters_after_ccitt' => [],
+                'ccitt_is_terminal_filter' => true,
+                'post_ccitt_filters_present' => false,
+                'post_ccitt_filters_block_native_decode' => false,
+                'source_filter_preserved' => true,
+                'review_only' => true,
+                'native_raster_decode' => false,
+            ], $entry['ccitt_fax_filter_boundary'] ?? null);
+            $t->same(-1, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+            $t->same(true, $entry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null);
+            $t->same('group4_two_dimensional', $entry['ccitt_fax_coding_boundary']['coding_mode'] ?? null);
+            $t->same('eofb', $entry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null);
+            $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+            $t->true(!str_contains($encodedReview, 'LZW CCITT early EOD leak'));
+            $t->true(!str_contains($encodedReview, $encodedPayload));
         }
     },
     'requires CCITT end-of-block markers after identity Crypt prefixes before fake stream owners' => static function (TestRunner $t): void {

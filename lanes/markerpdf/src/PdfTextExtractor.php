@@ -12163,9 +12163,108 @@ final class PdfTextExtractor
             ) {
                 return $candidate;
             }
+            if (
+                $this->ccittFaxPrefixFirstFilterHasBoundedEndBeforeTerminator(
+                    $dict,
+                    $payload,
+                    $objects,
+                    $filters,
+                    $firstFilterIndex,
+                    $ccittFilterIndex
+                )
+            ) {
+                return $candidate;
+            }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param list<string|null> $filters
+     */
+    private function ccittFaxPrefixFirstFilterHasBoundedEndBeforeTerminator(
+        string $dict,
+        string $payload,
+        array $objects,
+        array $filters,
+        int $firstFilterIndex,
+        int $ccittFilterIndex
+    ): bool {
+        $firstFilter = $filters[$firstFilterIndex] ?? null;
+        if ($firstFilter !== 'LZWDecode' && $firstFilter !== 'LZW') {
+            return false;
+        }
+
+        for ($index = $firstFilterIndex + 1; $index < $ccittFilterIndex; $index++) {
+            if (($filters[$index] ?? null) !== null) {
+                return false;
+            }
+        }
+
+        $decodeParms = $this->streamDecodeParmsForFilters($dict, $objects, $filters);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $firstFilterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $firstFilterIndex);
+        if (!$this->canApplyDecodeParms($firstFilter, $firstFilterDecodeParms, $objects)) {
+            return false;
+        }
+
+        $ccittDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
+        $imageHeight = $this->pdfIntegerValueAfterNameResolvingObjects($dict, 'Height', $objects);
+
+        return $this->ccittFaxPrefixLzwMemberReachesBoundaryAtTerminator(
+            $payload,
+            $firstFilterDecodeParms,
+            $ccittDecodeParms,
+            $objects,
+            $imageHeight
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function ccittFaxPrefixLzwMemberReachesBoundaryAtTerminator(
+        string $payload,
+        ?string $lzwDecodeParms,
+        ?string $ccittDecodeParms,
+        array $objects,
+        ?int $imageHeight
+    ): bool {
+        $candidateStarts = [0];
+        $offset = 0;
+        while (($candidateStart = strpos($payload, "\x80", $offset)) !== false) {
+            $candidateStarts[] = $candidateStart;
+            $offset = $candidateStart + 1;
+        }
+
+        foreach (array_values(array_unique($candidateStarts)) as $candidateStart) {
+            $tail = substr($payload, $candidateStart);
+            $endOffset = $this->lzwExplicitEndByteOffset($tail, $lzwDecodeParms, $objects);
+            if ($endOffset === null || !$this->streamHasOnlyWhitespaceAfterOffset($tail, $endOffset)) {
+                continue;
+            }
+
+            $decoded = $this->decodeLzwStream(substr($tail, 0, $endOffset), $lzwDecodeParms, $objects);
+            if (
+                $decoded !== null
+                && $this->ccittFaxBytesReachBoundaryForDecodeParms(
+                    $decoded,
+                    $ccittDecodeParms,
+                    $objects,
+                    false,
+                    $imageHeight
+                )
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
