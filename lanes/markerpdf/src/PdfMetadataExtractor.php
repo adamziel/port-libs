@@ -7333,6 +7333,7 @@ final class PdfMetadataExtractor
         $xrefEntries = $this->xrefEntriesFromStartxrefChain($pdfBytes, $objects, $definitions);
         if ($xrefEntries !== []) {
             $objects = $this->liveDirectObjects($definitions, $xrefEntries);
+            $objects = $this->withObjectStreamObjects($objects, $xrefEntries);
             $objects = $this->withTrailerDirectGenerationObjects($pdfBytes, $objects, $definitions);
             $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
         }
@@ -7714,6 +7715,121 @@ final class PdfMetadataExtractor
 
         ksort($repaired, SORT_NUMERIC);
         return $repaired;
+    }
+
+    /**
+     * Xref-stream type-2 rows select ordinary generation-zero objects from a
+     * selected direct /ObjStm carrier. Metadata review needs those compressed
+     * catalog, Info, and name-tree dictionaries, but stream payload objects
+     * remain direct objects only.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, string>
+     */
+    private function withObjectStreamObjects(array $objects, array $xrefEntries): array
+    {
+        $expanded = $objects;
+        foreach ($xrefEntries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 2 || isset($expanded[$objectNumber])) {
+                continue;
+            }
+
+            $body = $this->objectStreamMemberBodyForXrefEntry($expanded, $entry, (int) $objectNumber);
+            if ($body === null || $body === '' || $this->objectStreamMemberIsTopLevelStreamObject($body)) {
+                continue;
+            }
+
+            $expanded[(int) $objectNumber] = $body;
+        }
+
+        ksort($expanded, SORT_NUMERIC);
+        return $expanded;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array{type: int, objectStream?: int, index?: int, indexIsExplicit?: bool} $xrefEntry
+     */
+    private function objectStreamMemberBodyForXrefEntry(array $objects, array $xrefEntry, int $requestedObjectNumber): ?string
+    {
+        $objectStreamNumber = $xrefEntry['objectStream'] ?? null;
+        if (!is_int($objectStreamNumber) || !isset($objects[$objectStreamNumber])) {
+            return null;
+        }
+
+        $objectStreamBody = $objects[$objectStreamNumber];
+        if (!$this->objectBodyHasTypeName($objectStreamBody, 'ObjStm')) {
+            return null;
+        }
+
+        $memberTable = $this->decodedObjectStreamMemberTable($objectStreamBody, $objects);
+        if ($memberTable === null) {
+            return null;
+        }
+
+        $member = $this->objectStreamSelectedMember($memberTable['members'], $xrefEntry, $requestedObjectNumber);
+        if ($member === null) {
+            return null;
+        }
+
+        $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+        $nextOffset = $this->objectStreamMemberEndOffset($memberTable['members'], $member['offset'], $objectDataLength);
+        if ($nextOffset === null) {
+            return null;
+        }
+
+        return trim(substr(
+            $memberTable['decoded'],
+            $memberTable['first'] + $member['offset'],
+            $nextOffset - $member['offset']
+        ));
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     * @param array{type: int, index?: int, indexIsExplicit?: bool} $xrefEntry
+     * @return array{objectNumber: int, offset: int, index: int}|null
+     */
+    private function objectStreamSelectedMember(array $members, array $xrefEntry, int $requestedObjectNumber): ?array
+    {
+        $requestedIndex = $xrefEntry['index'] ?? null;
+        if (is_int($requestedIndex) && ($xrefEntry['indexIsExplicit'] ?? true) === true) {
+            foreach ($members as $member) {
+                if ($member['index'] === $requestedIndex && $member['objectNumber'] === $requestedObjectNumber) {
+                    return $member;
+                }
+            }
+
+            return null;
+        }
+
+        $selected = null;
+        foreach ($members as $member) {
+            if ($member['objectNumber'] !== $requestedObjectNumber) {
+                continue;
+            }
+
+            if ($selected !== null) {
+                return null;
+            }
+
+            $selected = $member;
+        }
+
+        return $selected;
+    }
+
+    private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
+    {
+        $dictionaryOffset = $this->skipPdfWhitespace($memberBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($memberBody, $dictionaryOffset);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        $streamOffset = $this->skipPdfWhitespace($memberBody, $dictionaryOffset + strlen($dictionary) + 4);
+        return $this->pdfKeywordAt($memberBody, $streamOffset, 'stream');
     }
 
     /**
