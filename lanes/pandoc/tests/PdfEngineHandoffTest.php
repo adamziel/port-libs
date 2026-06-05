@@ -1779,6 +1779,83 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfTaggingMetadata']);
     },
 
+    'fake runner extracts bounded pdf structure element accessibility metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-elements.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /K [0 1] /Alt (Migration chart thumbnail) /ActualText <FEFF00430068006100720074002000730075006D006D006100720079> /Lang (en-US) /T (review-figure) >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /P /P 9 0 R /Pg 3 0 R /K 2 /ActualText (Reviewer note paragraph) /Lang /en-GB >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-elements.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-elements.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'object' => '10 0 R',
+                'type' => 'Figure',
+                'parent' => '9 0 R',
+                'pageObject' => '3 0 R',
+                'alt' => 'Migration chart thumbnail',
+                'actualText' => 'Chart summary',
+                'language' => 'en-US',
+                'title' => 'review-figure',
+                'childCount' => 2,
+            ],
+            [
+                'object' => '11 0 R',
+                'type' => 'P',
+                'parent' => '9 0 R',
+                'pageObject' => '3 0 R',
+                'alt' => null,
+                'actualText' => 'Reviewer note paragraph',
+                'language' => 'en-GB',
+                'title' => null,
+                'childCount' => 1,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureElements']);
+        $t->contains('pdf-byte-structure-elements:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-alt-text:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-actual-text:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-structure-languages:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureElements']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

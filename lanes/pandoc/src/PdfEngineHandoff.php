@@ -278,6 +278,7 @@ final class PdfEngineHandoff
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     pdfViewerPreferences: array<string, bool|int|string>,
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfAnnotationTypes: array<string, int>,
@@ -669,6 +670,7 @@ final class PdfEngineHandoff
         $pdfNamedDestinations = [];
         $pdfViewerPreferences = [];
         $pdfTaggingMetadata = [];
+        $pdfStructureElements = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
         $pdfAnnotationTypes = [];
@@ -718,6 +720,7 @@ final class PdfEngineHandoff
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
+                $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
@@ -925,6 +928,32 @@ final class PdfEngineHandoff
                     }
                     if (isset($pdfTaggingMetadata['structureChildren']) && is_int($pdfTaggingMetadata['structureChildren'])) {
                         $diagnostics[] = 'pdf-byte-structure-children:' . $pdfTaggingMetadata['structureChildren'];
+                    }
+                }
+                if ($pdfStructureElements !== []) {
+                    $diagnostics[] = 'pdf-byte-structure-elements:' . count($pdfStructureElements);
+                    $altTextCount = 0;
+                    $actualTextCount = 0;
+                    $languageCount = 0;
+                    foreach ($pdfStructureElements as $structureElement) {
+                        if (is_string($structureElement['alt'] ?? null) && $structureElement['alt'] !== '') {
+                            $altTextCount++;
+                        }
+                        if (is_string($structureElement['actualText'] ?? null) && $structureElement['actualText'] !== '') {
+                            $actualTextCount++;
+                        }
+                        if (is_string($structureElement['language'] ?? null) && $structureElement['language'] !== '') {
+                            $languageCount++;
+                        }
+                    }
+                    if ($altTextCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-alt-text:' . $altTextCount;
+                    }
+                    if ($actualTextCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-actual-text:' . $actualTextCount;
+                    }
+                    if ($languageCount > 0) {
+                        $diagnostics[] = 'pdf-byte-structure-languages:' . $languageCount;
                     }
                 }
                 if ($pdfActiveActions !== []) {
@@ -1136,6 +1165,7 @@ final class PdfEngineHandoff
             'pdfNamedDestinations' => $pdfNamedDestinations,
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
+            'pdfStructureElements' => $pdfStructureElements,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
@@ -1206,6 +1236,7 @@ final class PdfEngineHandoff
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfAnnotationTypes: array<string, int>,
@@ -1390,6 +1421,7 @@ final class PdfEngineHandoff
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
+            'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
@@ -2466,6 +2498,7 @@ final class PdfEngineHandoff
      *     namedDestinations:list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
+     *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
      *     annotationTypes:array<string, int>,
@@ -2539,6 +2572,7 @@ final class PdfEngineHandoff
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
+            'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
@@ -4368,6 +4402,51 @@ final class PdfEngineHandoff
         }
 
         return $this->countPdfTopLevelArrayValues($value['value']);
+    }
+
+    /**
+     * @return list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>
+     */
+    private function extractPdfStructureElements(string $pdfBytes): array
+    {
+        $elements = [];
+        foreach ($this->pdfObjectBodiesByReference($pdfBytes) as $reference => $body) {
+            if ($this->extractPdfNameToken($body, 'Type') !== 'StructElem') {
+                continue;
+            }
+
+            $elements[] = $this->summarizePdfStructureElement($reference . ' R', $body);
+        }
+
+        usort($elements, fn (array $a, array $b): int => $this->pdfReferenceSortKey($a['object']) <=> $this->pdfReferenceSortKey($b['object']));
+
+        return $elements;
+    }
+
+    /**
+     * @return array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}
+     */
+    private function summarizePdfStructureElement(string $reference, string $dictionary): array
+    {
+        $children = null;
+        $value = $this->extractPdfValueForName($dictionary, 'K');
+        if ($value !== null) {
+            $children = $value['kind'] === 'array'
+                ? $this->countPdfTopLevelArrayValues($value['value'])
+                : 1;
+        }
+
+        return [
+            'object' => $reference,
+            'type' => $this->extractPdfNameToken($dictionary, 'S'),
+            'parent' => $this->extractPdfReferenceToken($dictionary, 'P'),
+            'pageObject' => $this->extractPdfReferenceToken($dictionary, 'Pg'),
+            'alt' => $this->extractPdfStringOrNameValue($dictionary, 'Alt'),
+            'actualText' => $this->extractPdfStringOrNameValue($dictionary, 'ActualText'),
+            'language' => $this->extractPdfStringOrNameValue($dictionary, 'Lang'),
+            'title' => $this->extractPdfStringOrNameValue($dictionary, 'T'),
+            'childCount' => $children,
+        ];
     }
 
     private function countPdfTopLevelArrayValues(string $array): int
