@@ -875,6 +875,78 @@ return [
         $t->same(false, $fatPackage->entry('word/media/review.png')->isUnixSymlink());
     },
 
+    'rejects unix special file zip entries before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-device.bin',
+                'data' => 'character device metadata must not become media bytes',
+                'method' => 0,
+                'externalAttributes' => 0x21b60000,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-fifo.bin',
+                'data' => 'fifo metadata must not become media bytes',
+                'method' => 0,
+                'externalAttributes' => 0x11b60000,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-socket.bin',
+                'data' => 'socket metadata must not become media bytes',
+                'method' => 0,
+                'externalAttributes' => 0xc1ff0000,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-block-device.bin',
+                'data' => 'block device metadata must stay blocked',
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x61b60000,
+            ],
+        ]));
+
+        $safePackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>regular file type metadata</w:p></w:document>',
+                'method' => 8,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/fat-device-bits.bin',
+                'data' => 'non-unix external attribute bits stay metadata only',
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0x21b60000,
+            ],
+        ]));
+
+        $document = $safePackage->entry('/word/document.xml');
+        $directory = $safePackage->entry('/word/media/');
+        $fatEntry = $safePackage->entry('/word/media/fat-device-bits.bin');
+
+        $t->same(0x8000, $document->unixFileType());
+        $t->same('regular-file', $document->unixFileTypeName());
+        $t->same(false, $document->isUnixSpecialFile());
+        $t->same(0x4000, $directory->unixFileType());
+        $t->same('directory', $directory->unixFileTypeName());
+        $t->same(false, $directory->isUnixSpecialFile());
+        $t->same(null, $fatEntry->unixFileType());
+        $t->same(null, $fatEntry->unixFileTypeName());
+        $t->same(false, $fatEntry->isUnixSpecialFile());
+        $t->same('non-unix external attribute bits stay metadata only', $safePackage->read('/word/media/fat-device-bits.bin'));
+    },
+
     'rejects zip directory entries with payload before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

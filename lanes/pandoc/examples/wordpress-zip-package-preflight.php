@@ -1733,6 +1733,19 @@ try {
 } catch (RuntimeException $exception) {
     $symlinkRejected = str_contains($exception->getMessage(), 'symlink');
 }
+$unixSpecialFileRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/reviewer-device.bin',
+            'data' => 'character device metadata must not become media bytes',
+            'compressionMethod' => 0,
+            'externalAttributes' => 0x21b60000,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $unixSpecialFileRejected = str_contains($exception->getMessage(), 'Unix special file entries');
+}
 $zip64Rejected = false;
 try {
     ZipPackage::fromString($buildZip64ExtraBackedPackage());
@@ -2746,6 +2759,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR PAX review metadata with invalid UTF-8 to be rejected before import');
     }
 
+    if (!$unixSpecialFileRejected) {
+        throw new RuntimeException('Expected ZIP Unix special file entries to be rejected before media import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -2822,6 +2839,7 @@ echo 'extended.reviewer-note.modifiedAt=' . ($extendedTimestamps['modifiedAt'] ?
 echo 'extended.reviewer-note.accessedAt=' . ($extendedTimestamps['accessedAt'] ?? 'none') . "\n";
 echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 'none') . "\n";
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnixSpecialFilePolicy=' . ($unixSpecialFileRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64Policy=' . ($zip64Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -25,7 +25,13 @@ final class ZipPackage
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
     private const UINT32_FACTOR = 4294967296;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
+    private const UNIX_FIFO_TYPE = 0x1000;
+    private const UNIX_CHARACTER_DEVICE_TYPE = 0x2000;
+    private const UNIX_DIRECTORY_TYPE = 0x4000;
+    private const UNIX_BLOCK_DEVICE_TYPE = 0x6000;
+    private const UNIX_REGULAR_FILE_TYPE = 0x8000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
+    private const UNIX_SOCKET_TYPE = 0xc000;
     private const CREATOR_HOST_SYSTEM_NAMES = [
         0 => 'ms-dos-fat',
         1 => 'amiga',
@@ -214,6 +220,13 @@ final class ZipPackage
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package reader: {$name}");
             }
 
+            if ($entry->isUnixSpecialFile()) {
+                throw new \RuntimeException(
+                    "ZIP Unix special file entries are not supported by the pandoc package reader: {$name} "
+                    . '(' . $entry->unixFileTypeName() . ')'
+                );
+            }
+
             $entries[] = $entry;
             $entriesByName[$name] = $entry;
             $cursor += 46 + $variableLength;
@@ -369,6 +382,10 @@ final class ZipPackage
             }
             if (self::isUnixSymlinkExternalAttributes($externalAttributes)) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package writer: {$name}");
+            }
+
+            if (self::isUnixSpecialFileExternalAttributes($externalAttributes)) {
+                throw new \RuntimeException("ZIP Unix special file entries are not supported by the pandoc package writer: {$name}");
             }
 
             self::assertUInt32Value($compressedSize, "ZIP entry {$name} compressed size");
@@ -2245,6 +2262,22 @@ final class ZipPackage
         $mode = ($externalAttributes >> 16) & 0xffff;
 
         return ($mode & self::UNIX_FILE_TYPE_MASK) === self::UNIX_SYMLINK_TYPE;
+    }
+
+    private static function isUnixSpecialFileExternalAttributes(int $externalAttributes): bool
+    {
+        $type = (($externalAttributes >> 16) & 0xffff) & self::UNIX_FILE_TYPE_MASK;
+
+        return $type === self::UNIX_FIFO_TYPE
+            || $type === self::UNIX_CHARACTER_DEVICE_TYPE
+            || $type === self::UNIX_BLOCK_DEVICE_TYPE
+            || $type === self::UNIX_SOCKET_TYPE
+            || (
+                $type !== 0
+                && $type !== self::UNIX_DIRECTORY_TYPE
+                && $type !== self::UNIX_REGULAR_FILE_TYPE
+                && $type !== self::UNIX_SYMLINK_TYPE
+            );
     }
 
     private static function readUInt16(string $bytes, int $offset): int

@@ -11,7 +11,13 @@ final class ZipPackageEntry
     private const UINT32_FACTOR = 4294967296;
     private const UNIX_HOST_SYSTEM = 3;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
+    private const UNIX_FIFO_TYPE = 0x1000;
+    private const UNIX_CHARACTER_DEVICE_TYPE = 0x2000;
+    private const UNIX_DIRECTORY_TYPE = 0x4000;
+    private const UNIX_BLOCK_DEVICE_TYPE = 0x6000;
+    private const UNIX_REGULAR_FILE_TYPE = 0x8000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
+    private const UNIX_SOCKET_TYPE = 0xc000;
     private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
     private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
 
@@ -95,11 +101,46 @@ final class ZipPackageEntry
         return $mode === 0 ? null : $mode;
     }
 
-    public function isUnixSymlink(): bool
+    public function unixFileType(): ?int
     {
         $mode = $this->unixMode();
+        if ($mode === null) {
+            return null;
+        }
 
-        return $mode !== null && ($mode & self::UNIX_FILE_TYPE_MASK) === self::UNIX_SYMLINK_TYPE;
+        $type = $mode & self::UNIX_FILE_TYPE_MASK;
+
+        return $type === 0 ? null : $type;
+    }
+
+    public function unixFileTypeName(): ?string
+    {
+        return match ($this->unixFileType()) {
+            null => null,
+            self::UNIX_FIFO_TYPE => 'fifo',
+            self::UNIX_CHARACTER_DEVICE_TYPE => 'character-device',
+            self::UNIX_DIRECTORY_TYPE => 'directory',
+            self::UNIX_BLOCK_DEVICE_TYPE => 'block-device',
+            self::UNIX_REGULAR_FILE_TYPE => 'regular-file',
+            self::UNIX_SYMLINK_TYPE => 'symlink',
+            self::UNIX_SOCKET_TYPE => 'socket',
+            default => 'unknown',
+        };
+    }
+
+    public function isUnixSpecialFile(): bool
+    {
+        $type = $this->unixFileType();
+
+        return $type !== null
+            && $type !== self::UNIX_REGULAR_FILE_TYPE
+            && $type !== self::UNIX_DIRECTORY_TYPE
+            && $type !== self::UNIX_SYMLINK_TYPE;
+    }
+
+    public function isUnixSymlink(): bool
+    {
+        return $this->unixFileType() === self::UNIX_SYMLINK_TYPE;
     }
 
     public function unixPermissionBits(): ?int
@@ -115,6 +156,7 @@ final class ZipPackageEntry
 
         return !$this->isDirectory()
             && !$this->isUnixSymlink()
+            && $this->unixFileType() === self::UNIX_REGULAR_FILE_TYPE
             && $permissions !== null
             && ($permissions & 0111) !== 0;
     }
