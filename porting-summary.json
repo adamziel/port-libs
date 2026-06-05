@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 03:09:28 UTC",
-    "sourceCommit": "24d7de0ed7acb89a62dd1bdc47c0bbfe5f26d9df",
-    "sourceCommitShort": "24d7de0ed7ac",
+    "generated": "2026-06-05 03:10:26 UTC",
+    "sourceCommit": "2457e71a39f81d15f514c1b9210c57297f341645",
+    "sourceCommitShort": "2457e71a39f8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "24d7de0ed7acb89a62dd1bdc47c0bbfe5f26d9df",
-    "dashboardCommitShort": "24d7de0ed7ac",
+    "dashboardCommit": "2457e71a39f81d15f514c1b9210c57297f341645",
+    "dashboardCommitShort": "2457e71a39f8",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,231",
             "php": "569 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base e980...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 48d2...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Keep full Unicode line-breaking, terminal-profile-specific em...",
+            "nextTarget": "For Citation/CSL follow-up, keep label and number rendering,...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
