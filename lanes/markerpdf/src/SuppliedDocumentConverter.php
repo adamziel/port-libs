@@ -260,6 +260,11 @@ final class SuppliedDocumentConverter
             }
             $tableCropImageSizes = $this->tableCropImageSizes($tablePlan);
             $recognition = $this->tableRecognizer->formatRecognizedTables($recognizedTables, $tableCropImageSizes);
+            $recognizedTables = $recognition['recognized_tables'];
+            $coordinateSpaceReviews = $this->tableCoordinateSpaceReviews($recognition['coordinate_space_reviews'] ?? []);
+            if ($coordinateSpaceReviews !== []) {
+                $metadata['table_coordinate_space_reviews'] = $coordinateSpaceReviews;
+            }
             $markdownTables = $recognition['markdown_tables'];
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);
             $metadata['table_assigned_cells'] = $recognition['assigned_cells'];
@@ -454,10 +459,14 @@ final class SuppliedDocumentConverter
                 $cropWidth = $tableImage['crop_width'] ?? null;
                 $cropHeight = $tableImage['crop_height'] ?? null;
                 if ((is_int($cropWidth) || is_float($cropWidth)) && (is_int($cropHeight) || is_float($cropHeight)) && $cropWidth > 0 && $cropHeight > 0) {
-                    $sizes[] = [
+                    $size = [
                         'width' => (int) round($cropWidth),
                         'height' => (int) round($cropHeight),
                     ];
+                    if (isset($tableImage['highres_bbox']) && is_array($tableImage['highres_bbox'])) {
+                        $size['table_bbox'] = $tableImage['highres_bbox'];
+                    }
+                    $sizes[] = $size;
                     continue;
                 }
             }
@@ -476,6 +485,26 @@ final class SuppliedDocumentConverter
         }
 
         return $sizes;
+    }
+
+    /**
+     * @param mixed $reviews
+     * @return list<array<string, mixed>>
+     */
+    private function tableCoordinateSpaceReviews(mixed $reviews): array
+    {
+        if (!is_array($reviews)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($reviews as $review) {
+            if (is_array($review)) {
+                $normalized[] = $review;
+            }
+        }
+
+        return $normalized;
     }
 
     /**

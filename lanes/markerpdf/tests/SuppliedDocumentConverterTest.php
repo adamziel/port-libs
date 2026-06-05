@@ -2729,6 +2729,94 @@ return [
             unlink($path);
         }
     },
+    'translates supplied page-image table geometry through the current crop boundary before WordPress formatting' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-table-page-image-geometry-boundary-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% table page image geometry boundary supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Page image table geometry review', 'bbox' => [72.0, 48.0, 470.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Stale page-space table line should be replaced.', 'bbox' => [72.0, 176.0, 300.0, 196.0]],
+                ['text' => 'After page-image geometry review.', 'bbox' => [72.0, 276.0, 470.0, 294.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 470.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 150.0, 312.0, 230.0]],
+                    ['label' => 'Text', 'bbox' => [72.0, 276.0, 470.0, 294.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'coordinate_space' => 'page_image',
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [72.0, 150.0, 312.0, 182.0]],
+                    ['row_id' => 1, 'bbox' => [72.0, 190.0, 312.0, 220.0]],
+                    ['row_id' => 2, 'bbox' => [72.0, 250.0, 312.0, 270.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [72.0, 150.0, 172.0, 230.0]],
+                    ['col_id' => 1, 'bbox' => [192.0, 150.0, 332.0, 230.0]],
+                    ['col_id' => 2, 'bbox' => [342.0, 150.0, 362.0, 230.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [82.0, 155.0, 162.0, 170.0], 'text' => 'Feature'],
+                    ['bbox' => [202.0, 155.0, 302.0, 170.0], 'text' => 'Status'],
+                    ['bbox' => [82.0, 195.0, 162.0, 215.0], 'text' => 'Images'],
+                    ['bbox' => [202.0, 195.0, 302.0, 215.0], 'text' => 'Ready'],
+                    ['bbox' => [360.0, 195.0, 382.0, 215.0], 'text' => 'Stale page edge'],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => [['blocks' => []]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $coordinateReview = $result['metadata']['table_coordinate_space_reviews'][0] ?? [];
+            $gridReview = $result['metadata']['table_spanning_grid_review'][0] ?? [];
+            $boundary = $gridReview['geometry_boundary_review'] ?? [];
+            $assignedTexts = array_column($result['metadata']['table_assigned_cells'][0] ?? [], 'text');
+            $gridByPosition = [];
+            foreach (($gridReview['grid_cells'] ?? []) as $gridCell) {
+                if (is_array($gridCell)) {
+                    $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+                }
+            }
+
+            $t->contains('# Page Image Table Geometry Review', $result['text']);
+            $t->contains('| Feature | Status |', $result['text']);
+            $t->contains('| Images  | Ready  |', $result['text']);
+            $t->contains('After page-image geometry review.', $result['text']);
+            $t->true(!str_contains($result['text'], 'Stale page-space table line should be replaced.'));
+            $t->true(!str_contains($result['text'], 'Stale page edge'));
+            $t->same(['Feature', 'Status', 'Images', 'Ready'], $assignedTexts);
+            $t->same(['layout', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same('table_recognition_coordinate_space_boundary', $coordinateReview['review_target'] ?? null);
+            $t->same('translated_to_table_crop', $coordinateReview['status'] ?? null);
+            $t->same([72.0, 150.0, 312.0, 230.0], $coordinateReview['table_bbox'] ?? null);
+            $t->same(['width' => 240, 'height' => 80], $coordinateReview['table_crop_size'] ?? null);
+            $t->same(['x' => -72.0, 'y' => -150.0], $coordinateReview['translation'] ?? null);
+            $t->same(3, $coordinateReview['translated_row_band_count'] ?? null);
+            $t->same(3, $coordinateReview['translated_col_band_count'] ?? null);
+            $t->same(5, $coordinateReview['translated_cell_count'] ?? null);
+            $t->same('table_grid_geometry_boundary', $boundary['review_target'] ?? null);
+            $t->same(2, $boundary['active_row_band_count'] ?? null);
+            $t->same(2, $boundary['active_col_band_count'] ?? null);
+            $t->same(2, $boundary['excluded_band_count'] ?? null);
+            $t->same([0.0, 0.0, 100.0, 32.0], $gridByPosition['0:0']['grid_bbox']);
+            $t->same([120.0, 40.0, 240.0, 70.0], $gridByPosition['1:1']['grid_bbox']);
+        } finally {
+            unlink($path);
+        }
+    },
     'converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-supplied-document.php';
         $path = sys_get_temp_dir() . '/markerpdf-multicolcnn-supplied-' . bin2hex(random_bytes(4)) . '.pdf';

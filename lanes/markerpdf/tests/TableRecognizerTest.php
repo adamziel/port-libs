@@ -1562,6 +1562,71 @@ return [
         $t->same([0.0, 40.0, 100.0, 70.0], $gridByPosition['1:0']['grid_bbox']);
         $t->same([120.0, 40.0, 240.0, 70.0], $gridByPosition['1:1']['grid_bbox']);
     },
+    'translates page-image table recognition geometry to crop-local assignment coordinates' => static function (TestRunner $t): void {
+        $recognizer = new TableRecognizer();
+        $imageSize = ['width' => 240, 'height' => 80, 'table_bbox' => [72.0, 150.0, 312.0, 230.0]];
+        $result = [
+            'coordinate_space' => 'page_image',
+            'rows' => [
+                ['row_id' => 0, 'bbox' => [72.0, 150.0, 312.0, 182.0]],
+                ['row_id' => 1, 'bbox' => [72.0, 190.0, 312.0, 220.0]],
+                ['row_id' => 2, 'bbox' => [72.0, 250.0, 312.0, 270.0]],
+            ],
+            'cols' => [
+                ['col_id' => 0, 'bbox' => [72.0, 150.0, 172.0, 230.0]],
+                ['col_id' => 1, 'bbox' => [192.0, 150.0, 332.0, 230.0]],
+                ['col_id' => 2, 'bbox' => [342.0, 150.0, 362.0, 230.0]],
+            ],
+            'cells' => [
+                ['bbox' => [82.0, 155.0, 162.0, 170.0], 'text' => 'Feature'],
+                ['bbox' => [202.0, 155.0, 302.0, 170.0], 'text' => 'Status'],
+                ['bbox' => [82.0, 195.0, 162.0, 215.0], 'text' => 'Images'],
+                ['bbox' => [202.0, 195.0, 302.0, 215.0], 'text' => 'Ready'],
+                ['bbox' => [360.0, 195.0, 382.0, 215.0], 'text' => 'Stale page edge'],
+            ],
+        ];
+
+        $formatted = $recognizer->formatRecognizedTables([$result], [$imageSize]);
+        $localized = $formatted['recognized_tables'][0];
+        $assigned = $formatted['assigned_cells'][0];
+        $assignedByText = [];
+        foreach ($assigned as $cell) {
+            $assignedByText[$cell['text']] = $cell;
+        }
+        $review = $formatted['coordinate_space_reviews'][0] ?? [];
+        $grid = $recognizer->spanningGridReview($assigned, $localized['rows'], $localized['cols'], ['width' => 240, 'height' => 80]);
+        $boundary = $grid['geometry_boundary_review'];
+        $gridByPosition = [];
+        foreach ($grid['grid_cells'] as $gridCell) {
+            $gridByPosition[$gridCell['row_id'] . ':' . $gridCell['col_id']] = $gridCell;
+        }
+
+        $t->same('table_recognition_coordinate_space_boundary', $review['review_target'] ?? null);
+        $t->same('translated_to_table_crop', $review['status'] ?? null);
+        $t->same(['x' => -72.0, 'y' => -150.0], $review['translation'] ?? null);
+        $t->same([72.0, 150.0, 312.0, 230.0], $review['table_bbox'] ?? null);
+        $t->same(3, $review['translated_row_band_count'] ?? null);
+        $t->same(3, $review['translated_col_band_count'] ?? null);
+        $t->same(5, $review['translated_cell_count'] ?? null);
+        $t->same('table_crop', $localized['coordinate_space'] ?? null);
+        $t->same([0.0, 0.0, 240.0, 32.0], $localized['rows'][0]['bbox']);
+        $t->same([120.0, 0.0, 260.0, 80.0], $localized['cols'][1]['bbox']);
+        $t->same([10.0, 5.0, 90.0, 20.0], $localized['cells'][0]['bbox']);
+        $t->same([288.0, 45.0, 310.0, 65.0], $localized['cells'][4]['bbox']);
+        $t->same([0], $assignedByText['Feature']['row_ids']);
+        $t->same([0], $assignedByText['Feature']['col_ids']);
+        $t->same([1], $assignedByText['Images']['row_ids']);
+        $t->same([0], $assignedByText['Images']['col_ids']);
+        $t->same([1], $assignedByText['Ready']['row_ids']);
+        $t->same([1], $assignedByText['Ready']['col_ids']);
+        $t->true(!isset($assignedByText['Stale page edge']));
+        $t->same("| Feature | Status |\n|---------|--------|\n| Images  | Ready  |", $formatted['markdown_tables'][0]);
+        $t->same(2, $boundary['active_row_band_count']);
+        $t->same(2, $boundary['active_col_band_count']);
+        $t->same(2, $boundary['excluded_band_count']);
+        $t->same([0.0, 0.0, 100.0, 32.0], $gridByPosition['0:0']['grid_bbox']);
+        $t->same([120.0, 40.0, 240.0, 70.0], $gridByPosition['1:1']['grid_bbox']);
+    },
     'links OCR border conflicts to spanning-grid render cells' => static function (TestRunner $t): void {
         $recognizer = new TableRecognizer();
         $rows = [
