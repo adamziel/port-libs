@@ -3318,6 +3318,7 @@ final class PdfAttachmentExtractor
                 $offset,
                 $definitions
             );
+            $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
             if ($previousOffset !== null) {
                 foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                     $entries[$objectNumber] ??= $entry;
@@ -3339,6 +3340,7 @@ final class PdfAttachmentExtractor
             $offset,
             $definitions
         );
+        $entries = $this->repairCurrentObjectStreamCarrierRows($entries, $definitions, $previousOffset, $offset);
         if ($previousOffset !== null) {
             foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry;
@@ -3346,6 +3348,107 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Current xref streams may select compressed FileSpec members from a new
+     * object stream while omitting the carrier row. Recover only an in-window
+     * direct /ObjStm carrier before stale /Prev rows are inherited.
+     *
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}>
+     */
+    private function repairCurrentObjectStreamCarrierRows(
+        array $entries,
+        array $definitions,
+        ?int $previousOffset,
+        int $currentXrefOffset
+    ): array {
+        $carrierObjectNumbers = [];
+        foreach ($entries as $entry) {
+            if (($entry['type'] ?? null) === 2 && isset($entry['objectStream'])) {
+                $carrierObjectNumbers[(int) $entry['objectStream']] = true;
+            }
+        }
+
+        foreach (array_keys($carrierObjectNumbers) as $objectNumber) {
+            $entry = $entries[$objectNumber] ?? null;
+            if ($entry === null) {
+                $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                    $definitions[$objectNumber] ?? [],
+                    $previousOffset ?? -1,
+                    $currentXrefOffset
+                );
+                if ($definition === null) {
+                    continue;
+                }
+
+                $entries[$objectNumber] = [
+                    'type' => 1,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                ];
+                continue;
+            }
+
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            if ($this->selectedDirectObjectDefinition($definitions[$objectNumber] ?? [], $entry) !== null) {
+                continue;
+            }
+
+            $definition = $this->latestDirectObjectStreamDefinitionBetweenOffsets(
+                $definitions[$objectNumber] ?? [],
+                $previousOffset ?? -1,
+                $currentXrefOffset
+            );
+            if ($definition === null) {
+                continue;
+            }
+
+            $entries[$objectNumber] = [
+                'type' => 1,
+                'generation' => $definition['generation'],
+                'offset' => $definition['offset'],
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function latestDirectObjectStreamDefinitionBetweenOffsets(array $definitions, int $afterOffset, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if (
+                $definition['offset'] > $afterOffset
+                && $definition['offset'] < $beforeOffset
+                && $this->objectBodyHasTypeName($definition['body'], 'ObjStm')
+            ) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    private function objectBodyHasTypeName(string $body, string $name): bool
+    {
+        $index = 0;
+        $value = $this->parseValue($body, $index);
+        $dictionary = $this->dict($value);
+        if ($dictionary === null) {
+            return false;
+        }
+
+        return $this->nameValue($dictionary['Type'] ?? null) === $name;
     }
 
     /**
