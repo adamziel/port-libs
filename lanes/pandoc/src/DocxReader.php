@@ -2654,6 +2654,10 @@ final class DocxReader
             return [new AstNode('linebreak')];
         }
 
+        if ($this->isWordElement($child, 'lastRenderedPageBreak')) {
+            return $this->lastRenderedPageBreakNodes();
+        }
+
         if ($this->isWordElement($child, 'softHyphen')) {
             return [new AstNode('text', ['text' => "\u{00AD}"])];
         }
@@ -2774,6 +2778,20 @@ final class DocxReader
             'classes' => $classes,
             'attributes' => $attributes,
         ], [new AstNode('text', ['text' => 'DOCX ' . $type . ' break'])])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function lastRenderedPageBreakNodes(): array
+    {
+        return [new AstNode('span', [
+            'classes' => ['docx-break', 'docx-rendered-page-break'],
+            'attributes' => [
+                'data-docx-break-type' => 'rendered-page',
+                'data-docx-last-rendered-page-break' => 'true',
+            ],
+        ], [new AstNode('text', ['text' => 'DOCX rendered page break'])])];
     }
 
     /**

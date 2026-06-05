@@ -108,6 +108,8 @@ XML],
       <w:r><w:t xml:space="preserve">Layout checkpoints </w:t></w:r>
       <w:r><w:br w:type="page" w:clear="all"/></w:r>
       <w:r><w:t xml:space="preserve"> after page </w:t></w:r>
+      <w:r><w:lastRenderedPageBreak/></w:r>
+      <w:r><w:t xml:space="preserve"> after rendered page </w:t></w:r>
       <w:r><w:br w:type="column" w:clear="left"/></w:r>
       <w:r><w:t xml:space="preserve"> after column.</w:t></w:r>
     </w:p>
@@ -736,6 +738,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="#source_packet_anchor">source packet anchor</a>',
         '<a href="https://example.test/field-link?post=42" title="Field link title">field-coded source</a>',
         '<span class="docx-break docx-page-break docx-break-clear" data-docx-break-type="page" data-docx-break-clear="all">DOCX page break</span>',
+        '<span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span>',
         '<span class="docx-break docx-column-break docx-break-clear" data-docx-break-type="column" data-docx-break-clear="left">DOCX column break</span>',
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
         '<span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Migration Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Migration Desk</strong></span>',

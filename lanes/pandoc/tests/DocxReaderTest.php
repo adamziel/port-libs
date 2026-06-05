@@ -1158,6 +1158,18 @@ $breakRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$renderedPageBreakDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Rendered pagination </w:t></w:r>
+      <w:r><w:lastRenderedPageBreak/></w:r>
+      <w:r><w:t xml:space="preserve"> before reviewer continuation.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $reviewMarkupRunDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1802,6 +1814,14 @@ $buildBreakRunPackage = static function () use ($contentTypesXml, $packageRelati
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $breakRunDocumentXml],
+    ]);
+};
+
+$buildRenderedPageBreakPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $renderedPageBreakDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $renderedPageBreakDocumentXml],
     ]);
 };
 
@@ -3267,6 +3287,28 @@ return [
         $t->contains('<span class="docx-break docx-page-break docx-break-clear" data-docx-break-type="page" data-docx-break-clear="all">DOCX page break</span>', $blocks);
         $t->contains('<span class="docx-break docx-column-break docx-break-clear" data-docx-break-type="column" data-docx-break-clear="left">DOCX column break</span>', $blocks);
         $t->contains(' after column <br/>after line break.', $blocks);
+    },
+    'preserves DOCX last rendered page break markers as reviewer spans' => static function (TestRunner $t) use ($buildRenderedPageBreakPackage): void {
+        $document = (new DocxReader())->readDocument($buildRenderedPageBreakPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(3, count($paragraph->children));
+        $t->same('Rendered pagination ', $paragraph->children[0]->attr('text'));
+
+        $pageBreak = $paragraph->children[1];
+        $t->same('span', $pageBreak->type);
+        $t->same(['docx-break', 'docx-rendered-page-break'], $pageBreak->attr('classes'));
+        $t->same('rendered-page', $pageBreak->attr('attributes')['data-docx-break-type']);
+        $t->same('true', $pageBreak->attr('attributes')['data-docx-last-rendered-page-break']);
+        $t->same('DOCX rendered page break', $pageBreak->children[0]->attr('text'));
+        $t->same(' before reviewer continuation.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('[DOCX rendered page break]{.docx-break .docx-rendered-page-break data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true"}', $markdown);
+        $t->contains('<span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span>', $blocks);
+        $t->contains('<p>Rendered pagination <span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span> before reviewer continuation.</p>', $blocks);
     },
     'preserves DOCX highlighted and shaded reviewer run markup as spans' => static function (TestRunner $t) use ($buildReviewMarkupRunPackage): void {
         $document = (new DocxReader())->readDocument($buildReviewMarkupRunPackage());
