@@ -3838,6 +3838,10 @@ final class PdfMetadataExtractor
         }
 
         foreach ($kids as $kid) {
+            if ($this->validObjectNumberFromReference($kid, $objects) === null) {
+                continue;
+            }
+
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null) {
                 $this->collectDestinationNameTreeEntries($child, $objects, $entries, $seenObjects, $depth + 1, $limits);
@@ -3957,6 +3961,10 @@ final class PdfMetadataExtractor
         }
 
         foreach ($kids as $kid) {
+            if ($this->validObjectNumberFromReference($kid, $objects) === null) {
+                continue;
+            }
+
             $child = $this->resolveDictionaryFromValue($kid, $objects);
             if ($child !== null) {
                 $this->collectCatalogNameTreeReviewRows($treeName, $child, $objects, $entries, $seenObjects, $depth + 1, $limits);

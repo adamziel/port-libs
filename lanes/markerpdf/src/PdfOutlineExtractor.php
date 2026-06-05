@@ -2684,12 +2684,14 @@ final class PdfOutlineExtractor
 
         foreach ($kids as $kid) {
             $objectNumber = $this->validReferenceObjectNumber($kid, $objects);
-            if ($objectNumber !== null) {
-                if (isset($seen[$objectNumber])) {
-                    continue;
-                }
-                $seen[$objectNumber] = true;
+            if ($objectNumber === null) {
+                continue;
             }
+
+            if (isset($seen[$objectNumber])) {
+                continue;
+            }
+            $seen[$objectNumber] = true;
 
             $child = $this->resolveDictionary($kid, $objects);
             if ($child !== null) {

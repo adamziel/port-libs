@@ -1288,13 +1288,15 @@ final class PdfActionReviewExtractor
 
         foreach ($kids as $kid) {
             $reference = $this->referenceObject($kid);
-            if ($reference !== null) {
-                $seenKey = $reference['object'] . ':' . $reference['generation'];
-                if (isset($seen[$seenKey])) {
-                    continue;
-                }
-                $seen[$seenKey] = true;
+            if ($reference === null) {
+                continue;
             }
+
+            $seenKey = $reference['object'] . ':' . $reference['generation'];
+            if (isset($seen[$seenKey])) {
+                continue;
+            }
+            $seen[$seenKey] = true;
 
             $child = $this->resolveDictionary($kid);
             if ($child !== null) {

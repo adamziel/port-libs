@@ -1112,6 +1112,10 @@ final class PdfNamedDestinationExtractor
         }
 
         foreach ($kids as $kid) {
+            if ($this->validRefObjectId($kid, $objects) === null) {
+                continue;
+            }
+
             foreach ($this->collectNameTreeEntries($kid, $objects, $cache, $seenObjects, $limits, $depth + 1) as $entry) {
                 $entries[] = $entry;
             }
