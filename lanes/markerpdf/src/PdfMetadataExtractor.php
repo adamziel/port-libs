@@ -9553,7 +9553,12 @@ final class PdfMetadataExtractor
         }
 
         $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
-        $nextOffset = $this->objectStreamMemberEndOffset($memberTable['members'], $member['offset'], $objectDataLength);
+        $nextOffset = $this->objectStreamMemberEndOffset(
+            $memberTable['members'],
+            $member['offset'],
+            $objectDataLength,
+            $memberTable
+        );
         if ($nextOffset === null) {
             return null;
         }
@@ -10650,7 +10655,8 @@ final class PdfMetadataExtractor
                     $nextOffset = $this->objectStreamMemberEndOffset(
                         $memberTable['members'],
                         $member['offset'],
-                        $objectDataLength
+                        $objectDataLength,
+                        $memberTable
                     );
                     if ($nextOffset === null) {
                         continue;
@@ -10735,7 +10741,12 @@ final class PdfMetadataExtractor
     /**
      * @param list<array{objectNumber: int, offset: int, index: int}> $members
      */
-    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    private function objectStreamMemberEndOffset(
+        array $members,
+        int $memberOffset,
+        int $objectDataLength,
+        ?array $memberTable = null
+    ): ?int
     {
         if ($memberOffset < 0 || $memberOffset >= $objectDataLength) {
             return null;
@@ -10744,6 +10755,9 @@ final class PdfMetadataExtractor
         $endOffset = $objectDataLength;
         foreach ($members as $member) {
             if ($member['offset'] > $memberOffset && $member['offset'] < $endOffset) {
+                if ($memberTable !== null && !$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $member)) {
+                    continue;
+                }
                 $endOffset = $member['offset'];
             }
         }

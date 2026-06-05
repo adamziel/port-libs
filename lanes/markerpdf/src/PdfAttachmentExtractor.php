@@ -3084,6 +3084,9 @@ final class PdfAttachmentExtractor
             if ($index === $memberIndex || $member['offset'] <= $start) {
                 continue;
             }
+            if (!$this->objectStreamMemberOffsetHasTokenBoundary($data, $member['offset'])) {
+                continue;
+            }
             $end = min($end, $member['offset']);
         }
 
