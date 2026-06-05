@@ -268,6 +268,45 @@ $compObjStream = static function (
         . $unicodeClipboard($unicodeClipboardFormat)
         . $unicodeString('');
 };
+$styleDefinition = static function (
+    string $name,
+    int $styleType,
+    int $basedOnIstd,
+    int $nextIstd,
+    int $cupx,
+    int $sti = 0x0ffe
+) use ($u16, $utf16le): string {
+    $nameBytes = $utf16le($name);
+    $xstzName = $u16(intdiv(strlen($nameBytes), 2)) . $nameBytes . $u16(0);
+    $cbStd = 10 + strlen($xstzName);
+    $std = $u16($sti & 0x0fff)
+        . $u16(($styleType & 0x000f) | (($basedOnIstd & 0x0fff) << 4))
+        . $u16(($cupx & 0x000f) | (($nextIstd & 0x0fff) << 4))
+        . $u16($cbStd)
+        . $u16(0)
+        . $xstzName;
+
+    return $u16(strlen($std)) . $std . (strlen($std) % 2 === 0 ? '' : "\0");
+};
+$styleSheet = static function (array $styleRecords) use ($u16): string {
+    $lastIstd = max(array_keys($styleRecords));
+    $styleCount = max(15, (int) $lastIstd + 1);
+    $stshif = $u16($styleCount)
+        . $u16(0x000a)
+        . $u16(0x0001)
+        . $u16(0x0100)
+        . $u16(0x000f)
+        . $u16(0)
+        . $u16(0)
+        . $u16(0)
+        . $u16(0);
+    $styles = '';
+    for ($istd = 0; $istd < $styleCount; $istd++) {
+        $styles .= $styleRecords[$istd] ?? $u16(0);
+    }
+
+    return $u16(strlen($stshif)) . $stshif . $styles;
+};
 
 $fieldBegin = "\x13";
 $fieldSeparator = "\x14";
@@ -344,6 +383,11 @@ $plcfendTxt = $u32(0)
 $plcfSed = $u32(0)
     . $u32($totalPieceCharacters + 1)
     . $u16(0) . $u32($sepxFc) . $u16(0) . $u32(0);
+$stsh = $styleSheet([
+    15 => $styleDefinition('Review Heading,Import Title', 1, 0x0fff, 16, 2),
+    16 => $styleDefinition('Reviewer Body', 1, 15, 16, 2),
+    17 => $styleDefinition('Migration Emphasis', 2, 0x0fff, 16, 1),
+]);
 $fcSttbfBkmk = strlen($clx);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
@@ -352,7 +396,10 @@ $fcPlcffndTxt = $fcPlcffndRef + strlen($plcffndRef);
 $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
 $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
 $fcPlcfSed = $fcPlcfendTxt + strlen($plcfendTxt);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfSed;
+$fcStshf = $fcPlcfSed + strlen($plcfSed);
+$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfSed . $stsh;
+$wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfSed), 0x00ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfSed)), 0x00ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
@@ -671,6 +718,7 @@ $summary = [
     'directoryEntries' => $result['directoryEntries'],
     'textSource' => $result['document']->attr('textSource'),
     'fib' => $result['fib'],
+    'styles' => $result['styles'],
     'sections' => $result['sections'],
     'bookmarks' => $result['bookmarks'],
     'footnotes' => $result['footnotes'],
@@ -712,6 +760,15 @@ if (($argv[1] ?? '') === '--self-test') {
         'loadOverride',
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB state flags');
+    }
+    if (($summary['metadata']['styleCount'] ?? null) !== 3 || ($summary['styles'][0]['name'] ?? '') !== 'Review Heading') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing stylesheet style inventory');
+    }
+    if (($summary['styles'][0]['aliases'] ?? []) !== ['Import Title'] || ($summary['styles'][0]['type'] ?? '') !== 'paragraph') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing stylesheet alias/type metadata');
+    }
+    if (($summary['styles'][1]['basedOnIstd'] ?? null) !== 15 || ($summary['styles'][2]['type'] ?? '') !== 'character') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing stylesheet relationship/type metadata');
     }
     if (($summary['metadata']['cfbStreamCount'] ?? null) !== 14 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');

@@ -536,6 +536,59 @@ $buildSimpleWordDocument = static function (string $text, int $flags = 0, string
     return $fib . $textBytes;
 };
 
+$styleDefinition = static function (
+    string $name,
+    int $styleType,
+    int $basedOnIstd,
+    int $nextIstd,
+    int $cupx,
+    int $sti = 0x0ffe
+) use ($u16, $utf16le): string {
+    $nameBytes = $utf16le($name);
+    $xstzName = $u16(intdiv(strlen($nameBytes), 2)) . $nameBytes . $u16(0);
+    $cbStd = 10 + strlen($xstzName);
+    $std = $u16($sti & 0x0fff)
+        . $u16(($styleType & 0x000f) | (($basedOnIstd & 0x0fff) << 4))
+        . $u16(($cupx & 0x000f) | (($nextIstd & 0x0fff) << 4))
+        . $u16($cbStd)
+        . $u16(0)
+        . $xstzName;
+
+    return $u16(strlen($std)) . $std . (strlen($std) % 2 === 0 ? '' : "\0");
+};
+
+$styleSheet = static function (array $styleRecords) use ($u16): string {
+    $lastIstd = max(array_keys($styleRecords));
+    $styleCount = max(15, (int) $lastIstd + 1);
+    $stshif = $u16($styleCount)
+        . $u16(0x000a)
+        . $u16(0x0001)
+        . $u16(0x0100)
+        . $u16(0x000f)
+        . $u16(0)
+        . $u16(0)
+        . $u16(0)
+        . $u16(0);
+    $styles = '';
+    for ($istd = 0; $istd < $styleCount; $istd++) {
+        $styles .= $styleRecords[$istd] ?? $u16(0);
+    }
+
+    return $u16(strlen($stshif)) . $stshif . $styles;
+};
+
+$buildStyleSheetDocStreams = static function (array $styleRecords) use ($buildSimpleWordDocument, $styleSheet, $u32): array {
+    $wordDocument = $buildSimpleWordDocument("Styled legacy packet\r");
+    $stsh = $styleSheet($styleRecords);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x00a2, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $stsh,
+    ];
+};
+
 $buildPieceTableDocStreams = static function (
     int $firstPieceFlags = 0,
     int $secondPieceFlags = 0
@@ -1545,6 +1598,63 @@ return [
         $t->same(6, $sections[1]['sepxByteCount']);
         $t->same(4, $sections[1]['sprmByteCount']);
         $t->contains('<p>Intro section<br/>Second section</p>', $blocks);
+    },
+    'extracts legacy DOC stylesheet style names as bounded review metadata' => static function (TestRunner $t) use ($buildCfb, $buildStyleSheetDocStreams, $styleDefinition): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildStyleSheetDocStreams([
+            15 => $styleDefinition('Review Heading,Import Title', 1, 0x0fff, 16, 2),
+            16 => $styleDefinition('Reviewer Body', 1, 15, 16, 2),
+            17 => $styleDefinition('Migration Emphasis', 2, 0x0fff, 16, 1),
+        ])));
+        $document = $result['document'];
+        $styles = $result['styles'];
+        $metadata = $result['metadata'];
+
+        $t->same(3, count($styles));
+        $t->same($styles, $document->attr('styles'));
+        $t->same($styles, $metadata['styles']);
+        $t->same(3, $metadata['styleCount']);
+        $t->same(15, $styles[0]['istd']);
+        $t->same('paragraph', $styles[0]['type']);
+        $t->same('Review Heading', $styles[0]['name']);
+        $t->same(['Import Title'], $styles[0]['aliases']);
+        $t->same(0x0ffe, $styles[0]['sti']);
+        $t->same(false, $styles[0]['builtIn']);
+        $t->same(2, $styles[0]['cupx']);
+        $t->same(16, $styles[0]['nextIstd']);
+        $t->true(!isset($styles[0]['basedOnIstd']), 'Root styles should not invent based-on relationships');
+        $t->same('Reviewer Body', $styles[1]['name']);
+        $t->same(15, $styles[1]['basedOnIstd']);
+        $t->same('character', $styles[2]['type']);
+        $t->same('Migration Emphasis', $styles[2]['name']);
+        $t->same(1, $styles[2]['cupx']);
+        $t->same(10 + 2 + strlen("Migration Emphasis") * 2 + 2, $styles[2]['cbStd']);
+        $t->same($styles[2]['cbStd'], $styles[2]['bchUpe']);
+    },
+    'rejects malformed legacy DOC stylesheet records before exposing style metadata' => static function (TestRunner $t) use ($buildCfb, $buildStyleSheetDocStreams, $styleDefinition, $u16, $u32): void {
+        $reader = new LegacyDocReader();
+
+        $duplicateNames = $buildStyleSheetDocStreams([
+            15 => $styleDefinition('Duplicate Style', 1, 0x0fff, 15, 2),
+            16 => $styleDefinition('duplicate style', 2, 0x0fff, 16, 1),
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($duplicateNames)));
+
+        $badBase = $buildStyleSheetDocStreams([
+            15 => $styleDefinition('Bad Base', 1, 14, 15, 2),
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badBase)));
+
+        $truncated = $buildStyleSheetDocStreams([
+            15 => $styleDefinition('Truncated Style', 1, 0x0fff, 15, 2),
+        ]);
+        $truncated['WordDocument'] = substr_replace($truncated['WordDocument'], $u32(12), 0x00a6, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($truncated)));
+
+        $badFixedStyleCount = $buildStyleSheetDocStreams([
+            15 => $styleDefinition('Bad Header', 1, 0x0fff, 15, 2),
+        ]);
+        $badFixedStyleCount['0Table'] = substr_replace($badFixedStyleCount['0Table'], $u16(0x000e), 10, 2);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badFixedStyleCount)));
     },
     'rejects malformed legacy DOC section descriptor PLCs before rendering sections' => static function (TestRunner $t) use ($buildCfb, $buildSectionTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();

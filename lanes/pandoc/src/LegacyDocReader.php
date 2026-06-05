@@ -9,6 +9,8 @@ final class LegacyDocReader
     private const SUMMARY_INFORMATION = "\x05SummaryInformation";
     private const DOCUMENT_SUMMARY_INFORMATION = "\x05DocumentSummaryInformation";
     private const FMTID_USER_DEFINED_PROPERTIES = '05d5cdd59c2e1b10939708002b2cf9ae';
+    private const FIB_FC_STSHF = 0x00a2;
+    private const FIB_LCB_STSHF = 0x00a6;
     private const FIB_FC_PLCFFND_REF = 0x00aa;
     private const FIB_LCB_PLCFFND_REF = 0x00ae;
     private const FIB_FC_PLCFFND_TXT = 0x00b2;
@@ -27,7 +29,7 @@ final class LegacyDocReader
     private const FIB_LCB_PLCFEND_TXT = 0x0216;
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -35,7 +37,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, styles:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -95,6 +97,11 @@ final class LegacyDocReader
         if ($stateBitsDirectoryEntryCount > 0) {
             $metadata['cfbStateBitsDirectoryEntryCount'] = $stateBitsDirectoryEntryCount;
         }
+        $styles = $this->styleSheetReport($wordDocument, $tableStream);
+        if ($styles !== []) {
+            $metadata['styleCount'] = count($styles);
+            $metadata['styles'] = $styles;
+        }
         $sections = $this->sectionReport($wordDocument, $tableStream, $textResult['text']);
         if ($sections !== []) {
             $metadata['sectionCount'] = count($sections);
@@ -134,6 +141,7 @@ final class LegacyDocReader
             'textSource' => $textResult['source'],
             'tableStream' => $tableStreamName,
             'meta' => $metadata,
+            'styles' => $styles,
             'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -153,6 +161,7 @@ final class LegacyDocReader
             'streamDirectory' => $streamDirectory,
             'directoryEntries' => $directoryEntries,
             'fib' => $fib + ['textSource' => $textResult['source']],
+            'styles' => $styles,
             'sections' => $sections,
             'bookmarks' => $bookmarks,
             'footnotes' => $footnotes,
@@ -2765,6 +2774,238 @@ final class LegacyDocReader
     /**
      * @return list<array<string,mixed>>
      */
+    private function styleSheetReport(string $wordDocument, ?string $tableStream): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_STSHF + 4) {
+            return [];
+        }
+
+        $fcStshf = self::u32($wordDocument, self::FIB_FC_STSHF);
+        $lcbStshf = self::u32($wordDocument, self::FIB_LCB_STSHF);
+        if ($lcbStshf === 0) {
+            return [];
+        }
+
+        return $this->parseStyleSheet($this->tableStreamSlice($tableStream, $fcStshf, $lcbStshf, 'STSH stylesheet'));
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseStyleSheet(string $bytes): array
+    {
+        $length = strlen($bytes);
+        if ($length < 20) {
+            throw new \RuntimeException('Legacy DOC stylesheet is too short to contain an LPStshi header');
+        }
+
+        $cbStshi = self::u16($bytes, 0);
+        $stylesOffset = 2 + $cbStshi;
+        if ($cbStshi < 18 || $stylesOffset > $length) {
+            throw new \RuntimeException('Legacy DOC stylesheet LPStshi header length is invalid');
+        }
+        if (($stylesOffset % 2) !== 0) {
+            $stylesOffset++;
+        }
+
+        $styleCount = self::u16($bytes, 2);
+        $stdfBaseBytes = self::u16($bytes, 4);
+        $styleFlags = self::u16($bytes, 6);
+        $fixedStyleCount = self::u16($bytes, 10);
+        if ($styleCount < 0x000f || $styleCount >= 0x0ffe) {
+            throw new \RuntimeException('Legacy DOC stylesheet contains an invalid style count');
+        }
+        if (!in_array($stdfBaseBytes, [0x000a, 0x0012], true)) {
+            throw new \RuntimeException('Legacy DOC stylesheet uses an unsupported StdfBase length');
+        }
+        if (($styleFlags & 0x0001) === 0 || ($styleFlags & 0xfffe) !== 0) {
+            throw new \RuntimeException('Legacy DOC stylesheet contains reserved Stshif flags');
+        }
+        if ($fixedStyleCount !== 0x000f) {
+            throw new \RuntimeException('Legacy DOC stylesheet fixed-style count is invalid');
+        }
+
+        $styles = [];
+        $nonEmptyByIstd = [];
+        $seenNames = [];
+        $cursor = $stylesOffset;
+        for ($istd = 0; $istd < $styleCount; $istd++) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC stylesheet is truncated before all LPStd records');
+            }
+
+            $cbStd = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if (($cbStd & 0x8000) !== 0) {
+                throw new \RuntimeException('Legacy DOC stylesheet contains a negative LPStd length');
+            }
+            if ($cbStd === 0) {
+                if (($cursor % 2) !== 0) {
+                    $cursor++;
+                }
+                continue;
+            }
+            if ($cursor + $cbStd > $length) {
+                throw new \RuntimeException('Legacy DOC stylesheet LPStd points outside the STSH bytes');
+            }
+
+            $style = $this->parseStyleDefinition(substr($bytes, $cursor, $cbStd), $istd, $cbStd, $stdfBaseBytes, $seenNames);
+            $styles[] = $style;
+            $nonEmptyByIstd[$istd] = true;
+            $cursor += $cbStd;
+            if (($cursor % 2) !== 0) {
+                $cursor++;
+            }
+        }
+
+        foreach ($styles as $style) {
+            if (isset($style['basedOnIstd'])) {
+                $base = (int) $style['basedOnIstd'];
+                if ($base < 0 || $base >= $styleCount || !isset($nonEmptyByIstd[$base]) || $base === (int) $style['istd']) {
+                    throw new \RuntimeException('Legacy DOC stylesheet contains an invalid based-on style reference');
+                }
+            }
+        }
+        $this->assertStyleInheritanceIsAcyclic($styles);
+
+        return $styles;
+    }
+
+    /**
+     * @param array<string, true> $seenNames
+     * @return array<string,mixed>
+     */
+    private function parseStyleDefinition(string $bytes, int $istd, int $cbStd, int $stdfBaseBytes, array &$seenNames): array
+    {
+        if (strlen($bytes) < $stdfBaseBytes + 4 || $stdfBaseBytes < 10) {
+            throw new \RuntimeException('Legacy DOC stylesheet style definition is missing its Xstz name');
+        }
+
+        $word0 = self::u16($bytes, 0);
+        $word1 = self::u16($bytes, 2);
+        $word2 = self::u16($bytes, 4);
+        $bchUpe = self::u16($bytes, 6);
+        $grfstd = self::u16($bytes, 8);
+        if ($bchUpe !== $cbStd) {
+            throw new \RuntimeException('Legacy DOC stylesheet style definition length mirror is invalid');
+        }
+
+        $stk = $word1 & 0x000f;
+        $style = [
+            'istd' => $istd,
+            'type' => $this->styleTypeName($stk),
+            'name' => '',
+            'sti' => $word0 & 0x0fff,
+            'builtIn' => ($word0 & 0x0fff) !== 0x0ffe,
+            'cupx' => $word2 & 0x000f,
+            'nextIstd' => $word2 >> 4,
+            'cbStd' => $cbStd,
+            'bchUpe' => $bchUpe,
+            'grfstd' => $grfstd,
+        ];
+
+        $basedOnIstd = $word1 >> 4;
+        if ($basedOnIstd !== 0x0fff) {
+            $style['basedOnIstd'] = $basedOnIstd;
+        }
+
+        [$name, $bytesRead] = $this->readXstzName($bytes, $stdfBaseBytes);
+        if ($name === '') {
+            throw new \RuntimeException('Legacy DOC stylesheet style definition contains an empty name');
+        }
+        if ($stdfBaseBytes + $bytesRead > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC stylesheet style name points outside its LPStd record');
+        }
+
+        $nameParts = array_map('trim', explode(',', $name));
+        if ($nameParts === [] || in_array('', $nameParts, true)) {
+            throw new \RuntimeException('Legacy DOC stylesheet style definition contains an empty alias');
+        }
+        foreach ($nameParts as $styleName) {
+            $normalized = $this->normalizedStyleName($styleName);
+            if (isset($seenNames[$normalized])) {
+                throw new \RuntimeException('Legacy DOC stylesheet contains duplicate style names');
+            }
+            $seenNames[$normalized] = true;
+        }
+
+        $style['name'] = $nameParts[0];
+        if (count($nameParts) > 1) {
+            $style['aliases'] = array_slice($nameParts, 1);
+        }
+
+        return $style;
+    }
+
+    private function styleTypeName(int $stk): string
+    {
+        return match ($stk) {
+            1 => 'paragraph',
+            2 => 'character',
+            3 => 'table',
+            4 => 'numbering',
+            default => throw new \RuntimeException('Legacy DOC stylesheet contains an unsupported style type'),
+        };
+    }
+
+    /**
+     * @return array{0:string,1:int}
+     */
+    private function readXstzName(string $bytes, int $offset): array
+    {
+        if ($offset + 4 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC stylesheet style name is truncated');
+        }
+
+        $characters = self::u16($bytes, $offset);
+        if ($characters === 0 || $characters > 255) {
+            throw new \RuntimeException('Legacy DOC stylesheet style name length is outside the supported range');
+        }
+
+        $textOffset = $offset + 2;
+        $byteLength = $characters * 2;
+        $terminatorOffset = $textOffset + $byteLength;
+        if ($terminatorOffset + 2 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC stylesheet style name points outside its string data');
+        }
+        if (self::u16($bytes, $terminatorOffset) !== 0) {
+            throw new \RuntimeException('Legacy DOC stylesheet style name is missing its null terminator');
+        }
+
+        return [
+            $this->decodeUtf16Le(substr($bytes, $textOffset, $byteLength)),
+            2 + $byteLength + 2,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $styles
+     */
+    private function assertStyleInheritanceIsAcyclic(array $styles): void
+    {
+        $baseByIstd = [];
+        foreach ($styles as $style) {
+            if (isset($style['basedOnIstd'])) {
+                $baseByIstd[(int) $style['istd']] = (int) $style['basedOnIstd'];
+            }
+        }
+
+        foreach (array_keys($baseByIstd) as $istd) {
+            $seen = [];
+            $cursor = $istd;
+            while (isset($baseByIstd[$cursor])) {
+                if (isset($seen[$cursor])) {
+                    throw new \RuntimeException('Legacy DOC stylesheet based-on styles form an inheritance loop');
+                }
+                $seen[$cursor] = true;
+                $cursor = $baseByIstd[$cursor];
+            }
+        }
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     private function sectionReport(string $wordDocument, ?string $tableStream, string $text): array
     {
         if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_SED + 4) {
@@ -3047,6 +3288,11 @@ final class LegacyDocReader
     }
 
     private function normalizedBookmarkName(string $name): string
+    {
+        return function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
+    }
+
+    private function normalizedStyleName(string $name): string
     {
         return function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
     }
