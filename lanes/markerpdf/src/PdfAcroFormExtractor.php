@@ -8925,7 +8925,7 @@ final class PdfAcroFormExtractor
      */
     private function fieldReferencesFromAcroForm(string $acroForm, array $objects): array
     {
-        $fields = $this->valueAfterName($acroForm, 'Fields');
+        $fields = $this->lastTopLevelValueAfterName($acroForm, 'Fields');
         if ($fields === null) {
             return [];
         }
@@ -9735,6 +9735,66 @@ final class PdfAcroFormExtractor
         }
 
         return substr($body, $offset, max(0, $end - $offset));
+    }
+
+    private function lastTopLevelValueAfterName(string $body, string $name): ?string
+    {
+        $dictionaryBody = $this->topLevelDictionaryBody($body);
+        if ($dictionaryBody !== null) {
+            $body = $dictionaryBody;
+        }
+
+        $lastValue = null;
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $body[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($body, $offset);
+                continue;
+            }
+
+            if ($char === '<' && substr($body, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($body, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($body, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '/') {
+                $nameEnd = $this->skipPdfName($body, $offset);
+                $matched = $this->decodePdfName(substr($body, $offset, $nameEnd - $offset)) === $name;
+                $valueEnd = null;
+                $value = $this->readPdfValueAt($body, $nameEnd, $valueEnd);
+                if ($matched && $value !== null && $valueEnd !== null) {
+                    $lastValue = $value;
+                }
+
+                $offset = $valueEnd !== null && $valueEnd > $nameEnd ? $valueEnd : $nameEnd;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $lastValue;
     }
 
     private function topLevelDictionaryBody(string $body): ?string
