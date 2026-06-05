@@ -8437,7 +8437,11 @@ final class MarkdownReader
             $attrs['prefix'] = $prefix;
         }
         if ($tail !== '') {
-            $attrs['locator'] = $this->normalizeBracketedCitationTail($tail);
+            $locator = $this->normalizeBracketedCitationTail($tail);
+            $locatorParts = $this->inferBracketedCitationLocatorParts($locator);
+            $attrs['locator'] = $locator;
+            $attrs['locatorLabel'] = $locatorParts['label'];
+            $attrs['locatorValue'] = $locatorParts['value'];
         }
 
         return new AstNode('citation', $attrs, [
@@ -8483,6 +8487,34 @@ final class MarkdownReader
         }
 
         return preg_replace('/\s+/u', ' ', $tail) ?? $tail;
+    }
+
+    /**
+     * @return array{label:string, value:string}
+     */
+    private function inferBracketedCitationLocatorParts(string $locator): array
+    {
+        $locator = trim(preg_replace('/\s+/u', ' ', $locator) ?? $locator);
+        if ($locator === '') {
+            return ['label' => 'page', 'value' => ''];
+        }
+
+        $patterns = [
+            'page' => '/^(?:p(?:p)?\.?|pages?)\s+(.+)$/iu',
+            'chapter' => '/^(?:chap(?:ters?|s)?\.?|chapter(?:s)?)\s+(.+)$/iu',
+            'section' => '/^(?:sec(?:tions?|s)?\.?|section(?:s)?|\x{00A7}\x{00A7}?)\s+(.+)$/iu',
+            'paragraph' => '/^(?:para(?:graphs?|s)?\.?|paragraph(?:s)?|\x{00B6}\x{00B6}?)\s+(.+)$/iu',
+            'volume' => '/^(?:vol(?:umes?|s)?\.?|volume(?:s)?)\s+(.+)$/iu',
+            'number' => '/^(?:no(?:s)?\.?|number(?:s)?)\s+(.+)$/iu',
+        ];
+
+        foreach ($patterns as $label => $pattern) {
+            if (preg_match($pattern, $locator, $match) === 1) {
+                return ['label' => $label, 'value' => trim($match[1])];
+            }
+        }
+
+        return ['label' => 'page', 'value' => $locator];
     }
 
     private function unwrapForcedCitationLocator(string $tail): ?string

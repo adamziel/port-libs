@@ -99,6 +99,16 @@ $cslStyleXml = <<<'XML'
       </date>
     </group>
   </macro>
+  <macro name="review-locator">
+    <choose>
+      <if variable="locator" match="any">
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+    </choose>
+  </macro>
   <macro name="review-publication">
     <group delimiter=", ">
       <text variable="publisher"/>
@@ -139,7 +149,10 @@ $cslStyleXml = <<<'XML'
   </macro>
   <citation>
     <layout prefix="(" suffix=")" delimiter="; ">
-      <text macro="review-citation"/>
+      <group delimiter=", ">
+        <text macro="review-citation"/>
+        <text macro="review-locator"/>
+      </group>
     </layout>
   </citation>
   <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
@@ -155,19 +168,28 @@ $cslStyleXml = <<<'XML'
 XML;
 
 $processor = CitationCslProcessor::fromJson($cslJson)->withCslStyle($cslStyleXml);
-$document = $processor->appendBibliography((new MarkdownReader())->read($markdown), 'Works Cited');
+$parsed = (new MarkdownReader())->read($markdown);
+$document = $processor->appendBibliography($parsed, 'Works Cited');
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
     $summary = $processor->cslStyleSummary();
-    if (($summary['citationRendering'][0]['macro'] ?? null) !== 'review-citation') {
+    if (($summary['citationRendering'][0]['children'][0]['macro'] ?? null) !== 'review-citation') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the citation macro reference');
+    }
+    if (($summary['citationRendering'][0]['children'][1]['macro'] ?? null) !== 'review-locator') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the locator macro reference');
     }
     if (($summary['bibliographyRendering'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the bibliography macro reference');
     }
+    $queueCitation = $parsed->children[1]->children[3]->children[0] ?? null;
+    if (!$queueCitation instanceof PortLibs\Pandoc\AstNode || $queueCitation->attr('locatorLabel') !== 'section' || $queueCitation->attr('locatorValue') !== '2') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve parsed section locator metadata');
+    }
 
     foreach ([
+        '<p>Smith says Smith (1899) while the import queue cites (see WordPress Migration Team 2024, sec. 2; 1899, pp. 8-9).</p>',
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',

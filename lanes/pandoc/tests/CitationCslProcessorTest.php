@@ -1692,6 +1692,156 @@ XML
 XML
         ));
     },
+    'applies bounded csl locator and page label rendering' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-source',
+                'type' => 'article-journal',
+                'title' => 'Locator Source Packet',
+                'container-title' => 'Import Review',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'page' => '12-18',
+            ],
+            [
+                'id' => 'chapter-source',
+                'type' => 'chapter',
+                'title' => 'Manual Chapter',
+                'issued' => ['date-parts' => [[2024]]],
+                'page' => '99',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Locator Label Review Style</title>
+    <id>https://example.test/styles/locator-label-review</id>
+    <updated>2026-06-05T03:20:00+00:00</updated>
+  </info>
+  <macro name="citation-key">
+    <group delimiter=" ">
+      <names variable="author editor"/>
+      <date variable="issued">
+        <date-part name="year"/>
+      </date>
+    </group>
+  </macro>
+  <macro name="locator">
+    <choose>
+      <if variable="locator" match="any">
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </if>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <text macro="citation-key"/>
+        <text macro="locator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <names variable="author editor"/>
+        <text variable="title"/>
+        <group delimiter=" ">
+          <label variable="page" form="short"/>
+          <text variable="page"/>
+        </group>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('label', $summary['macros']['locator'][0]['branches'][0]['children'][0]['children'][0]['type'] ?? null);
+        $t->same('locator', $summary['macros']['locator'][0]['branches'][0]['children'][0]['children'][0]['variable'] ?? null);
+        $t->same('short', $summary['macros']['locator'][0]['branches'][0]['children'][0]['children'][0]['form'] ?? null);
+        $t->same('page', $summary['bibliographyRendering'][0]['children'][2]['children'][0]['variable'] ?? null);
+
+        $document = (new MarkdownReader())->read('Review cites [see @locator-source, p. 7; @chapter-source, chap. 2; @locator-source, sec. 4-5; @locator-source, {ii, A-D}].');
+        $cluster = $document->children[0]->children[1];
+        $t->same('citation_group', $cluster->type);
+        $t->same('page', $cluster->children[0]->attr('locatorLabel'));
+        $t->same('7', $cluster->children[0]->attr('locatorValue'));
+        $t->same('chapter', $cluster->children[1]->attr('locatorLabel'));
+        $t->same('2', $cluster->children[1]->attr('locatorValue'));
+        $t->same('section', $cluster->children[2]->attr('locatorLabel'));
+        $t->same('4-5', $cluster->children[2]->attr('locatorValue'));
+        $t->same('page', $cluster->children[3]->attr('locatorLabel'));
+        $t->same('ii, A-D', $cluster->children[3]->attr('locatorValue'));
+
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $processedCluster = $processed->children[0]->children[1];
+        $t->same('(see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4-5; de la Cruz 2026, p. ii, A-D)', $processedCluster->attr('rendered'));
+        $t->same('de la Cruz 2026', $processed->children[2]->children[0]->children[0]->attr('text'));
+        $t->same('Manual Chapter 2024', $processed->children[2]->children[1]->children[0]->attr('text'));
+        $t->same('de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.', $processor->renderBibliographyEntry('locator-source'));
+        $t->same('Manual Chapter. p. 99.', $processor->renderBibliographyEntry('chapter-source'));
+
+        $symbolStyle = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <label variable="locator" form="symbol"/>
+        <text variable="locator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography><layout/></bibliography>
+</style>
+XML
+        );
+        $t->same("(\u{00A7}\u{00A7} 4-5)", $symbolStyle->renderCitationCluster([
+            new AstNode('citation', ['id' => 'locator-source', 'text' => '[@locator-source]', 'locator' => 'sec. 4-5']),
+        ]));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4-5; de la Cruz 2026, p. ii, A-D).', $markdown);
+        $t->contains('de la Cruz 2026' . "\n" . ':   de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (see de la Cruz 2026, p. 7; Manual Chapter 2024, chap. 2; de la Cruz 2026, secs. 4-5; de la Cruz 2026, p. ii, A-D).</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria. Locator Source Packet. pp. 12-18.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><label variable="title"/></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><label variable="locator" form="verb"/></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><label variable="locator" plural="sometimes"/></layout></citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

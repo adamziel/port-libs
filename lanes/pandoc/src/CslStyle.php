@@ -15,6 +15,24 @@ final class CslStyle
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
         'no date|long' => ['single' => 'n.d.', 'multiple' => 'n.d.'],
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
+        'page|long' => ['single' => 'page', 'multiple' => 'pages'],
+        'page|short' => ['single' => 'p.', 'multiple' => 'pp.'],
+        'chapter|long' => ['single' => 'chapter', 'multiple' => 'chapters'],
+        'chapter|short' => ['single' => 'chap.', 'multiple' => 'chaps.'],
+        'section|long' => ['single' => 'section', 'multiple' => 'sections'],
+        'section|short' => ['single' => 'sec.', 'multiple' => 'secs.'],
+        'section|symbol' => ['single' => "\u{00A7}", 'multiple' => "\u{00A7}\u{00A7}"],
+        'paragraph|long' => ['single' => 'paragraph', 'multiple' => 'paragraphs'],
+        'paragraph|short' => ['single' => 'para.', 'multiple' => 'paras.'],
+        'paragraph|symbol' => ['single' => "\u{00B6}", 'multiple' => "\u{00B6}\u{00B6}"],
+        'volume|long' => ['single' => 'volume', 'multiple' => 'volumes'],
+        'volume|short' => ['single' => 'vol.', 'multiple' => 'vols.'],
+        'issue|long' => ['single' => 'issue', 'multiple' => 'issues'],
+        'issue|short' => ['single' => 'no.', 'multiple' => 'nos.'],
+        'number|long' => ['single' => 'number', 'multiple' => 'numbers'],
+        'number|short' => ['single' => 'no.', 'multiple' => 'nos.'],
+        'edition|long' => ['single' => 'edition', 'multiple' => 'editions'],
+        'edition|short' => ['single' => 'ed.', 'multiple' => 'eds.'],
     ];
 
     /** @var array{citation:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}, bibliography:array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}} */
@@ -222,13 +240,14 @@ final class CslStyle
 
     public function term(string $name, string $form = 'long', bool $plural = false): string
     {
-        $key = self::termKey($name, $form);
-        $term = $this->terms[$key] ?? $this->terms[self::termKey($name, 'long')] ?? null;
-        if ($term === null) {
-            return $name;
+        foreach (self::termFallbackKeys($name, $form) as $key) {
+            $term = $this->terms[$key] ?? null;
+            if ($term !== null) {
+                return $plural ? $term['multiple'] : $term['single'];
+            }
         }
 
-        return $plural ? $term['multiple'] : $term['single'];
+        return $name;
     }
 
     /**
@@ -681,6 +700,7 @@ final class CslStyle
             'text' => self::textRenderingElement($element, $scope),
             'date' => self::dateRenderingElement($element, $scope),
             'names' => self::namesRenderingElement($element, $scope),
+            'label' => self::labelRenderingElement($element, $scope),
             'choose' => self::chooseRenderingElement($element, $scope),
             default => null,
         };
@@ -785,6 +805,65 @@ final class CslStyle
         }
 
         return $element;
+    }
+
+    /**
+     * @return array{type:string, prefix:string, suffix:string, variable:string, form:string, plural:string}
+     */
+    private static function labelRenderingElement(\DOMElement $label, string $scope): array
+    {
+        $variable = strtolower(trim($label->getAttribute('variable')));
+        if ($variable === '') {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' label element must declare a variable');
+        }
+
+        if (!in_array($variable, self::supportedLabelVariables(), true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' label variable is not supported: ' . $variable);
+        }
+
+        $form = strtolower(trim($label->getAttribute('form')));
+        if ($form === '') {
+            $form = 'long';
+        }
+        if (!in_array($form, ['long', 'short', 'symbol'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' label form must be long, short, or symbol');
+        }
+
+        $plural = strtolower(trim($label->getAttribute('plural')));
+        if ($plural === '') {
+            $plural = 'contextual';
+        }
+        if (!in_array($plural, ['contextual', 'always', 'never'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' label plural must be contextual, always, or never');
+        }
+
+        return [
+            'type' => 'label',
+            'prefix' => self::optionalAttribute($label, 'prefix'),
+            'suffix' => self::optionalAttribute($label, 'suffix'),
+            'variable' => $variable,
+            'form' => $form,
+            'plural' => $plural,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function supportedLabelVariables(): array
+    {
+        return [
+            'locator',
+            'page',
+            'number',
+            'edition',
+            'volume',
+            'issue',
+            'chapter-number',
+            'number-of-pages',
+            'number-of-volumes',
+            'collection-number',
+        ];
     }
 
     /**
@@ -1128,5 +1207,31 @@ final class CslStyle
     private static function termKey(string $name, string $form): string
     {
         return strtolower(trim($name)) . '|' . strtolower(trim($form));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function termFallbackKeys(string $name, string $form): array
+    {
+        $form = strtolower(trim($form));
+        $forms = match ($form) {
+            'verb-short' => ['verb-short', 'verb', 'short', 'long'],
+            'verb' => ['verb', 'long'],
+            'symbol' => ['symbol', 'short', 'long'],
+            'short' => ['short', 'long'],
+            'long', '' => ['long'],
+            default => [$form, 'long'],
+        };
+
+        $keys = [];
+        foreach ($forms as $candidate) {
+            $key = self::termKey($name, $candidate);
+            if (!in_array($key, $keys, true)) {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
     }
 }

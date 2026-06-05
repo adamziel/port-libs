@@ -1189,13 +1189,13 @@ final class CitationCslProcessor
             return null;
         }
 
-        $entry = $this->renderRenderingElements($elements, $item, 'citation', '');
+        $entry = $this->renderRenderingElements($elements, $item, 'citation', '', $citation);
         if ($entry === '') {
             return null;
         }
 
         $suffix = $this->citationSuffix($citation);
-        if ($suffix !== '') {
+        if ($suffix !== '' && !$this->hasLocatorRenderingElement($elements)) {
             $entry .= ', ' . $suffix;
         }
 
@@ -1406,7 +1406,7 @@ final class CitationCslProcessor
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      */
-    private function renderRenderingElements(array $elements, array $item, string $scope, string $delimiter): string
+    private function renderRenderingElements(array $elements, array $item, string $scope, string $delimiter, ?AstNode $citation = null): string
     {
         $rendered = [];
         foreach ($elements as $element) {
@@ -1414,7 +1414,7 @@ final class CitationCslProcessor
                 continue;
             }
 
-            $value = $this->renderRenderingElement($element, $item, $scope);
+            $value = $this->renderRenderingElement($element, $item, $scope, [], $citation);
             if ($value !== '') {
                 $rendered[] = $value;
             }
@@ -1457,15 +1457,16 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = []): string
+    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null): string
     {
         $type = (string) ($element['type'] ?? '');
         $value = match ($type) {
-            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack),
-            'text' => $this->renderTextElement($element, $item, $scope, $macroStack),
+            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack, $citation),
+            'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation),
             'date' => $this->renderDateElement($element, $item, $scope),
             'names' => $this->renderNamesElement($element, $item, $scope),
-            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack),
+            'label' => $this->renderLabelElement($element, $item, $scope, $citation),
+            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation),
             default => '',
         };
 
@@ -1476,7 +1477,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = []): string
+    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null): string
     {
         $children = $element['children'] ?? [];
         if (!is_array($children)) {
@@ -1493,7 +1494,7 @@ final class CitationCslProcessor
 
             $isVariableChild = $this->isVariableRenderingElement($child);
             $hasVariableChild = $hasVariableChild || $isVariableChild;
-            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack);
+            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack, $citation);
             if ($value === '') {
                 continue;
             }
@@ -1515,7 +1516,7 @@ final class CitationCslProcessor
     private function isVariableRenderingElement(array $element): bool
     {
         $type = (string) ($element['type'] ?? '');
-        if ($type === 'date' || $type === 'names') {
+        if ($type === 'date' || $type === 'names' || $type === 'label') {
             return true;
         }
 
@@ -1564,17 +1565,59 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param list<array<string, mixed>> $elements
+     */
+    private function hasLocatorRenderingElement(array $elements): bool
+    {
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $type = (string) ($element['type'] ?? '');
+            if (($type === 'text' || $type === 'label') && strtolower(trim((string) ($element['variable'] ?? ''))) === 'locator') {
+                return true;
+            }
+
+            if ($type === 'text' && isset($element['macro']) && is_string($element['macro'])) {
+                $macro = $this->style->macroRenderingElements($element['macro']);
+                if (is_array($macro) && $this->hasLocatorRenderingElement($macro)) {
+                    return true;
+                }
+            }
+
+            if ($type === 'group' && isset($element['children']) && is_array($element['children']) && $this->hasLocatorRenderingElement($element['children'])) {
+                return true;
+            }
+
+            if ($type === 'choose') {
+                foreach (($element['branches'] ?? []) as $branch) {
+                    if (is_array($branch) && isset($branch['children']) && is_array($branch['children']) && $this->hasLocatorRenderingElement($branch['children'])) {
+                        return true;
+                    }
+                }
+
+                if (isset($element['else']) && is_array($element['else']) && $this->hasLocatorRenderingElement($element['else'])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = []): string
+    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null): string
     {
         if (array_key_exists('macro', $element)) {
-            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack);
+            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack, $citation);
         }
 
         if (array_key_exists('variable', $element)) {
-            return $this->renderVariableValue($item, (string) $element['variable'], $scope);
+            return $this->renderVariableValue($item, (string) $element['variable'], $scope, $citation);
         }
 
         if (array_key_exists('term', $element)) {
@@ -1592,7 +1635,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
      */
-    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack): string
+    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack, ?AstNode $citation = null): string
     {
         $elements = $this->style->macroRenderingElements($name);
         if ($elements === null) {
@@ -1603,7 +1646,7 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('CSL macro recursion detected: ' . implode(' -> ', [...$macroStack, $name]));
         }
 
-        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name]);
+        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name], $citation);
     }
 
     /**
@@ -1611,7 +1654,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
      */
-    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack): string
+    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack, ?AstNode $citation = null): string
     {
         $rendered = [];
         foreach ($elements as $element) {
@@ -1619,7 +1662,7 @@ final class CitationCslProcessor
                 continue;
             }
 
-            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack);
+            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack, $citation);
             if ($value !== '') {
                 $rendered[] = $value;
             }
@@ -1633,24 +1676,24 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
      */
-    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack): string
+    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack, ?AstNode $citation = null): string
     {
         foreach (($element['branches'] ?? []) as $branch) {
-            if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, $scope)) {
+            if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, $scope, $citation)) {
                 continue;
             }
 
             $children = $branch['children'] ?? [];
 
             return is_array($children)
-                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack)
+                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack, $citation)
                 : '';
         }
 
         $else = $element['else'] ?? [];
 
         return is_array($else)
-            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack)
+            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack, $citation)
             : '';
     }
 
@@ -1658,14 +1701,14 @@ final class CitationCslProcessor
      * @param array<string, mixed> $branch
      * @param array<string, mixed> $item
      */
-    private function chooseBranchMatches(array $branch, array $item, string $scope): bool
+    private function chooseBranchMatches(array $branch, array $item, string $scope, ?AstNode $citation = null): bool
     {
         $conditions = [];
         $variables = $branch['variables'] ?? [];
         if (is_array($variables)) {
             foreach ($variables as $variable) {
                 if (is_scalar($variable)) {
-                    $conditions[] = $this->renderingVariableIsPresent($item, (string) $variable, $scope);
+                    $conditions[] = $this->renderingVariableIsPresent($item, (string) $variable, $scope, $citation);
                 }
             }
         }
@@ -1737,6 +1780,68 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     */
+    private function renderLabelElement(array $element, array $item, string $scope, ?AstNode $citation = null): string
+    {
+        $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+        if ($variable === '') {
+            return '';
+        }
+
+        if ($variable === 'locator') {
+            $parts = $this->citationLocatorParts($citation);
+            if ($parts['value'] === '') {
+                return '';
+            }
+
+            $termName = $parts['label'];
+            $value = $parts['value'];
+        } else {
+            $value = $this->renderVariableValue($item, $variable, $scope, $citation);
+            if ($value === '') {
+                return '';
+            }
+
+            $termName = $this->labelTermName($variable);
+        }
+
+        $plural = match ((string) ($element['plural'] ?? 'contextual')) {
+            'always' => true,
+            'never' => false,
+            default => $this->labelValueLooksPlural($value),
+        };
+
+        return $this->style->term($termName, (string) ($element['form'] ?? 'long'), $plural);
+    }
+
+    private function labelTermName(string $variable): string
+    {
+        return match ($variable) {
+            'number-of-pages' => 'page',
+            'number-of-volumes' => 'volume',
+            'chapter-number' => 'chapter',
+            'collection-number' => 'number',
+            default => $variable,
+        };
+    }
+
+    private function labelValueLooksPlural(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        if (preg_match('/\d\s*(?:[-\x{2010}-\x{2015}]|&|,|and)\s*\d/iu', $value) === 1) {
+            return true;
+        }
+
+        return preg_match('/\band\b/iu', $value) === 1;
+    }
+
+    /**
      * @param array<string, mixed> $options
      * @return array{delimiter:string, and:string, etAlMin:int|null, etAlUseFirst:int, initializeWith:string|null, nameAsSortOrder:string}
      */
@@ -1771,11 +1876,12 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function renderVariableValue(array $item, string $variable, string $scope): string
+    private function renderVariableValue(array $item, string $variable, string $scope, ?AstNode $citation = null): string
     {
         $normalized = strtolower(trim($variable));
 
         return match ($normalized) {
+            'locator' => $this->citationLocatorParts($citation)['value'],
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'title' => (string) $item['title'],
@@ -1806,11 +1912,15 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function renderingVariableIsPresent(array $item, string $variable, string $scope): bool
+    private function renderingVariableIsPresent(array $item, string $variable, string $scope, ?AstNode $citation = null): bool
     {
         $normalized = strtolower(trim($variable));
         if ($normalized === '') {
             return false;
+        }
+
+        if ($normalized === 'locator') {
+            return $this->citationLocatorParts($citation)['value'] !== '';
         }
 
         if (in_array($normalized, ['author', 'editor'], true)) {
@@ -1828,7 +1938,7 @@ final class CitationCslProcessor
                 || (string) ($date['literal'] ?? '') !== '';
         }
 
-        return $this->renderVariableValue($item, $variable, $scope) !== '';
+        return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
     }
 
     /**
@@ -2146,6 +2256,69 @@ final class CitationCslProcessor
         }
 
         return $renderedSuffix !== '' ? $renderedSuffix : $renderedLocator;
+    }
+
+    /**
+     * @return array{label:string, value:string}
+     */
+    private function citationLocatorParts(?AstNode $citation): array
+    {
+        if (!$citation instanceof AstNode) {
+            return ['label' => 'page', 'value' => ''];
+        }
+
+        $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
+        if ($explicitValue !== '') {
+            $label = $this->normalizedLocatorLabel((string) $citation->attr('locatorLabel', ''));
+
+            return ['label' => $label, 'value' => $explicitValue];
+        }
+
+        $locator = $this->inlineValue($citation->attr('locator', ''));
+        if ($locator === '') {
+            return ['label' => 'page', 'value' => ''];
+        }
+
+        return $this->inferCitationLocatorParts($locator);
+    }
+
+    /**
+     * @return array{label:string, value:string}
+     */
+    private function inferCitationLocatorParts(string $locator): array
+    {
+        $locator = trim(preg_replace('/\s+/u', ' ', $locator) ?? $locator);
+        $patterns = [
+            'page' => '/^(?:p(?:p)?\.?|pages?)\s+(.+)$/iu',
+            'chapter' => '/^(?:chap(?:ters?|s)?\.?|chapter(?:s)?)\s+(.+)$/iu',
+            'section' => '/^(?:sec(?:tions?|s)?\.?|section(?:s)?|\x{00A7}\x{00A7}?)\s+(.+)$/iu',
+            'paragraph' => '/^(?:para(?:graphs?|s)?\.?|paragraph(?:s)?|\x{00B6}\x{00B6}?)\s+(.+)$/iu',
+            'volume' => '/^(?:vol(?:umes?|s)?\.?|volume(?:s)?)\s+(.+)$/iu',
+            'number' => '/^(?:no(?:s)?\.?|number(?:s)?)\s+(.+)$/iu',
+        ];
+
+        foreach ($patterns as $label => $pattern) {
+            if (preg_match($pattern, $locator, $match) === 1) {
+                return ['label' => $label, 'value' => trim($match[1])];
+            }
+        }
+
+        return ['label' => 'page', 'value' => $locator];
+    }
+
+    private function normalizedLocatorLabel(string $label): string
+    {
+        $label = strtolower(trim($label));
+
+        return match ($label) {
+            'p', 'pp', 'page', 'pages' => 'page',
+            'chap', 'chaps', 'chapter', 'chapters' => 'chapter',
+            'sec', 'secs', 'section', 'sections', "\u{00A7}", "\u{00A7}\u{00A7}" => 'section',
+            'para', 'paras', 'paragraph', 'paragraphs', "\u{00B6}", "\u{00B6}\u{00B6}" => 'paragraph',
+            'vol', 'vols', 'volume', 'volumes' => 'volume',
+            'no', 'nos', 'number', 'numbers' => 'number',
+            default => $label === '' ? 'page' : $label,
+        };
     }
 
     private function inlineValue(mixed $value): string
