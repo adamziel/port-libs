@@ -6618,7 +6618,8 @@ final class PdfTextExtractor
                     return $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $dctJpegTerminator - $streamStart));
                 }
 
-                $end = $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
+                $end = $this->filteredEndstreamTerminatorOffset($value, $streamStart, $dict, $objects, $declaredEnd)
+                    ?? $this->contentStreamEndstreamTerminatorOffset($value, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($value, $streamStart, $declaredEnd);
                 if ($end === null) {
                     return substr($value, $streamStart, $length);
@@ -6837,7 +6838,13 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function filteredEndstreamTerminatorOffset(string $value, int $streamStart, string $dict, array $objects): ?int
+    private function filteredEndstreamTerminatorOffset(
+        string $value,
+        int $streamStart,
+        string $dict,
+        array $objects,
+        ?int $minimumOffset = null
+    ): ?int
     {
         $filters = $this->streamFilters($dict, $objects);
         if ($filters === null || !$this->hasVerifiableStreamFilter($filters)) {
@@ -6848,6 +6855,10 @@ final class PdfTextExtractor
         while (($candidate = strpos($value, 'endstream', $offset)) !== false) {
             $offset = $candidate + 9;
             if (!$this->endstreamTerminatorAt($value, $candidate, $streamStart)) {
+                continue;
+            }
+
+            if ($minimumOffset !== null && $candidate < $minimumOffset) {
                 continue;
             }
 
@@ -11333,6 +11344,7 @@ final class PdfTextExtractor
             if ($declaredEnd <= strlen($pdfBytes)) {
                 $dctJpegTerminator = $this->dctStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects);
                 $streamEnd = $this->streamLengthTerminatorOffset($pdfBytes, $declaredEnd)
+                    ?? $this->filteredEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict, $objects, $declaredEnd)
                     ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                     ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd);
                 if (
@@ -11701,7 +11713,14 @@ final class PdfTextExtractor
                     $streamEnd ??= $dict === null
                         ? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
                         : (
-                            $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
+                            $this->filteredEndstreamTerminatorOffset(
+                                $pdfBytes,
+                                $streamStart,
+                                $dict,
+                                $this->directObjectStreamFilterObjectsBeforeOffset($pdfBytes, $dict, $objectBodyStart),
+                                $declaredEnd
+                            )
+                            ?? $this->contentStreamEndstreamTerminatorOffset($pdfBytes, $streamStart, $dict)
                             ?? $this->endstreamTerminatorOffset($pdfBytes, $streamStart, $declaredEnd)
                         );
                     if ($dict !== null) {

@@ -133,6 +133,30 @@ $declaredLengthPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
     . "%%EOF";
 
+$shortLengthBefore = "BT /F1 12 Tf 72 720 Td (Short Length Stack Before) Tj ET\n";
+while ((7 + strlen($shortLengthBefore)) % 4 !== 0) {
+    $shortLengthBefore .= ' ';
+}
+$shortLengthAfter = "\nBT /F1 12 Tf 72 704 Td (Short Length Stack After) Tj ET";
+$shortLengthEncoded = $ascii85Encode($zlibStored($shortLengthBefore . $fakeEndstreamBytes . $shortLengthAfter));
+if (!str_contains($shortLengthEncoded, 'endstream!')) {
+    throw new RuntimeException('Focused short-Length stack smoke fixture must contain the fake endstream marker.');
+}
+$shortLengthEncoded = str_replace('endstream!', "\nendstream\n!", $shortLengthEncoded) . '~>';
+$shortLengthBoundary = strpos($shortLengthEncoded, "\nendstream\n");
+if ($shortLengthBoundary === false || $shortLengthBoundary < 8) {
+    throw new RuntimeException('Focused short-Length stack smoke fixture must expose a fake endstream boundary.');
+}
+$shortDeclaredLength = $shortLengthBoundary - 5;
+
+$shortLengthPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length {$shortDeclaredLength} /Filter [ /ASCII85Decode /FlateDecode ] >>\nstream\n{$shortLengthEncoded}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "%%EOF";
+
 $flateFirstBefore = "BT /F1 12 Tf 72 720 Td (Flate First Stack Before) Tj ET\n";
 while (strlen($flateFirstBefore) % 4 !== 0) {
     $flateFirstBefore .= ' ';
@@ -184,6 +208,7 @@ $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
 $declaredLengthLines = $extractor->extractTextLines($declaredLengthPdf);
+$shortLengthLines = $extractor->extractTextLines($shortLengthPdf);
 $flateFirstLines = $extractor->extractTextLines($flateFirstPdf);
 $runLengthLines = $extractor->extractTextLines($runLengthPdf);
 $runLengthDeclaredLines = $extractor->extractTextLines($runLengthDeclaredPdf);
@@ -191,6 +216,7 @@ $allLines = [
     ...$lines,
     ...$stackLines,
     ...$declaredLengthLines,
+    ...$shortLengthLines,
     ...$flateFirstLines,
     ...$runLengthLines,
     ...$runLengthDeclaredLines,
@@ -203,12 +229,14 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         [null, 'ASCII85Decode'],
         ['ASCII85Decode', 'FlateDecode'],
         ['ASCII85Decode', 'FlateDecode'],
+        ['ASCII85Decode', 'FlateDecode'],
         ['FlateDecode', 'ASCII85Decode'],
         ['RunLengthDecode', 'FlateDecode'],
         ['RunLengthDecode', 'FlateDecode'],
     ],
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
+    'short_declared_length_before_encoded_fake_endstream' => true,
     'declared_length_points_at_runlength_fake_endstream' => true,
     'requires_ascii85_eod_before_endstream_boundary' => true,
     'requires_runlength_eod_before_endstream_boundary' => true,
