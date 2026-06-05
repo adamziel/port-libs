@@ -272,6 +272,55 @@ return [
             ],
         ], $entry['filter_details']);
     },
+    'keeps direct renderer DCTDecode fake endstream bytes inside image stream previews' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
+        $renderer = new PdfImageRenderer();
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Renderer DCT payload leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\xff\xd9";
+        $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused renderer DCT fixture must contain a fake endstream marker.');
+        }
+
+        $objects = [
+            30 => '[ /ICCBased 31 0 R ]',
+            31 => "<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nPROFILE\nendstream",
+        ];
+        $rawImage = "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace 30 0 R /BitsPerComponent 8 /Filter /DCTDecode /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream";
+        $compressedPayload = $pdfDctDecodeFilterBoundaryCurrentBaseZlibStored($jpegPayload);
+        $fakeCompressedTerminatorOffset = strpos($compressedPayload, "\nendstream\n");
+        if ($fakeCompressedTerminatorOffset === false) {
+            throw new RuntimeException('Focused renderer Flate-DCT fixture must contain a fake compressed endstream marker.');
+        }
+        $flateImage = "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace 30 0 R /BitsPerComponent 8 /Filter [/FlateDecode /DCTDecode] /Length {$fakeCompressedTerminatorOffset} >>\nstream\n{$compressedPayload}\nendstream";
+
+        $rawPreview = $renderer->iccBasedImageStreamPreviewRows($rawImage, $objects);
+        $flatePreview = $renderer->iccBasedImageStreamPreviewRows($flateImage, $objects);
+
+        $t->same(true, $rawPreview['review_only_image_stream']);
+        $t->same(0, $rawPreview['preview_pixel_count']);
+        $t->same(['DCTDecode'], $rawPreview['image_stream']['filters']);
+        $t->same(['DCTDecode'], $rawPreview['image_stream']['preview_only_filters']);
+        $t->same(strlen($jpegPayload), $rawPreview['image_stream']['raw_length']);
+        $t->true(($rawPreview['image_stream']['raw_length'] ?? 0) > $fakeTerminatorOffset);
+        $t->same(false, $rawPreview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $rawPreview['image_stream']['decode_failed']);
+        $t->same([], $rawPreview['pixels']);
+        $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $rawPreview['notes']));
+
+        $t->same(true, $flatePreview['review_only_image_stream']);
+        $t->same(0, $flatePreview['preview_pixel_count']);
+        $t->same(['FlateDecode', 'DCTDecode'], $flatePreview['image_stream']['filters']);
+        $t->same(['DCTDecode'], $flatePreview['image_stream']['preview_only_filters']);
+        $t->same(strlen($compressedPayload), $flatePreview['image_stream']['raw_length']);
+        $t->true(($flatePreview['image_stream']['raw_length'] ?? 0) > $fakeCompressedTerminatorOffset);
+        $t->same(false, $flatePreview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $flatePreview['image_stream']['decode_failed']);
+        $t->same([], $flatePreview['pixels']);
+        $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $flatePreview['notes']));
+    },
     'keeps DCTDecode JPEG endstream decoys inside image payload boundaries' => static function (TestRunner $t): void {
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before DCT stream boundary) Tj ET';
