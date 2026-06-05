@@ -118,12 +118,35 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo>⟨</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>⟩</mo></mrow>', $nodeMathml);
         $t->contains('<annotation encoding="application/x-tex">\\pair{a}{b}</annotation></semantics></math>', $nodeMathml);
     },
+    'expands bounded raw tex macros with optional arguments for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\newcommand{\\reviewpair}[2][draft]{#2 + #1}',
+            '\\providecommand{\\withlabel}[3][audit]{#2 + #3 + #1}',
+            '',
+            '$\\reviewpair{p_i}$',
+        ]));
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $defaultMathml = $converter->texToMathMl('\\reviewpair{p_i} + \\withlabel{m}{1}', false, $macros);
+        $overrideMathml = $converter->texToMathMl('\\reviewpair[final]{p_i} + \\withlabel[source]{m}{2}', false, $macros);
+
+        $t->same([
+            'reviewpair' => ['arity' => 2, 'template' => '#2 + #1', 'optionalDefault' => 'draft'],
+            'withlabel' => ['arity' => 3, 'template' => '#2 + #3 + #1', 'optionalDefault' => 'audit'],
+        ], $macros);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi><mo>+</mo><mi>m</mi><mo>+</mo><mn>1</mn><mo>+</mo><mi>a</mi><mi>u</mi><mi>d</mi><mi>i</mi><mi>t</mi>', $defaultMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\reviewpair{p_i} + \\withlabel{m}{1}</annotation>', $defaultMathml);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mi>f</mi><mi>i</mi><mi>n</mi><mi>a</mi><mi>l</mi><mo>+</mo><mi>m</mi><mo>+</mo><mn>2</mn><mo>+</mo><mi>s</mi><mi>o</mi><mi>u</mi><mi>r</mi><mi>c</mi><mi>e</mi>', $overrideMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\reviewpair[final]{p_i} + \\withlabel[source]{m}{2}</annotation>', $overrideMathml);
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad-name' => ['arity' => 1, 'template' => '#1']]));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad' => ['arity' => 10, 'template' => '#1']]));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad' => ['arity' => 1]]));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad' => ['arity' => 0, 'template' => '#1', 'optionalDefault' => 'fallback']]));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\bad{x}', false, ['bad' => ['arity' => 1, 'template' => '#1', 'optionalDefault' => ['fallback']]]));
     },
     'converts bounded tex delimiter commands and stretch fences to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

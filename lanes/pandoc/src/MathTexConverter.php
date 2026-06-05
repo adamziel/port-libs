@@ -218,7 +218,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string}> $macros
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
      */
     public function mathMlFor(AstNode $node, array $macros = []): string
     {
@@ -226,7 +226,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string}> $macros
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
      */
     public function texToMathMl(string $tex, bool $display = false, array $macros = []): string
     {
@@ -262,17 +262,22 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity:int, template:string}> $macros
+     * @param array<string, array{arity:int, template:string, optionalDefault?: string}> $macros
      */
     private function collectMacroDefinitions(AstNode $node, array &$macros): void
     {
         if ($node->type === 'raw_tex') {
             $macro = $this->readRawTexMacroDefinition((string) $node->attr('tex', ''));
             if ($macro !== null) {
-                $macros[$macro['name']] = [
+                $definition = [
                     'arity' => $macro['arity'],
                     'template' => $macro['template'],
                 ];
+                if (array_key_exists('optionalDefault', $macro)) {
+                    $definition['optionalDefault'] = $macro['optionalDefault'];
+                }
+
+                $macros[$macro['name']] = $definition;
             }
         }
 
@@ -282,30 +287,66 @@ final class MathTexConverter
     }
 
     /**
-     * @return array{name:string, arity:int, template:string}|null
+     * @return array{name:string, arity:int, template:string, optionalDefault?: string}|null
      */
     private function readRawTexMacroDefinition(string $tex): ?array
     {
-        if (
-            preg_match(
-                '/^\\\\(?:re)?newcommand\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}$/',
-                trim($tex),
-                $m
-            ) !== 1
-            && preg_match(
-                '/^\\\\providecommand\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}$/',
-                trim($tex),
-                $m
-            ) !== 1
-        ) {
+        $source = trim($tex);
+        if (preg_match('/^\\\\(?:(?:re)?newcommand|providecommand)/', $source, $m) !== 1) {
             return null;
         }
 
-        return [
-            'name' => $m[1],
-            'arity' => isset($m[2]) && $m[2] !== '' ? (int) $m[2] : $this->inferMacroArity($m[3]),
-            'template' => $m[3],
+        $offset = strlen($m[0]);
+        $this->skipWhitespace($source, $offset);
+        $name = $this->readTexBraceArgument($source, $offset);
+        if ($name === null || preg_match('/^\\\\([A-Za-z]+)$/', $name['value'], $nameMatch) !== 1) {
+            return null;
+        }
+        $offset = $name['next'];
+
+        $arity = null;
+        $optionalDefault = null;
+        $this->skipWhitespace($source, $offset);
+        $arityArgument = $this->readTexBracketArgument($source, $offset);
+        if ($arityArgument !== null) {
+            if (preg_match('/^[0-9]$/', trim($arityArgument['value'])) !== 1) {
+                return null;
+            }
+
+            $arity = (int) trim($arityArgument['value']);
+            $offset = $arityArgument['next'];
+            $defaultArgument = $this->readTexBracketArgument($source, $offset);
+            if ($defaultArgument !== null) {
+                $optionalDefault = $defaultArgument['value'];
+                $offset = $defaultArgument['next'];
+            }
+        }
+
+        $this->skipWhitespace($source, $offset);
+        $template = $this->readTexBraceArgument($source, $offset);
+        if ($template === null) {
+            return null;
+        }
+        $offset = $template['next'];
+        $this->skipWhitespace($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        $definition = [
+            'name' => $nameMatch[1],
+            'arity' => $arity ?? $this->inferMacroArity($template['value']),
+            'template' => $template['value'],
         ];
+        if ($optionalDefault !== null) {
+            if ($definition['arity'] < 1) {
+                return null;
+            }
+
+            $definition['optionalDefault'] = $optionalDefault;
+        }
+
+        return $definition;
     }
 
     private function inferMacroArity(string $template): int
@@ -318,8 +359,8 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity?: int, template?: string}> $macros
-     * @return array<string, array{arity:int, template:string}>
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @return array<string, array{arity:int, template:string, optionalDefault?: string}>
      */
     private function normalizeMacroDefinitions(array $macros): array
     {
@@ -339,17 +380,31 @@ final class MathTexConverter
                 throw new \InvalidArgumentException('Unsupported TeX macro arity for \\' . $macroName);
             }
 
-            $normalized[$macroName] = [
+            $macro = [
                 'arity' => $arity,
                 'template' => $definition['template'],
             ];
+
+            if (array_key_exists('optionalDefault', $definition)) {
+                if (!is_string($definition['optionalDefault'])) {
+                    throw new \InvalidArgumentException('Expected TeX optional macro default for \\' . $macroName);
+                }
+
+                if ($arity < 1) {
+                    throw new \InvalidArgumentException('Unsupported TeX optional macro arity for \\' . $macroName);
+                }
+
+                $macro['optionalDefault'] = $definition['optionalDefault'];
+            }
+
+            $normalized[$macroName] = $macro;
         }
 
         return $normalized;
     }
 
     /**
-     * @param array<string, array{arity:int, template:string}> $macros
+     * @param array<string, array{arity:int, template:string, optionalDefault?: string}> $macros
      */
     private function expandRawTexMathMacros(string $math, array $macros): string
     {
@@ -370,7 +425,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array<string, array{arity:int, template:string}> $macros
+     * @param array<string, array{arity:int, template:string, optionalDefault?: string}> $macros
      */
     private function expandRawTexMathMacrosOnce(string $math, array $macros): string
     {
@@ -387,7 +442,21 @@ final class MathTexConverter
                 $macro = $macros[$m[1]];
                 $cursor = $offset + strlen($m[0]);
                 $args = [];
-                for ($argument = 0; $argument < $macro['arity']; $argument++) {
+                $requiredArity = $macro['arity'];
+                if (array_key_exists('optionalDefault', $macro)) {
+                    $optionalOffset = $cursor;
+                    $this->skipWhitespace($math, $optionalOffset);
+                    $optionalArgument = $this->readTexBracketArgument($math, $optionalOffset);
+                    if ($optionalArgument !== null) {
+                        $args[] = $optionalArgument['value'];
+                        $cursor = $optionalArgument['next'];
+                    } else {
+                        $args[] = $macro['optionalDefault'];
+                    }
+                    $requiredArity--;
+                }
+
+                for ($argument = 0; $argument < $requiredArity; $argument++) {
                     $this->skipWhitespace($math, $cursor);
                     $parsed = $this->readTexBraceArgument($math, $cursor);
                     if ($parsed === null) {
@@ -439,6 +508,44 @@ final class MathTexConverter
 
             $depth--;
             if ($depth === 0) {
+                return [
+                    'value' => substr($text, $offset + 1, $cursor - $offset - 1),
+                    'next' => $cursor + 1,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function readTexBracketArgument(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($text);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] === '}' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+
+            if ($text[$cursor] === ']' && $depth === 0) {
                 return [
                     'value' => substr($text, $offset + 1, $cursor - $offset - 1),
                     'next' => $cursor + 1,
