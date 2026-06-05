@@ -147,6 +147,16 @@ final class MathTexConverter
         'Vmatrix' => ['open' => '‖', 'close' => '‖'],
     ];
 
+    /** @var array<string, array{columnalign: string, columns: int}> */
+    private const AMS_ROW_ENVIRONMENTS = [
+        'align' => ['columnalign' => 'right left', 'columns' => 2],
+        'align*' => ['columnalign' => 'right left', 'columns' => 2],
+        'gather' => ['columnalign' => 'center', 'columns' => 1],
+        'gather*' => ['columnalign' => 'center', 'columns' => 1],
+        'gathered' => ['columnalign' => 'center', 'columns' => 1],
+        'split' => ['columnalign' => 'right left', 'columns' => 2],
+    ];
+
     public function latexFor(AstNode $node): string
     {
         $text = (string) $node->attr('text', '');
@@ -647,6 +657,10 @@ final class MathTexConverter
             return $this->parseArrayEnvironment($source, $offset);
         }
 
+        if (isset(self::AMS_ROW_ENVIRONMENTS[$environment])) {
+            return $this->parseAmsRowEnvironment($source, $offset, $environment);
+        }
+
         if (!isset(self::MATRIX_ENVIRONMENTS[$environment])) {
             throw new \InvalidArgumentException('Unsupported TeX environment ' . $environment . ' at offset ' . $offset);
         }
@@ -825,6 +839,20 @@ final class MathTexConverter
         return $this->environmentTable($rows, ' columnalign="' . $this->esc($columnAlign) . '"');
     }
 
+    private function parseAmsRowEnvironment(string $source, int &$offset, string $environment): string
+    {
+        $content = $this->readEnvironmentContent($source, $offset, $environment);
+        if ($this->endsWithTopLevelRowSeparator($content)) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at final row');
+        }
+
+        $rows = $this->splitAlignmentRows($content, $environment);
+        $spec = self::AMS_ROW_ENVIRONMENTS[$environment];
+        $this->validateAmsRowEnvironmentRows($rows, $environment, $spec['columns']);
+
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"');
+    }
+
     private function parseColorCommand(string $source, int &$offset, string $command): string
     {
         $color = $this->normalizeMathColor($this->readRequiredGroupText($source, $offset));
@@ -912,6 +940,30 @@ final class MathTexConverter
         }
 
         return $this->environmentTable($rows, ' columnalign="center" rowspacing="0.1em"');
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function validateAmsRowEnvironmentRows(array $rows, string $environment, int $columns): void
+    {
+        foreach ($rows as $rowIndex => $row) {
+            if (count($row) !== $columns) {
+                throw new \InvalidArgumentException('Expected ' . $columns . '-column TeX ' . $environment . ' row at row ' . ($rowIndex + 1));
+            }
+
+            $hasContent = false;
+            foreach ($row as $cell) {
+                if (trim($cell) !== '') {
+                    $hasContent = true;
+                    break;
+                }
+            }
+
+            if (!$hasContent) {
+                throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at row ' . ($rowIndex + 1));
+            }
+        }
     }
 
     private function endsWithTopLevelRowSeparator(string $content): bool

@@ -159,6 +159,19 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)</annotation>', $substackMathml);
         $t->contains('<mtable columnalign="center" rowspacing="0.1em"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable>', $standaloneMathml);
     },
+    'converts bounded tex ams align gather and split environments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $alignMathml = $converter->texToMathMl('\\begin{align}f(x) &= x^2 \\\\ g(x) &= x + 1\\end{align}', true);
+        $gatherMathml = $converter->texToMathMl('\\begin{gathered}a+b \\\\ c+d\\end{gathered}');
+        $splitMathml = $converter->texToMathMl('\\begin{split}S &= \\sum_{i=1}^{n} p_i \\\\ &= \\frac{a}{b}\\end{split}', true);
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $alignMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd></mtr><mtr><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{align}f(x) &amp;= x^2 \\\\ g(x) &amp;= x + 1\\end{align}</annotation>', $alignMathml);
+        $t->contains('<mtable columnalign="center"><mtr><mtd><mi>a</mi><mo>+</mo><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi><mo>+</mo><mi>d</mi></mtd></mtr></mtable>', $gatherMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><mi>S</mi></mtd><mtd><mo>=</mo><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd></mtd><mtd><mo>=</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mtd></mtr></mtable>', $splitMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>', $splitMathml);
+    },
     'converts bounded tex relation set logic and arrow commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $setMathml = $converter->texToMathMl('\\forall p_i \\in P \\land m_i \\notin M \\Rightarrow p_i \\subseteq Q \\cup R', true);
@@ -323,6 +336,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{cases}x & y'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{cases}\\end{cases}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\end{matrix}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a & b & c\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{gather}a & b\\end{gather}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{split}S &= x \\\\ \\end{split}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{gathered}\\end{gathered}'));
     },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
