@@ -4716,7 +4716,11 @@ final class PdfTextExtractor
                         $normalizedMatrix = $this->normalizedPdfReviewNumbers($state['matrix']);
                         $bbox = $this->imageUnitBboxForMatrix($normalizedMatrix);
                         $clipRectangle = $this->normalizedPdfRectangleOrNull($state['clip_bbox']);
-                        $visibleBbox = $this->visibleImageInvocationBbox($bbox, $clipRectangle);
+                        $graphicsState = $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null);
+                        $paintSuppressionReason = $this->imageXObjectGraphicsStatePaintSuppressionReason($graphicsState);
+                        $visibleBbox = $paintSuppressionReason === null
+                            ? $this->visibleImageInvocationBbox($bbox, $clipRectangle)
+                            : null;
                         $invocations[$resourceName][] = [
                             'matrix' => $normalizedMatrix,
                             'bbox' => $bbox,
@@ -4724,12 +4728,13 @@ final class PdfTextExtractor
                             'visible_bbox' => $visibleBbox,
                             'clipped' => $clipRectangle !== null
                                 && ($visibleBbox === null || !$this->pdfRectanglesEqual($bbox, $visibleBbox)),
-                            'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
+                            'graphics_state' => $graphicsState,
+                            'graphics_state_paint_suppression_reason' => $paintSuppressionReason,
                             'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                         ];
-                        $graphicsState = $this->nonDefaultInvocationGraphicsState($state['graphics_state'] ?? null);
-                        if ($graphicsState !== null) {
-                            $invocations[$resourceName][array_key_last($invocations[$resourceName])]['graphics_state'] = $graphicsState;
+                        $reviewGraphicsState = $this->nonDefaultInvocationGraphicsState($graphicsState);
+                        if ($reviewGraphicsState !== null) {
+                            $invocations[$resourceName][array_key_last($invocations[$resourceName])]['graphics_state'] = $reviewGraphicsState;
                         }
                     }
                 }
@@ -5684,6 +5689,19 @@ final class PdfTextExtractor
         return $state;
     }
 
+    private function imageXObjectGraphicsStatePaintSuppressionReason(mixed $state): ?string
+    {
+        $state = $this->normalizeInvocationGraphicsState($state);
+        if (
+            (is_int($state['nonstroking_alpha']) || is_float($state['nonstroking_alpha']))
+            && (float) $state['nonstroking_alpha'] <= 0.000001
+        ) {
+            return 'nonstroking_alpha_zero';
+        }
+
+        return null;
+    }
+
     /**
      * @param list<float> $values
      * @return list<float>
@@ -6097,12 +6115,17 @@ final class PdfTextExtractor
         $clipApplied = false;
         $clipReducesPaintedBbox = false;
         $clipExcludedInvocationCount = 0;
+        $graphicsStatePaintSuppressedInvocationCount = 0;
+        $graphicsStatePaintSuppressionReasons = [];
         foreach ($invocationDetails as $detail) {
             $matrix = $detail['matrix'] ?? null;
             $bbox = $detail['bbox'] ?? null;
             $clipBbox = $detail['clip_bbox'] ?? null;
             $visibleBbox = $detail['visible_bbox'] ?? null;
             $graphicsState = $this->nonDefaultInvocationGraphicsState($detail['graphics_state'] ?? null);
+            $paintSuppressionReason = is_string($detail['graphics_state_paint_suppression_reason'] ?? null)
+                ? $detail['graphics_state_paint_suppression_reason']
+                : null;
             if (is_array($matrix) && count($matrix) >= 6) {
                 $invocationMatrices[] = $this->normalizedPdfReviewNumbers(array_slice($matrix, 0, 6));
             }
@@ -6120,6 +6143,10 @@ final class PdfTextExtractor
             }
             if (($detail['clipped'] ?? false) === true) {
                 $clipReducesPaintedBbox = true;
+            }
+            if ($paintSuppressionReason !== null) {
+                $graphicsStatePaintSuppressedInvocationCount++;
+                $graphicsStatePaintSuppressionReasons[$paintSuppressionReason] = true;
             }
             if ($graphicsState !== null) {
                 $invocationGraphicsStates[] = $graphicsState;
@@ -6262,6 +6289,9 @@ final class PdfTextExtractor
             'invocation_visible_display_bboxes' => $invocationVisibleDisplayBboxes,
             'invocation_graphics_states' => $invocationGraphicsStates,
             'graphics_state_review_only' => $invocationGraphicsStates !== [],
+            'graphics_state_paint_suppressed' => $graphicsStatePaintSuppressedInvocationCount > 0,
+            'graphics_state_paint_suppressed_invocation_count' => $graphicsStatePaintSuppressedInvocationCount,
+            'graphics_state_paint_suppression_reasons' => array_keys($graphicsStatePaintSuppressionReasons),
             'invocation_marked_content' => $invocationMarkedContent,
             'marked_content_review_only' => $invocationMarkedContent !== [],
             'image_unit_bbox' => $imageUnitBbox,

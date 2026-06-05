@@ -820,6 +820,7 @@ return [
                 'image_mask' => false,
                 'filters' => ['FlateDecode'],
                 'preview_only_filters' => [],
+                'dctdecode_stream_boundary' => null,
                 'native_raster_decode' => true,
                 'raw_length' => strlen($printCompressed),
                 'decoded_with_current_filters' => true,
@@ -840,6 +841,7 @@ return [
                 'image_mask' => false,
                 'filters' => ['JPXDecode'],
                 'preview_only_filters' => ['JPXDecode'],
+                'dctdecode_stream_boundary' => null,
                 'native_raster_decode' => false,
                 'raw_length' => strlen($screenPayload),
                 'decoded_with_current_filters' => false,
@@ -924,6 +926,7 @@ return [
             'opacity_for_one' => 0.0,
             'filters' => ['FlateDecode'],
             'preview_only_filters' => [],
+            'dctdecode_stream_boundary' => null,
             'native_raster_decode' => true,
             'raw_length' => strlen($maskCompressed),
             'decoded_with_current_filters' => true,
@@ -1751,6 +1754,80 @@ return [
         $t->true(!str_contains($encoded, $alphaPayload));
         $t->true(!str_contains($encoded, $softPayload));
         $t->true(!str_contains($encoded, $plainPayload));
+    },
+    'keeps zero-alpha image XObject invocations reviewable but unpainted' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before transparent image) Tj ET\n"
+            . "q /Invisible#20State gs 20 0 0 10 72 690 cm /Transparent#20Image Do Q\n"
+            . "q /Visible#20State gs 12 0 0 8 108 690 cm /Visible#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After transparent image) Tj ET';
+        $transparentPayload = 'BT /F1 12 Tf 72 720 Td (Transparent ExtGState Image Noise) Tj ET';
+        $visiblePayload = 'BT /F1 12 Tf 72 720 Td (Visible ExtGState Image Noise) Tj ET';
+        $transparentCompressed = gzcompress($transparentPayload);
+        $visibleCompressed = gzcompress($visiblePayload);
+        if (!is_string($transparentCompressed) || !is_string($visibleCompressed)) {
+            throw new RuntimeException('Unable to compress zero-alpha image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /ExtGState << /Invisible#20State 20 0 R /Visible#20State 21 0 R >> /XObject << /Transparent#20Image 5 0 R /Visible#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($transparentCompressed) . " >>\nstream\n{$transparentCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($visibleCompressed) . " >>\nstream\n{$visibleCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /ExtGState /ca 0 /CA 1 /BM /Normal >>\nendobj\n"
+            . "21 0 obj\n<< /Type /ExtGState /ca 0.65 /BM /Normal >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $transparent = $entriesByName['Transparent Image'];
+        $t->same(true, $transparent['invoked']);
+        $t->same(1, $transparent['invocation_count']);
+        $t->same(0, $transparent['painted_invocation_count']);
+        $t->same([[20.0, 0.0, 0.0, 10.0, 72.0, 690.0]], $transparent['invocation_matrices']);
+        $t->same([[72.0, 690.0, 92.0, 700.0]], $transparent['invocation_bboxes']);
+        $t->same([], $transparent['invocation_visible_bboxes']);
+        $t->same([72.0, 690.0, 92.0, 700.0], $transparent['image_unit_bbox']);
+        $t->same(null, $transparent['image_visible_bbox']);
+        $t->same(true, $transparent['graphics_state_paint_suppressed']);
+        $t->same(1, $transparent['graphics_state_paint_suppressed_invocation_count']);
+        $t->same(['nonstroking_alpha_zero'], $transparent['graphics_state_paint_suppression_reasons']);
+        $t->same([['Invisible State']], array_column($transparent['invocation_graphics_states'], 'ext_gstate_resources'));
+        $t->same(0.0, $transparent['invocation_graphics_states'][0]['nonstroking_alpha']);
+        $t->same(true, $transparent['decoded_with_current_filters']);
+        $t->same(hash('sha256', $transparentPayload), $transparent['decoded_sha256']);
+        $t->same(false, $transparent['payload_in_visible_text']);
+
+        $visible = $entriesByName['Visible Image'];
+        $t->same(true, $visible['invoked']);
+        $t->same(1, $visible['painted_invocation_count']);
+        $t->same([[108.0, 690.0, 120.0, 698.0]], $visible['invocation_visible_bboxes']);
+        $t->same(false, $visible['graphics_state_paint_suppressed']);
+        $t->same(0, $visible['graphics_state_paint_suppressed_invocation_count']);
+        $t->same([], $visible['graphics_state_paint_suppression_reasons']);
+        $t->same(0.65, $visible['invocation_graphics_states'][0]['nonstroking_alpha']);
+        $t->same(hash('sha256', $visiblePayload), $visible['decoded_sha256']);
+
+        $t->same(['Before transparent image', 'After transparent image'], $extractor->extractTextLines($pdf));
+        $t->same("Before transparent image\nAfter transparent image", $plainText);
+        $t->true(!str_contains($plainText, 'Transparent ExtGState Image Noise'));
+        $t->true(!str_contains($plainText, 'Visible ExtGState Image Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $transparentPayload));
+        $t->true(!str_contains($encoded, $visiblePayload));
     },
     'clips image XObject placement to inherited page box boundaries' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before page-box images) Tj ET\n"
