@@ -960,6 +960,8 @@ return [
             '  "title": "JSON **Packet**",',
             '  "authors": ["JSON Reviewer", "WordPress Editor"],',
             '  "review": {"status": "queued", "priority": 4},',
+            '  "yes": "quoted JSON boolean-looking field",',
+            '  "15": "quoted JSON numeric-looking field",',
             '  "references": [',
             '    {',
             '      "id": "json-ref",',
@@ -975,6 +977,7 @@ return [
             '# JSON metadata body',
         ]));
         $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
         $titleInlines = $meta['titleInlines'] ?? [];
 
         $t->same('JSON **Packet**', $meta['title']);
@@ -982,6 +985,9 @@ return [
         $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
         $t->same(['JSON Reviewer', 'WordPress Editor'], $meta['authors']);
         $t->same(['status' => 'queued', 'priority' => 4], $meta['review']);
+        $t->same('quoted JSON boolean-looking field', $meta['yes']);
+        $t->same('quoted JSON numeric-looking field', $meta[15]);
+        $t->same([], $diagnostics);
         $t->same('json-ref', $meta['references'][0]['id']);
         $t->same([[2026, 6, 4]], $meta['references'][0]['issued']['date-parts']);
         $t->same(null, $meta['draft_'] ?? null);
@@ -2558,6 +2564,43 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('ambiguous-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="ambiguous-yaml-body">Ambiguous YAML body</h1>', $blocks);
+    },
+    'keeps pandoc yaml quoted ambiguous top-level field names as strings' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Quoted ambiguous field **Packet**',
+            '"yes": quoted boolean-looking source field',
+            "'True': quoted uppercase boolean-looking source field",
+            '? "15"',
+            ': quoted numeric-looking source field',
+            "? '0x2A'",
+            ': quoted hexadecimal-looking source field',
+            'review:',
+            '  yes: nested reviewer boolean key is preserved',
+            '  "15": nested quoted numeric reviewer key is preserved',
+            'references:',
+            '  - id: quoted-ambiguous-field-ref',
+            '    title: Source metadata',
+            '...',
+            '',
+            '# Quoted ambiguous YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Quoted ambiguous field **Packet**', $meta['title']);
+        $t->same('quoted boolean-looking source field', $meta['yes']);
+        $t->same('quoted uppercase boolean-looking source field', $meta['True']);
+        $t->same('quoted numeric-looking source field', $meta[15]);
+        $t->same('quoted hexadecimal-looking source field', $meta['0x2A']);
+        $t->same('nested reviewer boolean key is preserved', $meta['review']['yes']);
+        $t->same('nested quoted numeric reviewer key is preserved', $meta['review'][15]);
+        $t->same('quoted-ambiguous-field-ref', $meta['references'][0]['id']);
+        $t->same([], $diagnostics);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('quoted-ambiguous-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="quoted-ambiguous-yaml-body">Quoted ambiguous YAML body</h1>', $blocks);
     },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

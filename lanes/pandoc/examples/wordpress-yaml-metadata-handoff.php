@@ -234,6 +234,12 @@ yes: boolean-looking source field
 True: uppercase boolean-looking source field
 15: numeric-looking source field
 0x2A: hexadecimal-looking source field
+"no": quoted boolean-looking source field
+? "Off"
+: quoted off-looking source field
+? '3.14'
+: quoted float-looking source field
+"0o52": quoted octal-looking source field
 ambiguous-field-review:
   true: nested reviewer boolean key stays visible
   15: nested reviewer numeric key stays visible
@@ -706,6 +712,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('yes', $meta) || array_key_exists('True', $meta) || array_key_exists('15', $meta) || array_key_exists('0x2A', $meta)) {
         throw new RuntimeException('YAML metadata self-test promoted ambiguous top-level field names');
     }
+    if (($meta['no'] ?? '') !== 'quoted boolean-looking source field') {
+        throw new RuntimeException('YAML metadata self-test dropped quoted boolean-looking top-level field');
+    }
+    if (($meta['Off'] ?? '') !== 'quoted off-looking source field') {
+        throw new RuntimeException('YAML metadata self-test dropped quoted off-looking top-level field');
+    }
+    if (($meta['3.14'] ?? '') !== 'quoted float-looking source field') {
+        throw new RuntimeException('YAML metadata self-test dropped quoted float-looking top-level field');
+    }
+    if (($meta['0o52'] ?? '') !== 'quoted octal-looking source field') {
+        throw new RuntimeException('YAML metadata self-test dropped quoted octal-looking top-level field');
+    }
+    if (array_intersect(['no', 'Off', '3.14', '0o52'], array_column($yamlDiagnostics, 'field')) !== []) {
+        throw new RuntimeException('YAML metadata self-test flagged quoted ambiguous top-level field names');
+    }
     if (($meta['ambiguous-field-review']['true'] ?? '') !== 'nested reviewer boolean key stays visible') {
         throw new RuntimeException('YAML metadata self-test dropped nested ambiguous reviewer key');
     }
@@ -832,6 +853,7 @@ echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['ke
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column(array_slice($yamlDiagnostics, 0, 4), 'field')) . "\n";
+echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?? '') . ' / ' . ($meta['3.14'] ?? '') . ' / ' . ($meta['0o52'] ?? '') . "\n";
 echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";

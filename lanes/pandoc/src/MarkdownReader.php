@@ -525,11 +525,15 @@ final class MarkdownReader
         $nextDiagnostics = $this->yamlMetadataDiagnosticList($next['__yamlMetadataDiagnostics'] ?? []);
         $currentTags = $this->yamlMetadataTagProvenanceList($current['__yamlMetadataTagProvenance'] ?? []);
         $nextTags = $this->yamlMetadataTagProvenanceList($next['__yamlMetadataTagProvenance'] ?? []);
+        $currentFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($current['__yamlMetadataFieldQuoteMap'] ?? []);
+        $nextFieldQuoteMap = $this->yamlMetadataFieldQuoteMap($next['__yamlMetadataFieldQuoteMap'] ?? []);
         unset(
             $current['__yamlMetadataDiagnostics'],
             $next['__yamlMetadataDiagnostics'],
             $current['__yamlMetadataTagProvenance'],
-            $next['__yamlMetadataTagProvenance']
+            $next['__yamlMetadataTagProvenance'],
+            $current['__yamlMetadataFieldQuoteMap'],
+            $next['__yamlMetadataFieldQuoteMap']
         );
 
         $merged = array_replace($current, $next);
@@ -540,6 +544,10 @@ final class MarkdownReader
         $tagProvenance = array_merge($currentTags, $nextTags);
         if ($tagProvenance !== []) {
             $merged['__yamlMetadataTagProvenance'] = $tagProvenance;
+        }
+        $fieldQuoteMap = array_replace($currentFieldQuoteMap, $nextFieldQuoteMap);
+        if ($fieldQuoteMap !== []) {
+            $merged['__yamlMetadataFieldQuoteMap'] = $fieldQuoteMap;
         }
 
         return $merged;
@@ -590,17 +598,44 @@ final class MarkdownReader
     }
 
     /**
+     * @return array<string, bool>
+     */
+    private function yamlMetadataFieldQuoteMap(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($value as $field => $quoted) {
+            if (is_string($field) || is_int($field)) {
+                $map[(string) $field] = $quoted === true;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
      * @param list<string> $lines
      * @return array<string, mixed>
      */
-    private function parseYamlMetadataLines(array $lines): array
+    private function parseYamlMetadataLines(array $lines, bool $topLevel = true): array
     {
         $jsonMetadata = $this->parseYamlJsonMetadataDocument($lines);
         if ($jsonMetadata !== null) {
+            if ($topLevel) {
+                $jsonMetadata['__yamlMetadataFieldQuoteMap'] = array_fill_keys(
+                    array_map(static fn (int|string $field): string => (string) $field, array_keys($jsonMetadata)),
+                    true
+                );
+            }
+
             return $jsonMetadata;
         }
 
         $metadata = [];
+        $fieldQuoteMap = [];
         $count = count($lines);
         for ($index = 0; $index < $count;) {
             $line = $lines[$index];
@@ -617,12 +652,15 @@ final class MarkdownReader
 
             $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index);
             if ($explicitMapping !== null) {
-                [$key, $sourceValue, $children, $nextIndex] = $explicitMapping;
+                [$key, $sourceValue, $children, $nextIndex, $quotedKey] = $explicitMapping;
                 [$value] = $this->parseYamlMetadataValue($sourceValue, $children);
                 if ($key === '<<') {
                     $metadata = $this->mergeYamlMapValue($metadata, $value);
                 } else {
                     $metadata[$key] = $value;
+                    if ($topLevel) {
+                        $fieldQuoteMap[(string) $key] = $quotedKey;
+                    }
                 }
 
                 $index = $nextIndex;
@@ -635,16 +673,23 @@ final class MarkdownReader
                 continue;
             }
 
-            [$key, $sourceValue] = $mapping;
+            [$key, $sourceValue, $quotedKey] = $mapping;
             [$children, $nextIndex] = $this->collectYamlChildLines($lines, $index + 1);
             [$value] = $this->parseYamlMetadataValue($sourceValue, $children);
             if ($key === '<<') {
                 $metadata = $this->mergeYamlMapValue($metadata, $value);
             } else {
                 $metadata[$key] = $value;
+                if ($topLevel) {
+                    $fieldQuoteMap[(string) $key] = $quotedKey;
+                }
             }
 
             $index = $nextIndex;
+        }
+
+        if ($topLevel && $fieldQuoteMap !== []) {
+            $metadata['__yamlMetadataFieldQuoteMap'] = $fieldQuoteMap;
         }
 
         return $metadata;
@@ -674,7 +719,7 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return array{0:string, 1:string, 2:list<string>, 3:int}|null
+     * @return array{0:string, 1:string, 2:list<string>, 3:int, 4:bool}|null
      */
     private function parseYamlExplicitMappingPair(array $lines, int $start): ?array
     {
@@ -691,6 +736,7 @@ final class MarkdownReader
         $keySource = trim(substr($trimmed, 1));
         $cursor = $start + 1;
         $keyValue = null;
+        $quotedKey = false;
         if ($keySource === '') {
             $keyLines = [];
             $count = count($lines);
@@ -703,8 +749,10 @@ final class MarkdownReader
                 return null;
             }
 
+            $quotedKey = $this->yamlExplicitKeyLinesStartQuoted($keyLines);
             $keyValue = $this->parseYamlIndentedValue($keyLines);
         } else {
+            $quotedKey = $this->yamlExplicitKeySourceStartsQuoted($keySource);
             $keyValue = $this->parseYamlScalarValue($keySource);
             while (
                 isset($lines[$cursor])
@@ -730,7 +778,31 @@ final class MarkdownReader
 
         [$children, $nextIndex] = $this->collectYamlChildLines($lines, $cursor + 1);
 
-        return [$key, $sourceValue, $children, $nextIndex];
+        return [$key, $sourceValue, $children, $nextIndex, $quotedKey];
+    }
+
+    /**
+     * @param list<string> $keyLines
+     */
+    private function yamlExplicitKeyLinesStartQuoted(array $keyLines): bool
+    {
+        foreach ($this->stripYamlCommonIndent($keyLines) as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            return $this->yamlExplicitKeySourceStartsQuoted($trimmed);
+        }
+
+        return false;
+    }
+
+    private function yamlExplicitKeySourceStartsQuoted(string $source): bool
+    {
+        $source = ltrim($source);
+
+        return $source !== '' && ($source[0] === '"' || $source[0] === "'");
     }
 
     private function isYamlExplicitMappingKeyLine(string $trimmed): bool
@@ -1057,7 +1129,7 @@ final class MarkdownReader
         }
 
         if ($this->startsWithYamlMapping($normalized)) {
-            return $this->parseYamlMetadataLines($normalized);
+            return $this->parseYamlMetadataLines($normalized, false);
         }
 
         if (count($normalized) === 1) {
@@ -1216,14 +1288,14 @@ final class MarkdownReader
             }
 
             if ($this->isYamlCompactSequenceMappingSource($sourceValue)) {
-                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
             }
 
             if ($childLines !== [] && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))) {
-                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines), false);
                 $this->rememberYamlAnchor($anchorName, $value);
                 $items[] = $value;
                 continue;
@@ -1297,7 +1369,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{0:string, 1:string}|null
+     * @return array{0:string, 1:string, 2:bool}|null
      */
     private function parseYamlMappingLine(string $line): ?array
     {
@@ -1307,7 +1379,7 @@ final class MarkdownReader
         }
 
         if (preg_match('/^(<<):(?:[ \t]*(.*))?$/', $line, $m) === 1) {
-            return [$m[1], rtrim($m[2] ?? '')];
+            return [$m[1], rtrim($m[2] ?? ''), false];
         }
 
         if ($line[0] === '"' || $line[0] === "'") {
@@ -1328,6 +1400,7 @@ final class MarkdownReader
                     return [
                         $this->unquoteYamlScalar(substr($line, 0, $offset + 1)),
                         ltrim(substr($afterKey, 1)),
+                        true,
                     ];
                 }
             }
@@ -1339,7 +1412,7 @@ final class MarkdownReader
     }
 
     /**
-     * @return array{0:string, 1:string}|null
+     * @return array{0:string, 1:string, 2:bool}|null
      */
     private function splitYamlPlainMappingLine(string $line): ?array
     {
@@ -1405,7 +1478,7 @@ final class MarkdownReader
                 return null;
             }
 
-            return [$key, rtrim(ltrim($afterColon))];
+            return [$key, rtrim(ltrim($afterColon)), false];
         }
 
         return null;
@@ -2889,6 +2962,7 @@ final class MarkdownReader
         $meta = [];
         $diagnostics = [];
         $tagProvenance = [];
+        $fieldQuoteMap = $this->yamlMetadataFieldQuoteMap($metadata['__yamlMetadataFieldQuoteMap'] ?? []);
         foreach ($metadata as $key => $value) {
             $fieldName = (string) $key;
             if ($fieldName === '__yamlMetadataDiagnostics') {
@@ -2899,12 +2973,17 @@ final class MarkdownReader
                 $tagProvenance = array_merge($tagProvenance, $this->yamlMetadataTagProvenanceList($value));
                 continue;
             }
+            if ($fieldName === '__yamlMetadataFieldQuoteMap') {
+                continue;
+            }
 
             if (str_ends_with($fieldName, '_')) {
                 continue;
             }
 
-            $ambiguousFieldType = $this->yamlAmbiguousMetadataFieldNameType($fieldName);
+            $ambiguousFieldType = ($fieldQuoteMap[$fieldName] ?? false)
+                ? null
+                : $this->yamlAmbiguousMetadataFieldNameType($fieldName);
             if ($ambiguousFieldType !== null) {
                 $diagnostics[] = [
                     'type' => 'yaml-field-name',
