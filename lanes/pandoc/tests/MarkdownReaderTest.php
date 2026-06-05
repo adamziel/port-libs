@@ -1546,6 +1546,51 @@ return [
         $t->same('explicit-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="explicit-tag-yaml-body">Explicit tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit integer base metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Integer base **Packet**',
+            'review:',
+            '  decimal: !!int "1_024"',
+            '  hexadecimal: !!int 0x2A',
+            '  negative-hexadecimal: !!int -0x2a',
+            '  binary: !!int 0b101010',
+            '  octal: !!int 0o52',
+            '  legacy-octal: !!int "052"',
+            '  invalid-base: !!int 0xZZ',
+            '  typed-flow: {hex: !!int 0x10, binary: !!int 0b11, octal: !!int 0o7}',
+            'references:',
+            '  - id: integer-base-ref',
+            '    issued:',
+            '      date-parts:',
+            '        - - !!int 0x7EA',
+            '          - !!int 0b110',
+            '          - !!int 0o5',
+            '...',
+            '',
+            '# Integer base YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Integer base **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(1024, $meta['review']['decimal']);
+        $t->same(42, $meta['review']['hexadecimal']);
+        $t->same(-42, $meta['review']['negative-hexadecimal']);
+        $t->same(42, $meta['review']['binary']);
+        $t->same(42, $meta['review']['octal']);
+        $t->same(42, $meta['review']['legacy-octal']);
+        $t->same('0xZZ', $meta['review']['invalid-base']);
+        $t->same(16, $meta['review']['typed-flow']['hex']);
+        $t->same(3, $meta['review']['typed-flow']['binary']);
+        $t->same(7, $meta['review']['typed-flow']['octal']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('integer-base-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="integer-base-yaml-body">Integer base YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml non-specific tag metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -35,6 +35,10 @@ review:
 typed-review:
   source-revision: !!str 007
   typed-revision: !!int "007"
+  hex-revision: !!int 0x2A
+  binary-flags: !!int 0b101010
+  octal-batch: !!int 0o52
+  legacy-octal-batch: !!int "052"
   confidence: !!float "0.75"
   approved: !!bool "true"
   withdrawn: !!null "not carried"
@@ -260,6 +264,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['typed-review']['typed-revision'] ?? null) !== 7) {
         throw new RuntimeException('YAML metadata self-test missing explicit integer tag coercion');
+    }
+    if (($meta['typed-review']['hex-revision'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit hexadecimal integer coercion');
+    }
+    if (($meta['typed-review']['binary-flags'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit binary integer coercion');
+    }
+    if (($meta['typed-review']['octal-batch'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit octal integer coercion');
+    }
+    if (($meta['typed-review']['legacy-octal-batch'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missing explicit legacy octal integer coercion');
     }
     if (($meta['typed-review']['confidence'] ?? null) !== 0.75) {
         throw new RuntimeException('YAML metadata self-test missing explicit float tag coercion');

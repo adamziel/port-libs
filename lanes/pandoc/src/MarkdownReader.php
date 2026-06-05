@@ -2115,11 +2115,38 @@ final class MarkdownReader
     private function parseYamlExplicitIntegerScalar(string $value): int|string
     {
         $normalized = str_replace('_', '', trim($value));
-        if (preg_match('/^[+-]?[0-9]+$/', $normalized) !== 1) {
+        if ($normalized === '') {
             return $value;
         }
 
-        return (int) $normalized;
+        $sign = 1;
+        if ($normalized[0] === '+' || $normalized[0] === '-') {
+            $sign = $normalized[0] === '-' ? -1 : 1;
+            $normalized = substr($normalized, 1);
+        }
+
+        if ($normalized === '') {
+            return $value;
+        }
+
+        $base = 10;
+        $digits = $normalized;
+        if (preg_match('/^0b([01]+)$/i', $normalized, $m) === 1) {
+            $base = 2;
+            $digits = $m[1];
+        } elseif (preg_match('/^0o([0-7]+)$/i', $normalized, $m) === 1) {
+            $base = 8;
+            $digits = $m[1];
+        } elseif (preg_match('/^0x([0-9a-f]+)$/i', $normalized, $m) === 1) {
+            $base = 16;
+            $digits = $m[1];
+        } elseif (preg_match('/^0[0-7]+$/', $normalized) === 1) {
+            $base = 8;
+        } elseif (preg_match('/^[0-9]+$/', $normalized) !== 1) {
+            return $value;
+        }
+
+        return $sign * intval($digits, $base);
     }
 
     private function parseYamlExplicitFloatScalar(string $value): float|string
