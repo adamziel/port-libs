@@ -8690,10 +8690,12 @@ final class PdfTextExtractor
 
             $nextSeen = $seen;
             $nextSeen[$kidKey] = true;
+            $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
             $kidNodes[] = [
                 'dictionary' => $kidDictionary,
                 'seen' => $nextSeen,
-                'limits' => $this->pageLabelMergedLimits($limits, $this->pageLabelLimits($kidDictionary, $objects)),
+                'limits' => $this->pageLabelMergedLimits($limits, $kidLocalLimits),
+                'local_limits' => $kidLocalLimits,
                 'order' => $kidOrder++,
             ];
         }
@@ -8705,16 +8707,30 @@ final class PdfTextExtractor
                 $rightLimits = $right['limits'];
 
                 return ($leftLimits[0] ?? PHP_INT_MAX) <=> ($rightLimits[0] ?? PHP_INT_MAX)
-                    ?: ($leftLimits[1] ?? PHP_INT_MAX) <=> ($rightLimits[1] ?? PHP_INT_MAX)
                     ?: $left['order'] <=> $right['order'];
             }
         );
 
+        $sameLowerKidLimits = [];
         foreach ($kidNodes as $kidNode) {
+            $kidLimits = $kidNode['limits'];
+            $sameLowerLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
             foreach ($this->pageLabelNumberTreeEntries($kidNode['dictionary'], $objects, $pageCount, $kidNode['seen'], $limits) as $pageIndex => $section) {
+                if ($sameLowerLimits !== null) {
+                    foreach ($sameLowerKidLimits[$sameLowerLimits[0]] ?? [] as $claimedLimits) {
+                        if ($pageIndex >= $claimedLimits[0] && $pageIndex <= $claimedLimits[1]) {
+                            continue 2;
+                        }
+                    }
+                }
+
                 if (!array_key_exists($pageIndex, $entries)) {
                     $entries[$pageIndex] = $section;
                 }
+            }
+
+            if ($sameLowerLimits !== null) {
+                $sameLowerKidLimits[$sameLowerLimits[0]][] = $sameLowerLimits;
             }
         }
 

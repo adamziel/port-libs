@@ -1631,10 +1631,12 @@ final class MarkerAppPreview
                 }
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
+                $kidLocalLimits = $this->pageLabelLimits($kidBody, $objects, $kidSeen);
                 $kidNodes[] = [
                     'body' => $kidBody,
                     'seen' => $kidSeen,
-                    'limits' => $this->mergePageLabelLimits($limits, $this->pageLabelLimits($kidBody, $objects, $kidSeen)),
+                    'limits' => $this->mergePageLabelLimits($limits, $kidLocalLimits),
+                    'local_limits' => $kidLocalLimits,
                     'order' => $kidOrder++,
                 ];
             }
@@ -1646,12 +1648,14 @@ final class MarkerAppPreview
                     $rightLimits = $right['limits'];
 
                     return ($leftLimits[0] ?? PHP_INT_MAX) <=> ($rightLimits[0] ?? PHP_INT_MAX)
-                        ?: ($leftLimits[1] ?? PHP_INT_MAX) <=> ($rightLimits[1] ?? PHP_INT_MAX)
                         ?: $left['order'] <=> $right['order'];
                 }
             );
 
+            $sameLowerKidLimits = [];
             foreach ($kidNodes as $kidNode) {
+                $kidLimits = $kidNode['limits'];
+                $sameLowerLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
                 $seenPageIndexes = [];
                 foreach ($sections as $section) {
                     $seenPageIndexes[$section['page_index']] = true;
@@ -1659,12 +1663,24 @@ final class MarkerAppPreview
 
                 foreach ($this->pageLabelSections($kidNode['body'], $objects, $kidNode['seen'], $limits) as $section) {
                     $pageIndex = $section['page_index'];
+                    if ($sameLowerLimits !== null) {
+                        foreach ($sameLowerKidLimits[$sameLowerLimits[0]] ?? [] as $claimedLimits) {
+                            if ($pageIndex >= $claimedLimits[0] && $pageIndex <= $claimedLimits[1]) {
+                                continue 2;
+                            }
+                        }
+                    }
+
                     if (isset($seenPageIndexes[$pageIndex])) {
                         continue;
                     }
 
                     $seenPageIndexes[$pageIndex] = true;
                     $sections[] = $section;
+                }
+
+                if ($sameLowerLimits !== null) {
+                    $sameLowerKidLimits[$sameLowerLimits[0]][] = $sameLowerLimits;
                 }
             }
         }
