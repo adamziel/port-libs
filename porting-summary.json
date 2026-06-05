@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 04:12:07 UTC",
-    "sourceCommit": "707911f4b8d405e9e05cd5194bdc2aa6b8edde42",
-    "sourceCommitShort": "707911f4b8d4",
+    "generated": "2026-06-05 04:12:22 UTC",
+    "sourceCommit": "d3bc324411ba9f0b346899b5ee4492f6e49d34eb",
+    "sourceCommitShort": "d3bc324411ba",
     "sourceBranch": "unknown",
-    "dashboardCommit": "707911f4b8d405e9e05cd5194bdc2aa6b8edde42",
-    "dashboardCommitShort": "707911f4b8d4",
+    "dashboardCommit": "d3bc324411ba9f0b346899b5ee4492f6e49d34eb",
+    "dashboardCommitShort": "d3bc324411ba",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,194",
             "php": "608 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC charset/Unicode BOM precedence slice on accepted base...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 9bdc...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For Citation/CSL follow-up, keep title casing/localized title...",
+            "nextTarget": "For Math/TeX follow-up, keep color declaration scoping, named...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },

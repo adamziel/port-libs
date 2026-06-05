@@ -218,6 +218,8 @@ return [
         $t->same('image', $heroParagraph->children[0]->type);
         $t->same('Pictures/hero.png', $heroParagraph->children[0]->attr('sourcePart'));
         $t->same(true, $heroParagraph->children[0]->attr('exists'));
+        $t->same('6cm', $heroParagraph->children[0]->attr('attributes')['data-odt-width']);
+        $t->same('4cm', $heroParagraph->children[0]->attr('attributes')['data-odt-height']);
         $t->same('image', $missingParagraph->children[0]->type);
         $t->same(false, $missingParagraph->children[0]->attr('exists'));
         $t->same('div', $textBox->type);
@@ -251,7 +253,7 @@ return [
         $t->contains('<em><strong>summary</strong></em>', $blocks);
         $t->contains('<a href="https://example.test/source" title="Source packet">source link</a>', $blocks);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote source audit.</p>', $blocks);
-        $t->contains('<img src="Pictures/hero.png" alt="Hero image" title="Hero image"/>', $blocks);
+        $t->contains('<img src="Pictures/hero.png" alt="Hero image" title="Hero image" data-odt-width="6cm" data-odt-height="4cm"/>', $blocks);
         $t->contains('<figcaption>Hero image</figcaption>', $blocks);
         $t->contains('<div><p>Text box reminder.</p></div>', $blocks);
     },
