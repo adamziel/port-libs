@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 00:05:28 UTC",
-    "sourceCommit": "8567d19d3dab2689ec58384fa83097004db4806c",
-    "sourceCommitShort": "8567d19d3dab",
+    "generated": "2026-06-05 00:05:47 UTC",
+    "sourceCommit": "a6244c129cef841d8a3e581f8247f3714c0fa331",
+    "sourceCommitShort": "a6244c129cef",
     "sourceBranch": "unknown",
-    "dashboardCommit": "8567d19d3dab2689ec58384fa83097004db4806c",
-    "dashboardCommitShort": "8567d19d3dab",
+    "dashboardCommit": "a6244c129cef841d8a3e581f8247f3714c0fa331",
+    "dashboardCommitShort": "a6244c129cef",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,367",
             "php": "441 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-04 UTC OPC package-part preflight slice on accepted base b0c5...",
+            "audit": "2026-06-04 UTC syntax-highlighting current-base slice on accepted bas...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For OPC follow-up, keep digital signature origin/relationship...",
+            "nextTarget": "For syntax-highlighting follow-up, keep full Skylighting XML...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },

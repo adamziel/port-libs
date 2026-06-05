@@ -63,7 +63,8 @@ final class SyntaxHighlighter
      *   tokens:list<array{type:string, text:string, class:string}>,
      *   html:string,
      *   css:string,
-     *   diagnostics:list<array{code:string, message:string}>
+     *   diagnostics:list<array{code:string, message:string}>,
+     *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string}
      * }
      */
     public function highlightCodeBlock(AstNode $codeBlock, string $style = 'pygments'): array
@@ -73,11 +74,22 @@ final class SyntaxHighlighter
         }
 
         $requested = self::languageFromCodeBlock($codeBlock);
+        $classes = $codeBlock->attr('classes', []);
+        $attributes = $codeBlock->attr('attributes', []);
 
-        return $this->highlight((string) $codeBlock->attr('text', ''), $requested, $style);
+        return $this->highlight((string) $codeBlock->attr('text', ''), $requested, $style, [
+            'id' => (string) $codeBlock->attr('id', ''),
+            'classes' => is_array($classes) ? $classes : [],
+            'attributes' => is_array($attributes) ? $attributes : [],
+        ]);
     }
 
     /**
+     * @param array{
+     *   id?: string,
+     *   classes?: array<int, mixed>,
+     *   attributes?: array<string, mixed>
+     * } $options
      * @return array{
      *   language:string,
      *   requestedLanguage:string,
@@ -85,14 +97,16 @@ final class SyntaxHighlighter
      *   tokens:list<array{type:string, text:string, class:string}>,
      *   html:string,
      *   css:string,
-     *   diagnostics:list<array{code:string, message:string}>
+     *   diagnostics:list<array{code:string, message:string}>,
+     *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string}
      * }
      */
-    public function highlight(string $code, string $language = '', string $style = 'pygments'): array
+    public function highlight(string $code, string $language = '', string $style = 'pygments', array $options = []): array
     {
         $requested = trim($language);
         $canonicalLanguage = self::normalizeLanguage($requested) ?? '';
         $canonicalStyle = self::normalizeStyle($style);
+        $lineOptions = self::lineNumberingOptions($options);
         $diagnostics = [];
 
         if ($requested !== '' && $canonicalLanguage === '') {
@@ -111,9 +125,15 @@ final class SyntaxHighlighter
             'requestedLanguage' => $requested,
             'style' => $canonicalStyle,
             'tokens' => $tokens,
-            'html' => self::renderHighlightedHtml($tokens, $canonicalLanguage),
+            'html' => self::renderHighlightedHtml($tokens, $canonicalLanguage, $lineOptions),
             'css' => self::stylesheet($canonicalStyle),
             'diagnostics' => $diagnostics,
+            'lineNumbering' => [
+                'enabled' => $lineOptions['numberLines'],
+                'anchors' => $lineOptions['lineAnchors'],
+                'start' => $lineOptions['startNumber'],
+                'lineIdPrefix' => $lineOptions['lineIdPrefix'],
+            ],
         ];
     }
 
@@ -190,6 +210,10 @@ final class SyntaxHighlighter
             "{$selector} .pp { color: {$colors['preprocessor']}; }",
             "{$selector} .cn { color: {$colors['constant']}; }",
             "{$selector} .al { color: {$colors['warning']}; font-weight: 600; }",
+            'pre.numberSource code { counter-reset: source-line 0; }',
+            'pre.numberSource code > span { position: relative; left: -4em; counter-increment: source-line; }',
+            'pre.numberSource code > span > a:first-child::before { content: counter(source-line); position: relative; left: -1em; text-align: right; vertical-align: baseline; border: none; display: inline-block; user-select: none; padding: 0 4px; width: 4em; }',
+            'pre.numberSource { margin-left: 3em; padding-left: 4px; }',
         ];
 
         return implode("\n", $rules);
@@ -197,10 +221,22 @@ final class SyntaxHighlighter
 
     /**
      * @param list<array{type:string, text:string, class:string}> $tokens
+     * @param array{
+     *   numberLines?: bool,
+     *   lineAnchors?: bool,
+     *   startNumber?: int,
+     *   lineIdPrefix?: string,
+     *   containerClasses?: list<string>
+     * } $options
      */
-    public static function renderHighlightedHtml(array $tokens, string $language = ''): string
+    public static function renderHighlightedHtml(array $tokens, string $language = '', array $options = []): string
     {
         $language = self::normalizeLanguage($language) ?? '';
+        $lineMode = ($options['numberLines'] ?? false) || ($options['lineAnchors'] ?? false);
+        if ($lineMode) {
+            return self::renderLineNumberedHtml($tokens, $language, $options);
+        }
+
         $classes = trim('sourceCode' . ($language === '' ? '' : ' ' . self::sanitizeClass($language)));
         $html = '';
 
@@ -469,10 +505,158 @@ final class SyntaxHighlighter
 
     private static function isStructuralClass(string $class): bool
     {
-        return in_array(strtolower(self::stripLanguagePrefix($class)), [
+        return in_array(self::normalizedClassName($class), [
+            'line-anchors',
+            'lineanchors',
+            'number',
+            'number-lines',
             'numberlines',
             'sourcecode',
         ], true);
+    }
+
+    /**
+     * @param array{
+     *   id?: string,
+     *   classes?: array<int, mixed>,
+     *   attributes?: array<string, mixed>
+     * } $options
+     * @return array{
+     *   numberLines: bool,
+     *   lineAnchors: bool,
+     *   startNumber: int,
+     *   lineIdPrefix: string,
+     *   containerClasses: list<string>
+     * }
+     */
+    private static function lineNumberingOptions(array $options): array
+    {
+        $classes = [];
+        foreach (($options['classes'] ?? []) as $class) {
+            $class = trim((string) $class);
+            if ($class !== '') {
+                $classes[] = $class;
+            }
+        }
+
+        $normalized = array_map(self::normalizedClassName(...), $classes);
+        $attributes = $options['attributes'] ?? [];
+        $start = 1;
+        foreach (['startFrom', 'start-from'] as $name) {
+            if (isset($attributes[$name]) && preg_match('/^-?\d+$/', (string) $attributes[$name]) === 1) {
+                $start = (int) $attributes[$name];
+                break;
+            }
+        }
+
+        $id = self::sanitizeId((string) ($options['id'] ?? ''));
+
+        return [
+            'numberLines' => in_array('number', $normalized, true)
+                || in_array('numberlines', $normalized, true)
+                || in_array('number-lines', $normalized, true),
+            'lineAnchors' => in_array('lineanchors', $normalized, true)
+                || in_array('line-anchors', $normalized, true),
+            'startNumber' => $start,
+            'lineIdPrefix' => $id === '' ? '' : $id . '-',
+            'containerClasses' => $classes,
+        ];
+    }
+
+    private static function normalizedClassName(string $class): string
+    {
+        return str_replace('_', '-', strtolower(self::stripLanguagePrefix(trim($class))));
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     * @param array{
+     *   numberLines?: bool,
+     *   lineAnchors?: bool,
+     *   startNumber?: int,
+     *   lineIdPrefix?: string,
+     *   containerClasses?: list<string>
+     * } $options
+     */
+    private static function renderLineNumberedHtml(array $tokens, string $language, array $options): string
+    {
+        $numberLines = (bool) ($options['numberLines'] ?? false);
+        $startNumber = (int) ($options['startNumber'] ?? 1);
+        $lineIdPrefix = (string) ($options['lineIdPrefix'] ?? '');
+        $containerClasses = ['sourceCode'];
+        if ($numberLines) {
+            $containerClasses[] = 'numberSource';
+        }
+
+        foreach (($options['containerClasses'] ?? []) as $class) {
+            $class = self::sanitizeClass((string) $class);
+            if ($class !== '' && !in_array($class, $containerClasses, true)) {
+                $containerClasses[] = $class;
+            }
+        }
+
+        $codeClasses = ['sourceCode'];
+        if ($language !== '') {
+            $codeClasses[] = self::sanitizeClass($language);
+        }
+
+        $codeAttributes = ' class="' . implode(' ', $codeClasses) . '"';
+        if ($startNumber !== 1) {
+            $codeAttributes .= ' style="counter-reset: source-line ' . ($startNumber - 1) . ';"';
+        }
+
+        $lineHtml = [];
+        foreach (self::splitTokensIntoLines($tokens) as $index => $lineTokens) {
+            $lineNumber = $startNumber + $index;
+            $lineId = self::escapeHtml($lineIdPrefix . (string) $lineNumber);
+            $line = '<span id="' . $lineId . '"><a href="#' . $lineId . '"';
+            if (!$numberLines) {
+                $line .= ' aria-hidden="true" tabindex="-1"';
+            }
+            $line .= '></a>';
+            foreach ($lineTokens as $token) {
+                $text = self::escapeHtml((string) ($token['text'] ?? ''));
+                $class = self::sanitizeClass((string) ($token['class'] ?? ''));
+                $line .= $class === '' ? $text : '<span class="' . $class . '">' . $text . '</span>';
+            }
+            $line .= '</span>';
+            $lineHtml[] = $line;
+        }
+
+        return '<div class="sourceCode"><pre class="' . implode(' ', $containerClasses) . '"><code' . $codeAttributes . '>'
+            . implode("\n", $lineHtml)
+            . '</code></pre></div>';
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     * @return list<list<array{type:string, text:string, class:string}>>
+     */
+    private static function splitTokensIntoLines(array $tokens): array
+    {
+        $lines = [[]];
+        foreach ($tokens as $token) {
+            $text = (string) ($token['text'] ?? '');
+            $segments = explode("\n", $text);
+            foreach ($segments as $index => $segment) {
+                if ($index > 0) {
+                    $lines[] = [];
+                }
+                if ($segment === '') {
+                    continue;
+                }
+
+                $copy = $token;
+                $copy['text'] = $segment;
+                $lines[count($lines) - 1][] = $copy;
+            }
+        }
+
+        if (count($lines) > 1 && $lines[count($lines) - 1] === []) {
+            array_pop($lines);
+        }
+
+        return $lines;
     }
 
     /**
@@ -592,6 +776,11 @@ final class SyntaxHighlighter
     private static function sanitizeClass(string $class): string
     {
         return preg_replace('/[^A-Za-z0-9_-]/', '', $class) ?? '';
+    }
+
+    private static function sanitizeId(string $id): string
+    {
+        return preg_replace('/[^A-Za-z0-9_.:-]/', '', $id) ?? '';
     }
 
     private static function escapeHtml(string $text): string

@@ -18,12 +18,20 @@ return [
             'attributes' => ['data-language' => 'YML'],
             'text' => 'title: Review',
         ]);
+        $lineNumberNode = new AstNode('code_block', [
+            'classes' => ['sourceCode', 'number-lines', 'line-anchors', 'php'],
+            'attributes' => [],
+            'text' => 'echo "ok";',
+        ]);
 
         $t->same('php', SyntaxHighlighter::languageFromCodeBlock($node));
+        $t->same('php', SyntaxHighlighter::languageFromCodeBlock($lineNumberNode));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
+        $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
+        $t->same(null, SyntaxHighlighter::normalizeLanguage('number-lines'));
         $t->same('breezedark', SyntaxHighlighter::normalizeStyle('breezeDark'));
         $t->same('pygments', SyntaxHighlighter::normalizeStyle('unknown-theme'));
         $t->same('yaml', (new SyntaxHighlighter())->highlightCodeBlock($attributeNode)['language']);
@@ -66,6 +74,60 @@ return [
         $t->contains('<span class="kw">echo</span>', $block);
         $t->contains('<span class="fu">esc_html</span>', $block);
         $t->contains('<!-- /wp:html -->', $block);
+    },
+    'renders pandoc numbered source lines and anchors from code block attributes' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'migration-review',
+            'classes' => ['php', 'numberLines', 'lineAnchors'],
+            'attributes' => ['startFrom' => '42'],
+            'text' => "<?php\necho esc_html(\$title);",
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'kate');
+
+        $t->same('php', $highlighted['language']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([
+            'enabled' => true,
+            'anchors' => true,
+            'start' => 42,
+            'lineIdPrefix' => 'migration-review-',
+        ], $highlighted['lineNumbering']);
+        $t->contains('<div class="sourceCode"><pre class="sourceCode numberSource php numberLines lineAnchors"><code class="sourceCode php" style="counter-reset: source-line 41;">', $highlighted['html']);
+        $t->contains('<span id="migration-review-42"><a href="#migration-review-42"></a><span class="pp">&lt;?php</span></span>', $highlighted['html']);
+        $t->contains('<span id="migration-review-43"><a href="#migration-review-43"></a><span class="kw">echo</span> <span class="fu">esc_html</span>', $highlighted['html']);
+        $t->contains('pre.numberSource code > span', $highlighted['css']);
+        $t->contains('counter(source-line)', $highlighted['css']);
+
+        $anchorOnly = (new SyntaxHighlighter())->highlight('echo "ok";', 'php', 'pygments', [
+            'id' => 'anchor-only',
+            'classes' => ['line-anchors'],
+        ]);
+
+        $t->same(false, $anchorOnly['lineNumbering']['enabled']);
+        $t->same(true, $anchorOnly['lineNumbering']['anchors']);
+        $t->contains('<pre class="sourceCode line-anchors"><code class="sourceCode php">', $anchorOnly['html']);
+        $t->contains('<span id="anchor-only-1"><a href="#anchor-only-1" aria-hidden="true" tabindex="-1"></a><span class="kw">echo</span>', $anchorOnly['html']);
+    },
+    'preserves numbered plain text fallback for unsupported languages' => static function (TestRunner $t): void {
+        $highlighted = (new SyntaxHighlighter())->highlight(
+            "legacy << token\nsecond line",
+            'unknown-review-language',
+            'pygments',
+            [
+                'id' => 'raw-code',
+                'classes' => ['number-lines'],
+                'attributes' => ['startFrom' => '7'],
+            ]
+        );
+
+        $t->same('', $highlighted['language']);
+        $t->same('unsupported-language', $highlighted['diagnostics'][0]['code'] ?? null);
+        $t->same(true, $highlighted['lineNumbering']['enabled']);
+        $t->same(false, $highlighted['lineNumbering']['anchors']);
+        $t->contains('<pre class="sourceCode numberSource number-lines"><code class="sourceCode" style="counter-reset: source-line 6;">', $highlighted['html']);
+        $t->contains('<span id="raw-code-7"><a href="#raw-code-7"></a>legacy &lt;&lt; token</span>', $highlighted['html']);
+        $t->contains('<span id="raw-code-8"><a href="#raw-code-8"></a>second line</span>', $highlighted['html']);
     },
     'highlights json and yaml keys scalars comments and punctuation' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
