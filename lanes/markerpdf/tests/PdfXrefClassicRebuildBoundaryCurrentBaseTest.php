@@ -856,6 +856,94 @@ $xrefClassicRebuildNameOffsetStartxrefBoundaryCurrentBasePdf = static function (
     return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $nameOffsetXrefOffset + 1];
 };
 
+$xrefClassicRebuildMalformedRowBoundaryCurrentBasePdf = static function (): array {
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Malformed-Row XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $decoyXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Malformed Row Decoy Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current malformed-row xref page) Tj T* (Malformed rebuild table skipped) Tj ET';
+    $decoyContent = 'BT /F1 12 Tf 72 720 Td (Malformed-row decoy page) Tj T* (Partial xref row leak) Tj ET';
+    $currentPayload = '<wp-export><post id="current-malformed-row-xref"/></wp-export>';
+    $decoyPayload = '<wp-export><post id="decoy-malformed-row-xref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $streamObject = static fn (string $content): string => "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, $streamObject($currentContent));
+    $addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(7, '<< /Title (Current Malformed-Row XRef Info) /Author (Current Malformed-Row Importer) >>');
+    $addObject(8, '<< /Names [(current-malformed-row-xref.xml) 9 0 R] >>');
+    $addObject(9, '<< /Type /Filespec /F (current-malformed-row-xref.xml) /Desc (Current malformed-row xref attachment) /AFRelationship /Source /EF << /F 10 0 R >> >>');
+    $addObject(10, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 11\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . $xrefRow($offsets[3])
+        . $xrefRow($offsets[4])
+        . $xrefRow($offsets[5])
+        . $xrefRow($offsets[6])
+        . $xrefRow($offsets[7])
+        . $xrefRow($offsets[8])
+        . $xrefRow($offsets[9])
+        . $xrefRow($offsets[10])
+        . "trailer\n<< /Size 32 /Root 1 0 R /Info 7 0 R >>\n";
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+    $addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(24, $streamObject($decoyContent));
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($decoyXmp) . " >>\nstream\n{$decoyXmp}\nendstream");
+    $addObject(27, '<< /Title (Malformed Row Decoy Info) /Author (Malformed Row Decoy Importer) >>');
+    $addObject(28, '<< /Names [(decoy-malformed-row-xref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (decoy-malformed-row-xref.xml) /Desc (Decoy malformed-row xref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($decoyPayload) . " >>\nstream\n{$decoyPayload}\nendstream");
+
+    $malformedXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "20 12\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . $xrefRow($offsets[22])
+        . $xrefRow($offsets[23])
+        . $xrefRow($offsets[24])
+        . "0000000000 broken row inside declared xref subsection\n"
+        . $xrefRow($offsets[26])
+        . $xrefRow($offsets[27])
+        . $xrefRow($offsets[28])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[30])
+        . $xrefRow($offsets[31])
+        . "trailer\n<< /Size 32 /Root 20 0 R /Info 27 0 R >>\n"
+        . "startxref\n999999\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $malformedXrefOffset];
+};
+
 return [
     'rebuilds damaged startxref from the latest classic xref trailer boundary before WordPress text extraction' => static function (
         TestRunner $t
@@ -1210,6 +1298,48 @@ return [
         $t->true(!str_contains($text, 'Name-offset root leak'));
         $t->true(!str_contains($encodedMetadata, 'Name Offset XRef Decoy'));
         $t->true(!str_contains($encodedFiles, 'decoy-name-offset-xref'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects malformed classic xref table rows during rebuild before WordPress imports' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildMalformedRowBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $currentXrefOffset, $malformedXrefOffset] = $xrefClassicRebuildMalformedRowBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($currentXrefOffset > 0);
+        $t->true($malformedXrefOffset > $currentXrefOffset);
+        $t->same(['Current malformed-row xref page', 'Malformed rebuild table skipped'], $extractor->extractTextLines($pdf));
+        $t->same(['Current malformed-row xref page', 'Malformed rebuild table skipped'], $extractor->extractTextRuns($pdf));
+        $t->same("Current malformed-row xref page\nMalformed rebuild table skipped", $text);
+        $t->same("Current malformed-row xref page\nMalformed rebuild table skipped\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Malformed-Row XRef Title', $metadata['title']);
+        $t->same('Current Malformed-Row XRef Info', $metadata['info']['Title']);
+        $t->same('Current Malformed-Row Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-malformed-row-xref.xml', $files[0]['name']);
+        $t->same('current-malformed-row-xref.xml', $files[0]['filename']);
+        $t->same('Current malformed-row xref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-malformed-row-xref.xml'], $attachmentSummary['filenames']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
+        $t->true(!str_contains($text, 'Malformed-row decoy page'));
+        $t->true(!str_contains($text, 'Partial xref row leak'));
+        $t->true(!str_contains($encodedMetadata, 'Malformed Row Decoy'));
+        $t->true(!str_contains($encodedFiles, 'decoy-malformed-row-xref'));
+        $t->true(!str_contains($encodedAttachmentSummary, 'decoy-malformed-row-xref'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

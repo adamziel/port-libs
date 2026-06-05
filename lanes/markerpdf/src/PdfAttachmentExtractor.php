@@ -2156,8 +2156,13 @@ final class PdfAttachmentExtractor
         $index = $dictionaryOffset;
         $trailer = $this->dict($this->parseValue($pdfBytes, $index)) ?? [];
 
+        $entries = $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset));
+        if ($entries === null) {
+            return null;
+        }
+
         return [
-            'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
+            'entries' => $entries,
             'trailer' => $trailer,
         ];
     }
@@ -2360,16 +2365,17 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @return array<int, array{type: int, generation: int, offset: int}>
+     * @return array<int, array{type: int, generation: int, offset: int}>|null
      */
-    private function xrefTableRows(string $sectionBody): array
+    private function xrefTableRows(string $sectionBody): ?array
     {
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', $sectionBody);
         if (!is_array($lines)) {
-            return [];
+            return null;
         }
 
+        $foundSection = false;
         $lineCount = count($lines);
         for ($lineIndex = 0; $lineIndex < $lineCount; $lineIndex++) {
             $line = trim($lines[$lineIndex]);
@@ -2377,6 +2383,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
+            $foundSection = true;
             $firstObject = (int) $section[1];
             $rowCount = (int) $section[2];
             $rowIndex = 0;
@@ -2386,7 +2393,7 @@ final class PdfAttachmentExtractor
                     continue;
                 }
                 if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $match) !== 1) {
-                    continue;
+                    return null;
                 }
 
                 $entries[$firstObject + $rowIndex] = [
@@ -2396,9 +2403,13 @@ final class PdfAttachmentExtractor
                 ];
                 $rowIndex++;
             }
+
+            if ($rowIndex < $rowCount) {
+                return null;
+            }
         }
 
-        return $entries;
+        return $foundSection ? $entries : null;
     }
 
     /**

@@ -16813,6 +16813,10 @@ final class PdfTextExtractor
         }
 
         $entries = $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset));
+        if ($entries === null) {
+            return null;
+        }
+
         if ($definitions !== null) {
             $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailer, $offset, $objects);
         }
@@ -16902,28 +16906,38 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>
+     * @return array<int, array{type: int, generation: int, offset: int, offsetIsExplicit: bool}>|null
      */
-    private function xrefTableRows(string $sectionBody): array
+    private function xrefTableRows(string $sectionBody): ?array
     {
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', trim($sectionBody));
         if ($lines === false) {
-            return $entries;
+            return null;
         }
 
+        $foundSection = false;
         for ($lineIndex = 0, $lineCount = count($lines); $lineIndex < $lineCount; $lineIndex++) {
             $line = trim($lines[$lineIndex]);
             if (preg_match('/^(\d+)\s+(\d+)$/', $line, $header) !== 1) {
                 continue;
             }
 
+            $foundSection = true;
             $startObject = (int) $header[1];
             $count = max(0, (int) $header[2]);
-            for ($entryIndex = 0; $entryIndex < $count && $lineIndex + 1 < $lineCount; $entryIndex++) {
-                $row = trim($lines[++$lineIndex]);
-                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $rowMatch) !== 1) {
+            for ($entryIndex = 0; $entryIndex < $count;) {
+                if (++$lineIndex >= $lineCount) {
+                    return null;
+                }
+
+                $row = trim($lines[$lineIndex]);
+                if ($row === '') {
                     continue;
+                }
+
+                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $rowMatch) !== 1) {
+                    return null;
                 }
 
                 $entries[$startObject + $entryIndex] = [
@@ -16932,10 +16946,11 @@ final class PdfTextExtractor
                     'offset' => (int) $rowMatch[1],
                     'offsetIsExplicit' => true,
                 ];
+                $entryIndex++;
             }
         }
 
-        return $entries;
+        return $foundSection ? $entries : null;
     }
 
     /**
