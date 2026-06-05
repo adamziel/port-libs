@@ -4100,7 +4100,7 @@ final class PdfEmbeddedFileExtractor
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
-                default => $stream,
+                default => null,
             };
             if ($decoded === null) {
                 return null;

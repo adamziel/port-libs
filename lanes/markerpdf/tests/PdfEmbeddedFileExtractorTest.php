@@ -81,6 +81,47 @@ return [
         $t->same(strlen($notes), $notesFile['declared_size']);
         $t->same($notes, $notesFile['content']);
     },
+    'fails closed on unsupported terminal filters in EmbeddedFile stream stacks before checksum review' => static function (TestRunner $t): void {
+        $safePayload = '<wp-export><post id="safe-embedded-filter-stack"/></wp-export>';
+        $safeCompressed = gzcompress($safePayload);
+        if (!is_string($safeCompressed)) {
+            throw new RuntimeException('Unable to compress safe embedded-file fixture.');
+        }
+
+        $unsafePayload = 'RAW_UNSUPPORTED_EMBEDDED_BYTES_SHOULD_NOT_COUNT';
+        $safeHex = strtoupper(bin2hex($safeCompressed)) . '>';
+        $unsafeHex = strtoupper(bin2hex($unsafePayload)) . '>';
+        $safeChecksum = strtoupper(hash('md5', $safePayload));
+        $unsafeChecksum = strtoupper(hash('md5', $unsafePayload));
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
+            . "6 0 obj\n<< /Names [(safe.xml) 10 0 R (unsafe.bin) 20 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (safe.xml) /Desc (Safe supported stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Filter [ /ASCIIHexDecode /FlateDecode ] /Params << /Size " . strlen($safePayload) . " /CheckSum <{$safeChecksum}> >> /Length " . strlen($safeHex) . " >>\nstream\n{$safeHex}\nendstream\nendobj\n"
+            . "20 0 obj\n<< /Type /Filespec /F (unsafe.bin) /Desc (Unsupported preview-only terminal filter) /AFRelationship /Data /EF << /F 21 0 R >> >>\nendobj\n"
+            . "21 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter [ /ASCIIHexDecode /DCTDecode ] /Params << /Size " . strlen($unsafePayload) . " /CheckSum <{$unsafeChecksum}> >> /Length " . strlen($unsafeHex) . " >>\nstream\n{$unsafeHex}\nendstream\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF";
+
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encoded = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, count($files));
+        $t->same('catalog_names_embedded_files', $files[0]['source']);
+        $t->same('safe.xml', $files[0]['filename']);
+        $t->same('Safe supported stack', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $files[0]['filters']);
+        $t->same(strlen($safePayload), $files[0]['declared_size']);
+        $t->same(strlen($safePayload), $files[0]['size']);
+        $t->same($safePayload, $files[0]['content']);
+        $t->same(strtolower($safeChecksum), $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'unsafe.bin'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'UNSUPPORTED_EMBEDDED_BYTES'));
+        $t->true(is_string($encoded) && !str_contains($encoded, strtolower($unsafeChecksum)));
+    },
     'normalizes embedded-file Params checksums and reports current content match state' => static function (TestRunner $t): void {
         $literalChecksum = static function (string $bytes): string {
             $escaped = '';
