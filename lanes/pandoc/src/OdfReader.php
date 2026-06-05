@@ -1507,6 +1507,12 @@ final class OdfReader
         if (($properties['smallCaps'] ?? false) === true) {
             $children = [new AstNode('small_caps', [], $children)];
         }
+        if (($properties['superscript'] ?? false) === true) {
+            $children = [new AstNode('superscript', [], $children)];
+        }
+        if (($properties['subscript'] ?? false) === true) {
+            $children = [new AstNode('subscript', [], $children)];
+        }
 
         return $children;
     }
@@ -2165,6 +2171,7 @@ final class OdfReader
         $underline = strtolower(self::attr($properties, self::STYLE_NS, 'text-underline-style'));
         $strikeout = strtolower(self::attr($properties, self::STYLE_NS, 'text-line-through-style'));
         $variant = strtolower(self::attr($properties, self::FO_NS, 'font-variant'));
+        $position = strtolower(self::attr($properties, self::STYLE_NS, 'text-position'));
 
         $result = [];
         if ($fontWeight === 'bold' || $fontWeight === '700') {
@@ -2181,6 +2188,11 @@ final class OdfReader
         }
         if ($variant === 'small-caps') {
             $result['smallCaps'] = true;
+        }
+        if (str_contains($position, 'super')) {
+            $result['superscript'] = true;
+        } elseif (str_contains($position, 'sub')) {
+            $result['subscript'] = true;
         }
 
         return $result;

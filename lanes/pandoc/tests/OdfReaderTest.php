@@ -414,6 +414,59 @@ XML;
         $t->same(2, $table->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('Ready for review', $table->children[1]->children[0]->children[0]->attr('text'));
     },
+    'maps ODT text-position styles into superscript and subscript spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithVerticalText = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <style:style style:name="SourceSuperscript" style:family="text">
+      <style:text-properties style:text-position="super 58%"/>
+    </style:style>
+    <style:style style:name="InheritedSuperscript" style:family="text" style:parent-style-name="SourceSuperscript"/>
+    <style:style style:name="SourceSubscript" style:family="text">
+      <style:text-properties style:text-position="sub 58%"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithVerticalText = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Reviewed mark<text:span text:style-name="InheritedSuperscript">TM</text:span> and H<text:span text:style-name="SourceSubscript">2</text:span>O survive.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithVerticalText, null, $stylesWithVerticalText));
+        $paragraph = $result['document']->children[0];
+        $superscript = $paragraph->children[1];
+        $subscript = $paragraph->children[3];
+
+        $t->same('Reviewed markTM and H2O survive.', $paragraph->attr('text'));
+        $t->same('SourceSuperscript', $result['styles']['InheritedSuperscript']['parentName']);
+        $t->same(true, $result['styles']['SourceSuperscript']['textProperties']['superscript']);
+        $t->same(true, $result['styles']['SourceSubscript']['textProperties']['subscript']);
+        $t->same('superscript', $superscript->type);
+        $t->same('span', $superscript->children[0]->type);
+        $t->same('InheritedSuperscript', $superscript->children[0]->attr('styleName'));
+        $t->same('TM', $superscript->children[0]->children[0]->attr('text'));
+        $t->same('subscript', $subscript->type);
+        $t->same('span', $subscript->children[0]->type);
+        $t->same('SourceSubscript', $subscript->children[0]->attr('styleName'));
+        $t->same('2', $subscript->children[0]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Reviewed mark^[TM]{data-odf-style-name="InheritedSuperscript"}^ and H~[2]{data-odf-style-name="SourceSubscript"}~O survive.', $markdown);
+        $t->contains('<sup><span data-odf-style-name="InheritedSuperscript">TM</span></sup>', $blocksHtml);
+        $t->contains('<sub><span data-odf-style-name="SourceSubscript">2</span></sub>', $blocksHtml);
+    },
     'continues ODT ordered list numbering across sibling lists by level' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithContinuationLists = <<<'XML'
 <office:document-styles
