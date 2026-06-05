@@ -148,22 +148,34 @@ $propertySet = static function (array $values) use ($typedLpstr, $typedPropertyS
     return $typedPropertySet($properties);
 };
 
-$wordText = "Legacy DOC import ΩЖ魚\rReviewer notes keep hard\vbreaks for block review.\r";
-$wordTextBytes = iconv('UTF-8', 'UTF-16LE', $wordText);
-if (!is_string($wordTextBytes)) {
-    throw new RuntimeException('Unable to encode legacy DOC fixture text');
-}
+$firstPieceText = 'Legacy DOC import ΩЖ魚';
+$secondPieceText = "\rReviewer notes keep hard\vbreaks for block review.\r";
+$firstPieceBytes = $utf16le($firstPieceText);
+$secondPieceBytes = $utf16le($secondPieceText);
+$firstPieceStart = 1024;
+$secondPieceStart = $firstPieceStart + strlen($firstPieceBytes);
 
-$wordDocument = str_repeat("\0", 512);
+$wordDocument = str_repeat("\0", $firstPieceStart) . $firstPieceBytes . $secondPieceBytes;
 $wordDocument = substr_replace($wordDocument, $u16(0xa5ec), 0, 2);
 $wordDocument = substr_replace($wordDocument, $u16(0x00c1), 2, 2);
-$wordDocument = substr_replace($wordDocument, $u16(0x1000), 10, 2);
-$wordDocument = substr_replace($wordDocument, $u32(512), 24, 4);
-$wordDocument = substr_replace($wordDocument, $u32(512 + strlen($wordTextBytes)), 28, 4);
-$wordDocument .= $wordTextBytes;
+$wordDocument = substr_replace($wordDocument, $u16(0x1204), 10, 2);
+$wordDocument = substr_replace($wordDocument, $u32(0), 24, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 28, 4);
+
+$firstPieceCharacters = intdiv(strlen($firstPieceBytes), 2);
+$secondPieceCharacters = intdiv(strlen($secondPieceBytes), 2);
+$plcPcd = $u32(0)
+    . $u32($firstPieceCharacters)
+    . $u32($firstPieceCharacters + $secondPieceCharacters)
+    . $u16(0x0001) . $u32($firstPieceStart) . "\0\0"
+    . $u16(0) . $u32($secondPieceStart) . "\0\0";
+$clx = "\x02" . $u32(strlen($plcPcd)) . $plcPcd;
+$wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
 
 $streams = [
     'WordDocument' => $wordDocument,
+    '1Table' => $clx,
     "\x05SummaryInformation" => $typedPropertySet([
         2 => $typedLpstr('Legacy DOC import packet'),
         4 => $typedLpstr('Migration Desk'),
@@ -301,7 +313,21 @@ foreach ($streams as $name => $data) {
     );
     $streamIndex++;
 }
-$sectors[1] = $padTo($directory, $sectorSize);
+$directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
+$previousDirectorySector = 1;
+foreach ($directoryChunks as $index => $chunk) {
+    if ($index === 0) {
+        $sectors[1] = $chunk;
+        continue;
+    }
+
+    $sector = count($sectors);
+    $sectors[] = $chunk;
+    $fat[$previousDirectorySector] = $sector;
+    $fat[$sector] = $end;
+    $previousDirectorySector = $sector;
+}
+$fat[$previousDirectorySector] = $end;
 
 $miniFatBytes = '';
 for ($index = 0, $count = count($miniFat); $index < $count; $index++) {
@@ -372,6 +398,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['headingPairs'][0]['parts'] ?? []) !== ['Overview', 'Reviewer notes']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing heading-pair section inventory');
+    }
+    if (($summary['textSource'] ?? '') !== 'piece-table' || ($summary['fib']['complex'] ?? null) !== true || ($summary['fib']['tableStream'] ?? '') !== '1Table') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
     }
     foreach ([
         '<p>Legacy DOC import ΩЖ魚</p>',

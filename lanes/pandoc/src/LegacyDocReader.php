@@ -215,6 +215,11 @@ final class LegacyDocReader
                 continue;
             }
 
+            $pcdFlags = self::u16($plcPcd, $pcdOffset + ($index * 8));
+            if (($pcdFlags & 0x0004) !== 0) {
+                throw new \RuntimeException('Legacy DOC piece table contains a dirty Pcd flag');
+            }
+
             $fcCompressed = self::u32($plcPcd, $pcdOffset + ($index * 8) + 2);
             $compressed = ($fcCompressed & 0x40000000) !== 0;
             $fc = $fcCompressed & 0x3fffffff;
@@ -223,7 +228,9 @@ final class LegacyDocReader
                 if ($start + $characters > strlen($wordDocument)) {
                     throw new \RuntimeException('Legacy DOC compressed text piece points outside WordDocument');
                 }
-                $text .= $this->decodeCompressedPiece(substr($wordDocument, $start, $characters));
+                $pieceText = $this->decodeCompressedPiece(substr($wordDocument, $start, $characters));
+                $this->assertNoParagraphLastPieceIsValid($pcdFlags, $pieceText);
+                $text .= $pieceText;
                 continue;
             }
 
@@ -231,10 +238,19 @@ final class LegacyDocReader
             if ($fc + $byteLength > strlen($wordDocument)) {
                 throw new \RuntimeException('Legacy DOC Unicode text piece points outside WordDocument');
             }
-            $text .= $this->decodeUtf16Le(substr($wordDocument, $fc, $byteLength));
+            $pieceText = $this->decodeUtf16Le(substr($wordDocument, $fc, $byteLength));
+            $this->assertNoParagraphLastPieceIsValid($pcdFlags, $pieceText);
+            $text .= $pieceText;
         }
 
         return $text;
+    }
+
+    private function assertNoParagraphLastPieceIsValid(int $pcdFlags, string $pieceText): void
+    {
+        if (($pcdFlags & 0x0001) !== 0 && str_contains($pieceText, "\r")) {
+            throw new \RuntimeException('Legacy DOC piece table marks a piece as paragraph-free but contains a paragraph mark');
+        }
     }
 
     /**

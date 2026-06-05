@@ -375,7 +375,10 @@ $buildSimpleWordDocument = static function (string $text, int $flags = 0, string
     return $fib . $textBytes;
 };
 
-$buildPieceTableDocStreams = static function () use ($utf16le, $u32): array {
+$buildPieceTableDocStreams = static function (
+    int $firstPieceFlags = 0,
+    int $secondPieceFlags = 0
+) use ($utf16le, $u16, $u32): array {
     $compressedText = "Legacy \x93smart\x94 ";
     $unicodeText = "Unicode Ω import\r";
     $unicodeBytes = $utf16le($unicodeText);
@@ -396,8 +399,8 @@ $buildPieceTableDocStreams = static function () use ($utf16le, $u32): array {
     $plc = $u32(0)
         . $u32($firstCharacters)
         . $u32($firstCharacters + $secondCharacters)
-        . "\0\0" . $u32(($compressedStart * 2) | 0x40000000) . "\0\0"
-        . "\0\0" . $u32($unicodeStart) . "\0\0";
+        . $u16($firstPieceFlags) . $u32(($compressedStart * 2) | 0x40000000) . "\0\0"
+        . $u16($secondPieceFlags) . $u32($unicodeStart) . "\0\0";
     $clx = "\x02" . $u32(strlen($plc)) . $plc;
     $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
@@ -692,6 +695,30 @@ return [
         $t->same(true, $result['fib']['complex']);
         $t->same('Legacy “smart” Unicode Ω import', $document->children[0]->children[0]->attr('text'));
         $t->contains('<p>Legacy “smart” Unicode Ω import</p>', $blocks);
+    },
+    'honors legacy DOC piece-table no-paragraph-last flags on non-paragraph pieces' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
+        $streams = $buildPieceTableDocStreams(0x0001);
+        $docBytes = $buildCfb($streams);
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $document = $result['document'];
+
+        $t->same('piece-table', $document->attr('textSource'));
+        $t->same(true, $result['fib']['complex']);
+        $t->same('Legacy “smart” Unicode Ω import', $document->children[0]->children[0]->attr('text'));
+    },
+    'rejects dirty legacy DOC piece-table descriptors before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
+        $reader = new LegacyDocReader();
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb(
+            $buildPieceTableDocStreams(0x0004)
+        )));
+    },
+    'rejects no-paragraph-last legacy DOC pieces containing paragraph marks' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
+        $reader = new LegacyDocReader();
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb(
+            $buildPieceTableDocStreams(0, 0x0001)
+        )));
     },
     'uses FIB extended-character flag for direct Unicode WordDocument text ranges' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([
