@@ -35,6 +35,10 @@ final class OpcRelationshipGraph
 
             $relationshipPartName = OpcPackagePath::canonicalPartName($name);
             $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
+            if ($sourcePartName !== '/' && OpcRelationships::isRelationshipPartName($sourcePartName)) {
+                continue;
+            }
+
             $relationshipsBySource[$sourcePartName] = OpcRelationships::fromXml(
                 $package->read($relationshipPartName),
                 $sourcePartName,
@@ -213,7 +217,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, sourceExists:?bool, valid:bool, issues:list<string>}>
+     * @return list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
      */
     public function preflightPackageParts(): array
     {
@@ -227,6 +231,7 @@ final class OpcRelationshipGraph
             $contentType = $this->contentTypes->contentTypeForPart($partName);
             $relationshipPart = self::isRelationshipPartName($partName);
             $relationshipSource = null;
+            $relationshipSourceIsRelationshipPart = null;
             $sourceExists = null;
             $issues = [];
 
@@ -236,10 +241,16 @@ final class OpcRelationshipGraph
 
             if ($relationshipPart) {
                 $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
+                $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
+                    && OpcRelationships::isRelationshipPartName($relationshipSource);
                 $sourceExists = $relationshipSource === '/' || $this->package->has($relationshipSource);
 
                 if ($contentType !== null && $contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
                     $issues[] = 'invalid-relationship-content-type';
+                }
+
+                if ($relationshipSourceIsRelationshipPart) {
+                    $issues[] = 'relationship-part-source';
                 }
 
                 if (!$sourceExists) {
@@ -252,6 +263,7 @@ final class OpcRelationshipGraph
                 'contentType' => $contentType,
                 'relationshipPart' => $relationshipPart,
                 'relationshipSource' => $relationshipSource,
+                'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
                 'sourceExists' => $sourceExists,
                 'valid' => $issues === [],
                 'issues' => $issues,
@@ -325,6 +337,6 @@ final class OpcRelationshipGraph
 
     private static function isRelationshipPartName(string $name): bool
     {
-        return str_ends_with($name, '.rels') && str_contains('/' . ltrim($name, '/'), '/_rels/');
+        return OpcRelationships::isRelationshipPartName($name);
     }
 }

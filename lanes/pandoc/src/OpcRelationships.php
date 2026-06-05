@@ -16,7 +16,8 @@ final class OpcRelationships
 
     public function __construct(private readonly string $sourcePartName = '/')
     {
-        OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        self::assertRelationshipSourcePartName($sourcePartName);
     }
 
     public static function fromXml(string $xml, string $sourcePartName = '/'): self
@@ -66,6 +67,7 @@ final class OpcRelationships
     public static function relationshipPartNameForSource(string $sourcePartName): string
     {
         $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        self::assertRelationshipSourcePartName($sourcePartName);
         if ($sourcePartName === '/') {
             return '/_rels/.rels';
         }
@@ -100,6 +102,14 @@ final class OpcRelationships
         }
 
         return OpcPackagePath::canonicalPartName(($dir === '' ? '/' : $dir . '/') . $base);
+    }
+
+    public static function isRelationshipPartName(string $partName): bool
+    {
+        $partName = OpcPackagePath::canonicalPartName($partName);
+
+        return $partName === '/_rels/.rels'
+            || (str_ends_with($partName, '.rels') && str_contains($partName, '/_rels/'));
     }
 
     public function add(OpcRelationship $relationship): void
@@ -198,5 +208,12 @@ final class OpcRelationships
     private static function loadXml(string $xml): \DOMDocument
     {
         return XmlHtmlDom::loadXmlDocument($xml, 'OPC relationships XML');
+    }
+
+    private static function assertRelationshipSourcePartName(string $sourcePartName): void
+    {
+        if ($sourcePartName !== '/' && self::isRelationshipPartName($sourcePartName)) {
+            throw new \InvalidArgumentException('OPC relationship parts must not be relationship sources');
+        }
     }
 }

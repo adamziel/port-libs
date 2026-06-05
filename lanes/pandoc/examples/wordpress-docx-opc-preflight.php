@@ -69,6 +69,7 @@ foreach ($graph->preflightPackageParts() as $part) {
         'contentType' => $part['contentType'],
         'relationshipPart' => $part['relationshipPart'],
         'relationshipSource' => $part['relationshipSource'],
+        'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
         'sourceExists' => $part['sourceExists'],
         'valid' => $part['valid'],
         'issues' => $part['issues'],
@@ -180,8 +181,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['wordpressImport']['hasReviewerEditLink'] !== true
         || $summary['integrity']['packagePartsValid'] !== true
         || $summary['packageParts']['/_rels/.rels']['relationshipSource'] !== '/'
+        || $summary['packageParts']['/_rels/.rels']['relationshipSourceIsRelationshipPart'] !== false
         || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSource'] !== '/word/document.xml'
-        || $summary['packageParts']['/word/media/hero.PNG']['contentType'] !== 'image/png'
+        || $summary['packageParts']['/word/_rels/document.xml.rels']['relationshipSourceIsRelationshipPart'] !== false
+        || $summary['packageParts']['/word/media/hero image.PNG']['contentType'] !== 'image/png'
         || $summary['integrity']['documentRelationshipsValid'] !== true
         || $summary['integrity']['reachableRelationshipsValid'] !== true
         || $summary['integrity']['issues'] !== []

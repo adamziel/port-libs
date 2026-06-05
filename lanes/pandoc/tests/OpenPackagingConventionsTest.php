@@ -102,7 +102,12 @@ return [
         $t->same('/document.xml', OpcRelationships::sourcePartNameForRelationshipPart('/_rels/document.xml.rels'));
         $t->same('/word/document.xml', OpcRelationships::sourcePartNameForRelationshipPart('/word/_rels/document.xml.rels'));
         $t->same('/word/embeddings/oleObject1.bin', OpcRelationships::sourcePartNameForRelationshipPart('/word/embeddings/_rels/oleObject1.bin.rels'));
+        $t->true(OpcRelationships::isRelationshipPartName('/_rels/.rels'));
+        $t->true(OpcRelationships::isRelationshipPartName('/word/_rels/document.xml.rels'));
+        $t->same(false, OpcRelationships::isRelationshipPartName('/word/document.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::sourcePartNameForRelationshipPart('/word/document.xml.rels'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcRelationships::relationshipPartNameForSource('/word/_rels/document.xml.rels'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => new OpcRelationships('/word/_rels/document.xml.rels'));
     },
     'parses package level OPC relationships and resolves package root targets' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $relationships = OpcRelationships::fromXml($packageRelationshipsXml);
@@ -394,6 +399,53 @@ XML;
         $t->same(false, $parts['/word/_rels/missing.xml.rels']['sourceExists']);
         $t->same(['invalid-relationship-content-type', 'orphan-relationship-part'], $parts['/word/_rels/missing.xml.rels']['issues']);
         $t->same(false, $parts['/word/_rels/missing.xml.rels']['valid']);
+    },
+    'flags nested OPC relationship parts without loading them as sources' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-image.PNG"/>
+</Relationships>
+XML;
+
+        $nestedRelationshipXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNeverLoaded" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/hidden.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/_rels/_rels/document.xml.rels.rels', 'data' => $nestedRelationshipXml],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/hidden.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $t->same(['/', '/word/document.xml'], $graph->sourcePartNames());
+        $t->same(false, $graph->hasRelationshipsForSource('/word/_rels/document.xml.rels'));
+        $t->same(null, $graph->relationshipsForSource('/word/_rels/document.xml.rels'));
+        $t->same([], $graph->preflightTargetsForSource('/word/_rels/document.xml.rels'));
+
+        $parts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $nested = $parts['/word/_rels/_rels/document.xml.rels.rels'];
+        $t->same(true, $nested['relationshipPart']);
+        $t->same('/word/_rels/document.xml.rels', $nested['relationshipSource']);
+        $t->same(true, $nested['relationshipSourceIsRelationshipPart']);
+        $t->same(true, $nested['sourceExists']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $nested['contentType']);
+        $t->same(['relationship-part-source'], $nested['issues']);
+        $t->same(false, $nested['valid']);
+
+        $documentTargets = $graph->preflightTargetsForSource('/word/document.xml');
+        $t->same(['rIdImage'], array_column($documentTargets, 'id'));
+        $t->same('/word/media/review-image.PNG', $documentTargets[0]['target']);
     },
     'walks reachable OPC relationship closure from office document root' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
