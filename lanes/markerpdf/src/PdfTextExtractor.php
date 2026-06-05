@@ -4028,12 +4028,16 @@ final class PdfTextExtractor
         foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
             $objectNumber = $resource['objectNumber'];
             $generation = $resource['generation'];
-            $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-            if ($objectBody === null || !isset($objects[$objectNumber]) || $objects[$objectNumber] !== $objectBody) {
+            $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+            if (
+                $resolved === null
+                || !isset($objects[$resolved['object']])
+                || $objects[$resolved['object']] !== $resolved['body']
+            ) {
                 continue;
             }
 
-            $resourceObjects[$resourceName] = $objectNumber;
+            $resourceObjects[$resourceName] = $resolved['object'];
         }
 
         return $resourceObjects;
@@ -13311,13 +13315,15 @@ final class PdfTextExtractor
             foreach ($resourceMatches as $resourceMatch) {
                 $fontObjectNumber = (int) $resourceMatch[2];
                 $fontGeneration = (int) $resourceMatch[3];
-                $fontBody = $this->objectBodyForResourceReference($objects, $fontObjectNumber, $fontGeneration);
-                if ($fontBody === null || $this->objectBodyIsStreamObject($fontBody)) {
+                $resolved = $this->resolvedResourceObjectBody($objects, $fontObjectNumber, $fontGeneration);
+                if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
                     continue;
                 }
 
-                $map = isset($objects[$fontObjectNumber], $fontObjectMaps[$fontObjectNumber]) && $objects[$fontObjectNumber] === $fontBody
-                    ? $fontObjectMaps[$fontObjectNumber]
+                $fontBody = $resolved['body'];
+                $resolvedObjectNumber = $resolved['object'];
+                $map = isset($objects[$resolvedObjectNumber], $fontObjectMaps[$resolvedObjectNumber]) && $objects[$resolvedObjectNumber] === $fontBody
+                    ? $fontObjectMaps[$resolvedObjectNumber]
                     : $this->fontMapFromFontBody($fontBody, $objects, $namedCMapBodies);
                 if ($map !== null) {
                     $maps[$this->decodePdfName($resourceMatch[1])] = $map;
@@ -13426,10 +13432,10 @@ final class PdfTextExtractor
                 if (($match[2][0] ?? '') !== '') {
                     $objectNumber = (int) $match[2][0];
                     $generation = (int) ($match[3][0] ?? '0');
-                    $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
-                    $dictionary = $objectBody === null || $this->objectBodyIsStreamObject($objectBody)
+                    $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
+                    $dictionary = $resolved === null || $this->objectBodyIsStreamObject($resolved['body'])
                         ? null
-                        : $this->dictionaryObjectBody($objectBody);
+                        : $this->dictionaryObjectBody($resolved['body']);
                 } else {
                     $offset = strpos($propertiesDictionary, '<<', $match[0][1]);
                     $dictionary = $offset === false ? null : $this->readPdfDictionaryAt($propertiesDictionary, $offset);
