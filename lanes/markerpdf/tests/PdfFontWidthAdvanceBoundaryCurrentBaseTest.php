@@ -214,6 +214,50 @@ $fontVerticalWidthAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$fontVerticalTjBacktrackBoundaryCurrentBasePdf = static function (): string {
+    $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/WMode 1 def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 begincidrange\n"
+        . "<0001> <0004> 40\n"
+        . "endcidrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "4 beginbfchar\n"
+        . "<0001> <0056>\n"
+        . "<0002> <0065>\n"
+        . "<0003> <0072>\n"
+        . "<0004> <0074>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fv 12 Tf 1 0 0 1 72 720 Tm [<00010002> -3000 <00030004>] TJ ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /VerticalBacktrackCID /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /CMap /CMapName /VerticalBacktrackCID-V /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /VerticalBacktrackCID /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [40 43 -500 500 880] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+};
+
 $fontWidthIndirectCidArrayAdvanceBoundaryCurrentBasePdf = static function (): string {
     $toUnicode = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -626,6 +670,26 @@ return [
         $t->same('VerticalAdvanceCID_', $spans[0]['font'] ?? null);
         $t->true(!str_contains($plainText, 'Vert Import'));
         $t->true(!str_contains($plainText, 'Fv'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'keeps vertical TJ backtracking adjustments from collapsing W2 styled bboxes on current base' => static function (TestRunner $t) use ($fontVerticalTjBacktrackBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontVerticalTjBacktrackBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['Ve rt'], $extractor->extractTextLines($pdf));
+        $t->same(['Ve rt'], $extractor->extractTextRuns($pdf));
+        $t->same('Ve rt', $plainText);
+        $t->same("Ve rt\n", $extractor->naiveGetText($pdf));
+        $t->same(['Ve rt'], array_column($spans, 'text'));
+        $t->same([[0.0, 0.0, 12.0, 36.0]], array_column($spans, 'bbox'));
+        $t->same([0.0, 0.0, 12.0, 36.0], $line['bbox'] ?? null);
+        $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 12.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'Vert'));
+        $t->true(!str_contains($plainText, 'VerticalBacktrackCID'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'resolves indirect CIDFont W width arrays before current text advance gaps on current base' => static function (TestRunner $t) use ($fontWidthIndirectCidArrayAdvanceBoundaryCurrentBasePdf): void {

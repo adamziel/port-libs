@@ -169,6 +169,14 @@ $verticalPdf = "%PDF-1.4\n"
     . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /VerticalAdvanceCID /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [40 43 -500 500 880 50 55 -250 500 880] >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($verticalContent) . " >>\nstream\n{$verticalContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Length " . strlen($verticalToUnicode) . " >>\nstream\n{$verticalToUnicode}\nendstream\nendobj\n%%EOF";
+$verticalTjContent = 'BT /Fv 12 Tf 1 0 0 1 72 720 Tm [<00010002> -3000 <00030004>] TJ ET';
+$verticalTjPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /VerticalBacktrackCID /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Type /CMap /CMapName /VerticalBacktrackCID-V /Length " . strlen($verticalEncodingCMap) . " >>\nstream\n{$verticalEncodingCMap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /VerticalBacktrackCID /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [40 43 -500 500 880] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($verticalTjContent) . " >>\nstream\n{$verticalTjContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($verticalToUnicode) . " >>\nstream\n{$verticalToUnicode}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -292,10 +300,18 @@ $verticalSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $verticalLine['spans'] ?? []
 );
+$verticalTjLines = $extractor->extractTextLines($verticalTjPdf);
+$verticalTjPlainText = implode("\n", $verticalTjLines);
+$verticalTjPages = $extractor->extractStyledTextPages($verticalTjPdf);
+$verticalTjLine = $verticalTjPages[0]['blocks'][0]['lines'][0] ?? [];
+$verticalTjSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $verticalTjLine['spans'] ?? []
+);
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-and-vertical-width-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-vertical-width-and-vertical-tj-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -350,6 +366,11 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'vertical_w2_text_line_preserved' => $verticalLines === ['VertImport'],
     'vertical_w2_styled_bboxes_preserved' => $verticalSpanBboxes === [[0.0, 0.0, 12.0, 24.0], [12.0, 0.0, 24.0, 18.0]],
     'vertical_horizontal_fallback_excluded' => $verticalSpanBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 60.0, 12.0]],
+    'vertical_tj_backtrack_text_gap_preserved' => $verticalTjLines === ['Ve rt'],
+    'vertical_tj_backtrack_plain_text_preserved' => $verticalTjPlainText === 'Ve rt',
+    'vertical_tj_backtrack_bbox_preserved' => $verticalTjSpanBboxes === [[0.0, 0.0, 12.0, 36.0]],
+    'vertical_tj_backtrack_line_bbox_preserved' => ($verticalTjLine['bbox'] ?? null) === [0.0, 0.0, 12.0, 36.0],
+    'vertical_tj_final_cursor_collapse_excluded' => $verticalTjSpanBboxes !== [[0.0, 0.0, 12.0, 12.0]],
     'span_bboxes' => $spanBboxes,
     'quote_span_bbox' => $quoteSpan['bbox'] ?? null,
     'terminal_tc_lines' => $terminalTcLines,
@@ -381,11 +402,13 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'text_object_reset_span_texts' => $textObjectResetSpanTexts,
     'text_object_reset_span_bboxes' => $textObjectResetSpanBboxes,
     'vertical_span_bboxes' => $verticalSpanBboxes,
+    'vertical_tj_lines' => $verticalTjLines,
+    'vertical_tj_span_bboxes' => $verticalTjSpanBboxes,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
