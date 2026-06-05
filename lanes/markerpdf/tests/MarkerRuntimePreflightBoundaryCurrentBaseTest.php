@@ -952,6 +952,65 @@ return [
             $removeTree($output);
         }
     },
+    'records non-pdf task candidates rejected by process_single_pdf min_length preflight' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['already-imported.pdf', 'ready.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($input . DIRECTORY_SEPARATOR . 'wp-upload-notes.txt', 'WordPress sidecar notes selected by convert.py before worker preflight.');
+
+            (new OutputWriter())->saveMarkdown(
+                $output,
+                'already-imported.pdf',
+                '<!-- wp:paragraph --><p>Already imported.</p><!-- /wp:paragraph -->',
+                [],
+                ['title' => 'Already Imported']
+            );
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                minLength: 10,
+                workers: 4
+            );
+
+            $t->same(['already-imported.pdf', 'ready.pdf', 'wp-upload-notes.txt'], $plan['chunking']['selected_filenames']);
+            $t->same(['wp-upload-notes.txt'], $plan['input_listing']['selected_non_pdf_filenames']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+
+            $preflight = $plan['worker_pool']['process_single_pdf_preflight'];
+            $t->same('convert.py pool.imap(process_single_pdf, task_args) per-file preflight boundary', $preflight['source']);
+            $t->same('after_pool_imap_worker_before_convert_single_pdf', $preflight['order']);
+            $t->same(true, $preflight['review_reached']);
+            $t->same(null, $preflight['blocked_by']);
+            $t->same(3, $preflight['task_args_count']);
+            $t->same(['already-imported.pdf', 'ready.pdf', 'wp-upload-notes.txt'], $preflight['task_arg_filenames']);
+            $t->same(false, $preflight['extension_filter_before_task_args']);
+            $t->same(true, $preflight['filetype_gate_requires_min_length']);
+            $t->same(true, $preflight['sidecar_reaches_task_args_before_preflight']);
+            $t->same(['wp-upload-notes.txt'], $preflight['selected_non_pdf_filenames']);
+            $t->same(['wp-upload-notes.txt'], $preflight['sidecar_rejected_by_process_single_pdf_filenames']);
+            $t->same('unsupported-filetype-return-zero', $preflight['sidecar_rejection_boundary']);
+            $t->same(['already-imported.pdf'], $preflight['existing_markdown_filenames']);
+            $t->same(['wp-upload-notes.txt'], $preflight['unsupported_filetype_filenames']);
+            $t->same(['ready.pdf', 'wp-upload-notes.txt'], $preflight['filetype_checked_filenames']);
+            $t->same(['ready.pdf'], $preflight['text_length_checked_filenames']);
+            $t->same('skipped-existing', $preflight['status_by_filename']['already-imported.pdf']);
+            $t->same('skipped-unsupported-filetype', $preflight['status_by_filename']['wp-upload-notes.txt']);
+            $t->same(0, $preflight['upstream_return_value_by_filename']['wp-upload-notes.txt']);
+            $t->same('unsupported-filetype-return-zero', $preflight['upstream_return_boundary_by_filename']['wp-upload-notes.txt']);
+            $t->same('other', $preflight['filetype_by_filename']['wp-upload-notes.txt']);
+            $t->same(false, $preflight['text_length_checked_by_filename']['wp-upload-notes.txt']);
+            $t->same(false, $preflight['executes_python_or_models']);
+            $t->same(false, $preflight['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records process_single_pdf return-value boundary before converter launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

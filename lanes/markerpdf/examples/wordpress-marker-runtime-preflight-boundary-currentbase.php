@@ -347,6 +347,17 @@ try {
     ) {
         throw new RuntimeException('Expected convert.py runtime preflight to filter only non-files and leave regular non-PDF sidecars as task candidates.');
     }
+    $runtimeTaskPreflight = $runtimePlan['worker_pool']['process_single_pdf_preflight'];
+    if (
+        $runtimeTaskPreflight['review_reached'] !== true
+        || $runtimeTaskPreflight['selected_non_pdf_filenames'] !== ['upload-notes.txt']
+        || $runtimeTaskPreflight['sidecar_rejected_by_process_single_pdf_filenames'] !== ['upload-notes.txt']
+        || $runtimeTaskPreflight['status_by_filename']['upload-notes.txt'] !== 'skipped-unsupported-filetype'
+        || $runtimeTaskPreflight['upstream_return_value_by_filename']['upload-notes.txt'] !== 0
+        || $runtimeTaskPreflight['upstream_return_boundary_by_filename']['upload-notes.txt'] !== 'unsupported-filetype-return-zero'
+    ) {
+        throw new RuntimeException('Expected non-PDF sidecars to reach task args and then be rejected by process_single_pdf min_length filetype preflight.');
+    }
     if ($negativeMaxPlan['chunking']['max_files_limit_active'] !== true || $negativeMaxPlan['chunking']['selected_count'] !== 4) {
         throw new RuntimeException('Expected negative --max to behave like upstream Python slicing and drop the tail of the queue.');
     }
@@ -423,6 +434,14 @@ try {
         'runtime_skipped_non_file_entries' => $runtimePlan['input_listing']['skipped_non_file_basenames'],
         'runtime_extension_filter_active' => $runtimePlan['input_listing']['extension_filter_active'],
         'runtime_selected_non_pdf_filenames' => $runtimePlan['input_listing']['selected_non_pdf_filenames'],
+        'runtime_task_preflight_reached' => $runtimeTaskPreflight['review_reached'],
+        'runtime_task_preflight_order' => $runtimeTaskPreflight['order'],
+        'runtime_task_preflight_selected_non_pdf_filenames' => $runtimeTaskPreflight['selected_non_pdf_filenames'],
+        'runtime_sidecar_reaches_task_args_before_preflight' => $runtimeTaskPreflight['sidecar_reaches_task_args_before_preflight'],
+        'runtime_sidecar_rejected_by_process_single_pdf_filenames' => $runtimeTaskPreflight['sidecar_rejected_by_process_single_pdf_filenames'],
+        'runtime_sidecar_rejection_boundary' => $runtimeTaskPreflight['sidecar_rejection_boundary'],
+        'runtime_task_preflight_status_by_filename' => $runtimeTaskPreflight['status_by_filename'],
+        'runtime_task_preflight_return_boundaries' => $runtimeTaskPreflight['upstream_return_boundary_by_filename'],
         'runtime_metadata_filenames' => $runtimePlan['metadata']['metadata_filenames'],
         'runtime_missing_metadata_filenames' => $runtimePlan['metadata']['missing_metadata_filenames'],
         'runtime_total_processes' => $runtimePlan['worker_pool']['total_processes'],

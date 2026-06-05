@@ -790,6 +790,8 @@ final class BatchConverter
         } elseif (count($taskArgs) === 0) {
             $poolErrorBoundary = 'empty-task-queue';
         }
+        $processSinglePdfPreflight = $this->runtimeProcessSinglePdfPreflightReview($taskArgs, $poolErrorBoundary);
+
         return [
             'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
             'source' => 'sddai/markerPDF convert.py::main + os.path.abspath + os.makedirs(exist_ok=True) + task_args + torch.multiprocessing.Pool',
@@ -885,6 +887,7 @@ final class BatchConverter
                 'falsy_non_mapping_metadata_filenames' => $metadataValueReview['falsy_non_mapping_metadata_filenames'],
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
+                'process_single_pdf_preflight' => $processSinglePdfPreflight,
                 'progress_iterator' => $this->progressIterator(),
             ],
             'console_summary' => $this->conversionSummaryPlan(
@@ -905,6 +908,131 @@ final class BatchConverter
                 'empty_output_policy' => 'print_empty_file_without_save_markdown',
             ],
             'review_only' => true,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * Runtime worker-side mirror for convert.py::process_single_pdf.
+     *
+     * convert.py queues every file candidate selected by os.listdir() before
+     * process_single_pdf applies markdown_exists and optional min_length/
+     * filetype gates inside pool workers. This keeps that later boundary
+     * inspectable without invoking convert_single_pdf or model workers.
+     *
+     * @param list<array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}> $taskArgs
+     * @return array<string, mixed>
+     */
+    private function runtimeProcessSinglePdfPreflightReview(array $taskArgs, ?string $poolErrorBoundary = null): array
+    {
+        $blockedBy = $poolErrorBoundary === null ? null : 'pool-process-count-failed';
+        $reached = $blockedBy === null;
+        $taskArgFilenames = array_map(static fn (array $task): string => basename((string) $task['filepath']), $taskArgs);
+        $selectedNonPdfFilenames = $this->nonPdfBasenames($taskArgFilenames);
+
+        $reviews = [];
+        $statusByFilename = [];
+        $filetypeByFilename = [];
+        $filetypeCheckedByFilename = [];
+        $textLengthCheckedByFilename = [];
+        $upstreamReturnValueByFilename = [];
+        $upstreamReturnBoundaryByFilename = [];
+        $existingMarkdownFilenames = [];
+        $unsupportedFiletypeFilenames = [];
+        $shortTextFilenames = [];
+        $readyFilenames = [];
+        $filetypeCheckedFilenames = [];
+        $textLengthCheckedFilenames = [];
+
+        if ($reached) {
+            foreach ($taskArgs as $taskArg) {
+                $metadata = is_array($taskArg['metadata']) ? $taskArg['metadata'] : null;
+                $preflight = $this->processFilePreflightPlan(
+                    (string) $taskArg['filepath'],
+                    (string) $taskArg['out_folder'],
+                    $metadata,
+                    $taskArg['min_length'] ?? null
+                );
+                $filename = (string) $preflight['filename'];
+                $status = (string) $preflight['status'];
+
+                $statusByFilename[$filename] = $status;
+                $filetypeByFilename[$filename] = $preflight['filetype'];
+                $filetypeCheckedByFilename[$filename] = (bool) $preflight['filetype_checked'];
+                $textLengthCheckedByFilename[$filename] = (bool) $preflight['text_length_checked'];
+                $upstreamReturnValueByFilename[$filename] = $preflight['upstream_return_value'];
+                $upstreamReturnBoundaryByFilename[$filename] = $preflight['upstream_return_boundary'];
+
+                if ((bool) $preflight['existing_markdown']) {
+                    $existingMarkdownFilenames[] = $filename;
+                }
+                if ((bool) $preflight['filetype_checked']) {
+                    $filetypeCheckedFilenames[] = $filename;
+                }
+                if ((bool) $preflight['text_length_checked']) {
+                    $textLengthCheckedFilenames[] = $filename;
+                }
+
+                if ($status === 'skipped-unsupported-filetype') {
+                    $unsupportedFiletypeFilenames[] = $filename;
+                } elseif ($status === 'skipped-short-text') {
+                    $shortTextFilenames[] = $filename;
+                } elseif ($status === 'ready-for-conversion') {
+                    $readyFilenames[] = $filename;
+                }
+
+                $reviews[] = [
+                    'filename' => $filename,
+                    'status' => $status,
+                    'skip_reason' => $preflight['skip_reason'],
+                    'existing_markdown' => $preflight['existing_markdown'],
+                    'min_length_gate_active' => $preflight['min_length_gate_active'],
+                    'filetype_checked' => $preflight['filetype_checked'],
+                    'filetype' => $preflight['filetype'],
+                    'text_length_checked' => $preflight['text_length_checked'],
+                    'text_length' => $preflight['text_length'],
+                    'should_invoke_converter' => $preflight['should_invoke_converter'],
+                    'upstream_return_value' => $preflight['upstream_return_value'],
+                    'upstream_return_type' => $preflight['upstream_return_type'],
+                    'upstream_return_boundary' => $preflight['upstream_return_boundary'],
+                ];
+            }
+        }
+
+        $sidecarRejected = array_values(array_filter(
+            $selectedNonPdfFilenames,
+            static fn (string $filename): bool => in_array($filename, $unsupportedFiletypeFilenames, true)
+        ));
+
+        return [
+            'source' => 'convert.py pool.imap(process_single_pdf, task_args) per-file preflight boundary',
+            'order' => 'after_pool_imap_worker_before_convert_single_pdf',
+            'review_reached' => $reached,
+            'blocked_by' => $blockedBy,
+            'pool_error_boundary' => $poolErrorBoundary,
+            'task_args_count' => count($taskArgs),
+            'task_arg_filenames' => $taskArgFilenames,
+            'extension_filter_before_task_args' => false,
+            'filetype_gate_requires_min_length' => true,
+            'selected_non_pdf_filenames' => $selectedNonPdfFilenames,
+            'sidecar_reaches_task_args_before_preflight' => $selectedNonPdfFilenames !== [],
+            'sidecar_rejected_by_process_single_pdf_filenames' => $sidecarRejected,
+            'sidecar_rejection_boundary' => $sidecarRejected === [] ? null : 'unsupported-filetype-return-zero',
+            'preflight_reviews' => $reviews,
+            'status_by_filename' => $statusByFilename,
+            'filetype_by_filename' => $filetypeByFilename,
+            'filetype_checked_by_filename' => $filetypeCheckedByFilename,
+            'text_length_checked_by_filename' => $textLengthCheckedByFilename,
+            'upstream_return_value_by_filename' => $upstreamReturnValueByFilename,
+            'upstream_return_boundary_by_filename' => $upstreamReturnBoundaryByFilename,
+            'existing_markdown_filenames' => $existingMarkdownFilenames,
+            'unsupported_filetype_filenames' => $unsupportedFiletypeFilenames,
+            'short_text_filenames' => $shortTextFilenames,
+            'ready_filenames' => $readyFilenames,
+            'filetype_checked_filenames' => $filetypeCheckedFilenames,
+            'text_length_checked_filenames' => $textLengthCheckedFilenames,
             'executes_python_or_models' => false,
             'executes_multiprocessing' => false,
             'executes_external_pdf_tools' => false,
