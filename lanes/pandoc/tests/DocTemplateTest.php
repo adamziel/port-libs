@@ -307,6 +307,28 @@ TPL;
         ]), $output);
     },
 
+    'renders braced pandoc doctemplate pipe arguments containing closing braces' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Box: ${ title/center 12 "{" "}" }
+Sources: $for(warnings)$${ it.source/uppercase/left 8 "{" "}" }$sep$ $endfor$
+Escaped: ${ title/right 8 "\}" "\{" }
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Review',
+            'warnings' => [
+                ['source' => 'media'],
+                ['source' => 'links'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            'Box: {   Review   }',
+            'Sources: {MEDIA   } {LINKS   }',
+            'Escaped: }  Review{',
+        ]), $output);
+    },
+
     'renders pandoc doctemplate alphabetic pipe overflow markers' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

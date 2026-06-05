@@ -25,7 +25,7 @@ HTML,
     'review-packets/warning-list.html' => <<<'HTML'
 $if(warnings)$
 <ul class="warnings">
-$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$~$<span class="marker">$it.key/alpha/uppercase$.</span> <span class="source">$it.value.source/uppercase/left 8$</span> <span class="priority">$it.value.priority/roman/uppercase/right 4$</span> $it.value.message$$~$</li>
+$for(warnings/pairs)$<li data-index="$it.key$" data-source="$it.value.source$">$~$<span class="marker">$it.key/alpha/uppercase$.</span> <span class="source">${ it.value.source/uppercase/left 8 "{" "}" }</span> <span class="priority">$it.value.priority/roman/uppercase/right 4$</span> $it.value.message$$~$</li>
 $endfor$</ul>
 $endif$
 HTML,
@@ -68,11 +68,11 @@ if (in_array('--self-test', $argv, true)) {
         '<h1>BATCH 42 REVIEW</h1>',
         '<p class="summary">27 warnings queued for Batch 42 Review</p>',
         '<p class="authors">Migration bot, Content editor</p>',
-        '<li data-index="1" data-source="media"><span class="marker">A.</span> <span class="source">MEDIA   </span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
-        '<li data-index="2" data-source="links"><span class="marker">B.</span> <span class="source">LINKS   </span> <span class="priority">  IV</span> Verify edit links before publish</li>',
-        '<li data-index="3" data-source="魚"><span class="marker">C.</span> <span class="source">魚      </span> <span class="priority">  IX</span> Confirm multilingual source label spacing</li>',
-        '<li data-index="26" data-source="batch-26"><span class="marker">Z.</span> <span class="source">BATCH-26</span> <span class="priority">   I</span> Generated reviewer checkpoint 26</li>',
-        '<li data-index="27" data-source="batch-27"><span class="marker">AA.</span> <span class="source">BATCH-27</span> <span class="priority">   I</span> Generated reviewer checkpoint 27</li>',
+        '<li data-index="1" data-source="media"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
+        '<li data-index="2" data-source="links"><span class="marker">B.</span> <span class="source">{LINKS   }</span> <span class="priority">  IV</span> Verify edit links before publish</li>',
+        '<li data-index="3" data-source="魚"><span class="marker">C.</span> <span class="source">{魚      }</span> <span class="priority">  IX</span> Confirm multilingual source label spacing</li>',
+        '<li data-index="26" data-source="batch-26"><span class="marker">Z.</span> <span class="source">{BATCH-26}</span> <span class="priority">   I</span> Generated reviewer checkpoint 26</li>',
+        '<li data-index="27" data-source="batch-27"><span class="marker">AA.</span> <span class="source">{BATCH-27}</span> <span class="priority">   I</span> Generated reviewer checkpoint 27</li>',
         '  <!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
         '  <!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
     ] as $needle) {

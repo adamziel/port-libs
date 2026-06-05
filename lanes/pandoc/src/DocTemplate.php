@@ -268,8 +268,8 @@ final class DocTemplate
             }
 
             if (($template[$index + 1] ?? '') === '{') {
-                $closing = strpos($template, '}', $index + 2);
-                if ($closing === false) {
+                $closing = $this->findBracedDirectiveClosing($template, $index + 2);
+                if ($closing === null) {
                     throw new \UnexpectedValueException('Unclosed doctemplate ${...} directive');
                 }
 
@@ -301,6 +301,37 @@ final class DocTemplate
         $this->appendTextToken($tokens, $buffer);
 
         return $tokens;
+    }
+
+    private function findBracedDirectiveClosing(string $template, int $start): ?int
+    {
+        $inQuote = false;
+        $escape = false;
+        $length = strlen($template);
+
+        for ($index = $start; $index < $length; $index++) {
+            $char = $template[$index];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $escape = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                continue;
+            }
+
+            if (!$inQuote && $char === '}') {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     private function commentStartsStandaloneLine(string $buffer): bool
