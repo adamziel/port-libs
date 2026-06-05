@@ -512,6 +512,97 @@ $xrefPrevChainSameGenerationStaleOffsetPdf = static function () use ($xrefPrevCh
     return $pdf;
 };
 
+$xrefPrevChainSameGenerationWrongCurrentOffsetPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale wrong-current-offset Prev page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current wrong-current-offset Prev page) Tj T* (Row object repaired before offset owner) Tj ET';
+    $stalePayload = '<wp-export><post id="stale-wrong-current-offset"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-wrong-current-offset"/></wp-export>';
+    $staleXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Stale Wrong Current Offset XMP Title',
+        'Stale wrong-current-offset metadata must not win'
+    ));
+    $currentXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Current Wrong Current Offset XMP Title',
+        'Current row object wins before wrong offset owner'
+    ));
+    if (!is_string($staleXmp) || !is_string($currentXmp)) {
+        throw new RuntimeException('Unable to compress wrong-current-offset xref Prev chain fixture streams.');
+    }
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $staleCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (de-DE) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $stalePagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $stalePageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $staleContentOffset = $addObject(4, 0, "<< /Length " . strlen($staleContent) . " >>\nstream\n{$staleContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $staleInfoOffset = $addObject(6, 0, '<< /Title (Stale Wrong Current Offset Info Title) /Author (Stale Wrong Current Author) /Producer (Stale Wrong Current Producer) >>');
+    $staleMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+    $staleNameTreeOffset = $addObject(8, 0, '<< /Names [(stale-wrong-current-offset.xml) 10 0 R] >>');
+    $staleFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (stale-wrong-current-offset.xml) /Desc (Stale wrong-current-offset attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $staleEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($staleCatalogOffset)
+        . $xrefTableRow($stalePagesOffset)
+        . $xrefTableRow($stalePageOffset)
+        . $xrefTableRow($staleContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($staleInfoOffset)
+        . $xrefTableRow($staleMetadataOffset)
+        . $xrefTableRow($staleNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($staleFileSpecOffset)
+        . $xrefTableRow($staleEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $currentInfoOffset = $addObject(6, 0, '<< /Title (Current Wrong Current Offset Info Title) /Author (Current Wrong Current Author) /Producer (Current Wrong Current Producer) >>');
+    $currentMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $currentNameTreeOffset = $addObject(8, 0, '<< /Names [(current-wrong-current-offset.xml) 10 0 R] >>');
+    $currentFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (current-wrong-current-offset.xml) /Desc (Current wrong-current-offset attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $currentEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentRows = ''
+        . $xrefStreamRow(1, $currentPagesOffset, 0)
+        . $xrefStreamRow(1, $currentPagesOffset, 0)
+        . $xrefStreamRow(1, $currentPageOffset, 0)
+        . $xrefStreamRow(1, $currentContentOffset, 0)
+        . $xrefStreamRow(1, $fontOffset, 0)
+        . $xrefStreamRow(1, $currentInfoOffset, 0)
+        . $xrefStreamRow(1, $currentMetadataOffset, 0)
+        . $xrefStreamRow(1, $currentNameTreeOffset, 0)
+        . $xrefStreamRow(1, $currentFileSpecOffset, 0)
+        . $xrefStreamRow(1, $currentEmbeddedFileOffset, 0);
+    $compressedCurrentRows = gzcompress($currentRows);
+    if (!is_string($compressedCurrentRows)) {
+        throw new RuntimeException('Unable to compress wrong-current-offset xref-stream fixture.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 0 R /Info 6 0 R /Prev ' . $previousXrefOffset . ' /Index [1 8 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedCurrentRows) . " >>\n"
+        . "stream\n{$compressedCurrentRows}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainClassicTableDamagedOffsetPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale classic Prev table page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current classic Prev table page) Tj T* (Classic table offset repaired) Tj ET';
@@ -836,6 +927,35 @@ return [
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Valid Offset'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-valid-offset'));
         $t->true(!str_contains($text, 'Stale valid-offset Prev page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'repairs same-generation xref-stream rows whose damaged offsets point at a different current object' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainSameGenerationWrongCurrentOffsetPdf): void {
+        $pdf = $xrefPrevChainSameGenerationWrongCurrentOffsetPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current wrong-current-offset Prev page', 'Row object repaired before offset owner'], $extractor->extractTextLines($pdf));
+        $t->same("Current wrong-current-offset Prev page\nRow object repaired before offset owner", $text);
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Current Wrong Current Offset XMP Title', $metadata['title']);
+        $t->same('Current row object wins before wrong offset owner', $metadata['description']);
+        $t->same('Current Wrong Current Offset Info Title', $metadata['info']['Title']);
+        $t->same(['Current Wrong Current Author'], $metadata['authors']);
+        $t->same('Current Wrong Current Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-wrong-current-offset.xml', $files[0]['filename']);
+        $t->same('Current wrong-current-offset attachment', $files[0]['description']);
+        $t->same('<wp-export><post id="current-wrong-current-offset"/></wp-export>', $files[0]['content']);
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Wrong Current Offset'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-wrong-current-offset'));
+        $t->true(!str_contains($text, 'Stale wrong-current-offset Prev page'));
         $t->true(!str_contains($text, "\0"));
     },
     'repairs same-generation current update objects when classic xref Prev rows have damaged explicit offsets' => static function (

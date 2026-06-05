@@ -15264,7 +15264,20 @@ final class PdfTextExtractor
             && $offsetOwner['offset'] > $previousOffset
             && $offsetOwner['offset'] < $xrefOffset
         ) {
-            return null;
+            if (
+                $offsetOwner['objectNumber'] === $objectNumber
+                && $offsetOwner['generation'] === $generation
+            ) {
+                return null;
+            }
+
+            return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                $objectNumber,
+                $generation,
+                $previousOffset,
+                $xrefOffset,
+                $definitions
+            );
         }
 
         return $this->currentUpdateDirectObjectDefinitionForXrefRow(
