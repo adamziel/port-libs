@@ -8068,14 +8068,14 @@ final class PdfMetadataExtractor
     private function xmpRdfCollectionItems(DOMElement $element): array
     {
         $directItems = $this->xmpChildElements($element, self::NS_RDF, 'li');
-        if ($directItems !== []) {
+        if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
 
         foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
             foreach ($this->xmpChildElements($element, self::NS_RDF, $containerName) as $container) {
                 $items = $this->xmpRdfContainerItems($container);
-                if ($items !== []) {
+                if ($this->xmpRdfCollectionItemsHaveValues($items)) {
                     return $items;
                 }
             }
@@ -8083,7 +8083,7 @@ final class PdfMetadataExtractor
 
         foreach ($this->xmpChildElements($element, self::NS_RDF, 'Description') as $description) {
             $items = $this->xmpRdfResourceWrappedCollectionItems($description);
-            if ($items !== []) {
+            if ($this->xmpRdfCollectionItemsHaveValues($items)) {
                 return $items;
             }
         }
@@ -8092,18 +8092,35 @@ final class PdfMetadataExtractor
     }
 
     /**
+     * Empty array placeholders are common in producer-repaired XMP. Do not let
+     * them block a later RDF resource wrapper that carries the actual values.
+     *
+     * @param list<DOMElement> $items
+     */
+    private function xmpRdfCollectionItemsHaveValues(array $items): bool
+    {
+        foreach ($items as $item) {
+            if ($this->xmpQualifiedTextValue($item) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<DOMElement>
      */
     private function xmpRdfContainerItems(DOMElement $container): array
     {
         $directItems = $this->xmpChildElements($container, self::NS_RDF, 'li');
-        if ($directItems !== []) {
+        if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
 
         foreach ($this->xmpChildElements($container, self::NS_RDF, 'Description') as $description) {
             $items = $this->xmpRdfResourceWrappedCollectionItems($description);
-            if ($items !== []) {
+            if ($this->xmpRdfCollectionItemsHaveValues($items)) {
                 return $items;
             }
         }
@@ -8117,14 +8134,14 @@ final class PdfMetadataExtractor
     private function xmpRdfResourceWrappedCollectionItems(DOMElement $description): array
     {
         $directItems = $this->xmpChildElements($description, self::NS_RDF, 'li');
-        if ($directItems !== []) {
+        if ($this->xmpRdfCollectionItemsHaveValues($directItems)) {
             return $directItems;
         }
 
         foreach (['Bag', 'Seq', 'Alt'] as $containerName) {
             foreach ($this->xmpChildElements($description, self::NS_RDF, $containerName) as $container) {
                 $items = $this->xmpRdfContainerItems($container);
-                if ($items !== []) {
+                if ($this->xmpRdfCollectionItemsHaveValues($items)) {
                     return $items;
                 }
             }
