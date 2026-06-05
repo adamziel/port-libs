@@ -190,6 +190,9 @@ return [
         $document = (new OdtReader())->readDocument($buildPackage());
         $table = $document->children[4];
         $rows = $table->children[0]->children;
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
 
         $t->same('table', $table->type);
         $t->same('Review matrix', $table->attr('caption'));
@@ -200,6 +203,18 @@ return [
         $t->same('Scope', $rows[0]->children[0]->attr('text'));
         $t->same('Owner', $rows[2]->children[0]->attr('text'));
         $t->same('Owner', $rows[2]->children[1]->attr('text'));
+        $t->same('Review matrix', $geometry['caption'] ?? null);
+        $t->same(3, $geometry['columnCount'] ?? null);
+        $t->same(1, $geometry['summary']['sectionCount'] ?? null);
+        $t->same(3, $geometry['summary']['rowCount'] ?? null);
+        $t->same(6, $geometry['summary']['cellCount'] ?? null);
+        $t->same(3, $geometry['summary']['coveredSlotCount'] ?? null);
+        $t->same('Scope', $geometry['coverage'][0]['text'] ?? null);
+        $t->same('Ready', $geometry['coverage'][2]['text'] ?? null);
+        $t->same(2, $geometry['coverage'][2]['column'] ?? null);
+        $t->same('covered', $geometry['sections'][0]['rows'][1]['slots'][0]['kind'] ?? null);
+        $t->same('rowspan', $geometry['sections'][0]['rows'][1]['slots'][0]['covering'] ?? null);
+        json_encode($geometry, JSON_THROW_ON_ERROR);
 
         $blocks = (new WordPressBlockWriter())->write($document);
         $t->contains('<td colspan="2" rowspan="2">', $blocks);

@@ -4356,7 +4356,7 @@ final class MarkdownReader
             $children[] = new AstNode('table_foot', $footAttrs, $footRows);
         }
 
-        return new AstNode('table', $attrs, $children);
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**

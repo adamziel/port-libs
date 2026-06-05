@@ -618,6 +618,22 @@ final class TableGeometry
         ];
     }
 
+    /**
+     * @param array{accessibility?:bool,idPrefix?:string} $options
+     */
+    public static function withReviewPacket(AstNode $table, array $options = []): AstNode
+    {
+        if ($table->type !== 'table') {
+            return $table;
+        }
+
+        return new AstNode(
+            $table->type,
+            array_replace($table->attrs, ['tableGeometry' => self::reviewPacket($table, $options)]),
+            $table->children
+        );
+    }
+
     private static function normalizeAlignment(string $alignment): string
     {
         return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';

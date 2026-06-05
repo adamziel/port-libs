@@ -760,6 +760,26 @@ return [
         $t->contains('<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>', $blocks);
         $t->true(!str_contains($blocks, 'headers="source-grid-head-r1c2" data-origin="docx" headers="legacy-status"'), 'Source headers attribute must not be duplicated by computed accessibility headers');
     },
+    'attaches serializable review packets to table ast nodes for reader handoff' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
+        $table = $buildAccessibleHeaderDocument()->children[0];
+        $withPacket = TableGeometry::withReviewPacket($table, ['idPrefix' => 'Migration Grid']);
+        $packet = $withPacket->attr('tableGeometry');
+
+        $t->same('table', $withPacket->type);
+        $t->same($table->children, $withPacket->children);
+        $t->same('Accessible review grid', $withPacket->attr('caption'));
+        $t->same(null, $table->attr('tableGeometry'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('Accessible review grid', $packet['caption'] ?? null);
+        $t->same(3, $packet['columnCount'] ?? null);
+        $t->same(10, $packet['summary']['cellCount'] ?? null);
+        $t->same('migration-grid-head-r1c1', $packet['accessibility']['head:0:0:0']['id'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $packet['accessibility']['body:1:1:1']['headers'] ?? null);
+        $paragraph = new AstNode('paragraph', [], []);
+        $t->same($paragraph, TableGeometry::withReviewPacket($paragraph));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'builds serializable review packets for importer table geometry handoff' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildDeclaredColumnOverflowDocument): void {
         $accessibleTable = $buildAccessibleHeaderDocument()->children[0];
         $packet = TableGeometry::reviewPacket($accessibleTable, ['idPrefix' => 'Migration Grid']);

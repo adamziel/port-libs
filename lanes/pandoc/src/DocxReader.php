@@ -2205,9 +2205,9 @@ final class DocxReader
             $rows[] = new AstNode('table_row', [], $cells);
         }
 
-        return new AstNode('table', ['caption' => ''], [
+        return TableGeometry::withReviewPacket(new AstNode('table', ['caption' => ''], [
             new AstNode('table_body', [], $rows),
-        ]);
+        ]), ['idPrefix' => 'docx-table']);
     }
 
     /**

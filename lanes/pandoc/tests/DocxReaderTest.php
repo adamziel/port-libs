@@ -1190,6 +1190,9 @@ return [
         $table = $document->children[0];
         $t->same('table', $table->type);
         $body = $table->children[0];
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
         $t->same('table_body', $body->type);
         $t->same(3, count($body->children));
 
@@ -1208,6 +1211,19 @@ return [
         $t->same('Owner', $thirdRow->children[0]->attr('text'));
         $t->same('Migration desk', $thirdRow->children[1]->attr('text'));
         $t->same(2, $thirdRow->children[1]->attr('colspan'));
+        $t->same(3, $geometry['columnCount'] ?? null);
+        $t->same(1, $geometry['summary']['sectionCount'] ?? null);
+        $t->same(3, $geometry['summary']['rowCount'] ?? null);
+        $t->same(5, $geometry['summary']['cellCount'] ?? null);
+        $t->same(4, $geometry['summary']['coveredSlotCount'] ?? null);
+        $t->same('Review scope', $geometry['coverage'][0]['text'] ?? null);
+        $t->same([0, 1], $geometry['coverage'][0]['columns'] ?? null);
+        $t->same('Ready', $geometry['coverage'][2]['text'] ?? null);
+        $t->same(2, $geometry['coverage'][2]['column'] ?? null);
+        $t->same('Migration desk', $geometry['coverage'][4]['text'] ?? null);
+        $t->same('covered', $geometry['sections'][0]['rows'][1]['slots'][0]['kind'] ?? null);
+        $t->same('rowspan', $geometry['sections'][0]['rows'][1]['slots'][0]['covering'] ?? null);
+        json_encode($geometry, JSON_THROW_ON_ERROR);
 
         $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
         $t->contains('| Review scope | | Status |', $normalizedMarkdown);

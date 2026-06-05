@@ -662,7 +662,9 @@ final class OdtReader
             $tableNode = new AstNode('table', $attrs, [$body]);
         }
 
-        return $tableNode;
+        return TableGeometry::withReviewPacket($tableNode, [
+            'idPrefix' => $name === null || $name === '' ? 'odt-table' : $name,
+        ]);
     }
 
     /**
