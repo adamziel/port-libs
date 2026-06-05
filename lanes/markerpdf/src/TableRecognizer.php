@@ -6022,6 +6022,34 @@ final class TableRecognizer
             return $this->canonicalBbox([$out[0], $out[1], $out[0] + $out[2], $out[1] + $out[3]]);
         }
 
+        foreach ([
+            ['cx', 'cy', 'width', 'height'],
+            ['center_x', 'center_y', 'width', 'height'],
+            ['x_center', 'y_center', 'width', 'height'],
+        ] as $keys) {
+            [$centerX, $centerY, $width, $height] = $keys;
+            if (
+                !array_key_exists($centerX, $record)
+                || !array_key_exists($centerY, $record)
+                || !array_key_exists($width, $record)
+                || !array_key_exists($height, $record)
+            ) {
+                continue;
+            }
+
+            $out = $this->rawBboxCoordinates([$record[$centerX], $record[$centerY], $record[$width], $record[$height]]);
+            if ($out === null) {
+                return null;
+            }
+
+            return $this->canonicalBbox([
+                $out[0] - ($out[2] / 2.0),
+                $out[1] - ($out[3] / 2.0),
+                $out[0] + ($out[2] / 2.0),
+                $out[1] + ($out[3] / 2.0),
+            ]);
+        }
+
         return null;
     }
 
@@ -6096,6 +6124,9 @@ final class TableRecognizer
             'bbox_xy_width_height_fields' => ['x', 'y', 'width', 'height'],
             'bbox_x0_y0_width_height_fields' => ['x0', 'y0', 'width', 'height'],
             'bbox_left_top_width_height_fields' => ['left', 'top', 'width', 'height'],
+            'bbox_cx_cy_width_height_fields' => ['cx', 'cy', 'width', 'height'],
+            'bbox_center_x_center_y_width_height_fields' => ['center_x', 'center_y', 'width', 'height'],
+            'bbox_x_center_y_center_width_height_fields' => ['x_center', 'y_center', 'width', 'height'],
         ];
 
         foreach ($sets as $source => $keys) {
@@ -6171,6 +6202,34 @@ final class TableRecognizer
             }
 
             return [$out[0], $out[1], $out[0] + $out[2], $out[1] + $out[3]];
+        }
+
+        foreach ([
+            ['cx', 'cy', 'width', 'height'],
+            ['center_x', 'center_y', 'width', 'height'],
+            ['x_center', 'y_center', 'width', 'height'],
+        ] as $keys) {
+            [$centerX, $centerY, $width, $height] = $keys;
+            if (
+                !array_key_exists($centerX, $record)
+                || !array_key_exists($centerY, $record)
+                || !array_key_exists($width, $record)
+                || !array_key_exists($height, $record)
+            ) {
+                continue;
+            }
+
+            $out = $this->rawBboxCoordinates([$record[$centerX], $record[$centerY], $record[$width], $record[$height]]);
+            if ($out === null) {
+                return null;
+            }
+
+            return [
+                $out[0] - ($out[2] / 2.0),
+                $out[1] - ($out[3] / 2.0),
+                $out[0] + ($out[2] / 2.0),
+                $out[1] + ($out[3] / 2.0),
+            ];
         }
 
         return null;
