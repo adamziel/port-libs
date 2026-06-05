@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 04:38:18 UTC",
-    "sourceCommit": "14aad85c2edfecb0743214dea60386dec4cd43bb",
-    "sourceCommitShort": "14aad85c2edf",
+    "generated": "2026-06-05 04:38:35 UTC",
+    "sourceCommit": "6aaf0f620e0a4ee5fbfffd3a2afb15e30bb56a45",
+    "sourceCommitShort": "6aaf0f620e0a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "14aad85c2edfecb0743214dea60386dec4cd43bb",
-    "dashboardCommitShort": "14aad85c2edf",
+    "dashboardCommit": "6aaf0f620e0a4ee5fbfffd3a2afb15e30bb56a45",
+    "dashboardCommitShort": "6aaf0f620e0a",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,176",
             "php": "626 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC charset/Unicode separator wrapping slice on accepted b...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 5771...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For charset/Unicode follow-up, keep dictionary-based segmenta...",
+            "nextTarget": "For EPUB3 follow-up, keep richer XHTML-to-AST conversion, CSS...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
