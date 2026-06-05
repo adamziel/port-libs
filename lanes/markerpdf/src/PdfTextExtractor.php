@@ -9584,11 +9584,7 @@ final class PdfTextExtractor
         }
 
         $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
-        if (!$this->ccittFaxDecodeParmsUsesEndOfBlock($filterDecodeParms, $objects)) {
-            return null;
-        }
-
-        $markers = $this->ccittFaxEndOfBlockMarkers($filterDecodeParms, $objects);
+        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects);
         if ($markers === []) {
             return null;
         }
@@ -9652,12 +9648,13 @@ final class PdfTextExtractor
             ? null
             : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
 
-        if (!$this->ccittFaxDecodeParmsUsesEndOfBlock($filterDecodeParms, $objects)) {
+        $markers = $this->ccittFaxEndOfBlockMarkersForOwnership($filterDecodeParms, $objects);
+        if ($markers === []) {
             return true;
         }
 
         $bytes = rtrim($faxBytes, "\x00\t\n\f\r ");
-        foreach ($this->ccittFaxEndOfBlockMarkers($filterDecodeParms, $objects) as $marker) {
+        foreach ($markers as $marker) {
             if (str_ends_with($bytes, $marker)) {
                 return true;
             }
@@ -9680,6 +9677,27 @@ final class PdfTextExtractor
         }
 
         return [$eolPair . $eolPair . $eolPair];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function ccittFaxEndOfBlockMarkersForOwnership(?string $decodeParms, array $objects): array
+    {
+        if ($decodeParms !== null && $this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
+            $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
+            if ($endOfBlock === false) {
+                return [];
+            }
+        }
+
+        if ($this->ccittFaxDecodeParmsUsesEndOfBlock($decodeParms, $objects)) {
+            return $this->ccittFaxEndOfBlockMarkers($decodeParms, $objects);
+        }
+
+        $eolPair = "\x00\x10\x01";
+        return [$eolPair, $eolPair . $eolPair . $eolPair];
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int

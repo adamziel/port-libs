@@ -197,6 +197,31 @@ $unresolvedXobjectReview = $boundaryExtractor->extractImageXObjectBoundaryReview
 $unresolvedXobjectEntry = $unresolvedXobjectReview['entries'][0] ?? [];
 $unresolvedXobjectParms = $unresolvedXobjectEntry['filter_details'][0]['decode_parms'] ?? [];
 $unresolvedXobjectBoundary = $unresolvedXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
+$invalidOwnerBefore = 'BT /F1 12 Tf 72 720 Td (Before invalid-owner CCITT import) Tj ET';
+$invalidOwnerAfter = 'BT /F1 12 Tf 72 680 Td (After invalid-owner CCITT import) Tj ET';
+$invalidOwnerFakeText = 'BT /F1 12 Tf 72 700 Td (WordPress invalid-owner CCITT leak) Tj ET';
+$invalidOwnerEofb = "\x00\x10\x01";
+$invalidOwnerRtc = $invalidOwnerEofb . $invalidOwnerEofb . $invalidOwnerEofb;
+$invalidOwnerPayload = "\x01\x02\n"
+    . "endstream\nendobj\n"
+    . "9 0 obj\n<< /Length " . strlen($invalidOwnerFakeText) . " >>\nstream\n{$invalidOwnerFakeText}\nendstream\nendobj\n"
+    . "\x03{$invalidOwnerRtc}";
+$invalidOwnerStaleLength = strpos($invalidOwnerPayload, "\nendstream\n");
+if ($invalidOwnerStaleLength === false) {
+    throw new RuntimeException('Unable to build malformed CCITT owner-boundary fixture.');
+}
+$invalidOwnerPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxInvalidOwner 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($invalidOwnerBefore) . " >>\nstream\n{$invalidOwnerBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 0 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K /Bad /Columns 16 /Rows 0 /EndOfBlock true >> /Length {$invalidOwnerStaleLength} >>\nstream\n{$invalidOwnerPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($invalidOwnerAfter) . " >>\nstream\n{$invalidOwnerAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$invalidOwnerLines = $boundaryExtractor->extractTextLines($invalidOwnerPdf);
+$invalidOwnerReview = $boundaryExtractor->extractImageXObjectBoundaryReview($invalidOwnerPdf);
+$invalidOwnerEntry = $invalidOwnerReview['entries'][0] ?? [];
+$invalidOwnerParms = $invalidOwnerEntry['filter_details'][0]['decode_parms'] ?? [];
 $inlineCodingBoundary = $inlineReview['ccitt_fax_coding_boundary'] ?? [];
 $inlinePolarityBoundary = $inlineReview['ccitt_fax_imagemask_polarity_boundary'] ?? [];
 $defaultInlineCodingBoundary = $defaultInlineReview['ccitt_fax_coding_boundary'] ?? [];
@@ -327,6 +352,17 @@ if (
 ) {
     throw new RuntimeException('XObject unresolved CCITT DecodeParms boundary smoke failed.');
 }
+if (
+    $invalidOwnerLines !== ['Before invalid-owner CCITT import', 'After invalid-owner CCITT import']
+    || str_contains($boundaryExtractor->extractPlainText($invalidOwnerPdf), 'WordPress invalid-owner CCITT leak')
+    || (($invalidOwnerEntry['raw_length'] ?? null) !== strlen($invalidOwnerPayload))
+    || (($invalidOwnerParms['valid_decode_parms'] ?? null) !== false)
+    || (($invalidOwnerParms['decode_parms_review'] ?? null) !== 'invalid_ccitt_decodeparms_fail_closed')
+    || !in_array('k', $invalidOwnerParms['invalid_decode_parms_fields'] ?? [], true)
+    || str_contains(json_encode($invalidOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidOwnerPayload)
+) {
+    throw new RuntimeException('Malformed CCITT owner-boundary smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
@@ -411,6 +447,13 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'xobject_unresolved_decode_parms_operand' => $unresolvedXobjectParms['decode_parms_operand'] ?? null,
     'xobject_unresolved_payload_excluded_from_review' => !str_contains(json_encode($unresolvedXobjectReview, JSON_UNESCAPED_SLASHES) ?: '', $unresolvedXobjectPayload),
     'xobject_unresolved_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($unresolvedXobjectPdf), 'WordPress unresolved CCITT DecodeParms leak'),
+    'xobject_invalid_owner_decode_parms_valid' => $invalidOwnerParms['valid_decode_parms'] ?? null,
+    'xobject_invalid_owner_decode_parms_review' => $invalidOwnerParms['decode_parms_review'] ?? null,
+    'xobject_invalid_owner_invalid_fields' => $invalidOwnerParms['invalid_decode_parms_fields'] ?? [],
+    'xobject_invalid_owner_boundary_repaired' => ($invalidOwnerEntry['raw_length'] ?? null) === strlen($invalidOwnerPayload),
+    'xobject_invalid_owner_raw_length' => $invalidOwnerEntry['raw_length'] ?? null,
+    'xobject_invalid_owner_payload_excluded_from_review' => !str_contains(json_encode($invalidOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidOwnerPayload),
+    'xobject_invalid_owner_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($invalidOwnerPdf), 'WordPress invalid-owner CCITT leak'),
     'xobject_geometry_effective_width' => $geometryBoundary['effective_width'] ?? null,
     'xobject_geometry_effective_height' => $geometryBoundary['effective_height'] ?? null,
     'xobject_geometry_width_source' => $geometryBoundary['width_source'] ?? null,
