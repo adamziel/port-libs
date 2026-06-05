@@ -6292,6 +6292,8 @@ final class PdfImageRenderer
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 2),
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null)
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
+            'FlateDecode', 'Fl' => (($offset = $this->flateExplicitEndByteOffset($stream)) !== null)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             'LZWDecode', 'LZW' => (($offset = $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects)) !== null)
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             default => true,
@@ -6330,6 +6332,46 @@ final class PdfImageRenderer
                 return null;
             }
             $offset++;
+        }
+
+        return null;
+    }
+
+    private function flateExplicitEndByteOffset(string $stream): ?int
+    {
+        if (
+            !function_exists('inflate_init')
+            || !function_exists('inflate_add')
+            || !function_exists('inflate_get_status')
+            || !function_exists('inflate_get_read_len')
+        ) {
+            return null;
+        }
+
+        $encodings = [];
+        foreach (['ZLIB_ENCODING_DEFLATE', 'ZLIB_ENCODING_RAW', 'ZLIB_ENCODING_GZIP'] as $constant) {
+            if (defined($constant)) {
+                $encodings[] = constant($constant);
+            }
+        }
+
+        $finish = defined('ZLIB_FINISH') ? constant('ZLIB_FINISH') : 4;
+        $streamEnd = defined('ZLIB_STREAM_END') ? constant('ZLIB_STREAM_END') : 1;
+        foreach (array_unique($encodings) as $encoding) {
+            $context = @inflate_init($encoding);
+            if ($context === false) {
+                continue;
+            }
+
+            $decoded = @inflate_add($context, $stream, $finish);
+            if ($decoded === false || @inflate_get_status($context) !== $streamEnd) {
+                continue;
+            }
+
+            $readLength = @inflate_get_read_len($context);
+            if (is_int($readLength) && $readLength > 0) {
+                return $readLength;
+            }
         }
 
         return null;

@@ -10756,6 +10756,8 @@ final class PdfTextExtractor
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 2),
             'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null)
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
+            'FlateDecode', 'Fl' => (($offset = $this->flateExplicitEndByteOffset($stream)) !== null)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             'LZWDecode', 'LZW' => (($offset = $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects)) !== null)
                 && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
             default => true,
@@ -10794,6 +10796,46 @@ final class PdfTextExtractor
                 return null;
             }
             $offset++;
+        }
+
+        return null;
+    }
+
+    private function flateExplicitEndByteOffset(string $stream): ?int
+    {
+        if (
+            !function_exists('inflate_init')
+            || !function_exists('inflate_add')
+            || !function_exists('inflate_get_status')
+            || !function_exists('inflate_get_read_len')
+        ) {
+            return null;
+        }
+
+        $encodings = [];
+        foreach (['ZLIB_ENCODING_DEFLATE', 'ZLIB_ENCODING_RAW', 'ZLIB_ENCODING_GZIP'] as $constant) {
+            if (defined($constant)) {
+                $encodings[] = constant($constant);
+            }
+        }
+
+        $finish = defined('ZLIB_FINISH') ? constant('ZLIB_FINISH') : 4;
+        $streamEnd = defined('ZLIB_STREAM_END') ? constant('ZLIB_STREAM_END') : 1;
+        foreach (array_unique($encodings) as $encoding) {
+            $context = @inflate_init($encoding);
+            if ($context === false) {
+                continue;
+            }
+
+            $decoded = @inflate_add($context, $stream, $finish);
+            if ($decoded === false || @inflate_get_status($context) !== $streamEnd) {
+                continue;
+            }
+
+            $readLength = @inflate_get_read_len($context);
+            if (is_int($readLength) && $readLength > 0) {
+                return $readLength;
+            }
         }
 
         return null;
@@ -25623,6 +25665,12 @@ final class PdfTextExtractor
             return $expectedLength !== null
                 && (
                     $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength)
+                    || $this->inlineFlateCandidateReachesSampleFloorBeforePostStreamSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        $expectedLength
+                    )
                     || $this->inlineLzwCandidateReachesSampleFloorBeforePostEodSurplus(
                         $filters,
                         $dictionary,
@@ -25676,6 +25724,53 @@ final class PdfTextExtractor
         }
 
         return intdiv($hexDigitCount + 1, 2) >= $expectedLength;
+    }
+
+    /**
+     * Flate streams have a bounded zlib/deflate member even though PDF does not
+     * expose a textual EOD marker. If text-like surplus after that member
+     * contains a fake inline-image `EI`, wait for the later real terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineFlateCandidateReachesSampleFloorBeforePostStreamSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || !in_array($nonNullFilters, [['FlateDecode'], ['Fl']], true)) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $flateFilterIndex = array_search($nonNullFilters[0], $filters, true);
+        if (!is_int($flateFilterIndex)) {
+            return false;
+        }
+
+        $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $flateFilterIndex);
+        $endOffset = $this->flateExplicitEndByteOffset($candidate);
+        if ($endOffset === null) {
+            return false;
+        }
+
+        $postStream = substr($candidate, $endOffset);
+        if (
+            $postStream === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $endOffset)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postStream) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = $this->decodeFlateStream(substr($candidate, 0, $endOffset), $filterDecodeParms, []);
+        return $decoded !== null && strlen($decoded) >= $expectedLength;
     }
 
     /**
