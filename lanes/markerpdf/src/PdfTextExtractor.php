@@ -4140,6 +4140,74 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<string, array{objectNumber: int, generation: int, body: string|null}>
+     * @param array<int, string> $objects
+     */
+    private function extGStateSoftMaskResourceReferences(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $extGStateDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ExtGState');
+        if ($extGStateDictionary === null) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($this->topLevelResourceReferenceEntries($extGStateDictionary) as $resourceName => $resource) {
+            $objectBody = $this->objectBodyForExactReference($objects, $resource['objectNumber'], $resource['generation']);
+            if ($objectBody === null) {
+                continue;
+            }
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $softMaskValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'SMask');
+            if ($softMaskValue === null || $this->pdfNameValueAt($softMaskValue, 0, $objects) === 'None') {
+                continue;
+            }
+
+            $softMaskDictionary = null;
+            $softMaskOffset = 0;
+            $softMaskReference = $this->readPdfIndirectReferenceToken($softMaskValue, $softMaskOffset);
+            if ($softMaskReference !== null) {
+                $softMaskBody = $this->objectBodyForExactReference(
+                    $objects,
+                    $softMaskReference['objectNumber'],
+                    $softMaskReference['generation']
+                );
+                $softMaskDictionary = $softMaskBody === null ? null : $this->dictionaryObjectBody($softMaskBody);
+            } else {
+                $softMaskDictionary = $this->pdfDictionaryFromValue($softMaskValue, $objects);
+            }
+
+            if ($softMaskDictionary === null) {
+                continue;
+            }
+
+            foreach (['G' => 'group', 'TR' => 'transfer'] as $name => $kind) {
+                $value = $this->topLevelPdfValueAfterNameInDictionaryBody($softMaskDictionary, $name);
+                if ($value === null) {
+                    continue;
+                }
+
+                foreach ($this->objectReferencePairs($value) as $index => $reference) {
+                    $objectNumber = $reference['objectNumber'];
+                    $generation = $reference['generation'];
+                    $references[$resourceName . ':' . $kind . ':' . $index] = [
+                        'objectNumber' => $objectNumber,
+                        'generation' => $generation,
+                        'body' => $this->objectBodyForExactReference($objects, $objectNumber, $generation),
+                    ];
+                }
+            }
+        }
+
+        return $references;
+    }
+
+    /**
      * @return array<string, array<string, mixed>>
      * @param array<int, string> $objects
      */
@@ -9220,6 +9288,23 @@ final class PdfTextExtractor
 
             $body = $reference['body'];
             if ($body === null) {
+                continue;
+            }
+
+            $this->collectType3PrivateResourceStreamGenerations($body, $objects, $references, $seen);
+        }
+
+        foreach ($this->extGStateSoftMaskResourceReferences($resourceOwnerBody, $objects) as $reference) {
+            $key = $reference['objectNumber'] . ':' . $reference['generation'];
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $references[$reference['objectNumber']][$reference['generation']] = true;
+            $seen[$key] = true;
+
+            $body = $reference['body'];
+            if ($body === null || !$this->isFormXObjectBody($body, $objects)) {
                 continue;
             }
 
