@@ -690,12 +690,16 @@ return [
         $badMethod = "\x79\x01" . substr($zlib, 2);
         $badDictionaryFlag = "\x78\x3f" . substr($zlib, 2);
         $badTrailer = substr_replace($zlib, "\xff\xff\xff\xff", -4, 4);
+        $trailingZlibWithCopiedAdler = $zlib . 'review-garbage' . substr($zlib, -4);
+        $trailingRaw = $raw . 'review-garbage';
 
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode('not deflate'));
         $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($badHeaderCheck));
         $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($badMethod));
         $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($badDictionaryFlag));
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($badTrailer));
+        $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($trailingZlibWithCopiedAdler));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($trailingRaw, DeflateStream::FORMAT_RAW));
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($zlib, DeflateStream::FORMAT_ZLIB, 1));
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($raw, DeflateStream::FORMAT_RAW, 1));
         $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($raw, DeflateStream::FORMAT_ZLIB));

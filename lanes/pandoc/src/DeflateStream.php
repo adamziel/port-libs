@@ -52,11 +52,8 @@ final class DeflateStream
             return self::inspectZlib($bytes, $maxUncompressedBytes)['data'];
         }
 
-        $data = @gzinflate($bytes);
-        if ($data === false) {
-            throw new \RuntimeException('Unable to decode raw DEFLATE stream');
-        }
-
+        $inflated = self::inflateComplete($bytes, ZLIB_ENCODING_RAW, 'raw DEFLATE stream');
+        $data = $inflated['data'];
         self::assertDecodedSize($data, $maxUncompressedBytes, 'DEFLATE stream');
 
         return $data;
@@ -103,10 +100,8 @@ final class DeflateStream
             throw new \RuntimeException('Preset-dictionary ZLIB streams are not supported by the pandoc archive reader');
         }
 
-        $data = @zlib_decode($bytes);
-        if ($data === false) {
-            throw new \RuntimeException('Unable to decode zlib-wrapped DEFLATE stream');
-        }
+        $inflated = self::inflateComplete($bytes, ZLIB_ENCODING_DEFLATE, 'ZLIB stream');
+        $data = $inflated['data'];
 
         $adler32 = self::readUInt32BE($bytes, strlen($bytes) - 4);
         if (self::adler32($data) !== $adler32) {
@@ -145,6 +140,32 @@ final class DeflateStream
             2 => 'default',
             3 => 'maximum',
         };
+    }
+
+    /**
+     * @return array{data:string, consumedBytes:int}
+     */
+    private static function inflateComplete(string $bytes, int $encoding, string $label): array
+    {
+        $context = inflate_init($encoding);
+        if ($context === false) {
+            throw new \RuntimeException("Unable to initialize decoder for {$label}");
+        }
+
+        $data = @inflate_add($context, $bytes, ZLIB_FINISH);
+        if ($data === false || inflate_get_status($context) !== ZLIB_STREAM_END) {
+            throw new \RuntimeException("Unable to decode {$label}");
+        }
+
+        $consumedBytes = inflate_get_read_len($context);
+        if ($consumedBytes !== strlen($bytes)) {
+            throw new \RuntimeException("{$label} contains trailing bytes after the complete DEFLATE payload");
+        }
+
+        return [
+            'data' => $data,
+            'consumedBytes' => $consumedBytes,
+        ];
     }
 
     private static function readUInt32BE(string $bytes, int $offset): int

@@ -830,6 +830,18 @@ $rawDeflateTarPacketRoundTrip = TarArchive::fromString(DeflateStream::decode(
     $rawDeflateReviewPacket,
     DeflateStream::FORMAT_RAW
 ));
+$deflateTrailingBytesRejected = false;
+try {
+    DeflateStream::inspectZlib($deflateReviewPacket . 'review-garbage' . substr($deflateReviewPacket, -4));
+} catch (RuntimeException $exception) {
+    $deflateTrailingBytesRejected = str_contains($exception->getMessage(), 'trailing bytes');
+}
+$rawDeflateTrailingBytesRejected = false;
+try {
+    DeflateStream::decode($rawDeflateReviewPacket . 'review-garbage', DeflateStream::FORMAT_RAW);
+} catch (RuntimeException $exception) {
+    $rawDeflateTrailingBytesRejected = str_contains($exception->getMessage(), 'trailing bytes');
+}
 $lz4ReviewPacket = Lz4Frame::skippableFrame('wordpress import archive metadata', 2)
     . Lz4Frame::build($tarPacket->bytes(), [
         'blockChecksum' => true,
@@ -1147,6 +1159,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected raw deflate tar manifest bytes to round-trip');
     }
 
+    if (!$deflateTrailingBytesRejected || !$rawDeflateTrailingBytesRejected) {
+        throw new RuntimeException('Expected deflate review packets with trailing bytes to be rejected before package handoff');
+    }
+
     if (!$tarPacketRoundTrip->entry('packet/')->isDirectory()) {
         throw new RuntimeException('Expected tar packet directory metadata to round-trip');
     }
@@ -1310,6 +1326,7 @@ echo 'deflate.windowSize=' . $deflateReviewMetadata['windowSize'] . "\n";
 echo 'deflate.levelHint=' . $deflateReviewMetadata['compressionLevelHint'] . "\n";
 echo 'deflate.document.xml=' . $deflateTarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
 echo 'deflate.rawManifest=' . $rawDeflateTarPacketRoundTrip->read('/packet/manifest.json') . "\n";
+echo 'deflate.trailingBytesPolicy=' . ($deflateTrailingBytesRejected && $rawDeflateTrailingBytesRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
 echo 'lz4.skippable=' . $lz4ReviewFrames[0]['data'] . "\n";
 echo 'lz4.blockTypes=' . implode(',', $lz4ReviewFrames[1]['blockTypes']) . "\n";
