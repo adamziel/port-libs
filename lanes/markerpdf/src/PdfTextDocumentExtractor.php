@@ -272,7 +272,7 @@ final class PdfTextDocumentExtractor
         foreach ($spans as $span) {
             if (is_array($span)) {
                 $sanitizedSpan = [];
-                foreach (['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx'] as $key) {
+                foreach (['text', 'bbox', 'font', 'rotation', 'char_start_idx', 'char_end_idx', 'url'] as $key) {
                     if (array_key_exists($key, $span)) {
                         $sanitizedSpan[$key] = $span[$key];
                     }

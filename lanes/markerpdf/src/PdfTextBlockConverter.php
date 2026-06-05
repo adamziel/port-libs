@@ -42,6 +42,13 @@ final class PdfTextBlockConverter
                         'font_weight' => (float) $font['weight'],
                         'font_size' => (float) $font['size'],
                     ];
+                    if (array_key_exists('url', $span) && is_string($span['url']) && trim($span['url']) !== '') {
+                        $spanObj['pdftext_url'] = $span['url'];
+                        $spanObj['pdftext_url_is_safe'] = $this->isSafeUri($span['url']);
+                        if ($spanObj['pdftext_url_is_safe']) {
+                            $spanObj['url'] = $span['url'];
+                        }
+                    }
                     foreach (['rotation', 'char_start_idx', 'char_end_idx'] as $metadataKey) {
                         if (array_key_exists($metadataKey, $span) && (is_int($span[$metadataKey]) || is_float($span[$metadataKey]))) {
                             $spanObj[$metadataKey] = (int) $span[$metadataKey];
@@ -192,6 +199,9 @@ final class PdfTextBlockConverter
                             throw new InvalidArgumentException("pdftext span {$metadataKey} must be numeric when supplied.");
                         }
                     }
+                    if (array_key_exists('url', $span) && $span['url'] !== null && !is_string($span['url'])) {
+                        throw new InvalidArgumentException("pdftext span {$blockIndex}.{$lineIndex}.{$spanIndex} url must be a string or null.");
+                    }
                 }
             }
         }
@@ -226,7 +236,28 @@ final class PdfTextBlockConverter
             $source[$field] = (float) $page[$field];
         }
 
+        if (isset($page['refs']) && is_array($page['refs'])) {
+            $source['refs'] = array_values($page['refs']);
+        }
+
         return $source;
+    }
+
+    private function isSafeUri(string $uri): bool
+    {
+        $trimmed = trim($uri);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $trimmed, $match) === 1) {
+            return in_array(strtolower(rtrim($match[0], ':')), ['http', 'https', 'mailto', 'ftp'], true);
+        }
+
+        return str_starts_with($trimmed, '#')
+            || str_starts_with($trimmed, '/')
+            || str_starts_with($trimmed, './')
+            || str_starts_with($trimmed, '../');
     }
 
     /**
