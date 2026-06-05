@@ -238,6 +238,12 @@ if (!$apacheCodeBlock instanceof PortLibs\Pandoc\AstNode || $apacheCodeBlock->ty
 }
 $apache = $highlighter->highlightCodeBlock($apacheCodeBlock, 'kate');
 $apacheWordpressBlock = $highlighter->wordpressHtmlBlock($apacheCodeBlock, 'kate');
+$luaLongBracketCodeBlock = $document->children[33] ?? null;
+if (!$luaLongBracketCodeBlock instanceof PortLibs\Pandoc\AstNode || $luaLongBracketCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Lua long-bracket code block');
+}
+$luaLongBracket = $highlighter->highlightCodeBlock($luaLongBracketCodeBlock, 'breezedark');
+$luaLongBracketWordpressBlock = $highlighter->wordpressHtmlBlock($luaLongBracketCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -983,6 +989,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($apacheWordpressBlock, '<span class="kw">&lt;/IfModule</span><span class="op">&gt;</span>')) {
         throw new RuntimeException('Expected Apache closing section token handoff');
     }
+    if (($luaLongBracket['language'] ?? '') !== 'lua') {
+        throw new RuntimeException('Expected Lua long-bracket fixture to normalize to Lua highlighting');
+    }
+    if (($luaLongBracket['lineNumbering']['start'] ?? null) !== 290) {
+        throw new RuntimeException('Expected Lua long-bracket source startFrom line-number handoff');
+    }
+    if (!str_contains($luaLongBracket['html'], '<span class="co">--[=[ WordPress block fixture can contain &lt;!-- comments --&gt; ]=]</span>')) {
+        throw new RuntimeException('Expected Lua equal-delimited long comment token handoff');
+    }
+    if (!str_contains($luaLongBracket['html'], '<span class="st">&lt;p&gt;Imported ${title}&lt;/p&gt;</span>')) {
+        throw new RuntimeException('Expected Lua equal-delimited long string body handoff');
+    }
+    if (!str_contains($luaLongBracket['html'], '<span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">RawBlock</span>')) {
+        throw new RuntimeException('Expected Lua RawBlock token handoff after long string');
+    }
+    if (!str_contains($luaLongBracketWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Lua long-bracket WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1040,6 +1064,7 @@ echo "csharpHighlightedHtml:\n" . $csharp['html'] . "\n";
 echo "sqlHighlightedHtml:\n" . $sql['html'] . "\n";
 echo "postgresqlHighlightedHtml:\n" . $postgresql['html'] . "\n";
 echo "apacheHighlightedHtml:\n" . $apache['html'] . "\n";
+echo "luaLongBracketHighlightedHtml:\n" . $luaLongBracket['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1068,4 +1093,5 @@ echo "csharpWordpressBlock:\n" . $csharpWordpressBlock . "\n";
 echo "sqlWordpressBlock:\n" . $sqlWordpressBlock . "\n";
 echo "postgresqlWordpressBlock:\n" . $postgresqlWordpressBlock . "\n";
 echo "apacheWordpressBlock:\n" . $apacheWordpressBlock . "\n";
+echo "luaLongBracketWordpressBlock:\n" . $luaLongBracketWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

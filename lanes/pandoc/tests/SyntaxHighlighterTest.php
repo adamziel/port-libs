@@ -1580,6 +1580,41 @@ return [
         $t->same('console', $console['requestedLanguage']);
         $t->contains('<span class="fu">printf</span> <span class="st">&quot;%s\\n&quot;</span> <span class="st">&quot;$title&quot;</span>', $console['html']);
     },
+    'highlights lua long bracket strings and comments for pandoc filters' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[33] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Lua long-bracket code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directLua = $highlighter->highlight("--[==[review note]==]\nlocal html = [==[<p>ok</p>]==]", 'pandoc-lua');
+
+        $t->same('pandoc-lua', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('lua', $highlighted['language']);
+        $t->same('pandoc-lua', $highlighted['requestedLanguage']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(290, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource pandoc-lua numberLines"><code class="sourceCode lua" style="counter-reset: source-line 289;">', $highlighted['html']);
+        $t->contains('<span id="lua-long-bracket-review-290"><a href="#lua-long-bracket-review-290"></a><span class="co">--[=[ WordPress block fixture can contain &lt;!-- comments --&gt; ]=]</span></span>', $highlighted['html']);
+        $t->contains('<span id="lua-long-bracket-review-291"><a href="#lua-long-bracket-review-291"></a><span class="kw">local</span> <span class="va">rawBlock</span> <span class="op">=</span> <span class="st">[=[</span></span>', $highlighted['html']);
+        $t->contains('<span id="lua-long-bracket-review-292"><a href="#lua-long-bracket-review-292"></a><span class="st">&lt;!-- wp:paragraph --&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span id="lua-long-bracket-review-293"><a href="#lua-long-bracket-review-293"></a><span class="st">&lt;p&gt;Imported ${title}&lt;/p&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span id="lua-long-bracket-review-295"><a href="#lua-long-bracket-review-295"></a><span class="st">]=]</span></span>', $highlighted['html']);
+        $t->contains('<span id="lua-long-bracket-review-296"><a href="#lua-long-bracket-review-296"></a><span class="kw">return</span> <span class="dt">pandoc</span><span class="op">.</span><span class="fu">RawBlock</span><span class="op">(</span><span class="st">&quot;html&quot;</span><span class="op">,</span> <span class="va">rawBlock</span><span class="op">)</span></span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="st">&lt;p&gt;Imported ${title}&lt;/p&gt;</span>', $wordpressBlock);
+        $t->same('lua', $directLua['language']);
+        $t->contains('<span class="co">--[==[review note]==]</span>', $directLua['html']);
+        $t->contains('<span class="st">[==[&lt;p&gt;ok&lt;/p&gt;]==]</span>', $directLua['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

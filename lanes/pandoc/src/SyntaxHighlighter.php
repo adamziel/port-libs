@@ -1437,9 +1437,9 @@ final class SyntaxHighlighter
     private function tokenizeLua(string $code): array
     {
         return $this->scan($code, [
-            ['comment', '/^--\\[\\[[\\s\\S]*?\\]\\]/'],
+            ['comment', '/^--\\[(=*)\\[[\\s\\S]*?\\]\\1\\]/'],
             ['comment', '/^--[^\\n]*/'],
-            ['string', '/^\\[\\[[\\s\\S]*?\\]\\]/'],
+            ['string', '/^\\[(=*)\\[[\\s\\S]*?\\]\\1\\]/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
             ['keyword', '/^\\b(?:and|break|do|else|elseif|end|for|function|goto|if|in|local|not|or|repeat|return|then|until|while)\\b/'],

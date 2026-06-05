@@ -497,3 +497,13 @@ RewriteRule . /index.php [L]
 Header set X-Import-Source "legacy"
 </IfModule>
 ```
+
+``` {.pandoc-lua #lua-long-bracket-review .numberLines startFrom=290}
+--[=[ WordPress block fixture can contain <!-- comments --> ]=]
+local rawBlock = [=[
+<!-- wp:paragraph -->
+<p>Imported ${title}</p>
+<!-- /wp:paragraph -->
+]=]
+return pandoc.RawBlock("html", rawBlock)
+```
