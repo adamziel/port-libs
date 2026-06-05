@@ -121,6 +121,38 @@ return [
         $t->contains('<h1 id="計画">計画</h1>', $blocks);
         $t->contains("<p>Review\nQueue</p>", $blocks);
     },
+    'normalizes unicode forms before markdown handoff when requested' => static function (TestRunner $t): void {
+        $nfc = UnicodeText::normalize("Cafe\u{0301} \u{212B}", 'NFC');
+        $nfd = UnicodeText::normalize("É Å", 'nfd');
+        $nfkc = UnicodeText::normalize("\u{2460} \u{FB01} \u{212B} Cafe\u{0301}", 'nfkc');
+        $nfkd = UnicodeText::normalize("\u{2460} \u{FB01} É", 'nfkd');
+        $decoded = UnicodeText::decodeBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
+        $document = (new MarkdownReader())->readBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $normalization = $document->attr('sourceNormalization');
+
+        $t->same("Café Å", $nfc['text']);
+        $t->same('nfc', $nfc['form']);
+        $t->same(true, $nfc['changed']);
+        $t->true(in_array($nfc['implementation'], ['intl', 'fallback'], true), 'Unicode normalization should use an available native implementation');
+        $t->same("E\u{0301} A\u{030A}", $nfd['text']);
+        $t->same(3, UnicodeText::displayWidth($nfd['text']));
+        $t->same("1 fi Å Café", $nfkc['text']);
+        $t->same('nfkc', $nfkc['form']);
+        $t->same("1 fi E\u{0301}", $nfkd['text']);
+        $t->same('nfkd', $nfkd['form']);
+        $t->same(6, UnicodeText::displayWidth($nfkd['text']));
+        $t->same("# Café Review\n\nLegacy Å source", $decoded['text']);
+        $t->same(['form' => 'nfc', 'changed' => true, 'implementation' => $decoded['normalization']['implementation']], $decoded['normalization']);
+        $t->same('Café Review', $document->children[0]->attr('text'));
+        $t->same('Legacy Å source', $document->children[1]->attr('text'));
+        $t->same('nfc', is_array($normalization) ? ($normalization['form'] ?? null) : null);
+        $t->same(true, is_array($normalization) ? ($normalization['changed'] ?? null) : null);
+        $t->true(is_array($normalization) && in_array($normalization['implementation'] ?? '', ['intl', 'fallback'], true), 'Markdown source normalization metadata should name a native implementation');
+        $t->contains('<h1 id="café-review">Café Review</h1>', $blocks);
+        $t->contains('<p>Legacy Å source</p>', $blocks);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => UnicodeText::normalize('text', 'nfz'));
+    },
     'measures display width for cjk combining emoji and zero width marks' => static function (TestRunner $t): void {
         $accent = "A\u{0301}";
         $persian = "\u{0645}\u{06CC}\u{200C}\u{062E}\u{0648}\u{0627}\u{0647}\u{0645}";

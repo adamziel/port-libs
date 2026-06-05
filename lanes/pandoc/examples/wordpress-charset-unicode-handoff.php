@@ -25,6 +25,8 @@ $emojiThumb = "\u{1F44D}\u{1F3FD}";
 $emojiFlag = "\u{1F1FA}\u{1F1F8}";
 $emojiSlices = UnicodeText::splitByDisplayBreakpoints($emojiCheckbox . $emojiKeycap . $emojiThumb . $emojiFlag, [2, 4, 6]);
 $lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
+$normalizedSource = (new MarkdownReader())->readBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
+$compatibilityNormalization = UnicodeText::normalize("\u{2460} \u{FB01} Cafe\u{0301} \u{212B}", 'nfkc');
 $table = new AstNode('table', [
     'caption' => 'Unicode width audit',
     'alignments' => ['default', 'default', 'default'],
@@ -82,6 +84,16 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
         ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'NFC source title'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $normalizedSource->children[0]->attr('text')])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($normalizedSource->attr('sourceNormalization')['form'] ?? '') . ':' . (($normalizedSource->attr('sourceNormalization')['changed'] ?? false) ? 'changed' : 'unchanged')])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'NFKC audit'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $compatibilityNormalization['text']])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $compatibilityNormalization['form'] . ':' . ($compatibilityNormalization['changed'] ? 'changed' : 'unchanged')])]),
+        ]),
     ]),
 ]);
 $document = new AstNode('document', $source->attrs, [...$source->children, $table]);
@@ -119,6 +131,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');
+    }
+    if (($normalizedSource->attr('sourceNormalization')['form'] ?? '') !== 'nfc') {
+        throw new RuntimeException('charset handoff self-test missing NFC source normalization metadata');
+    }
+    if ($normalizedSource->children[0]->attr('text') !== "Café Review") {
+        throw new RuntimeException('charset handoff self-test missing normalized source heading');
+    }
+    if (!str_contains($blocks, "<td>NFC source title</td><td>Café Review</td><td>nfc:changed</td>")) {
+        throw new RuntimeException('charset handoff self-test missing NFC normalization audit row');
+    }
+    if (!str_contains($blocks, "<td>NFKC audit</td><td>1 fi Café Å</td><td>nfkc:changed</td>")) {
+        throw new RuntimeException('charset handoff self-test missing NFKC normalization audit row');
     }
 
     echo "charset unicode handoff self-test ok\n";

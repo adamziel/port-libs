@@ -8,6 +8,35 @@ final class UnicodeText
 {
     private const REPLACEMENT = "\xEF\xBF\xBD";
 
+    /** @var array<string, string> */
+    private const CANONICAL_DECOMPOSITIONS = [
+        "\u{00C5}" => "A\u{030A}",
+        "\u{00C9}" => "E\u{0301}",
+        "\u{00E9}" => "e\u{0301}",
+        "\u{212B}" => "A\u{030A}",
+    ];
+
+    /** @var array<string, string> */
+    private const COMPOSITIONS = [
+        "A\u{030A}" => "\u{00C5}",
+        "E\u{0301}" => "\u{00C9}",
+        "e\u{0301}" => "\u{00E9}",
+    ];
+
+    /** @var array<string, string> */
+    private const COMPATIBILITY_DECOMPOSITIONS = [
+        "\u{00A0}" => ' ',
+        "\u{212B}" => "A\u{030A}",
+        "\u{2460}" => '1',
+        "\u{2461}" => '2',
+        "\u{2462}" => '3',
+        "\u{FB00}" => 'ff',
+        "\u{FB01}" => 'fi',
+        "\u{FB02}" => 'fl',
+        "\u{FB03}" => 'ffi',
+        "\u{FB04}" => 'ffl',
+    ];
+
     /** @var array<int, int> */
     private const WINDOWS_1252_CONTROLS = [
         0x80 => 0x20ac,
@@ -40,9 +69,9 @@ final class UnicodeText
     ];
 
     /**
-     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}}
+     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, normalization?:array{form:string, changed:bool, implementation:string}}
      */
-    public static function decodeBytes(string $bytes, ?string $encoding = null): array
+    public static function decodeBytes(string $bytes, ?string $encoding = null, ?string $normalizationForm = null): array
     {
         $normalized = self::normalizeEncoding($encoding);
         $bom = null;
@@ -67,45 +96,46 @@ final class UnicodeText
 
         if ($normalized === 'utf-16le' || $normalized === 'utf-16be') {
             [$text, $repairs] = self::decodeUtf16($bytes, $normalized === 'utf-16le');
-            [$text, $lineEndings] = self::normalizeLineEndings($text);
 
-            return [
-                'text' => $text,
-                'encoding' => $normalized,
-                'bom' => $bom,
-                'repairs' => $repairs,
-                'lineEndings' => $lineEndings,
-            ];
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
 
         if ($normalized === 'windows-1252' || $normalized === 'iso-8859-1') {
             [$text, $repairs] = self::decodeSingleByte($bytes, $normalized === 'windows-1252');
-            [$text, $lineEndings] = self::normalizeLineEndings($text);
 
-            return [
-                'text' => $text,
-                'encoding' => $normalized,
-                'bom' => $bom,
-                'repairs' => $repairs,
-                'lineEndings' => $lineEndings,
-            ];
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
 
         [$text, $repairs] = self::repairUtf8($bytes);
-        [$text, $lineEndings] = self::normalizeLineEndings($text);
 
-        return [
-            'text' => $text,
-            'encoding' => $repairs === 0 ? 'utf-8' : 'utf-8-repaired',
-            'bom' => $bom,
-            'repairs' => $repairs,
-            'lineEndings' => $lineEndings,
-        ];
+        return self::decodedResult($text, $repairs === 0 ? 'utf-8' : 'utf-8-repaired', $bom, $repairs, $normalizationForm);
     }
 
     public static function repair(string $text): string
     {
         return self::repairUtf8($text)[0];
+    }
+
+    /**
+     * @return array{text:string, form:string, changed:bool, implementation:string}
+     */
+    public static function normalize(string $text, string $form = 'nfc'): array
+    {
+        $form = self::normalizeNormalizationForm($form);
+        $text = self::repair($text);
+        $normalized = self::normalizeWithIntl($text, $form);
+        $implementation = 'intl';
+        if ($normalized === null) {
+            $normalized = self::normalizeWithFallback($text, $form);
+            $implementation = 'fallback';
+        }
+
+        return [
+            'text' => $normalized,
+            'form' => $form,
+            'changed' => $normalized !== $text,
+            'implementation' => $implementation,
+        ];
     }
 
     /**
@@ -274,6 +304,33 @@ final class UnicodeText
     }
 
     /**
+     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, normalization?:array{form:string, changed:bool, implementation:string}}
+     */
+    private static function decodedResult(string $text, string $encoding, ?string $bom, int $repairs, ?string $normalizationForm): array
+    {
+        [$text, $lineEndings] = self::normalizeLineEndings($text);
+        $result = [
+            'text' => $text,
+            'encoding' => $encoding,
+            'bom' => $bom,
+            'repairs' => $repairs,
+            'lineEndings' => $lineEndings,
+        ];
+
+        if ($normalizationForm !== null && trim($normalizationForm) !== '') {
+            $normalization = self::normalize($text, $normalizationForm);
+            $result['text'] = $normalization['text'];
+            $result['normalization'] = [
+                'form' => $normalization['form'],
+                'changed' => $normalization['changed'],
+                'implementation' => $normalization['implementation'],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * @return list<string>
      */
     private static function wrapDisplayLine(string $line, int $width, string $subsequentIndent): array
@@ -361,6 +418,88 @@ final class UnicodeText
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
             default => 'utf-8',
         };
+    }
+
+    private static function normalizeNormalizationForm(string $form): string
+    {
+        $key = strtolower(str_replace(['-', '_', ' '], '', trim($form)));
+
+        return match ($key) {
+            'nfc', 'c', 'formc', 'composed', 'canonicalcomposition' => 'nfc',
+            'nfd', 'd', 'formd', 'decomposed', 'canonicaldecomposition' => 'nfd',
+            'nfkc', 'kc', 'formkc', 'compatibilitycomposition' => 'nfkc',
+            'nfkd', 'kd', 'formkd', 'compatibilitydecomposition' => 'nfkd',
+            default => throw new \InvalidArgumentException("Unsupported Unicode normalization form: {$form}"),
+        };
+    }
+
+    private static function normalizeWithIntl(string $text, string $form): ?string
+    {
+        if (!class_exists(\Normalizer::class)) {
+            return null;
+        }
+
+        $constant = match ($form) {
+            'nfc' => \Normalizer::FORM_C,
+            'nfd' => \Normalizer::FORM_D,
+            'nfkc' => \Normalizer::FORM_KC,
+            'nfkd' => \Normalizer::FORM_KD,
+        };
+        $normalized = \Normalizer::normalize($text, $constant);
+
+        return $normalized === false ? null : $normalized;
+    }
+
+    private static function normalizeWithFallback(string $text, string $form): string
+    {
+        $compatibility = $form === 'nfkc' || $form === 'nfkd';
+        $decomposed = self::decomposeFallback($text, $compatibility);
+        if ($form === 'nfd' || $form === 'nfkd') {
+            return $decomposed;
+        }
+
+        return self::composeFallback($decomposed);
+    }
+
+    private static function decomposeFallback(string $text, bool $compatibility): string
+    {
+        $decomposed = '';
+        foreach (self::characters($text) as $char) {
+            if ($compatibility && isset(self::COMPATIBILITY_DECOMPOSITIONS[$char])) {
+                $decomposed .= self::decomposeFallback(self::COMPATIBILITY_DECOMPOSITIONS[$char], true);
+                continue;
+            }
+
+            $decomposed .= self::CANONICAL_DECOMPOSITIONS[$char] ?? $char;
+        }
+
+        return $decomposed;
+    }
+
+    private static function composeFallback(string $text): string
+    {
+        $out = '';
+        foreach (self::characters($text) as $char) {
+            if ($out !== '') {
+                $tail = self::lastCharacter($out);
+                $candidate = $tail . $char;
+                if (isset(self::COMPOSITIONS[$candidate])) {
+                    $out = substr($out, 0, -strlen($tail)) . self::COMPOSITIONS[$candidate];
+                    continue;
+                }
+            }
+
+            $out .= $char;
+        }
+
+        return $out;
+    }
+
+    private static function lastCharacter(string $text): string
+    {
+        $characters = self::characters($text);
+
+        return $characters[count($characters) - 1] ?? '';
     }
 
     /**

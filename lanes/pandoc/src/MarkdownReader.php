@@ -35,9 +35,9 @@ final class MarkdownReader
     {
     }
 
-    public function readBytes(string $bytes, ?string $encoding = null): AstNode
+    public function readBytes(string $bytes, ?string $encoding = null, ?string $normalizationForm = null): AstNode
     {
-        $decoded = UnicodeText::decodeBytes($bytes, $encoding);
+        $decoded = UnicodeText::decodeBytes($bytes, $encoding, $normalizationForm);
         $document = $this->read($decoded['text']);
         $attrs = array_replace($document->attrs, [
             'sourceEncoding' => [
@@ -48,6 +48,9 @@ final class MarkdownReader
         ]);
         if (($decoded['lineEndings']['conversions'] ?? 0) > 0) {
             $attrs['sourceLineEndings'] = $decoded['lineEndings'];
+        }
+        if (isset($decoded['normalization'])) {
+            $attrs['sourceNormalization'] = $decoded['normalization'];
         }
 
         return new AstNode(
