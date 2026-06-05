@@ -4071,7 +4071,11 @@ final class PdfTextExtractor
      */
     private function xObjectResourceObjectNumbers(string $resourceOwnerBody, array $objects): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
         $xObjectDictionary = $this->xObjectResourceDictionaryBody($resourceDictionary, $objects);
         if ($xObjectDictionary === null) {
             return [];
@@ -4102,7 +4106,11 @@ final class PdfTextExtractor
      */
     private function xObjectResourceReferences(string $resourceOwnerBody, array $objects): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
         $xObjectDictionary = $this->xObjectResourceDictionaryBody($resourceDictionary, $objects);
         if ($xObjectDictionary === null) {
             return [];
@@ -4128,7 +4136,11 @@ final class PdfTextExtractor
      */
     private function patternResourceReferences(string $resourceOwnerBody, array $objects): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
         $patternDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Pattern');
         if ($patternDictionary === null) {
             return [];
@@ -4154,7 +4166,11 @@ final class PdfTextExtractor
      */
     private function extGStateSoftMaskResourceReferences(string $resourceOwnerBody, array $objects): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
         $extGStateDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ExtGState');
         if ($extGStateDictionary === null) {
             return [];
@@ -4222,7 +4238,11 @@ final class PdfTextExtractor
      */
     private function extGStateResourceReviews(string $resourceOwnerBody, array $objects): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
         $extGStateDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ExtGState');
         if ($extGStateDictionary === null) {
             return [];
@@ -5348,7 +5368,15 @@ final class PdfTextExtractor
             ];
         }
 
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [
+                'resource_name' => $patternName,
+                'resolved_from_resources' => false,
+                'resource_source' => null,
+            ];
+        }
+
         $patternDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'Pattern');
         if ($patternDictionary === null) {
             return [
@@ -7611,7 +7639,10 @@ final class PdfTextExtractor
      */
     private function fontResourceMapsForResourceOwnerBody(string $resourceOwnerBody, array $objects, array $fontObjectMaps): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
 
         return $this->fontResourceMapsFromResourceDictionary($resourceDictionary, $objects, $fontObjectMaps);
     }
@@ -7622,7 +7653,10 @@ final class PdfTextExtractor
      */
     private function markedContentPropertiesForResourceOwnerBody(string $resourceOwnerBody, array $objects): array
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
 
         return $this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects);
     }
@@ -8460,7 +8494,11 @@ final class PdfTextExtractor
         array $objects,
         array $optionalContentStates
     ): array {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
         $propertiesDictionary = $this->propertiesResourceDictionaryBody($resourceDictionary, $objects);
         if ($propertiesDictionary === null) {
             return [];
@@ -9825,7 +9863,11 @@ final class PdfTextExtractor
      */
     private function colorSpaceResourceValue(string $resourceOwnerBody, array $objects, string $resourceName): ?string
     {
-        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return null;
+        }
+
         $colorSpaceDictionary = $this->resourceCategoryDictionaryBody($resourceDictionary, $objects, 'ColorSpace');
         if ($colorSpaceDictionary === null) {
             return null;
@@ -14899,6 +14941,23 @@ final class PdfTextExtractor
         }
 
         return ['state' => 'blocked'];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function resourceDictionaryLookupBody(string $resourceOwnerBody, array $objects): ?string
+    {
+        $resolution = $this->pageResourceDictionaryResolution($resourceOwnerBody, $objects);
+        if ($resolution['state'] === 'resolved') {
+            return $resolution['body'];
+        }
+
+        if ($resolution['state'] === 'blocked') {
+            return null;
+        }
+
+        return $resourceOwnerBody;
     }
 
     /**
