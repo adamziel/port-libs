@@ -450,6 +450,7 @@ final class PdfImageRenderer
             static fn (array $filter): string => $filter['filter'],
             $imageFilterDetails
         );
+        $duplicateFilterDeclarationCount = $this->duplicatePdfNameDeclarationCount($imageDictionary, 'Filter');
         $previewOnlyFilters = array_values(array_filter(
             $imageFilters,
             fn (string $filter): bool => $this->isPreviewOnlyImageFilter($filter)
@@ -605,6 +606,9 @@ final class PdfImageRenderer
                 ? 'unresolved_image_filter_operand_fail_closed'
                 : 'malformed_image_filter_operand_fail_closed';
         }
+        if ($duplicateFilterDeclarationCount > 0) {
+            $notes[] = 'duplicate_image_filter_declarations_fail_closed';
+        }
         if (
             $dctDecodeFilterBoundary !== null
             && ($dctDecodeFilterBoundary['post_dctdecode_filters_block_native_decode'] ?? false) === true
@@ -677,6 +681,10 @@ final class PdfImageRenderer
                 'preview_only_filters' => $previewOnlyFilters,
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
                 'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
+                ...($duplicateFilterDeclarationCount > 0 ? [
+                    'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
+                    'filter_operand_policy' => 'reject_duplicate_filter_declarations',
+                ] : []),
             ],
             'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
@@ -4203,11 +4211,31 @@ final class PdfImageRenderer
      */
     private function imageFilterValues(string $dictionary, array $objects): array
     {
-        $value = $this->extractPdfNameValue($dictionary, 'Filter');
-        if ($value === null) {
+        $values = $this->pdfDictionaryValuesForName($dictionary, 'Filter');
+        if ($values === []) {
             return [];
         }
 
+        if (count($values) > 1) {
+            $filters = [self::MALFORMED_IMAGE_FILTER_OPERAND];
+            foreach ($values as $value) {
+                foreach ($this->imageFilterValuesFromValue($value, $objects) as $filter) {
+                    $filters[] = $filter;
+                }
+            }
+
+            return $filters;
+        }
+
+        return $this->imageFilterValuesFromValue($values[0], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string|null>
+     */
+    private function imageFilterValuesFromValue(string $value, array $objects): array
+    {
         $resolved = trim($this->resolvePdfValue($value, $objects));
         if (str_starts_with($resolved, '[')) {
             $filters = [];
@@ -8215,6 +8243,11 @@ final class PdfImageRenderer
     private function pdfDictionaryValueForName(string $dictionary, string $name): ?string
     {
         return $this->pdfDictionaryValuesForName($dictionary, $name)[0] ?? null;
+    }
+
+    private function duplicatePdfNameDeclarationCount(string $dictionary, string $name): int
+    {
+        return max(0, count($this->pdfDictionaryValuesForName($dictionary, $name)) - 1);
     }
 
     /**

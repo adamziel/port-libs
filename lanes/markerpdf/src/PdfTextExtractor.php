@@ -6440,14 +6440,19 @@ final class PdfTextExtractor
         }
 
         $filters = $this->streamFilters($stream['dict'], $objects);
-        $resolvedFilters = $filters === null
+        $duplicateFilterDeclarationCount = $this->duplicateTopLevelPdfNameDeclarationCount($stream['dict'], 'Filter');
+        $reviewFilters = $filters;
+        if ($reviewFilters === null && $duplicateFilterDeclarationCount > 0) {
+            $reviewFilters = $this->imageXObjectDuplicateFilterDeclarationReviewFilters($stream['dict'], $objects);
+        }
+        $resolvedFilters = $reviewFilters === null
             ? []
-            : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+            : array_values(array_filter($reviewFilters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
         $decodeParmsPresent = $this->topLevelNameValueOffset($stream['dict'], 'DecodeParms') !== null;
-        $decodeParms = $filters === null ? null : $this->streamDecodeParmsForFilters($stream['dict'], $objects, $filters);
-        $filterDetails = $filters === null ? [] : $this->imageXObjectFilterDetails(
-            $filters,
+        $decodeParms = $reviewFilters === null ? null : $this->streamDecodeParmsForFilters($stream['dict'], $objects, $reviewFilters);
+        $filterDetails = $reviewFilters === null ? [] : $this->imageXObjectFilterDetails(
+            $reviewFilters,
             $decodeParms,
             $objects,
             $decodeParmsPresent,
@@ -6624,7 +6629,7 @@ final class PdfTextExtractor
             $imageDecode,
             $effectiveBitsPerComponent ?? 1
         );
-        $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
+        $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects, $reviewFilters);
         $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
 
         return [
@@ -6747,6 +6752,10 @@ final class PdfTextExtractor
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
             'filter_details' => $filterDetails,
+            ...($duplicateFilterDeclarationCount > 0 ? [
+                'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
+                'filter_operand_policy' => 'reject_duplicate_filter_declarations',
+            ] : []),
             'dctdecode_filter_boundary' => $dctDecodeFilterBoundary,
             'dctdecode_stream_boundary' => $dctStreamBoundary,
             'ccitt_fax_filter_boundary' => $ccittFilterBoundary,
@@ -7396,14 +7405,40 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function imageXObjectReviewStreamBytes(string $dictionary, string $stream, array $objects): string
+    private function imageXObjectReviewStreamBytes(string $dictionary, string $stream, array $objects, ?array $reviewFilters = null): string
     {
-        $filters = $this->streamFilters($dictionary, $objects);
+        $filters = $reviewFilters ?? $this->streamFilters($dictionary, $objects);
         if ($filters === null) {
             return $stream;
         }
 
         return $this->rawDctPreviewPayloadBytesForReview($filters, $stream) ?? $stream;
+    }
+
+    /**
+     * @return list<string|null>|null
+     * @param array<int, string> $objects
+     */
+    private function imageXObjectDuplicateFilterDeclarationReviewFilters(string $dictionary, array $objects): ?array
+    {
+        $values = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, 'Filter');
+        if (count($values) <= 1) {
+            return null;
+        }
+
+        $filters = [];
+        foreach ($values as $value) {
+            $nestedFilters = $this->filterNamesFromSingleValue(trim($value), $objects, []);
+            if ($nestedFilters === null) {
+                continue;
+            }
+
+            foreach ($nestedFilters as $filter) {
+                $filters[] = $filter;
+            }
+        }
+
+        return $filters === [] ? null : $filters;
     }
 
     /**
