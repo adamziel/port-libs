@@ -41,6 +41,51 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
 
+    private const PDF_DOC_ENCODING_OVERRIDES = [
+        0x18 => 0x02d8,
+        0x19 => 0x02c7,
+        0x1a => 0x02c6,
+        0x1b => 0x02d9,
+        0x1c => 0x02dd,
+        0x1d => 0x02db,
+        0x1e => 0x02da,
+        0x1f => 0x02dc,
+        0x7f => 0xfffd,
+        0x80 => 0x2022,
+        0x81 => 0x2020,
+        0x82 => 0x2021,
+        0x83 => 0x2026,
+        0x84 => 0x2014,
+        0x85 => 0x2013,
+        0x86 => 0x0192,
+        0x87 => 0x2044,
+        0x88 => 0x2039,
+        0x89 => 0x203a,
+        0x8a => 0x2212,
+        0x8b => 0x2030,
+        0x8c => 0x201e,
+        0x8d => 0x201c,
+        0x8e => 0x201d,
+        0x8f => 0x2018,
+        0x90 => 0x2019,
+        0x91 => 0x201a,
+        0x92 => 0x2122,
+        0x93 => 0xfb01,
+        0x94 => 0xfb02,
+        0x95 => 0x0141,
+        0x96 => 0x0152,
+        0x97 => 0x0160,
+        0x98 => 0x0178,
+        0x99 => 0x017d,
+        0x9a => 0x0131,
+        0x9b => 0x0142,
+        0x9c => 0x0153,
+        0x9d => 0x0161,
+        0x9e => 0x017e,
+        0x9f => 0xfffd,
+        0xa0 => 0x20ac,
+    ];
+
     /**
      * Native PDF attachment preflight for embedded file streams referenced by
      * document EmbeddedFiles name trees or page FileAttachment annotations.
@@ -2285,6 +2330,21 @@ final class PdfAttachmentExtractor
         }
 
         return $bytes;
+    }
+
+    private function decodePdfDocEncoding(string $bytes): string
+    {
+        $decoded = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            $codepoint = self::PDF_DOC_ENCODING_OVERRIDES[$byte] ?? $byte;
+            $char = mb_chr($codepoint, 'UTF-8');
+            if ($char !== false) {
+                $decoded .= $char;
+            }
+        }
+
+        return $decoded;
     }
 
     /**
@@ -5052,7 +5112,7 @@ final class PdfAttachmentExtractor
             return $decoded === false ? '' : $decoded;
         }
 
-        return $bytes;
+        return $this->decodePdfDocEncoding($bytes);
     }
 
     /**
