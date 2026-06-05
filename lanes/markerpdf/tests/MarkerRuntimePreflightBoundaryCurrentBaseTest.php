@@ -1991,6 +1991,83 @@ return [
             $removeTree($output);
         }
     },
+    'records duplicate symlink targets as separate convert.py task args before pool launch' => static function (
+        TestRunner $t
+    ) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $originalPath = $input . DIRECTORY_SEPARATOR . 'original-report.pdf';
+            $linkedPath = $input . DIRECTORY_SEPARATOR . 'linked-copy.pdf';
+            $controlPath = $input . DIRECTORY_SEPARATOR . 'control.pdf';
+            file_put_contents($originalPath, "%PDF-1.4\n% duplicate target original\n%%EOF");
+            file_put_contents($controlPath, "%PDF-1.4\n% duplicate target control\n%%EOF");
+            if (!@symlink($originalPath, $linkedPath)) {
+                throw new RuntimeException('Unable to create duplicate-target symlink fixture for markerPDF runtime preflight.');
+            }
+
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $duplicateFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => in_array($filename, ['linked-copy.pdf', 'original-report.pdf'], true)
+            ));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'control.pdf' => ['title' => 'Control Import'],
+                    'original-report.pdf' => ['title' => 'Original Import', 'languages' => ['English']],
+                ],
+                workers: 6,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $review = $plan['worker_pool']['task_arg_identity_review'];
+            $t->same('convert.py os.listdir/os.path.isfile task tuple identity boundary', $review['source']);
+            $t->same('after_task_args_before_pool_imap', $review['order']);
+            $t->same(true, $review['review_reached']);
+            $t->same(null, $review['blocked_by']);
+            $t->same($fileOrder, $review['task_arg_filenames']);
+            $t->same(3, $review['task_args_count']);
+            $t->same(true, $review['duplicate_resolved_targets_found']);
+            $t->same(1, $review['duplicate_resolved_target_group_count']);
+            $t->same($duplicateFilenames, $review['duplicate_resolved_target_filenames']);
+            $t->same(true, $review['no_dedupe_before_task_args']);
+            $t->same(true, $review['metadata_lookup_uses_entry_basename']);
+            $t->same(false, $review['target_basename_metadata_fallback']);
+
+            $group = $review['duplicate_resolved_target_groups'][0];
+            $t->same(realpath($originalPath), $group['resolved_target']);
+            $t->same(2, $group['entry_count']);
+            $t->same($duplicateFilenames, $group['filenames']);
+            $t->same(true, $group['contains_symlink']);
+            $t->same(['linked-copy.pdf'], $group['symlink_filenames']);
+            $t->same(true, $group['queued_separately']);
+            $t->same(false, $group['deduplicated_by_realpath']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same($originalPath, $taskArgsByName['original-report.pdf']['filepath']);
+            $t->same($linkedPath, $taskArgsByName['linked-copy.pdf']['filepath']);
+            $t->same($controlPath, $taskArgsByName['control.pdf']['filepath']);
+            $t->same(['title' => 'Original Import', 'languages' => ['English']], $taskArgsByName['original-report.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['linked-copy.pdf']['metadata']);
+            $t->same(['title' => 'Control Import'], $taskArgsByName['control.pdf']['metadata']);
+            $t->same(3, $plan['worker_pool']['task_args_count']);
+            $t->same(3, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'preserves convert.py os.listdir order through chunk and max slicing' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

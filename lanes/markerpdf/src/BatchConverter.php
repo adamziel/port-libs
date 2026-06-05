@@ -1086,6 +1086,7 @@ final class BatchConverter
         } elseif (count($taskArgs) === 0) {
             $poolErrorBoundary = 'empty-task-queue';
         }
+        $taskArgIdentityReview = $this->runtimeTaskArgIdentityReview($taskArgs, $poolErrorBoundary);
         $processSinglePdfPreflight = $this->runtimeProcessSinglePdfPreflightReview($taskArgs, $poolErrorBoundary);
 
         return [
@@ -1203,6 +1204,7 @@ final class BatchConverter
                 'per_file_metadata_error_boundary' => $metadataValueReview['conversion_error_boundary'],
                 'pool_creation' => $this->convertMainPoolCreationPlan($totalProcesses),
                 'pool_cleanup' => $this->convertMainPoolCleanupPlan($totalProcesses, $modelHandoff),
+                'task_arg_identity_review' => $taskArgIdentityReview,
                 'process_single_pdf_preflight' => $processSinglePdfPreflight,
                 'progress_iterator' => $this->progressIterator(),
             ],
@@ -1430,6 +1432,80 @@ final class BatchConverter
                 'executes_external_pdf_tools' => false,
             ];
         }
+    }
+
+    /**
+     * @param list<array{filepath: string, out_folder: string, metadata: mixed, min_length: int|null}> $taskArgs
+     * @return array<string, mixed>
+     */
+    private function runtimeTaskArgIdentityReview(array $taskArgs, ?string $poolErrorBoundary = null): array
+    {
+        $records = [];
+        $recordsByResolvedTarget = [];
+        foreach ($taskArgs as $taskArg) {
+            $filepath = (string) $taskArg['filepath'];
+            $resolvedTarget = realpath($filepath);
+            $record = [
+                'filename' => basename($filepath),
+                'filepath' => $filepath,
+                'is_symlink' => is_link($filepath),
+                'resolved_target' => is_string($resolvedTarget) ? $resolvedTarget : $filepath,
+                'resolved_target_available' => is_string($resolvedTarget),
+            ];
+            $records[] = $record;
+            $recordsByResolvedTarget[$record['resolved_target']][] = $record;
+        }
+
+        $duplicateGroups = [];
+        $duplicateFilenames = [];
+        foreach ($recordsByResolvedTarget as $resolvedTarget => $groupRecords) {
+            if (count($groupRecords) < 2) {
+                continue;
+            }
+
+            $filenames = array_map(static fn (array $record): string => (string) $record['filename'], $groupRecords);
+            $filepaths = array_map(static fn (array $record): string => (string) $record['filepath'], $groupRecords);
+            $symlinkFilenames = array_values(array_map(
+                static fn (array $record): string => (string) $record['filename'],
+                array_filter($groupRecords, static fn (array $record): bool => (bool) $record['is_symlink'])
+            ));
+            $duplicateFilenames = array_merge($duplicateFilenames, $filenames);
+
+            $duplicateGroups[] = [
+                'resolved_target' => $resolvedTarget,
+                'entry_count' => count($groupRecords),
+                'filenames' => $filenames,
+                'filepaths' => $filepaths,
+                'contains_symlink' => $symlinkFilenames !== [],
+                'symlink_filenames' => $symlinkFilenames,
+                'queued_separately' => true,
+                'deduplicated_by_realpath' => false,
+            ];
+        }
+
+        $reviewReached = $taskArgs !== [];
+
+        return [
+            'source' => 'convert.py os.listdir/os.path.isfile task tuple identity boundary',
+            'order' => 'after_task_args_before_pool_imap',
+            'review_reached' => $reviewReached,
+            'blocked_by' => $reviewReached ? null : $poolErrorBoundary,
+            'pool_error_boundary' => $poolErrorBoundary,
+            'task_args_count' => count($taskArgs),
+            'task_arg_filenames' => array_map(static fn (array $record): string => (string) $record['filename'], $records),
+            'task_arg_identity_rows' => $records,
+            'duplicate_resolved_targets_found' => $duplicateGroups !== [],
+            'duplicate_resolved_target_group_count' => count($duplicateGroups),
+            'duplicate_resolved_target_groups' => $duplicateGroups,
+            'duplicate_resolved_target_filenames' => array_values($duplicateFilenames),
+            'no_dedupe_before_task_args' => $duplicateGroups !== [],
+            'metadata_lookup' => 'metadata.get(os.path.basename(f))',
+            'metadata_lookup_uses_entry_basename' => true,
+            'target_basename_metadata_fallback' => false,
+            'executes_python_or_models' => false,
+            'executes_multiprocessing' => false,
+            'executes_external_pdf_tools' => false,
+        ];
     }
 
     /**
