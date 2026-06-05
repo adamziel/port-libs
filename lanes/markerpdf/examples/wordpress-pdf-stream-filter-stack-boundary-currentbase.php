@@ -311,6 +311,36 @@ $allNullFilterPdf = "%PDF-1.4\n"
     . "99 0 obj\n{$allNullDecodeParmsObject}\nendobj\n"
     . "%%EOF";
 
+$cryptFirstContent = "BT /F1 12 Tf 72 720 Td (Identity Crypt First Before) Tj ET\n"
+    . "\nendstream\n"
+    . "BT /F1 12 Tf 72 704 Td (Identity Crypt First After) Tj ET";
+$cryptFirstCompressed = $zlibStored($cryptFirstContent);
+if (!str_contains($cryptFirstCompressed, "\nendstream\n")) {
+    throw new RuntimeException('Focused identity-Crypt-first stack smoke fixture must expose a fake compressed endstream boundary.');
+}
+
+$cryptLastContent = "BT /F1 12 Tf 72 688 Td (Flate Then Identity Crypt) Tj ET\n"
+    . "\nendstream\n"
+    . "BT /F1 12 Tf 72 672 Td (Identity Crypt Tail) Tj ET";
+$cryptLastCompressed = $zlibStored($cryptLastContent);
+if (!str_contains($cryptLastCompressed, "\nendstream\n")) {
+    throw new RuntimeException('Focused identity-Crypt-last stack smoke fixture must expose a fake compressed endstream boundary.');
+}
+
+$nonIdentityCryptContent = 'BT /F1 12 Tf 72 656 Td (Non Identity Crypt Leak) Tj ET';
+$nonIdentityCryptCompressed = $zlibStored($nonIdentityCryptContent);
+$cryptBoundaryVisibleAfter = 'BT /F1 12 Tf 72 640 Td (Visible After Crypt Boundary) Tj ET';
+$cryptIdentityPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R 8 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /Identity >> null ] >>\nstream\n{$cryptFirstCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter [ /FlateDecode /Crypt ] /DecodeParms [ null << /Type /CryptFilterDecodeParms /Name /Identity >> ] >>\nstream\n{$cryptLastCompressed}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /PrivateCF >> null ] /Length " . strlen($nonIdentityCryptCompressed) . " >>\nstream\n{$nonIdentityCryptCompressed}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Length " . strlen($cryptBoundaryVisibleAfter) . " >>\nstream\n{$cryptBoundaryVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -325,6 +355,7 @@ $compactDecodeParmsLines = $extractor->extractTextLines($compactDecodeParmsPdf);
 $aliasCompactDecodeParmsLines = $extractor->extractTextLines($aliasCompactDecodeParmsPdf);
 $strayDecodeParmsLines = $extractor->extractTextLines($strayDecodeParmsPdf);
 $allNullFilterLines = $extractor->extractTextLines($allNullFilterPdf);
+$cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -339,6 +370,7 @@ $allLines = [
     ...$aliasCompactDecodeParmsLines,
     ...$strayDecodeParmsLines,
     ...$allNullFilterLines,
+    ...$cryptIdentityLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -359,6 +391,9 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['A85', null, 'Fl'],
         [],
         [null],
+        ['Crypt', 'FlateDecode'],
+        ['FlateDecode', 'Crypt'],
+        ['Crypt', 'FlateDecode'],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
     'unresolved_decodeparms_on_null_filter_slot_ignored' => $nullSlotDecodeParmsLines === [
@@ -383,6 +418,14 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'All Null Filter Visible',
         'Identity Stack Preserved',
     ],
+    'identity_crypt_filter_stack_passthrough' => $cryptIdentityLines === [
+        'Identity Crypt First Before',
+        'Identity Crypt First After',
+        'Flate Then Identity Crypt',
+        'Identity Crypt Tail',
+        'Visible After Crypt Boundary',
+    ],
+    'named_crypt_filter_fail_closed' => !str_contains($joined, 'Non Identity Crypt Leak'),
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,
@@ -394,6 +437,7 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
     'fake_endstream_payload_excluded' => !str_contains($joined, 'endstream'),
     'stray_decodeparms_helper_excluded' => !str_contains($joined, 'Stray DecodeParms Helper Leak'),
     'all_null_decodeparms_helper_excluded' => !str_contains($joined, 'All Null DecodeParms Helper Leak'),
+    'crypt_filter_decodeparms_excluded' => !str_contains($joined, 'CryptFilterDecodeParms') && !str_contains($joined, 'PrivateCF'),
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
     'paragraphs' => $allLines,

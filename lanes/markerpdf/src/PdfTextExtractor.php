@@ -8648,6 +8648,7 @@ final class PdfTextExtractor
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms),
                 default => null,
             };
 
@@ -8983,6 +8984,7 @@ final class PdfTextExtractor
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $filterDecodeParms, $objects),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
+                'Crypt' => $this->decodeCryptIdentityStream($stream, $filterDecodeParms),
                 'DCTDecode', 'DCT' => null,
                 'CCITTFaxDecode', 'CCF' => null,
                 'JPXDecode', 'JBIG2Decode' => null,
@@ -9696,6 +9698,16 @@ final class PdfTextExtractor
         }
 
         return $this->applyDecodeParmsPredictor($inflated, $decodeParms, $objects);
+    }
+
+    private function decodeCryptIdentityStream(string $stream, ?string $decodeParms): ?string
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return null;
+        }
+
+        $name = $this->pdfNameValueAfterName($decodeParms, 'Name');
+        return $name === null || $name === 'Identity' ? $stream : null;
     }
 
     /**

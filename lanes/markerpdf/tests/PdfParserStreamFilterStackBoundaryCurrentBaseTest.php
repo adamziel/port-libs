@@ -412,6 +412,41 @@ $parserStreamFilterStackBoundaryCurrentBaseRunLengthPdf = static function (
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseCryptIdentityPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $cryptFirstContent = "BT /F1 12 Tf 72 720 Td (Identity Crypt First Before) Tj ET\n"
+        . "\nendstream\n"
+        . "BT /F1 12 Tf 72 704 Td (Identity Crypt First After) Tj ET";
+    $cryptFirstCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($cryptFirstContent);
+    if (!str_contains($cryptFirstCompressed, "\nendstream\n")) {
+        throw new RuntimeException('Focused identity-Crypt-first stack fixture must expose a fake compressed endstream boundary.');
+    }
+
+    $cryptLastContent = "BT /F1 12 Tf 72 688 Td (Flate Then Identity Crypt) Tj ET\n"
+        . "\nendstream\n"
+        . "BT /F1 12 Tf 72 672 Td (Identity Crypt Tail) Tj ET";
+    $cryptLastCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($cryptLastContent);
+    if (!str_contains($cryptLastCompressed, "\nendstream\n")) {
+        throw new RuntimeException('Focused identity-Crypt-last stack fixture must expose a fake compressed endstream boundary.');
+    }
+
+    $nonIdentityContent = 'BT /F1 12 Tf 72 656 Td (Non Identity Crypt Leak) Tj ET';
+    $nonIdentityCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($nonIdentityContent);
+    $visibleAfter = 'BT /F1 12 Tf 72 640 Td (Visible After Crypt Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R 8 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /Identity >> null ] >>\nstream\n{$cryptFirstCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ /FlateDecode /Crypt ] /DecodeParms [ null << /Type /CryptFilterDecodeParms /Name /Identity >> ] >>\nstream\n{$cryptLastCompressed}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /PrivateCF >> null ] /Length " . strlen($nonIdentityCompressed) . " >>\nstream\n{$nonIdentityCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses ASCII85 EOD markers before accepting missing-Length filter-stack endstream boundaries' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBasePdf): void {
         $extractor = new PdfTextExtractor();
@@ -616,5 +651,29 @@ return [
             $t->true(!str_contains($text, 'FlateDecode'));
         }
         $t->true($declaredLength > 0);
+    },
+    'treats explicit Identity Crypt filters as pass-through stack stages while rejecting named crypt filters' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseCryptIdentityPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseCryptIdentityPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Identity Crypt First Before',
+            'Identity Crypt First After',
+            'Flate Then Identity Crypt',
+            'Identity Crypt Tail',
+            'Visible After Crypt Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Non Identity Crypt Leak'));
+        $t->true(!str_contains($text, 'PrivateCF'));
+        $t->true(!str_contains($text, 'CryptFilterDecodeParms'));
+        $t->true(!str_contains($text, 'endstream'));
+        $t->true(!str_contains($text, "\0"));
     },
 ];
