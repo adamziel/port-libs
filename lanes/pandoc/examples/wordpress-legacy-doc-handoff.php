@@ -94,6 +94,27 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 
     return pack('v', 0x0040) . "\0\0" . $u64(((int) $seconds + 11644473600) * 10000000);
 };
+$typedVectorLpstr = static function (array $values): string {
+    $payload = pack('V', count($values));
+    foreach ($values as $value) {
+        $bytes = (string) $value . "\0";
+        $payload .= pack('V', strlen($bytes)) . $bytes;
+    }
+    $raw = pack('v', 0x101e) . "\0\0" . $payload;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedVariantLpstr = static function (string $value): string {
+    $bytes = $value . "\0";
+
+    return pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes;
+};
+$typedVariantI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
+$typedVectorVariant = static function (array $variants): string {
+    $raw = pack('v', 0x100c) . "\0\0" . pack('V', count($variants)) . implode('', $variants);
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
     if (!array_key_exists(1, $properties)) {
         $properties = [1 => $typedI2(1252)] + $properties;
@@ -161,6 +182,17 @@ $streams = [
         5 => $typedI4(2),
         6 => $typedI4(2),
         11 => $typedBool(false),
+        12 => $typedVectorVariant([
+            $typedVariantLpstr('Sections'),
+            $typedVariantI4(2),
+            $typedVariantLpstr('Appendices'),
+            $typedVariantI4(1),
+        ]),
+        13 => $typedVectorLpstr([
+            'Overview',
+            'Reviewer notes',
+            'Source appendix',
+        ]),
         15 => $typedLpstr('Example Press'),
         16 => $typedBool(true),
         17 => $typedI4(78),
@@ -330,6 +362,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['lineCount'] ?? null) !== 2 || ($summary['metadata']['linksDirty'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing DocumentSummaryInformation review metadata');
+    }
+    if (($summary['metadata']['documentParts'] ?? []) !== ['Overview', 'Reviewer notes', 'Source appendix']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing document part titles');
+    }
+    if (($summary['metadata']['headingPairs'][0]['parts'] ?? []) !== ['Overview', 'Reviewer notes']) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing heading-pair section inventory');
     }
     foreach ([
         '<p>Legacy DOC import ΩЖ魚</p>',

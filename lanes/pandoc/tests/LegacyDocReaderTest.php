@@ -299,6 +299,27 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
 
     return pack('v', 0x0040) . "\0\0" . $u64(((int) $seconds + 11644473600) * 10000000);
 };
+$typedVectorLpstr = static function (array $values): string {
+    $payload = pack('V', count($values));
+    foreach ($values as $value) {
+        $bytes = (string) $value . "\0";
+        $payload .= pack('V', strlen($bytes)) . $bytes;
+    }
+    $raw = pack('v', 0x101e) . "\0\0" . $payload;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedVariantLpstr = static function (string $value): string {
+    $bytes = $value . "\0";
+
+    return pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes;
+};
+$typedVariantI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
+$typedVectorVariant = static function (array $variants): string {
+    $raw = pack('v', 0x100c) . "\0\0" . pack('V', count($variants)) . implode('', $variants);
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
     if (!array_key_exists(1, $properties)) {
         $properties = [1 => $typedI2(1252)] + $properties;
@@ -584,6 +605,46 @@ return [
         $t->same('draft-import', $metadata['contentStatus']);
         $t->same('en-US', $metadata['language']);
         $t->same('16.0', $metadata['documentVersion']);
+    },
+    'extracts legacy DOC DocumentSummaryInformation heading pairs and document parts' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedVectorVariant, $typedVariantLpstr, $typedVariantI4, $typedVectorLpstr): void {
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Document part inventory\r"),
+            "\x05DocumentSummaryInformation" => $typedPropertySet([
+                12 => $typedVectorVariant([
+                    $typedVariantLpstr('Sections'),
+                    $typedVariantI4(2),
+                    $typedVariantLpstr('Appendices'),
+                    $typedVariantI4(1),
+                ]),
+                13 => $typedVectorLpstr([
+                    'Overview',
+                    'Migration notes',
+                    'Review appendix',
+                ]),
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same([
+            'Overview',
+            'Migration notes',
+            'Review appendix',
+        ], $metadata['documentParts']);
+        $t->same([
+            [
+                'heading' => 'Sections',
+                'count' => 2,
+                'parts' => ['Overview', 'Migration notes'],
+            ],
+            [
+                'heading' => 'Appendices',
+                'count' => 1,
+                'parts' => ['Review appendix'],
+            ],
+        ], $metadata['headingPairs']);
+        $t->same($metadata['headingPairs'], $result['document']->attr('meta')['headingPairs']);
     },
     'extracts complex legacy DOC piece-table text from the selected 1Table stream' => static function (TestRunner $t) use ($buildCfb, $buildPieceTableDocStreams): void {
         $streams = $buildPieceTableDocStreams();

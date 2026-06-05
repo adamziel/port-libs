@@ -384,6 +384,16 @@ final class LegacyDocReader
 
     private function readTypedPropertyValue(string $bytes, int $offset, int $codepage): mixed
     {
+        $typedValue = $this->readTypedPropertyValueWithSize($bytes, $offset, $codepage);
+
+        return $typedValue['value'] ?? null;
+    }
+
+    /**
+     * @return array{value:mixed,bytes:int}|null
+     */
+    private function readTypedPropertyValueWithSize(string $bytes, int $offset, int $codepage): ?array
+    {
         if ($offset + 4 > strlen($bytes)) {
             return null;
         }
@@ -392,14 +402,41 @@ final class LegacyDocReader
         $valueOffset = $offset + 4;
 
         return match ($type) {
-            0x0002 => self::signed16(self::u16($bytes, $valueOffset)),
-            0x0003 => self::signed32(self::u32($bytes, $valueOffset)),
-            0x000b => $this->readVariantBool($bytes, $valueOffset),
-            0x001e => $this->readLpstr($bytes, $valueOffset, $codepage),
-            0x001f => $this->readLpwstr($bytes, $valueOffset),
-            0x0040 => $this->readFiletime($bytes, $valueOffset),
+            0x0002 => $valueOffset + 2 <= strlen($bytes)
+                ? ['value' => self::signed16(self::u16($bytes, $valueOffset)), 'bytes' => 8]
+                : null,
+            0x0003 => $valueOffset + 4 <= strlen($bytes)
+                ? ['value' => self::signed32(self::u32($bytes, $valueOffset)), 'bytes' => 8]
+                : null,
+            0x000b => $valueOffset + 2 <= strlen($bytes)
+                ? ['value' => $this->readVariantBool($bytes, $valueOffset), 'bytes' => 8]
+                : null,
+            0x001e => $this->typedSizedValue($this->readLpstrWithSize($bytes, $valueOffset, $codepage)),
+            0x001f => $this->typedSizedValue($this->readLpwstrWithSize($bytes, $valueOffset)),
+            0x0040 => $valueOffset + 8 <= strlen($bytes)
+                ? ['value' => $this->readFiletime($bytes, $valueOffset), 'bytes' => 12]
+                : null,
+            0x100c => $this->typedSizedValue($this->readVariantVectorWithSize($bytes, $valueOffset, $codepage)),
+            0x101e => $this->typedSizedValue($this->readLpstrVectorWithSize($bytes, $valueOffset, $codepage)),
+            0x101f => $this->typedSizedValue($this->readLpwstrVectorWithSize($bytes, $valueOffset)),
             default => null,
         };
+    }
+
+    /**
+     * @param array{value:mixed,bytes:int}|null $sizedValue
+     * @return array{value:mixed,bytes:int}|null
+     */
+    private function typedSizedValue(?array $sizedValue): ?array
+    {
+        if ($sizedValue === null) {
+            return null;
+        }
+
+        return [
+            'value' => $sizedValue['value'],
+            'bytes' => 4 + $sizedValue['bytes'],
+        ];
     }
 
     /**
@@ -460,6 +497,17 @@ final class LegacyDocReader
         }
         if ($kind === 'summary' && isset($metadata['documentSecurity']) && is_int($metadata['documentSecurity'])) {
             $metadata['documentSecurityFlags'] = $this->documentSecurityFlags($metadata['documentSecurity']);
+        }
+        if ($kind === 'document-summary') {
+            $documentParts = $this->stringList($properties[13] ?? null);
+            if ($documentParts !== []) {
+                $metadata['documentParts'] = $documentParts;
+            }
+
+            $headingPairs = $this->documentHeadingPairs($properties[12] ?? null, $documentParts);
+            if ($headingPairs !== []) {
+                $metadata['headingPairs'] = $headingPairs;
+            }
         }
 
         return $metadata;
@@ -558,6 +606,16 @@ final class LegacyDocReader
 
     private function readLpstr(string $bytes, int $offset, int $codepage): ?string
     {
+        $value = $this->readLpstrWithSize($bytes, $offset, $codepage);
+
+        return $value['value'] ?? null;
+    }
+
+    /**
+     * @return array{value:string,bytes:int}|null
+     */
+    private function readLpstrWithSize(string $bytes, int $offset, int $codepage): ?array
+    {
         if ($offset + 4 > strlen($bytes)) {
             return null;
         }
@@ -567,17 +625,32 @@ final class LegacyDocReader
         }
 
         $raw = rtrim(substr($bytes, $offset + 4, $length), "\0");
+        $value = null;
         if ($codepage === 65001) {
-            return $raw;
-        }
-        if ($codepage === 1200) {
-            return $this->decodeUtf16Le($raw);
+            $value = $raw;
+        } elseif ($codepage === 1200) {
+            $value = $this->decodeUtf16Le($raw);
+        } else {
+            $value = $this->decodeWindows1252($raw);
         }
 
-        return $this->decodeWindows1252($raw);
+        return [
+            'value' => $value,
+            'bytes' => 4 + $length,
+        ];
     }
 
     private function readLpwstr(string $bytes, int $offset): ?string
+    {
+        $value = $this->readLpwstrWithSize($bytes, $offset);
+
+        return $value['value'] ?? null;
+    }
+
+    /**
+     * @return array{value:string,bytes:int}|null
+     */
+    private function readLpwstrWithSize(string $bytes, int $offset): ?array
     {
         if ($offset + 4 > strlen($bytes)) {
             return null;
@@ -588,7 +661,141 @@ final class LegacyDocReader
             return null;
         }
 
-        return rtrim($this->decodeUtf16Le(substr($bytes, $offset + 4, $byteLength)), "\0");
+        return [
+            'value' => rtrim($this->decodeUtf16Le(substr($bytes, $offset + 4, $byteLength)), "\0"),
+            'bytes' => 4 + $byteLength,
+        ];
+    }
+
+    /**
+     * @return array{value:list<string>,bytes:int}|null
+     */
+    private function readLpstrVectorWithSize(string $bytes, int $offset, int $codepage): ?array
+    {
+        if ($offset + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $count = self::u32($bytes, $offset);
+        $cursor = $offset + 4;
+        $values = [];
+        for ($index = 0; $index < $count; $index++) {
+            $value = $this->readLpstrWithSize($bytes, $cursor, $codepage);
+            if ($value === null) {
+                return null;
+            }
+            $values[] = $value['value'];
+            $cursor += $value['bytes'];
+        }
+
+        return [
+            'value' => $values,
+            'bytes' => $cursor - $offset,
+        ];
+    }
+
+    /**
+     * @return array{value:list<string>,bytes:int}|null
+     */
+    private function readLpwstrVectorWithSize(string $bytes, int $offset): ?array
+    {
+        if ($offset + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $count = self::u32($bytes, $offset);
+        $cursor = $offset + 4;
+        $values = [];
+        for ($index = 0; $index < $count; $index++) {
+            $value = $this->readLpwstrWithSize($bytes, $cursor);
+            if ($value === null) {
+                return null;
+            }
+            $values[] = $value['value'];
+            $cursor += $value['bytes'];
+        }
+
+        return [
+            'value' => $values,
+            'bytes' => $cursor - $offset,
+        ];
+    }
+
+    /**
+     * @return array{value:list<mixed>,bytes:int}|null
+     */
+    private function readVariantVectorWithSize(string $bytes, int $offset, int $codepage): ?array
+    {
+        if ($offset + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $count = self::u32($bytes, $offset);
+        $cursor = $offset + 4;
+        $values = [];
+        for ($index = 0; $index < $count; $index++) {
+            $value = $this->readTypedPropertyValueWithSize($bytes, $cursor, $codepage);
+            if ($value === null) {
+                return null;
+            }
+            $values[] = $value['value'];
+            $cursor += $value['bytes'];
+        }
+
+        return [
+            'value' => $values,
+            'bytes' => $cursor - $offset,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param list<string> $documentParts
+     * @return list<array{heading:string,count:int,parts:list<string>}>
+     */
+    private function documentHeadingPairs(mixed $value, array $documentParts): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $pairs = [];
+        $partOffset = 0;
+        for ($index = 0, $count = count($value); $index + 1 < $count; $index += 2) {
+            $heading = $value[$index];
+            $partCount = $value[$index + 1];
+            if (!is_string($heading) || $heading === '' || !is_int($partCount) || $partCount < 0) {
+                continue;
+            }
+
+            $parts = array_slice($documentParts, $partOffset, $partCount);
+            $partOffset += $partCount;
+            $pairs[] = [
+                'heading' => $heading,
+                'count' => $partCount,
+                'parts' => $parts,
+            ];
+        }
+
+        return $pairs;
     }
 
     private function readVariantBool(string $bytes, int $offset): ?bool
