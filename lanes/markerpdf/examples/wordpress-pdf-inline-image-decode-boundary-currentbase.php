@@ -237,6 +237,16 @@ $lzwIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
     $inlineReviewObjects,
     3
 );
+$nullFilterPredictorPayload = gzcompress("\0ABC");
+if (!is_string($nullFilterPredictorPayload)) {
+    throw new RuntimeException('Unable to build null-filter inline predictor smoke payload.');
+}
+$nullFilterPredictorReview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    '/W 3 /H 1 /CS /G /BPC 8 /F [null /Fl] /DP [null << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 >>] /D [0 1]',
+    $nullFilterPredictorPayload,
+    [],
+    3
+);
 $runLengthIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
     '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /RL /D [0 3]',
     $runLengthLiteralEncode("\x1c", true),
@@ -315,6 +325,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'lzw_inline_decodeparms_preview_decoded' => ($lzwIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($lzwIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '0055FF',
     'lzw_inline_palette_indexes' => array_column($lzwIndexedReview['pixels'] ?? [], 'palette_index'),
+    'null_filter_inline_decodeparms_aligned' => ($nullFilterPredictorReview['image_stream']['decoded_preview_hex'] ?? null) === '414243'
+        && array_column($nullFilterPredictorReview['pixels'] ?? [], 'decoded_gray') === [65 / 255, 66 / 255, 67 / 255],
+    'null_filter_inline_public_filters' => $nullFilterPredictorReview['image_stream']['filters'] ?? [],
+    'null_filter_inline_decode_failed' => $nullFilterPredictorReview['image_stream']['decode_failed'] ?? null,
     'runlength_inline_eod_present' => str_contains($runLengthPayload, chr(128)),
     'runlength_inline_preview_decoded' => ($runLengthIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',

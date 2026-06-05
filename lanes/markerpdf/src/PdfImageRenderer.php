@@ -5708,8 +5708,15 @@ final class PdfImageRenderer
         bool $requireExplicitFilterEndMarkers = false
     ): array
     {
-        $filters = $this->imageFilterNames($dictionary, $objects);
-        if ($filters === []) {
+        $filters = $this->imageFilterValues($dictionary, $objects);
+        $hasConcreteFilter = false;
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                $hasConcreteFilter = true;
+                break;
+            }
+        }
+        if (!$hasConcreteFilter) {
             return [
                 'decoded' => $stream,
                 'unsupported_filters' => [],
@@ -5721,7 +5728,11 @@ final class PdfImageRenderer
         $unsupportedFilters = [];
 
         foreach ($filters as $index => $filter) {
-            $decodeParmsValue = $decodeParms[$index] ?? (count($filters) === 1 ? ($decodeParms[0] ?? null) : null);
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $resolvedDecodeParms = $this->resolvedDecodeParmsDictionary($decodeParmsValue, $objects);
             if ($this->isPreviewOnlyStreamFilter($filter) || !$this->canApplyImageDecodeParms($filter, $resolvedDecodeParms, $objects)) {
                 $unsupportedFilters[] = $filter;

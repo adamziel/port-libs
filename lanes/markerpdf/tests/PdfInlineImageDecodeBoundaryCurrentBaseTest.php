@@ -235,6 +235,37 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'aligns null filter DecodeParms slots before inline image RGB preview' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $decodedImageBytes = 'ABC';
+        $payload = gzcompress("\0" . $decodedImageBytes);
+        if (!is_string($payload)) {
+            throw new RuntimeException('Unable to compress null-filter inline image fixture.');
+        }
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            '/W 3 /H 1 /CS /G /BPC 8 /F [null /Fl] /DP [null << /Predictor 12 /Columns 3 /Colors 1 /BitsPerComponent 8 >>] /D [0 1]',
+            $payload,
+            [],
+            3
+        );
+
+        $t->same(['FlateDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(strlen($payload), $preview['image_stream']['raw_length']);
+        $t->same(3, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $decodedImageBytes), $preview['image_stream']['decoded_sha256']);
+        $t->same('414243', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same(3, $preview['preview_pixel_count']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same([[65.0], [66.0], [67.0]], array_column($preview['pixels'], 'raw_sample'));
+        $t->same([65 / 255, 66 / 255, 67 / 255], array_column($preview['pixels'], 'decoded_gray'));
+        $t->contains('inline_image_stream_filters_decoded_before_output_preview', implode(',', $preview['stream_notes']));
+        $t->contains('image_decode_applied_before_rgb', implode(',', $preview['notes']));
+    },
     'accepts filtered inline image EI after decoded sample floor is reached' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payloadText = "X EI BT /F1 12 Tf 72 690 Td (Oversized Flate Inline Noise) Tj ET";
