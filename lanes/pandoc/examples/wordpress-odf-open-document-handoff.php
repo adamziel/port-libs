@@ -103,12 +103,22 @@ $contentXml = <<<'XML'
           <form:checkbox form:id="ctrl-review-approval" form:name="ReviewApproval" form:label="Review approved" form:current-state="checked"/>
         </form:form>
       </office:forms>
+      <text:sequence-decls>
+        <text:sequence-decl text:name="Illustration" text:display-outline-level="0" text:separation-character="."/>
+      </text:sequence-decls>
+      <text:variable-decls>
+        <text:variable-decl text:name="ReviewStatus" office:value-type="string"/>
+      </text:variable-decls>
+      <text:user-field-decls>
+        <text:user-field-decl text:name="Reviewer" office:value-type="string" office:string-value="Migration Desk"/>
+        <text:user-field-decl text:name="SourcePackage" office:value-type="string" office:string-value="package-42"/>
+      </text:user-field-decls>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
       <text:section text:name="Linked Policy Appendix" text:protected="true" text:protection-key="review-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
         <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
         <text:p>Linked appendix fallback text.</text:p>
       </text:section>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps source mark<text:span text:style-name="SourceSuperscript">TM</text:span> and H<text:span text:style-name="SourceSubscript">2</text:span>O, <office:annotation office:name="ann-source-range"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated source claim<office:annotation-end office:name="ann-source-range"/>, <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, review field <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> on page <text:page-number text:select-page="current">2</text:page-number>, approval <draw:control draw:control="ctrl-review-approval"/>, <text:a xlink:href="https://example.test/odt-source" xlink:type="simple" xlink:show="new" xlink:actuate="onRequest" office:name="Source Packet Link" office:title="ODT source package" office:target-frame-name="_blank" text:style-name="SourceLink" text:visited-style-name="VisitedSourceLink">source URL</text:a>, page boundary <text:soft-page-break/>after source page boundary, citation <text:bibliography-mark text:identifier="source-review" text:number="2">source review packet</text:bibliography-mark>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object%201"/></draw:frame>, spreadsheet <draw:frame draw:name="Source spreadsheet"><draw:object-ole xlink:href="./Object%202"/></draw:frame>, chart <draw:frame draw:name="Source chart"><svg:desc>Source chart placeholder</svg:desc><draw:object xlink:href="./Object%203"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps source mark<text:span text:style-name="SourceSuperscript">TM</text:span> and H<text:span text:style-name="SourceSubscript">2</text:span>O, <office:annotation office:name="ann-source-range"><dc:creator>Migration Reviewer</dc:creator><dc:date>2026-06-05T05:58:00Z</dc:date><text:p>Range comment for the annotated source claim.</text:p></office:annotation>annotated source claim<office:annotation-end office:name="ann-source-range"/>, <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:reference-mark-start text:name="Source Claim"/>source claim<text:reference-mark-end text:name="Source Claim"/> with <text:reference-ref text:ref-name="Source Claim" text:reference-format="text">source claim reference</text:reference-ref>, caption <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1" text:ref-name="source-hero-seq">Figure 1</text:sequence>, review field <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-set> by <text:user-field-get text:name="Reviewer">Migration Desk</text:user-field-get> from source package <text:user-field-get text:name="SourcePackage"/> on page <text:page-number text:select-page="current">2</text:page-number>, approval <draw:control draw:control="ctrl-review-approval"/>, <text:a xlink:href="https://example.test/odt-source" xlink:type="simple" xlink:show="new" xlink:actuate="onRequest" office:name="Source Packet Link" office:title="ODT source package" office:target-frame-name="_blank" text:style-name="SourceLink" text:visited-style-name="VisitedSourceLink">source URL</text:a>, page boundary <text:soft-page-break/>after source page boundary, citation <text:bibliography-mark text:identifier="source-review" text:number="2">source review packet</text:bibliography-mark>, formula <draw:frame draw:name="Migration formula"><draw:object xlink:href="./Object%201"/></draw:frame>, spreadsheet <draw:frame draw:name="Source spreadsheet"><draw:object-ole xlink:href="./Object%202"/></draw:frame>, chart <draw:frame draw:name="Source chart"><svg:desc>Source chart placeholder</svg:desc><draw:object xlink:href="./Object%203"/></draw:frame>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-header><text:p>Review packet checklist</text:p></text:list-header>
         <text:list-item>
@@ -302,11 +312,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="source-hero-seq">Figure 1</span>')) {
         throw new RuntimeException('Expected ODT sequence field to render in WordPress blocks');
     }
-    if (($result['importReport']['content']['fieldCount'] ?? 0) !== 3) {
+    if (($result['importReport']['content']['fieldCount'] ?? 0) !== 4) {
         throw new RuntimeException('Expected ODT variable and user fields to be counted in the import report');
+    }
+    if (($result['importReport']['contentDeclarations']['sequenceDeclarationCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT sequence declarations to be counted in the import report');
+    }
+    if (($result['importReport']['contentDeclarations']['variableDeclarationCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT variable declarations to be counted in the import report');
+    }
+    if (($result['importReport']['contentDeclarations']['userFieldDeclarationCount'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT user-field declarations to be counted in the import report');
+    }
+    if (($result['contentDeclarations']['userFieldDeclarations']['SourcePackage']['stringValue'] ?? '') !== 'package-42') {
+        throw new RuntimeException('Expected ODT source package user-field declaration to survive import metadata');
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-variable-set" data-odf-field-type="variable-set" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>')) {
         throw new RuntimeException('Expected ODT variable field to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="SourcePackage" data-odf-field-value-type="string" data-odf-field-string-value="package-42" data-odf-field-declared="true">package-42</span>')) {
+        throw new RuntimeException('Expected ODT user-field declaration fallback to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-page-number" data-odf-field-type="page-number" data-odf-field-select-page="current">2</span>')) {
         throw new RuntimeException('Expected ODT page-number field to render in WordPress blocks');

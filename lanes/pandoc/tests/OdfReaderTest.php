@@ -1087,6 +1087,88 @@ XML;
         $t->contains('<div class="odf-form-control odf-control-checkbox" data-odf-control-id="ctrl-publish" data-odf-control-type="checkbox" data-odf-control-exists="true"', $blocksHtml);
         $t->contains('Ready to publish', $blocksHtml);
     },
+    'maps ODT field declarations and user-field fallback values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFieldDeclarations = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:sequence-decls>
+        <text:sequence-decl text:name="Illustration" text:display-outline-level="0" text:separation-character="."/>
+        <text:sequence-decl text:name="Table" text:display-outline-level="1" text:separation-character=":"/>
+      </text:sequence-decls>
+      <text:variable-decls>
+        <text:variable-decl text:name="ReviewStatus" office:value-type="string"/>
+      </text:variable-decls>
+      <text:user-field-decls>
+        <text:user-field-decl text:name="Reviewer" office:value-type="string" office:string-value="Migration Desk"/>
+        <text:user-field-decl text:name="SourcePage" office:value-type="float" office:value="12"/>
+      </text:user-field-decls>
+      <text:p>Declared reviewer <text:user-field-get text:name="Reviewer"/> saw source page <text:user-field-get text:name="SourcePage"/> before <text:sequence text:name="Illustration" text:formula="ooow:Illustration+1">Figure 1</text:sequence>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFieldDeclarations));
+        $document = $result['document'];
+        $declarations = $result['contentDeclarations'];
+        $paragraph = $document->children[0];
+        $reviewerField = $paragraph->children[1];
+        $pageField = $paragraph->children[3];
+        $sequence = $paragraph->children[5];
+
+        $t->same('Declared reviewer Migration Desk saw source page 12 before Figure 1.', $paragraph->attr('text'));
+        $t->same(2, $declarations['sequenceDeclarationCount']);
+        $t->same(1, $declarations['variableDeclarationCount']);
+        $t->same(2, $declarations['userFieldDeclarationCount']);
+        $t->same('Illustration', $declarations['sequenceDeclarations']['Illustration']['name']);
+        $t->same(0, $declarations['sequenceDeclarations']['Illustration']['displayOutlineLevel']);
+        $t->same('.', $declarations['sequenceDeclarations']['Illustration']['separationCharacter']);
+        $t->same('Table', $declarations['sequenceDeclarations']['Table']['name']);
+        $t->same(1, $declarations['sequenceDeclarations']['Table']['displayOutlineLevel']);
+        $t->same(':', $declarations['sequenceDeclarations']['Table']['separationCharacter']);
+        $t->same('ReviewStatus', $declarations['variableDeclarations']['ReviewStatus']['name']);
+        $t->same('string', $declarations['variableDeclarations']['ReviewStatus']['valueType']);
+        $t->same('Migration Desk', $declarations['userFieldDeclarations']['Reviewer']['stringValue']);
+        $t->same('float', $declarations['userFieldDeclarations']['SourcePage']['valueType']);
+        $t->same('12', $declarations['userFieldDeclarations']['SourcePage']['value']);
+        $t->same($declarations, $document->attr('contentDeclarations'));
+
+        $t->same('span', $reviewerField->type);
+        $t->same('Reviewer', $reviewerField->attr('fieldName'));
+        $t->same(true, $reviewerField->attr('fieldMetadata')['declared']);
+        $t->same('Migration Desk', $reviewerField->attr('fieldMetadata')['stringValue']);
+        $t->same('Migration Desk', $reviewerField->children[0]->attr('text'));
+        $t->same('true', $reviewerField->attr('attributes')['data-odf-field-declared']);
+        $t->same('Migration Desk', $reviewerField->attr('attributes')['data-odf-field-string-value']);
+
+        $t->same('span', $pageField->type);
+        $t->same('SourcePage', $pageField->attr('fieldName'));
+        $t->same(true, $pageField->attr('fieldMetadata')['declared']);
+        $t->same('float', $pageField->attr('fieldMetadata')['valueType']);
+        $t->same('12', $pageField->attr('fieldMetadata')['value']);
+        $t->same('12', $pageField->children[0]->attr('text'));
+        $t->same('true', $pageField->attr('attributes')['data-odf-field-declared']);
+        $t->same('12', $pageField->attr('attributes')['data-odf-field-value']);
+
+        $t->same('span', $sequence->type);
+        $t->same('Illustration', $sequence->attr('attributes')['data-odf-sequence-name']);
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+        $t->same(1, $result['importReport']['content']['sequenceCount']);
+        $t->same(2, $result['importReport']['contentDeclarations']['sequenceDeclarationCount']);
+        $t->same(1, $result['importReport']['contentDeclarations']['variableDeclarationCount']);
+        $t->same(2, $result['importReport']['contentDeclarations']['userFieldDeclarationCount']);
+        $t->same('Migration Desk', $result['importReport']['contentDeclarations']['userFieldDeclarations']['Reviewer']['stringValue']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Migration Desk]{.odf-field .odf-field-user-field-get data-odf-field-type="user-field-get" data-odf-field-name="Reviewer" data-odf-field-value-type="string" data-odf-field-string-value="Migration Desk" data-odf-field-declared="true"}', $markdown);
+        $t->contains('[12]{.odf-field .odf-field-user-field-get data-odf-field-type="user-field-get" data-odf-field-name="SourcePage" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer" data-odf-field-value-type="string" data-odf-field-string-value="Migration Desk" data-odf-field-declared="true">Migration Desk</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="SourcePage" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true">12</span>', $blocksHtml);
+    },
     'maps ODT variable user page and date fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFields = <<<'XML'
 <office:document-content

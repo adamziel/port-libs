@@ -30,6 +30,9 @@ final class OdfReader
     /** @var array<string, array<string, mixed>> */
     private array $formControlsById = [];
 
+    /** @var array<string, mixed> */
+    private array $contentDeclarations = [];
+
     /** @var array<int, int> */
     private array $listContinuationStartCounters = [];
 
@@ -47,6 +50,7 @@ final class OdfReader
      *     listStyles:array<string, mixed>,
      *     pageLayouts:array<string, mixed>,
      *     masterPages:array<string, mixed>,
+     *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
      *     trackedChanges:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
@@ -90,6 +94,7 @@ final class OdfReader
                 'count' => count($styleCatalog['masterPages']),
                 'items' => array_values($styleCatalog['masterPages']),
             ],
+            'contentDeclarations' => $content['contentDeclarations'],
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -104,6 +109,7 @@ final class OdfReader
             'listStyles' => $styleCatalog['listStyles'],
             'pageLayouts' => $styleCatalog['pageLayouts'],
             'masterPages' => $styleCatalog['masterPages'],
+            'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
             'trackedChanges' => $content['trackedChanges'],
             'importReport' => [
@@ -137,6 +143,7 @@ final class OdfReader
                     'count' => count($styleCatalog['masterPages']),
                     'items' => array_values($styleCatalog['masterPages']),
                 ],
+                'contentDeclarations' => $content['contentDeclarations'],
                 'media' => [
                     'count' => count($media),
                     'items' => $media,
@@ -332,7 +339,7 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>}
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog): array
     {
@@ -356,6 +363,7 @@ final class OdfReader
 
         $this->trackedChanges = $this->trackedChangesFromText($text);
         $this->formControlsById = $this->formControlsFromText($text);
+        $this->contentDeclarations = $this->contentDeclarationsFromText($text);
         $this->listContinuationStartCounters = [];
         $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
@@ -365,6 +373,7 @@ final class OdfReader
             'styleCatalog' => $styleCatalog,
             'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
             'trackedChanges' => array_values($this->trackedChanges),
+            'contentDeclarations' => $this->contentDeclarations,
         ];
     }
 
@@ -1168,6 +1177,86 @@ final class OdfReader
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function contentDeclarationsFromText(\DOMElement $text): array
+    {
+        $sequenceDeclarations = [];
+        $sequenceDecls = self::firstChildElement($text, 'sequence-decls', self::TEXT_NS);
+        if ($sequenceDecls instanceof \DOMElement) {
+            foreach (self::childElements($sequenceDecls, 'sequence-decl', self::TEXT_NS) as $decl) {
+                $name = self::attr($decl, self::TEXT_NS, 'name');
+                if ($name === '') {
+                    continue;
+                }
+
+                $sequenceDeclarations[$name] = self::withoutEmpty([
+                    'name' => $name,
+                    'displayOutlineLevel' => self::nullableInt(self::attr($decl, self::TEXT_NS, 'display-outline-level')),
+                    'separationCharacter' => self::nullable(self::attr($decl, self::TEXT_NS, 'separation-character')),
+                ]);
+            }
+        }
+
+        $variableDeclarations = [];
+        $variableDecls = self::firstChildElement($text, 'variable-decls', self::TEXT_NS);
+        if ($variableDecls instanceof \DOMElement) {
+            foreach (self::childElements($variableDecls, 'variable-decl', self::TEXT_NS) as $decl) {
+                $name = self::attr($decl, self::TEXT_NS, 'name');
+                if ($name === '') {
+                    continue;
+                }
+
+                $variableDeclarations[$name] = self::withoutEmpty([
+                    'name' => $name,
+                    'valueType' => self::nullable(self::attr($decl, self::OFFICE_NS, 'value-type')),
+                ]);
+            }
+        }
+
+        $userFieldDeclarations = [];
+        $userFieldDecls = self::firstChildElement($text, 'user-field-decls', self::TEXT_NS);
+        if ($userFieldDecls instanceof \DOMElement) {
+            foreach (self::childElements($userFieldDecls, 'user-field-decl', self::TEXT_NS) as $decl) {
+                $name = self::attr($decl, self::TEXT_NS, 'name');
+                if ($name === '') {
+                    continue;
+                }
+
+                $dateValue = self::attr($decl, self::OFFICE_NS, 'date-value');
+                if ($dateValue === '') {
+                    $dateValue = self::attr($decl, self::TEXT_NS, 'date-value');
+                }
+                $timeValue = self::attr($decl, self::OFFICE_NS, 'time-value');
+                if ($timeValue === '') {
+                    $timeValue = self::attr($decl, self::TEXT_NS, 'time-value');
+                }
+                $booleanValue = self::nullableBool(self::attr($decl, self::OFFICE_NS, 'boolean-value'));
+
+                $userFieldDeclarations[$name] = self::withoutEmpty([
+                    'name' => $name,
+                    'valueType' => self::nullable(self::attr($decl, self::OFFICE_NS, 'value-type')),
+                    'value' => self::nullable(self::attr($decl, self::OFFICE_NS, 'value')),
+                    'stringValue' => self::nullable(self::attr($decl, self::OFFICE_NS, 'string-value')),
+                    'dateValue' => self::nullable($dateValue),
+                    'timeValue' => self::nullable($timeValue),
+                    'booleanValue' => $booleanValue,
+                    'currency' => self::nullable(self::attr($decl, self::OFFICE_NS, 'currency')),
+                ]);
+            }
+        }
+
+        return [
+            'sequenceDeclarationCount' => count($sequenceDeclarations),
+            'sequenceDeclarations' => $sequenceDeclarations,
+            'variableDeclarationCount' => count($variableDeclarations),
+            'variableDeclarations' => $variableDeclarations,
+            'userFieldDeclarationCount' => count($userFieldDeclarations),
+            'userFieldDeclarations' => $userFieldDeclarations,
+        ];
+    }
+
     private function formControlNode(\DOMElement $controlReference, ?\DOMElement $frame, bool $inline): ?AstNode
     {
         $controlId = self::attr($controlReference, self::DRAW_NS, 'control');
@@ -1621,6 +1710,7 @@ final class OdfReader
         $children = $this->coalesceTextNodes($this->inlineNodes($field, $catalog, $package));
         $metadata = $this->fieldMetadata($field);
         if ($children === []) {
+            $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
             $text = $this->fieldFallbackText($field, $metadata);
             if ($text === '') {
                 return null;
@@ -1692,6 +1782,44 @@ final class OdfReader
 
     /**
      * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function fieldMetadataWithDeclarations(\DOMElement $field, array $metadata): array
+    {
+        if (!$this->isElement($field, self::TEXT_NS, 'user-field-get')) {
+            return $metadata;
+        }
+
+        $name = (string) ($metadata['name'] ?? '');
+        if ($name === '') {
+            return $metadata;
+        }
+
+        $userFieldDeclarations = $this->contentDeclarations['userFieldDeclarations'] ?? [];
+        if (!is_array($userFieldDeclarations)) {
+            return $metadata;
+        }
+
+        $declaration = $userFieldDeclarations[$name] ?? null;
+        if (!is_array($declaration)) {
+            return $metadata;
+        }
+
+        foreach (['valueType', 'value', 'stringValue', 'dateValue', 'timeValue', 'booleanValue', 'currency'] as $key) {
+            if (!array_key_exists($key, $declaration)) {
+                continue;
+            }
+            if (!array_key_exists($key, $metadata) || $metadata[$key] === null || $metadata[$key] === '') {
+                $metadata[$key] = $declaration[$key];
+            }
+        }
+        $metadata['declared'] = true;
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
      */
     private function fieldFallbackText(\DOMElement $field, array $metadata): string
     {
@@ -1700,7 +1828,7 @@ final class OdfReader
             return $text;
         }
 
-        foreach (['stringValue', 'value', 'dateValue', 'timeValue'] as $name) {
+        foreach (['stringValue', 'value', 'dateValue', 'timeValue', 'booleanValue'] as $name) {
             $value = $metadata[$name] ?? null;
             if (is_scalar($value) && (string) $value !== '') {
                 return (string) $value;
