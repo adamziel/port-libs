@@ -934,10 +934,18 @@ final class EpubReader
             $dc['identifier'] ?? []
         );
         $uniqueIdentifierReport = self::uniqueIdentifierReport($uniqueIdentifier, $dc, $requireUniqueIdentifier);
+        $creatorDetails = self::metadataAgentDetails($dc['creator'] ?? [], 'creator');
+        $contributorDetails = self::metadataAgentDetails($dc['contributor'] ?? [], 'contributor');
 
         $metadata = [
             'title' => $dc['title'][0]['text'] ?? '',
             'creators' => array_map(static fn (array $entry): string => $entry['text'], $dc['creator'] ?? []),
+            'creatorDetails' => $creatorDetails,
+            'creatorsByRole' => self::metadataAgentsByRole($creatorDetails),
+            'contributors' => array_map(static fn (array $entry): string => $entry['text'], $dc['contributor'] ?? []),
+            'contributorDetails' => $contributorDetails,
+            'contributorsByRole' => self::metadataAgentsByRole($contributorDetails),
+            'untypedContributors' => self::metadataAgentsWithoutRoles($contributorDetails),
             'language' => $dc['language'][0]['text'] ?? null,
             'identifier' => $uniqueIdentifierReport['value'],
             'uniqueIdentifier' => $uniqueIdentifierReport,
@@ -1170,6 +1178,136 @@ final class EpubReader
         }
 
         return $dc;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataAgentDetails(array $entries, string $kind): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $roles = self::metadataRefinementEntries($refinements, 'role');
+            $roleValues = array_map(static fn (array $role): string => (string) $role['value'], $roles);
+
+            $details[] = [
+                'kind' => $kind,
+                'index' => (int) $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'fileAs' => self::firstMetadataRefinementValue($refinements, 'file-as'),
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'roles' => $roles,
+                'roleValues' => $roleValues,
+                'primaryRole' => $roleValues[0] ?? null,
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $refinements
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataRefinementEntries(array $refinements, string $property): array
+    {
+        $items = [];
+        foreach ($refinements[$property] ?? [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $value = self::metadataRefinementValue($entry);
+            if ($value === '') {
+                continue;
+            }
+
+            $items[] = [
+                'property' => is_string($entry['property'] ?? null) ? $entry['property'] : $property,
+                'value' => $value,
+                'text' => $value,
+                'content' => is_string($entry['content'] ?? null) ? $entry['content'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+                'subjectId' => is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $refinements
+     */
+    private static function firstMetadataRefinementValue(array $refinements, string $property): ?string
+    {
+        foreach (self::metadataRefinementEntries($refinements, $property) as $entry) {
+            return (string) $entry['value'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function metadataRefinementValue(array $entry): string
+    {
+        $text = trim((string) ($entry['text'] ?? ''));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return trim((string) ($entry['content'] ?? ''));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataAgentsByRole(array $details): array
+    {
+        $byRole = [];
+        foreach ($details as $detail) {
+            foreach ($detail['roleValues'] ?? [] as $role) {
+                if (!is_string($role) || $role === '') {
+                    continue;
+                }
+
+                $byRole[$role][] = $detail;
+            }
+        }
+
+        return $byRole;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataAgentsWithoutRoles(array $details): array
+    {
+        return array_values(array_filter(
+            $details,
+            static fn (array $detail): bool => ($detail['roleValues'] ?? []) === [],
+        ));
     }
 
     /**

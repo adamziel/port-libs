@@ -1379,6 +1379,56 @@ XML;
         $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
         $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
     },
+    'reports OPF contributor role metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithContributors = str_replace(
+            '<dc:language>en</dc:language>',
+            '<dc:contributor id="editor">Review Editor</dc:contributor>'
+            . '<dc:contributor id="translator" xml:lang="fr">Translation Desk</dc:contributor>'
+            . '<dc:contributor>Untyped Reviewer</dc:contributor>'
+            . '<dc:language>en</dc:language>',
+            $opfXml
+        );
+        $opfWithContributors = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#editor" property="file-as">Editor, Review</meta>'
+            . '<meta refines="#editor" property="role" scheme="marc:relators">edt</meta>'
+            . '<meta refines="#editor" property="display-seq">2</meta>'
+            . '<meta refines="#translator" property="role" scheme="marc:relators">trl</meta>'
+            . '<meta refines="#translator" property="alternate-script" xml:lang="ja-Latn">Honyaku desuku</meta>',
+            $opfWithContributors
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithContributors));
+        $metadata = $result['metadata'];
+
+        $t->same(['Review Editor', 'Translation Desk', 'Untyped Reviewer'], $metadata['contributors']);
+        $t->same(3, count($metadata['contributorDetails']));
+        $t->same('Review Editor', $metadata['contributorDetails'][0]['text']);
+        $t->same('editor', $metadata['contributorDetails'][0]['id']);
+        $t->same('Editor, Review', $metadata['contributorDetails'][0]['fileAs']);
+        $t->same('2', $metadata['contributorDetails'][0]['displaySeq']);
+        $t->same(['edt'], $metadata['contributorDetails'][0]['roleValues']);
+        $t->same('edt', $metadata['contributorDetails'][0]['primaryRole']);
+        $t->same('marc:relators', $metadata['contributorDetails'][0]['roles'][0]['scheme']);
+        $t->same('#editor', $metadata['contributorDetails'][0]['roles'][0]['refines']);
+        $t->same($metadata['refinementsById']['editor'], $metadata['contributorDetails'][0]['refinements']);
+
+        $t->same('Translation Desk', $metadata['contributorDetails'][1]['text']);
+        $t->same('fr', $metadata['contributorDetails'][1]['language']);
+        $t->same(['trl'], $metadata['contributorDetails'][1]['roleValues']);
+        $t->same('Honyaku desuku', $metadata['contributorDetails'][1]['alternateScripts'][0]['text']);
+        $t->same('ja-Latn', $metadata['contributorDetails'][1]['alternateScripts'][0]['language']);
+        $t->same('Translation Desk', $metadata['contributorsByRole']['trl'][0]['text']);
+
+        $t->same('Untyped Reviewer', $metadata['untypedContributors'][0]['text']);
+        $t->same([], $metadata['untypedContributors'][0]['roleValues']);
+        $t->same('Review Editor', $metadata['contributorsByRole']['edt'][0]['text']);
+        $t->same('Migration Desk', $metadata['creatorDetails'][0]['text']);
+        $t->same([], $metadata['creatorDetails'][0]['roleValues']);
+        $t->same($metadata['contributorDetails'], $result['importReport']['metadata']['contributorDetails']);
+        $t->same($metadata['contributorsByRole'], $result['document']->attr('metadata')['contributorsByRole']);
+    },
     'attaches OPF metadata refinements to package resources and spine itemrefs' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithResourceRefinements = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',

@@ -28,6 +28,8 @@ $opfXml = <<<'XML'
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title>WordPress EPUB source packet</dc:title>
     <dc:creator id="creator">Migration Desk</dc:creator>
+    <dc:contributor id="editor">Review Editor</dc:contributor>
+    <dc:contributor id="translator" xml:lang="fr">Translation Desk</dc:contributor>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
     <meta property="media:duration">0:00:08.000</meta>
@@ -47,6 +49,10 @@ $opfXml = <<<'XML'
     <meta refines="#creator" property="file-as">Desk, Migration</meta>
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta refines="#creator" property="display-seq">1</meta>
+    <meta refines="#editor" property="file-as">Editor, Review</meta>
+    <meta refines="#editor" property="role" scheme="marc:relators">edt</meta>
+    <meta refines="#editor" property="display-seq">2</meta>
+    <meta refines="#translator" property="role" scheme="marc:relators">trl</meta>
     <meta refines="#source-package" property="schema:name">WordPress source package record</meta>
     <meta refines="#chapter" property="schema:name">Source chapter publication resource</meta>
     <meta refines="#source-spine" property="schema:position">primary reading order</meta>
@@ -470,6 +476,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['scheme'] ?? null) !== 'marc:relators') {
         throw new RuntimeException('Expected EPUB OPF creator role scheme to stay reviewable');
     }
+    if (($result['metadata']['contributors'] ?? []) !== ['Review Editor', 'Translation Desk']) {
+        throw new RuntimeException('Expected EPUB OPF contributor names to be summarized for review');
+    }
+    if (($result['metadata']['contributorDetails'][0]['fileAs'] ?? null) !== 'Editor, Review') {
+        throw new RuntimeException('Expected EPUB OPF contributor file-as refinement to be normalized');
+    }
+    if (($result['metadata']['contributorsByRole']['edt'][0]['text'] ?? null) !== 'Review Editor') {
+        throw new RuntimeException('Expected EPUB OPF contributor editor role to be indexed for review');
+    }
+    if (($result['document']->attr('metadata')['contributorsByRole']['trl'][0]['language'] ?? null) !== 'fr') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose contributor role metadata');
+    }
     if (($result['package']['id'] ?? null) !== 'source-package' || ($result['package']['refinements']['schema:name'][0]['text'] ?? null) !== 'WordPress source package record') {
         throw new RuntimeException('Expected EPUB OPF package-level refinements to remain reviewable');
     }
@@ -743,6 +761,8 @@ echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? fa
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";
 echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
+echo 'contributors=' . implode(',', $result['metadata']['contributors'] ?? []) . "\n";
+echo 'contributorRoles=' . implode(',', array_keys($result['metadata']['contributorsByRole'] ?? [])) . "\n";
 echo 'packageRefinement=' . ($result['package']['refinements']['schema:name'][0]['text'] ?? '') . "\n";
 echo 'chapterResourceRefinement=' . ($result['manifest'][1]['refinements']['schema:name'][0]['text'] ?? '') . "\n";
 echo 'spineRefinement=' . ($result['spineProperties']['refinements']['schema:position'][0]['text'] ?? '') . "\n";
