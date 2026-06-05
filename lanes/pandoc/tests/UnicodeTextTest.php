@@ -350,6 +350,31 @@ return [
         );
         $t->same($checkbox . '  ', UnicodeText::padDisplay($checkbox, 4));
     },
+    'measures text variation selectors as pandoc emoji variation modifiers' => static function (TestRunner $t): void {
+        $textSmile = "\u{263A}\u{FE0E}";
+        $emojiSmile = "\u{263A}\u{FE0F}";
+        $copyrightText = "\u{00A9}\u{FE0E}";
+        $heartText = "\u{2764}\u{FE0E}";
+        $plainTextSelector = "A\u{FE0E}";
+        $standaloneTextSelector = "\u{FE0E}";
+        $sample = $textSmile . $copyrightText . $plainTextSelector . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Mood {$textSmile} {$copyrightText} tail", 8, '  ');
+
+        $t->same(2, UnicodeText::displayWidth($textSmile));
+        $t->same(2, UnicodeText::displayWidth($emojiSmile));
+        $t->same(2, UnicodeText::displayWidth($copyrightText));
+        $t->same(2, UnicodeText::displayWidth($heartText));
+        $t->same(1, UnicodeText::displayWidth($plainTextSelector));
+        $t->same(0, UnicodeText::displayWidth($standaloneTextSelector));
+        $t->same([$textSmile, $copyrightText, $plainTextSelector, 'X'], UnicodeText::graphemes($sample));
+        $t->same([$textSmile, $copyrightText . $plainTextSelector . 'X'], UnicodeText::splitAtDisplayWidth($sample, 1));
+        $t->same([$textSmile, $copyrightText, $plainTextSelector . 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4]));
+        $t->same($textSmile . '  ', UnicodeText::padDisplay($textSmile, 4));
+        $t->same(["Mood {$textSmile}", "  {$copyrightText}", '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 8, 'Text variation wrapped line exceeds requested width');
+        }
+    },
     'keeps unattached emoji skin tone modifiers visible for display accounting' => static function (TestRunner $t): void {
         $thumb = "\u{1F44D}\u{1F3FD}";
         $standalone = "\u{1F3FD}";

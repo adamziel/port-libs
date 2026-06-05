@@ -39,6 +39,10 @@ $unicodeSeparatorAuditLines = UnicodeText::wrapByDisplayWidth(
     '  '
 );
 $emojiCheckbox = "\u{2611}\u{FE0F}";
+$textVariationSmile = "\u{263A}\u{FE0E}";
+$textVariationCopyright = "\u{00A9}\u{FE0E}";
+$textVariationHeart = "\u{2764}\u{FE0E}";
+$textVariationPlain = "A\u{FE0E}";
 $emojiKeycap = "1\u{FE0F}\u{20E3}";
 $emojiThumb = "\u{1F44D}\u{1F3FD}";
 $emojiStandaloneSkinTone = "\u{1F3FD}";
@@ -137,6 +141,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji checkbox'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $emojiCheckbox])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) UnicodeText::displayWidth($emojiCheckbox)])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Text variation'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $textVariationSmile . ' / ' . $textVariationCopyright . ' / ' . $textVariationHeart . ' / ' . $textVariationPlain])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($textVariationSmile) . ',' . UnicodeText::displayWidth($textVariationCopyright) . ',' . UnicodeText::displayWidth($textVariationHeart) . ',' . UnicodeText::displayWidth($textVariationPlain)])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji modifier'])]),
@@ -282,6 +291,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Emoji slices</td><td>\u{2611}\u{FE0F} / 1\u{FE0F}\u{20E3} / \u{1F44D}\u{1F3FD} / \u{1F1FA}\u{1F1F8}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing emoji display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Text variation</td><td>' . $textVariationSmile . ' / ' . $textVariationCopyright . ' / ' . $textVariationHeart . ' / ' . $textVariationPlain . '</td><td>2,2,2,1</td>')) {
+        throw new RuntimeException('charset handoff self-test missing text variation-selector width audit');
     }
     if (!str_contains($blocks, "<td>Emoji skin tone</td><td>\u{1F44D}\u{1F3FD} / \u{1F3FD} / A\u{1F3FD}</td><td>2,2,3</td>")) {
         throw new RuntimeException('charset handoff self-test missing unattached emoji skin-tone width audit');

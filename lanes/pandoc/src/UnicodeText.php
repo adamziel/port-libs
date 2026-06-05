@@ -1137,7 +1137,7 @@ final class UnicodeText
             $width += $charWidth;
             $hasJoiner = $hasJoiner || $codepoint === 0x200d;
             $hasWide = $hasWide || $charWidth === 2;
-            $hasEmojiVariation = $hasEmojiVariation || $codepoint === 0xfe0f;
+            $hasEmojiVariation = $hasEmojiVariation || self::isEmojiVariationSelector($codepoint);
             $hasEmojiVariationBase = $hasEmojiVariationBase || self::isEmojiVariationBase($codepoint);
             $hasEmojiSkinToneModifier = $hasEmojiSkinToneModifier || self::isEmojiSkinToneModifier($codepoint);
             $hasEmojiModifierBase = $hasEmojiModifierBase || self::isEmojiModifierBase($codepoint);
@@ -1395,6 +1395,11 @@ final class UnicodeText
         return ($codepoint >= 0x30 && $codepoint <= 0x39)
             || $codepoint === 0x23
             || $codepoint === 0x2a;
+    }
+
+    private static function isEmojiVariationSelector(int $codepoint): bool
+    {
+        return $codepoint === 0xfe0e || $codepoint === 0xfe0f;
     }
 
     private static function isEmojiVariationBase(int $codepoint): bool
