@@ -165,6 +165,28 @@ return [
         $t->same(['definitionURL' => '#x'], $mathContentAnnotation['children'][0]['attributes']);
         $t->same('<svg><foreignObject><div viewbox="html attr"><lineargradient data-review="html child">HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math>', $html);
     },
+    'serializes html rcdata elements as escaped text not parsed child markup' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea>'
+                . '<title>Packet <em>literal</em> &amp; title</title>',
+            'rcdata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('textarea', $summary[0]['name']);
+        $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
+        $t->same('Reviewer <script>alert(1)</script> & <b>note</b>', $summary[0]['text']);
+        $t->same('text', $summary[0]['children'][0]['type']);
+        $t->same('Reviewer <script>alert(1)</script> & <b>note</b>', $summary[0]['children'][0]['text']);
+        $t->same('title', $summary[1]['name']);
+        $t->same('Packet <em>literal</em> & title', $summary[1]['text']);
+        $t->same('text', $summary[1]['children'][0]['type']);
+        $t->same(
+            '<textarea data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea><title>Packet &lt;em&gt;literal&lt;/em&gt; &amp; title</title>',
+            $html
+        );
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',

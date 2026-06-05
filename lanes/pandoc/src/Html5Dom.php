@@ -177,6 +177,7 @@ final class Html5Dom
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->resolveExternals = false;
         $dom->substituteEntities = false;
+        $html = XmlHtmlDom::protectHtmlRcdataElements($html);
         $loaded = $dom->loadHTML(
             '<?xml encoding="UTF-8">' . $html,
             LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING

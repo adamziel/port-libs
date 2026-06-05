@@ -192,7 +192,9 @@ final class Html5DomFragment
 
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $flags = LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED;
-        $source = '<html><body><div data-pandoc-fragment-root="1">' . $html . '</div></body></html>';
+        $source = '<html><body><div data-pandoc-fragment-root="1">'
+            . XmlHtmlDom::protectHtmlRcdataElements($html)
+            . '</div></body></html>';
         $loaded = $dom->loadHTML($source, $flags);
         $errors = libxml_get_errors();
         libxml_clear_errors();

@@ -105,6 +105,26 @@ return [
         $t->contains('<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>', $serialized);
         $t->contains('<annotation-xml encoding="application/xhtml+xml"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>', $serialized);
     },
+    'treats html title and textarea bodies as rcdata text before dom traversal' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea>'
+                . '<title>Packet <em>literal</em> &amp; title</title>'
+        );
+        $textarea = Html5Dom::firstChildElement($body, 'textarea');
+        $title = Html5Dom::firstChildElement($body, 'title');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($textarea instanceof DOMElement, 'Expected textarea review field to survive DOM parsing');
+        $t->true($title instanceof DOMElement, 'Expected title element to survive DOM parsing');
+        $t->same('Reviewer <script>alert(1)</script> & <b>note</b>', $textarea instanceof DOMElement ? $textarea->textContent : null);
+        $t->same('Packet <em>literal</em> & title', $title instanceof DOMElement ? $title->textContent : null);
+        $t->same([], $textarea instanceof DOMElement ? Html5Dom::childElements($textarea) : []);
+        $t->same([], $title instanceof DOMElement ? Html5Dom::childElements($title) : []);
+        $t->same(
+            '<textarea data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea><title>Packet &lt;em&gt;literal&lt;/em&gt; &amp; title</title>',
+            $serialized
+        );
+    },
     'parses XML fragments with namespaces and serializes multiple root children' => static function (TestRunner $t): void {
         $fragment = Html5Dom::parseXmlFragment(
             '<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math><w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>'

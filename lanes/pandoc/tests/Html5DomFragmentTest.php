@@ -287,6 +287,29 @@ return [
         $t->same('/migration/review-fragment.html', $document->children[0]->attr('part'));
         $t->same([], $document->children[0]->attr('diagnostics'));
     },
+    'preserves textarea rcdata as escaped visible reviewer text during sanitizer unwrap' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/textarea-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;<p>after</p>', $fragment->serialize());
+        $t->same('Reviewer <script>alert(1)</script> & <b>note</b>after', $fragment->textContent());
+        $t->same(['p'], $summary['elementNames']);
+        $t->same(['textarea'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag'], $fragment->diagnosticCodes());
+        $t->same('text', $nodes[0]['type']);
+        $t->same('Reviewer <script>alert(1)</script> & <b>note</b>', $nodes[0]['text']);
+        $t->contains('Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;', $blocks);
+        $t->true(!str_contains($fragment->serialize(), '<script>'), 'Expected textarea-like source tags to remain escaped text');
+        $t->true(!str_contains($fragment->serialize(), '<b>note</b>'), 'Expected textarea-like inline tags to remain escaped text');
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

@@ -192,6 +192,7 @@ final class XmlHtmlDom
         self::assertSafeSource($html, $label);
         self::assertNoDoctype($html, $label);
         self::assertNoHtmlFragmentDeclarations($html, $label);
+        $html = self::protectHtmlRcdataElements($html);
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
             . self::FRAGMENT_ROOT_ATTRIBUTE . '="1">' . $html . '</div></body></html>';
@@ -308,6 +309,22 @@ final class XmlHtmlDom
     public static function adjustHtmlForeignAttributeName(string $lowercaseName): string
     {
         return self::HTML5_FOREIGN_ATTRIBUTE_NAMES[$lowercaseName] ?? $lowercaseName;
+    }
+
+    public static function protectHtmlRcdataElements(string $html): string
+    {
+        $pattern = '~(<(?P<name>title|textarea)\b(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>)(?P<content>.*?)(</\s*(?P=name)\s*>)~is';
+        $protected = preg_replace_callback(
+            $pattern,
+            static function (array $matches): string {
+                return $matches[1]
+                    . strtr((string) $matches['content'], ['<' => '&lt;', '>' => '&gt;'])
+                    . $matches[4];
+            },
+            $html
+        );
+
+        return is_string($protected) ? $protected : $html;
     }
 
     public static function normalizedText(\DOMNode $node): string
