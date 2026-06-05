@@ -1251,6 +1251,7 @@ final class OpcRelationshipGraph
             }
 
             if ($child->localName === 'RelationshipReference') {
+                $issues = array_merge($issues, self::relationshipTransformSelectorShapeIssues($child, ['SourceId']));
                 $sourceId = $child->getAttribute('SourceId');
                 if ($sourceId === '') {
                     $issues[] = 'missing-source-id';
@@ -1264,6 +1265,7 @@ final class OpcRelationshipGraph
             }
 
             if ($child->localName === 'RelationshipGroupReference' || $child->localName === 'RelationshipsGroupReference') {
+                $issues = array_merge($issues, self::relationshipTransformSelectorShapeIssues($child, ['SourceType']));
                 $sourceType = $child->getAttribute('SourceType');
                 if ($sourceType === '') {
                     $issues[] = 'missing-source-type';
@@ -1284,6 +1286,41 @@ final class OpcRelationshipGraph
             'sourceTypes' => $sourceTypes,
             'issues' => array_values(array_unique($issues)),
         ];
+    }
+
+    /**
+     * @param list<string> $allowedAttributes
+     * @return list<string>
+     */
+    private static function relationshipTransformSelectorShapeIssues(\DOMElement $element, array $allowedAttributes): array
+    {
+        $issues = [];
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            if (OpcMarkupCompatibility::isNamespaceDeclaration($attribute)) {
+                continue;
+            }
+
+            if (($attribute->namespaceURI ?? '') !== '' || !in_array($attribute->name, $allowedAttributes, true)) {
+                self::appendUniqueString($issues, 'unsupported-relationship-transform-selector-attribute');
+            }
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                self::appendUniqueString($issues, 'unsupported-relationship-transform-selector-child');
+                continue;
+            }
+
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') !== '') {
+                self::appendUniqueString($issues, 'unsupported-relationship-transform-selector-content');
+            }
+        }
+
+        return $issues;
     }
 
     /**

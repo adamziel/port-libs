@@ -30,6 +30,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -98,6 +99,22 @@ $signatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$selectorShapeSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero" mdssi:review="bad"><mdssi:Trace/></mdssi:RelationshipReference>
+          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Extra="bad">text</mdssi:RelationshipGroupReference>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $draftRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
@@ -127,6 +144,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
     ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
+    ['name' => '_xmlsignatures/sig-selector-shape.xml', 'data' => $selectorShapeSignatureXml],
 ]);
 
 $relationshipPartLoads = [];
@@ -274,6 +292,21 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
+$signatureRelationshipTransformGuards = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-selector-shape.xml') as $transform) {
+    $signatureRelationshipTransformGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'sourceTypes' => $transform['sourceTypes'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
     ];
 }
 
@@ -443,6 +476,7 @@ $summary = [
         'relationshipXml' => $relationshipTransform['relationshipXml'],
     ],
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
+    'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -700,6 +734,21 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransforms'][0]['issues'] ?? null) !== []
         || !str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'Id="rIdEmbeddedWorkbook"')
         || str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'rIdDraftReview')
+        || count($summary['signatureRelationshipTransformGuards'] ?? []) !== 1
+        || ($summary['signatureRelationshipTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-selector-shape.xml'
+        || ($summary['signatureRelationshipTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransformGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransformGuards'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['signatureRelationshipTransformGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureRelationshipTransformGuards'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransformGuards'][0]['relationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero']
+        || ($summary['signatureRelationshipTransformGuards'][0]['relationshipCount'] ?? null) !== 2
+        || ($summary['signatureRelationshipTransformGuards'][0]['valid'] ?? null) !== false
+        || ($summary['signatureRelationshipTransformGuards'][0]['issues'] ?? null) !== [
+            'unsupported-relationship-transform-selector-attribute',
+            'unsupported-relationship-transform-selector-child',
+            'unsupported-relationship-transform-selector-content',
+        ]
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'
