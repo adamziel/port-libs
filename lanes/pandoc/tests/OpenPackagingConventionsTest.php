@@ -1049,6 +1049,102 @@ XML;
         $t->same(['invalid-relationship-content-type', 'orphan-relationship-part'], $parts['/word/_rels/missing.xml.rels']['issues']);
         $t->same(false, $parts['/word/_rels/missing.xml.rels']['valid']);
     },
+    'preflights package-wide OPC consistency across overrides and relationships' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+  <Override PartName="/word/media/stale-review.png" ContentType="image/png"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $overrides = [];
+        foreach ($graph->preflightContentTypeOverrides() as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $targets = [];
+        foreach ($graph->preflightAllRelationshipTargets() as $target) {
+            $targets[$target['source'] . ':' . $target['id']] = $target;
+        }
+
+        $consistency = $graph->preflightPackageConsistency();
+
+        $t->same([
+            '/word/document.xml',
+            '/word/comments.xml',
+            '/word/_rels/comments.xml.rels',
+            '/word/media/stale-review.png',
+            '/docProps/core.xml',
+        ], array_keys($overrides));
+        $t->same(true, $overrides['/word/document.xml']['valid']);
+        $t->same(true, $overrides['/word/comments.xml']['exists']);
+        $t->same(true, $overrides['/word/comments.xml']['valid']);
+        $t->same(true, $overrides['/word/_rels/comments.xml.rels']['relationshipPart']);
+        $t->same('/word/comments.xml', $overrides['/word/_rels/comments.xml.rels']['relationshipSource']);
+        $t->same(true, $overrides['/word/_rels/comments.xml.rels']['sourceExists']);
+        $t->same(false, $overrides['/word/_rels/comments.xml.rels']['relationshipSourceLoaded']);
+        $t->same(false, $overrides['/word/_rels/comments.xml.rels']['valid']);
+        $t->same(['invalid-relationship-content-type'], $overrides['/word/_rels/comments.xml.rels']['issues']);
+        $t->same(false, $overrides['/word/media/stale-review.png']['exists']);
+        $t->same(false, $overrides['/word/media/stale-review.png']['valid']);
+        $t->same(['override-target-missing-part'], $overrides['/word/media/stale-review.png']['issues']);
+
+        $t->same([
+            '/:rIdDocument',
+            '/:rIdCore',
+            '/:rIdExternalAudit',
+            '/word/document.xml:rIdComments',
+            '/word/document.xml:rIdHero',
+        ], array_keys($targets));
+        $t->same('/docProps/core.xml', $targets['/:rIdCore']['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $targets['/:rIdCore']['contentType']);
+        $t->same(null, $targets['/:rIdExternalAudit']['targetPart']);
+        $t->same(true, $targets['/:rIdExternalAudit']['external']);
+        $t->same('/word/comments.xml', $targets['/word/document.xml:rIdComments']['targetPart']);
+        $t->same(true, $targets['/word/document.xml:rIdComments']['valid']);
+        $t->same('/word/media/hero.png', $targets['/word/document.xml:rIdHero']['targetPart']);
+        $t->same('image/png', $targets['/word/document.xml:rIdHero']['contentType']);
+        $t->same(false, isset($targets['/word/comments.xml:rIdCommentImage']));
+
+        $t->same(false, $consistency['valid']);
+        $t->same(false, $consistency['packagePartsValid']);
+        $t->same(false, $consistency['contentTypeOverridesValid']);
+        $t->same(true, $consistency['relationshipTargetsValid']);
+        $t->same(8, count($consistency['packageParts']));
+        $t->same(5, count($consistency['contentTypeOverrides']));
+        $t->same(5, count($consistency['relationshipTargets']));
+    },
     'preflights DOCX officeDocument relationship cardinality and content type' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $validGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

@@ -25,6 +25,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/media/source%20diagram.svg" ContentType="image/svg+xml; charset=UTF-8"/>
   <Override PartName="/word/embeddings/source%20workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
   <Override PartName="/word/embeddings/oleObject1.bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>
+  <Override PartName="/word/media/stale%20source.png" ContentType="image/png"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
@@ -123,6 +124,16 @@ foreach ($graph->preflightPackageParts() as $part) {
         'valid' => $part['valid'],
         'issues' => $part['issues'],
     ];
+}
+
+$packageConsistency = $graph->preflightPackageConsistency();
+$packageConsistencyOverrides = [];
+foreach ($packageConsistency['contentTypeOverrides'] as $override) {
+    $packageConsistencyOverrides[$override['partName']] = $override;
+}
+$packageConsistencyTargets = [];
+foreach ($packageConsistency['relationshipTargets'] as $target) {
+    $packageConsistencyTargets[$target['source'] . ':' . $target['id']] = $target;
 }
 
 $relationshipSummaries = [];
@@ -279,6 +290,14 @@ $summary = [
     'officeDocumentRoot' => $officeDocumentRoot,
     'digitalSignatures' => $digitalSignatures,
     'embeddedPackages' => $embeddedPackages,
+    'packageConsistency' => [
+        'valid' => $packageConsistency['valid'],
+        'packagePartsValid' => $packageConsistency['packagePartsValid'],
+        'contentTypeOverridesValid' => $packageConsistency['contentTypeOverridesValid'],
+        'relationshipTargetsValid' => $packageConsistency['relationshipTargetsValid'],
+        'contentTypeOverrides' => $packageConsistencyOverrides,
+        'relationshipTargets' => $packageConsistencyTargets,
+    ],
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
     'relationships' => $relationshipSummaries,
@@ -418,6 +437,17 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['internalSourceReferences'][1]['id'] ?? null) !== 'rIdInternalReviewState'
         || ($summary['wordpressImport']['internalSourceReferences'][1]['targetPart'] ?? null) !== '/word/document.xml'
         || ($summary['wordpressImport']['internalSourceReferences'][1]['issues'] ?? null) !== []
+        || ($summary['packageConsistency']['valid'] ?? null) !== false
+        || ($summary['packageConsistency']['packagePartsValid'] ?? null) !== false
+        || ($summary['packageConsistency']['contentTypeOverridesValid'] ?? null) !== false
+        || ($summary['packageConsistency']['relationshipTargetsValid'] ?? null) !== false
+        || ($summary['packageConsistency']['contentTypeOverrides']['/word/media/stale source.png']['exists'] ?? null) !== false
+        || ($summary['packageConsistency']['contentTypeOverrides']['/word/media/stale source.png']['issues'] ?? null) !== ['override-target-missing-part']
+        || ($summary['packageConsistency']['contentTypeOverrides']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false
+        || ($summary['packageConsistency']['contentTypeOverrides']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdCore']['targetPart'] ?? null) !== '/docProps/core.xml'
+        || ($summary['packageConsistency']['relationshipTargets']['/:rIdSignatureOrigin']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
+        || isset($summary['packageConsistency']['relationshipTargets']['/word/draft.xml:rIdDraftImage'])
         || $summary['integrity']['packagePartsValid'] !== false
         || $summary['relationshipSources'] !== ['/', '/_xmlsignatures/origin.sigs', '/word/document.xml', '/word/footnotes.xml']
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'

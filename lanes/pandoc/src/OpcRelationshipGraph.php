@@ -332,6 +332,122 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>
+     */
+    public function preflightContentTypeOverrides(): array
+    {
+        $preflight = [];
+        foreach ($this->contentTypes->overrides() as $partName => $contentType) {
+            $exists = $this->package->has($partName);
+            $relationshipPart = self::isRelationshipPartName($partName);
+            $relationshipSource = null;
+            $relationshipSourceIsRelationshipPart = null;
+            $relationshipSourceLoaded = null;
+            $sourceExists = null;
+            $issues = [];
+
+            if (!$exists) {
+                $issues[] = 'override-target-missing-part';
+            }
+
+            if ($relationshipPart) {
+                $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
+                $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
+                    && OpcRelationships::isRelationshipPartName($relationshipSource);
+                $sourceExists = $relationshipSource === '/' || $this->package->has($relationshipSource);
+                $relationshipSourceLoaded = isset($this->relationshipsBySource[$relationshipSource]);
+
+                if ($contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+                    $issues[] = 'invalid-relationship-content-type';
+                }
+
+                if ($relationshipSourceIsRelationshipPart) {
+                    $issues[] = 'relationship-part-source';
+                }
+
+                if (!$sourceExists) {
+                    $issues[] = 'relationship-override-source-missing';
+                }
+            }
+
+            $preflight[] = [
+                'partName' => $partName,
+                'contentType' => $contentType,
+                'exists' => $exists,
+                'relationshipPart' => $relationshipPart,
+                'relationshipSource' => $relationshipSource,
+                'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
+                'relationshipSourceLoaded' => $relationshipSourceLoaded,
+                'sourceExists' => $sourceExists,
+                'valid' => $issues === [],
+                'issues' => array_values(array_unique($issues)),
+            ];
+        }
+
+        return $preflight;
+    }
+
+    /**
+     * @return list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
+     */
+    public function preflightAllRelationshipTargets(?string $relationshipType = null): array
+    {
+        $preflight = [];
+        foreach ($this->sourcePartNames() as $sourcePartName) {
+            foreach ($this->preflightTargetsForSource($sourcePartName, $relationshipType) as $target) {
+                $preflight[] = [
+                    'source' => $sourcePartName,
+                    'id' => $target['id'],
+                    'type' => $target['type'],
+                    'relationshipTypeKind' => $target['relationshipTypeKind'],
+                    'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                    'relationshipTypeValid' => $target['relationshipTypeValid'],
+                    'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                    'target' => $target['target'],
+                    'targetPart' => self::targetPartFromPreflightTarget($target),
+                    'contentType' => $target['contentType'],
+                    'external' => $target['external'],
+                    'exists' => $target['exists'],
+                    'relationshipPartTarget' => $target['relationshipPartTarget'],
+                    'externalTargetKind' => $target['externalTargetKind'],
+                    'externalTargetScheme' => $target['externalTargetScheme'],
+                    'externalTargetAllowed' => $target['externalTargetAllowed'],
+                    'externalTargetRequiresBaseUri' => $target['externalTargetRequiresBaseUri'],
+                    'externalTargetRewriteBasePart' => $target['externalTargetRewriteBasePart'],
+                    'externalTargetRewriteReason' => $target['externalTargetRewriteReason'],
+                    'valid' => $target['valid'],
+                    'issues' => $target['issues'],
+                ];
+            }
+        }
+
+        return $preflight;
+    }
+
+    /**
+     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     */
+    public function preflightPackageConsistency(): array
+    {
+        $packageParts = $this->preflightPackageParts();
+        $contentTypeOverrides = $this->preflightContentTypeOverrides();
+        $relationshipTargets = $this->preflightAllRelationshipTargets();
+        $packagePartsValid = self::allRowsValid($packageParts);
+        $contentTypeOverridesValid = self::allRowsValid($contentTypeOverrides);
+        $relationshipTargetsValid = self::allRowsValid($relationshipTargets);
+
+        return [
+            'valid' => $packagePartsValid && $contentTypeOverridesValid && $relationshipTargetsValid,
+            'packagePartsValid' => $packagePartsValid,
+            'contentTypeOverridesValid' => $contentTypeOverridesValid,
+            'relationshipTargetsValid' => $relationshipTargetsValid,
+            'packageParts' => $packageParts,
+            'contentTypeOverrides' => $contentTypeOverrides,
+            'relationshipTargets' => $relationshipTargets,
+        ];
+    }
+
+    /**
      * @param list<string> $expectedContentTypes
      * @return array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
@@ -624,6 +740,20 @@ final class OpcRelationshipGraph
     private static function isRelationshipPartName(string $name): bool
     {
         return OpcRelationships::isRelationshipPartName($name);
+    }
+
+    /**
+     * @param list<array{valid:bool}> $rows
+     */
+    private static function allRowsValid(array $rows): bool
+    {
+        foreach ($rows as $row) {
+            if ($row['valid'] !== true) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
