@@ -658,6 +658,16 @@ final class PdfMetadataExtractor
                 foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
                     $review[$key] = $metadataValue;
                 }
+
+                $filters = $this->streamFilters($dictionary, $objects);
+                if ($filters !== []) {
+                    $review['filters'] = $filters;
+                }
+
+                $declaredLength = $this->streamLength($dictionary, $objects);
+                if ($declaredLength !== null) {
+                    $review['declared_length'] = $declaredLength;
+                }
             }
 
             return $review;
