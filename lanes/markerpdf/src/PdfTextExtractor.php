@@ -6400,11 +6400,16 @@ final class PdfTextExtractor
     private function orderedPageObjectNumbers(array $objects): array
     {
         foreach ($objects as $objectNumber => $body) {
-            if (!$this->isCatalogObject($body) || !preg_match('/\/Pages\s+(\d+)\s+\d+\s+R\b/s', $body, $match)) {
+            if (!$this->isCatalogObject($body)) {
                 continue;
             }
 
-            $pages = $this->pageObjectNumbersFromTree((int) $match[1], $objects);
+            $pagesObjectNumber = $this->objectReferenceValueAfterName($body, 'Pages');
+            if ($pagesObjectNumber === null) {
+                continue;
+            }
+
+            $pages = $this->pageObjectNumbersFromTree($pagesObjectNumber, $objects);
             if ($pages !== []) {
                 return array_values(array_unique($pages, SORT_REGULAR));
             }
@@ -6970,17 +6975,32 @@ final class PdfTextExtractor
 
     private function isCatalogObject(string $body): bool
     {
-        return preg_match('/\/Type\s*\/Catalog\b/', $body) === 1;
+        return $this->pdfObjectTypeName($body) === 'Catalog';
     }
 
     private function isPageObject(string $body): bool
     {
-        return preg_match('/\/Type\s*\/Page\b/', $body) === 1;
+        return $this->pdfObjectTypeName($body) === 'Page';
     }
 
     private function isPagesObject(string $body): bool
     {
-        return preg_match('/\/Type\s*\/Pages\b/', $body) === 1;
+        return $this->pdfObjectTypeName($body) === 'Pages';
+    }
+
+    private function pdfObjectTypeName(string $body): ?string
+    {
+        $value = $this->topLevelPdfValueAfterName($body, 'Type');
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim($value);
+        if (preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $value, $match) !== 1) {
+            return null;
+        }
+
+        return $this->decodePdfName($match[1]);
     }
 
     /**

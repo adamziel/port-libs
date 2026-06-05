@@ -1469,7 +1469,7 @@ final class PdfPagePropertyExtractor
             }
 
             $parentDictionary = $this->dictionaryObjectBody($objects[$parentObjectNumber]);
-            if ($parentDictionary === null || preg_match('/\/Type\s*\/Pages\b/s', $parentDictionary) !== 1) {
+            if ($parentDictionary === null || $this->pdfObjectTypeName($parentDictionary, $objects) !== 'Pages') {
                 break;
             }
 
@@ -2159,7 +2159,7 @@ final class PdfPagePropertyExtractor
         }
 
         foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/Catalog\b/s', $body) === 1) {
+            if ($this->pdfObjectTypeName($body, $objects) === 'Catalog') {
                 return $this->dictionaryObjectBody($body);
             }
         }
@@ -2203,7 +2203,7 @@ final class PdfPagePropertyExtractor
 
         $pages = [];
         foreach ($objects as $objectNumber => $body) {
-            if (preg_match('/\/Type\s*\/Page\b/s', $body) === 1) {
+            if ($this->pdfObjectTypeName($body, $objects) === 'Page') {
                 $pages[] = $objectNumber;
             }
         }
@@ -2224,7 +2224,7 @@ final class PdfPagePropertyExtractor
 
         $seen[$objectNumber] = true;
         $body = $objects[$objectNumber];
-        if (preg_match('/\/Type\s*\/Page\b/s', $body) === 1) {
+        if ($this->pdfObjectTypeName($body, $objects) === 'Page') {
             return [$objectNumber];
         }
 
@@ -2453,6 +2453,16 @@ final class PdfPagePropertyExtractor
     {
         $value = $this->dictionaryRawValue($dictionary, $key);
         return $value === null ? null : $this->objectNumberFromReference($value);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pdfObjectTypeName(string $body, array $objects): ?string
+    {
+        $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+
+        return $this->dictionaryNameValue($dictionary, 'Type', $objects);
     }
 
     private function objectNumberFromReference(string $value): ?int

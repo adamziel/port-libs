@@ -34,10 +34,12 @@ $toUnicodeCMap = static function (array $entries): string {
 
 $pageOne = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET q /FmOne Do Q q /FmLegacyOuter Do Q q /FmExplicit Do Q';
 $pageTwo = 'BT /F1 12 Tf 72 720 Td <4142> Tj ET';
+$escapedTypePage = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /EscapedForm Do Q';
 $formOne = 'BT /Fform 12 Tf 12 12 Td <43> Tj ET';
 $legacyOuter = 'q /FmLegacyNested Do Q';
 $legacyNested = 'BT /Fplain 12 Tf 12 12 Td (Legacy Nested Form Resources) Tj ET';
 $explicitForm = 'q /FmLegacyNested Do Q BT /Fplain 12 Tf 12 12 Td (Explicit Form Local Resources) Tj ET';
+$escapedTypeForm = 'BT /F1 12 Tf 12 12 Td (Escaped Type Form Resources) Tj ET';
 $cmapOne = $toUnicodeCMap([
     '41' => 'Inherited',
     '42' => ' One',
@@ -49,6 +51,9 @@ $cmapTwo = $toUnicodeCMap([
 $cmapForm = $toUnicodeCMap([
     '43' => 'Inherited Form One',
 ]);
+$escapedTypeCmap = $toUnicodeCMap([
+    '41' => 'Escaped Type Font Resources',
+]);
 $privateCmap = $toUnicodeCMap([
     '41' => 'Private',
     '42' => ' Leak',
@@ -57,9 +62,10 @@ $privateForm = 'BT /F1 12 Tf 12 12 Td (Private Nested Resource Leak) Tj ET';
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-    . "2 0 obj\n<< /Type /Pages /Kids [10 0 R 20 0 R] /Count 2 >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [10 0 R 20 0 R 30 0 R] /Count 3 >>\nendobj\n"
     . "10 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [3 0 R] /Count 1 /Resources << /Properties << /Private << /Font << /F1 21 0 R >> /XObject << /FmOne 23 0 R >> >> >> /Font << /F1 4 0 R /Fplain 16 0 R >> /XObject << /FmOne 13 0 R /FmLegacyOuter 17 0 R /FmLegacyNested 18 0 R /FmExplicit 19 0 R >> >> >>\nendobj\n"
     . "20 0 obj\n<< /Type /Pages /Parent 2 0 R /Kids [8 0 R] /Count 1 /Resources << /Font << /F1 6 0 R >> >> >>\nendobj\n"
+    . "30 0 obj\n<< /Type /Pa#67es /Parent 2 0 R /Kids [24 0 R] /Count 1 /Resources 28 0 R >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 10 0 R /Contents 5 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /InheritedOne /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
     . "5 0 obj\n<< /Length " . strlen($pageOne) . " >>\nstream\n{$pageOne}\nendstream\nendobj\n"
@@ -77,7 +83,13 @@ $pdf = "%PDF-1.4\n"
     . "19 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Resources << /Font << /Fplain 16 0 R >> >> /Length " . strlen($explicitForm) . " >>\nstream\n{$explicitForm}\nendstream\nendobj\n"
     . "21 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /PrivateNested /Encoding /Identity-H /ToUnicode 22 0 R >>\nendobj\n"
     . "22 0 obj\n<< /Length " . strlen($privateCmap) . " >>\nstream\n{$privateCmap}\nendstream\nendobj\n"
-    . "23 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($privateForm) . " >>\nstream\n{$privateForm}\nendstream\nendobj\n%%EOF";
+    . "23 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($privateForm) . " >>\nstream\n{$privateForm}\nendstream\nendobj\n"
+    . "24 0 obj\n<< /Type /P#61ge /Parent 30 0 R /Contents 25 0 R >>\nendobj\n"
+    . "25 0 obj\n<< /Length " . strlen($escapedTypePage) . " >>\nstream\n{$escapedTypePage}\nendstream\nendobj\n"
+    . "26 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EscapedTypeFont /Encoding /Identity-H /ToUnicode 27 0 R >>\nendobj\n"
+    . "27 0 obj\n<< /Length " . strlen($escapedTypeCmap) . " >>\nstream\n{$escapedTypeCmap}\nendstream\nendobj\n"
+    . "28 0 obj\n<< /Font << /F1 26 0 R >> /XObject << /EscapedForm 29 0 R >> >>\nendobj\n"
+    . "29 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($escapedTypeForm) . " >>\nstream\n{$escapedTypeForm}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -87,6 +99,8 @@ $expectedLines = [
     'Legacy Nested Form Resources',
     'Explicit Form Local Resources',
     'Inherited Two',
+    'Escaped Type Font Resources',
+    'Escaped Type Form Resources',
 ];
 
 if ($lines !== $expectedLines) {
@@ -102,6 +116,9 @@ echo '<!-- markerpdf-page-resource-inheritance-smoke ' . htmlspecialchars(json_e
     'inherits_xobject_resources' => in_array('Inherited Form One', $lines, true),
     'inherits_legacy_form_page_resources' => in_array('Legacy Nested Form Resources', $lines, true),
     'keeps_explicit_form_resources_unmerged' => substr_count(implode("\n", $lines), 'Legacy Nested Form Resources') === 1,
+    'decodes_escaped_page_tree_type_names' => in_array('Escaped Type Font Resources', $lines, true)
+        && in_array('Escaped Type Form Resources', $lines, true)
+        && count($lines) === 7,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
 foreach ($lines as $line) {
