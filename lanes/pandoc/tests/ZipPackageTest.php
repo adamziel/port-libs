@@ -768,6 +768,29 @@ return [
         $t->same('', $directoryPackage->read('word/media/'));
     },
 
+    'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $storedMedia = "stored reviewer media bytes\n";
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => $storedMedia,
+                'method' => 0,
+                'centralUncompressedSize' => strlen($storedMedia) + 1,
+                'localUncompressedSize' => strlen($storedMedia) + 1,
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => $storedMedia,
+                'method' => 0,
+            ],
+        ]));
+
+        $t->same($storedMedia, $package->read('/word/media/reviewer-note.txt'));
+    },
+
     'rejects zip local entry layout overlap before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

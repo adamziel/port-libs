@@ -936,6 +936,54 @@ $buildUnsupportedCompressionMethodBackedPackage = static function () use ($crc32
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildStoredSizeMismatchBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/stored-review.txt';
+    $data = "Stored media bytes must have matching size metadata\n";
+    $crc = $crc32($data);
+    $declaredUncompressedSize = strlen($data) + 1;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        $declaredUncompressedSize,
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        $declaredUncompressedSize,
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -1420,6 +1468,13 @@ try {
     $localEntryOverlapRejected = str_contains($exception->getMessage(), 'overlaps the next local header')
         || str_contains($exception->getMessage(), 'local header sizes');
 }
+$storedSizeMismatchRejected = false;
+try {
+    ZipPackage::fromString($buildStoredSizeMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $storedSizeMismatchRejected = str_contains($exception->getMessage(), 'Stored ZIP entry')
+        && str_contains($exception->getMessage(), 'mismatched compressed and uncompressed sizes');
+}
 $duplicateLocalOffsetRejected = false;
 try {
     ZipPackage::fromString($buildDuplicateLocalOffsetBackedPackage());
@@ -1672,6 +1727,10 @@ if (in_array('--self-test', $argv, true)) {
 
     if (!$unsupportedCompressionMethodRejected) {
         throw new RuntimeException('Expected unsupported ZIP compression methods to be rejected before media import');
+    }
+
+    if (!$storedSizeMismatchRejected) {
+        throw new RuntimeException('Expected stored ZIP entry size mismatches to be rejected before media import');
     }
 
     if (($packagePermissionPreflight['entryCount'] ?? null) !== 3 || ($packagePermissionPreflight['executableFileCount'] ?? null) !== 0) {
@@ -2256,6 +2315,7 @@ echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected 
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

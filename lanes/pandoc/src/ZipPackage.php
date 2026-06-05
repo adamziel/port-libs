@@ -1111,6 +1111,12 @@ final class ZipPackage
     private function validateEntryLocalLayout(ZipPackageEntry $entry): void
     {
         $localHeader = $this->readLocalHeader($entry);
+        if ($entry->compressionMethod === 0 && $entry->compressedSize !== $entry->uncompressedSize) {
+            throw new \RuntimeException(
+                "Stored ZIP entry {$entry->name} has mismatched compressed and uncompressed sizes"
+            );
+        }
+
         $dataEnd = $localHeader['dataStart'] + $entry->compressedSize;
         if ($dataEnd > strlen($this->bytes)) {
             throw new \RuntimeException("ZIP compressed data for {$entry->name} extends beyond available bytes");
