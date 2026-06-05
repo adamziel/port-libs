@@ -277,6 +277,24 @@ $buildBodyHeadRowRoleDocument = static function (): AstNode {
     ]);
 };
 
+$buildRowspanOverlapDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Malformed overlap review',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', ['rowHeadColumns' => 1], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2, 'colspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Unexpected source cell'], [new AstNode('text', ['text' => 'Unexpected source cell'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -287,6 +305,7 @@ return [
 
         $t->same(3, TableGeometry::columnCountForRows([...$headRows, ...$bodyRows]));
         $t->same(['left', 'right', 'center'], TableGeometry::alignments($table, 3));
+        $t->same([], TableGeometry::diagnostics($table));
         $t->same([0, 2], array_map(static fn (array $cell): int => $cell['column'], $headLayout[0]['cells']));
         $t->same([2, 1], array_map(static fn (array $cell): int => $cell['colspan'], $headLayout[0]['cells']));
         $t->same([0, 1, 2], array_map(static fn (array $cell): int => $cell['column'], $bodyLayout[0]['cells']));
@@ -438,18 +457,62 @@ return [
         $t->same([2, 3], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
         $t->same([0, 1], array_map(static fn (array $cell): int => $cell['sourceCell'], $layout[1]['cells']));
         $t->same([0, 1], array_map(static fn (array $cell): int => $cell['sourceColumn'], $layout[1]['cells']));
+        $t->same(4, count($diagnostics));
+        $t->same('cell-overlaps-rowspan', $diagnostics[0]['code'] ?? null);
+        $t->same([0], $diagnostics[0]['overlapColumns'] ?? null);
+        $t->same(2, $diagnostics[0]['column'] ?? null);
+        $t->same('cell-overlaps-rowspan', $diagnostics[1]['code'] ?? null);
+        $t->same([1], $diagnostics[1]['overlapColumns'] ?? null);
+        $t->same(3, $diagnostics[1]['column'] ?? null);
+        $t->same('cell-exceeds-declared-columns', $diagnostics[2]['code'] ?? null);
+        $t->same(1, $diagnostics[2]['row'] ?? null);
+        $t->same(2, $diagnostics[2]['column'] ?? null);
+        $t->same(0, $diagnostics[2]['sourceCell'] ?? null);
+        $t->same(0, $diagnostics[2]['sourceColumn'] ?? null);
+        $t->same(3, $diagnostics[2]['endColumn'] ?? null);
+        $t->same(3, $diagnostics[3]['column'] ?? null);
+        $t->same(1, $diagnostics[3]['sourceCell'] ?? null);
+        $t->same(1, $diagnostics[3]['sourceColumn'] ?? null);
+        $t->same(4, $diagnostics[3]['endColumn'] ?? null);
+        $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
+    },
+    'diagnoses physical cells that overlap active rowspans without dropping content' => static function (TestRunner $t) use ($buildRowspanOverlapDocument): void {
+        $document = $buildRowspanOverlapDocument();
+        $table = $document->children[0];
+        $body = $table->children[0];
+        $layout = TableGeometry::layoutRows($body->children, TableGeometry::columnCount($table));
+        $diagnostics = TableGeometry::diagnostics($table);
+        $coverage = TableGeometry::cellCoverage($table);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same([2], array_map(static fn (array $cell): int => $cell['column'], $layout[1]['cells']));
+        $t->same([0], array_map(static fn (array $cell): int => $cell['sourceColumn'], $layout[1]['cells']));
         $t->same(2, count($diagnostics));
-        $t->same('cell-exceeds-declared-columns', $diagnostics[0]['code'] ?? null);
+        $t->same('cell-overlaps-rowspan', $diagnostics[0]['code'] ?? null);
+        $t->same('body', $diagnostics[0]['section'] ?? null);
         $t->same(1, $diagnostics[0]['row'] ?? null);
         $t->same(2, $diagnostics[0]['column'] ?? null);
         $t->same(0, $diagnostics[0]['sourceCell'] ?? null);
         $t->same(0, $diagnostics[0]['sourceColumn'] ?? null);
-        $t->same(3, $diagnostics[0]['endColumn'] ?? null);
-        $t->same(3, $diagnostics[1]['column'] ?? null);
-        $t->same(1, $diagnostics[1]['sourceCell'] ?? null);
-        $t->same(1, $diagnostics[1]['sourceColumn'] ?? null);
-        $t->same(4, $diagnostics[1]['endColumn'] ?? null);
-        $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Merged source</td></tr><tr><td>Unexpected source cell</td><td>Second conflict</td></tr></tbody>', $blocks);
+        $t->same(1, $diagnostics[0]['sourceEndColumn'] ?? null);
+        $t->same([0], $diagnostics[0]['overlapColumns'] ?? null);
+        $t->same(1, $diagnostics[0]['overlapColumnCount'] ?? null);
+        $t->same(2, $diagnostics[0]['visualShift'] ?? null);
+        $t->same(2, $diagnostics[0]['declaredColumns'] ?? null);
+        $t->same(0, $diagnostics[0]['coveredBy'][0]['row'] ?? null);
+        $t->same(0, $diagnostics[0]['coveredBy'][0]['column'] ?? null);
+        $t->same(0, $diagnostics[0]['coveredBy'][0]['sourceCell'] ?? null);
+        $t->same(0, $diagnostics[0]['coveredBy'][0]['sourceColumn'] ?? null);
+        $t->same('cell-exceeds-declared-columns', $diagnostics[1]['code'] ?? null);
+        $t->same(2, $diagnostics[1]['column'] ?? null);
+        $t->same(0, $diagnostics[1]['sourceColumn'] ?? null);
+        $t->same(2, $coverage[1]['column']);
+        $t->same(0, $coverage[1]['sourceColumn']);
+        $t->same(false, $coverage[1]['headerCell']);
+        $t->contains('<tbody><tr><th colspan="2" rowspan="2" style="text-align:left">Posts</th></tr><tr><td>Unexpected source cell</td></tr></tbody>', $blocks);
+        $t->contains('|       |     | Unexpected source cell |', $markdown);
     },
     'builds section grids with covered and missing visual slots for importer audits' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
         $document = $buildSectionGridDocument();

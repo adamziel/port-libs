@@ -323,7 +323,7 @@ final class TableGeometry
     }
 
     /**
-     * @return list<array<string, int|string>>
+     * @return list<array<string, mixed>>
      */
     public static function diagnostics(AstNode $table): array
     {
@@ -332,6 +332,7 @@ final class TableGeometry
         foreach (self::sectionRowGroups($table, null) as $group) {
             $rows = $group['rows'];
             $rowCount = count($rows);
+            array_push($diagnostics, ...self::rowspanOverlapDiagnostics($group['section'], $rows, $declaredColumnCount));
             $layoutColumnCount = max(1, $declaredColumnCount, self::columnCountForRows($rows));
             $layoutRows = self::layoutRows($rows, $layoutColumnCount);
             foreach ($layoutRows as $rowIndex => $layoutRow) {
@@ -549,7 +550,7 @@ final class TableGeometry
     }
 
     /**
-     * @param list<array<string, int|string>> $diagnostics
+     * @param list<array<string, mixed>> $diagnostics
      * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
      */
     private static function appendDeclaredColumnDiagnostic(
@@ -576,6 +577,98 @@ final class TableGeometry
             'declaredColumns' => $declaredColumnCount,
             'endColumn' => $endColumn,
         ];
+    }
+
+    /**
+     * @param list<AstNode> $rows
+     * @return list<array<string, mixed>>
+     */
+    private static function rowspanOverlapDiagnostics(string $section, array $rows, int $declaredColumnCount): array
+    {
+        $diagnostics = [];
+        $activeRowspans = [];
+        $rowCount = count($rows);
+
+        foreach ($rows as $rowIndex => $row) {
+            if ($row->type !== 'table_row') {
+                continue;
+            }
+
+            $rowActiveRowspans = $activeRowspans;
+            $previousActiveColumns = self::activeRichColumns($activeRowspans);
+            $consumedActiveColumns = [];
+            $column = 0;
+            $sourceCell = 0;
+            $sourceColumn = 0;
+
+            foreach ($row->children as $cell) {
+                if ($cell->type !== 'table_cell') {
+                    continue;
+                }
+
+                $rawColspan = self::cellColspan($cell);
+                $overlapColumns = [];
+                $coveredBy = [];
+                for ($coveredColumn = $sourceColumn; $coveredColumn < $sourceColumn + $rawColspan; $coveredColumn++) {
+                    if (($rowActiveRowspans[$coveredColumn]['remainingRows'] ?? 0) <= 0) {
+                        continue;
+                    }
+
+                    $coveringCell = $rowActiveRowspans[$coveredColumn];
+                    $overlapColumns[] = $coveredColumn;
+                    $coveredBy[] = [
+                        'row' => (int) $coveringCell['anchorRow'],
+                        'column' => (int) $coveringCell['anchorColumn'],
+                        'sourceCell' => (int) $coveringCell['sourceCell'],
+                        'sourceColumn' => (int) $coveringCell['sourceColumn'],
+                        'colspan' => (int) $coveringCell['colspan'],
+                        'rowspan' => (int) $coveringCell['rowspan'],
+                    ];
+                }
+
+                self::skipRichCoveredColumns($activeRowspans, $column, $consumedActiveColumns);
+                $endColumn = $column + $rawColspan;
+                if ($overlapColumns !== [] && $declaredColumnCount > 0 && $endColumn > $declaredColumnCount) {
+                    $diagnostics[] = [
+                        'code' => 'cell-overlaps-rowspan',
+                        'section' => $section,
+                        'row' => $rowIndex,
+                        'column' => $column,
+                        'endColumn' => $endColumn,
+                        'sourceCell' => $sourceCell,
+                        'sourceColumn' => $sourceColumn,
+                        'sourceEndColumn' => $sourceColumn + $rawColspan,
+                        'visualShift' => $column - $sourceColumn,
+                        'colspan' => $rawColspan,
+                        'declaredColumns' => $declaredColumnCount,
+                        'overlapColumns' => $overlapColumns,
+                        'overlapColumnCount' => count($overlapColumns),
+                        'coveredBy' => $coveredBy,
+                    ];
+                }
+
+                $rowspan = min(self::cellRowspan($cell), max(1, $rowCount - $rowIndex));
+                if ($rowspan > 1) {
+                    self::activateRichRowspan(
+                        $activeRowspans,
+                        $column,
+                        $rawColspan,
+                        $rowspan,
+                        $rowIndex,
+                        $sourceCell,
+                        $sourceColumn
+                    );
+                }
+
+                $column += $rawColspan;
+                $sourceColumn += $rawColspan;
+                $sourceCell++;
+            }
+
+            self::consumeUnusedRichActiveColumns($activeRowspans, $previousActiveColumns, $consumedActiveColumns);
+        }
+
+        return $diagnostics;
     }
 
     /**
@@ -770,6 +863,22 @@ final class TableGeometry
     }
 
     /**
+     * @param array<int, array<string, int>> $activeRowspans
+     * @return list<int>
+     */
+    private static function activeRichColumns(array $activeRowspans): array
+    {
+        $columns = [];
+        foreach ($activeRowspans as $column => $rowspan) {
+            if (($rowspan['remainingRows'] ?? 0) > 0) {
+                $columns[] = (int) $column;
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
      * @param array<int, int> $activeRowspans
      * @param array<int, bool> $consumedActiveColumns
      */
@@ -786,12 +895,57 @@ final class TableGeometry
     }
 
     /**
+     * @param array<int, array<string, int>> $activeRowspans
+     * @param array<int, bool> $consumedActiveColumns
+     */
+    private static function skipRichCoveredColumns(array &$activeRowspans, int &$column, array &$consumedActiveColumns): void
+    {
+        while (($activeRowspans[$column]['remainingRows'] ?? 0) > 0) {
+            $activeRowspans[$column]['remainingRows']--;
+            $consumedActiveColumns[$column] = true;
+            if (($activeRowspans[$column]['remainingRows'] ?? 0) <= 0) {
+                unset($activeRowspans[$column]);
+            }
+            $column++;
+        }
+    }
+
+    /**
      * @param array<int, int> $activeRowspans
      */
     private static function activateRowspan(array &$activeRowspans, int $startColumn, int $colspan, int $rowspan): void
     {
         for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
             $activeRowspans[$column] = max($activeRowspans[$column] ?? 0, $rowspan - 1);
+        }
+    }
+
+    /**
+     * @param array<int, array<string, int>> $activeRowspans
+     */
+    private static function activateRichRowspan(
+        array &$activeRowspans,
+        int $startColumn,
+        int $colspan,
+        int $rowspan,
+        int $anchorRow,
+        int $sourceCell,
+        int $sourceColumn
+    ): void {
+        for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
+            if (($activeRowspans[$column]['remainingRows'] ?? 0) >= $rowspan - 1) {
+                continue;
+            }
+
+            $activeRowspans[$column] = [
+                'remainingRows' => $rowspan - 1,
+                'anchorRow' => $anchorRow,
+                'anchorColumn' => $startColumn,
+                'sourceCell' => $sourceCell,
+                'sourceColumn' => $sourceColumn,
+                'colspan' => $colspan,
+                'rowspan' => $rowspan,
+            ];
         }
     }
 
@@ -813,6 +967,28 @@ final class TableGeometry
 
             $activeRowspans[$column]--;
             if ($activeRowspans[$column] <= 0) {
+                unset($activeRowspans[$column]);
+            }
+        }
+    }
+
+    /**
+     * @param array<int, array<string, int>> $activeRowspans
+     * @param list<int> $previousActiveColumns
+     * @param array<int, bool> $consumedActiveColumns
+     */
+    private static function consumeUnusedRichActiveColumns(
+        array &$activeRowspans,
+        array $previousActiveColumns,
+        array $consumedActiveColumns
+    ): void {
+        foreach ($previousActiveColumns as $column) {
+            if (($consumedActiveColumns[$column] ?? false) || ($activeRowspans[$column]['remainingRows'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $activeRowspans[$column]['remainingRows']--;
+            if (($activeRowspans[$column]['remainingRows'] ?? 0) <= 0) {
                 unset($activeRowspans[$column]);
             }
         }

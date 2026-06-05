@@ -106,6 +106,19 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Malformed overlap review',
+        'alignments' => ['left', 'right'],
+    ], [
+        new AstNode('table_body', ['rowHeadColumns' => 1], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2, 'colspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Unexpected source cell'], [new AstNode('text', ['text' => 'Unexpected source cell'])]),
+            ]),
+        ]),
+    ]),
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -205,6 +218,19 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>')) {
         throw new RuntimeException('Table geometry self-test missing body-local head rows in WordPress tbody output');
+    }
+    $overlapDiagnostics = TableGeometry::diagnostics($document->children[4]);
+    if (($overlapDiagnostics[0]['code'] ?? null) !== 'cell-overlaps-rowspan') {
+        throw new RuntimeException('Table geometry self-test missing rowspanned overlap diagnostic');
+    }
+    if (($overlapDiagnostics[0]['column'] ?? null) !== 2 || ($overlapDiagnostics[0]['sourceColumn'] ?? null) !== 0 || ($overlapDiagnostics[0]['overlapColumns'] ?? null) !== [0]) {
+        throw new RuntimeException('Table geometry self-test missing overlap source-cell coordinates');
+    }
+    if (($overlapDiagnostics[0]['coveredBy'][0]['colspan'] ?? null) !== 2 || ($overlapDiagnostics[0]['declaredColumns'] ?? null) !== 2) {
+        throw new RuntimeException('Table geometry self-test missing overlap anchor metadata');
+    }
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption">Malformed overlap review</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing malformed overlap review table');
     }
 
     echo "table geometry handoff self-test ok\n";
