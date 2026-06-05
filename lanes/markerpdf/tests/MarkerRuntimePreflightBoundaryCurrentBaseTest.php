@@ -689,6 +689,67 @@ return [
             $removeTree($output);
         }
     },
+    'records metadata json shape errors at task-args boundary after summary' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'metadata-list.json';
+            file_put_contents($metadataFile, json_encode([
+                ['title' => 'List-shaped metadata cannot answer get()'],
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 5,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same(['alpha.pdf', 'beta.pdf'], $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['metadata']['metadata_load_reached']);
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same(null, $plan['metadata']['metadata_error_boundary']);
+            $t->same('list', $plan['metadata']['metadata_json_type']);
+            $t->same(false, $plan['metadata']['metadata_get_available']);
+            $t->same('metadata-get-failed', $plan['metadata']['metadata_shape_error_boundary']);
+            $t->same('AttributeError', $plan['metadata']['metadata_shape_error_class']);
+            $t->contains("object has no attribute 'get'", (string) $plan['metadata']['metadata_shape_error_message']);
+            $t->same([], $plan['metadata']['metadata_filenames']);
+            $t->same([], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(['alpha.pdf', 'beta.pdf'], $plan['metadata']['missing_metadata_filenames']);
+
+            $t->same(true, $plan['spawn_start_method']['start_method_success']);
+            $t->same(true, $plan['model_handoff']['model_handoff_reached']);
+            $t->same(true, $plan['model_handoff']['main_load_all_models']);
+            $t->same(false, $plan['model_handoff']['executes_python_or_models']);
+            $t->same(true, $plan['console_summary']['summary_reached']);
+            $t->same(2, $plan['console_summary']['selected_pdf_count']);
+            $t->same(
+                'Converting 2 pdfs in chunk 1/1 with 2 processes, and storing in ' . $output,
+                $plan['console_summary']['message_line']
+            );
+            $t->same(true, $plan['console_summary']['emitted_before_task_args']);
+            $t->same(0, $plan['worker_pool']['task_args_count']);
+            $t->same([], $plan['worker_pool']['task_args']);
+            $t->same(0, $plan['worker_pool']['total_processes']);
+            $t->same(false, $plan['worker_pool']['pool_launchable']);
+            $t->same('metadata-get-failed', $plan['worker_pool']['pool_error_boundary']);
+            $t->same('metadata-get-failed', $plan['worker_pool']['task_args_error_boundary']);
+            $t->same('AttributeError', $plan['worker_pool']['task_args_error_class']);
+            $t->same('metadata-get-failed', $plan['conversion_boundary']['metadata_lookup_error_boundary']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

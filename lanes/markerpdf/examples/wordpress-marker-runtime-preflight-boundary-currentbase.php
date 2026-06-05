@@ -124,6 +124,18 @@ try {
         metadataFile: $malformedMetadata,
         workers: 8
     );
+    $shapeMetadata = $output . DIRECTORY_SEPARATOR . 'list-metadata.json';
+    file_put_contents($shapeMetadata, json_encode([
+        ['title' => 'List metadata cannot be keyed by basename'],
+    ], JSON_THROW_ON_ERROR));
+    $metadataShapePlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataFile: $shapeMetadata,
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu'
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -251,6 +263,17 @@ try {
     ) {
         throw new RuntimeException('Expected malformed metadata JSON to block before model handoff, task tuple construction, conversion summary, or worker-pool launch.');
     }
+    if (
+        $metadataShapePlan['metadata']['metadata_load_success'] !== true
+        || $metadataShapePlan['metadata']['metadata_json_type'] !== 'list'
+        || $metadataShapePlan['metadata']['metadata_get_available'] !== false
+        || $metadataShapePlan['metadata']['metadata_shape_error_boundary'] !== 'metadata-get-failed'
+        || $metadataShapePlan['console_summary']['summary_reached'] !== true
+        || $metadataShapePlan['worker_pool']['task_args_count'] !== 0
+        || $metadataShapePlan['worker_pool']['pool_error_boundary'] !== 'metadata-get-failed'
+    ) {
+        throw new RuntimeException('Expected list-shaped metadata JSON to fail at metadata.get task construction after summary, not at json.load.');
+    }
     if ($runtimePlan['chunking']['max_files_limit_active'] !== false || $runtimePlan['chunking']['selected_count'] !== 5) {
         throw new RuntimeException('Expected --max=0 to behave like upstream convert.py and leave the WordPress queue uncapped.');
     }
@@ -344,6 +367,14 @@ try {
         'metadata_error_pool_error_boundary' => $metadataErrorPlan['worker_pool']['pool_error_boundary'],
         'metadata_error_conversion_summary_reached' => $metadataErrorPlan['console_summary']['summary_reached'],
         'metadata_error_conversion_summary_blocked_by' => $metadataErrorPlan['console_summary']['blocked_by'],
+        'metadata_shape_json_type' => $metadataShapePlan['metadata']['metadata_json_type'],
+        'metadata_shape_load_success' => $metadataShapePlan['metadata']['metadata_load_success'],
+        'metadata_shape_get_available' => $metadataShapePlan['metadata']['metadata_get_available'],
+        'metadata_shape_error_boundary' => $metadataShapePlan['metadata']['metadata_shape_error_boundary'],
+        'metadata_shape_error_class' => $metadataShapePlan['metadata']['metadata_shape_error_class'],
+        'metadata_shape_summary_reached' => $metadataShapePlan['console_summary']['summary_reached'],
+        'metadata_shape_task_args_count' => $metadataShapePlan['worker_pool']['task_args_count'],
+        'metadata_shape_pool_error_boundary' => $metadataShapePlan['worker_pool']['pool_error_boundary'],
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],
@@ -380,6 +411,8 @@ try {
         'executes_python_or_models' => $plans['ready-for-marker.pdf']['executes_python_or_models'],
         'executes_multiprocessing' => $plans['ready-for-marker.pdf']['executes_multiprocessing'],
         'runtime_executes_multiprocessing' => $runtimePlan['executes_multiprocessing'],
+        'metadata_shape_executes_python_or_models' => $metadataShapePlan['executes_python_or_models'],
+        'metadata_shape_executes_multiprocessing' => $metadataShapePlan['executes_multiprocessing'],
         'executes_external_pdf_tools' => $plans['ready-for-marker.pdf']['executes_external_pdf_tools'],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
