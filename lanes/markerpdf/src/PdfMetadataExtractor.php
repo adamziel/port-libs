@@ -8578,10 +8578,12 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $objectNumber = $this->objectNumberFromReference($value);
-        $body = $objectNumber === null
+        $reference = $this->objectReferenceFromValue($value);
+        $objectNumber = $reference['objectNumber'] ?? null;
+        $objectGeneration = $reference['generation'] ?? null;
+        $body = $reference === null
             ? trim($this->resolvePdfValue($value, $objects) ?? $value)
-            : ($objects[$objectNumber] ?? null);
+            : $this->objectBodyFromReferenceValue($value, $objects);
         if ($body === null || $body === '') {
             return [];
         }
@@ -8597,6 +8599,9 @@ final class PdfMetadataExtractor
             'sha256' => hash('sha256', $stream['content']),
             'payload_included' => false,
         ];
+        if ($objectGeneration !== null) {
+            $metadata['object_generation'] = $objectGeneration;
+        }
 
         foreach ([
             'type' => $this->dictionaryStringValue($stream['dictionary'], 'Type'),
