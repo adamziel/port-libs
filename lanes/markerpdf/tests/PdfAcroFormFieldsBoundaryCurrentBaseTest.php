@@ -231,6 +231,32 @@ $acroFormIndirectScalarGenerationBoundaryPdf = static function (): string {
         . "%%EOF";
 };
 
+$acroFormIndirectNumericAttributeBoundaryPdf = static function (): string {
+    $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm indirect numeric attributes body) Tj ET';
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 12 0 R 16 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Fields [6 0 R 10 0 R 14 0 R] /NeedAppearances true >>\nendobj\n"
+        . "6 0 obj\n<< /FT /Tx /T (secret.indirect) /Ff 30 1 R /V (Sensitive value must redact) /DV (Default sensitive value) /MaxLen 31 1 R /Kids [8 0 R] >>\nendobj\n"
+        . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 320 664] /P 3 0 R /F 4 >>\nendobj\n"
+        . "10 0 obj\n<< /FT /Tx /T (public.max) /Ff 32 1 R /V (Too long value) /MaxLen 33 1 R /Kids [12 0 R] >>\nendobj\n"
+        . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 320 624] /P 3 0 R /F 4 >>\nendobj\n"
+        . "14 0 obj\n<< /FT /Ch /T (choice.indirect) /Ff 34 1 R /V [(plugin) (themes)] /I [35 1 R 36 1 R 37 0 R] /Opt [[(themes) (Themes)] [(plugin) (Plugins)] [(blocks) (Blocks)]] /Kids [16 0 R] >>\nendobj\n"
+        . "16 0 obj\n<< /Subtype /Widget /Parent 14 0 R /Rect [72 560 320 584] /P 3 0 R /F 4 >>\nendobj\n"
+        . "30 1 obj\n8192\nendobj\n"
+        . "31 1 obj\n8\nendobj\n"
+        . "32 1 obj\n3\nendobj\n"
+        . "33 1 obj\n6\nendobj\n"
+        . "34 1 obj\n2097152\nendobj\n"
+        . "35 1 obj\n1\nendobj\n"
+        . "36 1 obj\n0\nendobj\n"
+        . "37 1 obj\n2\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'repairs AcroForm field discovery from page owned widget annotations only' => static function (TestRunner $t) use ($pageWidgetFieldBoundaryPdf, $fieldsByName): void {
         $pdf = $pageWidgetFieldBoundaryPdf();
@@ -652,5 +678,55 @@ return [
         $t->true(!str_contains($visibleText, 'Current title value'));
         $t->true(!str_contains($visibleText, 'Default title value'));
         $t->true(!str_contains($visibleText, 'Current title label'));
+    },
+    'resolves generation exact indirect numeric AcroForm field attributes' => static function (
+        TestRunner $t
+    ) use ($acroFormIndirectNumericAttributeBoundaryPdf, $fieldsByName): void {
+        $pdf = $acroFormIndirectNumericAttributeBoundaryPdf();
+        $form = (new PdfAcroFormExtractor())->extractForm($pdf);
+        $fields = $fieldsByName($form['fields']);
+        $visibleText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($form, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['secret.indirect', 'public.max', 'choice.indirect'], array_keys($fields));
+        $t->same(3, count($form['fields']));
+        $t->same(true, $form['need_appearances']);
+
+        $secret = $fields['secret.indirect'];
+        $t->same(8192, $secret['flags']);
+        $t->same(['password'], $secret['flag_names']);
+        $t->same(null, $secret['value']);
+        $t->same(null, $secret['default_value']);
+        $t->same('[redacted]', $secret['value_state']['display_value']);
+        $t->same('redacted_password', $secret['value_state']['state_source']);
+        $t->same(8, $secret['max_length']);
+        $t->same(6, $secret['max_length_review']['max_length_source_object']);
+        $t->same(true, $secret['max_length_review']['value_redacted']);
+        $t->same(false, $secret['max_length_review']['password_value_length_exposed']);
+
+        $public = $fields['public.max'];
+        $t->same(3, $public['flags']);
+        $t->same(['read_only', 'required'], $public['flag_names']);
+        $t->same(6, $public['max_length']);
+        $t->same(true, $public['max_length_review']['current_value_exceeds_max_length']);
+        $t->same(14, $public['max_length_review']['current_value_length']);
+
+        $choice = $fields['choice.indirect'];
+        $t->same(2097152, $choice['flags']);
+        $t->same(['multi_select'], $choice['flag_names']);
+        $t->same([1, 0], $choice['value_state']['selected_indices']);
+        $t->same('field', $choice['value_state']['selected_indices_source']);
+        $t->same([
+            ['index' => 1, 'export' => 'plugin', 'label' => 'Plugins'],
+            ['index' => 0, 'export' => 'themes', 'label' => 'Themes'],
+        ], $choice['value_state']['selected_options']);
+        $t->same([], $choice['value_state']['unmatched_values']);
+
+        foreach (['30 1 R', '31 1 R', '32 1 R', '33 1 R', '34 1 R', '35 1 R', '36 1 R', '37 0 R'] as $rawToken) {
+            $t->true(is_string($encoded) && !str_contains($encoded, $rawToken));
+        }
+        $t->true(str_contains($visibleText, 'Visible AcroForm indirect numeric attributes body'));
+        $t->true(!str_contains($visibleText, 'Sensitive value must redact'));
+        $t->true(!str_contains($visibleText, 'Too long value'));
     },
 ];

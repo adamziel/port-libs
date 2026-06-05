@@ -3495,7 +3495,7 @@ final class PdfAcroFormExtractor
             return [];
         }
 
-        $flags = $this->integerFromEffective($effective, 'Ff', 0);
+        $flags = $this->integerFromEffective($effective, 'Ff', 0, $objects);
         $defaultAppearance = $this->defaultAppearanceFromEffective($effective, $objects);
         $password = $fieldType === 'Tx' && $this->hasFlagBit($flags, 14);
 
@@ -3510,7 +3510,7 @@ final class PdfAcroFormExtractor
         $valueState = $this->fieldValueState($fieldType, $flags, $effective, $password, $value, $defaultValue, $options, $widgets, $objects);
         $valueState['hierarchy_boundary'] = $this->fieldHierarchyValueState($fieldHierarchy);
         $maxLengthReview = $fieldType === 'Tx'
-            ? $this->maxLengthReviewForField($objectNumber, $name, $effective, $value, $defaultValue, $password)
+            ? $this->maxLengthReviewForField($objectNumber, $name, $effective, $value, $defaultValue, $password, $objects)
             : null;
         if ($maxLengthReview !== null) {
             $valueState['max_length'] = $maxLengthReview['max_length'];
@@ -3763,13 +3763,14 @@ final class PdfAcroFormExtractor
         array $effective,
         mixed $value,
         mixed $defaultValue,
-        bool $password
+        bool $password,
+        array $objects
     ): ?array {
         if (!isset($effective['MaxLen'])) {
             return null;
         }
 
-        $maxLength = $this->integerFromEffectiveOrNull($effective, 'MaxLen');
+        $maxLength = $this->integerFromEffectiveOrNull($effective, 'MaxLen', $objects);
         if ($maxLength === null) {
             return null;
         }
@@ -4610,27 +4611,38 @@ final class PdfAcroFormExtractor
     /**
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      */
-    private function integerFromEffective(array $effective, string $name, int $default): int
+    private function integerFromEffective(array $effective, string $name, int $default, array $objects): int
     {
         if (!isset($effective[$name])) {
             return $default;
         }
 
-        $value = trim($effective[$name]['value']);
-        return preg_match('/^[+-]?\d+/', $value, $match) === 1 ? (int) $match[0] : $default;
+        return $this->integerFromEffectivePdfValue($effective[$name]['value'], $objects) ?? $default;
     }
 
     /**
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      */
-    private function integerFromEffectiveOrNull(array $effective, string $name): ?int
+    private function integerFromEffectiveOrNull(array $effective, string $name, array $objects): ?int
     {
         if (!isset($effective[$name])) {
             return null;
         }
 
-        $value = trim($effective[$name]['value']);
-        return preg_match('/^[+-]?\d+/', $value, $match) === 1 ? (int) $match[0] : null;
+        return $this->integerFromEffectivePdfValue($effective[$name]['value'], $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function integerFromEffectivePdfValue(string $value, array $objects): ?int
+    {
+        $number = $this->pdfNumberFromValue($value, $objects);
+        if ($number === null || floor($number) !== $number) {
+            return null;
+        }
+
+        return (int) $number;
     }
 
     /**
@@ -4681,7 +4693,7 @@ final class PdfAcroFormExtractor
         ];
 
         if ($fieldType === 'Ch') {
-            $explicitIndices = $this->integerArrayFromEffective($effective, 'I');
+            $explicitIndices = $this->integerArrayFromEffective($effective, 'I', $objects);
             $selectedIndices = $this->selectedChoiceIndices($value, $options, $explicitIndices);
             $state += [
                 'choice_values' => $password ? [] : $this->valueList($value),
@@ -5323,7 +5335,7 @@ final class PdfAcroFormExtractor
      * @param array<string, array{value: string, source: string, source_object: int|null}> $effective
      * @return list<int>
      */
-    private function integerArrayFromEffective(array $effective, string $name): array
+    private function integerArrayFromEffective(array $effective, string $name, array $objects): array
     {
         if (!isset($effective[$name])) {
             return [];
@@ -5335,11 +5347,37 @@ final class PdfAcroFormExtractor
         }
 
         $body = $this->arrayBodyFromValue($value);
-        if ($body === null || preg_match_all('/[+-]?\d+/', $body, $matches) === false) {
+        if ($body === null) {
             return [];
         }
 
-        return array_map('intval', $matches[0]);
+        $integers = [];
+        $offset = 0;
+        $length = strlen($body);
+        while ($offset < $length) {
+            $this->skipWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+            if ($body[$offset] === '%') {
+                $offset = $this->skipPdfComment($body, $offset);
+                continue;
+            }
+
+            $value = $this->readPdfValueAt($body, $offset, $endOffset);
+            if ($value === null || $endOffset === null) {
+                $offset++;
+                continue;
+            }
+
+            $integer = $this->integerFromEffectivePdfValue($value, $objects);
+            if ($integer !== null) {
+                $integers[] = $integer;
+            }
+            $offset = $endOffset;
+        }
+
+        return $integers;
     }
 
     /**
