@@ -779,6 +779,75 @@ MARKDOWN);
         $t->same(['Migration packet', 'Final page'], $sequence['finalPdfOutlineTitles']);
     },
 
+    'fake runner extracts bounded pdf page boxes and rotations from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/geometry.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /MediaBox [0 0 612 792] /CropBox [18 18 594 774] /Rotate 0 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /TrimBox [36 36 576 756] /BleedBox [9 9 603 783] /ArtBox [72 72 540 720] /Rotate 90 >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /CropBox [24 24 768 588] /Rotate -90 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/geometry.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/geometry.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'mediaBox' => [0.0, 0.0, 612.0, 792.0],
+                'cropBox' => [18.0, 18.0, 594.0, 774.0],
+                'bleedBox' => [9.0, 9.0, 603.0, 783.0],
+                'trimBox' => [36.0, 36.0, 576.0, 756.0],
+                'artBox' => [72.0, 72.0, 540.0, 720.0],
+                'rotation' => 90,
+                'inherited' => ['cropBox', 'mediaBox'],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'mediaBox' => [0.0, 0.0, 792.0, 612.0],
+                'cropBox' => [24.0, 24.0, 768.0, 588.0],
+                'bleedBox' => null,
+                'trimBox' => null,
+                'artBox' => null,
+                'rotation' => 270,
+                'inherited' => [],
+            ],
+        ], $result['pdfPageBoxes']);
+        $t->same([1 => 90, 2 => 270], $result['pdfPageRotations']);
+        $t->contains('pdf-byte-page-boxes:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-rotations:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($result['pdfPageBoxes'], $sequence['finalPdfPageBoxes']);
+        $t->same([1 => 90, 2 => 270], $sequence['finalPdfPageRotations']);
+    },
+
     'fake runner extracts bounded pdf document info and catalog language metadata' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/metadata.pdf']);

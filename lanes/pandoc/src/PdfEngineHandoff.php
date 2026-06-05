@@ -248,6 +248,8 @@ final class PdfEngineHandoff
      *     pdfStartXrefOffsets: list<int>,
      *     pdfIncrementalUpdates: bool,
      *     pdfPageCount: int|null,
+     *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
+     *     pdfPageRotations: array<int, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfLanguage: string|null,
@@ -620,6 +622,8 @@ final class PdfEngineHandoff
         $pdfStartXrefOffsets = [];
         $pdfIncrementalUpdates = false;
         $pdfPageCount = null;
+        $pdfPageBoxes = [];
+        $pdfPageRotations = [];
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
         $pdfLanguage = null;
@@ -650,6 +654,8 @@ final class PdfEngineHandoff
                 $pdfStartXrefOffsets = $pdfInspection['startXrefOffsets'];
                 $pdfIncrementalUpdates = $pdfInspection['incrementalUpdates'];
                 $pdfPageCount = $pdfInspection['pageCount'];
+                $pdfPageBoxes = $pdfInspection['pageBoxes'];
+                $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfLanguage = $pdfInspection['language'];
@@ -673,6 +679,12 @@ final class PdfEngineHandoff
                 $pdfEncryptMetadata = $pdfEncryption['encryptMetadata'];
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
+                }
+                if ($pdfPageBoxes !== []) {
+                    $diagnostics[] = 'pdf-byte-page-boxes:' . count($pdfPageBoxes);
+                }
+                if ($pdfPageRotations !== []) {
+                    $diagnostics[] = 'pdf-byte-page-rotations:' . count($pdfPageRotations);
                 }
                 if ($pdfTrailerCount > 0) {
                     $diagnostics[] = 'pdf-byte-trailers:' . $pdfTrailerCount;
@@ -862,6 +874,8 @@ final class PdfEngineHandoff
             'pdfStartXrefOffsets' => $pdfStartXrefOffsets,
             'pdfIncrementalUpdates' => $pdfIncrementalUpdates,
             'pdfPageCount' => $pdfPageCount,
+            'pdfPageBoxes' => $pdfPageBoxes,
+            'pdfPageRotations' => $pdfPageRotations,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfLanguage' => $pdfLanguage,
@@ -909,6 +923,8 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
      *     finalPdfPageCount: int|null,
+     *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
+     *     finalPdfPageRotations: array<int, int>,
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     finalPdfStartXrefOffsets: list<int>,
@@ -1074,6 +1090,8 @@ final class PdfEngineHandoff
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
+            'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
+            'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
             'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
@@ -2136,6 +2154,8 @@ final class PdfEngineHandoff
      *     startXrefOffsets:list<int>,
      *     incrementalUpdates:bool,
      *     pageCount:int|null,
+     *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
+     *     pageRotations:array<int, int>,
      *     outlineTitles:list<string>,
      *     documentInfo:array<string, string>,
      *     language:string|null,
@@ -2165,6 +2185,7 @@ final class PdfEngineHandoff
         $catalog = $this->extractPdfCatalogDictionary($pdfBytes);
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
+        $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -2172,6 +2193,8 @@ final class PdfEngineHandoff
             'startXrefOffsets' => $this->pdfStartXrefOffsets($trailerRevisions),
             'incrementalUpdates' => $this->pdfHasIncrementalUpdates($trailerRevisions),
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
+            'pageBoxes' => $pageBoxes,
+            'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
@@ -2971,6 +2994,220 @@ final class PdfEngineHandoff
         }
 
         return $pageObjects > 0 ? $pageObjects : null;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>
+     */
+    private function extractPdfPageBoxes(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $pages = [];
+        $visited = [];
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageBoxesFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                [],
+                $visited,
+                $pages,
+                0
+            );
+        }
+
+        if ($pages === []) {
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pages[] = $this->summarizePdfPageBox($body, $reference, []);
+            }
+        }
+
+        foreach ($pages as $index => &$page) {
+            $page['page'] = $index + 1;
+        }
+        unset($page);
+
+        return $pages;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, mixed> $inherited
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}> $pages
+     */
+    private function collectPdfPageBoxesFromTree(
+        array $objects,
+        string $reference,
+        array $inherited,
+        array &$visited,
+        array &$pages,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pages[] = $this->summarizePdfPageBox($body, $reference, $inherited);
+            return;
+        }
+
+        $childInherited = $this->pdfPageTreeInheritedValues($body, $inherited);
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageBoxesFromTree(
+                $objects,
+                $kidReference,
+                $childInherited,
+                $visited,
+                $pages,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $inherited
+     * @return array<string, mixed>
+     */
+    private function pdfPageTreeInheritedValues(string $dictionary, array $inherited): array
+    {
+        foreach (['MediaBox', 'CropBox'] as $boxName) {
+            $box = $this->extractPdfBoxValue($dictionary, $boxName);
+            if ($box !== null) {
+                $inherited[$boxName] = $box;
+            }
+        }
+
+        $rotation = $this->extractPdfRotationValue($dictionary);
+        if ($rotation !== null) {
+            $inherited['Rotate'] = $rotation;
+        }
+
+        return $inherited;
+    }
+
+    /**
+     * @param array<string, mixed> $inherited
+     * @return array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}
+     */
+    private function summarizePdfPageBox(string $dictionary, ?string $reference, array $inherited): array
+    {
+        $inheritedNames = [];
+        $boxValues = [];
+        foreach (['MediaBox', 'CropBox', 'BleedBox', 'TrimBox', 'ArtBox'] as $boxName) {
+            $box = $this->extractPdfBoxValue($dictionary, $boxName);
+            if ($box === null && isset($inherited[$boxName]) && is_array($inherited[$boxName])) {
+                $box = $inherited[$boxName];
+                $inheritedNames[] = $this->pdfPageGeometryKey($boxName);
+            }
+
+            $boxValues[$boxName] = $box;
+        }
+
+        $rotation = $this->extractPdfRotationValue($dictionary);
+        if ($rotation === null && isset($inherited['Rotate']) && is_int($inherited['Rotate'])) {
+            $rotation = $inherited['Rotate'];
+            $inheritedNames[] = 'rotation';
+        }
+
+        $inheritedNames = array_values(array_unique($inheritedNames));
+        sort($inheritedNames);
+
+        return [
+            'page' => 0,
+            'pageObject' => $reference === null ? null : $reference . ' R',
+            'mediaBox' => $boxValues['MediaBox'],
+            'cropBox' => $boxValues['CropBox'],
+            'bleedBox' => $boxValues['BleedBox'],
+            'trimBox' => $boxValues['TrimBox'],
+            'artBox' => $boxValues['ArtBox'],
+            'rotation' => $rotation,
+            'inherited' => $inheritedNames,
+        ];
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function extractPdfBoxValue(string $dictionary, string $name): ?array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, $name);
+        if ($array === null) {
+            return null;
+        }
+        if (preg_match_all('/[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[Ee][-+]?\d+)?/', $array, $matches) < 4) {
+            return null;
+        }
+
+        $box = [];
+        foreach (array_slice($matches[0], 0, 4) as $number) {
+            $box[] = (float) $number;
+        }
+
+        return $box;
+    }
+
+    private function extractPdfRotationValue(string $dictionary): ?int
+    {
+        $rotation = $this->extractPdfIntegerToken($dictionary, 'Rotate');
+        if ($rotation === null) {
+            return null;
+        }
+
+        $rotation %= 360;
+        if ($rotation < 0) {
+            $rotation += 360;
+        }
+
+        return $rotation;
+    }
+
+    private function pdfPageGeometryKey(string $pdfName): string
+    {
+        return match ($pdfName) {
+            'MediaBox' => 'mediaBox',
+            'CropBox' => 'cropBox',
+            'BleedBox' => 'bleedBox',
+            'TrimBox' => 'trimBox',
+            'ArtBox' => 'artBox',
+            default => $pdfName,
+        };
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}> $pageBoxes
+     * @return array<int, int>
+     */
+    private function summarizePdfPageRotations(array $pageBoxes): array
+    {
+        $rotations = [];
+        foreach ($pageBoxes as $pageBox) {
+            if ($pageBox['rotation'] === null) {
+                continue;
+            }
+
+            $rotations[$pageBox['page']] = $pageBox['rotation'];
+        }
+
+        return $rotations;
+    }
+
+    private function pdfReferenceKey(string $reference): string
+    {
+        if (preg_match('/\A(\d+)\s+(\d+)\s+R\z/', trim($reference), $matches) !== 1) {
+            return $reference;
+        }
+
+        return $matches[1] . ' ' . $matches[2];
     }
 
     /**
