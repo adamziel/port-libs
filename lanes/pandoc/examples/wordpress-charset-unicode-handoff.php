@@ -67,6 +67,8 @@ $ambiguousText = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
 $ambiguousWideSlices = UnicodeText::splitByDisplayBreakpoints($ambiguousText, [2, 4, 6, 8], 'wide');
 $supplementaryWideText = "\u{16FE0}\u{1B000}\u{1F200}\u{1F18E}";
 $supplementaryWideSlices = UnicodeText::splitByDisplayBreakpoints($supplementaryWideText, [2, 4, 6]);
+$kanaExtendedBText = "\u{1AFF0}\u{1AFF5}\u{1AFFD}";
+$kanaExtendedBSlices = UnicodeText::splitByDisplayBreakpoints($kanaExtendedBText . 'X', [2, 4, 6]);
 $rareEastAsianScriptText = "\u{17000}\u{18800}\u{18B00}\u{18D00}";
 $rareEastAsianScriptSlices = UnicodeText::splitByDisplayBreakpoints($rareEastAsianScriptText . 'X', [2, 4, 6, 8]);
 $bmpWideEmojiText = "\u{231A}\u{2705}\u{2B50}\u{26FD}";
@@ -217,6 +219,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $supplementaryWideSlices))])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Kana Extended-B'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $kanaExtendedBSlices)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $kanaExtendedBSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Rare CJK scripts'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $rareEastAsianScriptSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $rareEastAsianScriptSlices))])]),
@@ -356,6 +363,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Supplementary wide</td><td>\u{16FE0} / \u{1B000} / \u{1F200} / \u{1F18E}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing supplementary East Asian wide audit');
+    }
+    if (!str_contains($blocks, "<td>Kana Extended-B</td><td>\u{1AFF0} / \u{1AFF5} / \u{1AFFD} / X</td><td>2,2,2,1</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Kana Extended-B width audit');
     }
     if (!str_contains($blocks, "<td>Rare CJK scripts</td><td>\u{17000} / \u{18800} / \u{18B00} / \u{18D00} / X</td><td>2,2,2,2,1</td>")) {
         throw new RuntimeException('charset handoff self-test missing rare East Asian script width audit');

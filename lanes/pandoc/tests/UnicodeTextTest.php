@@ -535,6 +535,22 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Supplementary East Asian wide wrapped line exceeds requested width');
         }
     },
+    'measures kana extended b letters as east asian wide' => static function (TestRunner $t): void {
+        $kana = "\u{1AFF0}\u{1AFF5}\u{1AFFD}";
+        $sample = $kana . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Kana {$sample} tail", 10, '  ');
+
+        $t->same(6, UnicodeText::displayWidth($kana));
+        $t->same(7, UnicodeText::displayWidth($sample));
+        $t->same(["\u{1AFF0}", "\u{1AFF5}", "\u{1AFFD}", 'X'], UnicodeText::graphemes($sample));
+        $t->same(["\u{1AFF0}", "\u{1AFF5}", "\u{1AFFD}", 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4, 6]));
+        $t->same(["\u{1AFF0}\u{1AFF5}", "\u{1AFFD}X"], UnicodeText::splitAtDisplayWidth($sample, 3));
+        $t->same("\u{1AFFD}  ", UnicodeText::padDisplay("\u{1AFFD}", 4));
+        $t->same(['Kana', "  {$sample}", '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Kana Extended-B wrapped line exceeds requested width');
+        }
+    },
     'measures tangut and khitan supplementary east asian scripts as wide' => static function (TestRunner $t): void {
         $tangut = "\u{17000}\u{187F7}\u{18D00}";
         $components = "\u{18800}\u{18AFF}";
