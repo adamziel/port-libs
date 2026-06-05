@@ -1245,6 +1245,155 @@ XML;
         $t->same(['relationship-source-not-loaded', 'unmatched-source-id'], $missingSource['issues']);
         $t->same(null, $missingSource['relationshipXml']);
     },
+    'preflights XML signature relationship transform declarations from signature parts' => static function (TestRunner $t): void {
+        $signatureContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-invalid.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $signaturePackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $signatureDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+  <Relationship Id="rIdDraft" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
+</Relationships>
+XML;
+
+        $validSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/_rels/.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdDocument"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $invalidSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature" xmlns:bad="urn:bad">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdMissing"/>
+          <mdssi:RelationshipsGroupReference/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/document.xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <bad:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $signatureContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $signaturePackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $signatureDocumentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
+            ['name' => '_xmlsignatures/sig1.xml', 'data' => $validSignatureXml],
+            ['name' => '_xmlsignatures/sig-invalid.xml', 'data' => $invalidSignatureXml],
+        ]));
+
+        $validTransforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.xml');
+        $t->same(2, count($validTransforms));
+        $t->same('/_xmlsignatures/sig1.xml', $validTransforms[0]['signaturePart']);
+        $t->same(0, $validTransforms[0]['referenceIndex']);
+        $t->same('/word/_rels/document.xml.rels', $validTransforms[0]['relationshipPartName']);
+        $t->same('/word/document.xml', $validTransforms[0]['source']);
+        $t->same(['rIdHero'], $validTransforms[0]['sourceIds']);
+        $t->same([OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE], $validTransforms[0]['sourceTypes']);
+        $t->same('http://www.w3.org/TR/2001/REC-xml-c14n-20010315', $validTransforms[0]['followingCanonicalizationAlgorithm']);
+        $t->same(true, $validTransforms[0]['followedByCanonicalization']);
+        $t->same(['rIdEmbeddedWorkbook', 'rIdHero'], $validTransforms[0]['relationshipIds']);
+        $t->same(2, $validTransforms[0]['relationshipCount']);
+        $t->same(true, $validTransforms[0]['selectorValid']);
+        $t->same(true, $validTransforms[0]['relationshipTargetsValid']);
+        $t->same(true, $validTransforms[0]['valid']);
+        $t->same([], $validTransforms[0]['issues']);
+        $t->contains('Id="rIdEmbeddedWorkbook"', $validTransforms[0]['relationshipXml']);
+        $t->same(false, str_contains((string) $validTransforms[0]['relationshipXml'], 'rIdDraft'));
+
+        $t->same('/_rels/.rels', $validTransforms[1]['relationshipPartName']);
+        $t->same('/', $validTransforms[1]['source']);
+        $t->same(['rIdDocument'], $validTransforms[1]['sourceIds']);
+        $t->same([], $validTransforms[1]['sourceTypes']);
+        $t->same('http://www.w3.org/2001/10/xml-exc-c14n#', $validTransforms[1]['followingCanonicalizationAlgorithm']);
+        $t->same(true, $validTransforms[1]['valid']);
+        $t->same(['rIdDocument'], $validTransforms[1]['relationshipIds']);
+        $t->contains('Target="word/document.xml"', $validTransforms[1]['relationshipXml']);
+
+        $invalidTransforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-invalid.xml');
+        $t->same(3, count($invalidTransforms));
+        $t->same(false, $invalidTransforms[0]['followedByCanonicalization']);
+        $t->same('http://www.w3.org/2000/09/xmldsig#enveloped-signature', $invalidTransforms[0]['followingCanonicalizationAlgorithm']);
+        $t->same(false, $invalidTransforms[0]['valid']);
+        $t->same([
+            'relationship-transform-not-followed-by-canonicalization',
+            'multiple-relationship-transforms-for-part',
+        ], $invalidTransforms[0]['issues']);
+        $t->same(false, $invalidTransforms[1]['valid']);
+        $t->same(['rIdMissing'], $invalidTransforms[1]['sourceIds']);
+        $t->same([
+            'missing-source-type',
+            'unmatched-source-id',
+            'multiple-relationship-transforms-for-part',
+        ], $invalidTransforms[1]['issues']);
+        $t->same('/word/document.xml', $invalidTransforms[2]['relationshipPartName']);
+        $t->same(null, $invalidTransforms[2]['source']);
+        $t->same(false, $invalidTransforms[2]['valid']);
+        $t->same([
+            'reference-not-relationship-part',
+            'unsupported-relationship-transform-child',
+        ], $invalidTransforms[2]['issues']);
+
+        $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/missing.xml'));
+    },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

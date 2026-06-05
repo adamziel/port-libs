@@ -81,6 +81,23 @@ $signatureOriginRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+          <mdssi:RelationshipReference SourceId="rIdReviewer"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $draftRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
@@ -109,7 +126,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
     ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
     ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $signatureOriginRelationshipsXml],
-    ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
+    ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
 ]);
 
 $relationshipPartLoads = [];
@@ -238,6 +255,27 @@ $relationshipTransform = $graph->materializeRelationshipTransform(
     ['rIdHero', 'rIdReviewer'],
     [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE],
 );
+$signatureRelationshipTransforms = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.xml') as $transform) {
+    $signatureRelationshipTransforms[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceIndex' => $transform['referenceIndex'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'sourceTypes' => $transform['sourceTypes'],
+        'followingCanonicalizationAlgorithm' => $transform['followingCanonicalizationAlgorithm'],
+        'followedByCanonicalization' => $transform['followedByCanonicalization'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
 
 $reachableTargets = [];
 foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -404,6 +442,7 @@ $summary = [
         'issues' => $relationshipTransform['issues'],
         'relationshipXml' => $relationshipTransform['relationshipXml'],
     ],
+    'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -644,6 +683,23 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="Internal"')
         || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="External"')
         || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'rIdDraftReview')
+        || count($summary['signatureRelationshipTransforms'] ?? []) !== 1
+        || ($summary['signatureRelationshipTransforms'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig1.xml'
+        || ($summary['signatureRelationshipTransforms'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransforms'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransforms'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['signatureRelationshipTransforms'][0]['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer']
+        || ($summary['signatureRelationshipTransforms'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['signatureRelationshipTransforms'][0]['followingCanonicalizationAlgorithm'] ?? null) !== 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+        || ($summary['signatureRelationshipTransforms'][0]['followedByCanonicalization'] ?? null) !== true
+        || ($summary['signatureRelationshipTransforms'][0]['relationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer']
+        || ($summary['signatureRelationshipTransforms'][0]['relationshipCount'] ?? null) !== 3
+        || ($summary['signatureRelationshipTransforms'][0]['selectorValid'] ?? null) !== true
+        || ($summary['signatureRelationshipTransforms'][0]['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['signatureRelationshipTransforms'][0]['valid'] ?? null) !== true
+        || ($summary['signatureRelationshipTransforms'][0]['issues'] ?? null) !== []
+        || !str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'Id="rIdEmbeddedWorkbook"')
+        || str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'rIdDraftReview')
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'

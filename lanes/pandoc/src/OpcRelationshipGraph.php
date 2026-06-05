@@ -10,6 +10,8 @@ final class OpcRelationshipGraph
     public const DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     public const DIGITAL_SIGNATURE_SIGNATURE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
     public const RELATIONSHIP_TRANSFORM_ALGORITHM = 'http://schemas.openxmlformats.org/package/2006/RelationshipTransform';
+    public const XML_SIGNATURE_NAMESPACE_URI = 'http://www.w3.org/2000/09/xmldsig#';
+    public const DIGITAL_SIGNATURE_NAMESPACE_URI = 'http://schemas.openxmlformats.org/package/2006/digital-signature';
     public const EMBEDDED_PACKAGE_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     public const EMBEDDED_OBJECT_RELATIONSHIP_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     public const WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES = [
@@ -996,6 +998,132 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, followingCanonicalizationAlgorithm:?string, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
+     */
+    public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
+    {
+        $signaturePartName = OpcPackagePath::canonicalPartName($signaturePartName);
+        if (!$this->package->has($signaturePartName)) {
+            throw new \RuntimeException('OPC signature part not found: ' . $signaturePartName);
+        }
+
+        $dom = XmlHtmlDom::loadXmlDocument($this->package->read($signaturePartName), 'OPC digital signature XML');
+        $rows = [];
+        $rowsByRelationshipPart = [];
+        $referenceIndex = -1;
+
+        foreach ($dom->getElementsByTagNameNS(self::XML_SIGNATURE_NAMESPACE_URI, 'Reference') as $reference) {
+            if (!$reference instanceof \DOMElement) {
+                continue;
+            }
+
+            $referenceIndex++;
+            $referenceUri = $reference->hasAttribute('URI') ? $reference->getAttribute('URI') : '';
+            $transforms = self::xmlSignatureReferenceTransforms($reference);
+            foreach ($transforms as $transformIndex => $transform) {
+                if ($transform->getAttribute('Algorithm') !== self::RELATIONSHIP_TRANSFORM_ALGORITHM) {
+                    continue;
+                }
+
+                $relationshipPartName = null;
+                $sourcePartName = null;
+                $parseError = null;
+                $issues = [];
+
+                if ($referenceUri === '') {
+                    $issues[] = 'missing-reference-uri';
+                } else {
+                    try {
+                        $resolvedReference = OpcPackagePath::resolveInternalTarget($signaturePartName, $referenceUri);
+                        $relationshipPartName = OpcPackagePath::stripQueryAndFragment($resolvedReference);
+                        if (!OpcRelationships::isRelationshipPartName($relationshipPartName)) {
+                            $issues[] = 'reference-not-relationship-part';
+                        } else {
+                            $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
+                            $rowsByRelationshipPart[$relationshipPartName][] = count($rows);
+                        }
+                    } catch (\InvalidArgumentException $exception) {
+                        $issues[] = 'invalid-reference-uri';
+                        $parseError = $exception->getMessage();
+                    }
+                }
+
+                $selector = self::relationshipTransformSelectors($transform);
+                $issues = array_merge($issues, $selector['issues']);
+                $followingCanonicalizationAlgorithm = self::followingTransformAlgorithm($transforms, $transformIndex);
+                $followedByCanonicalization = self::isCanonicalizationTransformAlgorithm($followingCanonicalizationAlgorithm);
+                if (!$followedByCanonicalization) {
+                    $issues[] = 'relationship-transform-not-followed-by-canonicalization';
+                }
+
+                $relationshipIds = [];
+                $relationshipCount = 0;
+                $selectorValid = null;
+                $relationshipTargetsValid = null;
+                $relationships = [];
+                $relationshipXml = null;
+
+                if ($sourcePartName !== null) {
+                    try {
+                        $materialized = $this->materializeRelationshipTransform(
+                            $sourcePartName,
+                            $selector['sourceIds'],
+                            $selector['sourceTypes'],
+                        );
+                        $relationshipIds = $materialized['relationshipIds'];
+                        $relationshipCount = $materialized['relationshipCount'];
+                        $selectorValid = $materialized['selectorValid'];
+                        $relationshipTargetsValid = $materialized['relationshipTargetsValid'];
+                        $relationships = $materialized['relationships'];
+                        $relationshipXml = $materialized['relationshipXml'];
+                        $issues = array_merge($issues, $materialized['issues']);
+                    } catch (\InvalidArgumentException $exception) {
+                        $issues[] = 'invalid-relationship-transform-selector';
+                        $parseError = $exception->getMessage();
+                    }
+                }
+
+                $issues = array_values(array_unique($issues));
+                $rows[] = [
+                    'signaturePart' => $signaturePartName,
+                    'referenceIndex' => $referenceIndex,
+                    'referenceUri' => $referenceUri,
+                    'relationshipPartName' => $relationshipPartName,
+                    'source' => $sourcePartName,
+                    'transformAlgorithm' => self::RELATIONSHIP_TRANSFORM_ALGORITHM,
+                    'sourceIds' => $selector['sourceIds'],
+                    'sourceTypes' => $selector['sourceTypes'],
+                    'followingCanonicalizationAlgorithm' => $followingCanonicalizationAlgorithm,
+                    'followedByCanonicalization' => $followedByCanonicalization,
+                    'relationshipIds' => $relationshipIds,
+                    'relationshipCount' => $relationshipCount,
+                    'selectorValid' => $selectorValid,
+                    'relationshipTargetsValid' => $relationshipTargetsValid,
+                    'valid' => $issues === [],
+                    'issues' => $issues,
+                    'parseError' => $parseError,
+                    'relationships' => $relationships,
+                    'relationshipXml' => $relationshipXml,
+                ];
+            }
+        }
+
+        foreach ($rowsByRelationshipPart as $rowIndexes) {
+            if (count($rowIndexes) < 2) {
+                continue;
+            }
+
+            foreach ($rowIndexes as $rowIndex) {
+                $rows[$rowIndex]['issues'][] = 'multiple-relationship-transforms-for-part';
+                $rows[$rowIndex]['issues'] = array_values(array_unique($rows[$rowIndex]['issues']));
+                $rows[$rowIndex]['valid'] = false;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
@@ -1065,6 +1193,122 @@ final class OpcRelationshipGraph
         }
 
         return $targets;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function xmlSignatureReferenceTransforms(\DOMElement $reference): array
+    {
+        $transforms = [];
+        foreach ($reference->childNodes as $child) {
+            if (
+                !$child instanceof \DOMElement
+                || $child->namespaceURI !== self::XML_SIGNATURE_NAMESPACE_URI
+                || $child->localName !== 'Transforms'
+            ) {
+                continue;
+            }
+
+            foreach ($child->childNodes as $transform) {
+                if (
+                    $transform instanceof \DOMElement
+                    && $transform->namespaceURI === self::XML_SIGNATURE_NAMESPACE_URI
+                    && $transform->localName === 'Transform'
+                ) {
+                    $transforms[] = $transform;
+                }
+            }
+        }
+
+        return $transforms;
+    }
+
+    /**
+     * @return array{sourceIds:list<string>, sourceTypes:list<string>, issues:list<string>}
+     */
+    private static function relationshipTransformSelectors(\DOMElement $transform): array
+    {
+        $sourceIds = [];
+        $sourceTypes = [];
+        $issues = [];
+
+        foreach ($transform->childNodes as $child) {
+            if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') === '') {
+                continue;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                if (($child->nodeValue ?? '') !== '') {
+                    $issues[] = 'unsupported-relationship-transform-content';
+                }
+                continue;
+            }
+
+            if ($child->namespaceURI !== self::DIGITAL_SIGNATURE_NAMESPACE_URI) {
+                $issues[] = 'unsupported-relationship-transform-child';
+                continue;
+            }
+
+            if ($child->localName === 'RelationshipReference') {
+                $sourceId = $child->getAttribute('SourceId');
+                if ($sourceId === '') {
+                    $issues[] = 'missing-source-id';
+                    continue;
+                }
+
+                if (!in_array($sourceId, $sourceIds, true)) {
+                    $sourceIds[] = $sourceId;
+                }
+                continue;
+            }
+
+            if ($child->localName === 'RelationshipsGroupReference') {
+                $sourceType = $child->getAttribute('SourceType');
+                if ($sourceType === '') {
+                    $issues[] = 'missing-source-type';
+                    continue;
+                }
+
+                if (!in_array($sourceType, $sourceTypes, true)) {
+                    $sourceTypes[] = $sourceType;
+                }
+                continue;
+            }
+
+            $issues[] = 'unsupported-relationship-transform-child';
+        }
+
+        return [
+            'sourceIds' => $sourceIds,
+            'sourceTypes' => $sourceTypes,
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $transforms
+     */
+    private static function followingTransformAlgorithm(array $transforms, int $transformIndex): ?string
+    {
+        $following = $transforms[$transformIndex + 1] ?? null;
+        if (!$following instanceof \DOMElement || !$following->hasAttribute('Algorithm')) {
+            return null;
+        }
+
+        return $following->getAttribute('Algorithm');
+    }
+
+    private static function isCanonicalizationTransformAlgorithm(?string $algorithm): bool
+    {
+        return in_array($algorithm, [
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments',
+            'http://www.w3.org/2001/10/xml-exc-c14n#',
+            'http://www.w3.org/2001/10/xml-exc-c14n#WithComments',
+            'http://www.w3.org/2006/12/xml-c14n11',
+            'http://www.w3.org/2006/12/xml-c14n11#WithComments',
+        ], true);
     }
 
     /**
