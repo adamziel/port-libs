@@ -9422,9 +9422,19 @@ final class PdfTextExtractor
      */
     private function pageObjectLineage(int $pageObjectNumber, array $objects): array
     {
+        return $this->pageObjectLineageResolution($pageObjectNumber, $objects)['lineage'];
+    }
+
+    /**
+     * @return array{lineage: list<int>, blocked: bool}
+     * @param array<int, string> $objects
+     */
+    private function pageObjectLineageResolution(int $pageObjectNumber, array $objects): array
+    {
         $lineage = [];
         $seen = [];
         $objectNumber = $pageObjectNumber;
+        $blocked = false;
 
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
@@ -9438,20 +9448,31 @@ final class PdfTextExtractor
             $parentValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent');
             if (
                 $parentValue === null
-                || preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($parentValue), $match) !== 1
+                || preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1
             ) {
                 break;
             }
 
             $parentObjectNumber = (int) $match[1];
-            if (!isset($objects[$parentObjectNumber]) || !$this->isPagesObject($objects[$parentObjectNumber])) {
+            $parentGeneration = (int) $match[2];
+            $parentBody = $this->objectBodyForExactReference($objects, $parentObjectNumber, $parentGeneration);
+            if (
+                $parentBody === null
+                || !isset($objects[$parentObjectNumber])
+                || $objects[$parentObjectNumber] !== $parentBody
+                || !$this->isPagesObject($parentBody)
+            ) {
+                $blocked = true;
                 break;
             }
 
             $objectNumber = $parentObjectNumber;
         }
 
-        return $lineage;
+        return [
+            'lineage' => $lineage,
+            'blocked' => $blocked,
+        ];
     }
 
     /**
@@ -9478,7 +9499,8 @@ final class PdfTextExtractor
      */
     private function pageResourceDictionaryBlocksFallback(int $pageObjectNumber, array $objects): bool
     {
-        foreach ($this->pageObjectLineage($pageObjectNumber, $objects) as $objectNumber) {
+        $lineage = $this->pageObjectLineageResolution($pageObjectNumber, $objects);
+        foreach ($lineage['lineage'] as $objectNumber) {
             $resolution = $this->pageResourceDictionaryResolution($objects[$objectNumber], $objects);
             if ($resolution['state'] === 'resolved') {
                 return false;
@@ -9489,7 +9511,7 @@ final class PdfTextExtractor
             }
         }
 
-        return false;
+        return $lineage['blocked'];
     }
 
     /**

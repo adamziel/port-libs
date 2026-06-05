@@ -1463,8 +1463,17 @@ final class PdfPagePropertyExtractor
                 break;
             }
 
-            $parentObjectNumber = $this->objectReferenceValueAfterName($dictionary, 'Parent');
-            if ($parentObjectNumber === null || !isset($objects[$parentObjectNumber])) {
+            $parentValue = $this->dictionaryRawValue($dictionary, 'Parent');
+            $parentReference = $parentValue === null ? null : $this->objectReferenceFromValue($parentValue);
+            if ($parentReference === null) {
+                break;
+            }
+
+            $parentObjectNumber = $parentReference['objectNumber'];
+            if (
+                !isset($objects[$parentObjectNumber])
+                || ($this->currentObjectGenerations[$parentObjectNumber] ?? null) !== $parentReference['generation']
+            ) {
                 break;
             }
 
