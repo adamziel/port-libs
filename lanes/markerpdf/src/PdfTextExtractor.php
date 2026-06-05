@@ -20403,6 +20403,8 @@ final class PdfTextExtractor
         $currentTextY = null;
         $currentTextEndX = null;
         $currentTextEndY = null;
+        $currentTextDrawnEndX = null;
+        $currentTextDrawnEndY = null;
         $characterSpacing = 0.0;
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
@@ -20423,6 +20425,8 @@ final class PdfTextExtractor
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
                     $currentTextEndX = $currentTextX;
                     $currentTextEndY = $currentTextY;
+                    $currentTextDrawnEndX = $currentTextX;
+                    $currentTextDrawnEndY = $currentTextY;
                     $pendingPositionWordGap = false;
                 }
 
@@ -20467,15 +20471,33 @@ final class PdfTextExtractor
                         $pendingPositionWordGap = false;
                     }
                     if ($this->mapWritingMode($toUnicodeMap) === 1) {
-                        $currentTextEndY = $this->advanceTextEndYForOperand(
-                            $currentTextEndY ?? $currentTextY,
+                        $currentTextDrawnEndY = $this->advanceTextEndYForOperand(
+                            $currentTextDrawnEndY ?? $currentTextY,
                             $operand,
                             $toUnicodeMap,
                             $currentFontSize,
                             $characterSpacing,
                             $wordSpacing
                         );
+                        $currentTextEndY = $this->advanceTextEndYForOperand(
+                            $currentTextEndY ?? $currentTextY,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            true
+                        );
                     } else {
+                        $currentTextDrawnEndX = $this->advanceTextEndXForOperand(
+                            $currentTextDrawnEndX ?? $currentTextX,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        );
                         $currentTextEndX = $this->advanceTextEndXForOperand(
                             $currentTextEndX ?? $currentTextX,
                             $operand,
@@ -20483,7 +20505,8 @@ final class PdfTextExtractor
                             $currentFontSize,
                             $characterSpacing,
                             $wordSpacing,
-                            $horizontalScale * $currentTextMatrixHorizontalScale
+                            $horizontalScale * $currentTextMatrixHorizontalScale,
+                            true
                         );
                     }
                 }
@@ -20627,6 +20650,8 @@ final class PdfTextExtractor
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
+                $currentTextDrawnEndX = $currentTextX;
+                $currentTextDrawnEndY = $currentTextY;
                 $operands = [];
                 continue;
             }
@@ -20637,19 +20662,21 @@ final class PdfTextExtractor
                     if ($this->verticalTextMatrixBreaksLine($operands, $currentTextX)) {
                         $this->pushLine($lines, $currentLine);
                         $pendingPositionWordGap = false;
-                    } elseif ($this->verticalTextMatrixCreatesWordGap($operands, $currentTextEndY)) {
+                    } elseif ($this->verticalTextMatrixCreatesWordGap($operands, $currentTextDrawnEndY)) {
                         $pendingPositionWordGap = $currentLine !== '';
                     }
                 } elseif ($this->textMatrixBreaksLine($operands, $currentTextY)) {
                     $this->pushLine($lines, $currentLine);
                     $pendingPositionWordGap = false;
-                } elseif ($this->textMatrixCreatesWordGap($operands, $currentTextEndX)) {
+                } elseif ($this->textMatrixCreatesWordGap($operands, $currentTextDrawnEndX)) {
                     $pendingPositionWordGap = $currentLine !== '';
                 }
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $this->textMatrixY($operands);
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
+                $currentTextDrawnEndX = $currentTextX;
+                $currentTextDrawnEndY = $currentTextY;
                 $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
@@ -20660,6 +20687,8 @@ final class PdfTextExtractor
                 $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
+                $currentTextDrawnEndX = $currentTextX;
+                $currentTextDrawnEndY = $currentTextY;
                 $pendingPositionWordGap = false;
                 $operands = [];
                 continue;
@@ -20670,6 +20699,8 @@ final class PdfTextExtractor
                 $currentTextY = null;
                 $currentTextEndX = null;
                 $currentTextEndY = null;
+                $currentTextDrawnEndX = null;
+                $currentTextDrawnEndY = null;
                 $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
                 $operands = [];
@@ -20682,6 +20713,8 @@ final class PdfTextExtractor
                 $currentTextY = null;
                 $currentTextEndX = null;
                 $currentTextEndY = null;
+                $currentTextDrawnEndX = null;
+                $currentTextDrawnEndY = null;
                 $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
                 $operands = [];
@@ -22662,7 +22695,8 @@ final class PdfTextExtractor
         float $wordSpacing,
         float $horizontalScale,
         ?array $glyphWidths = null,
-        ?int $sourceSpaceCount = null
+        ?int $sourceSpaceCount = null,
+        bool $includeTerminalCharacterSpacing = false
     ): ?float {
         if ($currentTextEndX === null || $decoded === '') {
             return $currentTextEndX;
@@ -22674,7 +22708,10 @@ final class PdfTextExtractor
             ? (array_sum($glyphWidths) / 1000.0) * $fontSize
             : $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
         $spaceCount = $sourceSpaceCount ?? substr_count($decoded, ' ');
-        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + ($spaceCount * $wordSpacing);
+        $characterSpacingCount = $includeTerminalCharacterSpacing
+            ? max(0, $characters)
+            : max(0, $characters - 1);
+        $spacingAdvance = ($characterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
         $scale = $horizontalScale / 100.0;
 
         return $currentTextEndX + (($baseAdvance + $spacingAdvance) * $scale);
@@ -22687,7 +22724,8 @@ final class PdfTextExtractor
         ?float $fontSize,
         float $characterSpacing,
         float $wordSpacing,
-        float $horizontalScale
+        float $horizontalScale,
+        bool $includeTerminalCharacterSpacing = false
     ): ?float {
         if ($currentTextEndX === null) {
             return null;
@@ -22703,7 +22741,8 @@ final class PdfTextExtractor
                 $wordSpacing,
                 $horizontalScale,
                 $this->glyphWidthsForTextOperand($operand, $toUnicodeMap),
-                $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap)
+                $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap),
+                $includeTerminalCharacterSpacing
             );
         }
 
@@ -22718,7 +22757,8 @@ final class PdfTextExtractor
                     $wordSpacing,
                     $horizontalScale,
                     $this->glyphWidthsForTextOperand((string) $element['value'], $toUnicodeMap),
-                    $this->sourceSpaceCountForTextOperand((string) $element['value'], $toUnicodeMap)
+                    $this->sourceSpaceCountForTextOperand((string) $element['value'], $toUnicodeMap),
+                    $includeTerminalCharacterSpacing
                 );
                 continue;
             }
@@ -22736,7 +22776,8 @@ final class PdfTextExtractor
         float $characterSpacing,
         float $wordSpacing,
         ?array $glyphDisplacements = null,
-        ?int $sourceSpaceCount = null
+        ?int $sourceSpaceCount = null,
+        bool $includeTerminalCharacterSpacing = false
     ): ?float {
         if ($currentTextEndY === null || $decoded === '') {
             return $currentTextEndY;
@@ -22748,7 +22789,10 @@ final class PdfTextExtractor
             ? (array_sum($glyphDisplacements) / 1000.0) * $fontSize
             : -$characters * $fontSize;
         $spaceCount = $sourceSpaceCount ?? substr_count($decoded, ' ');
-        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + ($spaceCount * $wordSpacing);
+        $characterSpacingCount = $includeTerminalCharacterSpacing
+            ? max(0, $characters)
+            : max(0, $characters - 1);
+        $spacingAdvance = ($characterSpacingCount * $characterSpacing) + ($spaceCount * $wordSpacing);
         $direction = $baseAdvance < 0 ? -1.0 : 1.0;
 
         return $currentTextEndY + $baseAdvance + ($spacingAdvance * $direction);
@@ -22760,7 +22804,8 @@ final class PdfTextExtractor
         ?array $toUnicodeMap,
         ?float $fontSize,
         float $characterSpacing,
-        float $wordSpacing
+        float $wordSpacing,
+        bool $includeTerminalCharacterSpacing = false
     ): ?float {
         if ($currentTextEndY === null) {
             return null;
@@ -22775,7 +22820,8 @@ final class PdfTextExtractor
                 $characterSpacing,
                 $wordSpacing,
                 $this->glyphVerticalDisplacementsForTextOperand($operand, $toUnicodeMap),
-                $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap)
+                $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap),
+                $includeTerminalCharacterSpacing
             );
         }
 
@@ -22789,7 +22835,8 @@ final class PdfTextExtractor
                     $characterSpacing,
                     $wordSpacing,
                     $this->glyphVerticalDisplacementsForTextOperand((string) $element['value'], $toUnicodeMap),
-                    $this->sourceSpaceCountForTextOperand((string) $element['value'], $toUnicodeMap)
+                    $this->sourceSpaceCountForTextOperand((string) $element['value'], $toUnicodeMap),
+                    $includeTerminalCharacterSpacing
                 );
                 continue;
             }
@@ -23475,7 +23522,8 @@ final class PdfTextExtractor
                         $characterSpacing,
                         $wordSpacing,
                         $this->glyphVerticalDisplacementsForTextOperand($textOperand, $toUnicodeMap),
-                        $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap)
+                        $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap),
+                        true
                     ) ?? $endY;
                     continue;
                 }
@@ -23517,7 +23565,8 @@ final class PdfTextExtractor
                     $wordSpacing,
                     $horizontalScale,
                     $this->glyphWidthsForTextOperand($textOperand, $toUnicodeMap),
-                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap)
+                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap),
+                    true
                 ) ?? $endX;
                 continue;
             }
