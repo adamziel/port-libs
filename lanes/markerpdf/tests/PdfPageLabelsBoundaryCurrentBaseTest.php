@@ -610,6 +610,30 @@ $outOfOrderKidLimitsPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$malformedPrefixScalarPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Malformed prefix first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Malformed prefix second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf
+        . "20 0 obj\n<< /Nums [0 << /P 30 0 R /S /D /St 4 >> 1 << /P 31 0 R /S /D /St 8 >>] >>\nendobj\n"
+        . "30 0 obj\n(Malformed-) /S /D\nendobj\n"
+        . "31 0 obj\n(Valid-) % comment-only prefix tail remains whitespace\nendobj\n"
+        . "%%EOF\n";
+};
+
 $trailerRootPageLabelBoundaryPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Stale catalog page imported) Tj ET',
@@ -1062,6 +1086,25 @@ return [
         $t->true(!in_array('stale-late-99', $previewLabels, true));
         $t->same('Body 6', $summary['pages'][1]['page_label'] ?? null);
         $t->same('End-', $preview->getPageImagePlan($pdf, 4)['page_label']);
+    },
+    'rejects malformed PageLabels prefix scalar tokens before WordPress page metadata' => static function (TestRunner $t) use ($malformedPrefixScalarPageLabelBoundaryPdf): void {
+        $pdf = $malformedPrefixScalarPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['4', 'Valid-8'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Malformed prefix first imported', 'Malformed prefix second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('Malformed-4', $labels, true));
+        $t->true(!in_array('Malformed-4', $previewLabels, true));
+        $t->same('4', $summary['pages'][0]['page_label'] ?? null);
+        $t->same('Valid-8', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
     'keeps trailer Root catalog PageLabels before stale catalog scan' => static function (TestRunner $t) use ($trailerRootPageLabelBoundaryPdf): void {
         $pdf = $trailerRootPageLabelBoundaryPdf();

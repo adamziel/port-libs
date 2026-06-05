@@ -8873,7 +8873,30 @@ final class PdfTextExtractor
             return $this->pageLabelTextStringValue($objectBody, $objects, $seen);
         }
 
-        return $this->pdfTextStringValue($value, $objects);
+        return $this->pageLabelSingleTextStringValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelSingleTextStringValue(string $value, array $objects): ?string
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        if ($offset >= strlen($value)) {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfValueAt($value, $offset);
+        if ($endOffset <= $offset) {
+            return null;
+        }
+
+        $afterOffset = $this->skipPdfWhitespace($value, $endOffset);
+        if ($afterOffset < strlen($value)) {
+            return null;
+        }
+
+        return $this->pdfTextStringValue(substr($value, $offset, $endOffset - $offset), $objects);
     }
 
     /**
