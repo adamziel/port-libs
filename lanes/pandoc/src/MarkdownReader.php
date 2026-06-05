@@ -785,15 +785,36 @@ final class MarkdownReader
         }
 
         $trailingNewlines = preg_match('/\n+$/', $rawText, $m) === 1 ? $m[0] : '';
-        $text = rtrim($rawText, "\n");
-        $paragraphs = preg_split('/\n{2,}/', $text) ?: [];
-        $folded = array_map(
-            static fn (string $paragraph): string => preg_replace('/[ \t]*\n[ \t]*/', ' ', trim($paragraph)) ?? trim($paragraph),
-            $paragraphs
-        );
-
-        $foldedText = implode("\n\n", array_filter($folded, static fn (string $paragraph): bool => $paragraph !== ''));
+        $foldedText = $this->foldYamlBlockScalarText(rtrim($rawText, "\n"));
         return $chomp === '+' ? $foldedText . $trailingNewlines : $foldedText;
+    }
+
+    private function foldYamlBlockScalarText(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+
+        $lines = explode("\n", $text);
+        $folded = rtrim((string) array_shift($lines), " \t");
+        $previousBlank = $folded === '';
+        $previousMoreIndented = $folded !== '' && preg_match('/^[ \t]/', $folded) === 1;
+
+        foreach ($lines as $line) {
+            $blank = trim($line) === '';
+            $moreIndented = !$blank && preg_match('/^[ \t]/', $line) === 1;
+
+            if ($blank || $previousBlank || $previousMoreIndented || $moreIndented) {
+                $folded = rtrim($folded, " \t") . "\n" . rtrim($line, " \t");
+            } else {
+                $folded = rtrim($folded, " \t") . ' ' . trim($line);
+            }
+
+            $previousBlank = $blank;
+            $previousMoreIndented = $moreIndented;
+        }
+
+        return $folded;
     }
 
     private function applyYamlBlockScalarChomp(string $text, ?string $chomp): string

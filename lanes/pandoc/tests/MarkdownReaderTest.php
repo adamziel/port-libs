@@ -1416,6 +1416,51 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-comments-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml folded block scalars with more indented metadata lines' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Folded indent **Packet**',
+            'summary: >-',
+            '  Review steps:',
+            '    - preserve front matter',
+            '    - import blocks',
+            '  Done.',
+            'review:',
+            '  note: >-',
+            '    Queue log:',
+            '      source: wp-export.xml',
+            '      status: pending',
+            '    Ready.',
+            'references:',
+            '  - id: folded-indent-ref',
+            '    title: Source export',
+            '    note: >-',
+            '      Source excerpt:',
+            '        <meta name="generator">',
+            '        <link rel="canonical">',
+            '      Confirm.',
+            '...',
+            '',
+            '# Folded indent YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Folded indent **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same("Review steps:\n  - preserve front matter\n  - import blocks\nDone.", $meta['summary']);
+        $t->same("Queue log:\n  source: wp-export.xml\n  status: pending\nReady.", $meta['review']['note']);
+        $t->same('folded-indent-ref', $meta['references'][0]['id']);
+        $t->same("Source excerpt:\n  <meta name=\"generator\">\n  <link rel=\"canonical\">\nConfirm.", $meta['references'][0]['note']);
+        $t->same(false, str_contains($meta['summary'], 'Review steps: - preserve front matter'));
+        $t->same(false, str_contains($meta['review']['note'], 'Queue log: source: wp-export.xml'));
+        $t->same(false, str_contains($meta['references'][0]['note'], 'Source excerpt: <meta'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('folded-indent-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="folded-indent-yaml-body">Folded indent YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml double quoted escape metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -203,6 +203,11 @@ single-quoted-labels: ['don''t normalize', 'backslash\n literal']
 source-summary: >- # folded source note for reviewer queue
   Preserve front matter
   comments before rendering.
+source-review-log: >- # folded reviewer log with preserved nested lines
+  Review steps:
+    - preserve front matter
+    - import blocks
+  Confirm before publish.
 audit-note: |+ # keep final newline for audit packets
   YAML parser keeps this note.
 
@@ -484,6 +489,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['source-summary'] ?? '') !== 'Preserve front matter comments before rendering.') {
         throw new RuntimeException('YAML metadata self-test missing folded source comment summary');
     }
+    if (($meta['source-review-log'] ?? '') !== "Review steps:\n  - preserve front matter\n  - import blocks\nConfirm before publish.") {
+        throw new RuntimeException('YAML metadata self-test missing folded source review log indentation');
+    }
     if (($meta['summary'] ?? '') !== 'Preserve front matter for reviewer handoff before rendering the imported body.') {
         throw new RuntimeException('YAML metadata self-test missing later folded comment summary');
     }
@@ -536,6 +544,7 @@ echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri
 echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') . ' / ' . ($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
+echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Source captured at: ' . ($meta['source-captured-at'] ?? '') . "\n";
