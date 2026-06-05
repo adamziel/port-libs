@@ -1364,12 +1364,20 @@ final class SyntaxHighlighter
     {
         return $this->scan($code, [
             ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
-            ['attribute', '/^--[A-Za-z0-9_-]+|^[A-Za-z-]+(?=\\s*:)/'],
+            ['keyword', '/^@[A-Za-z][A-Za-z0-9_-]*/'],
+            ['keyword', '/^!important\\b/i'],
+            ['constant', '/^#[0-9A-Fa-f]{3,8}\\b/'],
+            ['datatype', '/^\\.[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['datatype', '/^#[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['function', '/^::?[A-Za-z_-][A-Za-z0-9_-]*/'],
+            ['function', '/^[A-Za-z_-][A-Za-z0-9_-]*(?=\\s*\\()/'],
+            ['attribute', '/^--[A-Za-z0-9_-]+|^[A-Za-z-]+(?=\\s*:\\s)/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
-            ['number', '/^-?\\b\\d+(?:\\.\\d+)?(?:px|em|rem|%|vh|vw)?\\b/i'],
-            ['keyword', '/^\\b(?:important|media|supports)\\b/i'],
-            ['operator', '/^[{}()[\\]:;,.#>+~=*|-]/'],
+            ['number', '/^-?(?:\\d+\\.\\d+|\\.\\d+|\\d+)(?:ch|cm|deg|dppx|em|ex|fr|in|mm|ms|pc|pt|px|rem|s|turn|vh|vmax|vmin|vw|%)?\\b/i'],
+            ['keyword', '/^\\b(?:auto|block|border-box|center|flex|grid|inherit|initial|inline|none|relative|repeat|solid|transparent|unset)\\b/i'],
+            ['datatype', '/^[A-Za-z][A-Za-z0-9_-]*(?=(?:[#.:\\s,{>+~]|$))/'],
+            ['operator', '/^(?:~=|\\|=|\\^=|\\$=|\\*=|::|[{}()[\\]:;,.#>+~=*!\\/|-])/'],
         ]);
     }
 

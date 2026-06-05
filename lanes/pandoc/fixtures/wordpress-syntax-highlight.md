@@ -269,3 +269,16 @@ done
 <?php
 echo esc_html($title); // reviewer token titles
 ```
+
+``` {.css #css-review .numberLines startFrom=70}
+/* WordPress block style review */
+@media (min-width: 48rem) {
+  .wp-block-import-card > a:hover,
+  .wp-block-import-card:focus-visible {
+    --accent-color: #005cc5;
+    margin-block: 1.5rem;
+    color: var(--accent-color) !important;
+    content: "Read more";
+  }
+}
+```

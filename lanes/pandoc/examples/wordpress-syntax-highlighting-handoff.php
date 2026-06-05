@@ -166,6 +166,12 @@ if (!$tokenTitleCodeBlock instanceof PortLibs\Pandoc\AstNode || $tokenTitleCodeB
 }
 $tokenTitle = $highlighter->highlightCodeBlock($tokenTitleCodeBlock, 'kate');
 $tokenTitleWordpressBlock = $highlighter->wordpressHtmlBlock($tokenTitleCodeBlock, 'kate');
+$cssCodeBlock = $document->children[21] ?? null;
+if (!$cssCodeBlock instanceof PortLibs\Pandoc\AstNode || $cssCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a CSS code block');
+}
+$css = $highlighter->highlightCodeBlock($cssCodeBlock, 'espresso');
+$cssWordpressBlock = $highlighter->wordpressHtmlBlock($cssCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -650,6 +656,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($tokenTitleWordpressBlock, '<span class="co" title="CommentTok">// reviewer token titles</span>')) {
         throw new RuntimeException('Expected token-title WordPress comment metadata');
     }
+    if (($css['language'] ?? '') !== 'css') {
+        throw new RuntimeException('Expected CSS language handoff');
+    }
+    if (($css['lineNumbering']['start'] ?? null) !== 70) {
+        throw new RuntimeException('Expected CSS source startFrom line-number handoff');
+    }
+    if (!str_contains($css['html'], '<span class="kw">@media</span> <span class="op">(</span><span class="ot">min-width</span>')) {
+        throw new RuntimeException('Expected CSS at-rule token handoff');
+    }
+    if (!str_contains($css['html'], '<span class="dt">.wp-block-import-card</span> <span class="op">&gt;</span> <span class="dt">a</span><span class="fu">:hover</span>')) {
+        throw new RuntimeException('Expected CSS selector and pseudo-class handoff');
+    }
+    if (!str_contains($css['html'], '<span class="ot">--accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span>')) {
+        throw new RuntimeException('Expected CSS custom property and color token handoff');
+    }
+    if (!str_contains($css['html'], '<span class="fu">var</span><span class="op">(</span><span class="ot">--accent-color</span><span class="op">)</span> <span class="kw">!important</span>')) {
+        throw new RuntimeException('Expected CSS var() and important token handoff');
+    }
+    if (!str_contains($cssWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected CSS WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -695,6 +722,7 @@ echo "xmlHighlightedHtml:\n" . $xml['html'] . "\n";
 echo "xsltHighlightedHtml:\n" . $xslt['html'] . "\n";
 echo "shellHighlightedHtml:\n" . $shell['html'] . "\n";
 echo "tokenTitleHighlightedHtml:\n" . $tokenTitle['html'] . "\n";
+echo "cssHighlightedHtml:\n" . $css['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -711,4 +739,5 @@ echo "javaWordpressBlock:\n" . $javaWordpressBlock . "\n";
 echo "xmlWordpressBlock:\n" . $xmlWordpressBlock . "\n";
 echo "shellWordpressBlock:\n" . $shellWordpressBlock . "\n";
 echo "tokenTitleWordpressBlock:\n" . $tokenTitleWordpressBlock . "\n";
+echo "cssWordpressBlock:\n" . $cssWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

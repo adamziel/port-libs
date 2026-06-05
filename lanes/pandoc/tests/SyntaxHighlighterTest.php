@@ -240,6 +240,46 @@ return [
         $t->contains('<span class="ot">title</span><span class="op">:</span> <span class="st">&quot;Legacy post&quot;</span>', $yaml['html']);
         $t->contains('<span class="co"># review note</span>', $yaml['html']);
     },
+    'highlights css block theme snippets with at rules selectors and custom properties' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[21] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a CSS code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directCss = (new SyntaxHighlighter())->highlight(
+            '@supports (display: grid) { #site-header::before { content: "Review"; } }',
+            'css'
+        );
+
+        $t->same('css', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('css', $highlighted['language']);
+        $t->same('css', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(70, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource css numberLines"><code class="sourceCode css" style="counter-reset: source-line 69;">', $highlighted['html']);
+        $t->contains('<span id="css-review-70"><a href="#css-review-70"></a><span class="co">/* WordPress block style review */</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">@media</span> <span class="op">(</span><span class="ot">min-width</span><span class="op">:</span> <span class="dv">48rem</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.wp-block-import-card</span> <span class="op">&gt;</span> <span class="dt">a</span><span class="fu">:hover</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.wp-block-import-card</span><span class="fu">:focus-visible</span>', $highlighted['html']);
+        $t->contains('<span class="ot">--accent-color</span><span class="op">:</span> <span class="cn">#005cc5</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">margin-block</span><span class="op">:</span> <span class="dv">1.5rem</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">color</span><span class="op">:</span> <span class="fu">var</span><span class="op">(</span><span class="ot">--accent-color</span><span class="op">)</span> <span class="kw">!important</span>', $highlighted['html']);
+        $t->contains('<span class="ot">content</span><span class="op">:</span> <span class="st">&quot;Read more&quot;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="cn">#005cc5</span>', $wordpressBlock);
+        $t->same('css', $directCss['language']);
+        $t->contains('<span class="kw">@supports</span> <span class="op">(</span><span class="ot">display</span><span class="op">:</span> <span class="kw">grid</span><span class="op">)</span>', $directCss['html']);
+        $t->contains('<span class="dt">#site-header</span><span class="fu">::before</span>', $directCss['html']);
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');
