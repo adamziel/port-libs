@@ -22144,6 +22144,12 @@ final class PdfTextExtractor
                 return null;
             }
 
+            $dataBoundary = $this->inlineImageDataBoundaryOffset($stream, $index, $entries);
+            if ($dataBoundary !== null) {
+                $index = $dataBoundary;
+                return implode(' ', $entries);
+            }
+
             $keyToken = $this->readInlineImageToken($stream, $index);
             if ($keyToken === null) {
                 return null;
@@ -22179,6 +22185,28 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $entries
+     */
+    private function inlineImageDataBoundaryOffset(string $stream, int $index, array $entries): ?int
+    {
+        if (substr($stream, $index, 2) !== 'ID') {
+            return null;
+        }
+
+        $afterId = $index + 2;
+        if ($this->inlineImageDataSeparatorFollowsId($stream, $afterId)) {
+            return $afterId;
+        }
+
+        $dictionary = implode(' ', $entries);
+        if ($dictionary === '' || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
+            return null;
+        }
+
+        return $afterId;
     }
 
     private function readInlineImageToken(string $stream, int &$index): ?string
