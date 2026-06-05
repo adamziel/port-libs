@@ -376,6 +376,8 @@ $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . $fieldSeparator . 'opening bookmark' . $fieldEnd
     . ' on page '
     . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
+    . ' with form value '
+    . $fieldBegin . ' FORMTEXT \* MERGEFORMAT ' . $fieldSeparator . 'pending review' . $fieldEnd
     . ".\r";
 $firstPieceBytes = $utf16le($firstPieceText);
 $secondPieceBytes = $utf16le($secondPieceText);
@@ -1301,6 +1303,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a>',
         '<a href="#legacy_anchor">opening bookmark</a>',
         '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',
+        '<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formtext" data-legacy-doc-field="formtext" data-legacy-doc-field-instruction="FORMTEXT \* MERGEFORMAT" data-legacy-doc-form-field-type="text" data-legacy-doc-field-format="MERGEFORMAT">pending review</span>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);

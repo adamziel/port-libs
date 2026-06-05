@@ -910,7 +910,7 @@ final class LegacyDocReader
             return [new AstNode('link', $attrs, $resultNodes)];
         }
 
-        $attrs = $this->fieldSpanAttrs($field['instruction']);
+        $attrs = $this->fieldSpanAttrs($field['instruction'], $field['result']);
         if ($attrs !== null) {
             return [new AstNode('span', $attrs, $resultNodes)];
         }
@@ -973,11 +973,39 @@ final class LegacyDocReader
     /**
      * @return array{classes:list<string>,attributes:array<string,string>}|null
      */
-    private function fieldSpanAttrs(string $instruction): ?array
+    private function fieldSpanAttrs(string $instruction, string $result = ''): ?array
     {
         $tokens = $this->fieldInstructionTokens($instruction);
         if ($tokens === []) {
             return null;
+        }
+
+        $fieldName = strtoupper(array_shift($tokens));
+        $formFields = [
+            'FORMTEXT' => 'text',
+            'FORMCHECKBOX' => 'checkbox',
+            'FORMDROPDOWN' => 'dropdown',
+        ];
+        if (isset($formFields[$fieldName])) {
+            $fieldKey = strtolower($fieldName);
+            $attributes = [
+                'data-legacy-doc-field' => $fieldKey,
+                'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+                'data-legacy-doc-form-field-type' => $formFields[$fieldName],
+            ];
+
+            $format = $this->fieldFormatSwitchValue($tokens);
+            if ($format !== null && $format !== '') {
+                $attributes['data-legacy-doc-field-format'] = $format;
+            }
+            if ($fieldName === 'FORMCHECKBOX') {
+                $attributes['data-legacy-doc-form-field-checked'] = $this->formCheckboxResultIsChecked($result) ? 'true' : 'false';
+            }
+
+            return [
+                'classes' => ['legacy-doc-field', 'legacy-doc-form-field', 'legacy-doc-field-' . $fieldKey],
+                'attributes' => $attributes,
+            ];
         }
 
         $fieldNames = [
@@ -991,7 +1019,6 @@ final class LegacyDocReader
             'PRINTDATE' => 'printdate',
         ];
 
-        $fieldName = strtoupper(array_shift($tokens));
         if (!isset($fieldNames[$fieldName])) {
             return null;
         }
@@ -1011,6 +1038,20 @@ final class LegacyDocReader
             'classes' => ['legacy-doc-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
+    }
+
+    private function formCheckboxResultIsChecked(string $result): bool
+    {
+        $normalized = strtolower(trim($result));
+        if ($normalized === '') {
+            return false;
+        }
+
+        return in_array($normalized, ['1', 'true', 'yes', 'on', 'checked', 'x'], true)
+            || str_contains($result, "\u{2611}")
+            || str_contains($result, "\u{2612}")
+            || str_contains($result, "\u{2713}")
+            || str_contains($result, "\u{2714}");
     }
 
     /**

@@ -2697,6 +2697,59 @@ return [
         $t->contains('<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-field-date" data-legacy-doc-field="date" data-legacy-doc-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-legacy-doc-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
     },
+    'preserves legacy DOC form-field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Survey '
+                . $fieldBegin . ' FORMTEXT \* MERGEFORMAT ' . $fieldSeparator . 'Alice Reviewer' . $fieldEnd
+                . ', checkbox '
+                . $fieldBegin . ' FORMCHECKBOX ' . $fieldSeparator . 'X' . $fieldEnd
+                . ', choice '
+                . $fieldBegin . ' FORMDROPDOWN ' . $fieldSeparator . 'Option B' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $textField = $paragraph->children[1];
+        $t->same('span', $textField->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-form-field', 'legacy-doc-field-formtext'], $textField->attr('classes'));
+        $t->same('formtext', $textField->attr('attributes')['data-legacy-doc-field']);
+        $t->same('FORMTEXT \* MERGEFORMAT', $textField->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('MERGEFORMAT', $textField->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('text', $textField->attr('attributes')['data-legacy-doc-form-field-type']);
+        $t->same('Alice Reviewer', $textField->children[0]->attr('text'));
+
+        $checkbox = $paragraph->children[3];
+        $t->same(['legacy-doc-field', 'legacy-doc-form-field', 'legacy-doc-field-formcheckbox'], $checkbox->attr('classes'));
+        $t->same('formcheckbox', $checkbox->attr('attributes')['data-legacy-doc-field']);
+        $t->same('checkbox', $checkbox->attr('attributes')['data-legacy-doc-form-field-type']);
+        $t->same('true', $checkbox->attr('attributes')['data-legacy-doc-form-field-checked']);
+        $t->same('X', $checkbox->children[0]->attr('text'));
+
+        $dropdown = $paragraph->children[5];
+        $t->same(['legacy-doc-field', 'legacy-doc-form-field', 'legacy-doc-field-formdropdown'], $dropdown->attr('classes'));
+        $t->same('formdropdown', $dropdown->attr('attributes')['data-legacy-doc-field']);
+        $t->same('dropdown', $dropdown->attr('attributes')['data-legacy-doc-form-field-type']);
+        $t->same('Option B', $dropdown->children[0]->attr('text'));
+
+        $t->contains('[Alice Reviewer]{.legacy-doc-field .legacy-doc-form-field .legacy-doc-field-formtext data-legacy-doc-field="formtext"', $markdown);
+        $t->contains('[X]{.legacy-doc-field .legacy-doc-form-field .legacy-doc-field-formcheckbox data-legacy-doc-field="formcheckbox"', $markdown);
+        $t->contains('[Option B]{.legacy-doc-field .legacy-doc-form-field .legacy-doc-field-formdropdown data-legacy-doc-field="formdropdown"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formtext" data-legacy-doc-field="formtext" data-legacy-doc-field-instruction="FORMTEXT \* MERGEFORMAT" data-legacy-doc-form-field-type="text" data-legacy-doc-field-format="MERGEFORMAT">Alice Reviewer</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formcheckbox" data-legacy-doc-field="formcheckbox" data-legacy-doc-field-instruction="FORMCHECKBOX" data-legacy-doc-form-field-type="checkbox" data-legacy-doc-form-field-checked="true">X</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formdropdown" data-legacy-doc-field="formdropdown" data-legacy-doc-field-instruction="FORMDROPDOWN" data-legacy-doc-form-field-type="dropdown">Option B</span>', $blocks);
+        foreach (['FORMTEXT', 'FORMCHECKBOX', 'FORMDROPDOWN'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC form field instructions should not render as visible text');
+        }
+    },
     'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 
