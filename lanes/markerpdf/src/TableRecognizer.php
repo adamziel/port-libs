@@ -91,7 +91,7 @@ final class TableRecognizer
                 }
                 $detectorCropSize = $this->imageSizeFromBboxExtent($tableBbox) ?? $imageSize;
                 $detectorCells = $this->detectorCellsInTableCrop(
-                    $this->normalizeCells($suppliedDetections[$idx]),
+                    $this->normalizeCells($suppliedDetections[$idx], true),
                     $tableBbox,
                     $detectorCropSize
                 );
@@ -3388,19 +3388,30 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
+     * @param bool $preserveSourceGeometry Preserve detector-source review metadata before table-crop localization.
      * @return list<array<string, mixed>>
      */
-    private function normalizeCells(array $cells): array
+    private function normalizeCells(array $cells, bool $preserveSourceGeometry = false): array
     {
         $normalized = [];
         foreach ($cells as $cell) {
             if (!is_array($cell)) {
                 throw new InvalidArgumentException('Table cells must be arrays.');
             }
-            $normalized[] = [
+            $entry = [
                 'bbox' => $this->bboxFromRecord($cell),
                 'text' => array_key_exists('text', $cell) && $cell['text'] !== null ? (string) $cell['text'] : '',
             ];
+            if ($preserveSourceGeometry) {
+                $entry = $this->withSourceGeometryReviewFields($entry, $cell);
+                if (!isset($entry['source_coordinate_source'])) {
+                    $entry['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($cell);
+                }
+                if (!array_key_exists('source_endpoint_order_normalized', $entry)) {
+                    $entry['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($cell);
+                }
+            }
+            $normalized[] = $entry;
         }
 
         return $normalized;
@@ -3514,7 +3525,10 @@ final class TableRecognizer
                 'detector_cell_excluded_before_ocr' => !$active,
                 'upstream_cell_bbox_retained' => $active,
             ];
-            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
+            foreach (
+                ['source_bbox', 'source_coordinate_space', 'source_coordinate_source', 'source_endpoint_order_normalized']
+                as $field
+            ) {
                 if (array_key_exists($field, $cell)) {
                     $reviewRow[$field] = $cell[$field];
                 }
