@@ -3768,6 +3768,7 @@ final class PdfTextExtractor
         );
         $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
         $metadataStream = $this->imageXObjectMetadataStreamReview($stream['dict'], $objects);
+        $alternateImages = $this->imageXObjectAlternateImageReviews($stream['dict'], $objects);
         $invocationMatrices = [];
         $invocationBboxes = [];
         $invocationClipBboxes = [];
@@ -3845,6 +3846,9 @@ final class PdfTextExtractor
             'struct_parent' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParent', $objects),
             'struct_parents' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'StructParents', $objects),
             'metadata_stream' => $metadataStream,
+            'alternate_image_count' => count($alternateImages),
+            'alternate_images' => $alternateImages,
+            'alternates_review_only' => $alternateImages !== [],
             'soft_mask_object' => $this->objectReferenceValueAfterName($stream['dict'], 'SMask'),
             'filters_resolved' => $filters !== null,
             'filters' => $resolvedFilters,
@@ -3857,6 +3861,102 @@ final class PdfTextExtractor
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
             'payload_in_visible_text' => false,
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array<string, mixed>>
+     */
+    private function imageXObjectAlternateImageReviews(string $imageDictionary, array $objects): array
+    {
+        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($imageDictionary, 'Alternates');
+        if ($value === null) {
+            return [];
+        }
+
+        $arrayBody = $this->pdfArrayAtStart(trim($value));
+        if ($arrayBody === null) {
+            return [];
+        }
+
+        $reviews = [];
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            $item = trim($item);
+            $defaultForPrinting = null;
+            $objectNumber = null;
+
+            if (str_starts_with($item, '<<')) {
+                $dictionary = $this->readPdfDictionaryAt($item, 0);
+                if ($dictionary === null) {
+                    continue;
+                }
+
+                $objectNumber = $this->objectReferenceValueAfterName($dictionary, 'Image');
+                $defaultForPrinting = $this->pdfBooleanValueAfterName($dictionary, 'DefaultForPrinting');
+            } else {
+                $objectNumber = $this->firstObjectReference($item);
+            }
+
+            if ($objectNumber === null) {
+                continue;
+            }
+
+            $review = $this->imageXObjectAlternateStreamReview($objectNumber, $defaultForPrinting, $objects);
+            if ($review !== null) {
+                $reviews[] = $review;
+            }
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function imageXObjectAlternateStreamReview(int $objectNumber, ?bool $defaultForPrinting, array $objects): ?array
+    {
+        if (!isset($objects[$objectNumber])) {
+            return null;
+        }
+
+        $stream = $this->streamDictionaryAndPayload($objects[$objectNumber], $objects);
+        if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
+            return null;
+        }
+
+        $filters = $this->streamFilters($stream['dict'], $objects);
+        $resolvedFilters = $filters === null
+            ? []
+            : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
+        $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
+            $stream['dict'],
+            'BitsPerComponent',
+            $objects
+        );
+        $imageMask = $this->pdfBooleanValueAfterName($stream['dict'], 'ImageMask') === true;
+
+        return [
+            'object_number' => $objectNumber,
+            'default_for_printing' => $defaultForPrinting,
+            'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
+            'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
+            'color_space' => $this->imageColorSpaceFamily($stream['dict'], $objects),
+            'bits_per_component' => $imageMask ? ($bitsPerComponent ?? 1) : $bitsPerComponent,
+            'image_mask' => $imageMask,
+            'filters' => $resolvedFilters,
+            'preview_only_filters' => $previewOnlyFilters,
+            'native_raster_decode' => $previewOnlyFilters === [],
+            'raw_length' => strlen($stream['stream']),
+            'decoded_with_current_filters' => $decoded !== null,
+            'decoded_length' => $decoded === null ? null : strlen($decoded),
+            'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            'payload_in_visible_text' => false,
             'review_only' => true,
         ];
     }

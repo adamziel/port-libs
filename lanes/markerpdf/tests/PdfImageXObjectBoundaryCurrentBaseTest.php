@@ -488,6 +488,92 @@ return [
         $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encoded, $metadataPayload));
     },
+    'records alternate image XObject streams as review-only metadata without extra painted invocations' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before alternate image) Tj ET\n"
+            . "q 24 0 0 12 72 690 cm /Alt#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After alternate image) Tj ET';
+        $basePayload = 'BT /F1 12 Tf 72 720 Td (Base Alternate Image Payload Noise) Tj ET';
+        $printPayload = 'BT /F1 12 Tf 72 720 Td (Print Alternate Image Payload Noise) Tj ET';
+        $screenPayload = "\xff\x4fBT /F1 12 Tf 72 720 Td (Screen Alternate JPX Noise) Tj ET\xff\xd9";
+        $baseCompressed = gzcompress($basePayload);
+        $printCompressed = gzcompress($printPayload);
+        if (!is_string($baseCompressed) || !is_string($printCompressed)) {
+            throw new RuntimeException('Unable to compress alternate image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Alt#20Image 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Alternates [<< /Image 6 0 R /DefaultForPrinting true >> << /Image 7 0 R /DefaultForPrinting false >>] /Length " . strlen($baseCompressed) . " >>\nstream\n{$baseCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 8 /Height 4 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($printCompressed) . " >>\nstream\n{$printCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length " . strlen($screenPayload) . " >>\nstream\n{$screenPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->same('Alt Image', $entry['resource_name']);
+        $t->same(true, $entry['invoked']);
+        $t->same(1, $entry['invocation_count']);
+        $t->same(2, $entry['alternate_image_count']);
+        $t->same(true, $entry['alternates_review_only']);
+        $t->same([
+            [
+                'object_number' => 6,
+                'default_for_printing' => true,
+                'subtype' => 'Image',
+                'width' => 8,
+                'height' => 4,
+                'color_space' => 'DeviceCMYK',
+                'bits_per_component' => 8,
+                'image_mask' => false,
+                'filters' => ['FlateDecode'],
+                'preview_only_filters' => [],
+                'native_raster_decode' => true,
+                'raw_length' => strlen($printCompressed),
+                'decoded_with_current_filters' => true,
+                'decoded_length' => strlen($printPayload),
+                'decoded_sha256' => hash('sha256', $printPayload),
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ],
+            [
+                'object_number' => 7,
+                'default_for_printing' => false,
+                'subtype' => 'Image',
+                'width' => 2,
+                'height' => 1,
+                'color_space' => 'DeviceRGB',
+                'bits_per_component' => 8,
+                'image_mask' => false,
+                'filters' => ['JPXDecode'],
+                'preview_only_filters' => ['JPXDecode'],
+                'native_raster_decode' => false,
+                'raw_length' => strlen($screenPayload),
+                'decoded_with_current_filters' => false,
+                'decoded_length' => null,
+                'decoded_sha256' => null,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ],
+        ], $entry['alternate_images']);
+        $t->same(['Before alternate image', 'After alternate image'], $extractor->extractTextLines($pdf));
+        $t->same("Before alternate image\nAfter alternate image", $plainText);
+        $t->true(!str_contains($plainText, 'Base Alternate Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Print Alternate Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Screen Alternate JPX Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $printPayload));
+        $t->true(!str_contains($encoded, $screenPayload));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
