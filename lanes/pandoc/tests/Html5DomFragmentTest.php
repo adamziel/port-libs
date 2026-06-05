@@ -572,6 +572,53 @@ return [
         $t->true(!str_contains($html, 'https://source.example.test/import/post.html#icon'), 'Expected SVG use reference to stay local under base URL metadata');
         $t->true(!str_contains($html, 'https://source.example.test/import/post.html#label'), 'Expected SVG textPath reference to stay local under base URL metadata');
     },
+    'filters svg presentation resource attributes before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure><svg>'
+            . '<defs><clipPath id="clip"><path d="M0 0"></path></clipPath><mask id="local-mask"></mask></defs>'
+            . '<g clip-path=" url( #clip ) " filter="url(&quot;javascript:alert(1)&quot;)" mask="url(./mask.svg#review-mask)" marker-start="url(\'mailto:bad@example.test\')" marker-mid="url(#mid)" marker-end="#end">'
+            . '<path d="M0 0" fill="url(#paint)" stroke="url( java&#10;script:alert(1) )"></path>'
+            . '</g></svg></figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/svg-presentation-resource-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $svg = $nodes[0]['children'][0];
+        $group = $svg['children'][1];
+        $path = $group['children'][0];
+
+        $expected = '<figure><svg><defs><clipPath id="clip"><path d="M0 0"></path></clipPath><mask id="local-mask"></mask></defs>'
+            . '<g clip-path="url(#clip)" mask="url(https://source.example.test/import/posts/mask.svg#review-mask)" marker-mid="url(#mid)" marker-end="#end">'
+            . '<path d="M0 0" fill="url(#paint)"></path></g></svg></figure>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['filter', 'marker-start', 'stroke'], $summary['filteredAttributes']);
+        $t->same(['normalized-url', 'unsafe-url', 'normalized-url', 'unsafe-url', 'unsafe-url'], $policyDiagnostics);
+        $t->same('clipPath', $svg['children'][0]['children'][0]['name']);
+        $t->same('url(#clip)', $group['attrs']['clip-path']);
+        $t->same('url(https://source.example.test/import/posts/mask.svg#review-mask)', $group['attrs']['mask']);
+        $t->same('url(#mid)', $group['attrs']['marker-mid']);
+        $t->same('#end', $group['attrs']['marker-end']);
+        $t->same(['d' => 'M0 0', 'fill' => 'url(#paint)'], $path['attrs']);
+        $t->same('/migration/svg-presentation-resource-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe SVG presentation URLs to be stripped');
+        $t->true(!str_contains($html, 'mailto:bad@example.test'), 'Expected mailto marker resource to be stripped');
+        $t->true(!str_contains($html, 'filter='), 'Expected unsafe filter resource attribute to be stripped');
+        $t->true(!str_contains($html, 'stroke='), 'Expected unsafe stroke resource attribute to be stripped');
+        $t->true(!str_contains($html, 'https://source.example.test/import/posts/post.html#clip'), 'Expected local clip-path reference to avoid base URL expansion');
+    },
     'keeps html integration point descendants lowercase in sanitized fragments' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'

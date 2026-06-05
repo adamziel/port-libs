@@ -785,6 +785,22 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isSvgPresentationResourceAttribute($name, $foreignContext)) {
+                $resourceValue = self::normalizeSvgPresentationResourceAttribute(
+                    $value,
+                    $tagName,
+                    $name,
+                    $diagnostics,
+                    $baseUrl
+                );
+                if ($resourceValue === null) {
+                    continue;
+                }
+
+                $attrs[$name] = $resourceValue;
+                continue;
+            }
+
             if ($mode === 'html' && self::isUrlAttribute($name)) {
                 if (!self::isSafeUrlAttributeValue($tagName, $name, $value, $foreignContext)) {
                     $diagnostics[] = [
@@ -974,6 +990,97 @@ final class Html5DomFragment
             'usemap',
             'xlink:href',
         ], true);
+    }
+
+    private static function isSvgPresentationResourceAttribute(string $name, ?string $foreignContext): bool
+    {
+        return $foreignContext === 'svg'
+            && in_array(strtolower($name), [
+                'clip-path',
+                'color-profile',
+                'cursor',
+                'fill',
+                'filter',
+                'marker',
+                'marker-end',
+                'marker-mid',
+                'marker-start',
+                'mask',
+                'stroke',
+            ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeSvgPresentationResourceAttribute(
+        string $value,
+        string $tagName,
+        string $name,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        if (stripos($value, 'url(') === false) {
+            return $value;
+        }
+
+        $hasUnsafeUrl = false;
+        $matchedUrlFunction = false;
+        $normalized = preg_replace_callback(
+            '/url\(\s*([^)]+?)\s*\)/i',
+            static function (array $matches) use (&$hasUnsafeUrl, &$matchedUrlFunction, $baseUrl): string {
+                $matchedUrlFunction = true;
+                $url = self::normalizeCssUrlToken((string) $matches[1]);
+                if ($url === '' || !self::isSafeFetchUrl($url)) {
+                    $hasUnsafeUrl = true;
+
+                    return '';
+                }
+                if ($baseUrl !== null && !str_starts_with($url, '#')) {
+                    $url = self::resolveRelativeUrl($baseUrl, $url);
+                }
+
+                return 'url(' . $url . ')';
+            },
+            $value
+        );
+
+        if (!is_string($normalized) || !$matchedUrlFunction || $hasUnsafeUrl) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => $tagName,
+                'attribute' => $name,
+            ];
+
+            return null;
+        }
+
+        $normalized = trim($normalized);
+        if ($normalized !== $value) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => $tagName,
+                'attribute' => $name,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeCssUrlToken(string $url): string
+    {
+        $url = trim($url);
+        if (strlen($url) >= 2) {
+            $quote = $url[0];
+            if ($quote === '"' || $quote === "'") {
+                $url = substr($url, 1);
+                if (str_ends_with($url, $quote)) {
+                    $url = substr($url, 0, -1);
+                }
+            }
+        }
+
+        return self::normalizeUrlAttributeValue($url);
     }
 
     private static function isSafeUrlAttributeValue(string $tagName, string $name, string $value, ?string $foreignContext): bool
