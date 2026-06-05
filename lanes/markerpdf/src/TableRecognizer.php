@@ -1922,13 +1922,13 @@ final class TableRecognizer
     {
         foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
             if (isset($table[$key])) {
-                $bbox = $this->bboxFromValue($table[$key]);
+                $bbox = $this->bboxFromGeometryValue($table[$key]);
                 if ($bbox !== null) {
                     return $bbox;
                 }
             }
             if (isset($imageSize[$key])) {
-                $bbox = $this->bboxFromValue($imageSize[$key]);
+                $bbox = $this->bboxFromGeometryValue($imageSize[$key]);
                 if ($bbox !== null) {
                     return $bbox;
                 }
@@ -1936,13 +1936,33 @@ final class TableRecognizer
         }
 
         if (isset($table['bbox'])) {
-            $bbox = $this->bboxFromValue($table['bbox']);
+            $bbox = $this->bboxFromGeometryValue($table['bbox']);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+        if (isset($table['polygon'])) {
+            $bbox = $this->polygonBbox($table['polygon']);
             if ($bbox !== null) {
                 return $bbox;
             }
         }
 
         return null;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function bboxFromGeometryValue(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        return $this->bboxFromValue($value)
+            ?? $this->polygonBbox($value['polygon'] ?? null)
+            ?? $this->polygonBbox($value);
     }
 
     /**
