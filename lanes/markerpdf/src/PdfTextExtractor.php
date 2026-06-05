@@ -344,6 +344,8 @@ final class PdfTextExtractor
      *     review_only: true,
      *     encrypted: bool,
      *     compressed_entry_count: int,
+     *     zero_width_object_stream_entry_count: int,
+     *     unresolved_object_stream_carrier_count: int,
      *     zero_width_index_entry_count: int,
      *     recovered_zero_width_member_count: int,
      *     ambiguous_zero_width_member_count: int,
@@ -376,6 +378,8 @@ final class PdfTextExtractor
             'review_only' => true,
             'encrypted' => $this->hasEncryptedTrailer($pdfBytes),
             'compressed_entry_count' => 0,
+            'zero_width_object_stream_entry_count' => 0,
+            'unresolved_object_stream_carrier_count' => 0,
             'zero_width_index_entry_count' => 0,
             'recovered_zero_width_member_count' => 0,
             'ambiguous_zero_width_member_count' => 0,
@@ -459,6 +463,10 @@ final class PdfTextExtractor
             }
 
             $review['compressed_entry_count']++;
+            $objectStreamIsExplicit = ($entry['objectStreamIsExplicit'] ?? true) === true;
+            if (!$objectStreamIsExplicit) {
+                $review['zero_width_object_stream_entry_count']++;
+            }
             $indexIsExplicit = ($entry['indexIsExplicit'] ?? true) === true;
             if (!$indexIsExplicit) {
                 $review['zero_width_index_entry_count']++;
@@ -466,13 +474,17 @@ final class PdfTextExtractor
 
             $objectStreamNumber = (int) $entry['objectStream'];
             $defaultMemberIndex = (int) ($entry['index'] ?? 0);
-            $objectStreamXrefEntry = $xrefEntries[$objectStreamNumber] ?? null;
-            $objectStreamOwner = isset($objects[$objectStreamNumber])
+            $objectStreamXrefEntry = $objectStreamNumber > 0 ? ($xrefEntries[$objectStreamNumber] ?? null) : null;
+            $objectStreamOwner = $objectStreamNumber > 0 && isset($objects[$objectStreamNumber])
                 ? $this->directObjectDefinitionForBody($definitions[$objectStreamNumber] ?? [], $objects[$objectStreamNumber])
                 : null;
-            $memberTable = isset($objects[$objectStreamNumber])
+            $memberTable = $objectStreamNumber > 0 && isset($objects[$objectStreamNumber])
                 ? $this->decodedObjectStreamMemberTable($objects[$objectStreamNumber], $objects)
                 : null;
+            $objectStreamCarrierResolved = $objectStreamNumber > 0 && $memberTable !== null;
+            if (!$objectStreamCarrierResolved) {
+                $review['unresolved_object_stream_carrier_count']++;
+            }
             $members = $memberTable['members'] ?? [];
             $memberOffsetCounts = $this->objectStreamMemberOffsetCounts($members);
             $memberAtDefaultIndex = $this->objectStreamMemberAtHeaderIndex($members, $defaultMemberIndex);
@@ -534,6 +546,9 @@ final class PdfTextExtractor
                 && $this->objectStreamMemberIsTopLevelStreamObject($selectedMemberBody);
             $objectStreamCarrierHasFilter = isset($objects[$objectStreamNumber])
                 && $this->objectStreamCarrierHasFilters($objects[$objectStreamNumber], $objects);
+            $objectStreamOwnerPolicy = $objectStreamNumber <= 0
+                ? 'missing_object_stream_carrier'
+                : $this->objectStreamCarrierOwnerPolicy($objectStreamXrefEntry, $objectStreamOwner);
             $streamMemberRejected = $selectedMemberIsStream;
             if ($streamMemberRejected) {
                 $review['stream_member_rejection_count']++;
@@ -557,6 +572,9 @@ final class PdfTextExtractor
                 'object_number' => $objectNumber,
                 'object_stream' => $objectStreamNumber,
                 'xref_member_index' => $defaultMemberIndex,
+                'object_stream_field_is_explicit' => $objectStreamIsExplicit,
+                'object_stream_field_is_zero_width' => !$objectStreamIsExplicit,
+                'object_stream_carrier_resolved' => $objectStreamCarrierResolved,
                 'object_stream_selected_generation' => $objectStreamOwner['generation'] ?? null,
                 'object_stream_selected_offset' => $objectStreamOwner['offset'] ?? null,
                 'object_stream_xref_entry_type' => $objectStreamXrefEntry['type'] ?? null,
@@ -564,7 +582,7 @@ final class PdfTextExtractor
                 'object_stream_xref_offset' => $objectStreamXrefEntry['offset'] ?? null,
                 'object_stream_entry_inherited_from_prev' => ($objectStreamXrefEntry['inheritedFromPrev'] ?? false) === true,
                 'object_stream_inherited_xref_offset' => $objectStreamXrefEntry['inheritedXrefOffset'] ?? null,
-                'object_stream_owner_policy' => $this->objectStreamCarrierOwnerPolicy($objectStreamXrefEntry, $objectStreamOwner),
+                'object_stream_owner_policy' => $objectStreamOwnerPolicy,
                 'index_is_explicit' => $indexIsExplicit,
                 'index_field_is_zero_width' => !$indexIsExplicit,
                 'strict_member_index' => $defaultMemberIndex,
@@ -587,6 +605,7 @@ final class PdfTextExtractor
                 'ambiguous_zero_width_member' => $ambiguousZeroWidthMember,
                 'strict_dependency_would_reject' => !$strictMemberMatch,
                 'object_stream_carrier_has_filter' => $objectStreamCarrierHasFilter,
+                'invalid_object_stream_carrier_rejected' => !$objectStreamCarrierResolved,
                 'object_stream_member_is_stream' => $selectedMemberIsStream,
                 'stream_member_rejected' => $streamMemberRejected,
                 'duplicate_member_offset_rejected' => $selectedMemberDuplicateOffset,
@@ -22734,10 +22753,11 @@ final class PdfTextExtractor
                         'generation' => $generation,
                         'offsetIsExplicit' => $widths[1] > 0,
                     ];
-                } elseif ($type === 2 && $fieldTwo > 0) {
+                } elseif ($type === 2 && $objectNumber > 0) {
                     $entries[$objectNumber] = [
                         'type' => 2,
                         'objectStream' => $fieldTwo,
+                        'objectStreamIsExplicit' => $widths[1] > 0,
                         'index' => $fieldThree,
                         'indexIsExplicit' => $widths[2] > 0,
                     ];

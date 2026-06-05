@@ -10441,10 +10441,11 @@ final class PdfMetadataExtractor
                         'generation' => $generation,
                         'offsetIsExplicit' => $widths[1] > 0,
                     ];
-                } elseif ($type === 2 && $fieldTwo > 0) {
+                } elseif ($type === 2 && $objectNumber > 0) {
                     $entries[$objectNumber] = [
                         'type' => 2,
                         'objectStream' => $fieldTwo,
+                        'objectStreamIsExplicit' => $widths[1] > 0,
                         'index' => $fieldThree,
                         'indexIsExplicit' => $widths[2] > 0,
                     ];
