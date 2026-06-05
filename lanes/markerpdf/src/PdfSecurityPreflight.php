@@ -203,6 +203,10 @@ final class PdfSecurityPreflight
         $standardAuthenticationReview = is_array($encryption['standard_authentication_review'] ?? null)
             ? $encryption['standard_authentication_review']
             : [];
+        $encryptMetadataDeclarationReview = is_array($encryption['encrypt_metadata_declaration_review'] ?? null)
+            ? $encryption['encrypt_metadata_declaration_review']
+            : [];
+        $encryptMetadataDefaultedFailClosed = ($encryption['encrypt_metadata_defaulted_fail_closed'] ?? false) === true;
         $standardAuthenticationMaterialReview = $this->standardAuthenticationMaterialReview(
             $standardAuthenticationReview,
             ($handlerReview['standard_handler'] ?? false) === true
@@ -299,6 +303,13 @@ final class PdfSecurityPreflight
             'standard_security_handler_parameter_violations' => is_array($standardParameterReview['violations'] ?? null)
                 ? $standardParameterReview['violations']
                 : [],
+            'encrypt_metadata' => $encryption['encrypt_metadata'] ?? null,
+            'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
+            'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
+            'encrypt_metadata_defaulted' => (bool) ($encryption['encrypt_metadata_defaulted'] ?? false),
+            'encrypt_metadata_defaulted_fail_closed' => $encryptMetadataDefaultedFailClosed,
+            'encrypt_metadata_status' => $encryption['encrypt_metadata_status'] ?? null,
+            'encrypt_metadata_declaration_review' => $encryptMetadataDeclarationReview,
             'allowed' => $reviewAllowed,
             'denied' => $reviewDenied,
             'applicable_permission_names' => $handlerSupported && !$standardParametersMalformed && is_array($permissions['applicable_permission_names'] ?? null)
@@ -5214,6 +5225,14 @@ final class PdfSecurityPreflight
             'revision_label' => $encryption['revision_label'] ?? null,
             'key_length_bits' => $encryption['key_length_bits'] ?? null,
             'encrypt_metadata' => $encryption['encrypt_metadata'] ?? null,
+            'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
+            'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
+            'encrypt_metadata_defaulted' => (bool) ($encryption['encrypt_metadata_defaulted'] ?? false),
+            'encrypt_metadata_defaulted_fail_closed' => (bool) ($encryption['encrypt_metadata_defaulted_fail_closed'] ?? false),
+            'encrypt_metadata_status' => $encryption['encrypt_metadata_status'] ?? null,
+            'encrypt_metadata_declaration_review' => is_array($encryption['encrypt_metadata_declaration_review'] ?? null)
+                ? $encryption['encrypt_metadata_declaration_review']
+                : [],
             'stream_filter' => $encryption['stream_filter'] ?? null,
             'string_filter' => $encryption['string_filter'] ?? null,
             'embedded_file_filter' => $encryption['embedded_file_filter'] ?? null,
@@ -5394,6 +5413,9 @@ final class PdfSecurityPreflight
                 && $permissionPolicy !== 'public_key_recipient_permissions_blocked_without_private_key'
             ) {
                 $reasons[] = 'crypt_filter_text_fail_closed';
+            }
+            if (($permissionPreflight['encrypt_metadata_defaulted_fail_closed'] ?? false) === true) {
+                $reasons[] = 'encrypt_metadata_fail_closed';
             }
         }
         if ($signedSignatureCount > 0 && !$encrypted) {

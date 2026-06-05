@@ -259,6 +259,15 @@ final class PdfMetadataExtractor
             'decryption_performed' => false,
             'encrypt_metadata' => !$encryptMetadata ? false : true,
             'encrypt_metadata_explicit' => (bool) ($encryption['encrypt_metadata_explicit'] ?? false),
+            'encrypt_metadata_trusted' => (bool) ($encryption['encrypt_metadata_trusted'] ?? true),
+            'encrypt_metadata_defaulted' => (bool) ($encryption['encrypt_metadata_defaulted'] ?? false),
+            'encrypt_metadata_defaulted_fail_closed' => (bool) ($encryption['encrypt_metadata_defaulted_fail_closed'] ?? false),
+            'encrypt_metadata_status' => is_string($encryption['encrypt_metadata_status'] ?? null)
+                ? $encryption['encrypt_metadata_status']
+                : null,
+            'encrypt_metadata_declaration_review' => is_array($encryption['encrypt_metadata_declaration_review'] ?? null)
+                ? $encryption['encrypt_metadata_declaration_review']
+                : [],
             'xmp_stream_policy' => $xmpPolicy,
             'info_dictionary_policy' => $infoPolicy,
             'output_intents_policy' => $outputIntentPolicy,
@@ -4742,7 +4751,7 @@ final class PdfMetadataExtractor
         $version = $this->dictionaryIntegerValue($dictionary, 'V', $objects);
         $revision = $this->dictionaryIntegerValue($dictionary, 'R', $objects);
         $keyLength = $this->dictionaryIntegerValue($dictionary, 'Length', $objects);
-        $encryptMetadata = $this->dictionaryBooleanValue($dictionary, 'EncryptMetadata', $objects);
+        $encryptMetadataReview = $this->encryptMetadataDeclarationReview($dictionary, $objects);
 
         $metadata = [
             'is_encrypted' => true,
@@ -4790,8 +4799,13 @@ final class PdfMetadataExtractor
             $metadata['key_length_bits'] = $keyLength ?? 40;
         }
 
-        $metadata['encrypt_metadata'] = $encryptMetadata ?? true;
-        $metadata['encrypt_metadata_explicit'] = $encryptMetadata !== null;
+        $metadata['encrypt_metadata'] = (bool) $encryptMetadataReview['effective_value'];
+        $metadata['encrypt_metadata_explicit'] = (bool) $encryptMetadataReview['explicit'];
+        $metadata['encrypt_metadata_trusted'] = (bool) $encryptMetadataReview['trusted'];
+        $metadata['encrypt_metadata_defaulted'] = (bool) $encryptMetadataReview['defaulted'];
+        $metadata['encrypt_metadata_defaulted_fail_closed'] = (bool) $encryptMetadataReview['defaulted_fail_closed'];
+        $metadata['encrypt_metadata_status'] = $encryptMetadataReview['status'];
+        $metadata['encrypt_metadata_declaration_review'] = $encryptMetadataReview;
 
         foreach ([
             'StmF' => 'stream_filter',
@@ -4879,6 +4893,150 @@ final class PdfMetadataExtractor
             $metadata['embedded_file_filter_defaulted_from_stream_filter'] = true;
             $metadata['embedded_file_filter_source'] = 'pdf_default_stream_filter';
         }
+    }
+
+    /**
+     * /EncryptMetadata is optional and defaults to true. A single valid
+     * boolean false is the only state that can preserve root XMP without
+     * decryption; malformed or duplicate declarations stay fail-closed.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function encryptMetadataDeclarationReview(string $dictionary, array $objects): array
+    {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'EncryptMetadata');
+        if ($values === []) {
+            return [
+                'source' => 'encrypt_metadata_declaration_review',
+                'pdf_name' => 'EncryptMetadata',
+                'declared_entry_count' => 0,
+                'boolean_entry_count' => 0,
+                'duplicate_entries' => false,
+                'ambiguous' => false,
+                'explicit' => false,
+                'defaulted' => true,
+                'defaulted_fail_closed' => false,
+                'trusted' => true,
+                'effective_value' => true,
+                'status' => 'encrypt_metadata_default_true',
+                'entry_statuses' => [],
+                'boolean_values' => [],
+                'entries' => [],
+                'review_only' => true,
+            ];
+        }
+
+        $entries = [];
+        foreach ($values as $index => $value) {
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $valueForReview = trim($resolved ?? $value);
+            $operandShape = $this->encryptMetadataOperandShape($valueForReview);
+            $booleanValue = match ($valueForReview) {
+                'true' => true,
+                'false' => false,
+                default => null,
+            };
+
+            $entries[] = [
+                'source' => 'encrypt_metadata_entry_review',
+                'index' => $index,
+                'pdf_name' => 'EncryptMetadata',
+                'present' => true,
+                'resolved' => $resolved !== null,
+                'operand_shape' => $operandShape,
+                'boolean' => $booleanValue !== null,
+                'value' => $booleanValue,
+                'status' => $booleanValue !== null
+                    ? 'well_formed_encrypt_metadata_boolean'
+                    : $this->encryptMetadataOperandStatus($value, $operandShape, $resolved !== null),
+                'review_only' => true,
+            ];
+        }
+
+        $booleanEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['boolean'] ?? false) === true
+        ));
+        $malformedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['status'] ?? null) !== 'well_formed_encrypt_metadata_boolean'
+        ));
+        $duplicate = count($values) > 1;
+        $trusted = !$duplicate && count($booleanEntries) === 1 && $malformedEntries === [];
+        $effectiveValue = $trusted ? (bool) $booleanEntries[0]['value'] : true;
+        $status = $trusted
+            ? 'well_formed_encrypt_metadata_boolean'
+            : ($duplicate ? 'duplicate_encrypt_metadata_entries_review' : 'malformed_encrypt_metadata_declaration_review');
+
+        return [
+            'source' => 'encrypt_metadata_declaration_review',
+            'pdf_name' => 'EncryptMetadata',
+            'declared_entry_count' => count($values),
+            'boolean_entry_count' => count($booleanEntries),
+            'duplicate_entries' => $duplicate,
+            'ambiguous' => $duplicate || $malformedEntries !== [],
+            'explicit' => true,
+            'defaulted' => false,
+            'defaulted_fail_closed' => !$trusted,
+            'trusted' => $trusted,
+            'effective_value' => $effectiveValue,
+            'status' => $status,
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'boolean_values' => array_values(array_map(
+                static fn (array $entry): bool => (bool) $entry['value'],
+                $booleanEntries
+            )),
+            'entries' => $entries,
+            'review_only' => true,
+            'decryption_performed' => false,
+        ];
+    }
+
+    private function encryptMetadataOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+
+        return 'token';
+    }
+
+    private function encryptMetadataOperandStatus(string $rawValue, string $operandShape, bool $resolved): string
+    {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'encrypt_metadata_unresolved_reference';
+        }
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'encrypt_metadata_composite_operand_review';
+        }
+
+        return 'encrypt_metadata_non_boolean_review';
     }
 
     /**
