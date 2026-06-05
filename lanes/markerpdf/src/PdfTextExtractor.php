@@ -21834,7 +21834,7 @@ final class PdfTextExtractor
     ): ?float {
         $operand = trim($operand);
         if (!str_starts_with($operand, '[')) {
-            $endX = $this->advanceTextEndXForOperand(
+            $extent = $this->textElementHorizontalExtent(
                 0.0,
                 $operand,
                 $toUnicodeMap,
@@ -21844,7 +21844,7 @@ final class PdfTextExtractor
                 $horizontalScale
             );
 
-            return $endX === null ? null : abs($endX);
+            return $extent === null ? null : $extent['maxX'] - $extent['minX'];
         }
 
         $cursorX = 0.0;
@@ -21854,24 +21854,22 @@ final class PdfTextExtractor
         foreach ($this->textArrayElements($operand) as $element) {
             if ($element['type'] === 'text') {
                 $textOperand = (string) $element['value'];
-                $startX = $cursorX;
-                $endX = $this->advanceTextEndX(
+                $extent = $this->textElementHorizontalExtent(
                     $cursorX,
-                    $this->decodeTextOperand($textOperand, $toUnicodeMap),
+                    $textOperand,
+                    $toUnicodeMap,
                     $fontSize,
                     $characterSpacing,
                     $wordSpacing,
-                    $horizontalScale,
-                    $this->glyphWidthsForTextOperand($textOperand, $toUnicodeMap),
-                    $this->sourceSpaceCountForTextOperand($textOperand, $toUnicodeMap)
+                    $horizontalScale
                 );
-                if ($endX === null) {
+                if ($extent === null) {
                     continue;
                 }
 
-                $cursorX = $endX;
-                $minX = min($minX, $startX, $endX);
-                $maxX = max($maxX, $startX, $endX);
+                $cursorX = $extent['endX'];
+                $minX = min($minX, $extent['minX']);
+                $maxX = max($maxX, $extent['maxX']);
                 $hasTextExtent = true;
                 continue;
             }
@@ -21883,6 +21881,134 @@ final class PdfTextExtractor
         }
 
         return $hasTextExtent ? $maxX - $minX : null;
+    }
+
+    /**
+     * @return array{endX: float, minX: float, maxX: float}|null
+     */
+    private function textElementHorizontalExtent(
+        float $startX,
+        string $operand,
+        ?array $toUnicodeMap,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): ?array {
+        $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
+        if ($decoded === '') {
+            return null;
+        }
+
+        $glyphWidths = $this->glyphWidthsForTextOperand($operand, $toUnicodeMap);
+        $sourceSpaceCount = $this->sourceSpaceCountForTextOperand($operand, $toUnicodeMap);
+        $endX = $this->advanceTextEndX(
+            $startX,
+            $decoded,
+            $fontSize,
+            $characterSpacing,
+            $wordSpacing,
+            $horizontalScale,
+            $glyphWidths,
+            $sourceSpaceCount
+        );
+        if ($endX === null) {
+            return null;
+        }
+
+        $fontSize ??= 12.0;
+        $scale = $horizontalScale / 100.0;
+        if (!is_finite($scale)) {
+            return null;
+        }
+
+        $glyphCount = $glyphWidths !== null && $glyphWidths !== []
+            ? count($glyphWidths)
+            : $this->length($decoded);
+        if ($glyphCount <= 0) {
+            return [
+                'endX' => $endX,
+                'minX' => min($startX, $endX),
+                'maxX' => max($startX, $endX),
+            ];
+        }
+
+        $spaceFlags = $this->sourceSpaceFlagsForTextOperand($operand, $toUnicodeMap, $glyphCount)
+            ?? $this->decodedSpaceFlags($decoded, $glyphCount)
+            ?? [];
+
+        $cursorX = $startX;
+        $minX = min($startX, $endX);
+        $maxX = max($startX, $endX);
+        for ($index = 0; $index < $glyphCount; $index++) {
+            $glyphAdvance = $glyphWidths !== null && $glyphWidths !== []
+                ? ((float) ($glyphWidths[$index] ?? 500.0) / 1000.0) * $fontSize
+                : $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
+            $glyphEndX = $cursorX + ($glyphAdvance * $scale);
+            $minX = min($minX, $cursorX, $glyphEndX);
+            $maxX = max($maxX, $cursorX, $glyphEndX);
+            $cursorX = $glyphEndX;
+
+            if ($index >= $glyphCount - 1) {
+                continue;
+            }
+
+            $spacing = $characterSpacing + (($spaceFlags[$index] ?? false) ? $wordSpacing : 0.0);
+            $cursorX += $spacing * $scale;
+        }
+
+        return [
+            'endX' => $endX,
+            'minX' => $minX,
+            'maxX' => $maxX,
+        ];
+    }
+
+    /**
+     * @return list<bool>|null
+     */
+    private function sourceSpaceFlagsForTextOperand(string $operand, ?array $toUnicodeMap, int $expectedCount): ?array
+    {
+        if ($toUnicodeMap === null || !$this->hasSourceBoundaryDataForGlyphAdvance($toUnicodeMap)) {
+            return null;
+        }
+
+        $hex = $this->textOperandSourceHex($operand);
+        if ($hex === '') {
+            return null;
+        }
+
+        $sourceKeys = $this->textOperandSourceKeysForFontWidths($hex, $toUnicodeMap);
+        if (count($sourceKeys) !== $expectedCount) {
+            return null;
+        }
+
+        $flags = [];
+        foreach ($sourceKeys as $sourceKey) {
+            $flags[] = $this->sourceKeyUsesWordSpacing($sourceKey, $toUnicodeMap);
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @return list<bool>|null
+     */
+    private function decodedSpaceFlags(string $decoded, int $expectedCount): ?array
+    {
+        if ($expectedCount <= 0) {
+            return [];
+        }
+
+        $characters = preg_split('//u', $decoded, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false || count($characters) !== $expectedCount) {
+            if (strlen($decoded) !== $expectedCount) {
+                return null;
+            }
+            $characters = str_split($decoded);
+        }
+
+        return array_map(static fn (string $character): bool => $character === ' ', $characters);
     }
 
     private function textOperandVerticalExtentHeight(
