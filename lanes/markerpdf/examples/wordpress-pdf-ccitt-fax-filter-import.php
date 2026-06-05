@@ -183,6 +183,12 @@ $compactXobjectParms = $compactXobjectEntry['filter_details'][1]['decode_parms']
 $compactXobjectFilterBoundary = $compactXobjectEntry['ccitt_fax_filter_boundary'] ?? [];
 $compactXobjectBoundary = $compactXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
 $compactXobjectPolarityBoundary = $compactXobjectEntry['ccitt_fax_imagemask_polarity_boundary'] ?? [];
+$postCcittFilterReview = (new PdfImageRenderer())->imageColorSpaceSoftMaskPlan(
+    '<< /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 '
+    . '/Filter [/CCF /ASCIIHexDecode /FlateDecode /DCTDecode] '
+    . '/DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null null null] >>'
+);
+$postCcittFilterBoundary = $postCcittFilterReview['ccitt_fax_filter_boundary'] ?? [];
 $unresolvedXobjectBefore = 'BT /F1 12 Tf 72 720 Td (Before unresolved CCITT import) Tj ET';
 $unresolvedXobjectAfter = 'BT /F1 12 Tf 72 680 Td (After unresolved CCITT import) Tj ET';
 $unresolvedXobjectPayload = 'BT /F1 12 Tf 72 700 Td (WordPress unresolved CCITT DecodeParms leak) Tj ET';
@@ -348,6 +354,16 @@ if (
     throw new RuntimeException('XObject compact CCITT DecodeParms boundary smoke failed.');
 }
 if (
+    ($postCcittFilterBoundary['declared_filter'] ?? null) !== 'CCF'
+    || ($postCcittFilterBoundary['filters_after_ccitt'] ?? null) !== ['ASCIIHexDecode', 'FlateDecode', 'DCTDecode']
+    || ($postCcittFilterBoundary['native_filters_after_ccitt'] ?? null) !== ['ASCIIHexDecode', 'FlateDecode']
+    || ($postCcittFilterBoundary['preview_only_filters_after_ccitt'] ?? null) !== ['DCTDecode']
+    || ($postCcittFilterBoundary['ccitt_is_terminal_filter'] ?? null) !== false
+    || ($postCcittFilterBoundary['post_ccitt_filters_block_native_decode'] ?? null) !== true
+) {
+    throw new RuntimeException('Post-CCITT filter-stack boundary smoke failed.');
+}
+if (
     ($unresolvedXobjectParms['valid_decode_parms'] ?? null) !== false
     || ($unresolvedXobjectParms['decode_parms_review'] ?? null) !== 'unresolved_ccitt_decodeparms_fail_closed'
     || ($unresolvedXobjectBoundary['invalid_decode_parms'] ?? null) !== true
@@ -442,6 +458,10 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
         && ($compactXobjectFilterBoundary['canonical_filter'] ?? null) === 'CCITTFaxDecode'
         && ($compactXobjectFilterBoundary['alias_used'] ?? null) === true,
     'xobject_compact_native_prefix_filters' => $compactXobjectFilterBoundary['native_prefix_filters'] ?? [],
+    'post_ccitt_filter_boundary' => $postCcittFilterBoundary,
+    'post_ccitt_filters_after_ccitt' => $postCcittFilterBoundary['filters_after_ccitt'] ?? [],
+    'post_ccitt_native_filters_blocked' => $postCcittFilterBoundary['native_filters_after_ccitt'] ?? [],
+    'post_ccitt_filters_block_native_decode' => $postCcittFilterBoundary['post_ccitt_filters_block_native_decode'] ?? null,
     'xobject_compact_imagemask_polarity' => [
         'black_sample_value' => $compactXobjectPolarityBoundary['black_sample_value'] ?? null,
         'white_sample_value' => $compactXobjectPolarityBoundary['white_sample_value'] ?? null,

@@ -4638,13 +4638,30 @@ final class PdfImageRenderer
         $filters = [];
         $previewOnly = [];
         $nativePrefix = [];
-        foreach ($filterDetails as $detail) {
+        foreach ($filterDetails as $detailIndex => $detail) {
             $filter = $detail['filter'] ?? null;
             if (!is_string($filter)) {
                 continue;
             }
 
             if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                $filtersAfterCcitt = [];
+                $nativeFiltersAfterCcitt = [];
+                $previewOnlyFiltersAfterCcitt = [];
+                for ($afterIndex = $detailIndex + 1, $count = count($filterDetails); $afterIndex < $count; $afterIndex++) {
+                    $afterFilter = $filterDetails[$afterIndex]['filter'] ?? null;
+                    if (!is_string($afterFilter)) {
+                        continue;
+                    }
+
+                    $filtersAfterCcitt[] = $afterFilter;
+                    if (($filterDetails[$afterIndex]['preview_only'] ?? false) === true) {
+                        $previewOnlyFiltersAfterCcitt[] = $afterFilter;
+                    } else {
+                        $nativeFiltersAfterCcitt[] = $afterFilter;
+                    }
+                }
+
                 return [
                     'declared_filter' => $filter,
                     'canonical_filter' => 'CCITTFaxDecode',
@@ -4653,6 +4670,12 @@ final class PdfImageRenderer
                     'filters_before_ccitt' => $filters,
                     'native_prefix_filters' => $nativePrefix,
                     'preview_only_filters_before_ccitt' => $previewOnly,
+                    'filters_after_ccitt' => $filtersAfterCcitt,
+                    'native_filters_after_ccitt' => $nativeFiltersAfterCcitt,
+                    'preview_only_filters_after_ccitt' => $previewOnlyFiltersAfterCcitt,
+                    'ccitt_is_terminal_filter' => $filtersAfterCcitt === [],
+                    'post_ccitt_filters_present' => $filtersAfterCcitt !== [],
+                    'post_ccitt_filters_block_native_decode' => $filtersAfterCcitt !== [],
                     'source_filter_preserved' => true,
                     'review_only' => true,
                     'native_raster_decode' => false,

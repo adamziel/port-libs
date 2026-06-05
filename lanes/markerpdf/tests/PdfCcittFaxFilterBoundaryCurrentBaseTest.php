@@ -1347,6 +1347,12 @@ return [
             'filters_before_ccitt' => ['ASCIIHexDecode'],
             'native_prefix_filters' => ['ASCIIHexDecode'],
             'preview_only_filters_before_ccitt' => [],
+            'filters_after_ccitt' => [],
+            'native_filters_after_ccitt' => [],
+            'preview_only_filters_after_ccitt' => [],
+            'ccitt_is_terminal_filter' => true,
+            'post_ccitt_filters_present' => false,
+            'post_ccitt_filters_block_native_decode' => false,
             'source_filter_preserved' => true,
             'review_only' => true,
             'native_raster_decode' => false,
@@ -1386,5 +1392,61 @@ return [
         $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encodedReview, $payload));
         $t->true(!str_contains($encodedReview, $encodedPayload));
+    },
+    'marks filters declared after preview-only CCITT Fax as unreachable native stages' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $plan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 '
+            . '/Filter [/CCF /ASCIIHexDecode /FlateDecode /DCTDecode] '
+            . '/DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null null null] >>'
+        );
+
+        $t->same(['CCF', 'ASCIIHexDecode', 'FlateDecode', 'DCTDecode'], $plan['image_filters']);
+        $t->same(['CCF', 'DCTDecode'], $plan['image_filter_boundary']['preview_only_filters']);
+        $t->same([
+            'declared_filter' => 'CCF',
+            'canonical_filter' => 'CCITTFaxDecode',
+            'alias_used' => true,
+            'non_null_filter_index' => 0,
+            'filters_before_ccitt' => [],
+            'native_prefix_filters' => [],
+            'preview_only_filters_before_ccitt' => [],
+            'filters_after_ccitt' => ['ASCIIHexDecode', 'FlateDecode', 'DCTDecode'],
+            'native_filters_after_ccitt' => ['ASCIIHexDecode', 'FlateDecode'],
+            'preview_only_filters_after_ccitt' => ['DCTDecode'],
+            'ccitt_is_terminal_filter' => false,
+            'post_ccitt_filters_present' => true,
+            'post_ccitt_filters_block_native_decode' => true,
+            'source_filter_preserved' => true,
+            'review_only' => true,
+            'native_raster_decode' => false,
+        ], $plan['ccitt_fax_filter_boundary']);
+        $t->same(false, $plan['ccitt_fax_decode_boundary']['native_raster_decode'] ?? null);
+
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before post CCITT filters) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After post CCITT filters) Tj ET';
+        $payload = 'BT /F1 12 Tf 72 700 Td (Post CCITT filter payload noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /PostFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter [/CCF /ASCIIHexDecode /FlateDecode /DCTDecode] /DecodeParms [<< /K 0 /Columns 16 /Rows 1 /EndOfBlock true >> null null null] /Length " . strlen($payload) . " >>\nstream\n{$payload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before post CCITT filters', 'After post CCITT filters'], $extractor->extractTextLines($pdf));
+        $t->same("Before post CCITT filters\nAfter post CCITT filters", $plainText);
+        $t->true(!str_contains($plainText, 'Post CCITT filter payload noise'));
+        $t->same($plan['ccitt_fax_filter_boundary'], $entry['ccitt_fax_filter_boundary'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->true(!str_contains(json_encode($review, JSON_UNESCAPED_SLASHES) ?: '', $payload));
     },
 ];
