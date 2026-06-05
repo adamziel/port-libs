@@ -555,6 +555,7 @@ final class LayoutOrderer
 
         if ($imageBbox !== null && $pageBbox !== null) {
             $rotation = $this->normalizedRotation((int) round((float) ($page['rotation'] ?? 0)));
+            $bbox = $this->expandNormalizedOrderBbox($bbox, $imageBbox);
             if ($this->shouldRotateUnrotatedOrderImage($imageBbox, $pageBbox, $rotation)) {
                 $bbox = $this->rotateUnrotatedImageBbox($bbox, $imageBbox, $rotation);
                 $imageBbox = [
@@ -569,6 +570,41 @@ final class LayoutOrderer
         }
 
         return $bbox;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @param list<float> $imageBbox
+     * @return list<float>
+     */
+    private function expandNormalizedOrderBbox(array $bbox, array $imageBbox): array
+    {
+        $imageWidth = $this->rectWidth($imageBbox);
+        $imageHeight = $this->rectHeight($imageBbox);
+        if ($imageWidth <= 2.0 || $imageHeight <= 2.0 || !$this->isNormalizedOrderBbox($bbox)) {
+            return $bbox;
+        }
+
+        return $this->normalizeRect([
+            $imageBbox[0] + ($bbox[0] * $imageWidth),
+            $imageBbox[1] + ($bbox[1] * $imageHeight),
+            $imageBbox[0] + ($bbox[2] * $imageWidth),
+            $imageBbox[1] + ($bbox[3] * $imageHeight),
+        ]);
+    }
+
+    /**
+     * @param list<float> $bbox
+     */
+    private function isNormalizedOrderBbox(array $bbox): bool
+    {
+        foreach ($bbox as $part) {
+            if ($part < -0.5 || $part > 1.5) {
+                return false;
+            }
+        }
+
+        return $this->rectWidth($bbox) <= 2.0 && $this->rectHeight($bbox) <= 2.0;
     }
 
     /**
