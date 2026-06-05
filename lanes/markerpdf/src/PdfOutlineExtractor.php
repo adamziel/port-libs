@@ -2659,6 +2659,7 @@ final class PdfOutlineExtractor
      * @param array<int, mixed> $objects
      * @param array<string, mixed> $destinations
      * @param array<int, true> $seen
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $activeLimits
      */
     private function collectNameTreeDestinations(array $node, array $objects, array &$destinations, array $seen = [], array $activeLimits = []): void
     {
@@ -2671,9 +2672,9 @@ final class PdfOutlineExtractor
         $names = $this->resolveArray($node['Names'] ?? null, $objects);
         if (($kids === null || $kids === []) && $names !== null) {
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->destinationNameValue($names[$index], $objects);
-                if ($name !== null && $this->nameWithinNameTreeLimits($name, $activeLimits)) {
-                    $destinations[$name] = $names[$index + 1];
+                $name = $this->destinationNameDetails($names[$index], $objects);
+                if ($name !== null && $this->nameWithinNameTreeLimits($name['text'], $activeLimits, $name['bytes'])) {
+                    $destinations[$name['text']] = $names[$index + 1];
                 }
             }
         }
@@ -2703,7 +2704,7 @@ final class PdfOutlineExtractor
     /**
      * @param array<string, mixed> $node
      * @param array<int, mixed> $objects
-     * @return array{0: string, 1: string}|null
+     * @return array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}|null
      */
     private function nameTreeLimits(array $node, array $objects): ?array
     {
@@ -2712,22 +2713,28 @@ final class PdfOutlineExtractor
             return null;
         }
 
-        $lower = $this->destinationNameValue($limits[0], $objects);
-        $upper = $this->destinationNameValue($limits[1], $objects);
-        if ($lower === null || $upper === null || strcmp($lower, $upper) > 0) {
+        $lower = $this->destinationNameDetails($limits[0], $objects);
+        $upper = $this->destinationNameDetails($limits[1], $objects);
+        if ($lower === null || $upper === null || strcmp($lower['bytes'], $upper['bytes']) > 0) {
             return null;
         }
 
-        return [$lower, $upper];
+        return [
+            'lower' => $lower['text'],
+            'upper' => $upper['text'],
+            'lower_bytes' => $lower['bytes'],
+            'upper_bytes' => $upper['bytes'],
+        ];
     }
 
     /**
-     * @param list<array{0: string, 1: string}> $limits
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $limits
      */
-    private function nameWithinNameTreeLimits(string $name, array $limits): bool
+    private function nameWithinNameTreeLimits(string $name, array $limits, ?string $nameBytes = null): bool
     {
+        $candidate = $nameBytes ?? $name;
         foreach ($limits as $limit) {
-            if (strcmp($name, $limit[0]) < 0 || strcmp($name, $limit[1]) > 0) {
+            if (strcmp($candidate, $limit['lower_bytes']) < 0 || strcmp($candidate, $limit['upper_bytes']) > 0) {
                 return false;
             }
         }
@@ -4473,6 +4480,23 @@ final class PdfOutlineExtractor
     }
 
     /**
+     * @param array<int, mixed> $objects
+     * @return array{text: string, bytes: string}|null
+     */
+    private function destinationNameDetails(mixed $value, array $objects): ?array
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        if (!is_array($resolved) || ($resolved['pdfType'] ?? null) !== 'string' || !is_string($resolved['value'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'text' => $resolved['value'],
+            'bytes' => is_string($resolved['bytes'] ?? null) ? $resolved['bytes'] : $resolved['value'],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $catalog
      * @param array<int, mixed> $objects
      * @return array{name: string|null, value: mixed}|null
@@ -4926,11 +4950,15 @@ final class PdfOutlineExtractor
         }
 
         if (str_starts_with($token, '(')) {
-            return ['pdfType' => 'string', 'value' => $this->decodeLiteralString($token)];
+            $bytes = $this->literalStringBytes($token);
+
+            return ['pdfType' => 'string', 'value' => $this->decodePdfStringBytes($bytes), 'bytes' => $bytes];
         }
 
         if (str_starts_with($token, '<')) {
-            return ['pdfType' => 'string', 'value' => $this->decodeHexString($token)];
+            $bytes = $this->hexStringBytes($token);
+
+            return ['pdfType' => 'string', 'value' => $this->decodePdfStringBytes($bytes), 'bytes' => $bytes];
         }
 
         if ($token === 'null') {
@@ -5146,6 +5174,11 @@ final class PdfOutlineExtractor
 
     private function decodeLiteralString(string $token): string
     {
+        return $this->decodePdfStringBytes($this->literalStringBytes($token));
+    }
+
+    private function literalStringBytes(string $token): string
+    {
         $bytes = substr($token, 1, -1);
         $decoded = '';
         $length = strlen($bytes);
@@ -5185,10 +5218,15 @@ final class PdfOutlineExtractor
             };
         }
 
-        return $this->decodePdfStringBytes($decoded);
+        return $decoded;
     }
 
     private function decodeHexString(string $token): string
+    {
+        return $this->decodePdfStringBytes($this->hexStringBytes($token));
+    }
+
+    private function hexStringBytes(string $token): string
     {
         $hex = preg_replace('/\s+/', '', substr($token, 1, -1));
         if ($hex === null || $hex === '' || preg_match('/^[\da-fA-F]+$/', $hex) !== 1) {
@@ -5199,7 +5237,7 @@ final class PdfOutlineExtractor
         }
 
         $bytes = hex2bin($hex);
-        return $bytes === false ? '' : $this->decodePdfStringBytes($bytes);
+        return $bytes === false ? '' : $bytes;
     }
 
     private function decodePdfStringBytes(string $bytes): string
