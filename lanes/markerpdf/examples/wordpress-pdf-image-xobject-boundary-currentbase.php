@@ -6,8 +6,9 @@ use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require_once __DIR__ . '/../src/PdfTextExtractor.php';
 
-$content = "BT /F1 12 Tf 72 720 Td (Current Image Boundary Intro) Tj ET\n"
-    . "q 32 0 0 16 72 690 cm /Logo#20Form Do Q\n"
+$contentOpen = "BT /F1 12 Tf 72 720 Td (Current Image Boundary Intro) Tj ET\n"
+    . 'q 32 0 0 16 72 690 cm ';
+$contentClose = "/Logo#20Form Do Q\n"
     . "/OC /LayerOff BDC q 12 0 0 12 110 690 cm /HiddenMarked Do Q EMC\n"
     . "q 12 0 0 12 126 690 cm /HiddenObject Do Q\n"
     . 'BT /F1 12 Tf 72 668 Td (Current Image Boundary Outro) Tj ET';
@@ -31,8 +32,8 @@ $encodedImagePayload = strtoupper(bin2hex($compressedImagePayload)) . '>';
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Properties << /LayerOn 20 0 R /LayerOff 21 0 R >> /XObject << /Logo#20Form 5 0 R /Hero#20Image 6 0 R /HiddenMarked 7 0 R /HiddenObject 8 0 R >> >> >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
-    . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 14 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($contentOpen) . " >>\nstream\n{$contentOpen}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 32 16] /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /FlateDecode] /Interpolate true /Intent /RelativeColorimetric /Name /Hero#20Image /StructParent 8 /StructParents 9 /Metadata 11 0 R /Alternates [<< /Image 12 0 R /DefaultForPrinting true >> << /Image 13 0 R /DefaultForPrinting false >>] /Length " . strlen($encodedImagePayload) . " >>\nstream\n{$encodedImagePayload}\nendstream\nendobj\n"
     . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedHiddenMarkedPayload) . " >>\nstream\n{$compressedHiddenMarkedPayload}\nendstream\nendobj\n"
@@ -41,6 +42,7 @@ $pdf = "%PDF-1.4\n"
     . "11 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedMetadataPayload) . " >>\nstream\n{$compressedMetadataPayload}\nendstream\nendobj\n"
     . "12 0 obj\n<< /Type /XObject /Subtype /Image /Width 4 /Height 2 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedPrintAlternatePayload) . " >>\nstream\n{$compressedPrintAlternatePayload}\nendstream\nendobj\n"
     . "13 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length " . strlen($screenAlternatePayload) . " >>\nstream\n{$screenAlternatePayload}\nendstream\nendobj\n"
+    . "14 0 obj\n<< /Length " . strlen($contentClose) . " >>\nstream\n{$contentClose}\nendstream\nendobj\n"
     . "20 0 obj\n<< /Type /OCG /Name (Visible WordPress Image Layer) >>\nendobj\n"
     . "21 0 obj\n<< /Type /OCG /Name (Hidden WordPress Image Layer) >>\nendobj\n%%EOF";
 
@@ -89,6 +91,7 @@ $metadata = [
     'first_resource_path' => $review['entries'][0]['resource_path'] ?? [],
     'first_parent_form_xobject_object' => $review['entries'][0]['parent_form_xobject_object'] ?? null,
     'first_form_xobject_depth' => $review['entries'][0]['form_xobject_depth'] ?? null,
+    'page_contents_array_graphics_state_preserved' => ($review['entries'][0]['invocation_matrices'][0] ?? null) === [512.0, 0.0, 0.0, 128.0, 136.0, 722.0],
     'first_invocation_matrix' => $review['entries'][0]['invocation_matrices'][0] ?? null,
     'first_invocation_bbox' => $review['entries'][0]['invocation_bboxes'][0] ?? null,
     'first_invocation_clip_bbox' => $review['entries'][0]['invocation_clip_bboxes'][0] ?? null,

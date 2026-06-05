@@ -356,6 +356,49 @@ return [
         $t->true(!str_contains($plainText, 'Rotated Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Nested Placed Image Payload Noise'));
     },
+    'preserves graphics state across page Contents arrays for image XObject placement review' => static function (TestRunner $t): void {
+        $firstContent = "BT /F1 12 Tf 72 720 Td (Before split image state) Tj ET\n"
+            . 'q 10 0 0 5 100 200 cm ';
+        $secondContent = "/Split#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After split image state) Tj ET';
+        $imagePayload = 'BT /F1 12 Tf 72 720 Td (Split Contents Image Payload Noise) Tj ET';
+        $compressedImagePayload = gzcompress($imagePayload);
+        if (!is_string($compressedImagePayload)) {
+            throw new RuntimeException('Unable to compress split content image payload.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Split#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 5 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($firstContent) . " >>\nstream\n{$firstContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Length " . strlen($secondContent) . " >>\nstream\n{$secondContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 10 /Height 5 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedImagePayload) . " >>\nstream\n{$compressedImagePayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $entry = $review['entries'][0];
+        $t->same('Split Image', $entry['resource_name']);
+        $t->same([[10.0, 0.0, 0.0, 5.0, 100.0, 200.0]], $entry['invocation_matrices']);
+        $t->same([[100.0, 200.0, 110.0, 205.0]], $entry['invocation_bboxes']);
+        $t->same([100.0, 200.0, 110.0, 205.0], $entry['image_unit_bbox']);
+        $t->same([100.0, 200.0, 110.0, 205.0], $entry['image_visible_bbox']);
+        $t->same(true, $entry['decoded_with_current_filters']);
+        $t->same(strlen($imagePayload), $entry['decoded_length']);
+        $t->same(hash('sha256', $imagePayload), $entry['decoded_sha256']);
+        $t->same(false, $entry['payload_in_visible_text']);
+
+        $t->same(['Before split image state', 'After split image state'], $extractor->extractTextLines($pdf));
+        $t->same("Before split image state\nAfter split image state", $plainText);
+        $t->true(!str_contains($plainText, 'Split Contents Image Payload Noise'));
+    },
     'applies rectangular clipping paths to image XObject placement review' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before clipped images) Tj ET\n"
             . "q 10 10 30 20 re W n 50 0 0 40 0 0 cm /Clipped#20Image Do Q\n"

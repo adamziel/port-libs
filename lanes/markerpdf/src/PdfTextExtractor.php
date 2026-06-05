@@ -3586,6 +3586,10 @@ final class PdfTextExtractor
             return [];
         }
 
+        if ($decodedContents !== []) {
+            $decodedContents = [implode("\n", $decodedContents)];
+        }
+
         $optionalContentProperties = $this->optionalContentPropertyVisibilityMapForResourceOwnerBody(
             $resourceOwnerBody,
             $objects,
