@@ -452,6 +452,57 @@ return [
         $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
         $t->same([90.0], $preview['pixels'][0]['raw_sample']);
     },
+    'keeps stacked native filter surplus closed after first EOD until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $imageByte = 'Z';
+        $compressedImage = gzcompress($imageByte, 0);
+        if (!is_string($compressedImage)) {
+            throw new RuntimeException('Unable to build stacked native inline image fixture.');
+        }
+        $postFirstFilterSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Stacked Native Surplus Noise) Tj ET rawtail';
+        $payload = strtoupper(bin2hex($compressedImage)) . '>' . $postFirstFilterSurplus;
+        $dictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Stacked Native Surplus) Tj ET\n"
+            . "BI {$dictionary} ID "
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Stacked Native Surplus) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Before Stacked Native Surplus',
+            'After Stacked Native Surplus',
+        ];
+        $t->true(str_contains($payload, '>ZZ EI'));
+        $t->true(str_contains($postFirstFilterSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'Stacked Native Surplus Noise'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
+        );
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            $dictionary,
+            strtoupper(bin2hex($compressedImage)) . '>',
+            [],
+            1
+        );
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['unsupported_filters']);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same(hash('sha256', $imageByte), $preview['image_stream']['decoded_sha256']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same([90.0], $preview['pixels'][0]['raw_sample']);
+    },
     'reports decoded inline image surplus bytes as review-only sample boundary metadata' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();

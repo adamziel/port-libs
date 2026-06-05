@@ -169,6 +169,14 @@ $calRgbArrayColorSpacePayload = "\x10EI BT /F1 12 Tf 72 498 Td (CalRGB Array Inl
 $wrappedJpxPrefixBytes = "\xFF\x4FWordPress wrapped JPX prefix bytes with EI and BT inside\xFF\xD9";
 $wrappedJpxPrefixPayload = strtoupper(bin2hex($wrappedJpxPrefixBytes)) . '>';
 $wrappedJpxPrefixDictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F [/AHx /JPXDecode] /D [0 1 1 0 0 1] /Mask [0 0 120 140 200 255]';
+$stackedNativeFilterImageByte = 'Z';
+$stackedNativeFilterCompressed = gzcompress($stackedNativeFilterImageByte, 0);
+if (!is_string($stackedNativeFilterCompressed)) {
+    throw new RuntimeException('Unable to build stacked native inline image fixture.');
+}
+$stackedNativeFilterDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1]';
+$stackedNativeFilterSurplusPayload = strtoupper(bin2hex($stackedNativeFilterCompressed))
+    . '>ZZ EI BT /F1 12 Tf 72 596 Td (Stacked Native Inline Noise) Tj ET rawtail';
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -204,6 +212,9 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 600 Td (Before Wrapped JPX Prefix Inline) Tj ET\n"
     . "BI {$wrappedJpxPrefixDictionary} ID {$wrappedJpxPrefixPayload}\nEI\n"
     . "BT /F1 12 Tf 72 597 Td (After Wrapped JPX Prefix Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 596 Td (Before Stacked Native Inline) Tj ET\n"
+    . "BI {$stackedNativeFilterDictionary} ID {$stackedNativeFilterSurplusPayload}\nEI\n"
+    . "BT /F1 12 Tf 72 595 Td (After Stacked Native Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 608 Td (Before RunLength Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
@@ -310,6 +321,23 @@ try {
 } catch (InvalidArgumentException) {
     $wrappedJpxPrefixMissingEodRejected = true;
 }
+$stackedNativeFilterSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $stackedNativeFilterDictionary,
+        $stackedNativeFilterSurplusPayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $stackedNativeFilterSurplusPreviewRejected = true;
+}
+$stackedNativeFilterCleanPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $stackedNativeFilterDictionary,
+    strtoupper(bin2hex($stackedNativeFilterCompressed)) . '>',
+    [],
+    1
+);
 $oversizedInlinePreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
     '/W 1 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]',
     $oversizedCompressedImage,
@@ -494,7 +522,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_ascii85_payload' => true,
     'fake_ei_inside_oversized_filtered_payload' => str_contains($oversizedCompressedImage, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
+    'fake_ei_inside_stacked_native_filter_surplus_payload' => str_contains($stackedNativeFilterSurplusPayload, ' EI '),
     'asciihex_surplus_eod_present' => str_contains($asciiHexSurplusPayload, '>'),
+    'stacked_native_filter_first_eod_present' => str_contains($stackedNativeFilterSurplusPayload, '>ZZ EI'),
     'visible_text_imported' => $lines === [
         'Before DP Inline Image',
         'After DP Inline Image',
@@ -514,6 +544,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After CalRGB Array Inline Image',
         'Before Wrapped JPX Prefix Inline',
         'After Wrapped JPX Prefix Inline',
+        'Before Stacked Native Inline',
+        'After Stacked Native Inline',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
         'Before LZW Post EOD Inline Image',
@@ -587,6 +619,13 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'wrapped_jpx_prefix_missing_eod_rejected' => $wrappedJpxPrefixMissingEodRejected,
     'wrapped_jpx_prefix_uses_supplied_samples' => ($wrappedJpxPrefixReview['uses_supplied_jpx_samples'] ?? false) === true,
     'wrapped_jpx_prefix_first_output_rgba' => $wrappedJpxPrefixReview['pixels'][0]['output_rgba'] ?? null,
+    'stacked_native_filter_surplus_payload_excluded_until_real_ei' => in_array('After Stacked Native Inline', $lines, true)
+        && !str_contains($plainText, 'Stacked Native Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'stacked_native_filter_surplus_preview_rejected' => $stackedNativeFilterSurplusPreviewRejected,
+    'stacked_native_filter_clean_preview_decoded' => ($stackedNativeFilterCleanPreview['image_stream']['decoded_with_current_filters'] ?? false) === true
+        && ($stackedNativeFilterCleanPreview['image_stream']['decoded_sha256'] ?? null) === hash('sha256', $stackedNativeFilterImageByte),
+    'stacked_native_filter_clean_preview_filters' => $stackedNativeFilterCleanPreview['image_stream']['filters'] ?? [],
     'runlength_inline_eod_present' => str_contains($runLengthPayload, chr(128)),
     'runlength_inline_preview_decoded' => ($runLengthIndexedReview['image_stream']['decoded_with_current_filters'] ?? false) === true
         && ($runLengthIndexedReview['image_stream']['decoded_preview_hex'] ?? null) === '1C',
@@ -633,6 +672,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'DeviceN Array Inline Noise')
         && !str_contains($plainText, 'CalRGB Array Inline Noise')
         && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes')
+        && !str_contains($plainText, 'Stacked Native Inline Noise')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
         && !str_contains($plainText, 'LZW Post EOD Inline Noise')

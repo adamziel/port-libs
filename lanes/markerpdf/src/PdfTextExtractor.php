@@ -11001,18 +11001,41 @@ final class PdfTextExtractor
         array $objects = []
     ): bool
     {
+        $offset = $this->streamFilterInputEndByteOffset($filter, $stream, $decodeParms, $objects);
+        if ($offset === null) {
+            return !in_array($filter, [
+                'ASCIIHexDecode',
+                'AHx',
+                'ASCII85Decode',
+                'A85',
+                'RunLengthDecode',
+                'RL',
+                'FlateDecode',
+                'Fl',
+                'LZWDecode',
+                'LZW',
+            ], true);
+        }
+
+        return $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function streamFilterInputEndByteOffset(
+        string $filter,
+        string $stream,
+        ?string $decodeParms = null,
+        array $objects = []
+    ): ?int {
         return match ($filter) {
-            'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false)
-                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
-            'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false)
-                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 2),
-            'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null)
-                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
-            'FlateDecode', 'Fl' => (($offset = $this->flateExplicitEndByteOffset($stream)) !== null)
-                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
-            'LZWDecode', 'LZW' => (($offset = $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects)) !== null)
-                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset),
-            default => true,
+            'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false) ? $offset + 1 : null,
+            'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false) ? $offset + 2 : null,
+            'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null) ? $offset + 1 : null,
+            'FlateDecode', 'Fl' => $this->flateExplicitEndByteOffset($stream),
+            'LZWDecode', 'LZW' => $this->lzwExplicitEndByteOffset($stream, $decodeParms, $objects),
+            default => null,
         };
     }
 
@@ -26304,6 +26327,12 @@ final class PdfTextExtractor
                         $candidate,
                         $expectedLength
                     )
+                    || $this->inlineNativeFilterStackCandidateReachesSampleFloorBeforeFirstFilterSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        $expectedLength
+                    )
                 );
         }
 
@@ -26445,6 +26474,73 @@ final class PdfTextExtractor
         }
 
         $decoded = $this->decodeLzwStream(substr($candidate, 0, $eodByteOffset), $filterDecodeParms, []);
+        return $decoded !== null && strlen($decoded) >= $expectedLength;
+    }
+
+    /**
+     * Native filter stacks can expose a first-filter EOD marker before the
+     * final decoded sample floor is checked. Keep text-like surplus after that
+     * first EOD closed until the real inline-image terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineNativeFilterStackCandidateReachesSampleFloorBeforeFirstFilterSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $firstFilterIndex = null;
+        $firstFilter = null;
+        foreach ($filters as $index => $filter) {
+            if (is_string($filter)) {
+                $firstFilterIndex = $index;
+                $firstFilter = $filter;
+                break;
+            }
+        }
+        if ($firstFilterIndex === null || $firstFilter === null) {
+            return false;
+        }
+
+        $firstDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $firstFilterIndex);
+        if (!$this->canApplyDecodeParms($firstFilter, $firstDecodeParms, [])) {
+            return false;
+        }
+
+        $firstFilterEnd = $this->streamFilterInputEndByteOffset($firstFilter, $candidate, $firstDecodeParms, []);
+        if ($firstFilterEnd === null) {
+            return false;
+        }
+
+        $postFirstFilter = substr($candidate, $firstFilterEnd);
+        if (
+            $postFirstFilter === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $firstFilterEnd)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postFirstFilter) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = $this->decodeStream(
+            $dictionary,
+            substr($candidate, 0, $firstFilterEnd),
+            [],
+            true,
+            false,
+            true
+        );
+
         return $decoded !== null && strlen($decoded) >= $expectedLength;
     }
 
