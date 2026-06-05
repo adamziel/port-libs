@@ -12,6 +12,8 @@ final class DocxReader
     public const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     public const OFFICE_RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     public const OFFICE_MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+    public const MARKUP_COMPATIBILITY_NS = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
+    public const VML_NS = 'urn:schemas-microsoft-com:vml';
     public const CORE_PROPERTIES_NS = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
     public const DC_NS = 'http://purl.org/dc/elements/1.1/';
     public const DCTERMS_NS = 'http://purl.org/dc/terms/';
@@ -912,8 +914,10 @@ final class DocxReader
             }
 
             if ($this->isWordElement($child, 'p')) {
-                $paragraph = $this->paragraphNode($child, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
-                if ($paragraph instanceof AstNode) {
+                $paragraphHasTextboxRuns = $this->paragraphHasTextboxRuns($child);
+                $paragraphBlocks = $this->paragraphBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering, $activeCommentRangeId);
+                if (!$paragraphHasTextboxRuns && count($paragraphBlocks) === 1 && $paragraphBlocks[0]->type === 'paragraph') {
+                    $paragraph = $paragraphBlocks[0];
                     $listDefinition = $paragraph->type === 'paragraph'
                         ? $this->listDefinitionForParagraph($child, $styles, $numbering)
                         : null;
@@ -927,6 +931,10 @@ final class DocxReader
 
                     $this->appendListParagraphs($blocks, $pendingListParagraphs);
                     $blocks[] = $paragraph;
+                }
+                if ($paragraphBlocks !== [] && ($paragraphHasTextboxRuns || count($paragraphBlocks) > 1 || (isset($paragraphBlocks[0]) && $paragraphBlocks[0]->type !== 'paragraph'))) {
+                    $this->appendListParagraphs($blocks, $pendingListParagraphs);
+                    array_push($blocks, ...$paragraphBlocks);
                 }
                 continue;
             }
@@ -990,6 +998,164 @@ final class DocxReader
         }
 
         return [new AstNode('paragraph', [], [new AstNode('span', $this->structuredDocumentTagAttrs($sdt), $inlines)])];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function paragraphBlocks(
+        \DOMElement $paragraph,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering,
+        ?string &$activeCommentRangeId
+    ): array
+    {
+        if (!$this->paragraphHasTextboxRuns($paragraph)) {
+            $node = $this->paragraphNode($paragraph, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+
+            return $node instanceof AstNode ? [$node] : [];
+        }
+
+        $blocks = [];
+        $segmentChildren = [];
+        foreach ($paragraph->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $this->isWordElement($child, 'pPr')) {
+                continue;
+            }
+
+            $textboxes = $this->runTextboxContents($child);
+            if ($textboxes === []) {
+                $segmentChildren[] = $child;
+                continue;
+            }
+
+            $this->appendParagraphSegment($blocks, $paragraph, $segmentChildren, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+            foreach ($textboxes as $textbox) {
+                array_push($blocks, ...$this->blockContainerChildren($textbox, $package, $relationships, $referencedNotes, $styles, $numbering));
+            }
+            $segmentChildren = [];
+        }
+
+        $this->appendParagraphSegment($blocks, $paragraph, $segmentChildren, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+
+        return $blocks;
+    }
+
+    private function paragraphHasTextboxRuns(\DOMElement $paragraph): bool
+    {
+        foreach ($paragraph->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->runTextboxContents($child) !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<\DOMElement> $children
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     */
+    private function appendParagraphSegment(
+        array &$blocks,
+        \DOMElement $sourceParagraph,
+        array $children,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        ?string &$activeCommentRangeId
+    ): void {
+        if ($children === []) {
+            return;
+        }
+
+        $segment = $this->paragraphSegmentElement($sourceParagraph, $children);
+        if (!$segment instanceof \DOMElement) {
+            return;
+        }
+
+        $node = $this->paragraphNode($segment, $package, $relationships, $referencedNotes, $styles, $activeCommentRangeId);
+        if ($node instanceof AstNode) {
+            $blocks[] = $node;
+        }
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     */
+    private function paragraphSegmentElement(\DOMElement $sourceParagraph, array $children): ?\DOMElement
+    {
+        $segment = $sourceParagraph->cloneNode(false);
+        if (!$segment instanceof \DOMElement) {
+            return null;
+        }
+
+        $properties = $this->firstChildElement($sourceParagraph, self::WORDPROCESSINGML_NS, 'pPr');
+        if ($properties instanceof \DOMElement) {
+            $segment->appendChild($properties->cloneNode(true));
+        }
+
+        foreach ($children as $child) {
+            $segment->appendChild($child->cloneNode(true));
+        }
+
+        return $segment;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function runTextboxContents(\DOMElement $run): array
+    {
+        if (!$this->isWordElement($run, 'r')) {
+            return [];
+        }
+
+        $searchRoot = $this->runAlternateContentFallback($run) ?? $run;
+        $contents = [];
+        foreach ($searchRoot->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'pict') as $pict) {
+            if (!$pict instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach ($pict->getElementsByTagNameNS(self::VML_NS, 'textbox') as $textbox) {
+                if (!$textbox instanceof \DOMElement) {
+                    continue;
+                }
+
+                foreach ($textbox->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'txbxContent') as $content) {
+                    if ($content instanceof \DOMElement) {
+                        $contents[] = $content;
+                    }
+                }
+            }
+        }
+
+        return $contents;
+    }
+
+    private function runAlternateContentFallback(\DOMElement $run): ?\DOMElement
+    {
+        foreach ($run->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $child->namespaceURI === self::MARKUP_COMPATIBILITY_NS
+                && $child->localName === 'AlternateContent'
+            ) {
+                return $this->firstChildElement($child, self::MARKUP_COMPATIBILITY_NS, 'Fallback');
+            }
+        }
+
+        return null;
     }
 
     /**

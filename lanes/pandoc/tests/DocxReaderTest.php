@@ -623,6 +623,52 @@ $smartTagDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$textboxDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Before textbox </w:t></w:r>
+      <w:r>
+        <w:pict>
+          <v:shape id="_x0000_s1025">
+            <v:textbox>
+              <w:txbxContent>
+                <w:p><w:r><w:t>Text box heading</w:t></w:r></w:p>
+                <w:tbl>
+                  <w:tr>
+                    <w:tc><w:p><w:r><w:t>Reviewer field</w:t></w:r></w:p></w:tc>
+                    <w:tc><w:p><w:r><w:t>VML note</w:t></w:r></w:p></w:tc>
+                  </w:tr>
+                </w:tbl>
+              </w:txbxContent>
+            </v:textbox>
+          </v:shape>
+        </w:pict>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> after textbox.</w:t></w:r>
+      <w:r>
+        <mc:AlternateContent>
+          <mc:Fallback>
+            <w:pict>
+              <v:rect id="_x0000_s1026">
+                <v:textbox>
+                  <w:txbxContent>
+                    <w:p><w:r><w:t>Fallback textbox note</w:t></w:r></w:p>
+                  </w:txbxContent>
+                </v:textbox>
+              </v:rect>
+            </w:pict>
+          </mc:Fallback>
+        </mc:AlternateContent>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> final text.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $symbolRunDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -883,6 +929,14 @@ $buildSmartTagPackage = static function () use ($contentTypesXml, $packageRelati
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $smartTagDocumentXml],
+    ]);
+};
+
+$buildTextboxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $textboxDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $textboxDocumentXml],
     ]);
 };
 
@@ -1677,6 +1731,35 @@ return [
 
         $t->contains('Tagged [**Review Desk**]{.docx-smart-tag data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"} for import.', $markdown);
         $t->contains('<p>Tagged <span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Review Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Review Desk</strong></span> for import.</p>', $blocks);
+    },
+    'unwraps DOCX VML textbox content into body blocks in paragraph order' => static function (TestRunner $t) use ($buildTextboxPackage): void {
+        $document = (new DocxReader())->readDocument($buildTextboxPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, count($document->children));
+        $t->same('Before textbox ', $document->children[0]->children[0]->attr('text'));
+        $t->same('Text box heading', $document->children[1]->children[0]->attr('text'));
+
+        $table = $document->children[2];
+        $t->same('table', $table->type);
+        $t->same('Reviewer field', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('VML note', $table->children[0]->children[0]->children[1]->attr('text'));
+        $t->same(2, $table->attr('tableGeometry')['summary']['cellCount'] ?? null);
+
+        $t->same(' after textbox.', $document->children[3]->children[0]->attr('text'));
+        $t->same('Fallback textbox note', $document->children[4]->children[0]->attr('text'));
+        $t->same(' final text.', $document->children[5]->children[0]->attr('text'));
+
+        $t->contains("Before textbox \n\nText box heading", $markdown);
+        $t->contains('| Reviewer field | VML note |', $markdown);
+        $t->contains("after textbox.\n\nFallback textbox note", $markdown);
+        $t->contains('<p>Before textbox </p>', $blocks);
+        $t->contains('<p>Text box heading</p>', $blocks);
+        $t->contains('<table><tbody><tr><td><p>Reviewer field</p></td><td><p>VML note</p></td></tr></tbody></table>', $blocks);
+        $t->contains('<p> after textbox.</p>', $blocks);
+        $t->contains('<p>Fallback textbox note</p>', $blocks);
+        $t->contains('<p> final text.</p>', $blocks);
     },
     'decodes DOCX symbol font runs into Unicode text' => static function (TestRunner $t) use ($buildSymbolRunPackage): void {
         $document = (new DocxReader())->readDocument($buildSymbolRunPackage());

@@ -53,6 +53,8 @@ XML],
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
   xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -114,6 +116,36 @@ XML],
       <w:r><w:t xml:space="preserve"> </w:t></w:r>
       <w:r><w:sym w:font="Wingdings 3" w:char="F066"/></w:r>
       <w:r><w:t xml:space="preserve"> remain visible.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Textbox lead </w:t></w:r>
+      <w:r>
+        <w:pict>
+          <v:shape id="_x0000_s42">
+            <v:textbox>
+              <w:txbxContent>
+                <w:p><w:r><w:t>Source textbox note from VML shape.</w:t></w:r></w:p>
+              </w:txbxContent>
+            </v:textbox>
+          </v:shape>
+        </w:pict>
+      </w:r>
+      <w:r>
+        <mc:AlternateContent>
+          <mc:Fallback>
+            <w:pict>
+              <v:rect id="_x0000_s43">
+                <v:textbox>
+                  <w:txbxContent>
+                    <w:p><w:r><w:t>Fallback textbox reminder.</w:t></w:r></w:p>
+                  </w:txbxContent>
+                </v:textbox>
+              </v:rect>
+            </w:pict>
+          </mc:Fallback>
+        </mc:AlternateContent>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> textbox tail.</w:t></w:r>
     </w:p>
     <w:p>
       <w:r><w:t xml:space="preserve">Cross paragraph comment </w:t></w:r>
@@ -375,6 +407,10 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
         '<span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Migration Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Migration Desk</strong></span>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
+        '<p>Textbox lead </p>',
+        '<p>Source textbox note from VML shape.</p>',
+        '<p>Fallback textbox reminder.</p>',
+        '<p> textbox tail.</p>',
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">starts here</span></p>',
         '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">continues here</span> for import review',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
