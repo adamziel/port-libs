@@ -32,6 +32,11 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataTagProvenance = [];
 
+    /** @var array<string, string> */
+    private array $yamlMetadataTagHandles = [
+        '!!' => 'tag:yaml.org,2002:',
+    ];
+
     private bool $resolveFootnoteReferences = true;
 
     /**
@@ -408,9 +413,11 @@ final class MarkdownReader
                 $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
                 $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
                 $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
+                $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
                 $this->yamlMetadataAnchors = [];
                 $this->yamlMetadataDiagnostics = [];
                 $this->yamlMetadataTagProvenance = [];
+                $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
                 try {
                     $metadata = $this->parseYamlMetadataLines($yamlLines);
                     if ($this->yamlMetadataDiagnostics !== []) {
@@ -423,6 +430,7 @@ final class MarkdownReader
                     $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
                     $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
                     $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
+                    $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
                 }
                 if ($metadata === []) {
                     return null;
@@ -533,6 +541,11 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($this->parseYamlDirectiveLine($trimmed)) {
+                $index++;
+                continue;
+            }
+
             $explicitMapping = $this->parseYamlExplicitMappingPair($lines, $index);
             if ($explicitMapping !== null) {
                 [$key, $sourceValue, $children, $nextIndex] = $explicitMapping;
@@ -566,6 +579,28 @@ final class MarkdownReader
         }
 
         return $metadata;
+    }
+
+    private function parseYamlDirectiveLine(string $trimmed): bool
+    {
+        $directive = trim($this->stripYamlTrailingComment($trimmed));
+        if ($directive === '' || $directive[0] !== '%') {
+            return false;
+        }
+
+        if (preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1) {
+            return true;
+        }
+
+        if (
+            preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+(\S+)$/', $directive, $m) === 1
+            && $m[2] !== ''
+        ) {
+            $this->yamlMetadataTagHandles[$m[1]] = $m[2];
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -2328,6 +2363,21 @@ final class MarkdownReader
                 continue;
             }
 
+            if (preg_match('/^(![A-Za-z0-9_.-]*!)([A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1) {
+                $tags[] = $this->expandYamlTagHandle($m[1], $m[2], $m[0]);
+                $value = ltrim(substr($value, strlen($m[0])));
+                continue;
+            }
+
+            if (
+                array_key_exists('!', $this->yamlMetadataTagHandles)
+                && preg_match('/^!([A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1
+            ) {
+                $tags[] = $this->expandYamlTagHandle('!', $m[1], $m[0]);
+                $value = ltrim(substr($value, strlen($m[0])));
+                continue;
+            }
+
             if (preg_match('/^(!{1,2}[A-Za-z0-9_.:\/-]+)(?=$|[ \t])/', $value, $m) === 1) {
                 $tags[] = $m[1];
                 $value = ltrim(substr($value, strlen($m[0])));
@@ -2342,6 +2392,15 @@ final class MarkdownReader
         }
 
         return [$value, $anchorName, $tags];
+    }
+
+    private function expandYamlTagHandle(string $handle, string $suffix, string $sourceTag): string
+    {
+        if (!array_key_exists($handle, $this->yamlMetadataTagHandles)) {
+            return $sourceTag;
+        }
+
+        return $this->yamlMetadataTagHandles[$handle] . $suffix;
     }
 
     private function yamlExplicitScalarTag(array $tags): ?string

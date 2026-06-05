@@ -1813,6 +1813,54 @@ return [
         $t->same('tag-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-provenance-body">Tag provenance body</h1>', $blocks);
     },
+    'maps pandoc yaml tag directives in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '%TAG ! tag:primary.example,2026:',
+            '%TAG !wp! tag:example.test,2026:',
+            '%TAG !yaml! tag:yaml.org,2002:',
+            'title: Tag directive **Packet**',
+            'review:',
+            '  owner: !wp!reviewer Import Desk',
+            '  primary-owner: !primary Primary Desk',
+            '  ticket: !yaml!str 007',
+            '  priority: !yaml!int "007"',
+            '  labels: [!wp!label migration, !wp!label wordpress]',
+            'flow-review: {owner: !wp!reviewer Flow Desk, ? !wp!key "source:key": !wp!value metadata value}',
+            '...',
+            '',
+            '# Tag directive YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $tags = array_column($provenance, 'tag');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Tag directive **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('Primary Desk', $meta['review']['primary-owner']);
+        $t->same('007', $meta['review']['ticket']);
+        $t->same(7, $meta['review']['priority']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('Flow Desk', $meta['flow-review']['owner']);
+        $t->same('metadata value', $meta['flow-review']['source:key']);
+        $t->same(false, str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wp!'));
+        $t->true(in_array('!<tag:primary.example,2026:primary>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:reviewer>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:label>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:key>', $tags, true));
+        $t->true(in_array('!<tag:example.test,2026:value>', $tags, true));
+        $t->same(false, in_array('!primary', $tags, true));
+        $t->same(false, in_array('!<tag:yaml.org,2002:str>', $tags, true));
+        $t->same(false, in_array('!<tag:yaml.org,2002:int>', $tags, true));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('tag-directive-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="tag-directive-yaml-body">Tag directive YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

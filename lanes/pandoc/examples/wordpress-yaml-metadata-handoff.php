@@ -11,6 +11,9 @@ $markdown = <<<'MARKDOWN'
 The source export starts with a migration preface before metadata.
 
 ---
+%YAML 1.2
+%TAG !wpd! tag:directive.example,2026:
+%TAG !yaml! tag:yaml.org,2002:
 title: "Migration **Packet**" # source export title
 author:
   - Data Liberation reviewer
@@ -53,6 +56,12 @@ blank-note: # intentionally blank in source packet
 explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
 typed-flow-review: {priority: !!int "4", enabled: !!bool "false", ticket: !!str 009}
+tag-directive-review:
+  owner: !wpd!reviewer Directive Desk
+  ticket: !yaml!str 010
+  priority: !yaml!int "10"
+  labels: [!wpd!label directive, !wpd!label metadata]
+flow-tag-directive-review: {? !wpd!key "source:key": !wpd!value directive metadata, owner: !wpd!reviewer Flow Directive Desk}
 non-specific-review:
   owner: ! "Import Desk"
   status: ! queued
@@ -346,6 +355,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['typed-flow-review']['ticket'] ?? null) !== '009') {
         throw new RuntimeException('YAML metadata self-test missing flow explicit string tag preservation');
     }
+    if (($meta['tag-directive-review']['owner'] ?? '') !== 'Directive Desk') {
+        throw new RuntimeException('YAML metadata self-test missing tag directive owner metadata');
+    }
+    if (($meta['tag-directive-review']['ticket'] ?? '') !== '010') {
+        throw new RuntimeException('YAML metadata self-test missing tag directive core string handle');
+    }
+    if (($meta['tag-directive-review']['priority'] ?? null) !== 10) {
+        throw new RuntimeException('YAML metadata self-test missing tag directive core integer handle');
+    }
+    if (($meta['tag-directive-review']['labels'] ?? []) !== ['directive', 'metadata']) {
+        throw new RuntimeException('YAML metadata self-test missing tag directive sequence labels');
+    }
+    if (($meta['flow-tag-directive-review']['source:key'] ?? '') !== 'directive metadata') {
+        throw new RuntimeException('YAML metadata self-test missing flow tag directive explicit key metadata');
+    }
+    if (($meta['flow-tag-directive-review']['owner'] ?? '') !== 'Flow Directive Desk') {
+        throw new RuntimeException('YAML metadata self-test missing flow tag directive owner metadata');
+    }
     if (($meta['non-specific-review']['owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test leaked bare non-specific tag on owner metadata');
     }
@@ -362,8 +389,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('!<tag:example.test,2026:reviewer>', $yamlTags, true)) {
         throw new RuntimeException('YAML metadata self-test missing verbatim tag provenance');
     }
+    if (!in_array('!<tag:directive.example,2026:reviewer>', $yamlTags, true)) {
+        throw new RuntimeException('YAML metadata self-test missing tag directive reviewer provenance');
+    }
+    if (!in_array('!<tag:directive.example,2026:key>', $yamlTags, true)) {
+        throw new RuntimeException('YAML metadata self-test missing tag directive key provenance');
+    }
     if (in_array('!!str', $yamlTags, true) || in_array('!', $yamlTags, true)) {
         throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
+    }
+    if (str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!wpd!')) {
+        throw new RuntimeException('YAML metadata self-test leaked raw tag directive handle text');
     }
     if (($meta['verbatim-tag-review']['owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing verbatim tag owner metadata');
@@ -709,6 +745,7 @@ echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
+echo 'Tag directive review: ' . ($meta['tag-directive-review']['owner'] ?? '') . ' / priority ' . ($meta['tag-directive-review']['priority'] ?? '') . "\n";
 echo 'Non-specific tag review: ' . ($meta['non-specific-review']['owner'] ?? '') . ' / ' . implode(', ', $meta['non-specific-review']['labels'] ?? []) . "\n";
 echo 'Source captured at: ' . ($meta['source-captured-at'] ?? '') . "\n";
 echo 'Review binary bytes: ' . ($meta['review-binary']['note-bytes'] ?? '') . ' / ' . ($meta['review-binary']['digest-bytes'] ?? '') . "\n";
