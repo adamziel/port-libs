@@ -2310,14 +2310,7 @@ final class PdfPagePropertyExtractor
 
     private function dictionaryRawValue(string $dictionary, string $key): ?string
     {
-        if (preg_match('/\/' . preg_quote($key, '/') . '\b/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
-        }
-
-        $offset = $match[0][1] + strlen($match[0][0]);
-        $value = $this->readPdfValueAt($dictionary, $offset);
-
-        return $value === null ? null : $value['raw'];
+        return $this->dictionaryEntries($dictionary)[$key] ?? null;
     }
 
     /**

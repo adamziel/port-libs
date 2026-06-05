@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfTextExtractor;
+use PortLibs\MarkerPDF\PdfPagePropertyExtractor;
 
 $pageResourceInheritanceCurrentBaseCMap = static function (array $entries): string {
     $body = "/CIDInit /ProcSet findresource begin\n"
@@ -76,6 +77,33 @@ $pageResourceNestedCategoryCurrentBasePdf = static function () use ($pageResourc
         . "%%EOF";
 };
 
+$pageResourceTopLevelParentCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $pageContent = 'BT /F1 12 Tf 72 720 Td <41> Tj ET q /InheritedForm Do Q';
+    $currentForm = 'BT /F1 12 Tf 12 24 Td (Top level parent form text) Tj ET';
+    $privateForm = 'BT /F1 12 Tf 12 24 Td (Nested decoy parent form leak) Tj ET';
+    $currentCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Top level parent font text',
+    ]);
+    $privateCMap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Nested decoy parent font leak',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /PieceInfo << /WPReview << /Private << /Parent 99 0 R >> /ReviewOnly true >> >> /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /TopLevelParentFont /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($currentCMap) . " >>\nstream\n{$currentCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($currentForm) . " >>\nstream\n{$currentForm}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedPrivateParentFont /Encoding /Identity-H /ToUnicode 11 0 R >>\nendobj\n"
+        . "9 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($privateForm) . " >>\nstream\n{$privateForm}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /InheritedForm 7 0 R >> >>\nendobj\n"
+        . "11 0 obj\n<< /Length " . strlen($privateCMap) . " >>\nstream\n{$privateCMap}\nendstream\nendobj\n"
+        . "99 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 8 0 R >> /XObject << /InheritedForm 9 0 R >> >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -121,5 +149,35 @@ return [
         $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
         $t->same(false, str_contains($plainText, 'Private nested font leak'));
         $t->same(false, str_contains($plainText, 'Private nested XObject leak'));
+    },
+    'uses top-level page Parent before nested decoy Parent keys for inherited resources' => static function (TestRunner $t) use ($pageResourceTopLevelParentCurrentBasePdf): void {
+        $pdf = $pageResourceTopLevelParentCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $expected = [
+            'Top level parent font text',
+            'Top level parent form text',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+        $styledPages = $extractor->extractStyledTextPages($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resourceMetadata = $boundary[0]['resources'] ?? [];
+        $styledLines = array_map(
+            static fn (array $block): string => implode('', array_column($block['lines'][0]['spans'], 'text')),
+            $styledPages[0]['blocks'] ?? []
+        );
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same($expected, $styledLines);
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(2, $resourceMetadata['resource_owner_object'] ?? null);
+        $t->same(10, $resourceMetadata['resource_object'] ?? null);
+        $t->same(true, $resourceMetadata['inherited'] ?? null);
+        $t->same(['Font', 'XObject'], $resourceMetadata['categories'] ?? null);
+        $t->same(['F1'], $resourceMetadata['font_names'] ?? null);
+        $t->same(['InheritedForm'], $resourceMetadata['xobject_names'] ?? null);
+        $t->same(false, str_contains($plainText, 'Nested decoy parent font leak'));
+        $t->same(false, str_contains($plainText, 'Nested decoy parent form leak'));
     },
 ];

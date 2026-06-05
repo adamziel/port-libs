@@ -7924,7 +7924,17 @@ final class PdfTextExtractor
         while (isset($objects[$objectNumber]) && !isset($seen[$objectNumber])) {
             $seen[$objectNumber] = true;
             $lineage[] = $objectNumber;
-            if (!preg_match('/\/Parent\s+(\d+)\s+\d+\s+R\b/s', $objects[$objectNumber], $match)) {
+
+            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            if ($dictionary === null) {
+                break;
+            }
+
+            $parentValue = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Parent');
+            if (
+                $parentValue === null
+                || preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($parentValue), $match) !== 1
+            ) {
                 break;
             }
 
