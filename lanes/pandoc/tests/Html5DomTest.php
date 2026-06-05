@@ -75,6 +75,25 @@ return [
         ));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument("<html><body>bad\0packet</body></html>"));
     },
+    'rejects external and non-html complete document doctypes before parser loading' => static function (TestRunner $t): void {
+        $dom = Html5Dom::parseHtmlDocument('<!DOCTYPE html><html><body><main><p>Review packet</p></main></body></html>');
+        $body = $dom->getElementsByTagName('body')->item(0);
+
+        $t->true($body instanceof DOMElement, 'Expected simple HTML doctype document to parse');
+        $t->same('<main><p>Review packet</p></main>', $body instanceof DOMElement ? Html5Dom::serializeHtmlChildren($body) : '');
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!DOCTYPE html SYSTEM "file:///etc/passwd"><html><body><p>bad</p></body></html>'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://example.invalid/xhtml.dtd"><html><body><p>bad</p></body></html>'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!DOCTYPE svg><html><body><p>bad</p></body></html>'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseHtmlDocument(
+            '<!DOCTYPE html><!DOCTYPE html><html><body><p>bad</p></body></html>'
+        ));
+    },
     'preserves bounded svg and mathml foreign content names for HTML reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<figure><svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg><math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math></figure>'

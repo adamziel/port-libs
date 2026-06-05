@@ -284,6 +284,7 @@ final class Html5Dom
     private static function assertSafeHtmlDocumentSource(string $html, string $label): void
     {
         self::assertNoNullByte($html, $label);
+        self::assertSimpleHtmlDocumentDoctype($html, $label);
         if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $html) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
@@ -292,6 +293,29 @@ final class Html5Dom
         }
         if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+    }
+
+    private static function assertSimpleHtmlDocumentDoctype(string $html, string $label): void
+    {
+        $doctypeCount = preg_match_all('/<!\s*DOCTYPE\b([^>]*)>/is', $html, $matches);
+        if ($doctypeCount === false) {
+            return;
+        }
+
+        if (preg_match('/<!\s*DOCTYPE\b/is', $html) === 1 && $doctypeCount === 0) {
+            throw new \InvalidArgumentException($label . ' must use a complete simple HTML doctype');
+        }
+        if ($doctypeCount > 1) {
+            throw new \InvalidArgumentException($label . ' must not declare multiple doctypes');
+        }
+        if ($doctypeCount === 0) {
+            return;
+        }
+
+        $doctypeName = preg_replace('/\s+/u', ' ', trim((string) $matches[1][0])) ?? trim((string) $matches[1][0]);
+        if (strcasecmp($doctypeName, 'html') !== 0) {
+            throw new \InvalidArgumentException($label . ' must use a simple HTML doctype without external identifiers or subsets');
         }
     }
 

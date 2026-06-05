@@ -101,6 +101,10 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<!DOCTYPE html [<!ENTITY reviewer SYSTEM "file:///etc/passwd">]><html><body>&reviewer;</body></html>',
+        '<!DOCTYPE html SYSTEM "file:///etc/passwd"><html><body><p>bad</p></body></html>',
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://example.invalid/xhtml.dtd"><html><body><p>bad</p></body></html>',
+        '<!DOCTYPE svg><html><body><p>bad</p></body></html>',
+        '<!DOCTYPE html><!DOCTYPE html><html><body><p>bad</p></body></html>',
         '<!ELEMENT html ANY><html><body>bad</body></html>',
         '<?xml-stylesheet href="https://example.invalid/review.xsl"?><html><body>bad</body></html>',
     ] as $unsafeDocument) {
