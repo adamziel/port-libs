@@ -500,6 +500,59 @@ return [
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('Scripted slideshow fallback remains reviewable.', $blocks);
     },
+    'reports OPF bindings for scripted media type handlers' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $slideshowFallbackXhtml): void {
+        $opfWithBindings = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/><item id="slideshow" href="slides/slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler"/><item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $opfXml
+        );
+        $opfWithBindings = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref idref="slideshow" linear="no"/><itemref idref="chapter-2" linear="no"/>',
+            $opfWithBindings
+        );
+        $opfWithBindings = str_replace(
+            '</package>',
+            '<bindings><mediaType media-type="application/x-demo-slideshow" handler="slideshow-handler"/><mediaType media-type="application/x-review-widget" handler="missing-handler"/></bindings></package>',
+            $opfWithBindings
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithBindings,
+            null,
+            [
+                ['name' => 'OEBPS/slides/slideshow.xml', 'data' => '<slides><slide src="../images/cover.png"/></slides>'],
+                ['name' => 'OEBPS/text/slideshow-fallback.xhtml', 'data' => $slideshowFallbackXhtml],
+            ]
+        ));
+
+        $bindings = $result['bindings'];
+        $t->same(true, $bindings['present']);
+        $t->same(2, count($bindings['items']));
+        $t->same('application/x-demo-slideshow', $bindings['items'][0]['mediaType']);
+        $t->same('slideshow-handler', $bindings['items'][0]['handlerId']);
+        $t->same('/OEBPS/text/slideshow-fallback.xhtml', $bindings['items'][0]['handlerPart']);
+        $t->same('application/xhtml+xml', $bindings['items'][0]['handlerMediaType']);
+        $t->same(['scripted'], $bindings['items'][0]['handlerProperties']);
+        $t->same(true, $bindings['items'][0]['handlerExists']);
+        $t->same(true, $bindings['items'][0]['handlerCanExposeBytes']);
+        $t->same(strlen($slideshowFallbackXhtml), $bindings['items'][0]['handlerByteLength']);
+        $t->same([], $bindings['items'][0]['diagnostics']);
+        $t->same('application/x-review-widget', $bindings['items'][1]['mediaType']);
+        $t->same('missing-handler', $bindings['items'][1]['handlerId']);
+        $t->same(false, $bindings['items'][1]['handlerExists']);
+        $t->same(null, $bindings['items'][1]['handlerPart']);
+        $t->same('missing-binding-handler-manifest-item', $bindings['items'][1]['diagnostics'][0]['type']);
+        $t->same('missing-binding-handler-manifest-item', $bindings['diagnostics'][0]['type']);
+        $t->same(1, $bindings['diagnostics'][0]['index']);
+        $t->same($bindings, $result['importReport']['bindings']);
+        $t->same($bindings, $result['document']->attr('bindings'));
+
+        $t->same($bindings['items'][0], $result['spine'][1]['binding']);
+        $t->same($bindings['items'][0], $result['document']->children[1]->attr('binding'));
+        $t->same('epub3-spine-fallback', $result['document']->children[1]->attr('source'));
+        $t->contains('Scripted slideshow fallback remains reviewable.', $result['document']->children[1]->attr('html'));
+    },
     'reports missing non-spine package assets without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithMissingAudio = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',

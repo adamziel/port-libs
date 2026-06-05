@@ -35,6 +35,7 @@ final class EpubReader
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     renditions:array<string, mixed>,
+     *     bindings:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
@@ -58,6 +59,7 @@ final class EpubReader
             $opf['xhtmlAssets'],
             $opf['guide'],
             $opf['collections'],
+            $opf['bindings'],
             $renditions
         );
 
@@ -74,6 +76,7 @@ final class EpubReader
             'guide' => $opf['guide'],
             'collections' => $opf['collections'],
             'renditions' => $renditions,
+            'bindings' => $opf['bindings'],
             'encryption' => $opf['encryption'],
             'mediaOverlays' => $opf['mediaOverlays'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
@@ -100,6 +103,7 @@ final class EpubReader
                 'guide' => $opf['guide'],
                 'collections' => $opf['collections'],
                 'renditions' => $renditions,
+                'bindings' => $opf['bindings'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'assets' => $opf['assetReport'],
@@ -222,6 +226,7 @@ final class EpubReader
      *     ncx:?array<string, mixed>,
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
+     *     bindings:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
@@ -257,7 +262,8 @@ final class EpubReader
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
         $collections = $this->readCollections($package, $opfPart, $root, $manifestById);
-        $spine = $this->readSpine($spineElement, $manifestById);
+        $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
+        $spine = $this->readSpine($spineElement, $manifestById, $bindings);
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById);
         $manifest = array_values($manifestById);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
@@ -279,6 +285,7 @@ final class EpubReader
             'ncx' => $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem),
             'guide' => $guide,
             'collections' => $collections,
+            'bindings' => $bindings,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
@@ -797,9 +804,128 @@ final class EpubReader
     /**
      * @param array<string, array<string, mixed>> $manifestById
      *
+     * @return array{present:bool, items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     */
+    private function readBindings(ZipPackage $package, ?\DOMElement $bindingsElement, array $manifestById): array
+    {
+        if (!$bindingsElement instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'items' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $items = [];
+        $diagnostics = [];
+        foreach (self::childElements($bindingsElement, 'mediaType', self::OPF_NS) as $index => $mediaTypeElement) {
+            $mediaType = trim($mediaTypeElement->getAttribute('media-type'));
+            $handlerId = trim($mediaTypeElement->getAttribute('handler'));
+            $handler = $handlerId === '' ? null : ($manifestById[$handlerId] ?? null);
+            $itemDiagnostics = [];
+
+            if ($mediaType === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-media-type',
+                    'message' => 'EPUB OPF binding mediaType entry is missing media-type',
+                ];
+            }
+
+            if ($handlerId === '') {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-handler',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'message' => 'EPUB OPF binding mediaType entry is missing handler',
+                ];
+            } elseif (!is_array($handler)) {
+                $itemDiagnostics[] = [
+                    'type' => 'missing-binding-handler-manifest-item',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'handlerId' => $handlerId,
+                    'message' => 'EPUB OPF binding handler does not reference a manifest item',
+                ];
+            } else {
+                if (($handler['exists'] ?? false) !== true) {
+                    $itemDiagnostics[] = [
+                        'type' => 'missing-binding-handler-part',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'part' => (string) $handler['part'],
+                        'message' => 'EPUB OPF binding handler part is missing from the package',
+                    ];
+                }
+
+                if (self::isEncryptedManifestItem($handler)) {
+                    $itemDiagnostics[] = [
+                        'type' => 'encrypted-binding-handler',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'part' => (string) $handler['part'],
+                        'message' => 'EPUB OPF binding handler is encrypted and cannot be exposed for review',
+                    ];
+                }
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+
+            $handlerPart = is_array($handler) ? (string) $handler['part'] : null;
+            $entry = $handlerPart !== null && $package->has($handlerPart) ? $package->entry($handlerPart) : null;
+            $items[] = [
+                'index' => $index,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'handlerId' => $handlerId === '' ? null : $handlerId,
+                'handlerHref' => is_array($handler) ? (string) $handler['href'] : null,
+                'handlerTarget' => is_array($handler) ? (string) $handler['target'] : null,
+                'handlerPart' => $handlerPart,
+                'handlerMediaType' => is_array($handler) ? (string) $handler['mediaType'] : null,
+                'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
+                'handlerExists' => is_array($handler) && ($handler['exists'] ?? false) === true,
+                'handlerEncrypted' => is_array($handler) && self::isEncryptedManifestItem($handler),
+                'handlerCanExposeBytes' => is_array($handler)
+                    && ($handler['exists'] ?? false) === true
+                    && (bool) ($handler['canExposeBytes'] ?? true),
+                'handlerByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'handlerCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'diagnostics' => $itemDiagnostics,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $bindings
+     *
+     * @return ?array<string, mixed>
+     */
+    private static function bindingForMediaType(array $bindings, string $mediaType): ?array
+    {
+        foreach ($bindings['items'] ?? [] as $binding) {
+            if (!is_array($binding)) {
+                continue;
+            }
+
+            if (($binding['mediaType'] ?? null) === $mediaType) {
+                return $binding;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $bindings
+     *
      * @return list<array<string, mixed>>
      */
-    private function readSpine(\DOMElement $spineElement, array $manifestById): array
+    private function readSpine(\DOMElement $spineElement, array $manifestById, array $bindings): array
     {
         $spine = [];
         foreach (self::childElements($spineElement, 'itemref', self::OPF_NS) as $index => $itemref) {
@@ -818,6 +944,7 @@ final class EpubReader
 
             $content = $this->resolveSpineContentItem($manifestItem, $manifestById);
             $contentItem = $content['item'];
+            $binding = self::bindingForMediaType($bindings, (string) $manifestItem['mediaType']);
             $spine[] = [
                 'index' => $index,
                 'idref' => $idref,
@@ -842,6 +969,7 @@ final class EpubReader
                 'contentIsFallback' => is_array($contentItem) && $content['isFallback'],
                 'fallbackChain' => $content['chain'],
                 'fallbackDiagnostics' => $content['diagnostics'],
+                'binding' => $binding,
             ];
         }
 
@@ -2111,6 +2239,7 @@ final class EpubReader
      * @param list<array<string, mixed>> $xhtmlAssets
      * @param array<string, mixed> $guide
      * @param list<array<string, mixed>> $collections
+     * @param array<string, mixed> $bindings
      * @param array<string, mixed> $renditions
      */
     private function documentNode(
@@ -2120,6 +2249,7 @@ final class EpubReader
         array $xhtmlAssets,
         array $guide,
         array $collections,
+        array $bindings,
         array $renditions
     ): AstNode {
         $assetsByPart = [];
@@ -2158,6 +2288,9 @@ final class EpubReader
                 $attributes['contentId'] = $item['contentId'];
                 $attributes['fallbackChain'] = $item['fallbackChain'];
             }
+            if (is_array($item['binding'] ?? null)) {
+                $attributes['binding'] = $item['binding'];
+            }
 
             $children[] = new AstNode('raw_html', $attributes);
         }
@@ -2168,6 +2301,7 @@ final class EpubReader
             'metadata' => $metadata,
             'guide' => $guide,
             'collections' => $collections,
+            'bindings' => $bindings,
             'renditions' => $renditions,
             'title' => $metadata['title'] ?? '',
         ], $children);

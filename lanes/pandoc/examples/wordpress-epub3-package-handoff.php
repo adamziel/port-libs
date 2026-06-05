@@ -55,6 +55,10 @@ $opfXml = <<<'XML'
     <link rel="first" href="text/chapter.xhtml#source" media-type="application/xhtml+xml" properties="preview"/>
     <link rel="record" href="https://example.invalid/wp-source" media-type="text/html"/>
   </collection>
+  <bindings>
+    <mediaType media-type="application/x-demo-slideshow" handler="slideshow-handler"/>
+    <mediaType media-type="application/x-review-widget" handler="missing-widget-handler"/>
+  </bindings>
 </package>
 XML;
 
@@ -260,6 +264,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['document']->attr('renditions')['alternateCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB document attrs to expose rendition review metadata');
     }
+    if (($result['bindings']['items'][0]['handlerId'] ?? null) !== 'slideshow-handler') {
+        throw new RuntimeException('Expected EPUB OPF binding handler to be reported');
+    }
+    if (($result['bindings']['items'][0]['handlerPart'] ?? null) !== '/EPUB/text/slideshow-fallback.xhtml') {
+        throw new RuntimeException('Expected EPUB OPF binding handler part to resolve');
+    }
+    if (($result['bindings']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'missing-binding-handler-manifest-item') {
+        throw new RuntimeException('Expected missing EPUB OPF binding handler to remain a review diagnostic');
+    }
+    if (($result['spine'][1]['binding']['handlerId'] ?? null) !== 'slideshow-handler') {
+        throw new RuntimeException('Expected custom media-type spine item to carry its OPF binding handler');
+    }
+    if (($result['document']->children[1]->attr('binding')['handlerId'] ?? null) !== 'slideshow-handler') {
+        throw new RuntimeException('Expected WordPress fallback block to expose OPF binding metadata');
+    }
     if (($result['encryption']['obfuscatedFonts'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
         throw new RuntimeException('Expected EPUB obfuscated font preflight to identify the package font');
     }
@@ -324,6 +343,9 @@ echo 'collectionFirstTarget=' . ($result['collections'][0]['links'][0]['target']
 echo 'renditions=' . ($result['renditions']['count'] ?? 0) . "\n";
 echo 'alternateRenditionTitle=' . ($result['renditions']['items'][1]['metadata']['title'] ?? '') . "\n";
 echo 'alternateRenditionLayout=' . ($result['renditions']['items'][1]['renditionProperties']['layout'] ?? '') . "\n";
+echo 'bindings=' . count($result['bindings']['items'] ?? []) . "\n";
+echo 'bindingHandler=' . ($result['bindings']['items'][0]['handlerId'] ?? '') . "\n";
+echo 'bindingDiagnostics=' . count($result['bindings']['diagnostics'] ?? []) . "\n";
 echo 'obfuscatedFonts=' . count($result['encryption']['obfuscatedFonts']) . "\n";
 echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'] ?? []) . "\n";
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
