@@ -285,6 +285,10 @@ final class PdfLinkAnnotationExtractor
                         foreach ([
                             'contents' => 'link_annotation_contents',
                             'title' => 'link_annotation_title',
+                            'subject' => 'link_annotation_subject',
+                            'name' => 'link_annotation_name',
+                            'modified_at' => 'link_annotation_modified_at',
+                            'opacity' => 'link_annotation_opacity',
                             'border_color' => 'link_annotation_border_color',
                             'highlight_mode' => 'link_annotation_highlight_mode',
                             'highlight_mode_label' => 'link_annotation_highlight_mode_label',
@@ -1247,6 +1251,26 @@ final class PdfLinkAnnotationExtractor
             $review['title'] = $title;
         }
 
+        $subject = $this->stringValueAfterName($annotationBody, 'Subj', $objects);
+        if ($subject !== null) {
+            $review['subject'] = $subject;
+        }
+
+        $name = $this->stringValueAfterName($annotationBody, 'NM', $objects);
+        if ($name !== null) {
+            $review['name'] = $name;
+        }
+
+        $modifiedAt = $this->stringValueAfterName($annotationBody, 'M', $objects);
+        if ($modifiedAt !== null) {
+            $review['modified_at'] = $modifiedAt;
+        }
+
+        $opacity = $this->opacityFromAnnotation($annotationBody, $objects);
+        if ($opacity !== null) {
+            $review['opacity'] = $opacity;
+        }
+
         $color = $this->colorValueAfterName($annotationBody, 'C', $objects);
         if ($color !== null) {
             $review['border_color'] = $color;
@@ -1264,6 +1288,16 @@ final class PdfLinkAnnotationExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function opacityFromAnnotation(string $annotationBody, array $objects): ?float
+    {
+        $opacity = $this->floatValueAfterName($annotationBody, 'CA', $objects);
+
+        return $opacity === null ? null : $this->clamp($opacity);
     }
 
     /**
@@ -1816,7 +1850,7 @@ final class PdfLinkAnnotationExtractor
         }
 
         $value = trim($value);
-        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?!\s+\d+\s+R\b)/', $value, $match) === 1) {
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?=$|[\s\[\]\(\)<>{}\/%])(?!\s+\d+\s+R\b)/', $value, $match) === 1) {
             return (float) $match[0];
         }
 
