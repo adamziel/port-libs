@@ -22757,10 +22757,54 @@ final class PdfTextExtractor
 
         $decoded = $this->decodeStream($dictionary, $candidate, [], true);
         if ($decoded === null) {
-            return false;
+            return $expectedLength !== null
+                && $this->inlineAsciiHexCandidateReachesSampleFloorBeforeEod($filters, $candidate, $expectedLength);
         }
 
         return $expectedLength === null || strlen($decoded) >= $expectedLength;
+    }
+
+    /**
+     * ASCIIHex inline-image payloads can contain malformed surplus bytes after
+     * the declared sample floor. Keep delimiter-looking EI bytes closed until
+     * the in-band ASCIIHex EOD marker is reached.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineAsciiHexCandidateReachesSampleFloorBeforeEod(
+        array $filters,
+        string $candidate,
+        int $expectedLength
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($expectedLength < 1 || $nonNullFilters !== ['ASCIIHexDecode']) {
+            return false;
+        }
+
+        $eodOffset = strpos($candidate, '>');
+        if ($eodOffset === false) {
+            return false;
+        }
+
+        $hexDigitCount = 0;
+        for ($offset = 0; $offset < $eodOffset; $offset++) {
+            $char = $candidate[$offset];
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if (ctype_xdigit($char)) {
+                $hexDigitCount++;
+                if (intdiv($hexDigitCount + 1, 2) >= $expectedLength) {
+                    return true;
+                }
+                continue;
+            }
+
+            return false;
+        }
+
+        return intdiv($hexDigitCount + 1, 2) >= $expectedLength;
     }
 
     private function inlineImageCandidateIsIncompletePreviewOnly(string $dictionary, string $candidate): bool

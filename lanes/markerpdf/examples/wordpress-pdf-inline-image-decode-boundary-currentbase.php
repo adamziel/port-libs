@@ -154,6 +154,7 @@ $oversizedCompressedImage = gzcompress($oversizedImageRow, 0);
 if (!is_string($oversizedCompressedImage)) {
     throw new RuntimeException('Unable to build oversized inline image fixture.');
 }
+$asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
 $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj ET';
 $runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
 $malformedFilterPayload = 'abc EI BT /F1 12 Tf 72 574 Td (Malformed Filter Inline Noise) Tj ET rawtail';
@@ -172,6 +173,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
     . $oversizedCompressedImage . "\nEI\n"
     . "BT /F1 12 Tf 72 624 Td (After Oversized Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 636 Td (Before AHx Surplus Inline Image) Tj ET\n"
+    . "BI /W 3 /H 1 /CS /G /BPC 8 /F /AHx ID\n"
+    . $asciiHexSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 622 Td (After AHx Surplus Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 620 Td (Before Space Sample Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 ID  EI\n"
     . "BT /F1 12 Tf 72 616 Td (After Space Sample Inline Image) Tj ET\n"
@@ -289,6 +294,17 @@ try {
 } catch (InvalidArgumentException) {
     $incompleteAscii85ReviewDecodeFailed = true;
 }
+$asciiHexSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 3 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]',
+        $asciiHexSurplusPayload,
+        [],
+        3
+    );
+} catch (InvalidArgumentException) {
+    $asciiHexSurplusPreviewRejected = true;
+}
 $invalidLzwEarlyChangeDecodeFailed = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -359,6 +375,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_compressed_payload' => str_contains($compressedImage, ' EI '),
     'fake_ei_inside_ascii85_payload' => true,
     'fake_ei_inside_oversized_filtered_payload' => str_contains($oversizedCompressedImage, ' EI '),
+    'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
+    'asciihex_surplus_eod_present' => str_contains($asciiHexSurplusPayload, '>'),
     'visible_text_imported' => $lines === [
         'Before DP Inline Image',
         'After DP Inline Image',
@@ -366,6 +384,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After A85 Inline Image',
         'Before Oversized Inline Image',
         'After Oversized Inline Image',
+        'Before AHx Surplus Inline Image',
+        'After AHx Surplus Inline Image',
         'Before Space Sample Inline Image',
         'After Space Sample Inline Image',
         'Before Named Space Sample Inline Image',
@@ -379,6 +399,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     ],
     'requires_ascii85_end_marker_before_ei' => true,
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
+    'accepts_asciihex_sample_floor_only_after_eod_marker' => in_array('After AHx Surplus Inline Image', $lines, true),
+    'asciihex_surplus_preview_decode_rejected' => $asciiHexSurplusPreviewRejected,
     'terminal_whitespace_inline_sample_preserved' => in_array('After Space Sample Inline Image', $lines, true),
     'named_colorspace_terminal_whitespace_sample_preserved' => in_array('After Named Space Sample Inline Image', $lines, true),
     'complete_ascii85_review_decoded' => ($completeInlineReview['image_stream']['decoded_with_current_filters'] ?? false) === true,
@@ -430,6 +452,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, '87cURDc')
         && !str_contains($plainText, 'Oversized Flate Inline Noise')
         && !str_contains($plainText, 'X EI')
+        && !str_contains($plainText, 'ASCIIHex Surplus Inline Noise')
+        && !str_contains($plainText, '414243 EI')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
         && !str_contains($plainText, 'Malformed Filter Inline Noise')

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 07:13:29 UTC",
-    "sourceCommit": "3f9e0bb0a7c5692c239eca516972e738caef1439",
-    "sourceCommitShort": "3f9e0bb0a7c5",
+    "generated": "2026-06-05 07:14:34 UTC",
+    "sourceCommit": "4ab2abc56d5c83bbac98f267b763cd7d0b57a5ae",
+    "sourceCommitShort": "4ab2abc56d5c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "3f9e0bb0a7c5692c239eca516972e738caef1439",
-    "dashboardCommitShort": "3f9e0bb0a7c5",
+    "dashboardCommit": "4ab2abc56d5c83bbac98f267b763cd7d0b57a5ae",
+    "dashboardCommitShort": "4ab2abc56d5c",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -81,7 +81,7 @@
             "library": "markerPDF",
             "priority": "Active",
             "queue": "Active",
-            "state": "PHP green, upstream gap",
+            "state": "Near complete",
             "progressPercent": "100.0",
             "completion": "100.0%",
             "suite": "cloned-static-inventory",
@@ -91,12 +91,12 @@
             "coverage": "724 / 78 (928.2%)",
             "mapPercent": "928.2%",
             "unmapped": "0",
-            "php": "1,562 pass / 0 fail",
-            "phase": "native no-GPU markerPDF scope; isolated FileAttachment annotation pre...",
-            "audit": "2026-06-05 UTC isolated FileAttachment annotation presentation bounda...",
+            "php": "1,563 pass / 0 fail",
+            "phase": "native no-GPU markerPDF scope; isolated inline ASCIIHex EOD sample-fl...",
+            "audit": "Current-base red-first fixture showed fake EI inside malformed ASCIIH...",
             "currentWork": "MarkerPDF is supervised as a native PHP searchable-PDF parser/converter plus supplied...",
-            "nextTarget": "After this patch is accepted, continue native no-GPU markerPD...",
-            "remainingGate": "No GPU/model execution will be run for markerPDF under current user d...",
+            "nextTarget": "Continue no-GPU markerPDF native parser work on non-overlappi...",
+            "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
         {

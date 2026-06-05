@@ -185,6 +185,41 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'keeps malformed ASCIIHex surplus inline bytes closed until EOD after sample floor' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $payload = '414243 EI BT /F1 12 Tf 72 700 Td (ASCIIHex surplus inline image leak) Tj ET >';
+        $content = "BT /F1 12 Tf 72 720 Td (Before AHx Surplus Inline Image) Tj ET\n"
+            . "BI /W 3 /H 1 /CS /G /BPC 8 /F /AHx ID\n{$payload}\nEI\n"
+            . "BT /F1 12 Tf 72 680 Td (After AHx Surplus Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before AHx Surplus Inline Image',
+            'After AHx Surplus Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($payload, ' EI '));
+        $t->true(str_contains($payload, '>'));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'ASCIIHex surplus inline image leak'));
+        $t->true(!str_contains($plainText, '414243 EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                '/W 3 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]',
+                $payload,
+                [],
+                3
+            )
+        );
+    },
     'requires ASCII85 inline image review payload terminator before RGB preview decoding' => static function (TestRunner $t) use ($ascii85Encode): void {
         $renderer = new PdfImageRenderer();
         $objects = [
