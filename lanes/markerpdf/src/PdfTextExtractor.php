@@ -22976,6 +22976,11 @@ final class PdfTextExtractor
                     && $incompletePreviewFallbackCanCloseBeforeNextImage
                 ) {
                     $segmentAfterFallback = substr($stream, $incompletePreviewFallbackEnd + 2, $end - $incompletePreviewFallbackEnd - 2);
+                    if ($this->contentSegmentEndsInsidePdfComment($segmentAfterFallback)) {
+                        $index = $end + 2;
+                        continue;
+                    }
+
                     if (
                         $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
@@ -23076,6 +23081,65 @@ final class PdfTextExtractor
             $dictionary = $this->readInlineImageDictionary($segment, $dictionaryEnd);
             if ($dictionary !== null && $this->inlineImageDictionaryHasImageKeys($dictionary)) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function contentSegmentEndsInsidePdfComment(string $segment): bool
+    {
+        $index = 0;
+        $length = strlen($segment);
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                if ($index >= $length) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if ($index + 1 < $length && $segment[$index + 1] === '<') {
+                    $this->readDictionaryToken($segment, $index);
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $this->readArrayToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($segment, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($segment[$index])) {
+                $index++;
+            }
+
+            if ($index === $start) {
+                $index++;
             }
         }
 
