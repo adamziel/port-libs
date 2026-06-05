@@ -59,7 +59,7 @@ final class TableRecognizer
      * @param list<array{width?: int|float, height?: int|float}|list<int|float>> $imageSizes
      * @param list<mixed> $textLines
      * @param array<int, list<array<string, mixed>>> $suppliedDetections
-     * @return array{table_cells: list<list<array<string, mixed>>>, needs_ocr: list<bool>, table_text_cell_boundary_reviews: list<array<string, mixed>|null>}
+     * @return array{table_cells: list<list<array<string, mixed>>>, needs_ocr: list<bool>, table_text_cell_boundary_reviews: list<array<string, mixed>|null>, table_detector_cell_boundary_reviews: list<array<string, mixed>|null>}
      */
     public function getCells(
         array $tableBboxes,
@@ -76,6 +76,7 @@ final class TableRecognizer
         $tableCells = [];
         $needsOcr = [];
         $cellBoundaryReviews = [];
+        $detectorCellBoundaryReviews = [];
 
         for ($idx = 0; $idx < $count; $idx++) {
             $tableBbox = $this->bbox($tableBboxes[$idx]);
@@ -88,21 +89,34 @@ final class TableRecognizer
                 if (!array_key_exists($idx, $suppliedDetections)) {
                     throw new InvalidArgumentException('Missing supplied detector cells for table index ' . $idx . '.');
                 }
-                $tableCells[] = $this->normalizePositiveAreaCells($suppliedDetections[$idx]);
+                $detectorCropSize = $this->imageSizeFromBboxExtent($tableBbox) ?? $imageSize;
+                $detectorCells = $this->detectorCellsInTableCrop(
+                    $this->normalizeCells($suppliedDetections[$idx]),
+                    $tableBbox,
+                    $detectorCropSize
+                );
+                $bounded = $this->boundedDetectorCellsForCrop(
+                    $detectorCells,
+                    $detectorCropSize
+                );
+                $tableCells[] = $bounded['cells'];
                 $needsOcr[] = true;
                 $cellBoundaryReviews[] = null;
+                $detectorCellBoundaryReviews[] = $bounded['review'];
                 continue;
             }
 
             $tableCells[] = $this->normalizeCells($textBlocks['cells']);
             $needsOcr[] = false;
             $cellBoundaryReviews[] = $textBlocks['boundary_review'];
+            $detectorCellBoundaryReviews[] = null;
         }
 
         return [
             'table_cells' => $tableCells,
             'needs_ocr' => $needsOcr,
             'table_text_cell_boundary_reviews' => $cellBoundaryReviews,
+            'table_detector_cell_boundary_reviews' => $detectorCellBoundaryReviews,
         ];
     }
 
@@ -2928,14 +2942,147 @@ final class TableRecognizer
 
     /**
      * @param list<array<string, mixed>> $cells
+     * @param list<float> $tableBbox
+     * @param array{width: int, height: int} $cropSize
      * @return list<array<string, mixed>>
      */
-    private function normalizePositiveAreaCells(array $cells): array
+    private function detectorCellsInTableCrop(array $cells, array $tableBbox, array $cropSize): array
     {
-        return array_values(array_filter(
-            $this->normalizeCells($cells),
-            fn (array $cell): bool => $this->area($cell['bbox']) > 0.0
-        ));
+        if ($cells === [] || $this->detectorCellsOverlapCrop($cells, $cropSize)) {
+            return $cells;
+        }
+        if (!$this->detectorCellsOverlapPageTableBbox($cells, $tableBbox)) {
+            return $cells;
+        }
+
+        $localized = [];
+        foreach ($cells as $cell) {
+            $sourceBbox = $cell['bbox'];
+            $cell['source_bbox'] = $sourceBbox;
+            $cell['source_coordinate_space'] = 'page_image';
+            $cell['bbox'] = $this->relativeToTableBbox($sourceBbox, $tableBbox);
+            $localized[] = $cell;
+        }
+
+        return $localized;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @param array{width: int, height: int} $cropSize
+     */
+    private function detectorCellsOverlapCrop(array $cells, array $cropSize): bool
+    {
+        foreach ($cells as $cell) {
+            $bbox = $cell['bbox'];
+            if ($this->positiveArea($bbox) > 0.0 && $this->positiveArea($this->clipBboxToImage($bbox, $cropSize)) > 0.0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $cells
+     * @param list<float> $tableBbox
+     */
+    private function detectorCellsOverlapPageTableBbox(array $cells, array $tableBbox): bool
+    {
+        foreach ($cells as $cell) {
+            $bbox = $cell['bbox'];
+            if ($this->positiveArea($bbox) > 0.0 && $this->intersectionPct($bbox, $tableBbox) > 0.0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Upstream detector cells are produced from the cropped table image before
+     * OCR text is zipped back by source order. Bound supplied detector cells at
+     * that same crop boundary so off-crop decoys cannot shift OCR text into the
+     * remaining table cells.
+     *
+     * @param list<array<string, mixed>> $cells
+     * @param array{width: int, height: int} $imageSize
+     * @return array{cells: list<array<string, mixed>>, review: array<string, mixed>|null}
+     */
+    private function boundedDetectorCellsForCrop(array $cells, array $imageSize): array
+    {
+        if ($cells === []) {
+            return [
+                'cells' => [],
+                'review' => null,
+            ];
+        }
+
+        $bounded = [];
+        $reviewRows = [];
+        foreach ($cells as $index => $cell) {
+            $bbox = $cell['bbox'];
+            $clippedBbox = $this->clipBboxToImage($bbox, $imageSize);
+            $originalPositive = $this->positiveArea($bbox) > 0.0;
+            $clippedPositive = $this->positiveArea($clippedBbox) > 0.0;
+            $active = $originalPositive && $clippedPositive;
+            $status = 'within_table_image';
+
+            if (!$originalPositive) {
+                $status = 'excluded_non_positive_area';
+            } elseif (!$clippedPositive) {
+                $status = 'excluded_outside_table_image';
+            } elseif ($clippedBbox !== $bbox) {
+                $status = 'clipped_to_table_image';
+            }
+
+            $reviewRow = [
+                'cell_index' => $index,
+                'text' => (string) ($cell['text'] ?? ''),
+                'original_bbox' => $bbox,
+                'bounded_bbox' => $active ? $clippedBbox : null,
+                'clipped_bbox' => $clippedBbox,
+                'status' => $status,
+                'active' => $active,
+                'ocr_source_order_retained_after_crop_boundary' => $active,
+                'detector_cell_excluded_before_ocr' => !$active,
+                'upstream_cell_bbox_retained' => $active,
+            ];
+            foreach (['source_bbox', 'source_coordinate_space'] as $field) {
+                if (array_key_exists($field, $cell)) {
+                    $reviewRow[$field] = $cell[$field];
+                }
+            }
+            $reviewRows[] = $reviewRow;
+
+            if ($active) {
+                $bounded[] = $cell;
+            }
+        }
+
+        return [
+            'cells' => $bounded,
+            'review' => [
+                'review_target' => 'table_detector_cell_crop_boundary',
+                'upstream_boundary' => 'tabled.inference.recognition.get_cells.table_image_detector_cells',
+                'image_size' => $imageSize,
+                'cell_count' => count($reviewRows),
+                'active_cell_count' => count($bounded),
+                'within_cell_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => ($row['status'] ?? null) === 'within_table_image'
+                )),
+                'clipped_cell_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => ($row['status'] ?? null) === 'clipped_to_table_image'
+                )),
+                'excluded_cell_count' => count(array_filter(
+                    $reviewRows,
+                    static fn (array $row): bool => isset($row['status']) && str_starts_with((string) $row['status'], 'excluded_')
+                )),
+                'cells' => $reviewRows,
+            ],
+        ];
     }
 
     /**

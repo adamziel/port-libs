@@ -256,6 +256,10 @@ final class SuppliedDocumentConverter
                 if ($cellBoundaryReviews !== []) {
                     $metadata['table_text_cell_boundary_reviews'] = $cellBoundaryReviews;
                 }
+                $detectorCellBoundaryReviews = $this->tableDetectorCellBoundaryReviews($cells['table_detector_cell_boundary_reviews'] ?? []);
+                if ($detectorCellBoundaryReviews !== []) {
+                    $metadata['table_detector_cell_boundary_reviews'] = $detectorCellBoundaryReviews;
+                }
                 $metadata['supplied_boundaries'][] = 'table-cell-routing';
             }
             $tableCropImageSizes = $this->tableCropImageSizes($tablePlan);
@@ -570,6 +574,31 @@ final class SuppliedDocumentConverter
      * @return list<array<string, mixed>|null>
      */
     private function tableTextCellBoundaryReviews(mixed $reviews): array
+    {
+        if (!is_array($reviews)) {
+            return [];
+        }
+
+        $normalized = [];
+        $hasReview = false;
+        foreach ($reviews as $review) {
+            if (is_array($review)) {
+                $normalized[] = $review;
+                $hasReview = true;
+                continue;
+            }
+
+            $normalized[] = null;
+        }
+
+        return $hasReview ? $normalized : [];
+    }
+
+    /**
+     * @param mixed $reviews
+     * @return list<array<string, mixed>|null>
+     */
+    private function tableDetectorCellBoundaryReviews(mixed $reviews): array
     {
         if (!is_array($reviews)) {
             return [];
