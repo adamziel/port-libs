@@ -76,6 +76,21 @@ return [
         $t->contains('<h1 id="legacy-import">Legacy Import</h1>', $blocks);
         $t->contains("<p>Editor \u{201C}quoted\u{201D} source \u{2014} Cafe\u{00E9} costs \u{20AC}10.</p>", $blocks);
     },
+    'decodes iso 8859 15 latin9 euro text into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Latin9 Import\n\nPrice \xA410; \xBCuvre, c\xBDur, \xBE, \xA6umava, and \xB8.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'latin-9');
+        $document = (new MarkdownReader())->readBytes($bytes, 'iso-8859-15');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('iso-8859-15', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Latin9 Import\n\nPrice \u{20AC}10; \u{0152}uvre, c\u{0153}ur, \u{0178}, \u{0160}umava, and \u{017E}.", $decoded['text']);
+        $t->same(['encoding' => 'iso-8859-15', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Latin9 Import', $document->children[0]->attr('text'));
+        $t->same("Price \u{20AC}10; \u{0152}uvre, c\u{0153}ur, \u{0178}, \u{0160}umava, and \u{017E}.", $document->children[1]->attr('text'));
+        $t->contains('<h1 id="latin9-import">Latin9 Import</h1>', $blocks);
+        $t->contains("<p>Price \u{20AC}10; \u{0152}uvre, c\u{0153}ur, \u{0178}, \u{0160}umava, and \u{017E}.</p>", $blocks);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([

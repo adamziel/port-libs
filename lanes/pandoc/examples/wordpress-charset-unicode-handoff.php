@@ -13,6 +13,8 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $legacyBytes = "# Cafe\xE9 Review\r\n\r\nEditor \x93quoted\x94 source \x97 price \x8010.\rReviewer line ending note.";
 
 $source = (new MarkdownReader())->readBytes($legacyBytes, 'windows-1252');
+$latin9Source = (new MarkdownReader())->readBytes("# Latin9 Import\n\nPrice \xA410; \xBCuvre, c\xBDur, \xBE, \xA6umava, and \xB8.", 'latin-9');
+$latin9Text = (string) $latin9Source->children[1]->attr('text');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
 $wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
     "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} Cafe\u{0301} trail",
@@ -197,6 +199,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($formatControlText) . ' / ' . implode(',', array_map(UnicodeText::displayWidth(...), $formatControlWrap))])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Latin-9 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $latin9Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($latin9Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($latin9Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Line endings'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CRLF and CR normalized'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) $lineEndingConversions])]),
@@ -305,6 +312,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Format controls</td><td>\u{0600}رقم \u{070F}ܣܘܪܝܝܐ \u{110BD}kaithi / Audit \u{0600}رقم /   tail</td><td>17 / 9,6</td>")) {
         throw new RuntimeException('charset handoff self-test missing prepended format-control width audit');
+    }
+    if (($latin9Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-15') {
+        throw new RuntimeException('charset handoff self-test missing Latin-9 source encoding');
+    }
+    if (!str_contains($blocks, "<td>Latin-9 source</td><td>Price €10; Œuvre, cœur, Ÿ, Šumava, and ž.</td><td>iso-8859-15:41</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Latin-9 decode audit row');
     }
     if (!str_contains($blocks, '<td>Line endings</td><td>CRLF and CR normalized</td><td>3</td>')) {
         throw new RuntimeException('charset handoff self-test missing line ending table audit');

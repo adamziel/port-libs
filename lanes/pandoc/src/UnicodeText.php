@@ -196,6 +196,18 @@ final class UnicodeText
         0x9f => 0x0178,
     ];
 
+    /** @var array<int, int> */
+    private const ISO_8859_15_REPLACEMENTS = [
+        0xa4 => 0x20ac,
+        0xa6 => 0x0160,
+        0xa8 => 0x0161,
+        0xb4 => 0x017d,
+        0xb8 => 0x017e,
+        0xbc => 0x0152,
+        0xbd => 0x0153,
+        0xbe => 0x0178,
+    ];
+
     /** @var list<int> */
     private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
         0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
@@ -269,8 +281,8 @@ final class UnicodeText
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
 
-        if ($normalized === 'windows-1252' || $normalized === 'iso-8859-1') {
-            [$text, $repairs] = self::decodeSingleByte($bytes, $normalized === 'windows-1252');
+        if ($normalized === 'windows-1252' || $normalized === 'iso-8859-1' || $normalized === 'iso-8859-15') {
+            [$text, $repairs] = self::decodeSingleByte($bytes, $normalized);
 
             return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
         }
@@ -707,6 +719,7 @@ final class UnicodeText
             'utf16be' => 'utf-16be',
             'windows1252', 'cp1252', 'msansi' => 'windows-1252',
             'iso88591', 'latin1', 'latin-1' => 'iso-8859-1',
+            'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             default => 'utf-8',
         };
     }
@@ -1004,19 +1017,23 @@ final class UnicodeText
     /**
      * @return array{0:string, 1:int}
      */
-    private static function decodeSingleByte(string $bytes, bool $windows1252): array
+    private static function decodeSingleByte(string $bytes, string $encoding): array
     {
         $out = '';
         $repairs = 0;
         for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset++) {
             $byte = ord($bytes[$offset]);
-            if ($windows1252 && $byte >= 0x80 && $byte <= 0x9f) {
+            if ($encoding === 'windows-1252' && $byte >= 0x80 && $byte <= 0x9f) {
                 if (isset(self::WINDOWS_1252_CONTROLS[$byte])) {
                     $out .= self::fromCodepoint(self::WINDOWS_1252_CONTROLS[$byte]);
                 } else {
                     $out .= self::REPLACEMENT;
                     $repairs++;
                 }
+                continue;
+            }
+            if ($encoding === 'iso-8859-15' && isset(self::ISO_8859_15_REPLACEMENTS[$byte])) {
+                $out .= self::fromCodepoint(self::ISO_8859_15_REPLACEMENTS[$byte]);
                 continue;
             }
 
