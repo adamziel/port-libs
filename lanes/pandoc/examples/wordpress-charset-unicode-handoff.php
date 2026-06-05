@@ -14,6 +14,11 @@ $legacyBytes = "# Cafe\xE9 Review\r\n\r\nEditor \x93quoted\x94 source \x97 price
 
 $source = (new MarkdownReader())->readBytes($legacyBytes, 'windows-1252');
 $displaySlices = UnicodeText::splitByDisplayBreakpoints("\u{9B5A}A\u{0301}\u{1F469}\u{200D}\u{1F4BB}B", [2, 3, 5]);
+$wrappedAuditLines = UnicodeText::wrapByDisplayWidth(
+    "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} Cafe\u{0301} trail",
+    12,
+    '  '
+);
 $emojiCheckbox = "\u{2611}\u{FE0F}";
 $emojiKeycap = "1\u{FE0F}\u{20E3}";
 $emojiThumb = "\u{1F44D}\u{1F3FD}";
@@ -51,6 +56,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Display slices'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $displaySlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $displaySlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Wrapped note'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $wrappedAuditLines)])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(',', array_map(UnicodeText::displayWidth(...), $wrappedAuditLines))])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji checkbox'])]),
@@ -100,6 +110,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>\u{9B5A} / A\u{0301} / \u{1F469}\u{200D}\u{1F4BB} / B</td><td>2,1,2,1</td>")) {
         throw new RuntimeException('charset handoff self-test missing display-width split audit');
+    }
+    if (!str_contains($blocks, "<td>Wrapped note</td><td>Import \u{9B5A}\u{9B5A} /   emoji \u{1F44D}\u{1F3FD} /   flag \u{1F1FA}\u{1F1F8} /   Cafe\u{0301} trail</td><td>11,10,9,12</td>")) {
+        throw new RuntimeException('charset handoff self-test missing display-width wrap audit');
     }
     if (!str_contains($blocks, "<td>Emoji slices</td><td>\u{2611}\u{FE0F} / 1\u{FE0F}\u{20E3} / \u{1F44D}\u{1F3FD} / \u{1F1FA}\u{1F1F8}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing emoji display-width audit');

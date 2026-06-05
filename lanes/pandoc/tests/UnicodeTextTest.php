@@ -179,6 +179,27 @@ return [
         $t->same(["\u{9B5A}", $accent, $emoji, 'B'], UnicodeText::splitByDisplayBreakpoints($text, [2, 3, 5]));
         $t->same(["\u{9B5A}", '', $accent . $emoji . 'B'], UnicodeText::splitByDisplayBreakpoints($text, [2, 1]));
     },
+    'wraps display width lines without cutting unicode graphemes' => static function (TestRunner $t): void {
+        $accent = "Cafe\u{0301}";
+        $wrapped = UnicodeText::wrapByDisplayWidth(
+            "Import \u{9B5A}\u{9B5A} emoji \u{1F44D}\u{1F3FD} flag \u{1F1FA}\u{1F1F8} {$accent} trail",
+            12,
+            '  '
+        );
+
+        $t->same([
+            "Import \u{9B5A}\u{9B5A}",
+            "  emoji \u{1F44D}\u{1F3FD}",
+            "  flag \u{1F1FA}\u{1F1F8}",
+            "  {$accent} trail",
+        ], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 12, 'Wrapped display line exceeds requested width');
+        }
+        $t->same(["\u{9B5A}\u{9B5A}", "  \u{9B5A}", "  A\u{0301}B"], UnicodeText::wrapByDisplayWidth("\u{9B5A}\u{9B5A}\u{9B5A}A\u{0301}B", 4, '  '));
+        $t->same(['Hard', 'Break', "  \u{9B5A}\u{9B5A}"], UnicodeText::wrapByDisplayWidth("Hard\r\nBreak \u{9B5A}\u{9B5A}", 8, '  '));
+        $t->same(['No wrap'], UnicodeText::wrapByDisplayWidth('No wrap', 0, '  '));
+    },
     'writes markdown pipe table padding with unicode display widths' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [

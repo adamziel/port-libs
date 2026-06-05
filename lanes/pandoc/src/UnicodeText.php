@@ -214,6 +214,31 @@ final class UnicodeText
         return $segments;
     }
 
+    /**
+     * Wrap text to display columns without splitting grapheme clusters.
+     *
+     * This is intentionally bounded: horizontal ASCII whitespace is a soft
+     * break opportunity and existing hard line breaks reset indentation.
+     *
+     * @return list<string>
+     */
+    public static function wrapByDisplayWidth(string $text, int $width, string $subsequentIndent = ''): array
+    {
+        [$text] = self::normalizeLineEndings(self::repair($text));
+        if ($width <= 0) {
+            return explode("\n", $text);
+        }
+
+        $wrapped = [];
+        foreach (explode("\n", $text) as $line) {
+            foreach (self::wrapDisplayLine($line, $width, $subsequentIndent) as $wrappedLine) {
+                $wrapped[] = $wrappedLine;
+            }
+        }
+
+        return $wrapped;
+    }
+
     public static function padDisplay(string $text, int $width, string $alignment = 'left'): string
     {
         $padding = max(0, $width - self::displayWidth($text));
@@ -246,6 +271,77 @@ final class UnicodeText
                 'conversions' => $crlf + $cr,
             ],
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function wrapDisplayLine(string $line, int $width, string $subsequentIndent): array
+    {
+        $tokens = preg_split('/[ \t\f\v]+/u', trim($line), -1, PREG_SPLIT_NO_EMPTY);
+        if ($tokens === false || $tokens === []) {
+            return [''];
+        }
+
+        $lines = [];
+        $current = '';
+        foreach ($tokens as $token) {
+            if ($current === '') {
+                [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent);
+                continue;
+            }
+
+            $candidate = $current . ' ' . $token;
+            if (self::displayWidth($candidate) <= self::wrapContentWidth(count($lines), $width, $subsequentIndent)) {
+                $current = $candidate;
+                continue;
+            }
+
+            $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent) . $current;
+            [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent);
+        }
+
+        if ($current !== '') {
+            $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent) . $current;
+        }
+
+        return $lines === [] ? [''] : $lines;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:string}
+     */
+    private static function startWrappedToken(array $lines, string $token, int $width, string $subsequentIndent): array
+    {
+        while ($token !== '') {
+            $limit = self::wrapContentWidth(count($lines), $width, $subsequentIndent);
+            if (self::displayWidth($token) <= $limit) {
+                return [$lines, $token];
+            }
+
+            [$segment, $token] = self::splitAtDisplayWidth($token, $limit);
+            if ($segment === '') {
+                [$segment, $token] = self::splitAtDisplayWidth($token, 1);
+            }
+            $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent) . $segment;
+        }
+
+        return [$lines, ''];
+    }
+
+    private static function wrapContentWidth(int $lineIndex, int $width, string $subsequentIndent): int
+    {
+        if ($lineIndex === 0) {
+            return max(1, $width);
+        }
+
+        return max(1, $width - self::displayWidth($subsequentIndent));
+    }
+
+    private static function wrapLinePrefix(int $lineIndex, string $subsequentIndent): string
+    {
+        return $lineIndex === 0 ? '' : $subsequentIndent;
     }
 
     private static function normalizeEncoding(?string $encoding): ?string
