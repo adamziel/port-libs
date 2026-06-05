@@ -147,6 +147,67 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/sig-selector-shape.xml', 'data' => $selectorShapeSignatureXml],
 ]);
 
+$aliasCollisionContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/review%20source.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+$aliasCollisionRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/review%20source.xml"/>
+</Relationships>
+XML;
+
+$aliasCollisionEncodedRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEncodedReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/encoded.png"/>
+</Relationships>
+XML;
+
+$aliasCollisionRawRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdRawReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/raw.png"/>
+</Relationships>
+XML;
+
+$relationshipSourceAliasPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $aliasCollisionContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $aliasCollisionRootRelationshipsXml],
+    ['name' => 'word/review source.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/review%20source.xml.rels', 'data' => $aliasCollisionEncodedRelationshipsXml],
+    ['name' => 'word/_rels/review source.xml.rels', 'data' => $aliasCollisionRawRelationshipsXml],
+    ['name' => 'word/media/encoded.png', 'data' => 'PNG'],
+    ['name' => 'word/media/raw.png', 'data' => 'PNG'],
+]);
+
+$relationshipSourceAliasGraphRejected = false;
+try {
+    OpcRelationshipGraph::fromPackage($relationshipSourceAliasPackage);
+} catch (RuntimeException) {
+    $relationshipSourceAliasGraphRejected = true;
+}
+
+$relationshipSourceAliasGuards = [];
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationshipSourceAliasPackage) as $part) {
+    if ($part['relationshipSource'] !== '/word/review source.xml') {
+        continue;
+    }
+
+    $relationshipSourceAliasGuards[$part['partName']] = [
+        'partName' => $part['partName'],
+        'relationshipSource' => $part['relationshipSource'],
+        'sourceExists' => $part['sourceExists'],
+        'duplicateRelationshipPartNames' => $part['duplicateRelationshipPartNames'],
+        'loaded' => $part['loaded'],
+        'relationshipCount' => $part['relationshipCount'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+    ];
+}
+
 $relationshipPartLoads = [];
 foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
     $relationshipPartLoads[$part['partName']] = [
@@ -510,7 +571,9 @@ $summary = [
         )),
         'strictXmlShapeGuards' => $strictXmlShapeGuards,
         'markupCompatibilityGuards' => $markupCompatibilityGuards,
+        'relationshipSourceAliasGraphRejected' => $relationshipSourceAliasGraphRejected,
     ],
+    'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'wordpressImport' => [
         'mediaParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
@@ -656,6 +719,22 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['relationshipCount'] ?? null) !== 1
         || ($summary['integrity']['invalidRelationshipParts'][0]['partName'] ?? null) !== '/word/_rels/draft.xml.rels'
         || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipSourceLoaded'] ?? null) !== false
+        || ($summary['integrity']['relationshipSourceAliasGraphRejected'] ?? null) !== true
+        || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
+            '/word/_rels/review%20source.xml.rels',
+            '/word/_rels/review source.xml.rels',
+        ]
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review%20source.xml.rels']['duplicateRelationshipPartNames'] ?? null) !== [
+            '/word/_rels/review source.xml.rels',
+            '/word/_rels/review%20source.xml.rels',
+        ]
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review%20source.xml.rels']['loaded'] ?? null) !== false
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review%20source.xml.rels']['relationshipCount'] ?? null) !== null
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review%20source.xml.rels']['issues'] ?? null) !== ['duplicate-relationship-source']
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['loaded'] ?? null) !== false
+        || ($summary['relationshipSourceAliasGuards']['/word/_rels/review source.xml.rels']['issues'] ?? null) !== ['duplicate-relationship-source']
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeDefaultDotExtensionRejected'] ?? null) !== true
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeOverrideRelativePartNameRejected'] ?? null) !== true

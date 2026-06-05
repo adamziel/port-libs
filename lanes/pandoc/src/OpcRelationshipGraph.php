@@ -61,6 +61,10 @@ final class OpcRelationshipGraph
                 continue;
             }
 
+            if (isset($relationshipsBySource[$sourcePartName])) {
+                throw new \RuntimeException('Duplicate OPC relationship part source: ' . $sourcePartName);
+            }
+
             $relationshipsBySource[$sourcePartName] = OpcRelationships::fromXml(
                 $package->read($relationshipPartName),
                 $sourcePartName,
@@ -71,7 +75,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, loaded:bool, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{partName:string, contentType:?string, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
@@ -81,6 +85,7 @@ final class OpcRelationshipGraph
 
         $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
         $preflight = [];
+        $sourceIndexes = [];
         foreach ($package->names() as $name) {
             if (!self::isRelationshipPartName($name)) {
                 continue;
@@ -120,17 +125,6 @@ final class OpcRelationshipGraph
                 $issues[] = 'orphan-relationship-part';
             }
 
-            if ($issues === [] && $relationshipSource !== null) {
-                try {
-                    $relationships = OpcRelationships::fromXml($package->read($partName), $relationshipSource);
-                    $loaded = true;
-                    $relationshipCount = count($relationships->all());
-                } catch (\Throwable $exception) {
-                    $issues[] = 'malformed-relationship-xml';
-                    $parseError = $exception->getMessage();
-                }
-            }
-
             $issues = array_values(array_unique($issues));
             $preflight[] = [
                 'partName' => $partName,
@@ -138,13 +132,55 @@ final class OpcRelationshipGraph
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
                 'sourceExists' => $sourceExists,
+                'duplicateRelationshipPartNames' => [],
                 'loaded' => $loaded,
                 'relationshipCount' => $relationshipCount,
                 'valid' => $issues === [],
                 'issues' => $issues,
                 'parseError' => $parseError,
             ];
+
+            if ($relationshipSource !== null) {
+                $sourceIndexes[$relationshipSource][] = array_key_last($preflight);
+            }
         }
+
+        foreach ($sourceIndexes as $rowIndexes) {
+            if (count($rowIndexes) < 2) {
+                continue;
+            }
+
+            $partNames = [];
+            foreach ($rowIndexes as $rowIndex) {
+                $partNames[] = $preflight[$rowIndex]['partName'];
+            }
+            sort($partNames, SORT_STRING);
+
+            foreach ($rowIndexes as $rowIndex) {
+                $preflight[$rowIndex]['duplicateRelationshipPartNames'] = $partNames;
+                $preflight[$rowIndex]['issues'][] = 'duplicate-relationship-source';
+                $preflight[$rowIndex]['issues'] = array_values(array_unique($preflight[$rowIndex]['issues']));
+                $preflight[$rowIndex]['valid'] = false;
+            }
+        }
+
+        foreach ($preflight as &$row) {
+            if ($row['issues'] !== [] || $row['relationshipSource'] === null) {
+                continue;
+            }
+
+            try {
+                $relationships = OpcRelationships::fromXml($package->read($row['partName']), $row['relationshipSource']);
+                $row['loaded'] = true;
+                $row['relationshipCount'] = count($relationships->all());
+            } catch (\Throwable $exception) {
+                $row['issues'][] = 'malformed-relationship-xml';
+                $row['issues'] = array_values(array_unique($row['issues']));
+                $row['parseError'] = $exception->getMessage();
+                $row['valid'] = false;
+            }
+        }
+        unset($row);
 
         return $preflight;
     }
