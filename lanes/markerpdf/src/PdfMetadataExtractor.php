@@ -10293,8 +10293,8 @@ final class PdfMetadataExtractor
         }
 
         if ($value[$offset] === '(') {
-            $literal = $this->literalStringValueAt($value, $offset);
-            return $literal === null ? null : '(' . $literal . ')';
+            $end = $this->literalTokenEndOffset($value, $offset);
+            return $end <= $offset ? null : substr($value, $offset, $end - $offset);
         }
 
         if ($value[$offset] === '<' && $offset + 1 < $length && $value[$offset + 1] !== '<') {

@@ -11394,12 +11394,12 @@ final class PdfTextExtractor
         $char = $body[$offset];
         if ($char === '(') {
             $raw = $this->readPdfLiteralStringAt($body, $offset);
-            return $raw === null ? null : $this->decodePdfStringBytes($this->decodeLiteralString($raw));
+            return $raw === null ? null : $this->decodePdfTextStringBytes($this->decodeLiteralString($raw));
         }
 
         if ($char === '<' && substr($body, $offset, 2) !== '<<') {
             $bytes = $this->readPdfHexStringAt($body, $offset);
-            return $bytes === null ? null : $this->decodePdfStringBytes($bytes);
+            return $bytes === null ? null : $this->decodePdfTextStringBytes($bytes);
         }
 
         if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $body, $match, 0, $offset) === 1) {
