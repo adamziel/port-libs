@@ -181,6 +181,33 @@ $pdftextScriptPage = static function (): array {
     ];
 };
 
+$pdftextRotatedNormalizedPage = static function (): array {
+    $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
+
+    return [
+        'page' => 44,
+        'bbox' => [600.0, 800.0, 0.0, 0.0],
+        'width' => 800.0,
+        'height' => 600.0,
+        'rotation' => 90,
+        'raw_rotated_payload' => 'rotated normalized page payload must not cross dictionary_output',
+        'blocks' => [[
+            'bbox' => [0.10, 0.20, 0.30, 0.23],
+            'lines' => [[
+                'bbox' => [0.10, 0.20, 0.30, 0.23],
+                'spans' => [[
+                    'text' => "Rotated normalized bbox\n",
+                    'bbox' => [0.10, 0.20, 0.30, 0.23],
+                    'font' => $font,
+                    'raw_span_payload' => 'rotated normalized span payload must not cross dictionary_output',
+                ]],
+                'raw_line_payload' => 'rotated normalized line payload must not cross dictionary_output',
+            ]],
+            'raw_block_payload' => 'rotated normalized block payload must not cross dictionary_output',
+        ]],
+    ];
+};
+
 return [
     'preserves pdftext dictionary links and refs at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
@@ -620,6 +647,36 @@ return [
         $accepted = (new PdfTextDocumentExtractor())->getTextBlocks([$integralFloatPageRotation], maxPages: 1);
         $t->same(90, $accepted['pages'][0]['rotation']);
         $t->same([0.0, 0.0, 300.0, 200.0], $accepted['pages'][0]['bbox']);
+    },
+    'scales rotated normalized pdftext bboxes from source page bbox dimensions' => static function (TestRunner $t) use ($pdftextRotatedNormalizedPage): void {
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextRotatedNormalizedPage()], maxPages: 1);
+        $page = $document['pages'][0];
+        $block = $page['blocks'][0];
+        $span = $block['lines'][0]['spans'][0];
+        $charSpan = $page['char_blocks'][0]['lines'][0]['spans'][0];
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(44, $page['pnum']);
+        $t->same(90, $page['rotation']);
+        $t->same([0.0, 0.0, 800.0, 600.0], $page['bbox']);
+        $t->same([
+            'page' => 44,
+            'bbox' => [600.0, 800.0, 0.0, 0.0],
+            'rotation' => 90,
+            'width' => 800.0,
+            'height' => 600.0,
+        ], $page['pdftext_source']);
+        $t->same([60.0, 160.0, 180.0, 184.0], $block['bbox']);
+        $t->same([60.0, 160.0, 180.0, 184.0], $span['bbox']);
+        $t->same([60.0, 160.0, 180.0, 184.0], $charSpan['bbox']);
+        $t->same('Rotated normalized bbox', $span['text']);
+        $t->same("Rotated normalized bbox\n", $charSpan['text']);
+        $t->same('Rotated normalized bbox', $blocks[0]['text']);
+        $t->true(!str_contains($encoded, 'rotated normalized page payload'));
+        $t->true(!str_contains($encoded, 'rotated normalized block payload'));
+        $t->true(!str_contains($encoded, 'rotated normalized line payload'));
+        $t->true(!str_contains($encoded, 'rotated normalized span payload'));
     },
     'records pdftext quote loosebox option at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $defaultDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);

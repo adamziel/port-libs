@@ -518,19 +518,57 @@ final class PdfTextDocumentExtractor
      */
     private function dictionaryOutputBboxScale(array $page): ?array
     {
-        if (!isset($page['width'], $page['height'])) {
-            return null;
+        $widthHeightScale = null;
+        if (
+            isset($page['width'], $page['height'])
+            && (is_int($page['width']) || is_float($page['width']))
+            && (is_int($page['height']) || is_float($page['height']))
+        ) {
+            $width = (float) $page['width'];
+            $height = (float) $page['height'];
+            if (is_finite($width) && is_finite($height) && $width > 1.0 && $height > 1.0) {
+                $widthHeightScale = ['width' => $width, 'height' => $height];
+            }
         }
-        if (!is_int($page['width']) && !is_float($page['width'])) {
-            return null;
+
+        $rotation = $page['rotation'] ?? null;
+        if (
+            ($rotation === 90 || $rotation === 90.0 || $rotation === 270 || $rotation === 270.0)
+            && array_key_exists('bbox', $page)
+        ) {
+            $bboxScale = $this->dictionaryOutputPageBboxScale($page['bbox']);
+            if ($bboxScale !== null) {
+                return $bboxScale;
+            }
         }
-        if (!is_int($page['height']) && !is_float($page['height'])) {
+
+        return $widthHeightScale;
+    }
+
+    /**
+     * pdftext swaps page width/height after span bbox processing on rotated
+     * pages, while page bbox still carries the source page extent.
+     *
+     * @param mixed $value
+     * @return array{width: float, height: float}|null
+     */
+    private function dictionaryOutputPageBboxScale(mixed $value): ?array
+    {
+        if (!is_array($value) || count($value) !== 4) {
             return null;
         }
 
-        $width = (float) $page['width'];
-        $height = (float) $page['height'];
-        if (!is_finite($width) || !is_finite($height) || $width <= 1.0 || $height <= 1.0) {
+        $bbox = [];
+        foreach (array_values($value) as $part) {
+            if ((!is_int($part) && !is_float($part)) || !is_finite((float) $part)) {
+                return null;
+            }
+            $bbox[] = (float) $part;
+        }
+
+        $width = abs($bbox[2] - $bbox[0]);
+        $height = abs($bbox[3] - $bbox[1]);
+        if ($width <= 1.0 || $height <= 1.0) {
             return null;
         }
 
