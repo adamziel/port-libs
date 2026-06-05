@@ -53,11 +53,13 @@ final class UpstreamRunnerDependencyAudit
     private const RUNNER_ENTRY_POINTS = [
         'test:test-pandoc' => [
             'packageFile' => 'pandoc.cabal',
+            'type' => 'exitcode-stdio-1.0',
             'mainIs' => 'test-pandoc.hs',
             'sourceDirectory' => 'test',
         ],
         'test:test-pandoc-lua-engine' => [
             'packageFile' => 'pandoc-lua-engine/pandoc-lua-engine.cabal',
+            'type' => 'exitcode-stdio-1.0',
             'mainIs' => 'test-pandoc-lua-engine.hs',
             'sourceDirectory' => 'pandoc-lua-engine/test',
         ],
@@ -126,11 +128,11 @@ final class UpstreamRunnerDependencyAudit
      *   tools:array<string, array{available:bool, version:string|null}>,
      *   missingTools:list<string>,
      *   runnerTargets:list<string>,
-     *   runnerEntryPoints:array<string, array{packageFile:string, mainIs:string, sourceDirectory:string}>,
+     *   runnerEntryPoints:array<string, array{packageFile:string, type:string, mainIs:string, sourceDirectory:string}>,
      *   projectSourceRepositoryPins:array{expected:array<string, string>, present:array<string, string>, missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>},
      *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
      *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
-     *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, present:array<string, array{packageFile:string, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>},
+     *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>},
      *   readyForNonMutatingCabalPlan:bool,
      *   blockedReasons:list<string>,
      *   nonMutatingPlan:list<string>,
@@ -231,7 +233,7 @@ final class UpstreamRunnerDependencyAudit
             'nonMutatingPlan' => $ready ? [
                 'record cabal.project package/flag closure and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
-                'record test-suite entry point and direct build-depends closure for test:test-pandoc and test:test-pandoc-lua-engine',
+                'record test-suite type, entry point, and direct build-depends closure for test:test-pandoc and test:test-pandoc-lua-engine',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
@@ -467,7 +469,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array<string, array{mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>}>
+     * @return array<string, array{type:string|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>
      */
     public static function parseCabalTestSuites(string $contents): array
     {
@@ -485,6 +487,7 @@ final class UpstreamRunnerDependencyAudit
             $ghcOptions = self::splitWords($fields['ghc-options'] ?? '');
 
             $suites[$stanza['name']] = [
+                'type' => self::firstFieldValue($fields['type'] ?? null),
                 'mainIs' => self::firstFieldValue($fields['main-is'] ?? null),
                 'sourceDirectories' => $sourceDirectories,
                 'buildDepends' => $buildDepends,
@@ -629,7 +632,7 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
-     * @return array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, present:array<string, array{packageFile:string, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>}
+     * @return array{expectedDependencies:array<string, list<string>>, expectedExecutableOptions:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, ghcOptions:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, missingExecutableOptions:array<string, list<string>>}
      */
     private static function auditRunnerDependencyClosure(string $root): array
     {
@@ -648,6 +651,7 @@ final class UpstreamRunnerDependencyAudit
 
             $present[$target] = [
                 'packageFile' => $entryPoint['packageFile'],
+                'type' => $suites[$suiteName]['type'],
                 'mainIs' => $suites[$suiteName]['mainIs'],
                 'sourceDirectories' => $suites[$suiteName]['sourceDirectories'],
                 'buildDepends' => $suites[$suiteName]['buildDepends'],
@@ -664,6 +668,10 @@ final class UpstreamRunnerDependencyAudit
             if (!array_key_exists($target, $present)) {
                 $missingTargets[] = $target;
                 continue;
+            }
+
+            if ($present[$target]['type'] !== $entryPoint['type']) {
+                $mismatchedEntryPoints[$target][] = 'type expected ' . $entryPoint['type'] . ', found ' . ($present[$target]['type'] ?? 'none');
             }
 
             if ($present[$target]['mainIs'] !== $entryPoint['mainIs']) {
@@ -934,10 +942,10 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['missingDependencies'] === []
             && $runnerDependencyClosure['missingExecutableOptions'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, runner test-suite stanzas, direct build-depends, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, runner test-suite stanzas, exitcode-stdio runner types, direct build-depends, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, test entry points, direct runner build-depends, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with cabal.project package entries/flags/constraints, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, exitcode-stdio test-suite types, test entry points, direct runner build-depends, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

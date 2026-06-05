@@ -63,7 +63,7 @@ $pinnedProject = static function (array $overrides = []): string {
     return implode("\n", $lines);
 };
 
-$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null): string {
+$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0'): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc'],
         $without
@@ -86,7 +86,7 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         '',
         'test-suite test-pandoc',
         '  import: common-executable',
-        '  type: exitcode-stdio-1.0',
+        '  type: ' . $type,
         '  main-is: ' . ($mainIs ?? 'test-pandoc.hs'),
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'test'),
         '  build-depends:',
@@ -94,7 +94,7 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
     ]));
 };
 
-$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null): string {
+$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0'): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc-lua-engine'],
         $without
@@ -108,7 +108,7 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         '',
         'test-suite test-pandoc-lua-engine',
         '  import: test-options',
-        '  type: exitcode-stdio-1.0',
+        '  type: ' . $type,
         '  main-is: ' . ($mainIs ?? 'test-pandoc-lua-engine.hs'),
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'pandoc-lua-engine/test'),
         '  build-depends:',
@@ -201,11 +201,15 @@ return [
         $t->same([], $audit['projectConstraintClosure']['mismatchedConstraints']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
+        $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
         $t->same('pandoc-lua-engine/pandoc-lua-engine.cabal', $audit['runnerEntryPoints']['test:test-pandoc-lua-engine']['packageFile']);
+        $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc-lua-engine']['type']);
         $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
         $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
         $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
         $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
+        $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
         $t->same(true, in_array('base', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('zip-archive', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('tasty-lua', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
@@ -213,7 +217,7 @@ return [
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('direct build-depends closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, entry point, and direct build-depends closure', $audit['nonMutatingPlan'][2]);
     },
     'flags missing and mismatched cabal project git pins' => static function (TestRunner $t) use ($makeTree, $removeTree, $requiredFiles): void {
         $project = implode("\n", [
@@ -375,6 +379,35 @@ return [
         $t->contains('mismatched cabal.project solver constraints: skylighting-format-blaze-html expected >= 0.1.2, found >= 0.1.1', $blocked);
         $t->contains('missing Cabal runner executable options: test:test-pandoc (-with-rtsopts=-A8m, -threaded)', $blocked);
         $t->contains('package entries/flags/constraints', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'rejects non executable cabal runner test-suite types' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $luaCabal): void {
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            $pandocCabal([], null, null, null, 'detailed-0.9'),
+            $luaCabal([], null, null, 'detailed-0.9')
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->contains('type expected exitcode-stdio-1.0, found detailed-0.9', $audit['runnerDependencyClosure']['mismatchedEntryPoints']['test:test-pandoc'][0]);
+        $t->contains('type expected exitcode-stdio-1.0, found detailed-0.9', $audit['runnerDependencyClosure']['mismatchedEntryPoints']['test:test-pandoc-lua-engine'][0]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal runner entry points: test:test-pandoc (type expected exitcode-stdio-1.0, found detailed-0.9)', $blocked);
+        $t->contains('exitcode-stdio test-suite types', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];
