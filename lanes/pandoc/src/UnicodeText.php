@@ -1049,7 +1049,8 @@ final class UnicodeText
 
     private static function isCombiningOrZeroWidth(int $codepoint): bool
     {
-        return ($codepoint >= 0x0300 && $codepoint <= 0x036f)
+        return self::isUnicodeCombiningMark($codepoint)
+            || ($codepoint >= 0x0300 && $codepoint <= 0x036f)
             || $codepoint === 0x00ad
             || ($codepoint >= 0x0483 && $codepoint <= 0x0489)
             || ($codepoint >= 0x0591 && $codepoint <= 0x05bd)
@@ -1104,6 +1105,50 @@ final class UnicodeText
             || ($codepoint >= 0xfe20 && $codepoint <= 0xfe2f)
             || $codepoint === 0xfeff
             || ($codepoint >= 0xe0100 && $codepoint <= 0xe01ef);
+    }
+
+    private static function isUnicodeCombiningMark(int $codepoint): bool
+    {
+        if (class_exists(\IntlChar::class)) {
+            $category = \IntlChar::charType($codepoint);
+
+            return $category === \IntlChar::CHAR_CATEGORY_NON_SPACING_MARK
+                || $category === \IntlChar::CHAR_CATEGORY_COMBINING_SPACING_MARK
+                || $category === \IntlChar::CHAR_CATEGORY_ENCLOSING_MARK;
+        }
+
+        return self::isBoundedIndicSpacingMark($codepoint);
+    }
+
+    private static function isBoundedIndicSpacingMark(int $codepoint): bool
+    {
+        return $codepoint === 0x0903
+            || $codepoint === 0x093b
+            || ($codepoint >= 0x093e && $codepoint <= 0x0940)
+            || ($codepoint >= 0x0949 && $codepoint <= 0x094c)
+            || ($codepoint >= 0x094e && $codepoint <= 0x094f)
+            || ($codepoint >= 0x0982 && $codepoint <= 0x0983)
+            || ($codepoint >= 0x09be && $codepoint <= 0x09c0)
+            || ($codepoint >= 0x09c7 && $codepoint <= 0x09c8)
+            || ($codepoint >= 0x09cb && $codepoint <= 0x09cc)
+            || $codepoint === 0x09d7
+            || $codepoint === 0x0a03
+            || ($codepoint >= 0x0a3e && $codepoint <= 0x0a40)
+            || ($codepoint >= 0x0a83 && $codepoint <= 0x0a83)
+            || ($codepoint >= 0x0abe && $codepoint <= 0x0ac0)
+            || $codepoint === 0x0ac9
+            || ($codepoint >= 0x0acb && $codepoint <= 0x0acc)
+            || ($codepoint >= 0x0b02 && $codepoint <= 0x0b03)
+            || $codepoint === 0x0b3e
+            || $codepoint === 0x0b40
+            || ($codepoint >= 0x0b47 && $codepoint <= 0x0b48)
+            || ($codepoint >= 0x0b4b && $codepoint <= 0x0b4c)
+            || $codepoint === 0x0b57
+            || ($codepoint >= 0x0bbe && $codepoint <= 0x0bbf)
+            || ($codepoint >= 0x0bc1 && $codepoint <= 0x0bc2)
+            || ($codepoint >= 0x0bc6 && $codepoint <= 0x0bc8)
+            || ($codepoint >= 0x0bca && $codepoint <= 0x0bcc)
+            || $codepoint === 0x0bd7;
     }
 
     private static function isAmbiguousWidthCodepoint(int $codepoint): bool

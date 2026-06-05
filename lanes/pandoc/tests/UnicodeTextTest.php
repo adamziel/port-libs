@@ -242,6 +242,27 @@ return [
         $t->same($han . '  ', UnicodeText::padDisplay($han, 4));
         $t->same(['Review', '  ' . $han . $geul, '  tail'], UnicodeText::wrapByDisplayWidth('Review ' . $han . $geul . ' tail', 10, '  '));
     },
+    'measures indic spacing vowel signs as display clusters' => static function (TestRunner $t): void {
+        $devanagariKi = "\u{0915}\u{093F}";
+        $devanagariKau = "\u{0915}\u{094C}";
+        $tamilKai = "\u{0B95}\u{0BC8}";
+        $bengaliBangla = "\u{09AC}\u{09BE}\u{0982}\u{09B2}\u{09BE}";
+        $bengaliBan = "\u{09AC}\u{09BE}\u{0982}";
+        $bengaliLa = "\u{09B2}\u{09BE}";
+        $clusterRun = $devanagariKi . $tamilKai . $bengaliBangla;
+        $text = $clusterRun . 'X';
+
+        $t->same(1, UnicodeText::displayWidth($devanagariKi));
+        $t->same(1, UnicodeText::displayWidth($devanagariKau));
+        $t->same(1, UnicodeText::displayWidth($tamilKai));
+        $t->same(2, UnicodeText::displayWidth($bengaliBangla));
+        $t->same(5, UnicodeText::displayWidth($text));
+        $t->same([$devanagariKi, $tamilKai, $bengaliBan, $bengaliLa, 'X'], UnicodeText::graphemes($text));
+        $t->same([$devanagariKi, $tamilKai . $bengaliBangla . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$devanagariKi, $tamilKai, $bengaliBangla, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [1, 2, 4]));
+        $t->same($tamilKai . '   ', UnicodeText::padDisplay($tamilKai, 4));
+        $t->same(["Indic {$clusterRun}", '  tail'], UnicodeText::wrapByDisplayWidth("Indic {$clusterRun} tail", 10, '  '));
+    },
     'measures emoji presentation sequences as single display clusters' => static function (TestRunner $t): void {
         $checkbox = "\u{2611}\u{FE0F}";
         $keycap = "1\u{FE0F}\u{20E3}";
