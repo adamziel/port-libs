@@ -569,20 +569,45 @@ final class PdfNamedDestinationExtractor
      */
     private function objectStreamHeaderMembers(string $header, int $declaredCount): array
     {
-        if (preg_match_all('/\d+/', $header, $matches) < 1) {
-            return [];
-        }
-
         $members = [];
-        $tokens = $matches[0];
-        for ($index = 0, $count = count($tokens); $index + 1 < $count && count($members) < $declaredCount; $index += 2) {
+        $offset = 0;
+        for ($index = 0; $index < $declaredCount; $index++) {
+            $objectId = $this->readPdfUnsignedIntegerToken($header, $offset);
+            if ($objectId === null) {
+                return [];
+            }
+
+            $memberOffset = $this->readPdfUnsignedIntegerToken($header, $offset);
+            if ($memberOffset === null) {
+                return [];
+            }
+
             $members[] = [
-                'object_id' => (int) $tokens[$index],
-                'offset' => (int) $tokens[$index + 1],
+                'object_id' => $objectId,
+                'offset' => $memberOffset,
             ];
         }
 
+        if ($this->skipPdfWhitespaceAndComments($header, $offset) !== strlen($header)) {
+            return [];
+        }
+
         return $members;
+    }
+
+    private function readPdfUnsignedIntegerToken(string $value, int &$offset): ?int
+    {
+        $offset = $this->skipPdfWhitespaceAndComments($value, $offset);
+        if (preg_match('/\G\+?(\d+)/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[0]);
+        if ($offset < strlen($value) && !$this->isDelimiter($value[$offset])) {
+            return null;
+        }
+
+        return (int) $match[1];
     }
 
     /**
