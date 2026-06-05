@@ -352,6 +352,39 @@ try {
 } catch (InvalidArgumentException) {
     $asciiHexSurplusPreviewRejected = true;
 }
+$ascii85PostEodSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 4 /H 1 /CS /G /BPC 8 /F /A85 /D [0 1]',
+        "z~> EI BT /F1 12 Tf 72 690 Td (A85 Post EOD Inline Noise) Tj ET",
+        [],
+        4
+    );
+} catch (InvalidArgumentException) {
+    $ascii85PostEodSurplusPreviewRejected = true;
+}
+$asciiHexPostEodSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 4 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]',
+        '41424344> EI BT /F1 12 Tf 72 674 Td (AHx Post EOD Inline Noise) Tj ET',
+        [],
+        4
+    );
+} catch (InvalidArgumentException) {
+    $asciiHexPostEodSurplusPreviewRejected = true;
+}
+$runLengthPostEodSurplusPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 4 /H 1 /CS /G /BPC 8 /F /RL /D [0 1]',
+        chr(3) . 'ABCD' . chr(128) . ' EI BT /F1 12 Tf 72 658 Td (RunLength Post EOD Inline Noise) Tj ET',
+        [],
+        4
+    );
+} catch (InvalidArgumentException) {
+    $runLengthPostEodSurplusPreviewRejected = true;
+}
 $invalidLzwEarlyChangeDecodeFailed = false;
 try {
     $renderer->inlineIndexedImageStreamPreviewRows(
@@ -480,6 +513,12 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
     'accepts_asciihex_sample_floor_only_after_eod_marker' => in_array('After AHx Surplus Inline Image', $lines, true),
     'asciihex_surplus_preview_decode_rejected' => $asciiHexSurplusPreviewRejected,
+    'ascii85_post_eod_surplus_preview_rejected' => $ascii85PostEodSurplusPreviewRejected,
+    'asciihex_post_eod_surplus_preview_rejected' => $asciiHexPostEodSurplusPreviewRejected,
+    'runlength_post_eod_surplus_preview_rejected' => $runLengthPostEodSurplusPreviewRejected,
+    'inline_filter_post_eod_surplus_preview_rejected' => $ascii85PostEodSurplusPreviewRejected
+        && $asciiHexPostEodSurplusPreviewRejected
+        && $runLengthPostEodSurplusPreviewRejected,
     'terminal_whitespace_inline_sample_preserved' => in_array('After Space Sample Inline Image', $lines, true),
     'named_colorspace_terminal_whitespace_sample_preserved' => in_array('After Named Space Sample Inline Image', $lines, true),
     'array_colorspace_tight_ei_payloads_present' => str_contains($deviceNArrayColorSpacePayload, 'EI BT')

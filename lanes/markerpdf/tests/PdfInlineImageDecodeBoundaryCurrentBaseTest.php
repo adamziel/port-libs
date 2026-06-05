@@ -633,6 +633,52 @@ return [
             )
         );
     },
+    'fails closed on inline filter EOD surplus before native image previews' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $dictionary = '/W 4 /H 1 /CS /G /BPC 8 /D [0 1]';
+
+        $postEodSurplusCases = [
+            'ASCII85Decode' => [$dictionary . ' /F /A85', "z~> EI BT /F1 12 Tf 72 690 Td (A85 Post EOD Inline Noise) Tj ET"],
+            'ASCIIHexDecode' => [$dictionary . ' /F /AHx', '41424344> EI BT /F1 12 Tf 72 674 Td (AHx Post EOD Inline Noise) Tj ET'],
+            'RunLengthDecode' => [$dictionary . ' /F /RL', chr(3) . 'ABCD' . chr(128) . ' EI BT /F1 12 Tf 72 658 Td (RunLength Post EOD Inline Noise) Tj ET'],
+        ];
+
+        foreach ($postEodSurplusCases as [$caseDictionary, $payload]) {
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                    $caseDictionary,
+                    $payload,
+                    [],
+                    4
+                )
+            );
+        }
+
+        $ascii85Preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            $dictionary . ' /F /A85',
+            "z~>",
+            [],
+            4
+        );
+        $t->same(true, $ascii85Preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $ascii85Preview['image_stream']['decode_failed']);
+        $t->same(4, $ascii85Preview['image_stream']['decoded_length']);
+        $t->same([[0.0], [0.0], [0.0], [0.0]], array_column($ascii85Preview['pixels'], 'raw_sample'));
+
+        $runLengthPayloadWithEodByteSample = chr(3) . 'A' . chr(128) . 'CD' . chr(128);
+        $runLengthPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            $dictionary . ' /F /RL',
+            $runLengthPayloadWithEodByteSample,
+            [],
+            4
+        );
+        $t->same(true, $runLengthPreview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $runLengthPreview['image_stream']['decode_failed']);
+        $t->same(strlen($runLengthPayloadWithEodByteSample), $runLengthPreview['image_stream']['raw_length']);
+        $t->same(4, $runLengthPreview['image_stream']['decoded_length']);
+        $t->same([[65.0], [128.0], [67.0], [68.0]], array_column($runLengthPreview['pixels'], 'raw_sample'));
+    },
     'fails closed on malformed inline image filter operands before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Malformed Filter Inline Noise) Tj ET rawtail';

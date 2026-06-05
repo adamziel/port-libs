@@ -6230,11 +6230,51 @@ final class PdfImageRenderer
     private function streamFilterInputHasExplicitEndMarker(string $filter, string $stream): bool
     {
         return match ($filter) {
-            'ASCIIHexDecode', 'AHx' => strpos($stream, '>') !== false,
-            'ASCII85Decode', 'A85' => strpos($stream, '~>') !== false,
-            'RunLengthDecode', 'RL' => strpos($stream, chr(128)) !== false,
+            'ASCIIHexDecode', 'AHx' => (($offset = strpos($stream, '>')) !== false)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
+            'ASCII85Decode', 'A85' => (($offset = strpos($stream, '~>')) !== false)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 2),
+            'RunLengthDecode', 'RL' => (($offset = $this->runLengthExplicitEndOffset($stream)) !== null)
+                && $this->streamHasOnlyWhitespaceAfterOffset($stream, $offset + 1),
             default => true,
         };
+    }
+
+    private function streamHasOnlyWhitespaceAfterOffset(string $stream, int $offset): bool
+    {
+        $length = strlen($stream);
+        for ($index = $offset; $index < $length; $index++) {
+            if (!ctype_space($stream[$index])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function runLengthExplicitEndOffset(string $stream): ?int
+    {
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $offset;
+            }
+            if ($control <= 127) {
+                $literalLength = $control + 1;
+                if ($offset + $literalLength >= $length) {
+                    return null;
+                }
+                $offset += $literalLength;
+                continue;
+            }
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $offset++;
+        }
+
+        return null;
     }
 
     private function isPreviewOnlyStreamFilter(string $filter): bool
