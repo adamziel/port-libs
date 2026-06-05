@@ -764,6 +764,61 @@ return [
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'normalizes signed numeric page markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(950, [
+                    ['text' => 'Signed marker cover page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+                $pdftextLinesPage(951, [
+                    ['text' => 'Second signed-marker selected column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First signed-marker selected column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(952, [
+                    ['text' => 'Signed marker appendix page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => '+950',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+                [
+                    'page' => '+951.0',
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => '+950', 'image' => 'signed-cover-order-render'],
+                ['page' => '+951.0', 'image' => 'signed-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(951, $result['pages'][0]['pnum']);
+        $t->same(['First signed-marker selected column', 'Second signed-marker selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First signed-marker selected column Second signed-marker selected column', $blocks[0]['text']);
+        $t->same(951, $result['pages'][0]['order']['page']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'matches singleton array page markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [

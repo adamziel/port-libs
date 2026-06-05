@@ -255,10 +255,10 @@ final class LayoutOrderer
 
         if (is_string($value)) {
             $trimmed = trim($value);
-            if (preg_match('/^-?\d+$/', $trimmed) === 1) {
+            if (preg_match('/^[+-]?\d+$/', $trimmed) === 1) {
                 return (int) $trimmed;
             }
-            if (preg_match('/^-?\d+\.0+$/', $trimmed) === 1) {
+            if (preg_match('/^[+-]?\d+\.0+$/', $trimmed) === 1) {
                 return (int) $trimmed;
             }
         }
