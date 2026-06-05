@@ -18578,6 +18578,10 @@ final class PdfTextExtractor
                 }
 
                 if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])\b/', $row, $rowMatch) !== 1) {
+                    if ($entryIndex === 0 && $entries !== []) {
+                        return $entries;
+                    }
+
                     return null;
                 }
 
