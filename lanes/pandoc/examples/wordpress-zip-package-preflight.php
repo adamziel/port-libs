@@ -525,9 +525,18 @@ $compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
     'headerCrc' => true,
 ]);
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
-$streamDispatchedTarPacket = ArchiveCompressionStream::openTar(
+$streamDetectedTarFormat = ArchiveCompressionStream::detectTarFormat(
     $compressedTarPacket,
-    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($tarPacket->bytes()),
+    strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
+);
+$streamDecodedTarBytes = ArchiveCompressionStream::decodeTarBytesAuto(
+    $compressedTarPacket,
+    strlen($tarPacket->bytes()),
+    strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
+);
+$streamDispatchedTarPacket = ArchiveCompressionStream::openTarAuto(
+    $compressedTarPacket,
     strlen($tarPacket->bytes()),
     strlen($tarPacket->read('/packet/manifest.json')) + strlen($tarPacket->read('/packet/word/document.xml'))
 );
@@ -725,7 +734,15 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if ($streamDispatchedTarPacket->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
-        throw new RuntimeException('Expected archive stream dispatcher to open gzip-wrapped tar packets');
+        throw new RuntimeException('Expected archive stream auto-detection to open gzip-wrapped tar packets');
+    }
+
+    if ($streamDetectedTarFormat !== ArchiveCompressionStream::FORMAT_GZIP_TAR) {
+        throw new RuntimeException('Expected archive stream auto-detection to classify the gzip-wrapped tar packet');
+    }
+
+    if ($streamDecodedTarBytes !== $tarPacket->bytes()) {
+        throw new RuntimeException('Expected archive stream auto-detection to return the tar packet bytes');
     }
 
     if ($gnuLongNamePacket->read('/' . $gnuLongDocumentName) !== '<w:document><w:body><w:p>GNU long-name tar source</w:p></w:body></w:document>') {
@@ -865,6 +882,7 @@ echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): s
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'tar.detectedFormat=' . $streamDetectedTarFormat . "\n";
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
 echo 'tar.paxOwner=' . $paxMetadataPacket->entry('/' . $paxDocumentName)->userName . ':' . $paxMetadataPacket->entry('/' . $paxDocumentName)->groupName . "\n";

@@ -382,6 +382,58 @@ return [
         }
     },
 
+    'auto-detects bounded tar package fixture compression streams' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"auto-detected-stream","target":"wordpress"}',
+                'modifiedAt' => 1780479033,
+            ],
+            [
+                'name' => 'packet/word/document.xml',
+                'data' => '<w:document><w:body><w:p>Auto-detected archive stream dispatch</w:p></w:body></w:document>',
+                'modifiedAt' => 1780479034,
+            ],
+        ]);
+
+        $streams = [
+            ArchiveCompressionStream::FORMAT_TAR => $archive->bytes(),
+            ArchiveCompressionStream::FORMAT_GZIP_TAR => GzipStream::build($archive->bytes(), [
+                'filename' => 'wordpress-auto-packet.tar',
+                'comment' => 'auto-detected gzip stream',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR => DeflateStream::build($archive->bytes(), [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR => DeflateStream::build($archive->bytes(), [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_TAR => Lz4Frame::skippableFrame('auto-detect reviewer metadata', 5)
+                . Lz4Frame::build($archive->bytes(), [
+                    'blockChecksum' => true,
+                    'contentChecksum' => true,
+                    'contentSize' => true,
+                ]),
+        ];
+
+        foreach ($streams as $expectedFormat => $bytes) {
+            $roundTrip = ArchiveCompressionStream::openTarAuto(
+                $bytes,
+                strlen($archive->bytes()),
+                strlen($archive->read('/packet/manifest.json')) + strlen($archive->read('/packet/word/document.xml'))
+            );
+
+            $t->same($expectedFormat, ArchiveCompressionStream::detectTarFormat($bytes, strlen($archive->bytes())));
+            $t->same($archive->bytes(), ArchiveCompressionStream::decodeTarBytesAuto($bytes, strlen($archive->bytes())));
+            $t->same(['packet/manifest.json', 'packet/word/document.xml'], $roundTrip->names());
+            $t->same('{"source":"auto-detected-stream","target":"wordpress"}', $roundTrip->read('/packet/manifest.json'));
+            $t->same('<w:document><w:body><w:p>Auto-detected archive stream dispatch</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
+        }
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
@@ -463,6 +515,33 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($gzip, ArchiveCompressionStream::FORMAT_GZIP_TAR, strlen($archive->bytes()) - 1));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($gzip, ArchiveCompressionStream::FORMAT_GZIP_TAR, null, strlen($archive->read('packet/content.md')) - 1));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar($archive->bytes(), ArchiveCompressionStream::FORMAT_TAR, -1));
+    },
+
+    'rejects auto-detected archive streams that are not bounded tar packets' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"auto-detect-bounds"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Bounded auto-detect archive\n\nReady for import.\n",
+            ],
+        ]);
+        $gzip = GzipStream::build($archive->bytes(), [
+            'filename' => 'bounded-auto-detect.tar',
+            'headerCrc' => true,
+        ]);
+        $gzipText = GzipStream::build('not a tar archive', [
+            'filename' => 'not-a-tar.txt',
+        ]);
+
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectTarFormat('not an archive stream'));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectTarFormat($gzipText));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectTarFormat($gzip, strlen($archive->bytes()) - 1));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTarAuto($gzip, null, strlen($archive->read('/packet/content.md')) - 1));
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeTarBytesAuto($archive->bytes(), -1));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTarAuto($archive->bytes(), null, -1));
     },
 
     'builds and reads bounded lz4 frames around package fixture bytes' => static function (TestRunner $t): void {
