@@ -23009,6 +23009,9 @@ final class PdfTextExtractor
             $body = trim($body);
             $review['token_type'] = $this->pdfOperandTokenType($body);
             $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($body);
+            $extraFilterOperand = $review['token_type'] === 'name'
+                ? $this->directScalarFilterExtraOperand($body, 0)
+                : null;
             if ($review['token_type'] === 'name') {
                 $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
             }
@@ -23017,6 +23020,16 @@ final class PdfTextExtractor
                 $objects,
                 [$objectNumber . ':' . $generation => true]
             ) !== null;
+            if ($extraFilterOperand !== null) {
+                $review['valid_filter_operand'] = false;
+                $review['extra_filter_operand'] = true;
+                $review['extra_filter_operand_type'] = $extraFilterOperand['type'];
+                $review['extra_filter_operand_preview'] = $extraFilterOperand['preview'];
+                if (($extraFilterOperand['type'] ?? null) === 'name') {
+                    $review['extra_filter_name_operand'] = true;
+                    $review['extra_filter_name'] = $extraFilterOperand['name'] ?? null;
+                }
+            }
         }
         if ($name === 'DecodeParms' && $body !== null) {
             $body = trim($body);
