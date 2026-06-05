@@ -374,4 +374,179 @@ return [
         $t->true(!str_contains($encoded, 'Stale source order image payload'));
         $t->true(!str_contains($encoded, 'Stale source order payload'));
     },
+    'unwraps typed order-result payload wrappers before selected pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(1800, [
+                    ['text' => 'Typed order-result cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(1801, [
+                    ['text' => 'Second typed order wrapper column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First typed order wrapper column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(1802, [
+                    ['text' => 'Typed order-result appendix should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'order_result' => [
+                        'document_page' => 1800,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ],
+                    ],
+                    'raw_payload' => 'typed cover order wrapper payload must stay hidden',
+                ],
+                [
+                    'order_result' => [
+                        'document_page' => 1801,
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ],
+                    ],
+                    'raw_payload' => 'typed selected order wrapper payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                ['order_result' => ['document_page' => 1800], 'image' => 'typed-cover-order-render'],
+                ['order_result' => ['document_page' => 1801], 'image' => 'typed-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(1801, $result['pages'][0]['pnum']);
+        $t->same(['First typed order wrapper column', 'Second typed order wrapper column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First typed order wrapper column Second typed order wrapper column', $blocks[0]['text']);
+        $t->same(1801, $order['document_page'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!array_key_exists('order_result', $order));
+        $t->true(!str_contains($encoded, 'typed cover order wrapper payload'));
+        $t->true(!str_contains($encoded, 'typed selected order wrapper payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'unwraps typed layout and order result wrappers for WordPress supplied document imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-typed-wrapper-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% typed wrapper pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(1900, [
+                        ['text' => 'Typed wrapper converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(1901, [
+                        ['text' => 'Second converter typed wrapper column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter typed wrapper column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                    $pdftextLinesPage(1902, [
+                        ['text' => 'Typed wrapper converter appendix should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['layout_result' => ['document_page' => 1900], 'image' => 'typed-cover-layout-render'],
+                        ['layout_result' => ['document_page' => 1901], 'image' => 'typed-selected-layout-render'],
+                    ],
+                    'layout_results' => [
+                        [
+                            'layout_result' => [
+                                'document_page' => 1900,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'typed cover layout payload must stay hidden',
+                        ],
+                        [
+                            'layout_result' => [
+                                'document_page' => 1901,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'typed selected layout payload must stay hidden',
+                        ],
+                    ],
+                    'order_images' => [
+                        ['order_result' => ['document_page' => 1900], 'image' => 'typed-cover-order-render'],
+                        ['order_result' => ['document_page' => 1901], 'image' => 'typed-selected-order-render'],
+                    ],
+                    'order_results' => [
+                        [
+                            'order_result' => [
+                                'document_page' => 1900,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'typed cover order payload must stay hidden',
+                        ],
+                        [
+                            'order_result' => [
+                                'document_page' => 1901,
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'typed selected order payload must stay hidden',
+                        ],
+                    ],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('First converter typed wrapper column.', $text);
+        $t->contains('Second converter typed wrapper column.', $text);
+        $t->true(strpos($text, 'First converter typed wrapper column.') < strpos($text, 'Second converter typed wrapper column.'));
+        $t->true(!str_contains($text, 'Typed wrapper converter cover should stay skipped.'));
+        $t->true(!str_contains($text, 'Typed wrapper converter appendix should stay skipped.'));
+        $t->true(!str_contains($encoded, 'typed cover layout payload'));
+        $t->true(!str_contains($encoded, 'typed selected layout payload'));
+        $t->true(!str_contains($encoded, 'typed cover order payload'));
+        $t->true(!str_contains($encoded, 'typed selected order payload'));
+    },
 ];

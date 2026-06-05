@@ -35,8 +35,22 @@ final class LayoutAnnotator
         'page_result',
         'result_metadata',
         'artifact_metadata',
+        'layout',
+        'layout_result',
+        'prediction',
+        'result',
+        'model_output',
+        'output',
         'source',
         'pdftext',
+    ];
+    private const LAYOUT_RESULT_PAYLOAD_WRAPPERS = [
+        'layout',
+        'layout_result',
+        'prediction',
+        'result',
+        'model_output',
+        'output',
     ];
     private const PDFTEXT_PAYLOAD_WRAPPER = 'pdftext';
     private const LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS = [
@@ -125,9 +139,10 @@ final class LayoutAnnotator
     private function sanitizeSuppliedLayoutResult(array $layoutResult): array
     {
         $sanitized = [];
+        $payload = $this->layoutResultPayloadSource($layoutResult);
         foreach (['image_bbox', 'bboxes'] as $key) {
-            if (array_key_exists($key, $layoutResult)) {
-                $sanitized[$key] = $layoutResult[$key];
+            if (array_key_exists($key, $payload)) {
+                $sanitized[$key] = $payload[$key];
             }
         }
 
@@ -145,6 +160,58 @@ final class LayoutAnnotator
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Adapter serializers may wrap the Surya `LayoutResult` object under a
+     * typed result key while keeping page identity at the outer level.
+     *
+     * @param array<string, mixed> $layoutResult
+     * @return array<string, mixed>
+     */
+    private function layoutResultPayloadSource(array $layoutResult): array
+    {
+        $sources = [];
+        $this->collectLayoutResultPayloadSources($layoutResult, $sources);
+
+        foreach ($sources as $source) {
+            if ($this->hasLayoutPayload($source)) {
+                return $source;
+            }
+        }
+
+        return $layoutResult;
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     * @param list<array<string, mixed>> $sources
+     */
+    private function collectLayoutResultPayloadSources(array $artifact, array &$sources, int $depth = 0): void
+    {
+        $sources[] = $artifact;
+        if ($depth >= 2) {
+            return;
+        }
+
+        foreach (self::LAYOUT_RESULT_PAYLOAD_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+                $this->collectLayoutResultPayloadSources($wrapperValue, $sources, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function hasLayoutPayload(array $source): bool
+    {
+        return array_key_exists('image_bbox', $source) || array_key_exists('bboxes', $source);
     }
 
     /**

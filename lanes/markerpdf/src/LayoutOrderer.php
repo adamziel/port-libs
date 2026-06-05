@@ -35,8 +35,22 @@ final class LayoutOrderer
         'page_result',
         'result_metadata',
         'artifact_metadata',
+        'order',
+        'order_result',
+        'prediction',
+        'result',
+        'model_output',
+        'output',
         'source',
         'pdftext',
+    ];
+    private const ORDER_RESULT_PAYLOAD_WRAPPERS = [
+        'order',
+        'order_result',
+        'prediction',
+        'result',
+        'model_output',
+        'output',
     ];
     private const PDFTEXT_PAYLOAD_WRAPPER = 'pdftext';
     private const ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS = [
@@ -132,14 +146,15 @@ final class LayoutOrderer
     private function sanitizeSuppliedOrderResult(array $orderResult): array
     {
         $sanitized = [];
+        $payload = $this->orderResultPayloadSource($orderResult);
 
-        $imageBbox = $this->bboxValue($orderResult['image_bbox'] ?? null);
+        $imageBbox = $this->bboxValue($payload['image_bbox'] ?? null);
         if ($imageBbox !== null) {
             $sanitized['image_bbox'] = $imageBbox;
         }
 
-        if (array_key_exists('bboxes', $orderResult)) {
-            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes($orderResult['bboxes']);
+        if (array_key_exists('bboxes', $payload)) {
+            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes($payload['bboxes']);
         }
 
         foreach ($this->orderResultPageMarkerSources($orderResult) as $source) {
@@ -156,6 +171,58 @@ final class LayoutOrderer
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Adapter serializers may wrap the Surya `OrderResult` object under a
+     * typed result key while keeping page identity at the outer level.
+     *
+     * @param array<string, mixed> $orderResult
+     * @return array<string, mixed>
+     */
+    private function orderResultPayloadSource(array $orderResult): array
+    {
+        $sources = [];
+        $this->collectOrderResultPayloadSources($orderResult, $sources);
+
+        foreach ($sources as $source) {
+            if ($this->hasOrderPayload($source)) {
+                return $source;
+            }
+        }
+
+        return $orderResult;
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     * @param list<array<string, mixed>> $sources
+     */
+    private function collectOrderResultPayloadSources(array $artifact, array &$sources, int $depth = 0): void
+    {
+        $sources[] = $artifact;
+        if ($depth >= 2) {
+            return;
+        }
+
+        foreach (self::ORDER_RESULT_PAYLOAD_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value)) {
+                continue;
+            }
+
+            foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+                $this->collectOrderResultPayloadSources($wrapperValue, $sources, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     */
+    private function hasOrderPayload(array $source): bool
+    {
+        return array_key_exists('image_bbox', $source) || array_key_exists('bboxes', $source);
     }
 
     /**
