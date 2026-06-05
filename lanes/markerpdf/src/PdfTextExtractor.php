@@ -25228,6 +25228,11 @@ final class PdfTextExtractor
             return $cidMappedFallbackKeys;
         }
 
+        $mappedFallbackKeys = $this->mappedSourceKeysForFontWidthsWhenCodeSpaceMiss($sourceKeys, $hex, $toUnicodeMap);
+        if ($mappedFallbackKeys !== []) {
+            return $mappedFallbackKeys;
+        }
+
         $toUnicodeFallbackKeys = $this->toUnicodeSourceKeysForFontWidthsWhenCidMetricsMiss($sourceKeys, $hex, $toUnicodeMap);
 
         return $toUnicodeFallbackKeys === [] ? $sourceKeys : $toUnicodeFallbackKeys;
@@ -25296,6 +25301,35 @@ final class PdfTextExtractor
 
         if (
             !$this->sourceKeysAreCidMapped($fallbackKeys, $toUnicodeMap)
+            || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)
+        ) {
+            return [];
+        }
+
+        return $this->sourceKeysHaveAllFontWidthEvidence($fallbackKeys, $toUnicodeMap) ? $fallbackKeys : [];
+    }
+
+    /**
+     * @param list<string> $sourceKeys
+     * @return list<string>
+     */
+    private function mappedSourceKeysForFontWidthsWhenCodeSpaceMiss(array $sourceKeys, string $hex, array $toUnicodeMap): array
+    {
+        $mappings = $toUnicodeMap['map'] ?? [];
+        if (!is_array($mappings) || $mappings === [] || $sourceKeys === []) {
+            return [];
+        }
+
+        $fallbackKeys = $this->textOperandSourceKeys($hex, [
+            'map' => $mappings,
+            'codeSpaceRanges' => [],
+        ]);
+        if ($fallbackKeys === [] || $fallbackKeys === $sourceKeys || count($fallbackKeys) <= count($sourceKeys)) {
+            return [];
+        }
+
+        if (
+            !$this->sourceKeysAreMapped($fallbackKeys, $toUnicodeMap)
             || $this->sourceKeysHaveAnyDirectFontMetric($sourceKeys, $toUnicodeMap)
         ) {
             return [];
@@ -25859,13 +25893,15 @@ final class PdfTextExtractor
         $offset = 0;
         $length = strlen($normalized);
         while ($offset < $length) {
+            $preferMappedLength = $this->mappedSourceRemainderCanCover($normalized, $offset, $mappings);
             $sourceLength = $this->toUnicodeSourceLength(
                 $keyLengths,
                 $length - $offset,
                 $toUnicodeMap['codeSpaceRanges'] ?? [],
                 $mappings,
                 $normalized,
-                $offset
+                $offset,
+                $preferMappedLength
             );
             $key = substr($normalized, $offset, $sourceLength);
             $text .= array_key_exists($key, $mappings)
@@ -25875,6 +25911,40 @@ final class PdfTextExtractor
         }
 
         return $text;
+    }
+
+    /**
+     * @param array<string, string> $mappings
+     */
+    private function mappedSourceRemainderCanCover(string $normalized, int $offset, array $mappings): bool
+    {
+        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        rsort($keyLengths, SORT_NUMERIC);
+        if ($keyLengths === []) {
+            return false;
+        }
+
+        $length = strlen($normalized);
+        while ($offset < $length) {
+            $matched = false;
+            foreach ($keyLengths as $keyLength) {
+                if ($keyLength <= 0 || $offset + $keyLength > $length) {
+                    continue;
+                }
+
+                if (array_key_exists(substr($normalized, $offset, $keyLength), $mappings)) {
+                    $offset += $keyLength;
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (!$matched) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -25888,7 +25958,8 @@ final class PdfTextExtractor
         array $codeSpaceRanges,
         array $mappings,
         string $normalized,
-        int $offset
+        int $offset,
+        bool $preferMappedLength = false
     ): int {
         $mappedLength = null;
         foreach ($keyLengths as $keyLength) {
@@ -25900,6 +25971,10 @@ final class PdfTextExtractor
                 $mappedLength = $keyLength;
                 break;
             }
+        }
+
+        if ($preferMappedLength && $mappedLength !== null) {
+            return $mappedLength;
         }
 
         $codeSpaceLength = null;
