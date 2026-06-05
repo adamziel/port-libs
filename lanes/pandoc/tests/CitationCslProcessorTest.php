@@ -5713,6 +5713,78 @@ XML);
 </style>
 XML));
     },
+    'maps bounded biblatex library call numbers into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{archive-manual,
+  author    = {Smith, Ada},
+  title     = {Archive Manual},
+  date      = {2026},
+  publisher = {Review Press},
+  library   = {NYPL Manuscripts Division, MS 42 Box 7 Folder 3},
+  url       = {https://example.test/archive-manual}
+}
+
+@misc{card-catalog,
+  author     = {{Archive Desk}},
+  title      = {Legacy Source Card},
+  year       = {2025},
+  callnumber = {CARD-17}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('NYPL Manuscripts Division, MS 42 Box 7 Folder 3', $items[0]['call-number'] ?? null);
+        $t->same('CARD-17', $items[1]['call-number'] ?? null);
+        $t->same('NYPL Manuscripts Division, MS 42 Box 7 Folder 3', $items[0]['rawBibtex']['fields']['library'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $archiveManual = $processor->item('archive-manual');
+        $cardCatalog = $processor->item('card-catalog');
+        $t->same('NYPL Manuscripts Division, MS 42 Box 7 Folder 3', $archiveManual['callNumber'] ?? null);
+        $t->same('CARD-17', $cardCatalog['callNumber'] ?? null);
+        $t->same('(Smith 2026; Archive Desk 2025)', $processor->renderCitationCluster([
+            $citation('archive-manual', '[@archive-manual]'),
+            $citation('card-catalog', '[@card-catalog]'),
+        ]));
+        $t->same('Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.', $processor->renderBibliographyEntry('archive-manual'));
+        $t->same('Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.', $processor->renderBibliographyEntry('card-catalog'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <text variable="call-number"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="call-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('(NYPL Manuscripts Division, MS 42 Box 7 Folder 3; CARD-17)', $styled->renderCitationCluster([
+            $citation('archive-manual', '[@archive-manual]'),
+            $citation('card-catalog', '[@card-catalog]'),
+        ]));
+        $t->same('Archive Manual | NYPL Manuscripts Division, MS 42 Box 7 Folder 3', $styled->renderBibliographyEntry('archive-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-call',
+            'title' => 'Direct CSL Call Number',
+            'call-number' => 'QA76.76 .D57',
+        ]])->item('direct-call');
+        $t->same('QA76.76 .D57', $direct['callNumber'] ?? null);
+
+        $document = (new MarkdownReader())->read('Archive source @archive-manual and catalog [@card-catalog] keep shelf locations visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Archive source Smith (2026) and catalog (Archive Desk 2025) keep shelf locations visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

@@ -672,6 +672,7 @@ final class CitationCslProcessor
             'archive' => self::stringField($item, 'archive'),
             'archivePlace' => self::firstStringField($item, ['archive-place', 'archivePlace']),
             'archiveLocation' => self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']),
+            'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library']),
             'language' => self::stringField($item, 'language'),
             'abstract' => self::stringField($item, 'abstract'),
             'medium' => self::stringField($item, 'medium'),
@@ -3331,6 +3332,7 @@ final class CitationCslProcessor
         foreach ([
             ['version', 'Version'],
             ['medium', 'Medium'],
+            ['callNumber', 'Call number'],
             ['entrySubtype', 'Entry subtype'],
             ['status', 'Status'],
             ['note', 'Note'],
@@ -4444,6 +4446,7 @@ final class CitationCslProcessor
             'archive' => (string) $item['archive'],
             'archive-place' => (string) $item['archivePlace'],
             'archive_location', 'archive-location' => (string) $item['archiveLocation'],
+            'call-number', 'callnumber' => (string) $item['callNumber'],
             'language' => (string) $item['language'],
             'abstract' => (string) $item['abstract'],
             'medium' => (string) $item['medium'],

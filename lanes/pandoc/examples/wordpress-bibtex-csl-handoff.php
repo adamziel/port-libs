@@ -65,6 +65,8 @@ Subtype source @review-subtype preserves source-kind metadata for review.
 
 Split URL date source @split-url-date preserves component access-date metadata.
 
+Call-number source @archive-call-number preserves archive shelf metadata for review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -497,6 +499,14 @@ $bibtex = <<<'BIB'
   urlmonth = jun,
   urlday   = {5}
 }
+
+@book{archive-call-number,
+  author    = {Smith, Ada},
+  title     = {Archive Shelf Packet},
+  date      = {2026},
+  publisher = {Review Press},
+  library   = {NYPL Manuscripts Division, MS 42 Box 7 Folder 3}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -810,6 +820,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($splitUrlDate['raw']['accessed']['date-parts'][0] ?? null) !== [2026, 6, 5]) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not map split URL access date into raw CSL metadata');
     }
+    $archiveCallNumber = $processor->item('archive-call-number');
+    if (($archiveCallNumber['callNumber'] ?? null) !== 'NYPL Manuscripts Division, MS 42 Box 7 Folder 3') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve archive call-number metadata');
+    }
+    if (($archiveCallNumber['raw']['call-number'] ?? null) !== 'NYPL Manuscripts Division, MS 42 Box 7 Folder 3') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose raw CSL call-number metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -875,6 +892,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>',
         '<p>Split URL date source Ng (2026) preserves component access-date metadata.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>',
+        '<p>Call-number source Smith (2026) preserves archive shelf metadata for review.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Archive Shelf Packet. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

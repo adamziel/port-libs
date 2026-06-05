@@ -618,6 +618,7 @@ final class BibtexCslParser
             'archive' => self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']),
             'archive-place' => self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']),
             'archive_location' => self::firstField($fields, ['eprint', 'archive_location', 'archive-location']),
+            'call-number' => self::firstField($fields, ['callnumber', 'call-number', 'library']),
             'language' => self::firstField($fields, ['langid', 'language', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
             'medium' => self::firstField($fields, ['howpublished', 'medium']),
