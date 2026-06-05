@@ -3348,11 +3348,12 @@ final class PdfPagePropertyExtractor
         $body = $objects[$objectNumber];
         $seen[$referenceKey] = true;
         $trimmed = trim($body);
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\s*$/s', $trimmed, $match) === 1) {
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
             return $this->resolvedObjectValueFromReference(
                 $objects,
-                (int) $match[1],
-                (int) $match[2],
+                $reference['objectNumber'],
+                $reference['generation'],
                 $seen
             );
         }
@@ -3558,14 +3559,69 @@ final class PdfPagePropertyExtractor
      */
     private function objectReferenceFromValue(string $value): ?array
     {
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($value), $match) !== 1) {
+        $reference = $this->indirectReferenceTokenAt($value, 0);
+        if ($reference === null) {
+            return null;
+        }
+
+        if ($this->skipWhitespace($value, $reference['end']) < strlen($value)) {
             return null;
         }
 
         return [
-            'objectNumber' => (int) $match[1],
-            'generation' => (int) $match[2],
+            'objectNumber' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
         ];
+    }
+
+    /**
+     * PDF comments are whitespace, including between indirect-reference operands.
+     *
+     * @return array{token: string, objectNumber: int, generation: int, end: int}|null
+     */
+    private function indirectReferenceTokenAt(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        $start = $this->skipWhitespace($value, $offset);
+        if ($start >= $length || preg_match('/\G\d+/s', $value, $objectMatch, 0, $start) !== 1) {
+            return null;
+        }
+
+        $afterObject = $start + strlen($objectMatch[0]);
+        $generationOffset = $this->skipWhitespace($value, $afterObject);
+        if (
+            $generationOffset <= $afterObject
+            || $generationOffset >= $length
+            || preg_match('/\G\d+/s', $value, $generationMatch, 0, $generationOffset) !== 1
+        ) {
+            return null;
+        }
+
+        $afterGeneration = $generationOffset + strlen($generationMatch[0]);
+        $referenceOffset = $this->skipWhitespace($value, $afterGeneration);
+        if (
+            $referenceOffset <= $afterGeneration
+            || ($value[$referenceOffset] ?? '') !== 'R'
+        ) {
+            return null;
+        }
+
+        $end = $referenceOffset + 1;
+        if ($end < $length && !$this->isBareTokenDelimiter($value[$end])) {
+            return null;
+        }
+
+        return [
+            'token' => (int) $objectMatch[0] . ' ' . (int) $generationMatch[0] . ' R',
+            'objectNumber' => (int) $objectMatch[0],
+            'generation' => (int) $generationMatch[0],
+            'end' => $end,
+        ];
+    }
+
+    private function isBareTokenDelimiter(string $char): bool
+    {
+        return ctype_space($char) || str_contains('[]()<>{}/%', $char);
     }
 
     /**
@@ -3777,6 +3833,11 @@ final class PdfPagePropertyExtractor
         if ($char === '<') {
             $end = $this->skipHexString($value, $offset);
             return $end === null ? null : ['raw' => substr($value, $offset, $end - $offset), 'end' => $end];
+        }
+
+        $reference = $this->indirectReferenceTokenAt($value, $offset);
+        if ($reference !== null) {
+            return ['raw' => $reference['token'], 'end' => $reference['end']];
         }
 
         $remaining = substr($value, $offset);

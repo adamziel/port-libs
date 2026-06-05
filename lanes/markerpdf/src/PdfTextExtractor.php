@@ -16343,11 +16343,12 @@ final class PdfTextExtractor
 
         $seen[$referenceKey] = true;
         $trimmed = trim($body);
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\s*$/s', $trimmed, $match) === 1) {
+        $reference = $this->pdfIndirectReferenceValue($trimmed);
+        if ($reference !== null) {
             return $this->resolvedResourceObjectBody(
                 $objects,
-                (int) $match[1],
-                (int) $match[2],
+                $reference['objectNumber'],
+                $reference['generation'],
                 $seen
             );
         }
@@ -19396,6 +19397,26 @@ final class PdfTextExtractor
             'objectNumber' => (int) $objectMatch[0],
             'generation' => (int) $generationMatch[0],
             'endOffset' => $endOffset,
+        ];
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function pdfIndirectReferenceValue(string $value): ?array
+    {
+        $reference = $this->pdfIndirectReferenceTokenAt($value, 0);
+        if ($reference === null) {
+            return null;
+        }
+
+        if ($this->skipPdfWhitespace($value, $reference['endOffset']) < strlen($value)) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
         ];
     }
 
