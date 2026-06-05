@@ -1018,7 +1018,8 @@ final class PdfNamedDestinationExtractor
         }
 
         $pages = [];
-        foreach ($this->arrayRefsWithGenerations($dictionary['Kids'] ?? null, $objects) as $kidRef) {
+        $kids = $this->resolve($dictionary['Kids'] ?? null, $objects, $cache);
+        foreach ($this->arrayRefsWithGenerations($kids, $objects) as $kidRef) {
             foreach ($this->collectPageObjectIds($kidRef['object_id'], $objects, $cache, $kidRef['generation'], $seen) as $pageRef) {
                 $pages[] = $pageRef;
             }
