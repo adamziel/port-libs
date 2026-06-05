@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 02:41:23 UTC",
-    "sourceCommit": "5ed0aaa4d7c1c974c2a65ad595af51f1907f6f43",
-    "sourceCommitShort": "5ed0aaa4d7c1",
+    "generated": "2026-06-05 02:41:43 UTC",
+    "sourceCommit": "1120eca6bd77458891f8b24c6dd1ab17205d3f10",
+    "sourceCommitShort": "1120eca6bd77",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5ed0aaa4d7c1c974c2a65ad595af51f1907f6f43",
-    "dashboardCommitShort": "5ed0aaa4d7c1",
+    "dashboardCommit": "1120eca6bd77458891f8b24c6dd1ab17205d3f10",
+    "dashboardCommitShort": "1120eca6bd77",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,249",
             "php": "549 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC PDF missing-engine executable slice on accepted base b...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base e980...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Keep real renderer execution policy, latexmk database parsing...",
+            "nextTarget": "Keep full Unicode line-breaking, emoji terminal profile varia...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
