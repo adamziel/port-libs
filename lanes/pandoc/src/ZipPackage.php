@@ -2007,14 +2007,52 @@ final class ZipPackage
 
     private function inflateEntry(ZipPackageEntry $entry, string $compressed, ?int $maxUncompressedBytes = null): string
     {
-        $inflateLimit = 0;
-        if ($maxUncompressedBytes !== null) {
-            $inflateLimit = $maxUncompressedBytes === PHP_INT_MAX ? 0 : $maxUncompressedBytes + 1;
+        $context = @inflate_init(ZLIB_ENCODING_RAW);
+        if ($context === false) {
+            throw new \RuntimeException("Unable to initialize ZIP deflate reader for entry {$entry->name}");
         }
 
-        $inflated = $inflateLimit > 0 ? @gzinflate($compressed, $inflateLimit) : @gzinflate($compressed);
-        if ($inflated === false) {
+        $inflated = '';
+        $compressedLength = strlen($compressed);
+        $chunkSize = 1024;
+        for ($offset = 0; $offset < $compressedLength; $offset += $chunkSize) {
+            $chunk = substr($compressed, $offset, $chunkSize);
+            $isFinalInputChunk = $offset + strlen($chunk) >= $compressedLength;
+            $output = @inflate_add($context, $chunk, $isFinalInputChunk ? ZLIB_FINISH : ZLIB_NO_FLUSH);
+            if ($output === false) {
+                throw new \RuntimeException("Unable to inflate ZIP entry {$entry->name}");
+            }
+
+            $inflated .= $output;
+            if ($maxUncompressedBytes !== null && strlen($inflated) > $maxUncompressedBytes) {
+                throw new \RuntimeException(
+                    "ZIP entry {$entry->name} exceeds maximum uncompressed read size {$maxUncompressedBytes} bytes"
+                );
+            }
+
+            if (strlen($inflated) > $entry->uncompressedSize) {
+                throw new \RuntimeException("ZIP entry {$entry->name} expanded beyond its declared size");
+            }
+
+            $status = inflate_get_status($context);
+            if ($status === ZLIB_STREAM_END) {
+                break;
+            }
+
+            if ($status < 0) {
+                throw new \RuntimeException("Unable to inflate ZIP entry {$entry->name}");
+            }
+        }
+
+        if (inflate_get_status($context) !== ZLIB_STREAM_END) {
             throw new \RuntimeException("Unable to inflate ZIP entry {$entry->name}");
+        }
+
+        $consumedBytes = inflate_get_read_len($context);
+        if ($consumedBytes !== $compressedLength) {
+            throw new \RuntimeException(
+                "ZIP entry {$entry->name} contains trailing bytes after the raw deflate stream"
+            );
         }
 
         return $inflated;

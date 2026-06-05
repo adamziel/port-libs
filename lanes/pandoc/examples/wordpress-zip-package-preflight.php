@@ -1313,6 +1313,54 @@ $corruptZipEntryPayload = static function (string $zip, string $entryName): stri
 
     throw new RuntimeException('ZIP fixture entry not found: ' . $entryName);
 };
+$buildTrailingDeflateBytesBackedPackage = static function () use ($crc32): string {
+    $name = 'word/document.xml';
+    $data = '<w:document><w:body><w:p>Trailing deflate bytes should stay blocked</w:p></w:body></w:document>';
+    $compressed = gzdeflate($data) . 'hidden-deflate-tail';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $compressed;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -1384,6 +1432,14 @@ try {
     $corruptPayloadPackage->assertReadableEntries();
 } catch (RuntimeException $exception) {
     $corruptPayloadRejected = str_contains($exception->getMessage(), 'cannot be read by native pandoc package import');
+}
+$trailingDeflatePackage = ZipPackage::fromString($buildTrailingDeflateBytesBackedPackage());
+$trailingDeflatePreflight = $trailingDeflatePackage->readIntegrityPreflight();
+$trailingDeflateRejected = false;
+try {
+    $trailingDeflatePackage->assertReadableEntries();
+} catch (RuntimeException $exception) {
+    $trailingDeflateRejected = str_contains($exception->getMessage(), 'trailing bytes after the raw deflate stream');
 }
 $packageSizeRejected = false;
 try {
@@ -2247,6 +2303,15 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected corrupt ZIP payloads to be rejected before package media handoff');
     }
 
+    if (
+        !$trailingDeflateRejected
+        || ($trailingDeflatePreflight['failedEntryCount'] ?? null) !== 1
+        || ($trailingDeflatePreflight['failedEntries'][0]['name'] ?? null) !== 'word/document.xml'
+        || !str_contains(($trailingDeflatePreflight['failedEntries'][0]['error'] ?? ''), 'trailing bytes after the raw deflate stream')
+    ) {
+        throw new RuntimeException('Expected trailing deflate ZIP payload bytes to be rejected before package media handoff');
+    }
+
     if (($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['compressionMethod'] ?? null) !== 12) {
         throw new RuntimeException('Expected ZIP compression method preflight to expose unsupported method 12');
     }
@@ -2997,6 +3062,8 @@ echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['s
 echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
 echo 'packageReadIntegrity.readableEntryCount=' . $packageReadIntegrityPreflight['readableEntryCount'] . "\n";
 echo 'packageReadIntegrity.failedEntryCount=' . $packageReadIntegrityPreflight['failedEntryCount'] . "\n";
+echo 'zipTrailingDeflatePolicy=' . ($trailingDeflateRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipTrailingDeflateError=' . ($trailingDeflatePreflight['failedEntries'][0]['error'] ?? 'none') . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";

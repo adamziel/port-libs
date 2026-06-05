@@ -2494,6 +2494,39 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => $corruptPackage->assertReadableEntries());
     },
 
+    'rejects deflated zip payloads with trailing bytes before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>deflate trailing bytes</w:p></w:body></w:document>';
+        $trailingBytes = 'hidden-review-tail';
+        $declaredCompressedSize = strlen(gzdeflate($documentXml)) + strlen($trailingBytes);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'localSlack' => $trailingBytes,
+                'localCompressedSize' => $declaredCompressedSize,
+                'centralCompressedSize' => $declaredCompressedSize,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "review media payload remains readable\n",
+                'method' => 0,
+            ],
+        ]));
+        $summary = $package->readIntegrityPreflight();
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(1, $summary['readableEntryCount']);
+        $t->same(1, $summary['failedEntryCount']);
+        $t->same('word/document.xml', $summary['failedEntries'][0]['name']);
+        $t->contains('trailing bytes after the raw deflate stream', $summary['failedEntries'][0]['error']);
+        $t->same(false, $summary['entries'][0]['isReadable']);
+        $t->same(true, $summary['entries'][1]['isReadable']);
+        $t->same("review media payload remains readable\n", $package->read('/word/media/review.txt'));
+        $t->throws(\RuntimeException::class, static fn (): string => $package->read('/word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertReadableEntries());
+    },
+
     'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
         $package = ZipPackage::fromParts([
             [
