@@ -57,6 +57,8 @@ Organizer paper @organized-paper and webinar [@organizer-webinar] keep event rev
 
 Alias source @legacy-alias-source resolves to one canonical bibliography item.
 
+Subtype source @review-subtype preserves source-kind metadata for review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -439,6 +441,16 @@ $bibtex = <<<'BIB'
   publisher = {Review Press},
   ids       = {legacy-alias-source, source-packet-alias}
 }
+
+@report{review-subtype,
+  author       = {Ng, Nia},
+  title        = {Source Audit Report},
+  date         = {2026},
+  type         = {white paper},
+  entrysubtype = {migration source audit},
+  institution  = {Migration Desk},
+  url          = {https://example.test/subtype-report}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -711,6 +723,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if ($processor->missingCitationIds((new MarkdownReader())->read('Alias [@legacy-alias-source] should resolve.')) !== []) {
         throw new RuntimeException('BibTeX CSL handoff self-test treated legacy alias source as missing');
     }
+    $reviewSubtype = $processor->item('review-subtype');
+    if (($reviewSubtype['genre'] ?? null) !== 'white paper') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review subtype genre metadata');
+    }
+    if (($reviewSubtype['entrySubtype'] ?? null) !== 'migration source audit') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve review subtype entrysubtype metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -767,6 +786,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>',
         '<p>Alias source Alias Review Desk (2026) resolves to one canonical bibliography item.</p>',
         '<dt>Alias Review Desk 2026</dt><dd>Alias Review Desk. Canonical Alias Packet. Review Press, 2026.</dd>',
+        '<p>Subtype source Ng (2026) preserves source-kind metadata for review.</p>',
+        '<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

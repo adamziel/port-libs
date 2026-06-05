@@ -1485,6 +1485,98 @@ XML);
         $t->same('Manual note', $manual['note'] ?? null);
         $t->same('Manual addendum', $manual['addendum'] ?? null);
     },
+    'maps bounded biblatex entry subtype review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@report{review-subtype,
+  author       = {Ng, Nia},
+  title        = {Source Audit Report},
+  date         = {2026},
+  type         = {white paper},
+  entrysubtype = {migration source audit},
+  institution  = {Migration Desk},
+  url          = {https://example.test/subtype-report}
+}
+
+@online{snapshot-subtype,
+  author       = {{Review Desk}},
+  title        = {Import Queue Snapshot},
+  date         = {2025},
+  entrysubtype = {review snapshot},
+  howpublished = {Archived source packet}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('report', $items[0]['type']);
+        $t->same('white paper', $items[0]['genre']);
+        $t->same('migration source audit', $items[0]['entry-subtype'] ?? null);
+        $t->same('entrysubtype', array_key_exists('entrysubtype', $items[0]['rawBibtex']['fields'] ?? []) ? 'entrysubtype' : null);
+        $t->same('webpage', $items[1]['type']);
+        $t->same('review snapshot', $items[1]['genre']);
+        $t->same('review snapshot', $items[1]['entry-subtype'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $report = $processor->item('review-subtype');
+        $snapshot = $processor->item('snapshot-subtype');
+        $t->same('white paper', $report['genre'] ?? null);
+        $t->same('migration source audit', $report['entrySubtype'] ?? null);
+        $t->same('review snapshot', $snapshot['genre'] ?? null);
+        $t->same('review snapshot', $snapshot['entrySubtype'] ?? null);
+        $t->same('(Ng 2026; Review Desk 2025)', $processor->renderCitationCluster([
+            $citation('review-subtype', '[@review-subtype]'),
+            $citation('snapshot-subtype', '[@snapshot-subtype]'),
+        ]));
+        $t->same(
+            'Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.',
+            $processor->renderBibliographyEntry('review-subtype')
+        );
+        $t->same(
+            'Review Desk. Import Queue Snapshot. 2025. Medium: Archived source packet. Entry subtype: review snapshot.',
+            $processor->renderBibliographyEntry('snapshot-subtype')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="genre"/>
+        <text variable="entry-subtype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="genre"/>
+      <text variable="entry-subtype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | white paper | migration source audit; Review Desk | review snapshot | review snapshot]', $styled->renderCitationCluster([
+            $citation('review-subtype', '[@review-subtype]'),
+            $citation('snapshot-subtype', '[@snapshot-subtype]'),
+        ]));
+        $t->same('Source Audit Report :: white paper :: migration source audit', $styled->renderBibliographyEntry('review-subtype'));
+        $t->same('Import Queue Snapshot :: review snapshot :: review snapshot', $styled->renderBibliographyEntry('snapshot-subtype'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-subtype',
+            'title' => 'Manual Subtype Source',
+            'entry-subtype' => 'manual review packet',
+        ]])->item('manual-subtype');
+        $t->same('manual review packet', $manual['entrySubtype'] ?? null);
+
+        $document = (new MarkdownReader())->read('Subtype source @review-subtype and snapshot [@snapshot-subtype] preserve source-kind review metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Subtype source Ng (2026) and snapshot (Review Desk 2025) preserve source-kind review metadata.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>', $blocks);
+        $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Import Queue Snapshot. 2025. Medium: Archived source packet. Entry subtype: review snapshot.</dd>', $blocks);
+    },
     'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{role-review,

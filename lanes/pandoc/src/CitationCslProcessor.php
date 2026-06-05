@@ -636,6 +636,7 @@ final class CitationCslProcessor
             'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber']),
             'part' => self::stringField($item, 'part'),
             'genre' => self::stringField($item, 'genre'),
+            'entrySubtype' => self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']),
             'authority' => self::stringField($item, 'authority'),
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
             'status' => self::stringField($item, 'status'),
@@ -2961,6 +2962,7 @@ final class CitationCslProcessor
         foreach ([
             ['version', 'Version'],
             ['medium', 'Medium'],
+            ['entrySubtype', 'Entry subtype'],
             ['status', 'Status'],
             ['note', 'Note'],
             ['addendum', 'Addendum'],
@@ -4021,6 +4023,7 @@ final class CitationCslProcessor
             'chapter-number' => (string) $item['chapterNumber'],
             'part' => (string) $item['part'],
             'genre' => (string) $item['genre'],
+            'entry-subtype', 'entrysubtype' => (string) $item['entrySubtype'],
             'authority' => (string) $item['authority'],
             'jurisdiction' => (string) $item['jurisdiction'],
             'status' => (string) $item['status'],
