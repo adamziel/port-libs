@@ -19889,7 +19889,7 @@ final class PdfTextExtractor
             return 'unknown';
         }
 
-        return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
+        return $this->dctPreviewBytesAreCompleteJpeg($bytes) ? 'complete' : 'incomplete';
     }
 
     /**
