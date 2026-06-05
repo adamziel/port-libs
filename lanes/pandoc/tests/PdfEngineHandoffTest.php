@@ -619,6 +619,99 @@ MARKDOWN);
         $t->contains('engine-output-bytes:' . strlen($pdfBytes), implode(',', $result['diagnostics']));
     },
 
+    'fake runner extracts bounded pdf trailer revisions and startxref metadata' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/incremental.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Title (Initial export) >>',
+            'endobj',
+            'xref',
+            '0 5',
+            'trailer',
+            '<< /Size 5 /Root 1 0 R /Info 4 0 R /ID [<00112233445566778899aabbccddeeff> <00112233445566778899aabbccddeeff>] >>',
+            'startxref',
+            '128',
+            '%%EOF',
+            '5 0 obj',
+            '<< /Title (Reviewer note appended) >>',
+            'endobj',
+            'xref',
+            '5 1',
+            'trailer',
+            '<< /Size 6 /Root 1 0 R /Info 5 0 R /Prev 128 /ID [<00112233445566778899aabbccddeeff> <ffeeddccbbaa99887766554433221100>] >>',
+            'startxref',
+            '512',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/incremental.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/incremental.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(true, $result['pdfTrailerComplete']);
+        $t->same(2, $result['pdfTrailerCount']);
+        $t->same(true, $result['pdfIncrementalUpdates']);
+        $t->same([128, 512], $result['pdfStartXrefOffsets']);
+        $t->same([
+            [
+                'revision' => 1,
+                'size' => 5,
+                'root' => '1 0 R',
+                'info' => '4 0 R',
+                'encrypt' => null,
+                'prev' => null,
+                'startxref' => 128,
+                'id' => [
+                    '00112233445566778899AABBCCDDEEFF',
+                    '00112233445566778899AABBCCDDEEFF',
+                ],
+            ],
+            [
+                'revision' => 2,
+                'size' => 6,
+                'root' => '1 0 R',
+                'info' => '5 0 R',
+                'encrypt' => null,
+                'prev' => 128,
+                'startxref' => 512,
+                'id' => [
+                    '00112233445566778899AABBCCDDEEFF',
+                    'FFEEDDCCBBAA99887766554433221100',
+                ],
+            ],
+        ], $result['pdfTrailerRevisions']);
+        $t->contains('pdf-byte-trailers:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-startxref:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-incremental-updates', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same(2, $sequence['finalPdfTrailerCount']);
+        $t->same(true, $sequence['finalPdfIncrementalUpdates']);
+        $t->same([128, 512], $sequence['finalPdfStartXrefOffsets']);
+        $t->same($result['pdfTrailerRevisions'], $sequence['finalPdfTrailerRevisions']);
+    },
+
     'fake runner extracts bounded pdf page tree and outline titles from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);

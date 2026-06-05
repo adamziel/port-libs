@@ -243,6 +243,10 @@ final class PdfEngineHandoff
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
      *     pdfTrailerComplete: bool,
+     *     pdfTrailerCount: int,
+     *     pdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
+     *     pdfStartXrefOffsets: list<int>,
+     *     pdfIncrementalUpdates: bool,
      *     pdfPageCount: int|null,
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
@@ -611,6 +615,10 @@ final class PdfEngineHandoff
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
+        $pdfTrailerCount = 0;
+        $pdfTrailerRevisions = [];
+        $pdfStartXrefOffsets = [];
+        $pdfIncrementalUpdates = false;
         $pdfPageCount = null;
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
@@ -637,6 +645,10 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
             } else {
                 $pdfInspection = $this->inspectPdfOutput($pdfBytes);
+                $pdfTrailerCount = $pdfInspection['trailerCount'];
+                $pdfTrailerRevisions = $pdfInspection['trailerRevisions'];
+                $pdfStartXrefOffsets = $pdfInspection['startXrefOffsets'];
+                $pdfIncrementalUpdates = $pdfInspection['incrementalUpdates'];
                 $pdfPageCount = $pdfInspection['pageCount'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
@@ -661,6 +673,15 @@ final class PdfEngineHandoff
                 $pdfEncryptMetadata = $pdfEncryption['encryptMetadata'];
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
+                }
+                if ($pdfTrailerCount > 0) {
+                    $diagnostics[] = 'pdf-byte-trailers:' . $pdfTrailerCount;
+                }
+                if ($pdfStartXrefOffsets !== []) {
+                    $diagnostics[] = 'pdf-byte-startxref:' . count($pdfStartXrefOffsets);
+                }
+                if ($pdfIncrementalUpdates) {
+                    $diagnostics[] = 'pdf-byte-incremental-updates';
                 }
                 if ($pdfOutlineTitles !== []) {
                     $diagnostics[] = 'pdf-byte-outline-items:' . count($pdfOutlineTitles);
@@ -836,6 +857,10 @@ final class PdfEngineHandoff
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],
             'pdfTrailerComplete' => $pdfTrailerComplete,
+            'pdfTrailerCount' => $pdfTrailerCount,
+            'pdfTrailerRevisions' => $pdfTrailerRevisions,
+            'pdfStartXrefOffsets' => $pdfStartXrefOffsets,
+            'pdfIncrementalUpdates' => $pdfIncrementalUpdates,
             'pdfPageCount' => $pdfPageCount,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
@@ -884,6 +909,10 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
      *     finalPdfPageCount: int|null,
+     *     finalPdfTrailerCount: int,
+     *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
+     *     finalPdfStartXrefOffsets: list<int>,
+     *     finalPdfIncrementalUpdates: bool,
      *     finalPdfOutlineTitles: list<string>,
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfLanguage: string|null,
@@ -1045,6 +1074,10 @@ final class PdfEngineHandoff
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
+            'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
+            'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
+            'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
+            'finalPdfIncrementalUpdates' => is_array($finalRun) && ($finalRun['pdfIncrementalUpdates'] ?? false) === true,
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
@@ -2098,6 +2131,10 @@ final class PdfEngineHandoff
 
     /**
      * @return array{
+     *     trailerCount:int,
+     *     trailerRevisions:list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
+     *     startXrefOffsets:list<int>,
+     *     incrementalUpdates:bool,
      *     pageCount:int|null,
      *     outlineTitles:list<string>,
      *     documentInfo:array<string, string>,
@@ -2127,8 +2164,13 @@ final class PdfEngineHandoff
     {
         $catalog = $this->extractPdfCatalogDictionary($pdfBytes);
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
+        $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
 
         return [
+            'trailerCount' => count($trailerRevisions),
+            'trailerRevisions' => $trailerRevisions,
+            'startXrefOffsets' => $this->pdfStartXrefOffsets($trailerRevisions),
+            'incrementalUpdates' => $this->pdfHasIncrementalUpdates($trailerRevisions),
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
@@ -2144,6 +2186,164 @@ final class PdfEngineHandoff
             'formFieldTypes' => $this->summarizePdfFormFieldTypes($formFields),
             'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
         ];
+    }
+
+    /**
+     * @return list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>
+     */
+    private function extractPdfTrailerRevisions(string $pdfBytes): array
+    {
+        $revisions = [];
+        $offset = 0;
+        $length = strlen($pdfBytes);
+
+        while ($offset < $length && ($position = strpos($pdfBytes, 'trailer', $offset)) !== false) {
+            $before = $position > 0 ? $pdfBytes[$position - 1] : '';
+            $afterPosition = $position + strlen('trailer');
+            $after = $afterPosition < $length ? $pdfBytes[$afterPosition] : '';
+            if (
+                ($before !== '' && preg_match('/[A-Za-z0-9_.-]/', $before) === 1)
+                || ($after !== '' && preg_match('/[A-Za-z0-9_.-]/', $after) === 1)
+            ) {
+                $offset = $afterPosition;
+                continue;
+            }
+
+            $cursor = $afterPosition;
+            while ($cursor < $length && ctype_space($pdfBytes[$cursor])) {
+                $cursor++;
+            }
+            if (substr($pdfBytes, $cursor, 2) !== '<<') {
+                $offset = min($length, $cursor + 1);
+                continue;
+            }
+
+            $parsed = $this->parsePdfDictionary($pdfBytes, $cursor);
+            if ($parsed === null) {
+                $offset = $cursor + 2;
+                continue;
+            }
+
+            $dictionary = $parsed['value'];
+            $revisions[] = [
+                'revision' => count($revisions) + 1,
+                'size' => $this->extractPdfIntegerToken($dictionary, 'Size'),
+                'root' => $this->extractPdfReferenceToken($dictionary, 'Root'),
+                'info' => $this->extractPdfReferenceToken($dictionary, 'Info'),
+                'encrypt' => $this->extractPdfReferenceToken($dictionary, 'Encrypt'),
+                'prev' => $this->extractPdfIntegerToken($dictionary, 'Prev'),
+                'startxref' => $this->extractPdfStartXrefAfter($pdfBytes, $parsed['next']),
+                'id' => $this->extractPdfTrailerIdValues($dictionary),
+            ];
+            $offset = $parsed['next'];
+        }
+
+        return $revisions;
+    }
+
+    /**
+     * @param list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}> $revisions
+     * @return list<int>
+     */
+    private function pdfStartXrefOffsets(array $revisions): array
+    {
+        $offsets = [];
+        foreach ($revisions as $revision) {
+            if ($revision['startxref'] !== null) {
+                $offsets[] = $revision['startxref'];
+            }
+        }
+
+        return $offsets;
+    }
+
+    /**
+     * @param list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}> $revisions
+     */
+    private function pdfHasIncrementalUpdates(array $revisions): bool
+    {
+        if (count($revisions) > 1) {
+            return true;
+        }
+
+        foreach ($revisions as $revision) {
+            if ($revision['prev'] !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function extractPdfStartXrefAfter(string $pdfBytes, int $offset): ?int
+    {
+        $end = strpos($pdfBytes, '%%EOF', $offset);
+        if ($end === false) {
+            $end = min(strlen($pdfBytes), $offset + 4096);
+        }
+
+        $chunk = substr($pdfBytes, $offset, max(0, min($end, $offset + 4096) - $offset));
+        if (preg_match('/\bstartxref\s+(\d+)\b/s', $chunk, $matches) !== 1) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    private function extractPdfReferenceToken(string $dictionary, string $name): ?string
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s+(\d+)\s+(\d+)\s+R\b/s', $dictionary, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1] . ' ' . $matches[2] . ' R';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfTrailerIdValues(string $dictionary): array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, 'ID');
+        if ($array === null) {
+            return [];
+        }
+
+        $ids = [];
+        if (preg_match_all('/<([0-9A-Fa-f\s]+)>/', $array, $matches) >= 1) {
+            foreach ($matches[1] as $rawHex) {
+                $id = strtoupper(preg_replace('/\s+/', '', $rawHex) ?? '');
+                if ($id !== '') {
+                    $ids[] = $id;
+                }
+                if (count($ids) >= 2) {
+                    return $ids;
+                }
+            }
+        }
+
+        $cursor = 0;
+        $length = strlen($array);
+        while ($cursor < $length && count($ids) < 2) {
+            if ($array[$cursor] !== '(') {
+                $cursor++;
+                continue;
+            }
+
+            $parsed = $this->parsePdfLiteralString($array, $cursor);
+            if ($parsed === null) {
+                $cursor++;
+                continue;
+            }
+
+            $id = trim($parsed['value']);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+            $cursor = $parsed['next'];
+        }
+
+        return $ids;
     }
 
     /**
