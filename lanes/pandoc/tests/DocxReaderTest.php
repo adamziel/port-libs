@@ -89,6 +89,58 @@ $footnotesXml = <<<'XML'
 </w:footnotes>
 XML;
 
+$linkedMediaContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$linkedMediaDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>
+  <Relationship Id="rIdPortrait" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/portrait.jpg"/>
+  <Relationship Id="rIdExternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/source-chart.png" TargetMode="External"/>
+  <Relationship Id="rIdUnsafeImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="javascript:alert(1)" TargetMode="External"/>
+</Relationships>
+XML;
+
+$linkedMediaDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="21" name="Logo image" descr="Logo alt" title="Logo title"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdLogo"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+          <wp:inline>
+            <wp:docPr id="22" name="Portrait image" descr="Portrait alt" title="Portrait title"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdPortrait"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+          <wp:anchor>
+            <wp:docPr id="23" name="External chart" descr="External chart alt" title="External chart title"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:anchor>
+          <wp:anchor>
+            <wp:docPr id="24" name="Unsafe chart" descr="Unsafe chart alt"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdUnsafeImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:anchor>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $corePropertiesXml = <<<'XML'
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
@@ -610,6 +662,17 @@ $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationsh
     ]);
 };
 
+$buildLinkedMediaPackage = static function () use ($linkedMediaContentTypesXml, $packageRelationshipsXml, $linkedMediaDocumentRelationshipsXml, $linkedMediaDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $linkedMediaContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $linkedMediaDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $linkedMediaDocumentRelationshipsXml],
+        ['name' => 'word/media/logo.png', 'data' => 'LOGO'],
+        ['name' => 'word/media/portrait.jpg', 'data' => 'PORTRAIT'],
+    ]);
+};
+
 $buildStylesNumberingPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -825,6 +888,76 @@ return [
         $t->same('Needs media review', $body->children[0]->children[1]->attr('text'));
         $t->same('Owner', $body->children[1]->children[0]->attr('text'));
         $t->same('Migration team', $body->children[1]->children[1]->attr('text'));
+    },
+    'maps DOCX drawing docPr metadata per image and preserves safe linked media' => static function (TestRunner $t) use ($buildLinkedMediaPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildLinkedMediaPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(3, count($paragraph->children));
+
+        $logo = $paragraph->children[0];
+        $t->same('image', $logo->type);
+        $t->same('word/media/logo.png', $logo->attr('url'));
+        $t->same('/word/media/logo.png', $logo->attr('sourcePart'));
+        $t->same(false, $logo->attr('external'));
+        $t->same('rIdLogo', $logo->attr('relationshipId'));
+        $t->same('Logo alt', $logo->attr('alt'));
+        $t->same('Logo title', $logo->attr('title'));
+        $t->same(4, $logo->attr('bytes'));
+
+        $portrait = $paragraph->children[1];
+        $t->same('image', $portrait->type);
+        $t->same('word/media/portrait.jpg', $portrait->attr('url'));
+        $t->same('/word/media/portrait.jpg', $portrait->attr('sourcePart'));
+        $t->same(false, $portrait->attr('external'));
+        $t->same('rIdPortrait', $portrait->attr('relationshipId'));
+        $t->same('Portrait alt', $portrait->attr('alt'));
+        $t->same('Portrait title', $portrait->attr('title'));
+        $t->same(8, $portrait->attr('bytes'));
+
+        $external = $paragraph->children[2];
+        $t->same('image', $external->type);
+        $t->same('https://cdn.example.test/source-chart.png', $external->attr('url'));
+        $t->same(true, $external->attr('external'));
+        $t->same('rIdExternalImage', $external->attr('relationshipId'));
+        $t->same('External chart alt', $external->attr('alt'));
+        $t->same('External chart title', $external->attr('title'));
+        $t->same('absolute-uri', $external->attr('externalTargetKind'));
+        $t->same('https', $external->attr('externalTargetScheme'));
+
+        $t->contains('![Logo alt](word/media/logo.png "Logo title")', $markdown);
+        $t->contains('![Portrait alt](word/media/portrait.jpg "Portrait title")', $markdown);
+        $t->contains('![External chart alt](https://cdn.example.test/source-chart.png "External chart title")', $markdown);
+        $t->true(!str_contains($markdown, 'javascript:alert'), 'Unsafe linked image target should not render to Markdown');
+
+        $t->contains('<img src="word/media/logo.png" alt="Logo alt" title="Logo title"/>', $blocks);
+        $t->contains('<img src="word/media/portrait.jpg" alt="Portrait alt" title="Portrait title"/>', $blocks);
+        $t->contains('<img src="https://cdn.example.test/source-chart.png" alt="External chart alt" title="External chart title"/>', $blocks);
+        $t->true(!str_contains($blocks, 'javascript:alert'), 'Unsafe linked image target should not render to WordPress blocks');
+
+        $media = $result['importReport']['media'];
+        $t->same(4, $media['count']);
+        $t->same(2, $media['embeddedCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(1, $media['items'][0]['usedCount']);
+        $t->same(['Logo alt'], $media['items'][0]['altTexts']);
+        $t->same(['Logo title'], $media['items'][0]['titles']);
+        $t->same(1, $media['items'][1]['usedCount']);
+        $t->same(['Portrait alt'], $media['items'][1]['altTexts']);
+        $t->same(['Portrait title'], $media['items'][1]['titles']);
+        $t->same(true, $media['items'][2]['external']);
+        $t->same(null, $media['items'][2]['bytes']);
+        $t->same(1, $media['items'][2]['usedCount']);
+        $t->same(['External chart alt'], $media['items'][2]['altTexts']);
+        $t->same([], $media['items'][2]['issues']);
+        $t->same(true, $media['items'][3]['external']);
+        $t->same(0, $media['items'][3]['usedCount']);
+        $t->same(['external-target-unsafe-scheme'], $media['items'][3]['issues']);
     },
     'reports DOCX media import inventory and missing media relationships' => static function (TestRunner $t) use ($buildDocxPackage): void {
         $result = (new DocxReader())->readPackage($buildDocxPackage());

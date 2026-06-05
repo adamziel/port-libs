@@ -132,7 +132,7 @@ final class DocxReader
      */
     private function mediaImportReport(ZipPackage $package, array $reachableRelationships, AstNode $document): array
     {
-        $imageNodesByPart = $this->imageNodesBySourcePart($document);
+        $imageNodesByTarget = $this->imageNodesByMediaTarget($document);
         $items = [];
         foreach ($reachableRelationships as $relationship) {
             if ($relationship['type'] !== self::REL_TYPE_IMAGE) {
@@ -140,7 +140,8 @@ final class DocxReader
             }
 
             $targetPart = $relationship['targetPart'];
-            $imageNodes = $targetPart === null ? [] : ($imageNodesByPart[$targetPart] ?? []);
+            $imageTarget = $targetPart ?? $relationship['target'];
+            $imageNodes = $imageNodesByTarget[$imageTarget] ?? [];
             $items[] = [
                 'source' => $relationship['source'],
                 'id' => $relationship['id'],
@@ -453,10 +454,10 @@ final class DocxReader
     /**
      * @return array<string, list<AstNode>>
      */
-    private function imageNodesBySourcePart(AstNode $node): array
+    private function imageNodesByMediaTarget(AstNode $node): array
     {
         $images = [];
-        $this->collectImageNodesBySourcePart($node, $images);
+        $this->collectImageNodesByMediaTarget($node, $images);
 
         return $images;
     }
@@ -464,18 +465,28 @@ final class DocxReader
     /**
      * @param array<string, list<AstNode>> $images
      */
-    private function collectImageNodesBySourcePart(AstNode $node, array &$images): void
+    private function collectImageNodesByMediaTarget(AstNode $node, array &$images): void
     {
         if ($node->type === 'image') {
+            $target = null;
             $sourcePart = $node->attr('sourcePart');
             if (is_string($sourcePart) && $sourcePart !== '') {
-                $images[$sourcePart] ??= [];
-                $images[$sourcePart][] = $node;
+                $target = $sourcePart;
+            } elseif ($node->attr('external') === true) {
+                $url = $node->attr('url');
+                if (is_string($url) && $url !== '') {
+                    $target = $url;
+                }
+            }
+
+            if ($target !== null) {
+                $images[$target] ??= [];
+                $images[$target][] = $node;
             }
         }
 
         foreach ($node->children as $child) {
-            $this->collectImageNodesBySourcePart($child, $images);
+            $this->collectImageNodesByMediaTarget($child, $images);
         }
     }
 
@@ -1960,33 +1971,92 @@ final class DocxReader
             }
 
             $embed = $this->relationshipAttr($blip, 'embed');
-            if ($embed === null) {
+            $link = $this->relationshipAttr($blip, 'link');
+            $relationshipId = $embed ?? $link;
+            if ($relationshipId === null) {
                 continue;
             }
 
-            $target = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($embed));
+            $relationship = $relationships->byId($relationshipId);
+            if (!$relationship instanceof OpcRelationship || $relationship->type !== self::REL_TYPE_IMAGE) {
+                continue;
+            }
+
+            $docPr = $this->drawingPropertiesForBlip($blip, $drawing);
+            $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
+            $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
+            $attrs = $this->drawingImageBaseAttrs($relationshipId, $alt, $title);
+
+            if ($relationship->isExternal()) {
+                $externalTarget = $relationship->externalTargetPreflight();
+                if (!$externalTarget['allowed']) {
+                    continue;
+                }
+
+                $attrs += [
+                    'url' => $relationships->resolveTarget($relationship),
+                    'external' => true,
+                    'externalTargetKind' => $externalTarget['kind'],
+                    'externalTargetScheme' => $externalTarget['scheme'],
+                ];
+                $nodes[] = new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
+                continue;
+            }
+
+            $target = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
             if (!$package->has($target)) {
                 continue;
             }
 
-            $docPr = $this->firstDescendantElement($drawing, self::WORDPROCESSING_DRAWING_NS, 'docPr');
-            $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
-            $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
-            $attrs = [
+            $attrs += [
                 'url' => ltrim($target, '/'),
                 'alt' => $alt,
-                'title' => $title,
                 'sourcePart' => $target,
+                'external' => false,
                 'bytes' => strlen($package->read($target)),
             ];
-            if ($title === '') {
-                unset($attrs['title']);
-            }
-
             $nodes[] = new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingImageBaseAttrs(string $relationshipId, string $alt, string $title): array
+    {
+        $attrs = [
+            'relationshipId' => $relationshipId,
+            'alt' => $alt,
+        ];
+
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return $attrs;
+    }
+
+    private function drawingPropertiesForBlip(\DOMElement $blip, \DOMElement $drawing): ?\DOMElement
+    {
+        $node = $blip->parentNode;
+        while ($node instanceof \DOMElement) {
+            if (
+                $node->namespaceURI === self::WORDPROCESSING_DRAWING_NS
+                && ($node->localName === 'inline' || $node->localName === 'anchor')
+            ) {
+                return $this->firstChildElement($node, self::WORDPROCESSING_DRAWING_NS, 'docPr');
+            }
+
+            if ($node === $drawing) {
+                break;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return $this->firstDescendantElement($drawing, self::WORDPROCESSING_DRAWING_NS, 'docPr');
     }
 
     /**

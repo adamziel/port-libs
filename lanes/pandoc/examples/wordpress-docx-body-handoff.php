@@ -37,6 +37,7 @@ XML],
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42" TargetMode="External"/>
   <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdExternalChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/docx-review-chart.png" TargetMode="External"/>
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
@@ -149,7 +150,7 @@ XML],
         <w:p><w:r><w:t>Content-control checklist for reviewer handoff.</w:t></w:r></w:p>
       </w:sdtContent>
     </w:sdt>
-    <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>
+    <w:p><w:r><w:drawing><wp:inline><wp:docPr id="9" name="Hero" descr="Source hero alt" title="Source hero"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdHero"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline><wp:anchor><wp:docPr id="10" name="Review chart" descr="Linked review chart alt" title="Linked review chart"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:link="rIdExternalChart"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>
     <w:tbl>
       <w:tr>
         <w:tc>
@@ -277,6 +278,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['importReport']['media']['items'][0]['bytes'] ?? 0) !== 7) {
         throw new RuntimeException('DOCX body handoff self-test missing media byte count');
     }
+    if (($summary['importReport']['media']['items'][1]['external'] ?? null) !== true || ($summary['importReport']['media']['items'][1]['usedCount'] ?? 0) !== 1) {
+        throw new RuntimeException('DOCX body handoff self-test missing linked external media handoff');
+    }
     if (($summary['importReport']['revisions']['insertionCount'] ?? 0) !== 2 || ($summary['importReport']['revisions']['deletionCount'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing tracked-change report');
     }
@@ -346,6 +350,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'data-docx-sdt-xpath="/packet/review/checklist"',
         '<p>Content-control checklist for reviewer handoff.</p>',
         '<img src="word/media/hero.png" alt="Source hero alt" title="Source hero"/>',
+        '<img src="https://cdn.example.test/docx-review-chart.png" alt="Linked review chart alt" title="Linked review chart"/>',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         'DOCX footnote import note.',
