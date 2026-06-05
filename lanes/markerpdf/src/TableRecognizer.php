@@ -1879,6 +1879,12 @@ final class TableRecognizer
             'full_page',
             'pdf_page',
             'highres_page',
+            'image_bbox_relative',
+            'relative_image_bbox',
+            'image_bbox_local',
+            'local_image_bbox',
+            'saved_image_bbox',
+            'saved_image_bbox_relative',
         ], true);
     }
 
