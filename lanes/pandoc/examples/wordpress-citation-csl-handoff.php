@@ -27,6 +27,8 @@ The quoted style checks @quoted-source title punctuation.
 
 The name-part style checks @name-part-source reviewer names.
 
+The date-part bibliography includes [@date-part-source] for reviewer calendars.
+
 The source archive keeps [see @missing-source; @{https://example.com/bib?name=foobar&date=2000}, p. 33] visible for reviewer follow-up.
 MARKDOWN;
 
@@ -115,6 +117,16 @@ $cslJson = <<<'JSON'
     "publisher": "Review Press"
   },
   {
+    "id": "date-part-source",
+    "type": "personal_communication",
+    "title": "Date Part Packet",
+    "author": [
+      {"literal": "Date Desk"}
+    ],
+    "issued": {"date-parts": [[2026, 6, 5]]},
+    "accessed": {"date-parts": [[2026, 6, 6]]}
+  },
+  {
     "id": "https://example.com/bib?name=foobar&date=2000",
     "type": "webpage",
     "title": "URL Key Source",
@@ -139,6 +151,8 @@ $cslStyleXml = <<<'XML'
       <term name="accessed">Retrieved</term>
       <term name="open-quote">“</term>
       <term name="close-quote">”</term>
+      <term name="month-06" form="short">Jun.</term>
+      <term name="month-06" form="long">June</term>
     </terms>
   </locale>
   <macro name="review-citation">
@@ -181,6 +195,20 @@ $cslStyleXml = <<<'XML'
       <date variable="accessed"/>
     </group>
   </macro>
+  <macro name="review-date-part-issued">
+    <date variable="issued" delimiter=" ">
+      <date-part name="month" form="short" strip-periods="true"/>
+      <date-part name="day" form="ordinal" suffix=","/>
+      <date-part name="year" form="short" prefix="'"/>
+    </date>
+  </macro>
+  <macro name="review-date-part-accessed">
+    <date variable="accessed" delimiter=" ">
+      <date-part name="month" form="long"/>
+      <date-part name="day" form="numeric"/>
+      <date-part name="year"/>
+    </date>
+  </macro>
   <macro name="review-number">
     <choose>
       <if variable="number" match="any">
@@ -207,6 +235,14 @@ $cslStyleXml = <<<'XML'
       </names>
       <text variable="title"/>
       <text macro="review-publication"/>
+    </group>
+  </macro>
+  <macro name="review-date-part-bibliography-entry">
+    <group delimiter=". " suffix=".">
+      <names variable="author editor"/>
+      <text variable="title"/>
+      <text macro="review-date-part-issued"/>
+      <text macro="review-date-part-accessed" prefix="reviewed "/>
     </group>
   </macro>
   <macro name="review-source-locator">
@@ -269,6 +305,9 @@ $cslStyleXml = <<<'XML'
         <if type="manuscript" match="any">
           <text macro="review-name-part-bibliography-entry"/>
         </if>
+        <else-if type="personal_communication" match="any">
+          <text macro="review-date-part-bibliography-entry"/>
+        </else-if>
         <else>
           <text macro="review-bibliography-entry"/>
         </else>
@@ -322,11 +361,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($namePartFormatting['given']['stripPeriods'] ?? null) !== true) {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve given name-part strip-periods');
     }
+    if (($summary['macros']['review-date-part-issued'][0]['dateParts'][0]['form'] ?? null) !== 'short') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve issued month short date-part form');
+    }
+    if (($summary['macros']['review-date-part-issued'][0]['dateParts'][0]['stripPeriods'] ?? null) !== true) {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve issued month strip-periods date-part option');
+    }
+    if (($summary['macros']['review-date-part-issued'][0]['dateParts'][1]['form'] ?? null) !== 'ordinal') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve issued day ordinal date-part form');
+    }
+    if (($summary['macros']['review-date-part-issued'][0]['dateParts'][2]['prefix'] ?? null) !== "'") {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve issued year date-part prefix');
+    }
     if (($summary['macros']['review-bibliography-entry'][0]['children'][1]['branches'][0]['types'][0] ?? null) !== 'dataset') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the quoted dataset branch');
     }
     if (($summary['bibliographyRendering'][0]['branches'][0]['children'][0]['macro'] ?? null) !== 'review-name-part-bibliography-entry') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the name-part bibliography branch');
+    }
+    if (($summary['bibliographyRendering'][0]['branches'][1]['children'][0]['macro'] ?? null) !== 'review-date-part-bibliography-entry') {
+        throw new RuntimeException('Citation CSL handoff self-test did not preserve the date-part bibliography branch');
     }
     if (($summary['bibliographyRendering'][0]['else'][0]['macro'] ?? null) !== 'review-bibliography-entry') {
         throw new RuntimeException('Citation CSL handoff self-test did not preserve the fallback bibliography macro reference');
@@ -345,9 +399,11 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The title-case style reviews Migration Desk (2026) source titles.</p>',
         '<p>The quoted style checks Quote Desk (2026) title punctuation.</p>',
         '<p>The name-part style checks de la Cruz (1998) reviewer names.</p>',
+        '<p>The date-part bibliography includes (Date Desk 2026) for reviewer calendars.</p>',
         '<dt>Migration Desk 2026</dt><dd>[Migration Desk. Migration Review: Source Import and API. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>Quote Desk 2026</dt><dd>[Quote Desk. “Source Packet”. Review Press, 2026. No stable source locator.]</dd>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
+        '<dt>Date Desk 2026</dt><dd>[Date Desk. Date Part Packet. Jun 5th, &#039;26. reviewed June 6 2026.]</dd>',
         '<dt>Review Board 2025</dt><dd>[Review Board. Numbered Review Packet. 2025. nos. 2nd-4th. No stable source locator.]</dd>',
         '<dt>de la Cruz 1998</dt><dd>[DE LA CRUZ, given A M, Jr. Name Part Packet. Review Press, 1998.]</dd>',
         '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
@@ -359,6 +415,7 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     $sortedTerms = [
+        '<dt>Date Desk 2026</dt>',
         '<dt>de la Cruz 2026</dt>',
         '<dt>Quote Desk 2026</dt>',
         '<dt>Migration Desk 2026</dt>',

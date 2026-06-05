@@ -2372,7 +2372,14 @@ final class CitationCslProcessor
 
         $dateParts = $element['dateParts'] ?? [];
         if (is_array($dateParts) && $dateParts !== []) {
-            return $this->renderSelectedDateParts($date, $dateParts, $scope, $variable);
+            return $this->renderSelectedDateParts(
+                $date,
+                $dateParts,
+                $scope,
+                $variable,
+                (string) ($element['delimiter'] ?? ''),
+                $item
+            );
         }
 
         return $this->renderDateVariable($date, $scope, $variable);
@@ -3041,9 +3048,10 @@ final class CitationCslProcessor
 
     /**
      * @param array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>} $date
-     * @param list<string> $dateParts
+     * @param list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}|string> $dateParts
+     * @param array<string, mixed> $item
      */
-    private function renderSelectedDateParts(array $date, array $dateParts, string $scope, string $variable): string
+    private function renderSelectedDateParts(array $date, array $dateParts, string $scope, string $variable, string $delimiter, array $item): string
     {
         $rangeParts = is_array($date['rangeParts'] ?? null) ? $date['rangeParts'] : [];
         $singleParts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
@@ -3051,26 +3059,21 @@ final class CitationCslProcessor
             return $this->renderDateVariable($date, $scope, $variable);
         }
 
+        $specs = $this->normalizedDatePartRenderingSpecs($dateParts);
+        if ($specs === []) {
+            return $this->renderDateVariable($date, $scope, $variable);
+        }
+
         $parts = $rangeParts !== [] ? $rangeParts : [$singleParts];
         $values = [];
         foreach ($parts as $rangePart) {
-            $rangeValue = [];
-            foreach ($dateParts as $part) {
-                $value = match ($part) {
-                    'year' => $rangePart[0] ?? null,
-                    'month' => $rangePart[1] ?? null,
-                    'day' => $rangePart[2] ?? null,
-                    default => null,
-                };
-                if ($value === null) {
-                    continue;
-                }
-
-                $rangeValue[] = $part === 'year' ? sprintf('%04d', (int) $value) : sprintf('%02d', (int) $value);
+            if (!is_array($rangePart)) {
+                continue;
             }
 
-            if ($rangeValue !== []) {
-                $values[] = implode('-', $rangeValue);
+            $value = $this->renderDatePartSequence($rangePart, $specs, $delimiter, $item);
+            if ($value !== '') {
+                $values[] = $value;
             }
         }
 
@@ -3080,7 +3083,179 @@ final class CitationCslProcessor
 
         $values = array_values(array_unique($values));
 
-        return implode('/', $values);
+        return implode($this->dateRangeDelimiter($parts, $specs), $values);
+    }
+
+    /**
+     * @param list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}|string> $dateParts
+     * @return list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>
+     */
+    private function normalizedDatePartRenderingSpecs(array $dateParts): array
+    {
+        $specs = [];
+        foreach ($dateParts as $part) {
+            if (is_string($part)) {
+                $name = strtolower(trim($part));
+                if (!in_array($name, ['year', 'month', 'day'], true)) {
+                    continue;
+                }
+
+                $specs[] = [
+                    'name' => $name,
+                    'prefix' => '',
+                    'suffix' => '',
+                    'form' => '',
+                    'rangeDelimiter' => '',
+                    'stripPeriods' => false,
+                    'textCase' => '',
+                ];
+                continue;
+            }
+
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $name = strtolower(trim((string) ($part['name'] ?? '')));
+            if (!in_array($name, ['year', 'month', 'day'], true)) {
+                continue;
+            }
+
+            $specs[] = [
+                'name' => $name,
+                'prefix' => (string) ($part['prefix'] ?? ''),
+                'suffix' => (string) ($part['suffix'] ?? ''),
+                'form' => strtolower(trim((string) ($part['form'] ?? ''))),
+                'rangeDelimiter' => (string) ($part['rangeDelimiter'] ?? ''),
+                'stripPeriods' => ($part['stripPeriods'] ?? false) === true,
+                'textCase' => strtolower(trim((string) ($part['textCase'] ?? ''))),
+            ];
+        }
+
+        return $specs;
+    }
+
+    /**
+     * @param list<int> $parts
+     * @param list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}> $specs
+     * @param array<string, mixed> $item
+     */
+    private function renderDatePartSequence(array $parts, array $specs, string $delimiter, array $item): string
+    {
+        $values = [];
+        foreach ($specs as $spec) {
+            $value = $this->renderDatePartValue($parts, $spec, $item);
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $this->joinRenderedElements($values, $delimiter !== '' ? $delimiter : '-');
+    }
+
+    /**
+     * @param list<int> $parts
+     * @param array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string} $spec
+     * @param array<string, mixed> $item
+     */
+    private function renderDatePartValue(array $parts, array $spec, array $item): string
+    {
+        $name = $spec['name'];
+        $number = match ($name) {
+            'year' => $parts[0] ?? null,
+            'month' => $parts[1] ?? null,
+            'day' => $parts[2] ?? null,
+            default => null,
+        };
+        if ($number === null) {
+            return '';
+        }
+
+        $value = match ($name) {
+            'year' => $this->formatCslDateYearPart((int) $number, $spec['form']),
+            'month' => $this->formatCslDateMonthPart((int) $number, $spec['form']),
+            'day' => $this->formatCslDateDayPart((int) $number, $spec['form']),
+            default => '',
+        };
+        if ($value === '') {
+            return '';
+        }
+
+        if ($spec['stripPeriods']) {
+            $value = str_replace('.', '', $value);
+        }
+        $value = $this->applyTextCase($value, $spec, $item);
+
+        return (string) $spec['prefix'] . $value . (string) $spec['suffix'];
+    }
+
+    private function formatCslDateYearPart(int $year, string $form): string
+    {
+        if ($form === 'short') {
+            return sprintf('%02d', abs($year) % 100);
+        }
+
+        return sprintf('%04d', $year);
+    }
+
+    private function formatCslDateMonthPart(int $month, string $form): string
+    {
+        if ($month < 1 || $month > 12) {
+            return '';
+        }
+
+        return match ($form) {
+            'numeric' => (string) $month,
+            'numeric-leading-zeros' => sprintf('%02d', $month),
+            'short' => $this->style->term('month-' . sprintf('%02d', $month), 'short'),
+            default => $this->style->term('month-' . sprintf('%02d', $month), 'long'),
+        };
+    }
+
+    private function formatCslDateDayPart(int $day, string $form): string
+    {
+        if ($day < 1 || $day > 31) {
+            return '';
+        }
+
+        return match ($form) {
+            'numeric-leading-zeros' => sprintf('%02d', $day),
+            'ordinal' => $day . $this->ordinalSuffix($day),
+            default => (string) $day,
+        };
+    }
+
+    /**
+     * @param list<list<int>> $parts
+     * @param list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}> $specs
+     */
+    private function dateRangeDelimiter(array $parts, array $specs): string
+    {
+        if (count($parts) < 2 || !is_array($parts[0] ?? null) || !is_array($parts[1] ?? null)) {
+            return '/';
+        }
+
+        $start = $parts[0];
+        $end = $parts[1];
+        $largestDifferingPart = null;
+        foreach ([0 => 'year', 1 => 'month', 2 => 'day'] as $index => $name) {
+            if (($start[$index] ?? null) !== ($end[$index] ?? null)) {
+                $largestDifferingPart = $name;
+                break;
+            }
+        }
+
+        if ($largestDifferingPart === null) {
+            return '/';
+        }
+
+        foreach ($specs as $spec) {
+            if ($spec['name'] === $largestDifferingPart && $spec['rangeDelimiter'] !== '') {
+                return $spec['rangeDelimiter'];
+            }
+        }
+
+        return '/';
     }
 
     /**

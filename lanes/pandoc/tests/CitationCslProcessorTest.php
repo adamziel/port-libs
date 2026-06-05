@@ -795,6 +795,119 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'applies bounded csl date-part forms affixes and range delimiters' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'date-part-source',
+                'type' => 'report',
+                'title' => 'Date Part Packet',
+                'author' => [
+                    ['literal' => 'Date Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'accessed' => ['date-parts' => [[2026, 6, 6], [2026, 6, 7]]],
+                'event-date' => ['date-parts' => [[2024, 1, 15]]],
+            ],
+            [
+                'id' => 'range-year-source',
+                'type' => 'report',
+                'title' => 'Range Year Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2020, 5], [2021, 6]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Date Part Review Style</title>
+    <id>https://example.test/styles/bounded-date-part-review</id>
+    <updated>2026-06-05T06:20:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="month-06" form="short">Jun.</term>
+      <term name="month-06" form="long">June</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued" delimiter=" ">
+          <date-part name="month" form="short" strip-periods="true"/>
+          <date-part name="day" form="ordinal"/>
+          <date-part name="year" form="short" prefix="'"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <date variable="issued" delimiter=" | ">
+        <date-part name="month" form="long" text-case="uppercase"/>
+        <date-part name="day" form="numeric-leading-zeros" prefix="day "/>
+        <date-part name="year"/>
+      </date>
+      <date variable="accessed" delimiter=" ">
+        <date-part name="month" form="numeric"/>
+        <date-part name="day" form="numeric-leading-zeros" range-delimiter=" to "/>
+        <date-part name="year" form="short" prefix="'"/>
+      </date>
+      <date variable="event-date" delimiter="/">
+        <date-part name="year" form="short"/>
+        <date-part name="month" form="numeric-leading-zeros"/>
+        <date-part name="day" form="numeric-leading-zeros"/>
+      </date>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationDateParts = $summary['citationRendering'][0]['children'][1]['dateParts'] ?? [];
+        $bibliographyDateParts = $summary['bibliographyRendering'][0]['dateParts'] ?? [];
+        $rangeDateParts = $summary['bibliographyRendering'][1]['dateParts'] ?? [];
+        $t->same('Bounded Date Part Review Style', $summary['title'] ?? null);
+        $t->same('short', $citationDateParts[0]['form'] ?? null);
+        $t->same(true, $citationDateParts[0]['stripPeriods'] ?? null);
+        $t->same('ordinal', $citationDateParts[1]['form'] ?? null);
+        $t->same("'", $citationDateParts[2]['prefix'] ?? null);
+        $t->same(' | ', $summary['bibliographyRendering'][0]['delimiter'] ?? null);
+        $t->same('uppercase', $bibliographyDateParts[0]['textCase'] ?? null);
+        $t->same('day ', $bibliographyDateParts[1]['prefix'] ?? null);
+        $t->same(' to ', $rangeDateParts[1]['rangeDelimiter'] ?? null);
+
+        $t->same("(Date Desk Jun 5th '26; Ng May '20/Jun '21)", $processor->renderCitationCluster([
+            $citation('date-part-source', '[@date-part-source]'),
+            $citation('range-year-source', '[@range-year-source]'),
+        ]));
+        $t->same("JUNE | day 05 | 2026 :: 6 06 '26 to 6 07 '26 :: 24/01/15", $processor->renderBibliographyEntry('date-part-source'));
+        $t->same('MAY | 2020/JUNE | 2021', $processor->renderBibliographyEntry('range-year-source'));
+
+        $document = (new MarkdownReader())->read('Date part source [@date-part-source] and range [@range-year-source] stay reviewable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains("Date part source (Date Desk Jun 5th '26) and range (Ng May '20/Jun '21) stay reviewable.", $markdown);
+        $t->contains("Date Desk 2026" . "\n" . ":   JUNE \\| day 05 \\| 2026 :: 6 06 \\'26 to 6 07 \\'26 :: 24/01/15", $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains("<p>Date part source (Date Desk Jun 5th &#039;26) and range (Ng May &#039;20/Jun &#039;21) stay reviewable.</p>", $blocks);
+        $t->contains("<dt>Date Desk 2026</dt><dd>JUNE | day 05 | 2026 :: 6 06 &#039;26 to 6 07 &#039;26 :: 24/01/15</dd>", $blocks);
+        $t->contains('<dt>Ng 2020/2021</dt><dd>MAY | 2020/JUNE | 2021</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <date variable="issued"><date-part name="month" form="roman"/></date>
+    </layout>
+  </citation>
+</style>
+XML));
+    },
     'maps bounded biblatex subtitle short title and title addon metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{title-review,

@@ -49,6 +49,30 @@ final class CslStyle
         'long-ordinal-08|long' => ['single' => 'eighth', 'multiple' => 'eighth'],
         'long-ordinal-09|long' => ['single' => 'ninth', 'multiple' => 'ninth'],
         'long-ordinal-10|long' => ['single' => 'tenth', 'multiple' => 'tenth'],
+        'month-01|long' => ['single' => 'January', 'multiple' => 'January'],
+        'month-01|short' => ['single' => 'Jan.', 'multiple' => 'Jan.'],
+        'month-02|long' => ['single' => 'February', 'multiple' => 'February'],
+        'month-02|short' => ['single' => 'Feb.', 'multiple' => 'Feb.'],
+        'month-03|long' => ['single' => 'March', 'multiple' => 'March'],
+        'month-03|short' => ['single' => 'Mar.', 'multiple' => 'Mar.'],
+        'month-04|long' => ['single' => 'April', 'multiple' => 'April'],
+        'month-04|short' => ['single' => 'Apr.', 'multiple' => 'Apr.'],
+        'month-05|long' => ['single' => 'May', 'multiple' => 'May'],
+        'month-05|short' => ['single' => 'May', 'multiple' => 'May'],
+        'month-06|long' => ['single' => 'June', 'multiple' => 'June'],
+        'month-06|short' => ['single' => 'Jun.', 'multiple' => 'Jun.'],
+        'month-07|long' => ['single' => 'July', 'multiple' => 'July'],
+        'month-07|short' => ['single' => 'Jul.', 'multiple' => 'Jul.'],
+        'month-08|long' => ['single' => 'August', 'multiple' => 'August'],
+        'month-08|short' => ['single' => 'Aug.', 'multiple' => 'Aug.'],
+        'month-09|long' => ['single' => 'September', 'multiple' => 'September'],
+        'month-09|short' => ['single' => 'Sep.', 'multiple' => 'Sep.'],
+        'month-10|long' => ['single' => 'October', 'multiple' => 'October'],
+        'month-10|short' => ['single' => 'Oct.', 'multiple' => 'Oct.'],
+        'month-11|long' => ['single' => 'November', 'multiple' => 'November'],
+        'month-11|short' => ['single' => 'Nov.', 'multiple' => 'Nov.'],
+        'month-12|long' => ['single' => 'December', 'multiple' => 'December'],
+        'month-12|short' => ['single' => 'Dec.', 'multiple' => 'Dec.'],
     ];
 
     /** @var array{citation:array<string, mixed>, bibliography:array<string, mixed>} */
@@ -822,7 +846,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, prefix:string, suffix:string, variable:string, dateParts:list<string>}
+     * @return array{type:string, prefix:string, suffix:string, variable:string, delimiter:string, dateParts:list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>}
      */
     private static function dateRenderingElement(\DOMElement $date, string $scope): array
     {
@@ -838,7 +862,20 @@ final class CslStyle
                 throw new \InvalidArgumentException('CSL ' . $scope . ' date-part name must be year, month, or day');
             }
 
-            $dateParts[] = $name;
+            $form = strtolower(trim($datePart->getAttribute('form')));
+            if ($form !== '' && !self::datePartFormIsSupported($name, $form)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' date-part ' . $name . ' form is not supported: ' . $form);
+            }
+
+            $dateParts[] = [
+                'name' => $name,
+                'prefix' => self::optionalAttribute($datePart, 'prefix'),
+                'suffix' => self::optionalAttribute($datePart, 'suffix'),
+                'form' => $form,
+                'rangeDelimiter' => self::optionalAttribute($datePart, 'range-delimiter'),
+                'stripPeriods' => self::booleanRenderingAttribute($datePart, 'strip-periods', false, $scope),
+                'textCase' => self::textCaseAttribute($datePart, $scope),
+            ];
         }
 
         return [
@@ -846,9 +883,20 @@ final class CslStyle
             'prefix' => self::optionalAttribute($date, 'prefix'),
             'suffix' => self::optionalAttribute($date, 'suffix'),
             'variable' => $variable,
+            'delimiter' => self::optionalAttribute($date, 'delimiter'),
             'dateParts' => $dateParts,
             'textCase' => self::textCaseAttribute($date, $scope),
         ];
+    }
+
+    private static function datePartFormIsSupported(string $name, string $form): bool
+    {
+        return match ($name) {
+            'day' => in_array($form, ['numeric', 'numeric-leading-zeros', 'ordinal'], true),
+            'month' => in_array($form, ['long', 'short', 'numeric', 'numeric-leading-zeros'], true),
+            'year' => in_array($form, ['long', 'short'], true),
+            default => false,
+        };
     }
 
     /**
