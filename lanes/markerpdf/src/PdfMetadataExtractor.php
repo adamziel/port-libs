@@ -4292,21 +4292,9 @@ final class PdfMetadataExtractor
         $signed = $word['signed'];
         $unsigned = $word['unsigned'];
         $effectiveRevision = $revision ?? 6;
-        $allowed = [];
-        $denied = [];
-
-        foreach (self::STANDARD_PERMISSION_FLAGS as $flag) {
-            if ($effectiveRevision < $flag['minimum_revision']) {
-                continue;
-            }
-
-            if (($unsigned & $flag['mask']) !== 0) {
-                $allowed[] = $flag['name'];
-                continue;
-            }
-
-            $denied[] = $flag['name'];
-        }
+        $permissionBits = $this->standardPermissionBitReview($unsigned, $effectiveRevision);
+        $allowed = $this->standardPermissionNamesByStatus($permissionBits, 'allowed_by_permission_bit');
+        $denied = $this->standardPermissionNamesByStatus($permissionBits, 'denied_by_permission_bit');
 
         $canPrint = in_array('print', $allowed, true);
         $highQuality = in_array('high_quality_print', $allowed, true);
@@ -4322,8 +4310,107 @@ final class PdfMetadataExtractor
             'effective_revision' => $effectiveRevision,
             'allowed' => $allowed,
             'denied' => $denied,
+            'applicable_permission_names' => $this->standardApplicablePermissionNames($permissionBits, true),
+            'not_applicable_permission_names' => $this->standardApplicablePermissionNames($permissionBits, false),
+            'permission_bit_review_count' => count($permissionBits),
+            'permission_bit_statuses' => $this->standardPermissionBitStatuses($permissionBits),
+            'permission_bits' => $permissionBits,
             'print_quality' => !$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution'),
         ], $reserved);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function standardPermissionBitReview(int $unsigned, int $effectiveRevision): array
+    {
+        $rows = [];
+        foreach (self::STANDARD_PERMISSION_FLAGS as $flag) {
+            $mask = (int) $flag['mask'];
+            $minimumRevision = (int) $flag['minimum_revision'];
+            $bitSet = ($unsigned & $mask) !== 0;
+            $applicable = $effectiveRevision >= $minimumRevision;
+            $allowed = $applicable && $bitSet;
+            $denied = $applicable && !$bitSet;
+
+            $rows[] = [
+                'source' => 'standard_permission_bit_review',
+                'name' => $flag['name'],
+                'bit' => $this->standardPermissionBitNumber($mask),
+                'mask' => $mask,
+                'mask_hex' => strtoupper(sprintf('%08X', $mask)),
+                'minimum_revision' => $minimumRevision,
+                'effective_revision' => $effectiveRevision,
+                'bit_set' => $bitSet,
+                'applicable' => $applicable,
+                'allowed' => $allowed,
+                'denied' => $denied,
+                'status' => !$applicable
+                    ? 'not_applicable_for_revision'
+                    : ($allowed ? 'allowed_by_permission_bit' : 'denied_by_permission_bit'),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function standardPermissionBitNumber(int $mask): int
+    {
+        $bit = 1;
+        while ($mask > 1) {
+            $mask >>= 1;
+            $bit++;
+        }
+
+        return $bit;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function standardPermissionNamesByStatus(array $rows, string $status): array
+    {
+        $names = [];
+        foreach ($rows as $row) {
+            if (($row['status'] ?? null) === $status && is_string($row['name'] ?? null)) {
+                $names[] = $row['name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function standardApplicablePermissionNames(array $rows, bool $applicable): array
+    {
+        $names = [];
+        foreach ($rows as $row) {
+            if (($row['applicable'] ?? null) === $applicable && is_string($row['name'] ?? null)) {
+                $names[] = $row['name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private function standardPermissionBitStatuses(array $rows): array
+    {
+        $statuses = [];
+        foreach ($rows as $row) {
+            if (is_string($row['status'] ?? null) && !in_array($row['status'], $statuses, true)) {
+                $statuses[] = $row['status'];
+            }
+        }
+
+        return $statuses;
     }
 
     /**

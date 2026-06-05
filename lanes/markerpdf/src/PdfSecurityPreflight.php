@@ -137,6 +137,7 @@ final class PdfSecurityPreflight
             'recipient_bytes_exposed' => false,
             'raw_signature_validation_bytes_exposed' => false,
             'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
             'executes_signature_validation' => false,
             'executes_revocation_check' => false,
             'executes_trust_chain_validation' => false,
@@ -198,6 +199,9 @@ final class PdfSecurityPreflight
         $accessibilityAllowed = $declared && $handlerSupported ? in_array('extract_for_accessibility', $allowed, true) : null;
         $reviewAllowed = $handlerSupported ? $allowed : [];
         $reviewDenied = $handlerSupported ? $denied : [];
+        $permissionBits = $handlerSupported && is_array($permissions['permission_bits'] ?? null)
+            ? $permissions['permission_bits']
+            : [];
 
         if (!$declared && $recipientPermissionsDeclared) {
             $policy = 'public_key_recipient_permissions_blocked_without_private_key';
@@ -242,6 +246,17 @@ final class PdfSecurityPreflight
             'permission_normalized_from_unsigned_decimal' => (bool) ($permissions['normalized_from_unsigned_decimal'] ?? false),
             'allowed' => $reviewAllowed,
             'denied' => $reviewDenied,
+            'applicable_permission_names' => $handlerSupported && is_array($permissions['applicable_permission_names'] ?? null)
+                ? $permissions['applicable_permission_names']
+                : [],
+            'not_applicable_permission_names' => $handlerSupported && is_array($permissions['not_applicable_permission_names'] ?? null)
+                ? $permissions['not_applicable_permission_names']
+                : [],
+            'permission_bit_review_count' => count($permissionBits),
+            'permission_bit_statuses' => $handlerSupported && is_array($permissions['permission_bit_statuses'] ?? null)
+                ? $permissions['permission_bit_statuses']
+                : [],
+            'permission_bits' => $permissionBits,
             'copy_or_extract_allowed' => $copyAllowed,
             'accessibility_extract_allowed' => $accessibilityAllowed,
             'print_quality' => $handlerSupported ? ($permissions['print_quality'] ?? null) : null,
@@ -659,6 +674,9 @@ final class PdfSecurityPreflight
         $permissionDigest = is_array($standardAuthenticationReview['permission_digest'] ?? null)
             ? $standardAuthenticationReview['permission_digest']
             : [];
+        $permissionBits = $standardHandler && $declared && is_array($permissions['permission_bits'] ?? null)
+            ? $permissions['permission_bits']
+            : [];
 
         if (!$declared && $recipientPermissionsDeclared) {
             $status = 'public_key_recipient_permissions_undecoded_review';
@@ -695,6 +713,17 @@ final class PdfSecurityPreflight
             'handler_supported_for_native_permission_review' => $standardHandler && $declared,
             'permission_word_well_formed' => $reviewWellFormed,
             'permission_word_status' => $permissions['permission_word_status'] ?? null,
+            'applicable_permission_names' => $standardHandler && $declared && is_array($permissions['applicable_permission_names'] ?? null)
+                ? $permissions['applicable_permission_names']
+                : [],
+            'not_applicable_permission_names' => $standardHandler && $declared && is_array($permissions['not_applicable_permission_names'] ?? null)
+                ? $permissions['not_applicable_permission_names']
+                : [],
+            'permission_bit_review_count' => count($permissionBits),
+            'permission_bit_statuses' => $standardHandler && $declared && is_array($permissions['permission_bit_statuses'] ?? null)
+                ? $permissions['permission_bit_statuses']
+                : [],
+            'permission_bits' => $permissionBits,
             'reserved_bits' => $reservedBits,
             'standard_authentication_present' => $standardAuthenticationReview !== [],
             'standard_authentication_revision' => $standardAuthenticationReview['revision'] ?? null,
@@ -4260,6 +4289,9 @@ final class PdfSecurityPreflight
         ));
         $reviewAllowed = $standardHandler ? $allowed : [];
         $reviewDenied = $standardHandler ? $denied : [];
+        $permissionBits = $standardHandler && is_array($permissions['permission_bits'] ?? null)
+            ? $permissions['permission_bits']
+            : [];
         $publicKeyRecipientReview = is_array($encryption['public_key_recipient_review'] ?? null)
             ? $encryption['public_key_recipient_review']
             : [];
@@ -4292,6 +4324,17 @@ final class PdfSecurityPreflight
             'permission_normalized_from_unsigned_decimal' => (bool) ($permissions['normalized_from_unsigned_decimal'] ?? false),
             'allowed' => $reviewAllowed,
             'denied' => $reviewDenied,
+            'applicable_permission_names' => $standardHandler && is_array($permissions['applicable_permission_names'] ?? null)
+                ? $permissions['applicable_permission_names']
+                : [],
+            'not_applicable_permission_names' => $standardHandler && is_array($permissions['not_applicable_permission_names'] ?? null)
+                ? $permissions['not_applicable_permission_names']
+                : [],
+            'permission_bit_review_count' => count($permissionBits),
+            'permission_bit_statuses' => $standardHandler && is_array($permissions['permission_bit_statuses'] ?? null)
+                ? $permissions['permission_bit_statuses']
+                : [],
+            'permission_bits' => $permissionBits,
             'copy_or_extract_allowed' => $standardHandler && $permissions !== [] ? in_array('copy_or_extract', $allowed, true) : null,
             'accessibility_extract_allowed' => $standardHandler && $permissions !== [] ? in_array('extract_for_accessibility', $allowed, true) : null,
             'print_quality' => $standardHandler ? ($permissions['print_quality'] ?? null) : null,
