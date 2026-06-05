@@ -13316,23 +13316,23 @@ final class PdfTextExtractor
             }
 
             if ($token === 'd0') {
-                if (count($operands) < 2) {
+                if (count($operands) !== 2) {
                     return null;
                 }
 
-                $wx = $this->numericOperand($operands[count($operands) - 2]);
-                $wy = $this->numericOperand($operands[count($operands) - 1]);
+                $wx = $this->numericOperand($operands[0]);
+                $wy = $this->numericOperand($operands[1]);
 
                 return $wx === null || $wy === null ? null : [$wx, $wy];
             }
 
             if ($token === 'd1') {
-                if (count($operands) < 6) {
+                if (count($operands) !== 6) {
                     return null;
                 }
 
-                $wx = $this->numericOperand($operands[count($operands) - 6]);
-                $wy = $this->numericOperand($operands[count($operands) - 5]);
+                $wx = $this->numericOperand($operands[0]);
+                $wy = $this->numericOperand($operands[1]);
 
                 return $wx === null || $wy === null ? null : [$wx, $wy];
             }
