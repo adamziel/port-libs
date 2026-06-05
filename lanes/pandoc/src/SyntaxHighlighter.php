@@ -32,6 +32,7 @@ final class SyntaxHighlighter
         'javascript' => 'javascript',
         'js' => 'javascript',
         'json' => 'json',
+        'latex' => 'tex',
         'lhs' => 'haskell',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
@@ -43,6 +44,7 @@ final class SyntaxHighlighter
         'sh' => 'bash',
         'shell' => 'bash',
         'sql' => 'sql',
+        'tex' => 'tex',
         'xhtml' => 'html',
         'xml' => 'html',
         'yaml' => 'yaml',
@@ -282,6 +284,7 @@ final class SyntaxHighlighter
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
             'sql' => $this->tokenizeSql($code),
+            'tex' => $this->tokenizeTex($code),
             'yaml' => $this->tokenizeYaml($code),
             default => [['type' => 'text', 'text' => $code, 'class' => '']],
         };
@@ -430,6 +433,23 @@ final class SyntaxHighlighter
             ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[oO][0-7]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
             ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeTex(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^%[^\\n]*/'],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_.:-]*\\$/'],
+            ['keyword', '/^\\\\(?:begin|def|documentclass|end|include|input|let|newcommand|providecommand|renewcommand|section|subsection|subsubsection|usepackage)\\*?\\b/'],
+            ['function', '/^\\\\[A-Za-z@]+\\*?/'],
+            ['datatype', '/^\\{(?:\\\\?[A-Za-z0-9_.:-]+|[^{}$\\n]{1,80})\\}/'],
+            ['number', '/^-?\\d+(?:\\.\\d+)?/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_-]*/'],
+            ['operator', '/^(?:\\\\[#$%&_{}]|[{}[\\](),=^_~&#+*\\/:;<>|-])/'],
         ]);
     }
 

@@ -31,6 +31,8 @@ return [
         $t->same('haskell', SyntaxHighlighter::normalizeLanguage('literate-haskell'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
+        $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
+        $t->same('tex', SyntaxHighlighter::normalizeLanguage('TeX'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('sourceCode'));
         $t->same(null, SyntaxHighlighter::normalizeLanguage('lineAnchors'));
@@ -188,6 +190,40 @@ return [
         $t->contains('<span class="cn">Just</span> <span class="dv">42</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
         $t->contains('<span class="kw">import</span> <span class="dt">Text.Pandoc</span>', $wordpressBlock);
+    },
+    'highlights tex and latex review snippets with pandoc alias handoff' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'classes' => ['sourceCode', 'language-latex'],
+            'attributes' => [],
+            'text' => implode("\n", [
+                '\\documentclass[11pt]{article}',
+                '\\usepackage{graphicx}',
+                '% WordPress import review note',
+                '\\newcommand{\\ReviewTitle}{$title$}',
+                '\\begin{document}',
+                '\\section{Import 42}',
+                '\\includegraphics[width=0.5\\textwidth]{media.png}',
+                '\\end{document}',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'haddock');
+
+        $t->same('latex', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('tex', $highlighted['language']);
+        $t->same('latex', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->contains('<pre class="sourceCode tex"><code class="sourceCode tex">', $highlighted['html']);
+        $t->contains('<span class="kw">\\documentclass</span><span class="op">[</span><span class="dv">11</span><span class="va">pt</span><span class="op">]</span><span class="dt">{article}</span>', $highlighted['html']);
+        $t->contains('<span class="co">% WordPress import review note</span>', $highlighted['html']);
+        $t->contains('<span class="kw">\\newcommand</span><span class="dt">{\\ReviewTitle}</span><span class="op">{</span><span class="va">$title$</span><span class="op">}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">\\begin</span><span class="dt">{document}</span>', $highlighted['html']);
+        $t->contains('<span class="fu">\\includegraphics</span><span class="op">[</span><span class="va">width</span><span class="op">=</span><span class="dv">0.5</span><span class="fu">\\textwidth</span><span class="op">]</span><span class="dt">{media.png}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">\\end</span><span class="dt">{document}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="kw">\\usepackage</span><span class="dt">{graphicx}</span>', $wordpressBlock);
     },
     'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

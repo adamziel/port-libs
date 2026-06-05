@@ -48,6 +48,12 @@ $haskellCodeBlock = new AstNode('code_block', [
 ]);
 $haskell = $highlighter->highlightCodeBlock($haskellCodeBlock, 'zenburn');
 $haskellWordpressBlock = $highlighter->wordpressHtmlBlock($haskellCodeBlock, 'zenburn');
+$latexCodeBlock = $document->children[2] ?? null;
+if (!$latexCodeBlock instanceof PortLibs\Pandoc\AstNode || $latexCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a LaTeX code block');
+}
+$latex = $highlighter->highlightCodeBlock($latexCodeBlock, 'haddock');
+$latexWordpressBlock = $highlighter->wordpressHtmlBlock($latexCodeBlock, 'haddock');
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -89,6 +95,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($haskellWordpressBlock, '<span class="cn">Just</span> <span class="dv">42</span>')) {
         throw new RuntimeException('Expected Haskell constructor and number token handoff');
     }
+    if (($latex['language'] ?? '') !== 'tex') {
+        throw new RuntimeException('Expected LaTeX alias to normalize to TeX');
+    }
+    if (!str_contains($latex['html'], '<span class="kw">\\documentclass</span>')) {
+        throw new RuntimeException('Expected TeX documentclass token handoff');
+    }
+    if (!str_contains($latex['html'], '<span class="va">$title$</span>')) {
+        throw new RuntimeException('Expected Pandoc template variable token handoff inside TeX');
+    }
+    if (!str_contains($latexWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected TeX WordPress style metadata');
+    }
+    if (!str_contains($latexWordpressBlock, '<span class="fu">\\includegraphics</span>')) {
+        throw new RuntimeException('Expected TeX includegraphics token handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -99,5 +120,6 @@ echo "language: " . $highlighted['language'] . "\n";
 echo "highlightedHtml:\n" . $highlighted['html'] . "\n";
 echo "numberedHighlightedHtml:\n" . $numbered['html'] . "\n";
 echo "haskellHighlightedHtml:\n" . $haskell['html'] . "\n";
+echo "latexHighlightedHtml:\n" . $latex['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
