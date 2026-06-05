@@ -1336,7 +1336,7 @@ final class TableRecognizer
                 $translatedCounts[$field] = count($translated);
             }
             $table[$field] = $translated;
-            $table[$field . '_coordinate_space'] = 'table_crop';
+            $table = $this->withTableGeometryCoordinateSpace($table, $field, 'table_crop');
         }
 
         if (isset($table['ocr_grid_border_conflicts']) && is_array($table['ocr_grid_border_conflicts'])) {
@@ -1356,7 +1356,7 @@ final class TableRecognizer
                 );
                 $translatedCounts['conflicts'] = count($table['ocr_grid_border_conflicts']);
             }
-            $table['conflicts_coordinate_space'] = 'table_crop';
+            $table = $this->withTableGeometryCoordinateSpace($table, 'conflicts', 'table_crop');
         }
 
         $table['coordinate_space'] = 'table_crop';
@@ -1417,14 +1417,7 @@ final class TableRecognizer
      */
     private function tableGeometryCoordinateSpace(array $table, string $field): string
     {
-        $keys = [
-            $field . '_coordinate_space',
-            rtrim($field, 's') . '_coordinate_space',
-            $field . '_geometry_space',
-            rtrim($field, 's') . '_geometry_space',
-        ];
-
-        foreach ($keys as $key) {
+        foreach ($this->tableGeometryCoordinateSpaceKeys($field) as $key) {
             if (isset($table[$key]) && is_scalar($table[$key])) {
                 return $this->normalizeCoordinateSpace((string) $table[$key]);
             }
@@ -1437,6 +1430,51 @@ final class TableRecognizer
         }
 
         return 'table_crop';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableGeometryCoordinateSpaceKeys(string $field): array
+    {
+        $keys = [
+            $field . '_coordinate_space',
+            rtrim($field, 's') . '_coordinate_space',
+            $field . '_geometry_space',
+            rtrim($field, 's') . '_geometry_space',
+        ];
+
+        if ($field === 'conflicts') {
+            return [
+                'ocr_grid_border_conflicts_coordinate_space',
+                'ocr_grid_border_conflict_coordinate_space',
+                'ocr_grid_border_conflicts_geometry_space',
+                'ocr_grid_border_conflict_geometry_space',
+                'grid_border_conflicts_coordinate_space',
+                'grid_border_conflict_coordinate_space',
+                'grid_border_conflicts_geometry_space',
+                'grid_border_conflict_geometry_space',
+                ...$keys,
+            ];
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @return array<string, mixed>
+     */
+    private function withTableGeometryCoordinateSpace(array $table, string $field, string $space): array
+    {
+        foreach ($this->tableGeometryCoordinateSpaceKeys($field) as $key) {
+            if (array_key_exists($key, $table)) {
+                $table[$key] = $space;
+            }
+        }
+        $table[$field . '_coordinate_space'] = $space;
+
+        return $table;
     }
 
     private function normalizeCoordinateSpace(string $space): string

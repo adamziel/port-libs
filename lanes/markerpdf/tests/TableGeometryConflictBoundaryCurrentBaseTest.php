@@ -101,6 +101,61 @@ return [
         $t->same('h-r0-c0', $conflict['assigned_grid_render_cell']['render_cell']['header_id'] ?? null);
         $t->same('Header', $conflict['assigned_grid_render_cell']['render_cell']['text'] ?? null);
     },
+    'translates field-specific page-image OCR grid-border conflict geometry into table crop' => static function (
+        TestRunner $t
+    ): void {
+        $recognizer = new TableRecognizer();
+        $formatted = $recognizer->formatRecognizedTables(
+            [[
+                'table_bbox' => [72.0, 150.0, 312.0, 230.0],
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 240.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 40.0, 240.0, 80.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 100.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [110.0, 0.0, 240.0, 80.0]],
+                ],
+                'cells' => [
+                    ['bbox' => [10.0, 5.0, 90.0, 24.0], 'text' => 'Feature', 'row_ids' => [0], 'col_ids' => [0]],
+                    ['bbox' => [120.0, 5.0, 230.0, 24.0], 'text' => 'Status', 'row_ids' => [0], 'col_ids' => [1]],
+                ],
+                'ocr_grid_border_conflicts_coordinate_space' => 'page_image',
+                'ocr_grid_border_conflicts' => [[
+                    'ocr_index' => 0,
+                    'text' => 'Page-space conflict',
+                    'bbox' => [72.0, 150.0, 312.0, 215.0],
+                    'candidate_cell_indexes' => [0, 1],
+                    'candidate_cell_bboxes' => [
+                        [82.0, 155.0, 162.0, 174.0],
+                        [192.0, 155.0, 302.0, 174.0],
+                    ],
+                    'assigned_cell_index' => 0,
+                    'spans_grid_border' => true,
+                ]],
+            ]],
+            [['width' => 240, 'height' => 80]]
+        );
+
+        $table = $formatted['recognized_tables'][0] ?? [];
+        $review = $formatted['coordinate_space_reviews'][0] ?? [];
+        $conflict = $table['ocr_grid_border_conflicts'][0] ?? [];
+
+        $t->same('translated_to_table_crop', $review['status'] ?? null);
+        $t->same('page_image', $review['source_coordinate_spaces']['conflicts'] ?? null);
+        $t->same(0, $review['translated_row_band_count'] ?? null);
+        $t->same(0, $review['translated_col_band_count'] ?? null);
+        $t->same(0, $review['translated_cell_count'] ?? null);
+        $t->same(1, $review['translated_conflict_count'] ?? null);
+        $t->same([0.0, 0.0, 240.0, 65.0], $conflict['bbox'] ?? null);
+        $t->same([72.0, 150.0, 312.0, 215.0], $conflict['source_bbox'] ?? null);
+        $t->same([[10.0, 5.0, 90.0, 24.0], [120.0, 5.0, 230.0, 24.0]], $conflict['candidate_cell_bboxes'] ?? null);
+        $t->same('page_image', $conflict['source_coordinate_space'] ?? null);
+        $t->same('table_crop', $conflict['coordinate_space'] ?? null);
+        $t->same('table_crop', $table['ocr_grid_border_conflicts_coordinate_space'] ?? null);
+        $t->same([10.0, 5.0, 90.0, 24.0], $table['cells'][0]['bbox'] ?? null);
+        $t->same('table_crop', $table['coordinate_space'] ?? null);
+    },
     'surfaces OCR grid-border crop boundary metadata through supplied WordPress conversion' => static function (
         TestRunner $t
     ) use ($conflictBoundaryPdftextPage, $conflictBoundaryRows, $conflictBoundaryCols): void {
