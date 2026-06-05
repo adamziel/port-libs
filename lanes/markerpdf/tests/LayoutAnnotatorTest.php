@@ -84,6 +84,73 @@ return [
         $t->same($layouts[0], $result['pages'][0]['layout']);
         $t->same($layouts[1], $result['pages'][1]['layout']);
     },
+    'keeps matched layout artifacts from leaking nested pdftext dictionary payloads' => static function (TestRunner $t): void {
+        $layoutPayload = [
+            'metadata' => [
+                'page' => 711,
+                'raw_private_payload' => 'hidden layout adapter payload should not cross page layout metadata',
+            ],
+            'pdftext' => [
+                'page' => 710,
+                'blocks' => [[
+                    'lines' => [[
+                        'spans' => [[
+                            'text' => 'Nested pdftext layout payload must stay hidden',
+                            'bbox' => [72.0, 160.0, 520.0, 174.0],
+                        ]],
+                    ]],
+                ]],
+            ],
+            'blocks' => [[
+                'lines' => [[
+                    'spans' => [[
+                        'text' => 'Raw layout-result text block should not be copied',
+                        'bbox' => [72.0, 180.0, 520.0, 194.0],
+                    ]],
+                ]],
+            ]],
+            'segmentation_map' => 'hidden layout segmentation payload',
+            'raw_pdf_bytes' => 'hidden layout raw PDF bytes',
+            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+            'bboxes' => [
+                ['label' => 'Text', 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                ['label' => 'Picture', 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+            ],
+        ];
+
+        $result = (new LayoutAnnotator())->runWithSuppliedLayouts(
+            [
+                [
+                    'metadata' => ['page' => 711],
+                    'pdftext' => ['page' => 710, 'blocks' => []],
+                    'image' => 'selected-layout-render',
+                    'raw_render_payload' => 'hidden rendered page payload',
+                ],
+            ],
+            [[
+                'pnum' => 711,
+                'blocks' => [],
+            ]],
+            [$layoutPayload]
+        );
+
+        $layout = $result['pages'][0]['layout'];
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(1, $result['plan']['assigned_pages']);
+        $t->same(711, $layout['page']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $layout['image_bbox']);
+        $t->same(['Text', 'Picture'], array_column($layout['bboxes'], 'label'));
+        $t->true(!array_key_exists('metadata', $layout));
+        $t->true(!array_key_exists('pdftext', $layout));
+        $t->true(!array_key_exists('blocks', $layout));
+        $t->true(!array_key_exists('segmentation_map', $layout));
+        $t->true(!str_contains($encoded, 'hidden layout adapter payload'));
+        $t->true(!str_contains($encoded, 'Nested pdftext layout payload'));
+        $t->true(!str_contains($encoded, 'Raw layout-result text block'));
+        $t->true(!str_contains($encoded, 'hidden layout raw PDF bytes'));
+        $t->true(!str_contains($encoded, 'hidden rendered page payload'));
+    },
     'leaves unpaired pages unchanged when supplied layouts are shorter than pages' => static function (TestRunner $t): void {
         $pages = [
             ['blocks' => []],

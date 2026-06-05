@@ -8,6 +8,35 @@ use InvalidArgumentException;
 
 final class LayoutAnnotator
 {
+    private const LAYOUT_RESULT_PAGE_MARKER_KEYS = [
+        'page_index',
+        'doc_page_index',
+        'document_page_index',
+        'source_page_index',
+        'selected_page_index',
+        'trimmed_page_index',
+        'relative_page_index',
+        'pnum',
+        'page',
+        'pdftext_page',
+        'page_number',
+        'selected_page_number',
+        'trimmed_page_number',
+        'relative_page_number',
+    ];
+    private const LAYOUT_RESULT_PAGE_MARKER_WRAPPERS = [
+        'metadata',
+        'page_metadata',
+        'page_meta',
+        'page_info',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
+        'source',
+        'pdftext',
+    ];
+
     private LayoutOrderer $layout;
     private MarkerSettings $settings;
 
@@ -55,7 +84,7 @@ final class LayoutAnnotator
             if (!is_array($layoutResults[$index])) {
                 throw new InvalidArgumentException('Supplied layout predictions must be arrays.');
             }
-            $pages[$index]['layout'] = $layoutResults[$index];
+            $pages[$index]['layout'] = $this->sanitizeSuppliedLayoutResult($layoutResults[$index]);
             $assignedPages++;
         }
 
@@ -73,6 +102,91 @@ final class LayoutAnnotator
                 'batch_size' => $this->batchSize($batchMultiplier),
             ],
         ];
+    }
+
+    /**
+     * Supplied adapters sometimes wrap selected page identity and pdftext page
+     * copies around the model payload. Marker layout metadata only needs the
+     * geometry and scalar page markers before annotation.
+     *
+     * @param array<string, mixed> $layoutResult
+     * @return array<string, mixed>
+     */
+    private function sanitizeSuppliedLayoutResult(array $layoutResult): array
+    {
+        $sanitized = [];
+        foreach (['image_bbox', 'bboxes'] as $key) {
+            if (array_key_exists($key, $layoutResult)) {
+                $sanitized[$key] = $layoutResult[$key];
+            }
+        }
+
+        foreach ($this->layoutResultPageMarkerSources($layoutResult) as $source) {
+            foreach (self::LAYOUT_RESULT_PAGE_MARKER_KEYS as $key) {
+                if (!array_key_exists($key, $source) || array_key_exists($key, $sanitized)) {
+                    continue;
+                }
+
+                $value = $this->integerValue($source[$key]);
+                if ($value !== null) {
+                    $sanitized[$key] = $value;
+                }
+            }
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * @param array<string, mixed> $layoutResult
+     * @return list<array<string, mixed>>
+     */
+    private function layoutResultPageMarkerSources(array $layoutResult): array
+    {
+        $sources = [];
+        $this->collectLayoutResultPageMarkerSources($layoutResult, $sources);
+
+        return $sources;
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     * @param list<array<string, mixed>> $sources
+     */
+    private function collectLayoutResultPageMarkerSources(array $artifact, array &$sources, int $depth = 0): void
+    {
+        $sources[] = $artifact;
+        if ($depth >= 2) {
+            return;
+        }
+
+        foreach (self::LAYOUT_RESULT_PAGE_MARKER_WRAPPERS as $key) {
+            $value = $artifact[$key] ?? null;
+            if (!is_array($value) || array_is_list($value)) {
+                continue;
+            }
+            $this->collectLayoutResultPageMarkerSources($value, $sources, $depth + 1);
+        }
+    }
+
+    private function integerValue(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value) && floor($value) === $value) {
+            return (int) $value;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if (preg_match('/^-?\d+$/', $trimmed) === 1) {
+                return (int) $trimmed;
+            }
+        }
+
+        return null;
     }
 
     /**
