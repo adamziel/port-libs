@@ -17,6 +17,7 @@ final class ZipPackage
     private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
     private const CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x2000;
     private const SUPPORTED_GENERAL_PURPOSE_FLAGS = 0x0002 | 0x0004 | 0x0008 | self::UTF8_GENERAL_PURPOSE_FLAG;
+    private const MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT = 20;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
@@ -138,6 +139,7 @@ final class ZipPackage
             );
             $name = $decodedName['text'];
             self::assertSafePartName($name);
+            self::assertSupportedVersionNeededToExtract($versionNeededToExtract, $name);
             if (isset($entriesByName[$name])) {
                 throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
             }
@@ -919,6 +921,19 @@ final class ZipPackage
                 sprintf('Unsupported ZIP general-purpose flag bits 0x%04x for %s', $unsupportedFlags, $label)
             );
         }
+    }
+
+    private static function assertSupportedVersionNeededToExtract(int $versionNeededToExtract, string $entryName): void
+    {
+        if ($versionNeededToExtract <= self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            "ZIP entry {$entryName} requires version needed to extract {$versionNeededToExtract}; "
+            . 'this bounded package reader supports versions up to '
+            . self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT
+        );
     }
 
     private function validateEntryLocalLayout(ZipPackageEntry $entry): void

@@ -557,6 +557,35 @@ return [
         ])));
     },
 
+    'rejects unsupported zip extraction versions before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/zip64-era-review.bin',
+                'data' => 'unsupported extraction version metadata should stay blocked',
+                'method' => 0,
+                'versionNeededToExtract' => 45,
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/bzip2-review.bin',
+                'data' => 'unsupported bzip2-era package metadata should stay blocked',
+                'method' => 12,
+                'versionNeededToExtract' => 46,
+            ],
+        ])));
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/lzma-review.bin',
+                'data' => 'unsupported lzma-era package metadata should stay blocked',
+                'method' => 14,
+                'versionNeededToExtract' => 63,
+            ],
+        ])));
+    },
+
     'preserves zip entry modification metadata and external attributes' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [

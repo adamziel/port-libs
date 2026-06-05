@@ -842,6 +842,53 @@ $buildVersionNeededMismatchBackedPackage = static function () use ($crc32): stri
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnsupportedVersionNeededBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/bzip2-review.bin';
+    $data = "Unsupported extraction version should stay blocked\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        46,
+        0x0800,
+        12,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x031e,
+        46,
+        0x0800,
+        12,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): string {
     $centralName = 'word/document.xml';
     $localName = 'word/other.xml';
@@ -1296,6 +1343,12 @@ try {
     ZipPackage::fromString($buildVersionNeededMismatchBackedPackage());
 } catch (RuntimeException $exception) {
     $versionNeededMismatchRejected = str_contains($exception->getMessage(), 'version needed to extract');
+}
+$unsupportedVersionNeededRejected = false;
+try {
+    ZipPackage::fromString($buildUnsupportedVersionNeededBackedPackage());
+} catch (RuntimeException $exception) {
+    $unsupportedVersionNeededRejected = str_contains($exception->getMessage(), 'version needed to extract');
 }
 $localHeaderNameMismatchRejected = false;
 try {
@@ -1864,6 +1917,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP local version-needed mismatches to be rejected before media import');
     }
 
+    if (!$unsupportedVersionNeededRejected) {
+        throw new RuntimeException('Expected unsupported ZIP version-needed metadata to be rejected before media import');
+    }
+
     if (!$localHeaderNameMismatchRejected) {
         throw new RuntimeException('Expected ZIP local header name mismatches to be rejected before media import');
     }
@@ -1985,6 +2042,7 @@ echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExecutablePermissionPolicy=' . ($executablePermissionRejected ? 'rejected' : 'not-rejected') . "\n";
