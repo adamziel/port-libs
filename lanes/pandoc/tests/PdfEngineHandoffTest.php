@@ -1769,6 +1769,99 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },
 
+    'fake runner extracts bounded pdf page metadata streams from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-metadata.pdf']);
+        $pageXmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xmp="http://ns.adobe.com/xap/1.0/">',
+            '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Page 1 Review Packet</rdf:li></rdf:Alt></dc:title>',
+            '<dc:creator><rdf:Seq><rdf:li>Migration Desk</rdf:li></rdf:Seq></dc:creator>',
+            '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">Page metadata handoff</rdf:li></rdf:Alt></dc:description>',
+            '<xmp:CreatorTool>Pandoc page renderer</xmp:CreatorTool>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $filteredPageXmp = "<?xpacket begin=\"\"?>\n<rdf:RDF><rdf:Description /></rdf:RDF>\n<?xpacket end=\"w\"?>";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Metadata 10 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Metadata 11 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($pageXmp) . ' >>',
+            'stream',
+            $pageXmp,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($filteredPageXmp) . ' >>',
+            'stream',
+            $filteredPageXmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-metadata.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-metadata.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'metadataObject' => '10 0 R',
+                'packetBytes' => strlen($pageXmp),
+                'packetSha256' => hash('sha256', $pageXmp),
+                'title' => 'Page 1 Review Packet',
+                'description' => 'Page metadata handoff',
+                'creatorTool' => 'Pandoc page renderer',
+                'creators' => ['Migration Desk'],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'metadataObject' => '11 0 R',
+                'packetBytes' => strlen($filteredPageXmp),
+                'skipped' => 'filtered',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageMetadata']);
+        $t->contains('pdf-byte-page-metadata:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-metadata-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-metadata-titles:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPageMetadata']);
+    },
+
     'fake runner extracts bounded pdf output intent and profile metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/output-intent.pdf']);

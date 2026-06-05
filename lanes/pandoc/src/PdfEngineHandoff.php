@@ -276,6 +276,7 @@ final class PdfEngineHandoff
      *     pdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
+     *     pdfPageMetadata: list<array<string, mixed>>,
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
@@ -679,6 +680,7 @@ final class PdfEngineHandoff
         $pdfOutlines = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
+        $pdfPageMetadata = [];
         $pdfOutputIntents = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
@@ -740,6 +742,7 @@ final class PdfEngineHandoff
                 $pdfOutlines = $pdfInspection['outlines'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
+                $pdfPageMetadata = $pdfInspection['pageMetadata'];
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
@@ -1002,6 +1005,25 @@ final class PdfEngineHandoff
                                 $diagnostics[] = 'pdf-byte-pdfa:' . $part . ':' . $conformance;
                             }
                         }
+                    }
+                }
+                if ($pdfPageMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-page-metadata:' . count($pdfPageMetadata);
+                    $pageMetadataSkips = [];
+                    $pageMetadataTitleCount = 0;
+                    foreach ($pdfPageMetadata as $metadata) {
+                        if (is_string($metadata['skipped'] ?? null) && $metadata['skipped'] !== '') {
+                            $pageMetadataSkips[$metadata['skipped']] = true;
+                        }
+                        if (is_string($metadata['title'] ?? null) && $metadata['title'] !== '') {
+                            $pageMetadataTitleCount++;
+                        }
+                    }
+                    foreach (array_keys($pageMetadataSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-page-metadata-skipped:' . $skipReason;
+                    }
+                    if ($pageMetadataTitleCount > 0) {
+                        $diagnostics[] = 'pdf-byte-page-metadata-titles:' . $pageMetadataTitleCount;
                     }
                 }
                 if ($pdfOutputIntents !== []) {
@@ -1420,6 +1442,7 @@ final class PdfEngineHandoff
             'pdfOutlines' => $pdfOutlines,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
+            'pdfPageMetadata' => $pdfPageMetadata,
             'pdfOutputIntents' => $pdfOutputIntents,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
@@ -1502,6 +1525,7 @@ final class PdfEngineHandoff
      *     finalPdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfXmpMetadata: array<string, mixed>,
+     *     finalPdfPageMetadata: list<array<string, mixed>>,
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
@@ -1698,6 +1722,7 @@ final class PdfEngineHandoff
             'finalPdfOutlines' => is_array($finalRun) && is_array($finalRun['pdfOutlines'] ?? null) ? $finalRun['pdfOutlines'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
+            'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
@@ -2787,6 +2812,7 @@ final class PdfEngineHandoff
      *     outlines:list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
+     *     pageMetadata:list<array<string, mixed>>,
      *     language:string|null,
      *     pageLayout:string|null,
      *     pageMode:string|null,
@@ -2872,6 +2898,7 @@ final class PdfEngineHandoff
             'outlines' => $this->extractPdfOutlines($pdfBytes, $catalog),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
+            'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
             'outputIntents' => $this->extractPdfOutputIntents($pdfBytes, $catalog),
             'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
@@ -3297,6 +3324,15 @@ final class PdfEngineHandoff
             return [];
         }
 
+        return $this->summarizePdfXmpMetadataStream($stream);
+    }
+
+    /**
+     * @param array{bytes:string, filtered:bool} $stream
+     * @return array<string, mixed>
+     */
+    private function summarizePdfXmpMetadataStream(array $stream): array
+    {
         if ($stream['filtered']) {
             return [
                 'packetBytes' => strlen($stream['bytes']),
@@ -3358,6 +3394,122 @@ final class PdfEngineHandoff
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function extractPdfPageMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $pages = [];
+        $visited = [];
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageMetadataFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $pages,
+                0
+            );
+        }
+
+        if ($pages === []) {
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $summary = $this->summarizePdfPageMetadata($body, $reference, $objects);
+                if ($summary !== null) {
+                    $pages[] = $summary;
+                }
+            }
+        }
+
+        foreach ($pages as $index => &$page) {
+            $page['page'] = $index + 1;
+        }
+        unset($page);
+
+        return $pages;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array<string, mixed>> $pages
+     */
+    private function collectPdfPageMetadataFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$pages,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $summary = $this->summarizePdfPageMetadata($body, $reference, $objects);
+            if ($summary !== null) {
+                $pages[] = $summary;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageMetadataFromTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $pages,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array<string, mixed>|null
+     */
+    private function summarizePdfPageMetadata(string $pageDictionary, string $pageReference, array $objects): ?array
+    {
+        $metadataReference = $this->extractPdfReferenceToken($pageDictionary, 'Metadata');
+        if ($metadataReference === null) {
+            return null;
+        }
+
+        $metadataObject = $objects[$this->pdfReferenceKey($metadataReference)] ?? null;
+        if ($metadataObject === null) {
+            return null;
+        }
+
+        $streamBytes = $this->extractPdfStreamBytes($metadataObject);
+        if ($streamBytes === null) {
+            return null;
+        }
+
+        $metadata = $this->summarizePdfXmpMetadataStream([
+            'bytes' => $streamBytes,
+            'filtered' => preg_match('/\/Filter\b/s', $metadataObject) === 1,
+        ]);
+        if ($metadata === []) {
+            return null;
+        }
+
+        return array_merge([
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'metadataObject' => $metadataReference,
+        ], $metadata);
     }
 
     /**
