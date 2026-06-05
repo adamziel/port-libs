@@ -256,7 +256,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-pdf-object-stream-xref-import.php` maps a native PDF 1.5 object lookup edge into a WordPress import path. It expands compressed `/ObjStm` member dictionaries through an xref stream, ignores a stale unlisted compressed page, preserves an Identity-H font resource from a decoded page object, and emits only the live Gutenberg paragraphs without loading pdftext, pypdfium, Python models, or external PDF tools.
 
-`examples/wordpress-pdf-cmap-source-width-fallback-import.php` maps a native ToUnicode CMap extraction edge into a WordPress import path. It chooses exact mapped source-key widths when a minimal CMap omits `begincodespacerange`, including CIDFonts whose only width source is `/DW`, so zero-padded source operands emit `ABCD EFGH` without loading pdftext, pypdfium, Python models, or external PDF tools.
+`examples/wordpress-pdf-cmap-source-width-fallback-import.php` maps a native ToUnicode CMap extraction edge into a WordPress import path. It chooses exact mapped source-key widths when a minimal CMap omits `begincodespacerange`, including CIDFonts whose only width source is `/DW`, and preserves source-width-aware `TJ` numeric word gaps in text runs, so zero-padded source operands emit `ABCD EFGH` without loading pdftext, pypdfium, Python models, or external PDF tools.
 
 `examples/wordpress-pdf-malformed-cmap-filter-import.php` maps a native malformed CMap extraction boundary into a WordPress import path. It ignores an unusable `/ToUnicode` CMap stream after its `/FlateDecode` filter fails, falls back to `/Encoding /Identity-H`, and emits a clean Gutenberg paragraph without raw NUL bytes, pdftext, pypdfium, Python models, or external PDF tools.
 

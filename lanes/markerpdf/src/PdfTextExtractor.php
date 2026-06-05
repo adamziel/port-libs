@@ -15629,12 +15629,17 @@ final class PdfTextExtractor
         $runs = [];
         $operands = [];
         $currentFontResource = null;
+        $currentFontSize = null;
         $textRenderingMode = 0;
         $textStateStack = [];
         $markedContentStack = [];
         $currentTextLeading = null;
         $currentTextX = null;
         $currentTextY = null;
+        $characterSpacing = 0.0;
+        $wordSpacing = 0.0;
+        $horizontalScale = 100.0;
+        $currentTextMatrixHorizontalScale = 1.0;
         $currentTransformationMatrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $clipRectangle = null;
         $currentPathRectangle = null;
@@ -15669,7 +15674,14 @@ final class PdfTextExtractor
                             $markedContentStack[$replacementIndex]['emitted'] = true;
                         }
                     } else {
-                        $runs[] = $this->decodeTextOperand($operand, $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource));
+                        $runs[] = $this->decodePositionedTextOperand(
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        );
                     }
                 }
                 $operands = [];
@@ -15679,7 +15691,12 @@ final class PdfTextExtractor
             if ($token === 'q') {
                 $textStateStack[] = [
                     'fontResource' => $currentFontResource,
+                    'fontSize' => $currentFontSize,
                     'textLeading' => $currentTextLeading,
+                    'characterSpacing' => $characterSpacing,
+                    'wordSpacing' => $wordSpacing,
+                    'horizontalScale' => $horizontalScale,
+                    'textMatrixHorizontalScale' => $currentTextMatrixHorizontalScale,
                     'textRenderingMode' => $textRenderingMode,
                 ];
                 $clipStateStack[] = [
@@ -15695,7 +15712,12 @@ final class PdfTextExtractor
                 $state = array_pop($textStateStack);
                 if (is_array($state)) {
                     $currentFontResource = $state['fontResource'];
+                    $currentFontSize = $state['fontSize'];
                     $currentTextLeading = $state['textLeading'];
+                    $characterSpacing = $state['characterSpacing'];
+                    $wordSpacing = $state['wordSpacing'];
+                    $horizontalScale = $state['horizontalScale'];
+                    $currentTextMatrixHorizontalScale = $state['textMatrixHorizontalScale'];
                     $textRenderingMode = $state['textRenderingMode'];
                 }
                 $clipState = array_pop($clipStateStack);
@@ -15710,6 +15732,7 @@ final class PdfTextExtractor
 
             if ($token === 'Tf') {
                 $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
+                $currentFontSize = $this->fontSizeOperand($operands) ?? $currentFontSize;
                 $operands = [];
                 continue;
             }
@@ -15760,6 +15783,7 @@ final class PdfTextExtractor
             if ($token === 'Tm') {
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $this->textMatrixY($operands);
+                $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
             }
@@ -15773,6 +15797,7 @@ final class PdfTextExtractor
             if ($token === 'BT') {
                 $currentTextX = 0.0;
                 $currentTextY = 0.0;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $operands = [];
                 continue;
             }
@@ -15780,6 +15805,7 @@ final class PdfTextExtractor
             if ($token === 'ET') {
                 $currentTextX = null;
                 $currentTextY = null;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $operands = [];
                 continue;
             }

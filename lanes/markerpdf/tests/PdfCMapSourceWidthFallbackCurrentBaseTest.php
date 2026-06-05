@@ -259,4 +259,13 @@ return [
         $t->true(!str_contains($plainText, 'ABCDEFGH'));
         $t->true(!str_contains($plainText, "\0"));
     },
+    'preserves TJ source-width adjustment gaps in extracted text runs on current base' => static function (TestRunner $t) use ($cMapSourceTjAdjustmentGapCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapSourceTjAdjustmentGapCurrentBasePdf();
+
+        $t->same(['ABCD EFGH'], $extractor->extractTextRuns($pdf));
+        $t->same(['ABCD EFGH'], $extractor->extractTextLines($pdf));
+        $t->same('ABCD EFGH', $extractor->extractPlainText($pdf));
+        $t->true(!in_array('ABCDEFGH', $extractor->extractTextRuns($pdf), true));
+    },
 ];

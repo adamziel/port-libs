@@ -61,6 +61,7 @@ $metricMissLines = $extractor->extractTextLines($metricMissPdf);
 $metricMissPages = $extractor->extractStyledTextPages($metricMissPdf);
 $metricMissSpans = $metricMissPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 $tjGapLines = $extractor->extractTextLines($tjGapPdf);
+$tjGapRuns = $extractor->extractTextRuns($tjGapPdf);
 $tjGapPages = $extractor->extractStyledTextPages($tjGapPdf);
 $tjGapSpans = $tjGapPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 
@@ -75,7 +76,9 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'identity_metric_miss_false_gap_excluded' => !in_array('ABCD EFGH', $metricMissLines, true),
     'identity_metric_miss_span_widths' => array_column($metricMissSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
     'tj_adjustment_source_width_gap_applied' => $tjGapLines === ['ABCD EFGH'],
+    'tj_adjustment_source_width_runs_gap_applied' => $tjGapRuns === ['ABCD EFGH'],
     'tj_adjustment_false_join_excluded' => !in_array('ABCDEFGH', $tjGapLines, true),
+    'tj_adjustment_runs_false_join_excluded' => !in_array('ABCDEFGH', $tjGapRuns, true),
     'tj_adjustment_span_bbox_preserved' => ($tjGapSpans[0]['bbox'] ?? null) === [0.0, 0.0, 72.0, 12.0],
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
