@@ -186,6 +186,31 @@ try {
         -1,
         $textLength
     );
+    $postConversionConverted = $batch->processFile(
+        $input . DIRECTORY_SEPARATOR . 'ready-for-marker.pdf',
+        $output,
+        ['title' => 'Ready for Marker'],
+        null,
+        static fn (): array => [
+            'text' => '<!-- wp:paragraph --><p>Ready for Marker runtime import.</p><!-- /wp:paragraph -->',
+            'images' => [],
+            'metadata' => ['title' => 'Ready for Marker'],
+        ]
+    );
+    $postConversionEmpty = $batch->processFile(
+        $input . DIRECTORY_SEPARATOR . 'short-text.pdf',
+        $output,
+        null,
+        null,
+        static fn (): array => [" \n\t", [], []]
+    );
+    $postConversionError = $batch->processFile(
+        $input . DIRECTORY_SEPARATOR . 'extension-spoof.pdf',
+        $output,
+        ['languages' => ['English']],
+        null,
+        static fn (): string => throw new RuntimeException('runtime model boundary unavailable')
+    );
     $capturePreflightError = static function (callable $callback): string {
         try {
             $callback();
@@ -350,6 +375,30 @@ try {
     if ($negativeMinLengthSpoof['min_length_gate_active'] !== true || $negativeMinLengthSpoof['status'] !== 'skipped-unsupported-filetype') {
         throw new RuntimeException('Expected negative --min_length to keep the upstream filetype preflight gate active.');
     }
+    if (
+        $postConversionConverted['status'] !== 'converted'
+        || $postConversionConverted['conversion_result']['save_markdown_writes_markdown'] !== true
+        || $postConversionConverted['conversion_result']['upstream_return_boundary'] !== 'saved-markdown-return-none'
+    ) {
+        throw new RuntimeException('Expected non-empty process_single_pdf output to save Markdown and return Python None.');
+    }
+    if (
+        $postConversionEmpty['status'] !== 'skipped-empty-output'
+        || $postConversionEmpty['conversion_result']['stdout_message_line'] !== 'Empty file: ' . $input . DIRECTORY_SEPARATOR . 'short-text.pdf.  Could not convert.'
+        || $postConversionEmpty['conversion_result']['save_markdown_reached'] !== false
+        || $postConversionEmpty['conversion_result']['upstream_return_boundary'] !== 'empty-output-print-return-none'
+    ) {
+        throw new RuntimeException('Expected empty process_single_pdf output to print the upstream empty-file message and return None without writing Markdown.');
+    }
+    if (
+        $postConversionError['status'] !== 'error'
+        || $postConversionError['conversion_result']['error_boundary'] !== 'conversion-exception-print-return-none'
+        || $postConversionError['conversion_result']['save_markdown_reached'] !== false
+        || $postConversionError['conversion_result']['upstream_return_boundary'] !== 'conversion-exception-print-return-none'
+        || $postConversionError['conversion_result']['traceback_available'] !== true
+    ) {
+        throw new RuntimeException('Expected converter exceptions to print error review output and return None without writing Markdown.');
+    }
     if (!str_contains($missingInputError, 'Batch input folder does not exist') || str_contains($missingInputError, 'metadata file')) {
         throw new RuntimeException('Expected missing input folder to be reported before metadata_file loading.');
     }
@@ -468,6 +517,17 @@ try {
         'zero_min_length_spoof_status' => $zeroMinLengthSpoof['status'],
         'negative_min_length_gate_active' => $negativeMinLengthSpoof['min_length_gate_active'],
         'negative_min_length_spoof_status' => $negativeMinLengthSpoof['status'],
+        'post_conversion_saved_status' => $postConversionConverted['status'],
+        'post_conversion_saved_boundary' => $postConversionConverted['conversion_result']['upstream_return_boundary'],
+        'post_conversion_saved_writes_markdown' => $postConversionConverted['conversion_result']['save_markdown_writes_markdown'],
+        'post_conversion_empty_status' => $postConversionEmpty['status'],
+        'post_conversion_empty_stdout' => $postConversionEmpty['conversion_result']['stdout_message_line'],
+        'post_conversion_empty_boundary' => $postConversionEmpty['conversion_result']['upstream_return_boundary'],
+        'post_conversion_empty_writes_markdown' => $postConversionEmpty['conversion_result']['save_markdown_writes_markdown'],
+        'post_conversion_error_status' => $postConversionError['status'],
+        'post_conversion_error_boundary' => $postConversionError['conversion_result']['upstream_return_boundary'],
+        'post_conversion_error_class' => $postConversionError['conversion_result']['error_class'],
+        'post_conversion_error_traceback_available' => $postConversionError['conversion_result']['traceback_available'],
         'missing_input_error_precedes_metadata_file' => str_contains($missingInputError, 'Batch input folder does not exist')
             && !str_contains($missingInputError, 'metadata file'),
         'invalid_chunk_error_precedes_metadata_file' => str_contains($invalidChunkError, 'Batch chunk count must be at least one')

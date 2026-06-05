@@ -1003,6 +1003,92 @@ return [
             $removeTree($output);
         }
     },
+    'records process_single_pdf post-conversion empty and error return boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['converted.pdf', 'empty.pdf', 'broken.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+
+            $batch = new BatchConverter();
+            $converted = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'converted.pdf',
+                $output,
+                ['title' => 'Converted Import'],
+                null,
+                static fn (): array => [
+                    'text' => '<!-- wp:paragraph --><p>Converted runtime import.</p><!-- /wp:paragraph -->',
+                    'images' => [],
+                    'metadata' => ['title' => 'Converted Import'],
+                ]
+            );
+            $empty = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'empty.pdf',
+                $output,
+                null,
+                null,
+                static fn (): array => [" \n\t", [], []]
+            );
+            $broken = $batch->processFile(
+                $input . DIRECTORY_SEPARATOR . 'broken.pdf',
+                $output,
+                ['languages' => ['English']],
+                null,
+                static fn (): string => throw new RuntimeException('forced OCR model boundary unavailable')
+            );
+
+            $convertedBoundary = $converted['conversion_result'];
+            $t->same('convert.py process_single_pdf post-conversion boundary', $convertedBoundary['source']);
+            $t->same('after_convert_single_pdf_before_save_markdown', $convertedBoundary['order']);
+            $t->same(true, $convertedBoundary['conversion_reached']);
+            $t->same(true, $convertedBoundary['conversion_success']);
+            $t->same(false, $convertedBoundary['empty_output']);
+            $t->same(true, $convertedBoundary['save_markdown_reached']);
+            $t->same(true, $convertedBoundary['save_markdown_writes_markdown']);
+            $t->same(null, $convertedBoundary['stdout_message_line']);
+            $t->same(null, $convertedBoundary['error_boundary']);
+            $t->same(null, $convertedBoundary['upstream_return_value']);
+            $t->same('python-none', $convertedBoundary['upstream_return_type']);
+            $t->same('saved-markdown-return-none', $convertedBoundary['upstream_return_boundary']);
+            $t->same(false, $convertedBoundary['executes_python_or_models']);
+            $t->same('saved-markdown-return-none', $converted['upstream_return_boundary']);
+            $t->same(true, is_file($converted['markdown']));
+
+            $emptyBoundary = $empty['conversion_result'];
+            $t->same('skipped-empty-output', $empty['status']);
+            $t->same(true, $emptyBoundary['conversion_reached']);
+            $t->same(true, $emptyBoundary['conversion_success']);
+            $t->same(true, $emptyBoundary['empty_output']);
+            $t->same(false, $emptyBoundary['save_markdown_reached']);
+            $t->same(false, $emptyBoundary['save_markdown_writes_markdown']);
+            $t->same('Empty file: ' . $input . DIRECTORY_SEPARATOR . 'empty.pdf.  Could not convert.', $emptyBoundary['stdout_message_line']);
+            $t->same('empty-output-print-return-none', $emptyBoundary['upstream_return_boundary']);
+            $t->same('empty-output-print-return-none', $empty['upstream_return_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'empty' . DIRECTORY_SEPARATOR . 'empty.md'));
+
+            $errorBoundary = $broken['conversion_result'];
+            $t->same('error', $broken['status']);
+            $t->same(true, $errorBoundary['conversion_reached']);
+            $t->same(false, $errorBoundary['conversion_success']);
+            $t->same(false, $errorBoundary['save_markdown_reached']);
+            $t->same(false, $errorBoundary['save_markdown_writes_markdown']);
+            $t->same('conversion-exception-print-return-none', $errorBoundary['error_boundary']);
+            $t->same(RuntimeException::class, $errorBoundary['error_class']);
+            $t->same('forced OCR model boundary unavailable', $errorBoundary['error_message']);
+            $t->contains('Error converting ' . $input . DIRECTORY_SEPARATOR . 'broken.pdf: forced OCR model boundary unavailable', $errorBoundary['stdout_message_line']);
+            $t->same(true, $errorBoundary['traceback_available']);
+            $t->contains('RuntimeException: forced OCR model boundary unavailable', $errorBoundary['traceback']);
+            $t->same('conversion-exception-print-return-none', $errorBoundary['upstream_return_boundary']);
+            $t->same('conversion-exception-print-return-none', $broken['upstream_return_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'broken' . DIRECTORY_SEPARATOR . 'broken.md'));
+            $t->same(false, $broken['executes_python_or_models']);
+            $t->same(false, $broken['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py conversion summary stdout before task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
