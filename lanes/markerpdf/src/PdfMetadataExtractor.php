@@ -3463,6 +3463,10 @@ final class PdfMetadataExtractor
      */
     private function documentOutlineItemAllowsTraversalByType(string $dictionary, array $objects): bool
     {
+        if ($this->dictionaryTopLevelRawValue($dictionary, 'S') !== null) {
+            return false;
+        }
+
         $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
 
         return $type === null || !isset(self::NON_OUTLINE_ITEM_TYPES[$type]);

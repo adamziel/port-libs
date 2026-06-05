@@ -1978,6 +1978,10 @@ final class PdfTextExtractor
     private function lightweightOutlineItemAllowsTraversalByType(string $body, array $objects): bool
     {
         $dictionary = $this->dictionaryObjectBody($body) ?? $body;
+        if ($this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'S') !== null) {
+            return false;
+        }
+
         $type = $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'Type', $objects);
 
         return $type === null || !isset(self::NON_OUTLINE_ITEM_TYPES[$type]);

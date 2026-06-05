@@ -1559,6 +1559,10 @@ final class PdfOutlineExtractor
      */
     private function outlineItemDictionaryAllowsTraversal(array $outline, array $objects): bool
     {
+        if (array_key_exists('S', $outline)) {
+            return false;
+        }
+
         if (!array_key_exists('Type', $outline)) {
             return true;
         }
