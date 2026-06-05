@@ -97,9 +97,11 @@ final class SyntaxHighlighter
         'go' => 'go',
         'golang' => 'go',
         'markdown' => 'markdown',
+        'mariadb' => 'sql',
         'md' => 'markdown',
         'mmd' => 'markdown',
         'multimarkdown' => 'markdown',
+        'mysql' => 'sql',
         'nix' => 'nix',
         'nix-expr' => 'nix',
         'nix-shell' => 'nix',
@@ -147,6 +149,8 @@ final class SyntaxHighlighter
         'sh' => 'bash',
         'shell' => 'bash',
         'sql' => 'sql',
+        'sqlite' => 'sql',
+        'sqlite3' => 'sql',
         'svg' => 'xml',
         'tex' => 'tex',
         'toml' => 'toml',
@@ -1211,12 +1215,20 @@ final class SyntaxHighlighter
     {
         return $this->scan($code, [
             ['comment', '/^--[^\\n]*/'],
+            ['comment', '/^#[^\\n]*/'],
             ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
             ['string', "/^'(?:''|[^'])*'/s"],
-            ['keyword', '/^\\b(?:alter|and|as|by|case|create|delete|desc|distinct|drop|else|end|from|group|having|in|insert|into|is|join|left|limit|not|null|on|or|order|outer|select|set|table|then|update|values|when|where)\\b/i'],
+            ['attribute', '/^"(?:[^"\\\\]|\\\\.)*"/s'],
+            ['attribute', '/^`(?:``|[^`])*`/'],
+            ['attribute', '/^\\[(?:]]|[^\\]])*\\]/'],
+            ['constant', '/^\\b(?:current_date|current_time|current_timestamp|false|null|true)\\b/i'],
+            ['datatype', '/^\\b(?:bigint|binary|blob|bool|boolean|char|date|datetime|decimal|double|float|int|integer|json|longblob|longtext|mediumblob|mediumint|mediumtext|numeric|real|smallint|text|time|timestamp|tinyblob|tinyint|tinytext|uuid|varchar)\\b/i'],
+            ['keyword', '/^\\b(?:add|alter|and|as|asc|auto_increment|begin|between|by|cascade|case|check|collate|column|commit|conflict|constraint|create|default|delete|desc|distinct|drop|duplicate|else|end|escape|exists|foreign|from|group|having|if|in|index|inner|insert|into|is|join|key|left|like|limit|not|offset|on|or|order|outer|primary|references|replace|returning|right|rollback|select|set|start|table|then|transaction|unique|unsigned|update|values|vacuum|when|where|with|without)\\b/i'],
             ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['variable', '/^(?::[A-Za-z_][A-Za-z0-9_]*|@[A-Za-z_][A-Za-z0-9_]*|\\$\\d+)\\b/'],
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
-            ['operator', '/^(?:<>|!=|<=|>=|==|[(),.*=<>+-])/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:<>|!=|<=|>=|==|\\|\\||::|:=|[(),;.*=<>+\\/%?-])/'],
         ]);
     }
 

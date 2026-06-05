@@ -450,3 +450,21 @@ public static class WordPressBlockNormalizer
     }
 }
 ```
+
+``` {.mysql #sql-migration-review .numberLines startFrom=230}
+-- WordPress SQL migration review
+START TRANSACTION;
+CREATE TABLE `wp_posts` (
+  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `post_title` varchar(255) NOT NULL DEFAULT '',
+  `post_status` varchar(20) NOT NULL DEFAULT 'draft',
+  PRIMARY KEY (`ID`)
+);
+INSERT INTO `wp_posts` (`ID`, `post_title`, `post_status`)
+VALUES (42, 'Imported', 'publish')
+ON DUPLICATE KEY UPDATE `post_title` = VALUES(`post_title`);
+SELECT JSON_EXTRACT(`meta_value`, '$.title') AS `title`
+FROM `wp_postmeta`
+WHERE `post_id` = :post_id AND `meta_key` LIKE 'review\_%' ESCAPE '\\';
+COMMIT;
+```

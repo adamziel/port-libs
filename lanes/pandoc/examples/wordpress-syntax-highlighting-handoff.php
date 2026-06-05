@@ -220,6 +220,12 @@ if (!$csharpCodeBlock instanceof PortLibs\Pandoc\AstNode || $csharpCodeBlock->ty
 }
 $csharp = $highlighter->highlightCodeBlock($csharpCodeBlock, 'haddock');
 $csharpWordpressBlock = $highlighter->wordpressHtmlBlock($csharpCodeBlock, 'haddock');
+$sqlCodeBlock = $document->children[30] ?? null;
+if (!$sqlCodeBlock instanceof PortLibs\Pandoc\AstNode || $sqlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a SQL migration code block');
+}
+$sql = $highlighter->highlightCodeBlock($sqlCodeBlock, 'tango');
+$sqlWordpressBlock = $highlighter->wordpressHtmlBlock($sqlCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -896,6 +902,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($csharpWordpressBlock, '<span class="st">$&quot;&lt;!-- wp:paragraph --&gt;&lt;p&gt;Import {packet?.SourceId}&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;&quot;</span>')) {
         throw new RuntimeException('Expected C# interpolated WordPress block string handoff');
     }
+    if (($sql['language'] ?? '') !== 'sql') {
+        throw new RuntimeException('Expected MySQL alias to normalize to SQL highlighting');
+    }
+    if (($sql['lineNumbering']['start'] ?? null) !== 230) {
+        throw new RuntimeException('Expected SQL source startFrom line-number handoff');
+    }
+    if (!str_contains($sql['html'], '<span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="ot">`wp_posts`</span>')) {
+        throw new RuntimeException('Expected SQL create table token handoff');
+    }
+    if (!str_contains($sql['html'], '<span class="kw">ON</span> <span class="kw">DUPLICATE</span> <span class="kw">KEY</span> <span class="kw">UPDATE</span>')) {
+        throw new RuntimeException('Expected SQL duplicate-key update token handoff');
+    }
+    if (!str_contains($sql['html'], '<span class="fu">JSON_EXTRACT</span><span class="op">(</span><span class="ot">`meta_value`</span>')) {
+        throw new RuntimeException('Expected SQL JSON_EXTRACT function token handoff');
+    }
+    if (!str_contains($sql['html'], '<span class="va">:post_id</span>')) {
+        throw new RuntimeException('Expected SQL named bind token handoff');
+    }
+    if (!str_contains($sqlWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected SQL WordPress style metadata');
+    }
+    if (!str_contains($sqlWordpressBlock, '<span class="kw">COMMIT</span><span class="op">;</span>')) {
+        throw new RuntimeException('Expected SQL commit token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -950,6 +980,7 @@ echo "powershellHighlightedHtml:\n" . $powershell['html'] . "\n";
 echo "dotHighlightedHtml:\n" . $dot['html'] . "\n";
 echo "javascriptHighlightedHtml:\n" . $javascript['html'] . "\n";
 echo "csharpHighlightedHtml:\n" . $csharp['html'] . "\n";
+echo "sqlHighlightedHtml:\n" . $sql['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -975,4 +1006,5 @@ echo "powershellWordpressBlock:\n" . $powershellWordpressBlock . "\n";
 echo "dotWordpressBlock:\n" . $dotWordpressBlock . "\n";
 echo "javascriptWordpressBlock:\n" . $javascriptWordpressBlock . "\n";
 echo "csharpWordpressBlock:\n" . $csharpWordpressBlock . "\n";
+echo "sqlWordpressBlock:\n" . $sqlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

@@ -664,6 +664,51 @@ return [
         $t->contains('<span class="kw">select</span> <span class="fu">count</span><span class="op">(*)</span> <span class="kw">from</span>', $sql['html']);
         $t->contains('<span class="st">&#039;publish&#039;</span>', $sql['html']);
     },
+    'highlights sql migration snippets with mysql and sqlite aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[30] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a SQL migration code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $sqlite = $highlighter->highlight(
+            'WITH posts AS (SELECT 42 AS id, \'Imported\' AS "post_title") SELECT "post_title" FROM posts WHERE id = $1',
+            'sqlite3'
+        );
+
+        $t->same('mysql', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('sql', SyntaxHighlighter::normalizeLanguage('mysql'));
+        $t->same('sql', SyntaxHighlighter::normalizeLanguage('mariadb'));
+        $t->same('sql', SyntaxHighlighter::normalizeLanguage('sqlite3'));
+        $t->same('sql', $highlighted['language']);
+        $t->same('mysql', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(230, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource mysql numberLines"><code class="sourceCode sql" style="counter-reset: source-line 229;">', $highlighted['html']);
+        $t->contains('<span id="sql-migration-review-230"><a href="#sql-migration-review-230"></a><span class="co">-- WordPress SQL migration review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">START</span> <span class="kw">TRANSACTION</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="ot">`wp_posts`</span>', $highlighted['html']);
+        $t->contains('<span class="ot">`ID`</span> <span class="dt">bigint</span><span class="op">(</span><span class="dv">20</span><span class="op">)</span> <span class="kw">unsigned</span> <span class="kw">NOT</span> <span class="cn">NULL</span> <span class="kw">AUTO_INCREMENT</span><span class="op">,</span>', $highlighted['html']);
+        $t->contains('<span class="kw">PRIMARY</span> <span class="kw">KEY</span> <span class="op">(</span><span class="ot">`ID`</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">ON</span> <span class="kw">DUPLICATE</span> <span class="kw">KEY</span> <span class="kw">UPDATE</span> <span class="ot">`post_title`</span> <span class="op">=</span> <span class="kw">VALUES</span><span class="op">(</span><span class="ot">`post_title`</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">SELECT</span> <span class="fu">JSON_EXTRACT</span><span class="op">(</span><span class="ot">`meta_value`</span><span class="op">,</span> <span class="st">&#039;$.title&#039;</span><span class="op">)</span> <span class="kw">AS</span> <span class="ot">`title`</span>', $highlighted['html']);
+        $t->contains('<span class="kw">WHERE</span> <span class="ot">`post_id`</span> <span class="op">=</span> <span class="va">:post_id</span> <span class="kw">AND</span> <span class="ot">`meta_key`</span> <span class="kw">LIKE</span> <span class="st">&#039;review\\_%&#039;</span> <span class="kw">ESCAPE</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="fu">JSON_EXTRACT</span><span class="op">(</span><span class="ot">`meta_value`</span>', $wordpressBlock);
+        $t->same('sql', $sqlite['language']);
+        $t->same('sqlite3', $sqlite['requestedLanguage']);
+        $t->contains('<span class="kw">WITH</span> <span class="va">posts</span> <span class="kw">AS</span> <span class="op">(</span><span class="kw">SELECT</span> <span class="dv">42</span> <span class="kw">AS</span> <span class="va">id</span><span class="op">,</span> <span class="st">&#039;Imported&#039;</span> <span class="kw">AS</span> <span class="ot">&quot;post_title&quot;</span><span class="op">)</span>', $sqlite['html']);
+        $t->contains('<span class="kw">WHERE</span> <span class="va">id</span> <span class="op">=</span> <span class="va">$1</span>', $sqlite['html']);
+    },
     'highlights haskell and literate haskell review snippets' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [
             'classes' => ['sourceCode', 'literate-haskell'],
