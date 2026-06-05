@@ -12665,6 +12665,18 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<float> $fontMatrix
+     */
+    private function type3FontMatrixScalarWidthExtentAdvance(float $width, array $fontMatrix): float
+    {
+        $advanceX = $width * ($fontMatrix[0] ?? 0.001);
+        $advanceY = $width * ($fontMatrix[1] ?? 0.0);
+        $advance = sqrt(($advanceX * $advanceX) + ($advanceY * $advanceY));
+
+        return is_finite($advance) && $advance > 0.0 ? $advance * 1000.0 : abs($width);
+    }
+
+    /**
      * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
      * @param array<int, string> $objects
      * @param array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, writingMode?: int}|null $cidEncodingMap
@@ -13202,7 +13214,7 @@ final class PdfTextExtractor
         if ($widths !== [] && $this->isType3FontBody($fontBody)) {
             $fontMatrix = $this->type3FontMatrix($fontBody, $objects);
             foreach ($widths as $code => $width) {
-                $widths[$code] = $this->type3FontMatrixWidthVectorAdvance([$width, 0.0], $fontMatrix);
+                $widths[$code] = $this->type3FontMatrixScalarWidthExtentAdvance($width, $fontMatrix);
             }
         }
 
