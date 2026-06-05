@@ -167,7 +167,7 @@ final class PdfAnnotationExtractor
     {
         $body = $record['body'];
         $subtype = $this->subtypeFromAnnotation($body);
-        $rect = $this->rectFromAnnotation($body);
+        $rect = $this->rectFromAnnotation($body, $objects);
         $actionReview = $actionReviewer->reviewAnnotationActions($body);
         $actionReview['actions'] = $this->actionsWithAnnotationTargetPageContext(
             $actionReview['actions'],
@@ -2266,7 +2266,7 @@ final class PdfAnnotationExtractor
     /**
      * @return list<float>|null
      */
-    private function rectFromAnnotation(string $annotationBody): ?array
+    private function rectFromAnnotation(string $annotationBody, array $objects = []): ?array
     {
         $value = $this->valueAfterName($annotationBody, 'Rect');
         if ($value === null || !str_starts_with(trim($value), '[')) {
@@ -2278,7 +2278,7 @@ final class PdfAnnotationExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
         if (count($numbers) < 4) {
             return null;
         }
@@ -2316,7 +2316,7 @@ final class PdfAnnotationExtractor
 
             $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
             if ($arrayBody !== null) {
-                return $this->numbersFromPdfArray($arrayBody);
+                return $this->numbersFromPdfArray($arrayBody, $objects);
             }
 
             $offset = $valueOffset;
@@ -3008,13 +3008,64 @@ final class PdfAnnotationExtractor
     /**
      * @return list<float>
      */
-    private function numbersFromPdfArray(string $arrayBody): array
+    private function numbersFromPdfArray(string $arrayBody, array $objects = [], int $depth = 0): array
     {
-        if (!preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $arrayBody, $matches)) {
+        if ($depth > 8) {
             return [];
         }
 
-        return array_map('floatval', $matches[0]);
+        $numbers = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($arrayBody[$offset] === '(') {
+                $offset = $this->skipLiteralString($arrayBody, $offset);
+                continue;
+            }
+            if ($arrayBody[$offset] === '<' && substr($arrayBody, $offset, 2) === '<<') {
+                $endDictionary = null;
+                $this->readPdfDictionaryAt($arrayBody, $offset, $endDictionary);
+                $offset = $endDictionary ?? ($offset + 2);
+                continue;
+            }
+            if ($arrayBody[$offset] === '<') {
+                $offset = $this->skipHexString($arrayBody, $offset);
+                continue;
+            }
+            if ($arrayBody[$offset] === '[') {
+                $endArray = null;
+                $nested = $this->readPdfArrayAt($arrayBody, $offset, $endArray);
+                if ($nested !== null && $endArray !== null) {
+                    array_push($numbers, ...$this->numbersFromPdfArray($nested, $objects, $depth + 1));
+                    $offset = $endArray;
+                    continue;
+                }
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $objectBody = $this->objectBodyForReference((int) $match[1], (int) $match[2], $objects);
+                if ($objectBody !== null && preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', trim($objectBody)) === 1) {
+                    $numbers[] = (float) trim($objectBody);
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $arrayBody, $match, 0, $offset) === 1) {
+                $numbers[] = (float) $match[0];
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $numbers;
     }
 
     private function decodePdfName(string $name): string

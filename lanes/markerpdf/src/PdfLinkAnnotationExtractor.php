@@ -950,7 +950,7 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
         if (count($numbers) < 4) {
             return null;
         }
@@ -983,7 +983,7 @@ final class PdfLinkAnnotationExtractor
             return [];
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
         $quads = [];
         for ($offset = 0, $count = count($numbers); $offset + 7 < $count; $offset += 8) {
             $quads[] = array_slice($numbers, $offset, 8);
@@ -1040,7 +1040,7 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        $components = array_map(fn (float $component): float => $this->clamp($component), $this->numbersFromPdfArray($arrayBody));
+        $components = array_map(fn (float $component): float => $this->clamp($component), $this->numbersFromPdfArray($arrayBody, $objects));
         $count = count($components);
         if ($count === 0) {
             return [
@@ -1134,12 +1134,12 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        $numbers = $this->numbersFromPdfArray($arrayBody);
+        $numbers = $this->numbersFromPdfArray($arrayBody, $objects);
         if (count($numbers) < 3) {
             return null;
         }
 
-        $dashPattern = $this->dashPatternFromBorderArrayBody($arrayBody);
+        $dashPattern = $this->dashPatternFromBorderArrayBody($arrayBody, $objects);
         $width = (float) $numbers[2];
 
         return [
@@ -1156,7 +1156,7 @@ final class PdfLinkAnnotationExtractor
     /**
      * @return list<float>
      */
-    private function dashPatternFromBorderArrayBody(string $arrayBody): array
+    private function dashPatternFromBorderArrayBody(string $arrayBody, array $objects = []): array
     {
         $offset = 0;
         while (($start = strpos($arrayBody, '[', $offset)) !== false) {
@@ -1166,7 +1166,7 @@ final class PdfLinkAnnotationExtractor
                 break;
             }
 
-            return $this->numbersFromPdfArray($body);
+            return $this->numbersFromPdfArray($body, $objects);
         }
 
         return [];
@@ -1462,7 +1462,7 @@ final class PdfLinkAnnotationExtractor
         $value = trim($value);
         if (str_starts_with($value, '[')) {
             $arrayBody = $this->arrayBodyFromValue($value);
-            return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody);
+            return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody, $objects);
         }
 
         $objectBody = $this->objectBodyForReferenceValue($value, $objects);
@@ -1475,15 +1475,15 @@ final class PdfLinkAnnotationExtractor
         }
 
         $arrayBody = $this->arrayBodyFromValue($objectBody);
-        return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody);
+        return $arrayBody === null ? null : $this->boxFromNumbers($arrayBody, $objects);
     }
 
     /**
      * @return list<float>|null
      */
-    private function boxFromNumbers(string $body): ?array
+    private function boxFromNumbers(string $body, array $objects = []): ?array
     {
-        $numbers = $this->numbersFromPdfArray($body);
+        $numbers = $this->numbersFromPdfArray($body, $objects);
         if (count($numbers) < 4) {
             return null;
         }
@@ -1871,7 +1871,7 @@ final class PdfLinkAnnotationExtractor
     private function arrayNumbersAfterName(string $body, string $name, array $objects): ?array
     {
         $arrayBody = $this->arrayBodyValueAfterName($body, $name, $objects);
-        return $arrayBody === null ? null : $this->numbersFromPdfArray($arrayBody);
+        return $arrayBody === null ? null : $this->numbersFromPdfArray($arrayBody, $objects);
     }
 
     /**
@@ -2260,13 +2260,64 @@ final class PdfLinkAnnotationExtractor
     /**
      * @return list<float>
      */
-    private function numbersFromPdfArray(string $arrayBody): array
+    private function numbersFromPdfArray(string $arrayBody, array $objects = [], int $depth = 0): array
     {
-        if (!preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $arrayBody, $matches)) {
+        if ($depth > 8) {
             return [];
         }
 
-        return array_map('floatval', $matches[0]);
+        $numbers = [];
+        $offset = 0;
+        $length = strlen($arrayBody);
+        while ($offset < $length) {
+            $this->skipWhitespaceAndComments($arrayBody, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($arrayBody[$offset] === '(') {
+                $offset = $this->skipLiteralString($arrayBody, $offset);
+                continue;
+            }
+            if ($arrayBody[$offset] === '<' && substr($arrayBody, $offset, 2) === '<<') {
+                $endDictionary = null;
+                $this->readPdfDictionaryAt($arrayBody, $offset, $endDictionary);
+                $offset = $endDictionary ?? ($offset + 2);
+                continue;
+            }
+            if ($arrayBody[$offset] === '<') {
+                $offset = $this->skipHexString($arrayBody, $offset);
+                continue;
+            }
+            if ($arrayBody[$offset] === '[') {
+                $endArray = null;
+                $nested = $this->readPdfArrayAt($arrayBody, $offset, $endArray);
+                if ($nested !== null && $endArray !== null) {
+                    array_push($numbers, ...$this->numbersFromPdfArray($nested, $objects, $depth + 1));
+                    $offset = $endArray;
+                    continue;
+                }
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $arrayBody, $match, 0, $offset) === 1) {
+                $objectBody = $this->objectBodyForReference((int) $match[1], (int) $match[2], $objects);
+                if ($objectBody !== null && preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', trim($objectBody)) === 1) {
+                    $numbers[] = (float) trim($objectBody);
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (preg_match('/\G[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $arrayBody, $match, 0, $offset) === 1) {
+                $numbers[] = (float) $match[0];
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $numbers;
     }
 
     /**
