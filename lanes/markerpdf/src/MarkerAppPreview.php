@@ -1631,10 +1631,14 @@ final class MarkerAppPreview
             }
         }
 
-        $nums = $this->valueAfterName($value, 'Nums');
-        if ($nums !== null) {
+        foreach ($this->valuesAfterName($value, 'Nums') as $nums) {
+            $candidateSections = $this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits);
+            if ($candidateSections === []) {
+                continue;
+            }
+
             $seenPageIndexes = [];
-            foreach ($this->pageLabelSectionsFromNums($nums, $objects, $seen, $limits) as $section) {
+            foreach ($candidateSections as $section) {
                 $pageIndex = $section['page_index'];
                 if (isset($seenPageIndexes[$pageIndex])) {
                     continue;
@@ -1643,6 +1647,8 @@ final class MarkerAppPreview
                 $seenPageIndexes[$pageIndex] = true;
                 $sections[] = $section;
             }
+
+            break;
         }
 
         $kids = $this->valueAfterName($value, 'Kids');

@@ -10053,10 +10053,7 @@ final class PdfTextExtractor
             }
         }
 
-        $entries = [];
-        if ($this->pageLabelTopLevelValueAfterName($dictionary, 'Nums') !== null) {
-            $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
-        }
+        $entries = $this->pageLabelNumsEntries($dictionary, $objects, $limits, $pageCount);
 
         $kidNodes = [];
         $kidOrder = 0;
@@ -10162,11 +10159,23 @@ final class PdfTextExtractor
      */
     private function pageLabelNumsEntries(string $dictionary, array $objects, ?array $limits, int $pageCount): array
     {
-        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Nums', $objects);
-        if ($arrayBody === null) {
-            return [];
+        foreach ($this->pageLabelArrayValuesAfterNameResolved($dictionary, 'Nums', $objects) as $arrayBody) {
+            $entries = $this->pageLabelNumsEntriesFromArray($arrayBody, $objects, $limits, $pageCount);
+            if ($entries !== []) {
+                return $entries;
+            }
         }
 
+        return [];
+    }
+
+    /**
+     * @return array<int, array{prefix: string, style: string|null, start: int}>
+     * @param array<int, string> $objects
+     * @param array{0: int, 1: int}|null $limits
+     */
+    private function pageLabelNumsEntriesFromArray(string $arrayBody, array $objects, ?array $limits, int $pageCount): array
+    {
         $entries = [];
         $items = $this->pdfArrayItems($arrayBody);
         $itemCount = count($items);
@@ -10411,18 +10420,42 @@ final class PdfTextExtractor
      */
     private function pageLabelArrayValueAfterNameResolved(string $body, string $name, array $objects): ?string
     {
-        $value = $this->pageLabelTopLevelValueAfterName($body, $name);
-        return $value === null ? null : $this->pageLabelArrayFromValue($value, $objects);
+        return $this->pageLabelArrayValuesAfterNameResolved($body, $name, $objects)[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function pageLabelArrayValuesAfterNameResolved(string $body, string $name, array $objects): array
+    {
+        $arrays = [];
+        foreach ($this->pageLabelTopLevelValuesAfterName($body, $name) as $value) {
+            $array = $this->pageLabelArrayFromValue($value, $objects);
+            if ($array !== null) {
+                $arrays[] = $array;
+            }
+        }
+
+        return $arrays;
     }
 
     private function pageLabelTopLevelValueAfterName(string $dictionary, string $name): ?string
     {
+        return $this->pageLabelTopLevelValuesAfterName($dictionary, $name)[0] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pageLabelTopLevelValuesAfterName(string $dictionary, string $name): array
+    {
         $dictionary = trim($dictionary);
         if (str_starts_with($dictionary, '<<')) {
-            return $this->topLevelPdfValueAfterName($dictionary, $name);
+            return $this->topLevelPdfValuesAfterName($dictionary, $name);
         }
 
-        return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $name);
+        return $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name);
     }
 
     /**
