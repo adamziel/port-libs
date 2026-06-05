@@ -9685,16 +9685,16 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $labelDictionary = $this->pageLabelDictionaryFromValue($items[$index + 1], $objects);
-            if ($labelDictionary === null) {
-                continue;
-            }
-
             if ($lastAcceptedPageIndex !== null && $pageIndex <= $lastAcceptedPageIndex) {
                 continue;
             }
 
             $lastAcceptedPageIndex = $pageIndex;
+            $labelDictionary = $this->pageLabelDictionaryFromValue($items[$index + 1], $objects);
+            if ($labelDictionary === null) {
+                continue;
+            }
+
             if (
                 $pageIndex < 0
                 || $pageIndex >= $pageCount

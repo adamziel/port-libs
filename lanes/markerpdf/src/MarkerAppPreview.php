@@ -1707,16 +1707,16 @@ final class MarkerAppPreview
                 continue;
             }
 
-            $section = $this->parsePageLabelDictionary($elements[$index + 1], $objects, $seen);
-            if ($section === null) {
-                continue;
-            }
-
             if ($lastAcceptedPageIndex !== null && $pageIndexValue <= $lastAcceptedPageIndex) {
                 continue;
             }
 
             $lastAcceptedPageIndex = $pageIndexValue;
+            $section = $this->parsePageLabelDictionary($elements[$index + 1], $objects, $seen);
+            if ($section === null) {
+                continue;
+            }
+
             if ($limits !== null && ($pageIndexValue < $limits[0] || $pageIndexValue > $limits[1])) {
                 continue;
             }
