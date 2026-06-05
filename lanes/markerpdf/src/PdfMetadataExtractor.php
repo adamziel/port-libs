@@ -6164,27 +6164,153 @@ final class PdfMetadataExtractor
 
     private function boundedXmlRootCandidate(string $xml, string $localName): ?string
     {
-        $pattern = '/<((?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($localName, '/') . ')\b[^>]*>/s';
+        $pattern = '/<((?:[A-Za-z_][A-Za-z0-9_.-]*:)?' . preg_quote($localName, '/') . ')(?![A-Za-z0-9_.:-])/s';
         if (preg_match($pattern, $xml, $match, PREG_OFFSET_CAPTURE) !== 1) {
             return null;
         }
 
-        $openTag = $match[0][0];
         $tagName = $match[1][0];
         $start = $match[0][1];
-        $openEnd = $start + strlen($openTag);
+        $openEnd = $this->xmlTagEndOffset($xml, $start);
+        if ($openEnd === null) {
+            return null;
+        }
+
+        $openTag = substr($xml, $start, $openEnd - $start);
         if (str_ends_with(rtrim($openTag), '/>')) {
             return substr($xml, $start, $openEnd - $start);
         }
 
-        $closingPattern = '/<\/\s*' . preg_quote($tagName, '/') . '\s*>/s';
-        if (preg_match($closingPattern, $xml, $closingMatch, PREG_OFFSET_CAPTURE, $openEnd) !== 1) {
+        $end = $this->matchingXmlRootEndOffset($xml, $openEnd, $tagName);
+        if ($end === null) {
             return null;
         }
 
-        $end = $closingMatch[0][1] + strlen($closingMatch[0][0]);
         $bounded = substr($xml, $start, $end - $start);
         return $bounded === $xml ? null : $bounded;
+    }
+
+    private function matchingXmlRootEndOffset(string $xml, int $offset, string $tagName): ?int
+    {
+        $depth = 1;
+        $length = strlen($xml);
+        for ($index = $offset; $index < $length;) {
+            $tagStart = strpos($xml, '<', $index);
+            if ($tagStart === false) {
+                return null;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 4), '<!--')) {
+                $end = strpos($xml, '-->', $tagStart + 4);
+                if ($end === false) {
+                    return null;
+                }
+                $index = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 9), '<![CDATA[')) {
+                $end = strpos($xml, ']]>', $tagStart + 9);
+                if ($end === false) {
+                    return null;
+                }
+                $index = $end + 3;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<?')) {
+                $end = strpos($xml, '?>', $tagStart + 2);
+                if ($end === false) {
+                    return null;
+                }
+                $index = $end + 2;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '</')) {
+                $name = $this->xmlTagNameAt($xml, $tagStart + 2);
+                $end = $this->xmlTagEndOffset($xml, $tagStart);
+                if ($end === null) {
+                    return null;
+                }
+
+                if ($name === $tagName) {
+                    $depth--;
+                    if ($depth === 0) {
+                        return $end;
+                    }
+                }
+                $index = $end;
+                continue;
+            }
+
+            if (str_starts_with(substr($xml, $tagStart, 2), '<!')) {
+                $end = $this->xmlTagEndOffset($xml, $tagStart);
+                if ($end === null) {
+                    return null;
+                }
+                $index = $end;
+                continue;
+            }
+
+            $name = $this->xmlTagNameAt($xml, $tagStart + 1);
+            $end = $this->xmlTagEndOffset($xml, $tagStart);
+            if ($end === null) {
+                return null;
+            }
+
+            if ($name === $tagName && !str_ends_with(rtrim(substr($xml, $tagStart, $end - $tagStart)), '/>')) {
+                $depth++;
+            }
+            $index = $end;
+        }
+
+        return null;
+    }
+
+    private function xmlTagEndOffset(string $xml, int $offset): ?int
+    {
+        $quote = null;
+        for ($index = $offset + 1, $length = strlen($xml); $index < $length; $index++) {
+            $char = $xml[$index];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '>') {
+                return $index + 1;
+            }
+        }
+
+        return null;
+    }
+
+    private function xmlTagNameAt(string $xml, int $offset): ?string
+    {
+        $length = strlen($xml);
+        while ($offset < $length && ctype_space($xml[$offset])) {
+            $offset++;
+        }
+
+        if ($offset >= $length || preg_match('/[A-Za-z_]/', $xml[$offset]) !== 1) {
+            return null;
+        }
+
+        $start = $offset;
+        $offset++;
+        while ($offset < $length && preg_match('/[A-Za-z0-9_.:-]/', $xml[$offset]) === 1) {
+            $offset++;
+        }
+
+        return substr($xml, $start, $offset - $start);
     }
 
     /**
