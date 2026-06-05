@@ -27953,6 +27953,18 @@ final class PdfTextExtractor
                     continue;
                 }
 
+                if ($token === 'Do') {
+                    if (
+                        count($outsideTextOperands) !== 1
+                        || !$this->markedContentTagOperand($outsideTextOperands[0])
+                    ) {
+                        return false;
+                    }
+
+                    $outsideTextOperands = [];
+                    continue;
+                }
+
                 if ($token === 'BMC') {
                     if (
                         count($outsideTextOperands) !== 1

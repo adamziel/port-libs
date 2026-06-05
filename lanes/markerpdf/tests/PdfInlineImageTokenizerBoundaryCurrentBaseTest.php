@@ -532,6 +532,26 @@ $inlineImageTokenizerClipPathStrayEiPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerXObjectDoStrayEiPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before XObject Do Stray) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x00\x01\x02 EI BT /F1 12 Tf 72 660 Td (XObject Do Payload Noise) Tj ET rawtail\n"
+        . "EI\n"
+        . "/Decorative Do\n"
+        . "BT /F1 12 Tf 72 704 Td (Visible XObject Do Before Stray) Tj ET\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After XObject Do Stray) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /XObject << /Decorative 6 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\ny\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerColorStateStrayEiPdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before Color State Stray) Tj ET\n"
         . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
@@ -1171,6 +1191,28 @@ return [
         $t->true(str_contains($plainText, 'Visible After Clip Path Stray'));
         $t->true(!str_contains($plainText, 'Clip Path Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'closes preview-only fallback before XObject Do text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerXObjectDoStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerXObjectDoStrayEiPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before XObject Do Stray',
+            'Visible XObject Do Before Stray',
+            'Visible After XObject Do Stray',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible XObject Do Before Stray'));
+        $t->true(str_contains($plainText, 'Visible After XObject Do Stray'));
+        $t->true(!str_contains($plainText, 'XObject Do Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'Decorative'));
     },
     'closes preview-only fallback before color-state text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerColorStateStrayEiPdf): void {
         $extractor = new PdfTextExtractor();
