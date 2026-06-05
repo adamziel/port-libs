@@ -203,7 +203,7 @@ $encryptionXml = <<<'XML'
 </encryption>
 XML;
 
-$package = ZipPackage::fromParts([
+$packageParts = [
     ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
     ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
@@ -222,7 +222,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
     ['name' => 'EPUB/images/unmanifested-review.png', 'data' => 'UNMANIFESTED-PNG', 'compressionMethod' => 0],
     ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
-]);
+];
+$package = ZipPackage::fromParts($packageParts);
 
 $reader = new EpubReader();
 $result = $reader->readPackage($package);
@@ -261,6 +262,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['document']->children[0]->attr('linearRaw') ?? null) !== 'maybe' || ($result['document']->children[0]->attr('linearValid') ?? null) !== false) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose invalid EPUB spine linear metadata');
+    }
+    $nonLinearParts = $packageParts;
+    $nonLinearParts[3]['data'] = str_replace('linear="maybe"', 'linear="no"', $opfXml);
+    $nonLinearResult = $reader->readPackage(ZipPackage::fromParts($nonLinearParts));
+    if (($nonLinearResult['spineProperties']['linearItemCount'] ?? null) !== 0 || ($nonLinearResult['spineProperties']['primaryReadingOrderEmpty'] ?? null) !== true) {
+        throw new RuntimeException('Expected all non-linear EPUB spine itemrefs to report an empty primary reading order');
+    }
+    if (($nonLinearResult['spineProperties']['diagnostics'][0]['type'] ?? null) !== 'spine-has-no-linear-items') {
+        throw new RuntimeException('Expected all non-linear EPUB spine itemrefs to produce a package diagnostic');
+    }
+    if (($nonLinearResult['document']->attr('spineProperties')['linearItemCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected WordPress document handoff to expose non-linear-only spine metadata');
     }
     if (($result['document']->children[1]->attr('pageSpread') ?? null) !== 'left') {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose EPUB page-spread metadata');
@@ -531,6 +544,8 @@ echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'y
 echo 'firstPageSpread=' . ($result['spine'][0]['pageSpread'] ?? '') . "\n";
 echo 'firstLinearRaw=' . ($result['spine'][0]['linearRaw'] ?? '') . "\n";
 echo 'firstLinearValid=' . (($result['spine'][0]['linearValid'] ?? true) ? 'yes' : 'no') . "\n";
+echo 'linearSpineItems=' . ($result['spineProperties']['linearItemCount'] ?? 0) . "\n";
+echo 'primaryReadingOrderEmpty=' . (($result['spineProperties']['primaryReadingOrderEmpty'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'spineLinearDiagnostics=' . count($result['spineProperties']['itemDiagnostics'] ?? []) . "\n";
 echo 'fallbackPageSpread=' . ($result['spine'][1]['pageSpread'] ?? '') . "\n";
 echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";

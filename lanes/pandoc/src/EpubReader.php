@@ -1871,7 +1871,17 @@ final class EpubReader
     private static function spinePropertiesWithItemDiagnostics(array $spineProperties, array $spine): array
     {
         $itemDiagnostics = [];
+        $idrefs = [];
+        $linearItemCount = 0;
         foreach ($spine as $item) {
+            $idref = (string) ($item['idref'] ?? '');
+            if ($idref !== '') {
+                $idrefs[] = $idref;
+            }
+            if (($item['linear'] ?? true) === true) {
+                ++$linearItemCount;
+            }
+
             foreach (($item['spineItemDiagnostics'] ?? []) as $diagnostic) {
                 if (!is_array($diagnostic)) {
                     continue;
@@ -1879,14 +1889,32 @@ final class EpubReader
 
                 $itemDiagnostics[] = [
                     'index' => (int) ($item['index'] ?? 0),
-                    'idref' => (string) ($item['idref'] ?? ''),
+                    'idref' => $idref,
                 ] + $diagnostic;
             }
         }
 
+        $itemCount = count($spine);
+        $nonLinearItemCount = $itemCount - $linearItemCount;
+        $emptyPrimaryReadingOrder = $itemCount > 0 && $linearItemCount === 0;
+        $diagnostics = is_array($spineProperties['diagnostics'] ?? null) ? $spineProperties['diagnostics'] : [];
+        if ($emptyPrimaryReadingOrder) {
+            $diagnostics[] = [
+                'type' => 'spine-has-no-linear-items',
+                'itemCount' => $itemCount,
+                'idrefs' => $idrefs,
+                'message' => 'EPUB spine does not contain any primary reading-order itemrefs; all itemrefs are marked non-linear',
+            ];
+        }
+
+        $spineProperties['itemCount'] = $itemCount;
+        $spineProperties['linearItemCount'] = $linearItemCount;
+        $spineProperties['nonLinearItemCount'] = $nonLinearItemCount;
+        $spineProperties['hasLinearItems'] = $linearItemCount > 0;
+        $spineProperties['primaryReadingOrderEmpty'] = $emptyPrimaryReadingOrder;
         $spineProperties['itemDiagnostics'] = $itemDiagnostics;
         $spineProperties['diagnostics'] = array_merge(
-            is_array($spineProperties['diagnostics'] ?? null) ? $spineProperties['diagnostics'] : [],
+            $diagnostics,
             $itemDiagnostics
         );
 

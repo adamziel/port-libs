@@ -511,6 +511,37 @@ return [
         $t->same(false, $result['document']->children[0]->attr('linearValid'));
         $t->same($result['spine'][0]['spineItemDiagnostics'], $result['document']->children[0]->attr('spineItemDiagnostics'));
     },
+    'reports all non-linear OPF spine itemrefs as empty primary reading order' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithNonLinearSpine = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref idref="chapter-1" linear="no"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithNonLinearSpine));
+        $spineProperties = $result['spineProperties'];
+
+        $t->same(2, $spineProperties['itemCount']);
+        $t->same(0, $spineProperties['linearItemCount']);
+        $t->same(2, $spineProperties['nonLinearItemCount']);
+        $t->same(false, $spineProperties['hasLinearItems']);
+        $t->same(true, $spineProperties['primaryReadingOrderEmpty']);
+        $t->same(1, count($spineProperties['diagnostics']));
+        $t->same('spine-has-no-linear-items', $spineProperties['diagnostics'][0]['type']);
+        $t->same(2, $spineProperties['diagnostics'][0]['itemCount']);
+        $t->same(['chapter-1', 'chapter-2'], $spineProperties['diagnostics'][0]['idrefs']);
+        $t->same($spineProperties, $result['importReport']['spine']['properties']);
+        $t->same($spineProperties, $result['document']->attr('spineProperties'));
+
+        $t->same(false, $result['spine'][0]['linear']);
+        $t->same('no', $result['spine'][0]['linearRaw']);
+        $t->same(false, $result['spine'][1]['linear']);
+        $t->same('no', $result['spine'][1]['linearRaw']);
+        $t->same(2, count($result['document']->children));
+        $t->same(false, $result['document']->children[0]->attr('linear'));
+        $t->same(false, $result['document']->children[1]->attr('linear'));
+        $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
+    },
     'summarizes alternate EPUB rootfile renditions without changing selected spine' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
         $multiRootContainer = str_replace(
             '</rootfiles>',
