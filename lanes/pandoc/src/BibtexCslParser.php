@@ -404,12 +404,16 @@ final class BibtexCslParser
 
         $items = [];
         foreach ($entries as $entry) {
-            if (self::isDataEntryType($entry['type'])) {
+            if (self::isDataEntryType($entry['type']) || self::isDataOnlyEntry($entry)) {
                 continue;
             }
 
             $fields = self::resolveInheritedFields($entry, $entriesByKey);
-            $items[] = self::entryToCslItem($entry['type'], $entry['key'], $fields);
+            $items[] = self::withBiblatexRelationMetadata(
+                self::entryToCslItem($entry['type'], $entry['key'], $fields),
+                $fields,
+                $entriesByKey
+            );
         }
 
         return $items;
@@ -418,6 +422,31 @@ final class BibtexCslParser
     private static function isDataEntryType(string $type): bool
     {
         return in_array(strtolower($type), ['xdata'], true);
+    }
+
+    /**
+     * @param array{type:string, key:string, fields:array<string, string>} $entry
+     */
+    private static function isDataOnlyEntry(array $entry): bool
+    {
+        return self::hasDataOnlyOption($entry['fields']['options'] ?? '');
+    }
+
+    private static function hasDataOnlyOption(string $options): bool
+    {
+        foreach (self::splitTopLevel(self::cleanBibtexText($options), ',') as $option) {
+            $option = strtolower(trim($option));
+            if ($option === '') {
+                continue;
+            }
+
+            $name = trim(explode('=', $option, 2)[0]);
+            if ($name === 'dataonly') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -587,6 +616,87 @@ final class BibtexCslParser
         return $item;
     }
 
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, string> $fields
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @return array<string, mixed>
+     */
+    private static function withBiblatexRelationMetadata(array $item, array $fields, array $entriesByKey): array
+    {
+        $entrySet = self::biblatexKeyList($fields['entryset'] ?? '');
+        if ($entrySet !== []) {
+            $item['entrySet'] = $entrySet;
+            $item['entrySetItems'] = self::referencedEntrySummaries($entrySet, $entriesByKey);
+            $missing = self::missingReferenceKeys($entrySet, $entriesByKey);
+            if ($missing !== []) {
+                $item['missingEntrySetKeys'] = $missing;
+            }
+        }
+
+        $related = self::biblatexKeyList($fields['related'] ?? '');
+        if ($related !== []) {
+            $item['relatedKeys'] = $related;
+            $item['relatedItems'] = self::referencedEntrySummaries($related, $entriesByKey);
+            $missing = self::missingReferenceKeys($related, $entriesByKey);
+            if ($missing !== []) {
+                $item['missingRelatedKeys'] = $missing;
+            }
+
+            $relatedType = self::cleanBibtexText($fields['relatedtype'] ?? '');
+            if ($relatedType !== '') {
+                $item['relatedType'] = $relatedType;
+            }
+
+            $relatedString = self::cleanBibtexText($fields['relatedstring'] ?? '');
+            if ($relatedString !== '') {
+                $item['relatedString'] = $relatedString;
+            }
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @return list<array<string, mixed>>
+     */
+    private static function referencedEntrySummaries(array $keys, array $entriesByKey): array
+    {
+        $summaries = [];
+        foreach ($keys as $key) {
+            $entry = $entriesByKey[$key] ?? null;
+            if ($entry === null) {
+                continue;
+            }
+
+            $fields = self::resolveInheritedFields($entry, $entriesByKey);
+            $summary = self::entryToCslItem($entry['type'], $entry['key'], $fields);
+            unset($summary['rawBibtex']);
+            if (self::isDataEntryType($entry['type']) || self::isDataOnlyEntry($entry)) {
+                $summary['dataOnly'] = true;
+            }
+
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{type:string, key:string, fields:array<string, string>}> $entriesByKey
+     * @return list<string>
+     */
+    private static function missingReferenceKeys(array $keys, array $entriesByKey): array
+    {
+        return array_values(array_filter(
+            $keys,
+            static fn (string $key): bool => !isset($entriesByKey[$key])
+        ));
+    }
+
     private static function cslType(string $type): string
     {
         return match (strtolower($type)) {
@@ -594,6 +704,7 @@ final class BibtexCslParser
             'inproceedings', 'conference' => 'paper-conference',
             'inbook', 'incollection' => 'chapter',
             'inreference' => 'entry-encyclopedia',
+            'set' => 'entry',
             'collection', 'mvcollection', 'mvbook', 'mvproceedings', 'mvreference', 'proceedings', 'reference' => 'book',
             'phdthesis', 'mastersthesis' => 'thesis',
             'report', 'techreport' => 'report',

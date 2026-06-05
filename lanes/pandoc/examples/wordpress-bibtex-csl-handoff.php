@@ -21,6 +21,10 @@ Accented .bib names such as @accented-source remain readable in bibliography rev
 
 The xdata-backed glossary entry @source-glossary keeps reviewer packet metadata attached.
 
+A BibLaTeX entry set @migration-review-set keeps data-only member summaries available for review.
+
+The related manual @related-manual keeps companion entry metadata attached to the source packet.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -98,6 +102,44 @@ $bibtex = <<<'BIB'
   url       = {https://example.test/glossary},
   xdata     = {shared-review-packet, attachment-review-packet}
 }
+
+@set{migration-review-set,
+  title    = {Migration Review Set},
+  date     = {2026-06-05},
+  entryset = {set-audit-paper, set-archived-site, missing-source}
+}
+
+@proceedings{set-conf2026,
+  options   = {dataonly},
+  title     = {Migration Futures Conference},
+  date      = {2026},
+  publisher = {Review Press}
+}
+
+@inproceedings{set-audit-paper,
+  options  = {dataonly},
+  author   = {Smith, Ada},
+  title    = {Packet Audit Trails},
+  pages    = {12--18},
+  crossref = {set-conf2026}
+}
+
+@online{set-archived-site,
+  options = {dataonly},
+  author  = {{Archive Team}},
+  title   = {Archive Site},
+  date    = {2026-05-31},
+  url     = {https://example.test/archive-site}
+}
+
+@book{related-manual,
+  author        = {Curator, Eli},
+  title         = {Migration Manual},
+  date          = {2024},
+  related       = {migration-review-set, missing-related},
+  relatedtype   = {companion},
+  relatedstring = {Companion review set}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -115,6 +157,23 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($sourceGlossary['sourceFiles'][0]['path'] ?? null) !== 'attachments/source-audit.pdf') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not inherit source-glossary attachment metadata');
     }
+    $reviewSet = $processor->item('migration-review-set');
+    if (($reviewSet['raw']['entrySet'] ?? null) !== ['set-audit-paper', 'set-archived-site', 'missing-source']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve migration-review-set entry keys');
+    }
+    if (($reviewSet['raw']['entrySetItems'][0]['container-title'] ?? null) !== 'Migration Futures Conference') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize set member crossref metadata');
+    }
+    if (($reviewSet['raw']['missingEntrySetKeys'] ?? null) !== ['missing-source']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing entry-set keys');
+    }
+    $relatedManual = $processor->item('related-manual');
+    if (($relatedManual['raw']['relatedType'] ?? null) !== 'companion') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve related manual relationship type');
+    }
+    if (($relatedManual['raw']['missingRelatedKeys'] ?? null) !== ['missing-related']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing related keys');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -122,11 +181,15 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>A proceedings child entry inherits Smith (2026) conference metadata for reviewer bibliographies.</p>',
         '<p>Accented .bib names such as Müller et al. (2026) remain readable in bibliography review.</p>',
         '<p>The xdata-backed glossary entry Ng (2026) keeps reviewer packet metadata attached.</p>',
+        '<p>A BibLaTeX entry set Migration Review Set (2026) keeps data-only member summaries available for review.</p>',
+        '<p>The related manual Curator (2024) keeps companion entry metadata attached to the source packet.</p>',
         '<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.</dd>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet.</dd>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
         '<dt>Müller et al. 2026</dt><dd>Müller, Mia; García, Gia; Søren Archive Team. Étude of Jalapeño Source Packets. Crème Brûlée Review. Revü Press, 2026. 7-9. https://example.test/accented.</dd>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>',
+        '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
+        '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

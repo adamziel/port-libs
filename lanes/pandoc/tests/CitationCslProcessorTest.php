@@ -408,6 +408,90 @@ BIB;
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromBibtex('@xdata{a,xdata={b}} @xdata{b,xdata={a}} @online{site,title={Site},xdata={a}}'));
     },
+    'preserves bounded biblatex entry sets and related entry metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@set{migration-review-set,
+  title    = {Migration Review Set},
+  date     = {2026-06-05},
+  entryset = {audit-paper, archived-site, missing-source}
+}
+
+@proceedings{conf2026,
+  options   = {dataonly},
+  title     = {Migration Futures Conference},
+  date      = {2026},
+  publisher = {Review Press}
+}
+
+@inproceedings{audit-paper,
+  options  = {dataonly},
+  author   = {Smith, Ada},
+  title    = {Packet Audit Trails},
+  pages    = {12--18},
+  crossref = {conf2026}
+}
+
+@online{archived-site,
+  options = {dataonly},
+  author  = {{Archive Team}},
+  title   = {Archive Site},
+  date    = {2026-05-31},
+  url     = {https://example.test/archive-site}
+}
+
+@book{related-manual,
+  author        = {Curator, Eli},
+  title         = {Migration Manual},
+  date          = {2024},
+  related       = {migration-review-set, missing-related},
+  relatedtype   = {companion},
+  relatedstring = {Companion review set}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('migration-review-set', $items[0]['id']);
+        $t->same('entry', $items[0]['type']);
+        $t->same(['audit-paper', 'archived-site', 'missing-source'], $items[0]['entrySet']);
+        $t->same(['missing-source'], $items[0]['missingEntrySetKeys']);
+        $t->same('audit-paper', $items[0]['entrySetItems'][0]['id'] ?? null);
+        $t->same('paper-conference', $items[0]['entrySetItems'][0]['type'] ?? null);
+        $t->same('Migration Futures Conference', $items[0]['entrySetItems'][0]['container-title'] ?? null);
+        $t->same('Review Press', $items[0]['entrySetItems'][0]['publisher'] ?? null);
+        $t->same('12-18', $items[0]['entrySetItems'][0]['page'] ?? null);
+        $t->same(true, $items[0]['entrySetItems'][0]['dataOnly'] ?? null);
+        $t->same('archived-site', $items[0]['entrySetItems'][1]['id'] ?? null);
+        $t->same('Archive Team', $items[0]['entrySetItems'][1]['author'][0]['literal'] ?? null);
+
+        $t->same('related-manual', $items[1]['id']);
+        $t->same(['migration-review-set', 'missing-related'], $items[1]['relatedKeys']);
+        $t->same('companion', $items[1]['relatedType']);
+        $t->same('Companion review set', $items[1]['relatedString']);
+        $t->same('migration-review-set', $items[1]['relatedItems'][0]['id'] ?? null);
+        $t->same('Migration Review Set', $items[1]['relatedItems'][0]['title'] ?? null);
+        $t->same(['missing-related'], $items[1]['missingRelatedKeys']);
+        $t->same('companion', $items[1]['rawBibtex']['fields']['relatedtype'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $set = $processor->item('migration-review-set');
+        $manual = $processor->item('related-manual');
+        $t->same(['audit-paper', 'archived-site', 'missing-source'], $set['raw']['entrySet'] ?? null);
+        $t->same(['missing-source'], $set['raw']['missingEntrySetKeys'] ?? null);
+        $t->same('Packet Audit Trails', $set['raw']['entrySetItems'][0]['title'] ?? null);
+        $t->same('Migration Review Set', $manual['raw']['relatedItems'][0]['title'] ?? null);
+        $t->same('(Migration Review Set 2026; Curator 2024)', $processor->renderCitationCluster([
+            $citation('migration-review-set', '[@migration-review-set]'),
+            $citation('related-manual', '[@related-manual]'),
+        ]));
+        $t->same(['audit-paper'], $processor->missingCitationIds((new MarkdownReader())->read('Standalone data-only member [@audit-paper] stays missing.')));
+
+        $document = (new MarkdownReader())->read('Review cites @migration-review-set and related manual @related-manual.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites Migration Review Set (2026) and related manual Curator (2024).</p>', $blocks);
+        $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>', $blocks);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
