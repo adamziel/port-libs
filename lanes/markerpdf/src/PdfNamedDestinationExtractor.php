@@ -1408,22 +1408,15 @@ final class PdfNamedDestinationExtractor
         return $decoded === false ? null : $decoded;
     }
 
-    private function destinationName(mixed $value): ?string
-    {
-        if (is_string($value)) {
-            return $value;
-        }
-
-        return $this->nameValue($value);
-    }
-
     /**
      * @param array<int, array{generation: int, body: string, generations: array<int, string>}> $objects
      * @param array<int, mixed> $cache
      */
     private function destinationNameValue(mixed $value, array $objects, array &$cache): ?string
     {
-        return $this->destinationName($this->resolve($value, $objects, $cache));
+        $resolved = $this->resolve($value, $objects, $cache);
+
+        return is_string($resolved) ? $resolved : null;
     }
 
     /**
