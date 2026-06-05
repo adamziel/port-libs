@@ -9205,17 +9205,40 @@ final class PdfAcroFormExtractor
         ];
 
         $span = $this->lastTopLevelValueSpanAfterName($dictionaryBody, $name);
-        if ($span === null || !str_starts_with(trim($span['value']), '[')) {
+        if ($span === null) {
             return $empty;
         }
 
-        $arrayOffset = strpos($span['value'], '[');
-        if ($arrayOffset === false) {
-            return $empty;
+        $spanValue = trim($span['value']);
+        if (!str_starts_with($spanValue, '[')) {
+            $arrayObject = $this->validObjectReferenceFromValue($spanValue, $objects);
+            if ($arrayObject === null || !isset($objects[$arrayObject])) {
+                return $empty;
+            }
+
+            $arrayBody = $this->arrayBodyFromValue(trim($objects[$arrayObject]));
+            if ($arrayBody === null) {
+                return $empty;
+            }
+
+            $materialized = $this->materializeDirectDictionariesInArrayBody($arrayBody, $objects, $nextSyntheticObject);
+            if (!$materialized['changed']) {
+                return $empty;
+            }
+
+            $objects = $materialized['objects'];
+            $objects[$arrayObject] = '[' . $materialized['body'] . ']';
+
+            return [
+                'body' => $dictionaryBody,
+                'objects' => $objects,
+                'added' => $materialized['added'],
+                'changed' => true,
+            ];
         }
 
         $arrayEnd = null;
-        $arrayBody = $this->readPdfArrayAt($span['value'], $arrayOffset, $arrayEnd);
+        $arrayBody = $this->readPdfArrayAt($spanValue, 0, $arrayEnd);
         if ($arrayBody === null || $arrayEnd === null) {
             return $empty;
         }
