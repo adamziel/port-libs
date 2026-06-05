@@ -576,6 +576,10 @@ final class BibtexCslParser
             'URL' => self::firstField($fields, ['url']),
             'language' => self::firstField($fields, ['langid', 'language', 'hyphenation']),
             'abstract' => self::firstField($fields, ['abstract', 'annote', 'annotation']),
+            'original-title' => self::firstField($fields, ['origtitle']),
+            'original-publisher' => self::firstField($fields, ['origpublisher']),
+            'original-publisher-place' => self::firstField($fields, ['origlocation', 'origaddress']),
+            'original-language' => self::firstField($fields, ['origlanguage']),
             'rawBibtex' => [
                 'type' => $type,
                 'key' => $key,
@@ -603,9 +607,19 @@ final class BibtexCslParser
             $item['editor'] = $editor;
         }
 
+        $translator = self::namesFromBibtex($fields['translator'] ?? '');
+        if ($translator !== []) {
+            $item['translator'] = $translator;
+        }
+
         $issued = self::dateFromFields($fields, ['date'], ['year', 'month', 'day']);
         if ($issued !== null) {
             $item['issued'] = $issued;
+        }
+
+        $originalDate = self::dateFromFields($fields, ['origdate'], ['origyear', 'origmonth', 'origday']);
+        if ($originalDate !== null) {
+            $item['original-date'] = $originalDate;
         }
 
         $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);

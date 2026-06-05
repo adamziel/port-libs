@@ -301,6 +301,32 @@ final class CitationCslProcessor
             $parts[] = $page . '.';
         }
 
+        $translators = $this->bibliographyTranslators($item);
+        if ($translators !== '') {
+            $parts[] = 'Translated by ' . rtrim($translators, '.') . '.';
+        }
+
+        $originalTitle = (string) $item['originalTitle'];
+        if ($originalTitle !== '') {
+            $parts[] = 'Original title: ' . $originalTitle . '.';
+        }
+
+        $originalDate = $item['originalDate'] ?? null;
+        if (is_array($originalDate) && (string) ($originalDate['display'] ?? '') !== '') {
+            $parts[] = 'Original work published ' . (string) $originalDate['display'] . '.';
+        }
+
+        $originalPublisher = (string) $item['originalPublisher'];
+        $originalPublisherPlace = (string) $item['originalPublisherPlace'];
+        if ($originalPublisher !== '' || $originalPublisherPlace !== '') {
+            $parts[] = 'Original publisher: ' . trim($originalPublisher . ($originalPublisher !== '' && $originalPublisherPlace !== '' ? ', ' : '') . $originalPublisherPlace) . '.';
+        }
+
+        $originalLanguage = (string) $item['originalLanguage'];
+        if ($originalLanguage !== '') {
+            $parts[] = 'Original language: ' . $originalLanguage . '.';
+        }
+
         $doi = (string) $item['doi'];
         if ($doi !== '') {
             $parts[] = 'DOI ' . $doi . '.';
@@ -398,9 +424,15 @@ final class CitationCslProcessor
             'sourceFiles' => self::sourceFiles($item['sourceFiles'] ?? [], $id),
             'issuedDate' => $issuedDate,
             'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
+            'originalTitle' => self::stringField($item, 'original-title'),
+            'originalPublisher' => self::stringField($item, 'original-publisher'),
+            'originalPublisherPlace' => self::stringField($item, 'original-publisher-place'),
+            'originalLanguage' => self::stringField($item, 'original-language'),
+            'originalDate' => self::dateVariable($item['original-date'] ?? null, $id, 'original-date'),
             'issuedYear' => $issuedDate['year'],
             'authors' => self::names($item['author'] ?? [], $id, 'author'),
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
+            'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
             'raw' => $item,
         ];
     }
@@ -1005,6 +1037,19 @@ final class CitationCslProcessor
             $names = $item['editors'];
         }
 
+        if (!is_array($names) || $names === []) {
+            return '';
+        }
+
+        return $this->renderNameList($names, $this->style->bibliographyNameRendering(), true);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function bibliographyTranslators(array $item): string
+    {
+        $names = $item['translators'] ?? [];
         if (!is_array($names) || $names === []) {
             return '';
         }

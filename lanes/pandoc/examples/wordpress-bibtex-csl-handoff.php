@@ -25,6 +25,8 @@ A BibLaTeX entry set @migration-review-set keeps data-only member summaries avai
 
 The related manual @related-manual keeps companion entry metadata attached to the source packet.
 
+A translated source @translated-manual preserves original publication metadata for source review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -140,6 +142,20 @@ $bibtex = <<<'BIB'
   relatedtype   = {companion},
   relatedstring = {Companion review set}
 }
+
+@book{translated-manual,
+  author        = {Garc{\'i}a, Gia},
+  translator    = {Curator, Eli and de la Cruz, Ana Maria},
+  title         = {Migration Manual},
+  origtitle     = {Manual de Migraci{\'o}n},
+  date          = {2026},
+  origdate      = {2020-05},
+  publisher     = {Review Press},
+  origpublisher = {Archivo Press},
+  origlocation  = {Madrid},
+  language      = {english},
+  origlanguage  = {spanish}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -174,6 +190,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($relatedManual['raw']['missingRelatedKeys'] ?? null) !== ['missing-related']) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing related keys');
     }
+    $translatedManual = $processor->item('translated-manual');
+    if (($translatedManual['originalTitle'] ?? null) !== 'Manual de Migración') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve translated manual original title');
+    }
+    if (($translatedManual['originalDate']['display'] ?? null) !== '2020-05') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve translated manual original date');
+    }
+    if (($translatedManual['translators'][1]['nonDroppingParticle'] ?? null) !== 'de la') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve translated manual translator particles');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -183,6 +209,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The xdata-backed glossary entry Ng (2026) keeps reviewer packet metadata attached.</p>',
         '<p>A BibLaTeX entry set Migration Review Set (2026) keeps data-only member summaries available for review.</p>',
         '<p>The related manual Curator (2024) keeps companion entry metadata attached to the source packet.</p>',
+        '<p>A translated source García (2026) preserves original publication metadata for source review.</p>',
         '<dt>Doe and Roe 2020</dt><dd>Doe, Jane; Roe, Pat. Field Notes. Journal of Imports. 2020. 55-60. https://example.test/field-notes. Accessed 2026-06-04.</dd>',
         '<dt>de la Cruz 2026</dt><dd>de la Cruz, Ana Maria, Jr. Source Packet. 2026. https://example.test/source-packet.</dd>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.</dd>',
@@ -190,6 +217,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>',
         '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
         '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>',
+        '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

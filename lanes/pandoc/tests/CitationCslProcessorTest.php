@@ -492,6 +492,58 @@ BIB;
         $t->contains('<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>', $blocks);
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024.</dd>', $blocks);
     },
+    'maps bounded biblatex translation and original publication metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{translated-manual,
+  author        = {Garc{\'i}a, Gia},
+  translator    = {Curator, Eli and de la Cruz, Ana Maria},
+  title         = {Migration Manual},
+  origtitle     = {Manual de Migraci{\'o}n},
+  date          = {2026},
+  origdate      = {2020-05},
+  publisher     = {Review Press},
+  origpublisher = {Archivo Press},
+  origlocation  = {Madrid},
+  language      = {english},
+  origlanguage  = {spanish}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('translated-manual', $items[0]['id']);
+        $t->same('Migration Manual', $items[0]['title']);
+        $t->same('Manual de Migración', $items[0]['original-title']);
+        $t->same(['date-parts' => [[2020, 5]]], $items[0]['original-date']);
+        $t->same('Archivo Press', $items[0]['original-publisher']);
+        $t->same('Madrid', $items[0]['original-publisher-place']);
+        $t->same('spanish', $items[0]['original-language']);
+        $t->same([
+            ['family' => 'Curator', 'given' => 'Eli'],
+            ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+        ], $items[0]['translator']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('translated-manual');
+        $t->same('Manual de Migración', $item['originalTitle'] ?? null);
+        $t->same([2020, 5], $item['originalDate']['parts'] ?? null);
+        $t->same('2020-05', $item['originalDate']['display'] ?? null);
+        $t->same('Archivo Press', $item['originalPublisher'] ?? null);
+        $t->same('Madrid', $item['originalPublisherPlace'] ?? null);
+        $t->same('spanish', $item['originalLanguage'] ?? null);
+        $t->same('Curator', $item['translators'][0]['family'] ?? null);
+        $t->same('Ana Maria', $item['translators'][1]['given'] ?? null);
+        $t->same('(García 2026)', $processor->renderCitationCluster([$citation('translated-manual', '[@translated-manual]')]));
+        $t->same(
+            'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
+            $processor->renderBibliographyEntry('translated-manual')
+        );
+
+        $document = (new MarkdownReader())->read('Review cites translated source @translated-manual for original publication audit.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
