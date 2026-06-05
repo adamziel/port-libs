@@ -662,6 +662,22 @@ $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
+$oversizedMediaPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Bounded import source</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => 'word/media/oversized.bin',
+        'data' => str_repeat("Oversized reviewer media bytes\n", 12),
+    ],
+]);
+$oversizedMediaRejected = false;
+try {
+    $oversizedMediaPackage->readBounded('/word/media/oversized.bin', 64);
+} catch (RuntimeException $exception) {
+    $oversizedMediaRejected = str_contains($exception->getMessage(), 'exceeds maximum uncompressed read size');
+}
 $compressedPackage = GzipStream::build($package->bytes(), [
     'modifiedAt' => $documentModifiedAt,
     'extraFieldData' => $gzipReviewExtra,
@@ -856,6 +872,14 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($package->read('/word/document.xml') !== '<w:document><w:body><w:p>WordPress import source</w:p></w:body></w:document>') {
         throw new RuntimeException('Expected document part bytes to round-trip from the ZIP package');
+    }
+
+    if ($package->readBounded('/word/document.xml', 2048) !== '<w:document><w:body><w:p>WordPress import source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected bounded document part bytes to round-trip from the ZIP package');
+    }
+
+    if (!$oversizedMediaRejected) {
+        throw new RuntimeException('Expected oversized ZIP media reads to be rejected before import');
     }
 
     if ($package->packageComment() !== 'wordpress import package') {
@@ -1151,6 +1175,7 @@ echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDriveLetterPolicy=' . ($tarDriveLetterRejected ? 'rejected' : 'not-rejected') . "\n";

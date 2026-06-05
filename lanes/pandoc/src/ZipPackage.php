@@ -463,9 +463,16 @@ final class ZipPackage
         return $timestamps['modifiedAt'] ?? null;
     }
 
-    public function read(string $partName): string
+    public function read(string $partName, ?int $maxUncompressedBytes = null): string
     {
         $entry = $this->entry($partName);
+        self::assertReadLimit($maxUncompressedBytes, $entry->name);
+        if ($maxUncompressedBytes !== null && $entry->uncompressedSize > $maxUncompressedBytes) {
+            throw new \RuntimeException(
+                "ZIP entry {$entry->name} exceeds maximum uncompressed read size {$maxUncompressedBytes} bytes"
+            );
+        }
+
         if ($entry->isDirectory()) {
             return '';
         }
@@ -473,11 +480,17 @@ final class ZipPackage
         $compressed = $this->readCompressedEntryBytes($entry);
         $contents = match ($entry->compressionMethod) {
             0 => $compressed,
-            8 => $this->inflateEntry($entry, $compressed),
+            8 => $this->inflateEntry($entry, $compressed, $maxUncompressedBytes),
             default => throw new \RuntimeException(
                 "Unsupported ZIP compression method {$entry->compressionMethod} for entry {$entry->name}"
             ),
         };
+
+        if ($maxUncompressedBytes !== null && strlen($contents) > $maxUncompressedBytes) {
+            throw new \RuntimeException(
+                "ZIP entry {$entry->name} exceeds maximum uncompressed read size {$maxUncompressedBytes} bytes"
+            );
+        }
 
         if (strlen($contents) !== $entry->uncompressedSize) {
             throw new \RuntimeException("ZIP entry {$entry->name} expanded to an unexpected size");
@@ -488,6 +501,11 @@ final class ZipPackage
         }
 
         return $contents;
+    }
+
+    public function readBounded(string $partName, int $maxUncompressedBytes): string
+    {
+        return $this->read($partName, $maxUncompressedBytes);
     }
 
     public function centralDirectoryOffset(): int
@@ -767,14 +785,32 @@ final class ZipPackage
         }
     }
 
-    private function inflateEntry(ZipPackageEntry $entry, string $compressed): string
+    private function inflateEntry(ZipPackageEntry $entry, string $compressed, ?int $maxUncompressedBytes = null): string
     {
-        $inflated = gzinflate($compressed);
+        $inflateLimit = 0;
+        if ($maxUncompressedBytes !== null) {
+            $inflateLimit = $maxUncompressedBytes === PHP_INT_MAX ? 0 : $maxUncompressedBytes + 1;
+        }
+
+        $inflated = $inflateLimit > 0 ? gzinflate($compressed, $inflateLimit) : gzinflate($compressed);
         if ($inflated === false) {
             throw new \RuntimeException("Unable to inflate ZIP entry {$entry->name}");
         }
 
         return $inflated;
+    }
+
+    private static function assertReadLimit(?int $maxUncompressedBytes, string $entryName): void
+    {
+        if ($maxUncompressedBytes === null) {
+            return;
+        }
+
+        if ($maxUncompressedBytes < 0) {
+            throw new \InvalidArgumentException(
+                "ZIP entry {$entryName} maximum uncompressed read size must be non-negative"
+            );
+        }
     }
 
     private function normalizeLookupPartName(string $partName): string

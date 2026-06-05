@@ -1078,6 +1078,36 @@ return [
         $t->throws(\RuntimeException::class, static fn (): string => $localOnly->read('word/media/reviewer-note.txt'));
     },
 
+    'bounds zip part reads before exposing oversized package media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>bounded document</w:p></w:body></w:document>';
+        $mediaBytes = str_repeat("review media bytes\n", 12);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+
+        $t->same($documentXml, $package->readBounded('/word/document.xml', strlen($documentXml)));
+        $t->same($mediaBytes, $package->read('/word/media/review.bin', strlen($mediaBytes)));
+        $t->same('', $package->readBounded('/word/media/', 0));
+        $t->throws(\RuntimeException::class, static fn (): string => $package->readBounded('/word/document.xml', strlen($documentXml) - 1));
+        $t->throws(\RuntimeException::class, static fn (): string => $package->read('/word/media/review.bin', 32));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $package->readBounded('/word/document.xml', -1));
+    },
+
     'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
         $package = ZipPackage::fromParts([
             [
