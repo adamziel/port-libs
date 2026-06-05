@@ -27,9 +27,19 @@ final class ZipPackageEntry
         public readonly int $externalFileAttributes = 0,
         public readonly string $centralExtraFieldData = '',
         public readonly int $versionMadeBy = 0,
+        ?string $rawName = null,
+        ?string $rawComment = null,
+        public readonly string $nameEncoding = 'utf-8',
+        public readonly string $commentEncoding = 'utf-8',
     ) {
+        $this->rawName = $rawName ?? $this->name;
+        $this->rawComment = $rawComment ?? $this->comment;
         self::parseExtraFields($this->centralExtraFieldData, "central extra fields for {$this->name}");
     }
+
+    public readonly string $rawName;
+
+    public readonly string $rawComment;
 
     public function isDirectory(): bool
     {

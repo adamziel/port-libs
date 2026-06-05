@@ -10,8 +10,28 @@ final class ZipPackage
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
     private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
+    private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
+    private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
+    private const CP437_EXTENDED_CHARS = [
+        "\u{00c7}", "\u{00fc}", "\u{00e9}", "\u{00e2}", "\u{00e4}", "\u{00e0}", "\u{00e5}", "\u{00e7}",
+        "\u{00ea}", "\u{00eb}", "\u{00e8}", "\u{00ef}", "\u{00ee}", "\u{00ec}", "\u{00c4}", "\u{00c5}",
+        "\u{00c9}", "\u{00e6}", "\u{00c6}", "\u{00f4}", "\u{00f6}", "\u{00f2}", "\u{00fb}", "\u{00f9}",
+        "\u{00ff}", "\u{00d6}", "\u{00dc}", "\u{00a2}", "\u{00a3}", "\u{00a5}", "\u{20a7}", "\u{0192}",
+        "\u{00e1}", "\u{00ed}", "\u{00f3}", "\u{00fa}", "\u{00f1}", "\u{00d1}", "\u{00aa}", "\u{00ba}",
+        "\u{00bf}", "\u{2310}", "\u{00ac}", "\u{00bd}", "\u{00bc}", "\u{00a1}", "\u{00ab}", "\u{00bb}",
+        "\u{2591}", "\u{2592}", "\u{2593}", "\u{2502}", "\u{2524}", "\u{2561}", "\u{2562}", "\u{2556}",
+        "\u{2555}", "\u{2563}", "\u{2551}", "\u{2557}", "\u{255d}", "\u{255c}", "\u{255b}", "\u{2510}",
+        "\u{2514}", "\u{2534}", "\u{252c}", "\u{251c}", "\u{2500}", "\u{253c}", "\u{255e}", "\u{255f}",
+        "\u{255a}", "\u{2554}", "\u{2569}", "\u{2566}", "\u{2560}", "\u{2550}", "\u{256c}", "\u{2567}",
+        "\u{2568}", "\u{2564}", "\u{2565}", "\u{2559}", "\u{2558}", "\u{2552}", "\u{2553}", "\u{256b}",
+        "\u{256a}", "\u{2518}", "\u{250c}", "\u{2588}", "\u{2584}", "\u{258c}", "\u{2590}", "\u{2580}",
+        "\u{03b1}", "\u{00df}", "\u{0393}", "\u{03c0}", "\u{03a3}", "\u{03c3}", "\u{00b5}", "\u{03c4}",
+        "\u{03a6}", "\u{0398}", "\u{03a9}", "\u{03b4}", "\u{221e}", "\u{03c6}", "\u{03b5}", "\u{2229}",
+        "\u{2261}", "\u{00b1}", "\u{2265}", "\u{2264}", "\u{2320}", "\u{2321}", "\u{00f7}", "\u{2248}",
+        "\u{00b0}", "\u{2219}", "\u{00b7}", "\u{221a}", "\u{207f}", "\u{00b2}", "\u{25a0}", "\u{00a0}",
+    ];
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -90,14 +110,32 @@ final class ZipPackage
                 throw new \RuntimeException('ZIP64 entry sizes or offsets are not supported by this bounded package reader');
             }
 
-            $name = substr($bytes, $variableStart, $nameLength);
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $rawComment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            $name = $decodedName['text'];
             self::assertSafePartName($name);
             if (isset($entriesByName[$name])) {
                 throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
             }
 
-            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
-            $comment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
+            $decodedComment = self::decodeZipText(
+                $rawComment,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_COMMENT_EXTRA_ID,
+                'info-zip-unicode-comment',
+                "central directory entry {$name} comment"
+            );
+            $comment = $decodedComment['text'];
             $entry = new ZipPackageEntry(
                 $name,
                 $method,
@@ -111,7 +149,11 @@ final class ZipPackage
                 $modifiedDate,
                 $externalAttributes,
                 $centralExtraFieldData,
-                $versionMadeBy
+                $versionMadeBy,
+                $rawName,
+                $rawComment,
+                $decodedName['encoding'],
+                $decodedComment['encoding']
             );
             if ($entry->isUnixSymlink()) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package reader: {$name}");
@@ -164,6 +206,7 @@ final class ZipPackage
 
             $name = $part['name'];
             self::assertSafePartName($name);
+            self::assertUtf8($name, "ZIP entry {$index} name");
             self::assertUInt16Length($name, "ZIP entry name {$name}");
             if (isset($entriesByName[$name])) {
                 throw new \RuntimeException("Duplicate ZIP package entry: {$name}");
@@ -204,6 +247,7 @@ final class ZipPackage
             if (!is_string($comment)) {
                 throw new \RuntimeException("ZIP package entry {$name} comment must be a string");
             }
+            self::assertUtf8($comment, "ZIP entry {$name} comment");
             self::assertUInt16Length($comment, "ZIP entry comment {$name}");
 
             $crc32 = self::unsignedCrc32($data);
@@ -504,12 +548,21 @@ final class ZipPackage
         self::assertRange($this->bytes, $nameStart, $nameLength + $extraLength, 'local file header variable fields');
 
         $localName = substr($this->bytes, $nameStart, $nameLength);
-        if ($localName !== $entry->name) {
+        if ($localName !== $entry->rawName) {
             throw new \RuntimeException("ZIP local header name does not match central directory entry {$entry->name}");
         }
 
         $localExtraFieldData = substr($this->bytes, $nameStart + $nameLength, $extraLength);
         ZipPackageEntry::validateExtraFieldData($localExtraFieldData, "local extra fields for {$entry->name}");
+        $localUnicodePath = self::unicodeTextFromExtraFieldData(
+            $localExtraFieldData,
+            self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+            $localName,
+            "local extra fields for {$entry->name}",
+        );
+        if ($localUnicodePath !== null && $localUnicodePath !== $entry->name) {
+            throw new \RuntimeException("ZIP local header Unicode path does not match central directory entry {$entry->name}");
+        }
 
         if (($flags & 0x0001) !== 0 || $flags !== $entry->generalPurposeFlags) {
             throw new \RuntimeException("ZIP local header flags do not match central directory entry {$entry->name}");
@@ -660,6 +713,82 @@ final class ZipPackage
     }
 
     /**
+     * @return array{text:string, encoding:string}
+     */
+    private static function decodeZipText(
+        string $raw,
+        int $flags,
+        string $extraFieldData,
+        int $unicodeExtraFieldId,
+        string $unicodeEncodingLabel,
+        string $label
+    ): array {
+        $unicodeText = self::unicodeTextFromExtraFieldData($extraFieldData, $unicodeExtraFieldId, $raw, $label);
+        if ($unicodeText !== null) {
+            return [
+                'text' => $unicodeText,
+                'encoding' => $unicodeEncodingLabel,
+            ];
+        }
+
+        if (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0) {
+            self::assertUtf8($raw, "ZIP {$label}");
+
+            return [
+                'text' => $raw,
+                'encoding' => 'utf-8',
+            ];
+        }
+
+        return [
+            'text' => self::decodeCp437($raw),
+            'encoding' => 'cp437',
+        ];
+    }
+
+    private static function unicodeTextFromExtraFieldData(string $extraFieldData, int $id, string $rawBytes, string $label): ?string
+    {
+        foreach (ZipPackageEntry::extraFieldsFromData($extraFieldData, $label) as $field) {
+            if ($field['id'] !== $id) {
+                continue;
+            }
+
+            $data = $field['data'];
+            if (strlen($data) < 5) {
+                throw new \RuntimeException("ZIP Unicode extra field for {$label} is truncated");
+            }
+
+            $version = ord($data[0]);
+            if ($version !== 1) {
+                throw new \RuntimeException("ZIP Unicode extra field for {$label} uses an unsupported version");
+            }
+
+            $crc = self::readUInt32($data, 1);
+            if ($crc !== self::unsignedCrc32($rawBytes)) {
+                throw new \RuntimeException("ZIP Unicode extra field CRC32 does not match {$label}");
+            }
+
+            $text = substr($data, 5);
+            self::assertUtf8($text, "ZIP Unicode extra field for {$label}");
+
+            return $text;
+        }
+
+        return null;
+    }
+
+    private static function decodeCp437(string $bytes): string
+    {
+        $text = '';
+        for ($index = 0, $length = strlen($bytes); $index < $length; $index++) {
+            $byte = ord($bytes[$index]);
+            $text .= $byte < 0x80 ? chr($byte) : self::CP437_EXTENDED_CHARS[$byte - 0x80];
+        }
+
+        return $text;
+    }
+
+    /**
      * @param array<string, mixed> $part
      *
      * @return array{0:int, 1:int}
@@ -759,6 +888,13 @@ final class ZipPackage
             if ($segment === '' || $segment === '.' || $segment === '..') {
                 throw new \RuntimeException("Unsafe ZIP package entry name: {$name}");
             }
+        }
+    }
+
+    private static function assertUtf8(string $text, string $label): void
+    {
+        if (preg_match('//u', $text) !== 1) {
+            throw new \RuntimeException("{$label} must be valid UTF-8");
         }
     }
 

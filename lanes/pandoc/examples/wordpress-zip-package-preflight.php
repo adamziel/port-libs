@@ -23,6 +23,11 @@ $packNtfsFileTime = static function (int $timestamp): string {
 
     return pack('VV', $low, $high);
 };
+$buildUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text) use ($crc32): string {
+    $payload = pack('CV', 1, $crc32($rawBytes)) . $utf8Text;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
+};
 $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $createdAt) use ($packNtfsFileTime): string {
     $payload = pack('Vvv', 0, 0x0001, 24)
         . $packNtfsFileTime($modifiedAt)
@@ -230,6 +235,67 @@ $buildExtendedTimestampBackedPackage = static function () use ($crc32, $mediaMod
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
 
+$unicodePathName = "word/media/review-\u{2603}.png";
+$unicodePathRawName = 'word/media/review-image.bin';
+$unicodeRawComment = 'legacy reviewer comment';
+$unicodeComment = "Unicode reviewer \u{2603} comment";
+$buildUnicodePathBackedPackage = static function () use (
+    $crc32,
+    $buildUnicodeExtra,
+    $unicodePathName,
+    $unicodePathRawName,
+    $unicodeRawComment,
+    $unicodeComment
+): string {
+    $data = "Unicode media attachment placeholder\n";
+    $crc = $crc32($data);
+    $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodePathRawName, $unicodePathName);
+    $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $unicodeRawComment, $unicodeComment);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($unicodePathRawName),
+        strlen($unicodePathExtra)
+    );
+    $body .= $unicodePathRawName . $unicodePathExtra . $data;
+
+    $centralExtra = $unicodePathExtra . $unicodeCommentExtra;
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($unicodePathRawName),
+        strlen($centralExtra),
+        strlen($unicodeRawComment),
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $unicodePathRawName . $centralExtra . $unicodeRawComment;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
+
 $package = ZipPackage::fromParts([
     [
         'name' => '[Content_Types].xml',
@@ -251,6 +317,7 @@ $package = ZipPackage::fromParts([
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
+$unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
 $compressedPackage = GzipStream::build($package->bytes(), [
     'modifiedAt' => $documentModifiedAt,
     'extraFieldData' => 'WP',
@@ -466,6 +533,23 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP symlink entries to be rejected before media import');
     }
 
+    $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
+    if ($unicodePathEntry->rawName !== $unicodePathRawName) {
+        throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
+    }
+
+    if ($unicodePathEntry->nameEncoding !== 'info-zip-unicode-path') {
+        throw new RuntimeException('Expected ZIP Unicode path extra field to provide decoded media path');
+    }
+
+    if ($unicodePathEntry->comment !== $unicodeComment || $unicodePathEntry->commentEncoding !== 'info-zip-unicode-comment') {
+        throw new RuntimeException('Expected ZIP Unicode comment extra field to provide decoded media review comment');
+    }
+
+    if ($unicodePathPackage->read('/' . $unicodePathName) !== "Unicode media attachment placeholder\n") {
+        throw new RuntimeException('Expected Unicode path media attachment bytes to round-trip');
+    }
+
     echo "zip package writer preflight self-test passed\n";
     exit(0);
 }
@@ -493,6 +577,11 @@ echo 'extended.reviewer-note.modifiedAt=' . ($extendedTimestamps['modifiedAt'] ?
 echo 'extended.reviewer-note.accessedAt=' . ($extendedTimestamps['accessedAt'] ?? 'none') . "\n";
 echo 'extended.reviewer-note.createdAt=' . ($extendedTimestamps['createdAt'] ?? 'none') . "\n";
 echo 'symlinkPolicy=' . ($symlinkRejected ? 'rejected' : 'not-rejected') . "\n";
+$unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
+echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
+echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
+echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
+echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";

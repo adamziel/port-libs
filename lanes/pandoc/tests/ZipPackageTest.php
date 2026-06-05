@@ -14,6 +14,11 @@ $packNtfsFileTime = static function (int $timestamp): string {
 
     return pack('VV', $low, $high);
 };
+$buildUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text) use ($crc32): string {
+    $payload = pack('CV', 1, $crc32($rawBytes)) . $utf8Text;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
+};
 $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $createdAt) use ($packNtfsFileTime): string {
     $payload = pack('Vvv', 0, 0x0001, 24)
         . $packNtfsFileTime($modifiedAt)
@@ -346,6 +351,94 @@ return [
 
         $t->same(null, $fatPackage->entry('word/media/review.png')->unixMode());
         $t->same(false, $fatPackage->entry('word/media/review.png')->isUnixSymlink());
+    },
+
+    'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $rawName = "word/media/caf\x82.png";
+        $decodedName = "word/media/caf\u{00e9}.png";
+        $rawComment = "r\x82sum\x82 media";
+        $decodedComment = "r\u{00e9}sum\u{00e9} media";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $rawComment,
+            ],
+        ]));
+        $entry = $package->entry($decodedName);
+
+        $t->same([$decodedName], $package->names());
+        $t->same($decodedName, $entry->name);
+        $t->same($rawName, $entry->rawName);
+        $t->same('cp437', $entry->nameEncoding);
+        $t->same($decodedComment, $entry->comment);
+        $t->same($rawComment, $entry->rawComment);
+        $t->same('cp437', $entry->commentEncoding);
+        $t->same("PNG reviewer attachment placeholder\n", $package->read('/' . $decodedName));
+    },
+
+    'uses info zip unicode path and comment extras for legacy encoded package names' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra, $crc32): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $rawComment = 'legacy reviewer comment';
+        $unicodeComment = "Unicode reviewer \u{2603} comment";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $rawName, $unicodeName);
+        $unicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, $unicodeComment);
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => "Unicode media attachment placeholder\n",
+                'method' => 8,
+                'flags' => 0,
+                'comment' => $rawComment,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra . $unicodeCommentExtra,
+            ],
+        ]));
+        $entry = $package->entry($unicodeName);
+
+        $t->same([$unicodeName], $package->names());
+        $t->same($rawName, $entry->rawName);
+        $t->same($unicodeName, $entry->name);
+        $t->same('info-zip-unicode-path', $entry->nameEncoding);
+        $t->same($rawComment, $entry->rawComment);
+        $t->same($unicodeComment, $entry->comment);
+        $t->same('info-zip-unicode-comment', $entry->commentEncoding);
+        $t->same("\x01" . pack('V', $crc32($rawName)) . $unicodeName, $entry->centralExtraField(0x7075));
+        $t->same("Unicode media attachment placeholder\n", $package->read('/' . $unicodeName));
+    },
+
+    'rejects mismatched unicode zip path metadata before exposing package names' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $centralPathExtra = $buildUnicodeExtra(0x7075, $rawName, $unicodeName);
+        $badCentralPathExtra = $buildUnicodeExtra(0x7075, 'word/media/other.bin', $unicodeName);
+        $badLocalPathExtra = $buildUnicodeExtra(0x7075, $rawName, 'word/media/other.png');
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'bad central unicode path crc',
+                'flags' => 0,
+                'centralExtra' => $badCentralPathExtra,
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => 'bad local unicode path value',
+                'flags' => 0,
+                'localExtra' => $badLocalPathExtra,
+                'centralExtra' => $centralPathExtra,
+            ],
+        ]));
+
+        $t->throws(\RuntimeException::class, static fn (): string => $package->read($unicodeName));
     },
 
     'writes zip entry modification metadata for generated package parts' => static function (TestRunner $t): void {
