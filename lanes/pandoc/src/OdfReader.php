@@ -22,6 +22,9 @@ final class OdfReader
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
 
+    /** @var array<string, array<string, mixed>> */
+    private array $manifestByPart = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -39,12 +42,14 @@ final class OdfReader
         $this->assertOdtMimetype($package);
 
         $manifest = $this->readManifest($package);
+        $this->manifestByPart = $this->manifestByPart($manifest);
         $styleCatalog = $this->readStyles($package);
         $content = $this->readContent($package, $styleCatalog);
         $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
         $metadata = $this->readMeta($package);
         $media = $this->mediaReport($package, $manifest);
+        $encryptedItems = $this->encryptedManifestItems($manifest);
 
         $document = new AstNode('document', [
             'source' => 'odt',
@@ -85,6 +90,8 @@ final class OdfReader
                         $manifest,
                         static fn (array $item): bool => ($item['exists'] ?? false) !== true,
                     )),
+                    'encryptedCount' => count($encryptedItems),
+                    'encryptedItems' => $encryptedItems,
                 ],
                 'metadata' => $metadata,
                 'styles' => [
@@ -102,6 +109,14 @@ final class OdfReader
                 'trackedChanges' => [
                     'count' => count($content['trackedChanges']),
                     'items' => $content['trackedChanges'],
+                ],
+                'encryption' => [
+                    'count' => count($encryptedItems),
+                    'encryptedParts' => array_values(array_filter(
+                        array_map(static fn (array $item): ?string => is_string($item['part'] ?? null) ? $item['part'] : null, $encryptedItems),
+                        static fn (?string $part): bool => $part !== null && $part !== ''
+                    )),
+                    'items' => $encryptedItems,
                 ],
                 'content' => [
                     'blockCount' => count($content['blocks']),
@@ -165,6 +180,9 @@ final class OdfReader
 
             $mediaType = self::attr($entryElement, self::MANIFEST_NS, 'media-type');
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
+            $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
+            $encryptionElement = self::firstChildElement($entryElement, 'encryption-data', self::MANIFEST_NS);
+            $encrypted = $encryptionElement instanceof \DOMElement;
             $part = $fullPath === '/' ? null : $this->manifestPackagePart($fullPath);
             $exists = $part === null ? true : $package->has($part);
             $zipEntry = $exists && $part !== null ? $package->entry($part) : null;
@@ -177,6 +195,10 @@ final class OdfReader
                 'exists' => $exists,
                 'byteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $declaredSize,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => !$encrypted,
+                'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
             ];
         }
 
@@ -185,6 +207,48 @@ final class OdfReader
         }
 
         return $items;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function encryptionData(\DOMElement $element): array
+    {
+        $data = self::withoutEmpty([
+            'checksumType' => self::nullable(self::attr($element, self::MANIFEST_NS, 'checksum-type')),
+            'checksum' => self::nullable(self::attr($element, self::MANIFEST_NS, 'checksum')),
+        ]);
+
+        $algorithm = self::firstChildElement($element, 'algorithm', self::MANIFEST_NS);
+        if ($algorithm instanceof \DOMElement) {
+            $initialisationVector = self::attr($algorithm, self::MANIFEST_NS, 'initialisation-vector');
+            if ($initialisationVector === '') {
+                $initialisationVector = self::attr($algorithm, self::MANIFEST_NS, 'initialization-vector');
+            }
+            $data['algorithm'] = self::withoutEmpty([
+                'name' => self::nullable(self::attr($algorithm, self::MANIFEST_NS, 'algorithm-name')),
+                'initialisationVector' => self::nullable($initialisationVector),
+            ]);
+        }
+
+        $keyDerivation = self::firstChildElement($element, 'key-derivation', self::MANIFEST_NS);
+        if ($keyDerivation instanceof \DOMElement) {
+            $data['keyDerivation'] = self::withoutEmpty([
+                'name' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'key-derivation-name')),
+                'iterationCount' => self::nullableInt(self::attr($keyDerivation, self::MANIFEST_NS, 'iteration-count')),
+                'salt' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'salt')),
+            ]);
+        }
+
+        $startKeyGeneration = self::firstChildElement($element, 'start-key-generation', self::MANIFEST_NS);
+        if ($startKeyGeneration instanceof \DOMElement) {
+            $data['startKeyGeneration'] = self::withoutEmpty([
+                'name' => self::nullable(self::attr($startKeyGeneration, self::MANIFEST_NS, 'start-key-generation-name')),
+                'keySize' => self::nullableInt(self::attr($startKeyGeneration, self::MANIFEST_NS, 'key-size')),
+            ]);
+        }
+
+        return self::withoutEmpty($data);
     }
 
     /**
@@ -1183,16 +1247,25 @@ final class OdfReader
         $name = self::attr($frame, self::DRAW_NS, 'name');
         $alt = $desc instanceof \DOMElement ? self::normalizedText($desc) : ($title instanceof \DOMElement ? self::normalizedText($title) : $name);
         $part = $this->manifestPackagePart($href);
+        $manifestItem = $this->manifestByPart[$part] ?? null;
+        $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
         $attrs = [
             'url' => $href,
             'alt' => $alt,
             'sourceFormat' => 'odt',
             'sourcePart' => $part,
         ];
+        if (is_array($manifestItem)) {
+            $attrs['mediaType'] = $manifestItem['mediaType'] ?? null;
+            $attrs['encrypted'] = $encrypted;
+            $attrs['canExposeBytes'] = !$encrypted;
+            $attrs['declaredSize'] = $manifestItem['declaredSize'] ?? null;
+            $attrs['encryption'] = $manifestItem['encryption'] ?? null;
+        }
         if ($title instanceof \DOMElement) {
             $attrs['title'] = self::normalizedText($title);
         }
-        if ($package instanceof ZipPackage && $package->has($part)) {
+        if ($package instanceof ZipPackage && $package->has($part) && !$encrypted) {
             $attrs['bytes'] = strlen($package->read($part));
         }
 
@@ -1456,18 +1529,54 @@ final class OdfReader
                 continue;
             }
 
+            $encrypted = ($item['encrypted'] ?? false) === true;
             $entry = $package->has($part) ? $package->entry($part) : null;
             $media[] = [
                 'fullPath' => $item['fullPath'],
                 'part' => $part,
                 'mediaType' => $mediaType,
                 'exists' => $entry instanceof ZipPackageEntry,
-                'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-                'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => !$encrypted,
+                'encryption' => $item['encryption'] ?? null,
             ];
         }
 
         return $media;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, array<string, mixed>>
+     */
+    private function manifestByPart(array $manifest): array
+    {
+        $byPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $byPart[$part] = $item;
+            }
+        }
+
+        return $byPart;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function encryptedManifestItems(array $manifest): array
+    {
+        return array_values(array_filter(
+            $manifest,
+            static fn (array $item): bool => ($item['encrypted'] ?? false) === true
+        ));
     }
 
     /**
@@ -1688,6 +1797,18 @@ final class OdfReader
     private static function nullable(string $value): ?string
     {
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private static function withoutEmpty(array $values): array
+    {
+        return array_filter(
+            $values,
+            static fn (mixed $value): bool => $value !== null && $value !== '' && $value !== []
+        );
     }
 
     private static function normalizedText(\DOMElement $element): string

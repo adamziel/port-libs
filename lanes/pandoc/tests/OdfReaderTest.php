@@ -448,6 +448,65 @@ XML;
         $t->same(8, count($result['document']->children));
         $t->same('Imported ODT Packet', $result['document']->children[0]->children[0]->attr('text'));
     },
+    'reports encrypted ODT manifest resources without exposing media bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithEncryptedMedia = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedEntry,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithEncryptedMedia));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+
+        $heroManifest = $manifestByPath['Pictures/hero.png'];
+        $t->same(true, $heroManifest['encrypted']);
+        $t->same(false, $heroManifest['canExposeBytes']);
+        $t->same(2048, $heroManifest['declaredSize']);
+        $t->same('SHA1/1K', $heroManifest['encryption']['checksumType']);
+        $t->same('checksum-base64', $heroManifest['encryption']['checksum']);
+        $t->same('Blowfish CFB', $heroManifest['encryption']['algorithm']['name']);
+        $t->same('iv-base64', $heroManifest['encryption']['algorithm']['initialisationVector']);
+        $t->same('PBKDF2', $heroManifest['encryption']['keyDerivation']['name']);
+        $t->same(1024, $heroManifest['encryption']['keyDerivation']['iterationCount']);
+        $t->same('salt-base64', $heroManifest['encryption']['keyDerivation']['salt']);
+        $t->same('SHA1', $heroManifest['encryption']['startKeyGeneration']['name']);
+        $t->same(20, $heroManifest['encryption']['startKeyGeneration']['keySize']);
+
+        $media = $result['media'][0];
+        $t->same('Pictures/hero.png', $media['part']);
+        $t->same(true, $media['encrypted']);
+        $t->same(false, $media['canExposeBytes']);
+        $t->same(null, $media['byteLength']);
+        $t->same(7, $media['storedByteLength']);
+        $t->same('Blowfish CFB', $media['encryption']['algorithm']['name']);
+
+        $image = $result['document']->children[5]->children[0];
+        $t->same(true, $image->attr('encrypted'));
+        $t->same(false, $image->attr('canExposeBytes'));
+        $t->same('not-exposed', $image->attr('bytes', 'not-exposed'));
+        $t->same('Blowfish CFB', $image->attr('encryption')['algorithm']['name']);
+
+        $t->same(1, $result['importReport']['manifest']['encryptedCount']);
+        $t->same('Pictures/hero.png', $result['importReport']['manifest']['encryptedItems'][0]['part']);
+        $t->same(1, $result['importReport']['encryption']['count']);
+        $t->same(['Pictures/hero.png'], $result['importReport']['encryption']['encryptedParts']);
+        $t->same(0, count($result['importReport']['manifest']['missingItems']));
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<img src="Pictures/hero.png" alt="Hero alt text" title="Hero title"/>', $blocks);
+    },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
 

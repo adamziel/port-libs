@@ -14,7 +14,13 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
-  <manifest:file-entry manifest:full-path="Pictures/source-hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/source-hero.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="review-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="review-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="review-salt"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
 </manifest:manifest>
 XML;
 
@@ -128,6 +134,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['media'][0]['part'] ?? '') !== 'Pictures/source-hero.png') {
         throw new RuntimeException('Expected ODT image manifest media to be reported');
+    }
+    if (($result['media'][0]['canExposeBytes'] ?? true) !== false) {
+        throw new RuntimeException('Expected encrypted ODT media bytes to stay unavailable for import');
+    }
+    if (($result['importReport']['encryption']['encryptedParts'][0] ?? '') !== 'Pictures/source-hero.png') {
+        throw new RuntimeException('Expected ODT encrypted media to be listed in the import report');
     }
     if (!str_contains($blocks, '<h1>ODT source packet</h1>')) {
         throw new RuntimeException('Expected ODT heading to render as a WordPress heading block');
