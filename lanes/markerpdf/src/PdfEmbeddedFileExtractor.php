@@ -314,6 +314,10 @@ final class PdfEmbeddedFileExtractor
                 }
             }
 
+            foreach ($this->fileSpecMetadata($body, $objects) as $key => $metadataValue) {
+                $file[$key] = $metadataValue;
+            }
+
             if ($stream['filters'] !== []) {
                 $file['filters'] = $stream['filters'];
             }
@@ -1179,6 +1183,88 @@ final class PdfEmbeddedFileExtractor
         return $hasUnicodeFilename
             ? ['UF', 'F', 'DOS', 'Unix', 'Mac']
             : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
+    }
+
+    /**
+     * FileSpec-local metadata is review-only state for attachment import. Keep
+     * identifiers as binary-safe hex and never promote them into visible text.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function fileSpecMetadata(string $fileSpecBody, array $objects): array
+    {
+        $metadata = [];
+
+        $fileSystem = $this->dictionaryNameValue($fileSpecBody, 'FS', $objects);
+        if ($fileSystem !== null && $fileSystem !== '') {
+            $metadata['file_system'] = $fileSystem;
+            $metadata['file_system_status'] = $this->fileSpecFileSystemStatus($fileSystem);
+        }
+
+        $identifier = $this->fileSpecIdentifierReview($this->dictionaryRawValue($fileSpecBody, 'ID'), $objects);
+        if ($identifier !== []) {
+            $metadata['file_identifier'] = $identifier;
+        }
+
+        $volatile = $this->reviewValueFromRaw($this->dictionaryRawValue($fileSpecBody, 'V'), $objects);
+        if (is_bool($volatile)) {
+            $metadata['volatile'] = $volatile;
+            $metadata['volatile_status'] = $volatile
+                ? 'volatile_file_spec_review'
+                : 'stable_file_spec_review';
+        }
+
+        return $metadata;
+    }
+
+    private function fileSpecFileSystemStatus(string $fileSystem): string
+    {
+        return match ($fileSystem) {
+            'URL' => 'external_url_file_system_review_only',
+            'DOS', 'Mac', 'Unix' => 'platform_file_system_review',
+            default => 'custom_file_system_review_only',
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function fileSpecIdentifierReview(?string $value, array $objects): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $identifiers = [];
+        foreach ($this->arrayItemsFromValue($value, $objects) as $item) {
+            $bytes = $this->byteStringValueFromRaw($item, $objects);
+            if ($bytes !== null && $bytes !== '') {
+                $identifiers[] = strtolower(bin2hex($bytes));
+            }
+        }
+
+        if ($identifiers === []) {
+            return [];
+        }
+
+        $review = [
+            'identifier_count' => count($identifiers),
+            'identifiers_hex' => $identifiers,
+            'identifier_status' => count($identifiers) >= 2
+                ? 'complete_file_identifier_pair'
+                : 'partial_file_identifier_pair',
+        ];
+
+        if (isset($identifiers[0])) {
+            $review['permanent_id_hex'] = $identifiers[0];
+        }
+        if (isset($identifiers[1])) {
+            $review['changing_id_hex'] = $identifiers[1];
+        }
+
+        return $review;
     }
 
     /**

@@ -768,6 +768,9 @@ final class PdfAttachmentExtractor
         $declaredSize = $this->intValue($this->resolveValue($params['Size'] ?? null, $objects));
         $checksum = $this->stringBytesHex($this->resolveValue($params['CheckSum'] ?? null, $objects));
         $relationship = $this->nameValue($this->resolveValue($fileSpec['AFRelationship'] ?? null, $objects));
+        $fileSystem = $this->nameOrStringValue($fileSpec['FS'] ?? null, $objects);
+        $fileIdentifier = $this->fileSpecIdentifierReview($fileSpec['ID'] ?? null, $objects);
+        $volatile = $this->boolValue($this->resolveValue($fileSpec['V'] ?? null, $objects));
 
         $attachment = [
             ...$context,
@@ -809,6 +812,19 @@ final class PdfAttachmentExtractor
             $attachment['relationship_status'] = array_key_exists($relationship, self::ASSOCIATED_FILE_RELATIONSHIP_ROLES)
                 ? 'standard_pdf_associated_file_relationship'
                 : 'unrecognized_pdf_associated_file_relationship';
+        }
+        if ($fileSystem !== null && $fileSystem !== '') {
+            $attachment['file_system'] = $fileSystem;
+            $attachment['file_system_status'] = $this->fileSpecFileSystemStatus($fileSystem);
+        }
+        if ($fileIdentifier !== []) {
+            $attachment['file_identifier'] = $fileIdentifier;
+        }
+        if ($volatile !== null) {
+            $attachment['volatile'] = $volatile;
+            $attachment['volatile_status'] = $volatile
+                ? 'volatile_file_spec_review'
+                : 'stable_file_spec_review';
         }
 
         $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects);
@@ -937,6 +953,7 @@ final class PdfAttachmentExtractor
                 'filename_source',
                 'description',
                 'annotation_contents',
+                'file_identifier',
             ] as $key) {
                 unset($attachment[$key]);
             }
@@ -1161,6 +1178,64 @@ final class PdfAttachmentExtractor
         $resolved = $this->resolveValue($value, $objects);
 
         return $this->nameValue($resolved) ?? $this->stringValue($resolved);
+    }
+
+    private function boolValue(mixed $value): ?bool
+    {
+        return is_bool($value) ? $value : null;
+    }
+
+    private function fileSpecFileSystemStatus(string $fileSystem): string
+    {
+        return match ($fileSystem) {
+            'URL' => 'external_url_file_system_review_only',
+            'DOS', 'Mac', 'Unix' => 'platform_file_system_review',
+            default => 'custom_file_system_review_only',
+        };
+    }
+
+    /**
+     * FileSpec /ID byte strings identify the external or embedded file
+     * revision. Keep them as hex review metadata, never as payload text.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>
+     */
+    private function fileSpecIdentifierReview(mixed $value, array $objects): array
+    {
+        $items = $this->arrayValue($this->resolveValue($value, $objects));
+        if ($items === null || $items === []) {
+            return [];
+        }
+
+        $identifiers = [];
+        foreach ($items as $item) {
+            $hex = $this->stringBytesHex($this->resolveValue($item, $objects));
+            if ($hex !== null && $hex !== '') {
+                $identifiers[] = $hex;
+            }
+        }
+
+        if ($identifiers === []) {
+            return [];
+        }
+
+        $review = [
+            'identifier_count' => count($identifiers),
+            'identifiers_hex' => $identifiers,
+            'identifier_status' => count($identifiers) >= 2
+                ? 'complete_file_identifier_pair'
+                : 'partial_file_identifier_pair',
+        ];
+
+        if (isset($identifiers[0])) {
+            $review['permanent_id_hex'] = $identifiers[0];
+        }
+        if (isset($identifiers[1])) {
+            $review['changing_id_hex'] = $identifiers[1];
+        }
+
+        return $review;
     }
 
     /**

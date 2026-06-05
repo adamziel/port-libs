@@ -22,7 +22,9 @@ $postEofChecksum = md5($postEofPayload);
 $sourceChecksum = md5($sourcePayload);
 $pageChecksum = md5($pagePayload);
 $directChecksum = md5($directPayload);
-$directFileSpec = '<< /Type /Filespec /F (direct-source.xml) /Desc (Direct FileSpec mirror export) /AFRelationship /Source /EF << /F 21 0 R >> >>';
+$directPermanentIdHex = '00112233445566778899AABBCCDDEEFF';
+$directChangingIdHex = strtoupper(bin2hex('direct-filespec-mirror-v2'));
+$directFileSpec = '<< /Type /Filespec /FS /URL /F (https://example.test/direct-source.xml) /UF (direct-source.xml) /Desc (Direct FileSpec mirror export) /AFRelationship /Source /ID [<' . $directPermanentIdHex . '> <' . $directChangingIdHex . '>] /V true /EF << /UF 21 0 R >> >>';
 $sharedChecksum = md5($sharedPayload);
 $relatedChecksum = md5($relatedPayload);
 $pdf = "%PDF-1.7\n"
@@ -142,6 +144,15 @@ if (!is_array($directAttachment)
     || ($directAttachment['source'] ?? null) !== 'embedded-files-name-tree'
     || ($directAttachment['file_spec_object_id'] ?? null) !== null
     || ($directAttachment['stream_object_id'] ?? null) !== 21
+    || ($directAttachment['ef_key'] ?? null) !== 'UF'
+    || ($directAttachment['filename_source'] ?? null) !== 'UF'
+    || ($directAttachment['file_system'] ?? null) !== 'URL'
+    || ($directAttachment['file_system_status'] ?? null) !== 'external_url_file_system_review_only'
+    || ($directAttachment['volatile'] ?? null) !== true
+    || ($directAttachment['volatile_status'] ?? null) !== 'volatile_file_spec_review'
+    || ($directAttachment['file_identifier']['permanent_id_hex'] ?? null) !== strtolower($directPermanentIdHex)
+    || ($directAttachment['file_identifier']['changing_id_hex'] ?? null) !== strtolower($directChangingIdHex)
+    || ($directAttachment['file_identifier']['identifier_status'] ?? null) !== 'complete_file_identifier_pair'
     || ($directAttachment['associated_file_source'] ?? null) !== 'catalog_af'
     || ($directAttachment['page_associated_file_source'] ?? null) !== 'page_af'
     || ($directAttachment['file_attachment_annotation_source'] ?? null) !== 'page_annotation'
@@ -223,6 +234,13 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
         && ($directAttachment['file_attachment_annotation_source'] ?? null) === 'page_annotation'
         && $summary['attachment_count'] === 6,
     'direct_filespec_payload_omitted' => !str_contains($summaryJson, $directPayload),
+    'direct_filespec_file_system_review' => ($directAttachment['file_system'] ?? null) === 'URL'
+        && ($directAttachment['file_system_status'] ?? null) === 'external_url_file_system_review_only',
+    'direct_filespec_identifier_review' => ($directAttachment['file_identifier']['identifier_status'] ?? null) === 'complete_file_identifier_pair'
+        && ($directAttachment['file_identifier']['permanent_id_hex'] ?? null) === strtolower($directPermanentIdHex)
+        && ($directAttachment['file_identifier']['changing_id_hex'] ?? null) === strtolower($directChangingIdHex),
+    'direct_filespec_volatile_review' => ($directAttachment['volatile'] ?? null) === true
+        && ($directAttachment['volatile_status'] ?? null) === 'volatile_file_spec_review',
     'associated_filespec_without_name_tree_deduped' => ($sharedAttachment['source'] ?? null) === 'catalog-associated-file'
         && ($sharedAttachment['page_associated_file_source'] ?? null) === 'page_af'
         && ($sharedAttachment['file_attachment_annotation_source'] ?? null) === 'page_annotation'
