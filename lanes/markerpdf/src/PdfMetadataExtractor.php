@@ -172,6 +172,7 @@ final class PdfMetadataExtractor
      */
     public function extractDocumentMetadata(string $pdfBytes): array
     {
+        $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
         $objects = $this->pdfObjects($pdfBytes);
         $encryption = $this->extractEncryptionMetadata($pdfBytes, $objects);
         $metadataSourcePolicy = $this->encryptedMetadataSourcePolicy($pdfBytes, $objects, $encryption);
@@ -6284,6 +6285,26 @@ final class PdfMetadataExtractor
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions);
         return $objects;
+    }
+
+    private function bytesThroughCurrentEof(string $pdfBytes): string
+    {
+        if (preg_match_all('/\bstartxref\s+\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+            $latest = end($matches[0]);
+            if (is_array($latest)) {
+                $eofOffset = strpos($pdfBytes, '%%EOF', $latest[1]);
+                if ($eofOffset !== false) {
+                    return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
+                }
+            }
+        }
+
+        $eofOffset = strrpos($pdfBytes, '%%EOF');
+        if ($eofOffset !== false) {
+            return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
+        }
+
+        return $pdfBytes;
     }
 
     /**
