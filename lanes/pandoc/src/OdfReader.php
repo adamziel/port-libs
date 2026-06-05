@@ -2585,6 +2585,7 @@ final class OdfReader
     private function manifestPackagePart(string $path): string
     {
         $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
+        $path = rawurldecode($path);
         $path = ltrim($path, '/');
         while (str_starts_with($path, './')) {
             $path = substr($path, 2);
@@ -2592,7 +2593,7 @@ final class OdfReader
         if ($path === '') {
             throw new \RuntimeException('ODT package part path must not be empty');
         }
-        if (str_contains($path, '..') || str_starts_with($path, '\\') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+        if (str_contains($path, '..') || str_contains($path, '\\') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
             throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
         }
 

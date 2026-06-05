@@ -1332,6 +1332,81 @@ XML;
         $t->contains('<annotation encoding="application/x-tex">x=1</annotation>', $blocksHtml);
         $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
     },
+    'normalizes ODT URI encoded package part references for media and objects' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithEncodedParts = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/source%20hero.png" manifest:media-type="image/png" manifest:size="8"/>
+  <manifest:file-entry manifest:full-path="Object%201/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
+  <manifest:file-entry manifest:full-path="Object%201/content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $contentWithEncodedReferences = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Encoded package image <draw:frame draw:name="Encoded hero"><draw:image xlink:href="./Pictures/source%20hero.png"><svg:title>Encoded hero</svg:title><svg:desc>Decoded source hero</svg:desc></draw:image></draw:frame> and formula <draw:frame draw:name="Encoded formula"><draw:object xlink:href="./Object%201"/></draw:frame>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $mathObject = <<<'XML'
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mrow><mi>y</mi><mo>=</mo><mn>2</mn></mrow>
+</math>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithEncodedReferences,
+            $manifestWithEncodedParts,
+            null,
+            null,
+            [
+                ['name' => 'Pictures/source hero.png', 'data' => 'PNGDATA!'],
+                ['name' => 'Object 1/content.xml', 'data' => $mathObject],
+            ]
+        ));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+
+        $paragraph = $result['document']->children[0];
+        $image = $paragraph->children[1];
+        $math = $paragraph->children[3];
+
+        $t->same('Pictures/source hero.png', $manifestByPath['Pictures/source%20hero.png']['part']);
+        $t->same(true, $manifestByPath['Pictures/source%20hero.png']['exists']);
+        $t->same(8, $manifestByPath['Pictures/source%20hero.png']['byteLength']);
+        $t->same('Object 1/content.xml', $manifestByPath['Object%201/content.xml']['part']);
+        $t->same(true, $manifestByPath['Object%201/content.xml']['exists']);
+        $t->same(1, count($result['media']));
+        $t->same('Pictures/source hero.png', $result['media'][0]['part']);
+        $t->same(8, $result['media'][0]['byteLength']);
+
+        $t->same('Encoded package image Decoded source hero and formula y=2.', $paragraph->attr('text'));
+        $t->same('image', $image->type);
+        $t->same('./Pictures/source%20hero.png', $image->attr('url'));
+        $t->same('Pictures/source hero.png', $image->attr('sourcePart'));
+        $t->same(8, $image->attr('bytes'));
+        $t->same('math', $math->type);
+        $t->same('Object 1', $math->attr('objectPath'));
+        $t->same('Object 1/content.xml', $math->attr('sourcePart'));
+        $t->same('y=2', $math->attr('text'));
+        $t->same(1, $result['importReport']['content']['mathCount']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<img src="./Pictures/source%20hero.png" alt="Decoded source hero" title="Encoded hero"/>', $blocksHtml);
+        $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
+    },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSizedImages = <<<'XML'
 <office:document-content
@@ -1532,6 +1607,9 @@ XML;
 
         $unsafeManifest = str_replace('Pictures/hero.png', 'Pictures/../secret.png', $manifestXml);
         $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $unsafeManifest)));
+
+        $encodedUnsafeManifest = str_replace('Pictures/hero.png', 'Pictures/%2e%2e/secret.png', $manifestXml);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $encodedUnsafeManifest)));
 
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildZipPackageWithCentralDirectoryOrder([
             ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
