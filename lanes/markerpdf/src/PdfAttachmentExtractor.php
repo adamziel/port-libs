@@ -272,17 +272,19 @@ final class PdfAttachmentExtractor
     private function latestTrailerRootCatalogReference(string $pdfBytes): ?array
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $offset = $definitions === []
+            ? $this->latestStartxrefOffset($pdfBytes)
+            : $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return null;
         }
 
-        $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions === [] ? null : $definitions);
         if ($table !== null) {
             return $this->refObjectReference($table['trailer']['Root'] ?? null);
         }
 
-        $definitions = $this->directObjectDefinitions($pdfBytes);
         $stream = $this->xrefStreamSectionAt($offset, $definitions);
         if ($stream !== null) {
             return $this->refObjectReference($stream['dictionary']['Root'] ?? null);
@@ -1746,7 +1748,7 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @return array<int, list<array{generation: int, offset: int, body: string}>>
+     * @return array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>>
      */
     private function directObjectDefinitions(string $pdfBytes): array
     {
@@ -1756,9 +1758,13 @@ final class PdfAttachmentExtractor
 
         $definitions = [];
         foreach ($matches as $match) {
+            $bodyStart = $match[3][1];
+            $bodyEnd = $bodyStart + strlen($match[3][0]);
             $definitions[(int) $match[1][0]][] = [
                 'generation' => (int) $match[2][0],
                 'offset' => $match[0][1],
+                'bodyStart' => $bodyStart,
+                'bodyEnd' => $bodyEnd,
                 'body' => $match[3][0],
             ];
         }
@@ -1843,17 +1849,17 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
      * @return array{objectNumber: int, generation: int}|null
      */
     private function latestTrailerRootReference(string $pdfBytes, array $definitions): ?array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return null;
         }
 
-        $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($table !== null) {
             return $this->refObjectReference($table['trailer']['Root'] ?? null);
         }
@@ -1867,12 +1873,12 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int}>
      */
     private function xrefEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
     {
-        $offset = $this->latestStartxrefOffset($pdfBytes);
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
         if ($offset === null) {
             return [];
         }
@@ -1883,22 +1889,201 @@ final class PdfAttachmentExtractor
         return $entries;
     }
 
-    private function latestStartxrefOffset(string $pdfBytes): ?int
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function latestStartxrefOffset(string $pdfBytes, ?array $definitions = null): ?int
     {
-        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER) < 1) {
-            return null;
-        }
+        $entry = $this->latestStartxrefEntry($pdfBytes, $definitions);
 
-        $last = end($matches);
-        if (!is_array($last)) {
-            return null;
-        }
-
-        return (int) $last[1];
+        return $entry['offset'] ?? null;
     }
 
     /**
-     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     * @return array{offset: int, tokenOffset: int}|null
+     */
+    private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
+    {
+        if (preg_match_all('/\bstartxref\s+(\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches) - 1; $index >= 0; $index--) {
+            $match = $matches[$index];
+            $tokenOffset = $match[0][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $tokenOffset)
+                || (
+                    $definitions !== null
+                    && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                )
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return [
+                'offset' => max(0, (int) ($match[1][0] ?? 0)),
+                'tokenOffset' => $tokenOffset,
+            ];
+        }
+
+        return null;
+    }
+
+    private function tokenStartsInPdfCommentLine(string $pdfBytes, int $tokenOffset): bool
+    {
+        $before = substr($pdfBytes, 0, $tokenOffset);
+        $lastLineFeed = strrpos($before, "\n");
+        $lastCarriageReturn = strrpos($before, "\r");
+        $lineStart = max($lastLineFeed === false ? -1 : $lastLineFeed, $lastCarriageReturn === false ? -1 : $lastCarriageReturn) + 1;
+        $commentOffset = strpos($pdfBytes, '%', $lineStart);
+
+        return $commentOffset !== false && $commentOffset < $tokenOffset;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
+     */
+    private function tokenStartsInsidePdfCompositeToken(string $pdfBytes, int $tokenOffset, ?array $definitions = null): bool
+    {
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $tokenOffset && $offset < $length) {
+            if ($definitions !== null) {
+                foreach ($definitions as $entries) {
+                    foreach ($entries as $definition) {
+                        $bodyStart = $definition['bodyStart'] ?? null;
+                        $bodyEnd = $definition['bodyEnd'] ?? null;
+                        if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                            $offset = $bodyEnd + 1;
+                            continue 3;
+                        }
+                    }
+                }
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($pdfBytes, $offset);
+                if ($end !== null) {
+                    if ($tokenOffset > $offset && $tokenOffset < $end) {
+                        return true;
+                    }
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                if ($tokenOffset > $offset && $tokenOffset < $compositeEnd) {
+                    return true;
+                }
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipHexString($pdfBytes, $offset) ?? $length;
+                if ($tokenOffset > $offset && $tokenOffset < $end) {
+                    return true;
+                }
+                $offset = $end;
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     */
+    private function startxrefOffsetWithClassicRebuild(string $pdfBytes, array $definitions): ?int
+    {
+        $entry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        if ($entry === null) {
+            return null;
+        }
+
+        return $this->classicRebuildOffsetForStartxref(
+            $pdfBytes,
+            $entry['offset'],
+            $definitions,
+            $entry['tokenOffset']
+        ) ?? $entry['offset'];
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     */
+    private function classicRebuildOffsetForStartxref(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        ?int $candidateBeforeOffset = null
+    ): ?int {
+        if ($this->xrefStreamSectionAt($offset, $definitions) !== null) {
+            return null;
+        }
+
+        $latestClassicOffset = $this->latestClassicXrefTableOffset($pdfBytes, $definitions, $candidateBeforeOffset);
+        if ($latestClassicOffset === null) {
+            return null;
+        }
+
+        if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) === null) {
+            if (
+                $candidateBeforeOffset !== null
+                && $offset < $candidateBeforeOffset
+                && $latestClassicOffset < $candidateBeforeOffset
+            ) {
+                return $latestClassicOffset;
+            }
+
+            if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
+                return null;
+            }
+
+            return $latestClassicOffset;
+        }
+
+        return $latestClassicOffset > $offset ? $latestClassicOffset : null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function latestClassicXrefTableOffset(string $pdfBytes, array $definitions, ?int $candidateBeforeOffset = null): ?int
+    {
+        $offsets = $this->xrefTableKeywordOffsets($pdfBytes, $definitions);
+        for ($index = count($offsets) - 1; $index >= 0; $index--) {
+            $offset = $offsets[$index];
+            if ($candidateBeforeOffset !== null && $offset > $candidateBeforeOffset) {
+                continue;
+            }
+
+            if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null) {
+                return $offset;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
      * @param array<int, true> $seenOffsets
      * @return array<int, array{type: int, generation?: int, offset?: int}>
      */
@@ -1909,7 +2094,7 @@ final class PdfAttachmentExtractor
         }
         $seenOffsets[$offset] = true;
 
-        $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($table !== null) {
             $entries = $table['entries'];
             $previousOffset = $this->intValue($table['trailer']['Prev'] ?? null);
@@ -1939,23 +2124,32 @@ final class PdfAttachmentExtractor
     }
 
     /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return array{entries: array<int, array{type: int, generation: int, offset: int}>, trailer: array<string, mixed>}|null
      */
-    private function xrefTableSectionAt(string $pdfBytes, int $offset): ?array
+    private function xrefTableSectionAt(string $pdfBytes, int $offset, ?array $definitions = null): ?array
     {
+        if ($definitions !== null && $this->offsetOwnedByDirectObjectBody($offset, $definitions)) {
+            return null;
+        }
+
         $offset = $this->skipWhitespaceOffset($pdfBytes, $offset);
-        if (substr($pdfBytes, $offset, 4) !== 'xref') {
+        if (!$this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
             return null;
         }
 
         $sectionBodyOffset = $offset + 4;
-        $trailerOffset = strpos($pdfBytes, 'trailer', $sectionBodyOffset);
-        if ($trailerOffset === false) {
+        if ($sectionBodyOffset >= strlen($pdfBytes) || !ctype_space($pdfBytes[$sectionBodyOffset])) {
             return null;
         }
 
-        $dictionaryOffset = strpos($pdfBytes, '<<', $trailerOffset);
-        if ($dictionaryOffset === false) {
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
+        if ($trailerOffset === null) {
+            return null;
+        }
+
+        $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $trailerOffset + strlen('trailer'));
+        if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
             return null;
         }
 
@@ -1966,6 +2160,203 @@ final class PdfAttachmentExtractor
             'entries' => $this->xrefTableRows(substr($pdfBytes, $sectionBodyOffset, $trailerOffset - $sectionBodyOffset)),
             'trailer' => $trailer,
         ];
+    }
+
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length) {
+            $char = $pdfBytes[$offset];
+
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipHexString($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'trailer')) {
+                $dictionaryOffset = $this->skipWhitespaceOffset($pdfBytes, $offset + strlen('trailer'));
+                if (substr($pdfBytes, $dictionaryOffset, 2) === '<<') {
+                    return $offset;
+                }
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     * @return list<int>
+     */
+    private function xrefTableKeywordOffsets(string $pdfBytes, array $definitions): array
+    {
+        $offsets = [];
+        $length = strlen($pdfBytes);
+        $offset = 0;
+        while ($offset < $length) {
+            foreach ($definitions as $entries) {
+                foreach ($entries as $definition) {
+                    $bodyStart = $definition['bodyStart'] ?? null;
+                    $bodyEnd = $definition['bodyEnd'] ?? null;
+                    if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                        $offset = $bodyEnd + 1;
+                        continue 3;
+                    }
+                }
+            }
+
+            $char = $pdfBytes[$offset];
+            if ($char === '%') {
+                $offset = $this->pdfCommentEndOffset($pdfBytes, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->literalTokenEndOffset($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $compositeEnd = $this->skipPdfCompositeTokenAt($pdfBytes, $offset);
+            if ($compositeEnd !== null) {
+                $offset = $compositeEnd;
+                continue;
+            }
+
+            if ($char === '<' && ($pdfBytes[$offset + 1] ?? '') !== '<') {
+                $end = $this->skipHexString($pdfBytes, $offset);
+                if ($end !== null) {
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            if ($this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
+                $offsets[] = $offset;
+                $offset += strlen('xref');
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return $offsets;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function offsetOwnedByDirectObjectBody(int $offset, array $definitions): bool
+    {
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                $bodyStart = $definition['bodyStart'] ?? null;
+                $bodyEnd = $definition['bodyEnd'] ?? null;
+                if (is_int($bodyStart) && is_int($bodyEnd) && $offset >= $bodyStart && $offset <= $bodyEnd) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function skipPdfCompositeTokenAt(string $pdfBytes, int $offset): ?int
+    {
+        if ($offset < 0 || $offset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        if (($pdfBytes[$offset] ?? '') !== '[' && substr($pdfBytes, $offset, 2) !== '<<') {
+            return null;
+        }
+
+        $probe = $offset;
+        $this->parseValue($pdfBytes, $probe);
+
+        return $probe > $offset ? $probe : null;
+    }
+
+    private function literalTokenEndOffset(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '(') {
+            return null;
+        }
+
+        $probe = $offset;
+        $this->parseLiteralStringBytes($pdfBytes, $probe);
+
+        return $probe > $offset ? $probe : null;
+    }
+
+    private function skipHexString(string $pdfBytes, int $offset): ?int
+    {
+        if (($pdfBytes[$offset] ?? '') !== '<' || ($pdfBytes[$offset + 1] ?? '') === '<') {
+            return null;
+        }
+
+        $end = strpos($pdfBytes, '>', $offset + 1);
+
+        return $end === false ? null : $end + 1;
+    }
+
+    private function pdfCommentEndOffset(string $pdfBytes, int $offset): int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length && $pdfBytes[$offset] !== "\n" && $pdfBytes[$offset] !== "\r") {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function pdfKeywordAt(string $pdfBytes, int $offset, string $keyword): bool
+    {
+        if (substr($pdfBytes, $offset, strlen($keyword)) !== $keyword) {
+            return false;
+        }
+
+        if ($offset > 0) {
+            $before = $pdfBytes[$offset - 1];
+            if ($before === '/' || (!ctype_space($before) && !str_contains('[]()<>{}%', $before))) {
+                return false;
+            }
+        }
+
+        $afterOffset = $offset + strlen($keyword);
+        if ($afterOffset >= strlen($pdfBytes)) {
+            return true;
+        }
+
+        $after = $pdfBytes[$afterOffset];
+
+        return ctype_space($after) || str_contains('[]()<>{}/%', $after);
     }
 
     /**

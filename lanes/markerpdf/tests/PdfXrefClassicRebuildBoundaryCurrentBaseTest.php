@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
@@ -934,6 +935,39 @@ return [
         $t->same(true, $file['checksum_matches']);
         $t->true(!str_contains($encodedFiles, 'stale-source.xml'));
         $t->true(!str_contains($encodedFiles, 'stale-classic-attachment'));
+    },
+    'rebuilds stale classic startxref before native attachment preflight import' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildEmbeddedFilesCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum] = $xrefClassicRebuildEmbeddedFilesCurrentBasePdf();
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(strlen($currentPayload), $attachmentSummary['total_bytes']);
+        $t->same(['current-source.xml'], $attachmentSummary['filenames']);
+        $attachment = $attachmentSummary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('current-source.xml', $attachment['name_key']);
+        $t->same('current-source.xml', $attachment['filename']);
+        $t->same('Current classic rebuild attachment', $attachment['description']);
+        $t->same('Source', $attachment['relationship']);
+        $t->same('original_source', $attachment['relationship_role']);
+        $t->same('text/xml', $attachment['content_type']);
+        $t->same(30, $attachment['file_spec_object_id']);
+        $t->same(31, $attachment['stream_object_id']);
+        $t->same(strlen($currentPayload), $attachment['declared_size']);
+        $t->same(true, $attachment['declared_size_matches']);
+        $t->same(strlen($currentPayload), $attachment['byte_length']);
+        $t->same(hash('sha256', $currentPayload), $attachment['sha256']);
+        $t->same($currentChecksum, $attachment['checksum_hex']);
+        $t->same($currentChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
+        $t->true(!str_contains($encodedAttachmentSummary, 'stale-source.xml'));
+        $t->true(!str_contains($encodedAttachmentSummary, 'stale-classic-attachment'));
     },
     'skips commented xref keywords during classic rebuild before metadata root selection' => static function (
         TestRunner $t
