@@ -11499,12 +11499,14 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $dictionary, $match, 0, $valueOffset) === 1) {
+            $referenceOffset = $valueOffset;
+            $reference = $this->readPdfIndirectReferenceToken($dictionary, $referenceOffset);
+            if ($reference !== null) {
                 $references[$this->decodePdfName(substr($dictionary, $nameStart, $nameEnd - $nameStart))] = [
-                    'objectNumber' => (int) $match[1],
-                    'generation' => (int) $match[2],
+                    'objectNumber' => $reference['objectNumber'],
+                    'generation' => $reference['generation'],
                 ];
-                $offset = $valueOffset + strlen($match[0]);
+                $offset = $referenceOffset;
                 continue;
             }
 
@@ -11525,11 +11527,13 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $fontBody, $match, 0, $offset) === 1) {
+        $referenceOffset = $offset;
+        $reference = $this->readPdfIndirectReferenceToken($fontBody, $referenceOffset);
+        if ($reference !== null) {
             $objectBody = $this->objectBodyForExactReference(
                 $objects,
-                (int) $match[1],
-                (int) $match[2]
+                $reference['objectNumber'],
+                $reference['generation']
             );
 
             return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
@@ -12773,6 +12777,34 @@ final class PdfTextExtractor
         return [
             'objectNumber' => (int) $match[1],
             'generation' => (int) $match[2],
+        ];
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function readPdfIndirectReferenceToken(string $value, int &$offset): ?array
+    {
+        $cursor = $offset;
+        $objectNumber = $this->readPdfUnsignedIntegerToken($value, $cursor);
+        if ($objectNumber === null) {
+            return null;
+        }
+
+        $generation = $this->readPdfUnsignedIntegerToken($value, $cursor);
+        if ($generation === null) {
+            return null;
+        }
+
+        $cursor = $this->skipPdfWhitespace($value, $cursor);
+        if (!$this->pdfKeywordAt($value, $cursor, 'R')) {
+            return null;
+        }
+
+        $offset = $cursor + 1;
+        return [
+            'objectNumber' => $objectNumber,
+            'generation' => $generation,
         ];
     }
 
