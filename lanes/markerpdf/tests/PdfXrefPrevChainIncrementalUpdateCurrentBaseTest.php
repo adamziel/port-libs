@@ -2062,9 +2062,11 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $extractor = new PdfTextExtractor();
         $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
         $text = $extractor->extractPlainText($pdf);
         $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 
         $t->same(['Current classic Prev table page', 'Classic table offset repaired'], $extractor->extractTextLines($pdf));
         $t->same("Current classic Prev table page\nClassic table offset repaired", $text);
@@ -2079,8 +2081,16 @@ return [
         $t->same('current-classic-prev.xml', $files[0]['filename']);
         $t->same('Current classic Prev attachment', $files[0]['description']);
         $t->same('<wp-export><post id="current-classic-prev"/></wp-export>', $files[0]['content']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-classic-prev.xml'], $attachmentSummary['filenames']);
+        $t->same('current-classic-prev.xml', $attachmentSummary['attachments'][0]['filename']);
+        $t->same('Current classic Prev attachment', $attachmentSummary['attachments'][0]['description']);
+        $t->same(strlen('<wp-export><post id="current-classic-prev"/></wp-export>'), $attachmentSummary['total_bytes']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Classic'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-classic-prev'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-classic-prev'));
         $t->true(!str_contains($text, 'Stale classic Prev table page'));
         $t->true(!str_contains($text, "\0"));
     },
@@ -2091,9 +2101,11 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $extractor = new PdfTextExtractor();
         $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
         $text = $extractor->extractPlainText($pdf);
         $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 
         $t->same(['Current damaged Prev table page', 'Damaged Prev repaired rows'], $extractor->extractTextLines($pdf));
         $t->same("Current damaged Prev table page\nDamaged Prev repaired rows", $text);
@@ -2108,9 +2120,17 @@ return [
         $t->same('current-damaged-prev-table.xml', $files[0]['filename']);
         $t->same('Current damaged Prev table attachment', $files[0]['description']);
         $t->same('<wp-export><post id="current-damaged-prev-table"/></wp-export>', $files[0]['content']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-damaged-prev-table.xml'], $attachmentSummary['filenames']);
+        $t->same('current-damaged-prev-table.xml', $attachmentSummary['attachments'][0]['filename']);
+        $t->same('Current damaged Prev table attachment', $attachmentSummary['attachments'][0]['description']);
+        $t->same(strlen('<wp-export><post id="current-damaged-prev-table"/></wp-export>'), $attachmentSummary['total_bytes']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
         $t->true(str_contains($pdf, '/Prev '));
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Damaged Prev'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-damaged-prev-table'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-damaged-prev-table'));
         $t->true(!str_contains($text, 'Stale damaged Prev table page'));
         $t->true(!str_contains($text, "\0"));
     },
@@ -2150,9 +2170,11 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $extractor = new PdfTextExtractor();
         $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
         $text = $extractor->extractPlainText($pdf);
         $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 
         $t->same(['Current classic direct Prev owner page', 'Classic direct Prev helper selected before decoy'], $extractor->extractTextLines($pdf));
         $t->same("Current classic direct Prev owner page\nClassic direct Prev helper selected before decoy", $text);
@@ -2167,10 +2189,18 @@ return [
         $t->same('current-classic-direct-prev-owner.xml', $files[0]['filename']);
         $t->same('Current classic direct Prev owner attachment', $files[0]['description']);
         $t->same('<wp-export><post id="current-classic-direct-prev-owner"/></wp-export>', $files[0]['content']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-classic-direct-prev-owner.xml'], $attachmentSummary['filenames']);
+        $t->same('current-classic-direct-prev-owner.xml', $attachmentSummary['attachments'][0]['filename']);
+        $t->same('Current classic direct Prev owner attachment', $attachmentSummary['attachments'][0]['description']);
+        $t->same(strlen('<wp-export><post id="current-classic-direct-prev-owner"/></wp-export>'), $attachmentSummary['total_bytes']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
         $t->true(str_contains($pdf, '/Prev 30 0 R'));
         $t->true(str_contains($pdf, 'post-xref classic Prev helper decoy'));
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Classic Direct Prev'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-classic-direct-prev-owner'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-classic-direct-prev-owner'));
         $t->true(!str_contains($text, 'Stale classic direct Prev owner page'));
         $t->true(!str_contains($text, "\0"));
     },

@@ -747,18 +747,22 @@ $wrongCurrentOffsetEncoded = json_encode([
 $classicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($classicTablePdf);
 $classicTablePlainText = $extractor->extractPlainText($classicTablePdf);
 $classicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($classicTablePdf);
+$classicTableAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($classicTablePdf);
 $classicTableEncoded = json_encode([
     'metadata' => $classicTableMetadata,
     'text' => $classicTablePlainText,
     'files' => $classicTableFiles,
+    'attachment_summary' => $classicTableAttachmentSummary,
 ], JSON_UNESCAPED_SLASHES);
 $damagedPrevClassicTableMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($damagedPrevClassicTablePdf);
 $damagedPrevClassicTablePlainText = $extractor->extractPlainText($damagedPrevClassicTablePdf);
 $damagedPrevClassicTableFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($damagedPrevClassicTablePdf);
+$damagedPrevClassicTableAttachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($damagedPrevClassicTablePdf);
 $damagedPrevClassicTableEncoded = json_encode([
     'metadata' => $damagedPrevClassicTableMetadata,
     'text' => $damagedPrevClassicTablePlainText,
     'files' => $damagedPrevClassicTableFiles,
+    'attachment_summary' => $damagedPrevClassicTableAttachmentSummary,
 ], JSON_UNESCAPED_SLASHES);
 $sparseInfoMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($sparseInfoPdf);
 $sparseInfoPlainText = $extractor->extractPlainText($sparseInfoPdf);
@@ -826,6 +830,10 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'classic_table_same_generation_current_info_selected' => ($classicTableMetadata['info']['Title'] ?? null) === 'Current Classic Table Smoke Info',
     'classic_table_same_generation_current_text_selected' => str_contains($classicTablePlainText, 'Current classic Prev table smoke page'),
     'classic_table_same_generation_current_attachment_selected' => ($classicTableFiles[0]['filename'] ?? null) === 'current-classic-prev-smoke.xml',
+    'classic_table_same_generation_attachment_preflight_selected' => ($classicTableAttachmentSummary['filenames'] ?? []) === ['current-classic-prev-smoke.xml']
+        && ($classicTableAttachmentSummary['total_bytes'] ?? null) === strlen($classicTableCurrentPayload),
+    'classic_table_same_generation_attachment_preflight_no_runtime_execution' => ($classicTableAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($classicTableAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
     'classic_table_same_generation_stale_prev_excluded' => is_string($classicTableEncoded)
         && !str_contains($classicTableEncoded, 'Stale Classic')
         && !str_contains($classicTableEncoded, 'stale-classic-prev-smoke'),
@@ -834,6 +842,10 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'classic_table_damaged_prev_current_language_selected' => ($damagedPrevClassicTableMetadata['language'] ?? null) === 'en-US',
     'classic_table_damaged_prev_current_text_selected' => str_contains($damagedPrevClassicTablePlainText, 'Damaged Prev classic rows repaired'),
     'classic_table_damaged_prev_current_attachment_selected' => ($damagedPrevClassicTableFiles[0]['filename'] ?? null) === 'current-damaged-prev-classic-smoke.xml',
+    'classic_table_damaged_prev_attachment_preflight_selected' => ($damagedPrevClassicTableAttachmentSummary['filenames'] ?? []) === ['current-damaged-prev-classic-smoke.xml']
+        && ($damagedPrevClassicTableAttachmentSummary['total_bytes'] ?? null) === strlen($damagedPrevClassicTableCurrentPayload),
+    'classic_table_damaged_prev_attachment_preflight_no_runtime_execution' => ($damagedPrevClassicTableAttachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($damagedPrevClassicTableAttachmentSummary['executes_external_pdf_tools'] ?? null) === false,
     'classic_table_damaged_prev_stale_prev_excluded' => is_string($damagedPrevClassicTableEncoded)
         && !str_contains($damagedPrevClassicTableEncoded, 'Stale Damaged Prev Classic')
         && !str_contains($damagedPrevClassicTableEncoded, 'stale-damaged-prev-classic-smoke'),

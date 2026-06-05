@@ -3426,7 +3426,7 @@ final class PdfAttachmentExtractor
             $entries = $table['entries'];
             $previousOffset = $this->previousXrefOffsetForSection(
                 $pdfBytes,
-                $this->intValue($table['trailer']['Prev'] ?? null),
+                $this->previousXrefOffsetFromTableTrailer($table['trailer'], $definitions, $offset),
                 $offset,
                 $definitions
             );
@@ -3671,6 +3671,7 @@ final class PdfAttachmentExtractor
 
         if ($definitions !== null) {
             $entries = $this->repairClassicXrefGenerationOffsetRows($entries, $definitions, $offset);
+            $entries = $this->repairCurrentUpdateXrefTableRows($pdfBytes, $entries, $definitions, $trailer, $offset);
         }
 
         return [
@@ -3940,6 +3941,93 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, array{type: int, generation: int, offset: int}> $entries
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     * @param array<string, mixed> $trailer
+     * @return array<int, array{type: int, generation: int, offset: int}>
+     */
+    private function repairCurrentUpdateXrefTableRows(
+        string $pdfBytes,
+        array $entries,
+        array $definitions,
+        array $trailer,
+        int $xrefOffset
+    ): array {
+        $previousOffset = $this->previousXrefOffsetForSection(
+            $pdfBytes,
+            $this->previousXrefOffsetFromTableTrailer($trailer, $definitions, $xrefOffset),
+            $xrefOffset,
+            $definitions
+        );
+
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $entries;
+        }
+
+        foreach ($entries as $objectNumber => $entry) {
+            if (($entry['type'] ?? null) !== 1) {
+                continue;
+            }
+
+            $offset = $entry['offset'] ?? null;
+            $offsetOwner = is_int($offset) ? $this->directObjectDefinitionAtOffset($definitions, $offset) : null;
+            $updateOwner = $this->currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+                (int) $objectNumber,
+                (int) ($entry['generation'] ?? 0),
+                $offsetOwner,
+                $previousOffset,
+                $xrefOffset,
+                $definitions
+            );
+
+            if ($offsetOwner !== null && $updateOwner === null) {
+                continue;
+            }
+
+            if ($updateOwner === null) {
+                continue;
+            }
+
+            $entries[$objectNumber]['offset'] = $updateOwner['offset'];
+            $entries[$objectNumber]['generation'] = $updateOwner['generation'];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $trailer
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     */
+    private function previousXrefOffsetFromTableTrailer(array $trailer, array $definitions, int $beforeOffset): ?int
+    {
+        $previous = $trailer['Prev'] ?? null;
+        $direct = $this->intValue($previous);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $reference = $this->refObjectReference($previous);
+        if ($reference === null) {
+            return null;
+        }
+
+        $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation'],
+            $beforeOffset
+        );
+        if ($definition === null) {
+            return null;
+        }
+
+        $index = 0;
+        $value = $this->parseValue(trim($definition['body']), $index);
+
+        return $this->intValue($value);
     }
 
     /**
