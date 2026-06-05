@@ -425,6 +425,11 @@ foreach ($graph->relationshipTypeInventory() as $type) {
     $relationshipTypeInventory[$type['type']] = $type;
 }
 
+$contentTypeInventory = [];
+foreach ($graph->contentTypeInventory() as $contentType) {
+    $contentTypeInventory[$contentType['contentType']] = $contentType;
+}
+
 $relationshipPreflight = [];
 foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     $relationshipPreflight[$target['id']] = [
@@ -732,6 +737,7 @@ $summary = [
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
+    'contentTypeInventory' => $contentTypeInventory,
     'wordpressImport' => [
         'mediaParts' => array_values(array_unique(array_filter(
             array_map(static fn (array $target): ?string => $target['targetPart'], $reachableTargets),
@@ -971,6 +977,31 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeValid'] ?? null) !== false
         || ($summary['relationshipTypeInventory']['officeDocument/relationships/hyperlink']['relationshipTypeIssues'] ?? null) !== ['relationship-type-not-absolute-uri']
         || ($summary['relationshipTypeInventory'][OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]['targetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx']
+        || ($summary['contentTypeInventory']['application/vnd.openxmlformats-package.relationships+xml']['parts'] ?? null) !== [
+            '/_rels/.rels',
+            '/_xmlsignatures/_rels/origin.sigs.rels',
+            '/word/_rels/document.xml.rels',
+            '/word/_rels/footnotes.xml.rels',
+            '/word/_rels/review%20source.xml.rels',
+        ]
+        || ($summary['contentTypeInventory']['application/vnd.openxmlformats-package.relationships+xml']['relationshipSources'] ?? null) !== [
+            '/',
+            '/_xmlsignatures/origin.sigs',
+            '/word/document.xml',
+            '/word/footnotes.xml',
+            '/word/review source.xml',
+        ]
+        || ($summary['contentTypeInventory']['image/png']['parts'] ?? null) !== [
+            '/word/media/draft-hidden.png',
+            '/word/media/footnote-source.png',
+            '/word/media/hero image.PNG',
+            '/word/media/review source.png',
+        ]
+        || ($summary['contentTypeInventory']['image/png']['missingOverrideParts'] ?? null) !== ['/word/media/stale source.png']
+        || ($summary['contentTypeInventory']['image/png']['issues'] ?? null) !== ['override-target-missing-part']
+        || ($summary['contentTypeInventory']['application/xml']['relationshipParts'] ?? null) !== ['/word/_rels/draft.xml.rels']
+        || ($summary['contentTypeInventory']['application/xml']['relationshipSources'] ?? null) !== ['/word/draft.xml']
+        || ($summary['contentTypeInventory']['application/xml']['issues'] ?? null) !== ['invalid-relationship-content-type']
         || ($summary['relationshipSelector']['source'] ?? null) !== '/word/document.xml'
         || ($summary['relationshipSelector']['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer', 'rIdMissingSelector']
         || ($summary['relationshipSelector']['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]

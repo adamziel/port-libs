@@ -716,6 +716,137 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{contentType:string, packagePartCount:int, overrideCount:int, defaultPartCount:int, relationshipPartCount:int, relationshipSourceCount:int, relationshipTargetReferenceCount:int, relationshipTargetPartCount:int, reachableTargetCount:int, missingOverrideCount:int, invalidPackagePartCount:int, parts:list<string>, overrideParts:list<string>, defaultParts:list<string>, relationshipParts:list<string>, relationshipSources:list<string>, relationshipTargetParts:list<string>, reachableTargetParts:list<string>, missingOverrideParts:list<string>, relationshipTargetReferences:list<array{source:string, id:string, targetPart:string, valid:bool, issues:list<string>}>, issues:list<string>}>
+     */
+    public function contentTypeInventory(): array
+    {
+        $inventory = [];
+        $overridePartNamesByEquivalenceKey = [];
+        foreach ($this->contentTypes->overrides() as $partName => $contentType) {
+            $overridePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] = $partName;
+            $entry =& self::contentTypeInventoryEntry($inventory, $contentType);
+            self::appendUniqueString($entry['overrideParts'], $partName);
+            unset($entry);
+        }
+
+        foreach ($this->preflightPackageParts() as $part) {
+            $contentType = $part['contentType'];
+            if ($contentType === null) {
+                continue;
+            }
+
+            $partName = $part['partName'];
+            $entry =& self::contentTypeInventoryEntry($inventory, $contentType);
+            self::appendUniqueString($entry['parts'], $partName);
+
+            if (isset($overridePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)])) {
+                self::appendUniqueString($entry['overrideParts'], $partName);
+            } else {
+                self::appendUniqueString($entry['defaultParts'], $partName);
+            }
+
+            if ($part['relationshipPart']) {
+                self::appendUniqueString($entry['relationshipParts'], $partName);
+                if ($part['relationshipSource'] !== null) {
+                    self::appendUniqueString($entry['relationshipSources'], $part['relationshipSource']);
+                }
+            }
+
+            if (!$part['valid']) {
+                $entry['invalidPackagePartCount']++;
+                foreach ($part['issues'] as $issue) {
+                    self::appendUniqueString($entry['issues'], $issue);
+                }
+            }
+            unset($entry);
+        }
+
+        foreach ($this->preflightContentTypeOverrides() as $override) {
+            $entry =& self::contentTypeInventoryEntry($inventory, $override['contentType']);
+            self::appendUniqueString($entry['overrideParts'], $override['partName']);
+            if (!$override['exists']) {
+                self::appendUniqueString($entry['missingOverrideParts'], $override['partName']);
+            }
+
+            foreach ($override['issues'] as $issue) {
+                self::appendUniqueString($entry['issues'], $issue);
+            }
+            unset($entry);
+        }
+
+        foreach ($this->preflightAllRelationshipTargets() as $target) {
+            if ($target['external'] || $target['targetPart'] === null || $target['contentType'] === null) {
+                continue;
+            }
+
+            $entry =& self::contentTypeInventoryEntry($inventory, $target['contentType']);
+            self::appendUniqueString($entry['relationshipTargetParts'], $target['targetPart']);
+            $entry['relationshipTargetReferences'][] = [
+                'source' => $target['source'],
+                'id' => $target['id'],
+                'targetPart' => $target['targetPart'],
+                'valid' => $target['valid'],
+                'issues' => $target['issues'],
+            ];
+            foreach ($target['issues'] as $issue) {
+                self::appendUniqueString($entry['issues'], $issue);
+            }
+            unset($entry);
+        }
+
+        foreach ($this->reachableTargetsForSource('/') as $target) {
+            if ($target['external'] || $target['targetPart'] === null || $target['contentType'] === null) {
+                continue;
+            }
+
+            $entry =& self::contentTypeInventoryEntry($inventory, $target['contentType']);
+            self::appendUniqueString($entry['reachableTargetParts'], $target['targetPart']);
+            foreach ($target['issues'] as $issue) {
+                self::appendUniqueString($entry['issues'], $issue);
+            }
+            unset($entry);
+        }
+
+        ksort($inventory, SORT_STRING);
+        foreach ($inventory as &$entry) {
+            sort($entry['parts'], SORT_STRING);
+            sort($entry['overrideParts'], SORT_STRING);
+            sort($entry['defaultParts'], SORT_STRING);
+            sort($entry['relationshipParts'], SORT_STRING);
+            sort($entry['relationshipSources'], SORT_STRING);
+            sort($entry['relationshipTargetParts'], SORT_STRING);
+            sort($entry['reachableTargetParts'], SORT_STRING);
+            sort($entry['missingOverrideParts'], SORT_STRING);
+            sort($entry['issues'], SORT_STRING);
+            usort(
+                $entry['relationshipTargetReferences'],
+                static fn (array $left, array $right): int => [
+                    $left['source'],
+                    $left['id'],
+                    $left['targetPart'],
+                ] <=> [
+                    $right['source'],
+                    $right['id'],
+                    $right['targetPart'],
+                ]
+            );
+
+            $entry['packagePartCount'] = count($entry['parts']);
+            $entry['overrideCount'] = count($entry['overrideParts']);
+            $entry['defaultPartCount'] = count($entry['defaultParts']);
+            $entry['relationshipPartCount'] = count($entry['relationshipParts']);
+            $entry['relationshipSourceCount'] = count($entry['relationshipSources']);
+            $entry['relationshipTargetReferenceCount'] = count($entry['relationshipTargetReferences']);
+            $entry['relationshipTargetPartCount'] = count($entry['relationshipTargetParts']);
+            $entry['reachableTargetCount'] = count($entry['reachableTargetParts']);
+            $entry['missingOverrideCount'] = count($entry['missingOverrideParts']);
+        }
+        unset($entry);
+
+        return array_values($inventory);
+    }
+
+    /**
      * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, packageParts:list<array{partName:string, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, contentTypeOverrides:list<array{partName:string, contentType:string, exists:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>, relationshipTargets:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function preflightPackageConsistency(): array
@@ -1682,6 +1813,40 @@ final class OpcRelationshipGraph
         }
 
         return true;
+    }
+
+    /**
+     * @return array{contentType:string, packagePartCount:int, overrideCount:int, defaultPartCount:int, relationshipPartCount:int, relationshipSourceCount:int, relationshipTargetReferenceCount:int, relationshipTargetPartCount:int, reachableTargetCount:int, missingOverrideCount:int, invalidPackagePartCount:int, parts:list<string>, overrideParts:list<string>, defaultParts:list<string>, relationshipParts:list<string>, relationshipSources:list<string>, relationshipTargetParts:list<string>, reachableTargetParts:list<string>, missingOverrideParts:list<string>, relationshipTargetReferences:list<array{source:string, id:string, targetPart:string, valid:bool, issues:list<string>}>, issues:list<string>}
+     */
+    private static function &contentTypeInventoryEntry(array &$inventory, string $contentType): array
+    {
+        if (!isset($inventory[$contentType])) {
+            $inventory[$contentType] = [
+                'contentType' => $contentType,
+                'packagePartCount' => 0,
+                'overrideCount' => 0,
+                'defaultPartCount' => 0,
+                'relationshipPartCount' => 0,
+                'relationshipSourceCount' => 0,
+                'relationshipTargetReferenceCount' => 0,
+                'relationshipTargetPartCount' => 0,
+                'reachableTargetCount' => 0,
+                'missingOverrideCount' => 0,
+                'invalidPackagePartCount' => 0,
+                'parts' => [],
+                'overrideParts' => [],
+                'defaultParts' => [],
+                'relationshipParts' => [],
+                'relationshipSources' => [],
+                'relationshipTargetParts' => [],
+                'reachableTargetParts' => [],
+                'missingOverrideParts' => [],
+                'relationshipTargetReferences' => [],
+                'issues' => [],
+            ];
+        }
+
+        return $inventory[$contentType];
     }
 
     /**
