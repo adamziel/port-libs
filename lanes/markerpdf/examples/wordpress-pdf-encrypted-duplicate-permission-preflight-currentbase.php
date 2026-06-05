@@ -40,6 +40,9 @@ echo '<!-- markerpdf-encrypted-duplicate-permission-preflight-smoke ' . htmlspec
     'permission_word_status' => $permission['permission_handler_review']['permission_word_status'] ?? null,
     'duplicate_permission_entries' => $declaration['duplicate_permission_entries'] ?? null,
     'permission_word_ambiguous' => $declaration['permission_word_ambiguous'] ?? null,
+    'selected_entry_index' => $declaration['selected_entry_index'] ?? null,
+    'selected_entry_status' => $declaration['selected_entry_status'] ?? null,
+    'selected_permission_hex' => $declaration['selected_permission_hex'] ?? null,
     'conflicting_permission_names' => $declaration['conflicting_permission_names'] ?? [],
     'copy_or_extract_allowed' => $permission['copy_or_extract_allowed'] ?? null,
     'raw_auth_material_exposed' => is_string($encoded)
@@ -71,6 +74,8 @@ echo "<!-- /wp:paragraph -->\n\n";
 echo '<!-- markerpdf:encrypted-duplicate-permission-preflight ' . htmlspecialchars(json_encode([
     'policy' => $permission['policy'] ?? null,
     'permission_hex_values' => $declaration['hex_values'] ?? [],
+    'selected_entry_index' => $declaration['selected_entry_index'] ?? null,
+    'selected_permission_hex' => $declaration['selected_permission_hex'] ?? null,
     'conflicting_permission_names' => $declaration['conflicting_permission_names'] ?? [],
     'review_reasons' => $report['review_reasons'] ?? [],
     'blocked_operations' => $report['blocked_operations'] ?? [],

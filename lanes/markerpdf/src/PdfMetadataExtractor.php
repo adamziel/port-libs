@@ -6622,12 +6622,20 @@ final class PdfMetadataExtractor
             static fn (array $entry): bool => ($entry['status'] ?? null) !== 'well_formed_standard_permissions'
         ));
         $ambiguous = $duplicate || $conflicts !== [] || $malformedEntries !== [];
+        $selectedEntryIndex = count($entries) - 1;
+        $selectedEntry = $entries[$selectedEntryIndex] ?? [];
 
         return [
             'source' => 'standard_permission_word_declaration_review',
             'pdf_name' => 'P',
             'declared_entry_count' => count($values),
             'integer_entry_count' => count($integerEntries),
+            'selected_entry_index' => $selectedEntryIndex,
+            'selected_entry_status' => is_string($selectedEntry['status'] ?? null) ? $selectedEntry['status'] : null,
+            'selected_entry_integer' => (bool) ($selectedEntry['integer'] ?? false),
+            'selected_permission_signed' => is_int($selectedEntry['signed'] ?? null) ? $selectedEntry['signed'] : null,
+            'selected_permission_unsigned' => is_int($selectedEntry['unsigned'] ?? null) ? $selectedEntry['unsigned'] : null,
+            'selected_permission_hex' => is_string($selectedEntry['hex'] ?? null) ? $selectedEntry['hex'] : null,
             'duplicate_permission_entries' => $duplicate,
             'permission_word_ambiguous' => $ambiguous,
             'status' => $duplicate

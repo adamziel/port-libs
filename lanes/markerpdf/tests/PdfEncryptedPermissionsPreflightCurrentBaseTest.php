@@ -396,6 +396,12 @@ return [
         $t->same($declaration, $encryptionDeclaration);
         $t->same('standard_permission_word_declaration_review', $declaration['source']);
         $t->same(2, $declaration['declared_entry_count']);
+        $t->same(1, $declaration['selected_entry_index']);
+        $t->same('well_formed_standard_permissions', $declaration['selected_entry_status']);
+        $t->same(true, $declaration['selected_entry_integer']);
+        $t->same(-44, $declaration['selected_permission_signed']);
+        $t->same(4294967252, $declaration['selected_permission_unsigned']);
+        $t->same('FFFFFFD4', $declaration['selected_permission_hex']);
         $t->same(true, $declaration['duplicate_permission_entries']);
         $t->same(true, $declaration['permission_word_ambiguous']);
         $t->same('duplicate_standard_permission_entries_review', $declaration['status']);
@@ -410,6 +416,51 @@ return [
         $t->same(false, $report['executes_decryption']);
         $t->same(false, $report['executes_permission_enforcement']);
         $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded)
+            && !str_contains($encoded, $content)
+            && !str_contains($encoded, $ownerValidation)
+            && !str_contains($encoded, $userValidation)
+            && !str_contains($encoded, strtoupper(bin2hex($ownerValidation)))
+            && !str_contains($encoded, strtoupper(bin2hex($userValidation))));
+    },
+    'records selected duplicate Standard permission operand without trusting it for import' => static function (
+        TestRunner $t
+    ) use ($duplicatePermissionWordPdf): void {
+        [$pdf, $content, $ownerValidation, $userValidation] = $duplicatePermissionWordPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $metadataDeclaration = $metadata['encryption']['standard_permission_word_review'];
+        $permission = $report['permission_preflight'];
+        $declaration = $permission['standard_permission_word_review'];
+        $reviewDeclaration = $report['encryption']['standard_permission_word_review'];
+        $encoded = json_encode([$metadata, $report], JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same($metadataDeclaration, $declaration);
+        $t->same($declaration, $reviewDeclaration);
+        $t->same('standard_permission_word_declaration_review', $declaration['source']);
+        $t->same(2, $declaration['declared_entry_count']);
+        $t->same(2, $declaration['integer_entry_count']);
+        $t->same(1, $declaration['selected_entry_index']);
+        $t->same('well_formed_standard_permissions', $declaration['selected_entry_status']);
+        $t->same(true, $declaration['selected_entry_integer']);
+        $t->same(-44, $declaration['selected_permission_signed']);
+        $t->same(4294967252, $declaration['selected_permission_unsigned']);
+        $t->same('FFFFFFD4', $declaration['selected_permission_hex']);
+        $t->same('FFFFFFC4', $declaration['entries'][0]['hex']);
+        $t->same('FFFFFFD4', $declaration['entries'][1]['hex']);
+        $t->same('denied_by_permission_bit', $declaration['entries'][0]['permission_bits_by_name']['copy_or_extract']['status']);
+        $t->same('allowed_by_permission_bit', $declaration['entries'][1]['permission_bits_by_name']['copy_or_extract']['status']);
+
+        $t->same('permissions_malformed_blocked_without_decryption', $permission['policy']);
+        $t->same('blocked_encrypted_permissions_malformed', $permission['content_extraction_boundary']);
+        $t->same(false, $permission['permission_bits_reliable']);
+        $t->same(null, $permission['copy_or_extract_allowed']);
+        $t->same([], $permission['allowed']);
+        $t->same([], $permission['permission_bits']);
+        $t->same(null, $report['encryption']['copy_or_extract_allowed']);
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_permission_enforcement']);
         $t->true(is_string($encoded)
             && !str_contains($encoded, $content)
             && !str_contains($encoded, $ownerValidation)
