@@ -92,6 +92,8 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'test'),
         '  build-depends:',
         '    ' . implode(",\n    ", $suiteDependencies),
+        '  other-modules:',
+        '    ' . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedRunnerOtherModules()['test:test-pandoc']),
     ]);
 
     return implode("\n", array_merge([
@@ -125,6 +127,8 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'pandoc-lua-engine/test'),
         '  build-depends:',
         '    ' . implode(",\n    ", $suiteDependencies),
+        '  other-modules:',
+        '    ' . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedRunnerOtherModules()['test:test-pandoc-lua-engine']),
     ]));
 };
 
@@ -285,11 +289,15 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
         $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
         $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
         $t->same(true, in_array('base', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('zip-archive', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('tasty-lua', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
+        $t->same(true, in_array('Tests.Command', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['otherModules'], true));
+        $t->same(true, in_array('Tests.Writers.Native', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['otherModules'], true));
+        $t->same(true, in_array('Tests.Lua.Reader', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['otherModules'], true));
         $t->same(UpstreamRunnerDependencyAudit::expectedRunnerExecutableOptions()['test:test-pandoc'], $audit['runnerDependencyClosure']['present']['test:test-pandoc']['ghcOptions']);
         $t->same([], $audit['runnerEntrySourceClosure']['missingTargets']);
         $t->same([], $audit['runnerEntrySourceClosure']['missingSemantics']);
@@ -308,7 +316,7 @@ return [
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, entry point, and direct build-depends closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, entry point, direct build-depends, and other-modules closure', $audit['nonMutatingPlan'][2]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
@@ -718,6 +726,52 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('missing runner entry point source semantics', $blocked);
         $t->contains('runner entry-point source semantics', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks runner other-modules drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "    Tests.Command,\n",
+            '',
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            "    Tests.Writers.Native",
+            '    Tests.Writers.HTML',
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "    Tests.Lua.Reader,\n",
+            '',
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
+        $t->same(['Tests.Command', 'Tests.Writers.Native'], $audit['runnerDependencyClosure']['missingOtherModules']['test:test-pandoc']);
+        $t->same(['Tests.Lua.Reader'], $audit['runnerDependencyClosure']['missingOtherModules']['test:test-pandoc-lua-engine']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal runner other-modules', $blocked);
+        $t->contains('runner other-modules closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];
