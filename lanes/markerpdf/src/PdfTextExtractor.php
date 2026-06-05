@@ -7913,17 +7913,23 @@ final class PdfTextExtractor
             return null;
         }
 
-        $payloadEnd = match ($firstFilter) {
-            'ASCIIHexDecode', 'AHx' => $this->firstFilterEndMarkerOffset($value, $streamStart, '>'),
-            'ASCII85Decode', 'A85' => $this->firstFilterEndMarkerOffset($value, $streamStart, '~>'),
-            'RunLengthDecode', 'RL' => $this->firstFilterEndMarkerOffset($value, $streamStart, chr(128)),
+        $payloadMarker = match ($firstFilter) {
+            'ASCIIHexDecode', 'AHx' => '>',
+            'ASCII85Decode', 'A85' => '~>',
+            'RunLengthDecode', 'RL' => chr(128),
             default => null,
         };
 
-        if ($payloadEnd !== null) {
-            $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
-            if ($this->endstreamKeywordAt($value, $terminator)) {
-                return $terminator;
+        $fallbackTerminator = null;
+        if ($payloadMarker !== null) {
+            foreach ($this->firstFilterEndstreamTerminatorOffsets($value, $streamStart, $payloadMarker) as $terminator) {
+                $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
+                $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex);
+                if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
+                    return $terminator;
+                }
+
+                $fallbackTerminator = $terminator;
             }
         }
 
@@ -7941,7 +7947,7 @@ final class PdfTextExtractor
             }
         }
 
-        return null;
+        return $fallbackTerminator;
     }
 
     /**
@@ -8116,6 +8122,26 @@ final class PdfTextExtractor
     {
         $offset = strpos($value, $marker, $streamStart);
         return $offset === false ? null : $offset + strlen($marker);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function firstFilterEndstreamTerminatorOffsets(string $value, int $streamStart, string $marker): array
+    {
+        $terminators = [];
+        $offset = $streamStart;
+        while (($markerOffset = strpos($value, $marker, $offset)) !== false) {
+            $payloadEnd = $markerOffset + strlen($marker);
+            $terminator = $this->skipPdfWhitespace($value, $payloadEnd);
+            if ($this->endstreamKeywordAt($value, $terminator)) {
+                $terminators[] = $terminator;
+            }
+
+            $offset = $markerOffset + 1;
+        }
+
+        return $terminators;
     }
 
     /**
