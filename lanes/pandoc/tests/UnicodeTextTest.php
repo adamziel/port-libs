@@ -91,6 +91,21 @@ return [
         $t->contains('<h1 id="latin9-import">Latin9 Import</h1>', $blocks);
         $t->contains("<p>Price \u{20AC}10; \u{0152}uvre, c\u{0153}ur, \u{0178}, \u{0160}umava, and \u{017E}.</p>", $blocks);
     },
+    'decodes macroman legacy punctuation into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Import\n\nClassic \xD2quoted\xD3 source \xD1 price \xDB10; caf\x8E and \xDEle.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'mac-roman');
+        $document = (new MarkdownReader())->readBytes($bytes, 'macintosh');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('macintosh', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Import\n\nClassic \u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10; caf\u{00E9} and \u{FB01}le.", $decoded['text']);
+        $t->same(['encoding' => 'macintosh', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Import', $document->children[0]->attr('text'));
+        $t->same("Classic \u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10; caf\u{00E9} and \u{FB01}le.", $document->children[1]->attr('text'));
+        $t->contains('<h1 id="mac-import">Mac Import</h1>', $blocks);
+        $t->contains("<p>Classic \u{201C}quoted\u{201D} source \u{2014} price \u{20AC}10; caf\u{00E9} and \u{FB01}le.</p>", $blocks);
+    },
     'lets unicode byte order marks override stale source encoding hints' => static function (TestRunner $t) use ($utf16le): void {
         $utf8 = UnicodeText::decodeBytes("\xEF\xBB\xBF# Cafe\xCC\x81\n\nUTF-8 source", 'windows-1252');
         $utf16 = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([
