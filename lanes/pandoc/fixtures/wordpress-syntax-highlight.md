@@ -507,3 +507,20 @@ local rawBlock = [=[
 ]=]
 return pandoc.RawBlock("html", rawBlock)
 ```
+
+``` {.php #php-heredoc-review .numberLines startFrom=310}
+<?php
+$block = <<<HTML
+<!-- wp:paragraph -->
+<p>Imported {$title}</p>
+<!-- /wp:paragraph -->
+HTML;
+
+$raw = <<<'NOWDOC'
+<!-- wp:html -->
+<div data-source="legacy">raw</div>
+<!-- /wp:html -->
+NOWDOC;
+
+echo $block . $raw;
+```

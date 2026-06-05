@@ -1615,6 +1615,47 @@ return [
         $t->contains('<span class="co">--[==[review note]==]</span>', $directLua['html']);
         $t->contains('<span class="st">[==[&lt;p&gt;ok&lt;/p&gt;]==]</span>', $directLua['html']);
     },
+    'highlights php heredoc and nowdoc wordpress block strings' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[34] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a PHP heredoc code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'pygments');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'pygments');
+        $directNowdoc = $highlighter->highlight("<?php\n\$raw = <<<'HTML'\n<!-- wp:shortcode -->\n[gallery]\nHTML;\n", 'php');
+
+        $t->same('php', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('php', $highlighted['language']);
+        $t->same('php', $highlighted['requestedLanguage']);
+        $t->same('pygments', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(310, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource php numberLines"><code class="sourceCode php" style="counter-reset: source-line 309;">', $highlighted['html']);
+        $t->contains('<span id="php-heredoc-review-310"><a href="#php-heredoc-review-310"></a><span class="pp">&lt;?php</span></span>', $highlighted['html']);
+        $t->contains('<span id="php-heredoc-review-311"><a href="#php-heredoc-review-311"></a><span class="va">$block</span> <span class="op">=</span> <span class="st">&lt;&lt;&lt;HTML</span></span>', $highlighted['html']);
+        $t->contains('<span class="st">&lt;!-- wp:paragraph --&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="st">&lt;p&gt;Imported {$title}&lt;/p&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="st">HTML;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$raw</span> <span class="op">=</span> <span class="st">&lt;&lt;&lt;&#039;NOWDOC&#039;</span>', $highlighted['html']);
+        $t->contains('<span class="st">&lt;div data-source=&quot;legacy&quot;&gt;raw&lt;/div&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="st">NOWDOC;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">echo</span> <span class="va">$block</span> <span class="op">.</span> <span class="va">$raw</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="pygments">', $wordpressBlock);
+        $t->contains('<span class="st">&lt;!-- wp:html --&gt;</span>', $wordpressBlock);
+        $t->same('php', $directNowdoc['language']);
+        $t->contains('<span class="va">$raw</span> <span class="op">=</span> <span class="st">&lt;&lt;&lt;&#039;HTML&#039;', $directNowdoc['html']);
+        $t->contains('&lt;!-- wp:shortcode --&gt;', $directNowdoc['html']);
+        $t->contains('[gallery]', $directNowdoc['html']);
+        $t->contains('HTML;</span>', $directNowdoc['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

@@ -244,6 +244,12 @@ if (!$luaLongBracketCodeBlock instanceof PortLibs\Pandoc\AstNode || $luaLongBrac
 }
 $luaLongBracket = $highlighter->highlightCodeBlock($luaLongBracketCodeBlock, 'breezedark');
 $luaLongBracketWordpressBlock = $highlighter->wordpressHtmlBlock($luaLongBracketCodeBlock, 'breezedark');
+$phpHeredocCodeBlock = $document->children[34] ?? null;
+if (!$phpHeredocCodeBlock instanceof PortLibs\Pandoc\AstNode || $phpHeredocCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a PHP heredoc code block');
+}
+$phpHeredoc = $highlighter->highlightCodeBlock($phpHeredocCodeBlock, 'pygments');
+$phpHeredocWordpressBlock = $highlighter->wordpressHtmlBlock($phpHeredocCodeBlock, 'pygments');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1007,6 +1013,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($luaLongBracketWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Lua long-bracket WordPress style metadata');
     }
+    if (($phpHeredoc['language'] ?? '') !== 'php') {
+        throw new RuntimeException('Expected PHP heredoc fixture to normalize to PHP highlighting');
+    }
+    if (($phpHeredoc['lineNumbering']['start'] ?? null) !== 310) {
+        throw new RuntimeException('Expected PHP heredoc source startFrom line-number handoff');
+    }
+    if (!str_contains($phpHeredoc['html'], '<span id="php-heredoc-review-311"><a href="#php-heredoc-review-311"></a><span class="va">$block</span> <span class="op">=</span> <span class="st">&lt;&lt;&lt;HTML</span></span>')) {
+        throw new RuntimeException('Expected PHP heredoc opener string token handoff');
+    }
+    if (!str_contains($phpHeredoc['html'], '<span class="st">&lt;p&gt;Imported {$title}&lt;/p&gt;</span>')) {
+        throw new RuntimeException('Expected PHP heredoc WordPress paragraph body token handoff');
+    }
+    if (!str_contains($phpHeredoc['html'], '<span class="va">$raw</span> <span class="op">=</span> <span class="st">&lt;&lt;&lt;&#039;NOWDOC&#039;</span>')) {
+        throw new RuntimeException('Expected PHP nowdoc opener string token handoff');
+    }
+    if (!str_contains($phpHeredocWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
+        throw new RuntimeException('Expected PHP heredoc WordPress style metadata');
+    }
+    if (!str_contains($phpHeredocWordpressBlock, '<span class="st">&lt;!-- wp:html --&gt;</span>')) {
+        throw new RuntimeException('Expected PHP nowdoc WordPress block body token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1065,6 +1092,7 @@ echo "sqlHighlightedHtml:\n" . $sql['html'] . "\n";
 echo "postgresqlHighlightedHtml:\n" . $postgresql['html'] . "\n";
 echo "apacheHighlightedHtml:\n" . $apache['html'] . "\n";
 echo "luaLongBracketHighlightedHtml:\n" . $luaLongBracket['html'] . "\n";
+echo "phpHeredocHighlightedHtml:\n" . $phpHeredoc['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1094,4 +1122,5 @@ echo "sqlWordpressBlock:\n" . $sqlWordpressBlock . "\n";
 echo "postgresqlWordpressBlock:\n" . $postgresqlWordpressBlock . "\n";
 echo "apacheWordpressBlock:\n" . $apacheWordpressBlock . "\n";
 echo "luaLongBracketWordpressBlock:\n" . $luaLongBracketWordpressBlock . "\n";
+echo "phpHeredocWordpressBlock:\n" . $phpHeredocWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
