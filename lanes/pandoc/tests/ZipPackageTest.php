@@ -1887,6 +1887,64 @@ return [
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['localExtraFieldIds']);
     },
 
+    'preflights central and local zip extra field id mismatches before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $centralReviewExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localReviewExtra = pack('vva*', 0xbeef, strlen('local-review'), 'local-review');
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'review media with split central/local metadata',
+                'method' => 0,
+                'centralExtra' => $timestampExtra . $centralReviewExtra,
+                'localExtra' => $timestampExtra . $localReviewExtra,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>extra field mismatch audit</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]));
+        $summary = $package->extraFieldPreflight();
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(1, $summary['extraFieldEntryCount']);
+        $t->same(0, $summary['duplicateExtraFieldEntryCount']);
+        $t->same(1, $summary['mismatchedExtraFieldEntryCount']);
+        $t->same(1, $summary['centralOnlyExtraFieldEntryCount']);
+        $t->same(1, $summary['localOnlyExtraFieldEntryCount']);
+        $t->same('word/media/reviewer-note.txt', $summary['mismatchedEntries'][0]['name']);
+        $t->same([0x5455, 0xcafe], $summary['mismatchedEntries'][0]['centralExtraFieldIds']);
+        $t->same([0x5455, 0xbeef], $summary['mismatchedEntries'][0]['localExtraFieldIds']);
+        $t->same([0xcafe], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIds']);
+        $t->same([0xbeef], $summary['mismatchedEntries'][0]['localOnlyExtraFieldIds']);
+        $t->same(true, $summary['mismatchedEntries'][0]['hasMismatchedExtraFieldIds']);
+        $t->same(false, $summary['mismatchedEntries'][0]['hasDuplicateExtraFieldIds']);
+        $t->same(false, $summary['entries'][1]['hasMismatchedExtraFieldIds']);
+        $t->same('central-review', $package->entry('word/media/reviewer-note.txt')->centralExtraField(0xcafe));
+        $t->same('local-review', $package->localExtraField('/word/media/reviewer-note.txt', 0xbeef));
+        $t->same('review media with split central/local metadata', $package->read('/word/media/reviewer-note.txt'));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertMatchingExtraFieldIds());
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'matching review metadata',
+                'modifiedAt' => 1780479017,
+                'extraFieldData' => pack('vva*', 0xcafe, strlen('wp-review:v1'), 'wp-review:v1'),
+            ],
+        ]);
+        $safeSummary = $safePackage->assertMatchingExtraFieldIds();
+
+        $t->same(1, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['mismatchedExtraFieldEntryCount']);
+        $t->same([], $safeSummary['mismatchedEntries']);
+        $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['centralExtraFieldIds']);
+        $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['localExtraFieldIds']);
+        $t->same([], $safeSummary['entries'][0]['centralOnlyExtraFieldIds']);
+        $t->same([], $safeSummary['entries'][0]['localOnlyExtraFieldIds']);
+    },
+
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $modifiedAt = 1780479017;
         $accessedAt = 1780479018;

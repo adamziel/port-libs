@@ -1087,6 +1087,55 @@ $buildStoredDeflateOptionFlagBackedPackage = static function () use ($crc32): st
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildExtraFieldIdMismatchBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/split-extra-review.bin';
+    $data = "Central and local ZIP extra-field ids should stay reviewable\n";
+    $crc = $crc32($data);
+    $centralExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+    $localExtra = pack('vva*', 0xbeef, strlen('local-review'), 'local-review');
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($localExtra)
+    );
+    $body .= $name . $localExtra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($centralExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $centralExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildStoredSizeMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/stored-review.txt';
     $data = "Stored media bytes must have matching size metadata\n";
@@ -1533,6 +1582,14 @@ try {
     $duplicateExtraFieldPackage->assertNoDuplicateExtraFieldIds();
 } catch (RuntimeException $exception) {
     $duplicateExtraFieldRejected = str_contains($exception->getMessage(), 'duplicate extra field ids');
+}
+$extraFieldIdMismatchPackage = ZipPackage::fromString($buildExtraFieldIdMismatchBackedPackage());
+$extraFieldIdMismatchPreflight = $extraFieldIdMismatchPackage->extraFieldPreflight();
+$extraFieldIdMismatchRejected = false;
+try {
+    $extraFieldIdMismatchPackage->assertMatchingExtraFieldIds();
+} catch (RuntimeException $exception) {
+    $extraFieldIdMismatchRejected = str_contains($exception->getMessage(), 'central/local extra field id mismatches');
 }
 $deflateOptionFlagsRejected = false;
 try {
@@ -2438,8 +2495,16 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected generated ZIP package extra fields to return the accepted summary');
     }
 
+    if ($package->assertMatchingExtraFieldIds() !== $packageExtraFieldPreflight) {
+        throw new RuntimeException('Expected generated ZIP package extra-field ids to match between central and local headers');
+    }
+
     if (($packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] ?? null) !== 0) {
         throw new RuntimeException('Expected generated ZIP package to avoid duplicate extra field ids');
+    }
+
+    if (($packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected generated ZIP package to avoid central/local extra field id mismatches');
     }
 
     if (
@@ -2465,6 +2530,16 @@ if (in_array('--self-test', $argv, true)) {
 
     if (!$duplicateExtraFieldRejected) {
         throw new RuntimeException('Expected duplicate ZIP extra field ids to stay blocked for strict media import');
+    }
+
+    if (
+        !$extraFieldIdMismatchRejected
+        || ($extraFieldIdMismatchPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 1
+        || ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? null) !== 'word/media/split-extra-review.bin'
+        || ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['centralOnlyExtraFieldIds'][0] ?? null) !== 0xcafe
+        || ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['localOnlyExtraFieldIds'][0] ?? null) !== 0xbeef
+    ) {
+        throw new RuntimeException('Expected central/local ZIP extra field id mismatches to stay blocked for strict media import');
     }
 
     if (!$packageSizeRejected) {
@@ -3183,6 +3258,7 @@ echo 'packageReadIntegrity.readableEntryCount=' . $packageReadIntegrityPreflight
 echo 'packageReadIntegrity.failedEntryCount=' . $packageReadIntegrityPreflight['failedEntryCount'] . "\n";
 echo 'zipTrailingDeflatePolicy=' . ($trailingDeflateRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipTrailingDeflateError=' . ($trailingDeflatePreflight['failedEntries'][0]['error'] ?? 'none') . "\n";
+echo 'packageExtraField.mismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
@@ -3233,6 +3309,8 @@ echo 'zipUnknownCreatorHostPolicy=' . ($unknownCreatorHostRejected ? 'rejected' 
 echo 'zipUnknownCreatorHostEntry=' . ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipExtraFieldIdMismatchEntry=' . ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
