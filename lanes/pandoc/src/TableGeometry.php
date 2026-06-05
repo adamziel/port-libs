@@ -210,7 +210,7 @@ final class TableGeometry
                     continue;
                 }
 
-                $grid[$rowIndex][$anchorColumn] = self::cellGridSlot($rowIndex, $cell);
+                $grid[$rowIndex][$anchorColumn] = self::cellGridSlot($rowIndex, $cell, count($layoutRows), $columnCount);
                 for ($column = $anchorColumn + 1; $column < $anchorColumn + $cell['colspan'] && $column < $columnCount; $column++) {
                     $grid[$rowIndex][$column] = self::coveredGridSlot($rowIndex, $column, $rowIndex, $anchorColumn, 'colspan', $cell);
                 }
@@ -253,6 +253,7 @@ final class TableGeometry
      *     columnAlignments:list<string>,
      *     widths:list<?float>,
      *     declaredColumns:list<bool>,
+     *     occupiedSlots:list<array{row:int,column:int,covering:string}>,
      *     node:AstNode
      * }>
      */
@@ -266,7 +267,9 @@ final class TableGeometry
         $columnSpecs = self::columnSpecs($table, $columnCount);
         $coverage = [];
         foreach (self::sectionRowGroups($table, $columnCount) as $group) {
-            foreach (self::layoutRows($group['rows'], $columnCount) as $rowIndex => $layoutRow) {
+            $layoutRows = self::layoutRows($group['rows'], $columnCount);
+            $sectionRowCount = count($layoutRows);
+            foreach ($layoutRows as $rowIndex => $layoutRow) {
                 $rowEntry = $group['rowEntries'][$rowIndex] ?? [
                     'header' => false,
                     'rowHeadColumns' => 0,
@@ -314,6 +317,14 @@ final class TableGeometry
                         'columnAlignments' => $columnAlignments,
                         'widths' => $widths,
                         'declaredColumns' => $declaredColumns,
+                        'occupiedSlots' => self::occupiedSlotRecords(
+                            $rowIndex,
+                            $cell['column'],
+                            $cell['colspan'],
+                            $cell['rowspan'],
+                            $sectionRowCount,
+                            $columnCount
+                        ),
                         'node' => $cell['node'],
                     ];
                 }
@@ -1285,7 +1296,7 @@ final class TableGeometry
      * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
      * @return array<string, mixed>
      */
-    private static function cellGridSlot(int $row, array $cell): array
+    private static function cellGridSlot(int $row, array $cell, int $rowCount, int $columnCount): array
     {
         return [
             'kind' => 'cell',
@@ -1298,6 +1309,14 @@ final class TableGeometry
             'rowspan' => $cell['rowspan'],
             'anchorRow' => $row,
             'anchorColumn' => $cell['column'],
+            'occupiedSlots' => self::occupiedSlotRecords(
+                $row,
+                $cell['column'],
+                $cell['colspan'],
+                $cell['rowspan'],
+                $rowCount,
+                $columnCount
+            ),
         ];
     }
 
@@ -1326,6 +1345,44 @@ final class TableGeometry
             'anchorColumn' => $anchorColumn,
             'covering' => $covering,
         ];
+    }
+
+    /**
+     * @return list<array{row:int,column:int,covering:string}>
+     */
+    private static function occupiedSlotRecords(
+        int $anchorRow,
+        int $anchorColumn,
+        int $colspan,
+        int $rowspan,
+        int $rowCount,
+        int $columnCount
+    ): array {
+        $slots = [];
+        $rowLimit = min(max(0, $rowCount), $anchorRow + max(1, $rowspan));
+        $columnLimit = min(max(0, $columnCount), $anchorColumn + max(1, $colspan));
+
+        for ($row = $anchorRow; $row < $rowLimit; $row++) {
+            for ($column = $anchorColumn; $column < $columnLimit; $column++) {
+                if ($row === $anchorRow && $column === $anchorColumn) {
+                    $covering = 'anchor';
+                } elseif ($row === $anchorRow) {
+                    $covering = 'colspan';
+                } elseif ($column === $anchorColumn) {
+                    $covering = 'rowspan';
+                } else {
+                    $covering = 'rowspan-colspan';
+                }
+
+                $slots[] = [
+                    'row' => $row,
+                    'column' => $column,
+                    'covering' => $covering,
+                ];
+            }
+        }
+
+        return $slots;
     }
 
     /**

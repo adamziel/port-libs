@@ -768,6 +768,38 @@ return [
         $t->contains('| Posts      |            |       Ready |            |', $markdown);
         $t->contains('|            |            | Needs media |            |', $markdown);
     },
+    'serializes spanned cell occupied slots for importer geometry audits' => static function (TestRunner $t) use ($buildSectionGridDocument, $buildSectionScopedRowspanDocument): void {
+        $document = $buildSectionGridDocument();
+        $table = $document->children[0];
+        $sectionGrids = TableGeometry::sectionGrids($table);
+        $coverage = TableGeometry::cellCoverage($table);
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Normalized Grid']);
+
+        $expectedHeadSlots = [
+            ['row' => 0, 'column' => 0, 'covering' => 'anchor'],
+            ['row' => 0, 'column' => 1, 'covering' => 'colspan'],
+        ];
+        $expectedBodySlots = [
+            ['row' => 0, 'column' => 0, 'covering' => 'anchor'],
+            ['row' => 0, 'column' => 1, 'covering' => 'colspan'],
+            ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+            ['row' => 1, 'column' => 1, 'covering' => 'rowspan-colspan'],
+        ];
+
+        $t->same($expectedHeadSlots, $sectionGrids[0]['rows'][0][0]['occupiedSlots'] ?? null);
+        $t->same($expectedBodySlots, $sectionGrids[1]['rows'][0][0]['occupiedSlots'] ?? null);
+        $t->same($expectedBodySlots, $coverage[2]['occupiedSlots'] ?? null);
+        $t->same($expectedBodySlots, $packet['sections'][1]['rows'][0]['slots'][0]['occupiedSlots'] ?? null);
+        $t->same($expectedBodySlots, $packet['coverage'][2]['occupiedSlots'] ?? null);
+        $t->same([['row' => 0, 'column' => 2, 'covering' => 'anchor']], $packet['coverage'][3]['occupiedSlots'] ?? null);
+
+        $boundaryPacket = TableGeometry::reviewPacket($buildSectionScopedRowspanDocument()->children[0], ['idPrefix' => 'Boundary Grid']);
+        $t->same(2, $boundaryPacket['coverage'][0]['rawRowspan'] ?? null);
+        $t->same(1, $boundaryPacket['coverage'][0]['rowspan'] ?? null);
+        $t->same([['row' => 0, 'column' => 0, 'covering' => 'anchor']], $boundaryPacket['coverage'][0]['occupiedSlots'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($boundaryPacket, JSON_THROW_ON_ERROR);
+    },
     'reports cell coverage with visual column specs for importer audits' => static function (TestRunner $t) use ($buildCellCoverageDocument): void {
         $document = $buildCellCoverageDocument();
         $table = $document->children[0];

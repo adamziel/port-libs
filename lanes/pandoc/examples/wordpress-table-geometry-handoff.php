@@ -356,6 +356,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($migrationGrids[1]['rows'][1][3]['kind'] ?? null) !== 'missing') {
         throw new RuntimeException('Table geometry self-test missing body trailing missing-slot report');
     }
+    $expectedOccupiedSlots = [
+        ['row' => 0, 'column' => 0, 'covering' => 'anchor'],
+        ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+    ];
+    if (($migrationGrids[1]['rows'][0][0]['occupiedSlots'] ?? null) !== $expectedOccupiedSlots) {
+        throw new RuntimeException('Table geometry self-test missing anchor-cell occupied-slot report');
+    }
     if (($cellCoverage[0]['section'] ?? null) !== 'head' || ($cellCoverage[0]['columns'] ?? null) !== [0, 1]) {
         throw new RuntimeException('Table geometry self-test missing head cell visual coverage report');
     }
@@ -364,6 +371,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($cellCoverage[2]['section'] ?? null) !== 'body' || ($cellCoverage[2]['rowspan'] ?? null) !== 2 || ($cellCoverage[2]['columns'] ?? null) !== [0]) {
         throw new RuntimeException('Table geometry self-test missing rowspanned body cell coverage report');
+    }
+    if (($cellCoverage[2]['occupiedSlots'] ?? null) !== $expectedOccupiedSlots) {
+        throw new RuntimeException('Table geometry self-test missing rowspanned coverage occupied-slot report');
     }
     if (($cellCoverage[5]['sourceCell'] ?? null) !== 0 || ($cellCoverage[5]['sourceColumn'] ?? null) !== 0 || ($cellCoverage[5]['column'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing source-to-visual coverage coordinates');
@@ -458,6 +468,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($reviewPacket['coverage'][5]['text'] ?? null) !== 'Posts' || array_key_exists('node', $reviewPacket['coverage'][5])) {
         throw new RuntimeException('Table geometry self-test missing serializable review-packet coverage text');
+    }
+    if (($reviewPacket['coverage'][5]['occupiedSlots'] ?? null) !== [
+        ['row' => 1, 'column' => 0, 'covering' => 'anchor'],
+        ['row' => 2, 'column' => 0, 'covering' => 'rowspan'],
+    ]) {
+        throw new RuntimeException('Table geometry self-test missing review-packet occupied slots');
     }
     if (($reviewPacket['accessibility']['body:1:1:1']['headers'] ?? null) !== ['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1']) {
         throw new RuntimeException('Table geometry self-test missing review-packet accessibility relationships');
