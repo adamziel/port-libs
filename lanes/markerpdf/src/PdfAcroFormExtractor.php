@@ -8925,6 +8925,9 @@ final class PdfAcroFormExtractor
             $parentObject = $this->validObjectReferenceValueAfterName($widgetBody, 'Parent', $objects);
             if ($parentObject !== null && isset($objects[$parentObject]) && !isset($reachable[$parentObject])) {
                 $candidate = $this->pageWidgetRootFieldCandidate($parentObject, $objects, $reachable);
+                if ($candidate !== null && !$this->fieldTreeContainsObject($candidate, $widgetObject, $objects)) {
+                    $candidate = null;
+                }
             } elseif ($this->isFieldWidgetDictionary($widgetBody)) {
                 $candidate = $widgetObject;
             }
@@ -9021,6 +9024,31 @@ final class PdfAcroFormExtractor
         }
 
         return $seen;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     */
+    private function fieldTreeContainsObject(int $rootObject, int $targetObject, array $objects, array $seen = []): bool
+    {
+        if ($rootObject === $targetObject) {
+            return true;
+        }
+
+        if (isset($seen[$rootObject]) || !isset($objects[$rootObject])) {
+            return false;
+        }
+
+        $seen[$rootObject] = true;
+        $body = $this->dictionaryObjectBody($objects[$rootObject]) ?? trim($objects[$rootObject]);
+        foreach ($this->kidReferences($body, $objects) as $kidRef) {
+            if ($kidRef === $targetObject || $this->fieldTreeContainsObject($kidRef, $targetObject, $objects, $seen)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
