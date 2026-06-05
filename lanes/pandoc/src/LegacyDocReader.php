@@ -278,6 +278,274 @@ final class LegacyDocReader
      */
     private function inlineNodes(string $text): array
     {
+        if (strpbrk($text, "\x13\x14\x15") !== false) {
+            return $this->fieldAwareInlineNodes($text);
+        }
+
+        return $this->plainInlineNodes($text);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function fieldAwareInlineNodes(string $text): array
+    {
+        $parts = preg_split('/([\x13\x14\x15])/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if (!is_array($parts)) {
+            return $this->plainInlineNodes($text);
+        }
+
+        $nodes = [];
+        $field = null;
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+
+            if ($part === "\x13") {
+                if ($field !== null) {
+                    throw new \RuntimeException('Legacy DOC nested field codes are not supported by the native reader');
+                }
+                $field = [
+                    'instruction' => '',
+                    'result' => '',
+                    'collectingResult' => false,
+                ];
+                continue;
+            }
+
+            if ($part === "\x14") {
+                if ($field === null) {
+                    throw new \RuntimeException('Legacy DOC field separator appears outside a field');
+                }
+                if ($field['collectingResult'] === true) {
+                    throw new \RuntimeException('Legacy DOC field contains duplicate separators');
+                }
+                $field['collectingResult'] = true;
+                continue;
+            }
+
+            if ($part === "\x15") {
+                if ($field === null) {
+                    throw new \RuntimeException('Legacy DOC field end appears outside a field');
+                }
+                array_push($nodes, ...$this->fieldResultNodes($field));
+                $field = null;
+                continue;
+            }
+
+            if ($field === null) {
+                array_push($nodes, ...$this->plainInlineNodes($part));
+            } elseif ($field['collectingResult'] === true) {
+                $field['result'] .= $part;
+            } else {
+                $field['instruction'] .= $part;
+            }
+        }
+
+        if ($field !== null) {
+            throw new \RuntimeException('Legacy DOC field code is not terminated');
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param array{instruction:string,result:string,collectingResult:bool} $field
+     * @return list<AstNode>
+     */
+    private function fieldResultNodes(array $field): array
+    {
+        $resultNodes = $this->plainInlineNodes($field['result']);
+        if ($resultNodes === []) {
+            return [];
+        }
+
+        $attrs = $this->hyperlinkFieldAttrs($field['instruction']);
+        if ($attrs !== null) {
+            return [new AstNode('link', $attrs, $resultNodes)];
+        }
+
+        $attrs = $this->fieldSpanAttrs($field['instruction']);
+        if ($attrs !== null) {
+            return [new AstNode('span', $attrs, $resultNodes)];
+        }
+
+        return $resultNodes;
+    }
+
+    /**
+     * @return array{url:string,title?:string}|null
+     */
+    private function hyperlinkFieldAttrs(string $instruction): ?array
+    {
+        $tokens = $this->fieldInstructionTokens($instruction);
+        if ($tokens === [] || strtoupper(array_shift($tokens)) !== 'HYPERLINK') {
+            return null;
+        }
+
+        $url = null;
+        $anchor = null;
+        $title = null;
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if (($switch === 'l' || $switch === 'o') && isset($tokens[$index + 1])) {
+                    $index++;
+                    if ($switch === 'l') {
+                        $anchor = $tokens[$index];
+                    } else {
+                        $title = $tokens[$index];
+                    }
+                }
+                continue;
+            }
+
+            $url ??= $token;
+        }
+
+        if ($url === null || $url === '') {
+            $url = $anchor === null || $anchor === '' ? '' : '#' . $anchor;
+        } elseif ($anchor !== null && $anchor !== '') {
+            $url .= '#' . $anchor;
+        }
+        if ($url === '') {
+            return null;
+        }
+
+        $attrs = ['url' => $url];
+        if ($title !== null && $title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function fieldSpanAttrs(string $instruction): ?array
+    {
+        $tokens = $this->fieldInstructionTokens($instruction);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $fieldNames = [
+            'PAGE' => 'page',
+            'NUMPAGES' => 'numpages',
+            'SECTIONPAGES' => 'sectionpages',
+            'DATE' => 'date',
+            'TIME' => 'time',
+            'CREATEDATE' => 'createdate',
+            'SAVEDATE' => 'savedate',
+            'PRINTDATE' => 'printdate',
+        ];
+
+        $fieldName = strtoupper(array_shift($tokens));
+        if (!isset($fieldNames[$fieldName])) {
+            return null;
+        }
+
+        $fieldKey = $fieldNames[$fieldName];
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldFormatSwitchValue(array $tokens): ?string
+    {
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if (!str_starts_with($token, '\\')) {
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if (($switch === '*' || $switch === '@') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                return $tokens[$index + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeFieldInstruction(string $instruction): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($instruction)) ?? trim($instruction);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fieldInstructionTokens(string $instruction): array
+    {
+        $tokens = [];
+        $length = strlen($instruction);
+        for ($index = 0; $index < $length;) {
+            while ($index < $length && ctype_space($instruction[$index])) {
+                $index++;
+            }
+            if ($index >= $length) {
+                break;
+            }
+
+            if ($instruction[$index] === '"') {
+                $index++;
+                $token = '';
+                while ($index < $length) {
+                    $char = $instruction[$index];
+                    if ($char === '"' && ($index === 0 || $instruction[$index - 1] !== '\\')) {
+                        $index++;
+                        break;
+                    }
+                    if ($char === '\\' && isset($instruction[$index + 1]) && $instruction[$index + 1] === '"') {
+                        $token .= '"';
+                        $index += 2;
+                        continue;
+                    }
+
+                    $token .= $char;
+                    $index++;
+                }
+                $tokens[] = $token;
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !ctype_space($instruction[$index])) {
+                $index++;
+            }
+            $tokens[] = substr($instruction, $start, $index - $start);
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function plainInlineNodes(string $text): array
+    {
         $parts = preg_split('/(\x0b|\x0c)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
         if (!is_array($parts)) {
             $parts = [$text];

@@ -817,6 +817,96 @@ return [
         $t->same('Résumé', $document->children[1]->children[0]->attr('text'));
         $t->contains('<p>ΩЖ魚</p>', $blocks);
     },
+    'maps legacy DOC field-code hyperlinks to normal link AST nodes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Field link to '
+                . $fieldBegin . ' HYPERLINK "https://example.test/legacy?post=42&step=doc" \o "Source packet" '
+                . $fieldSeparator . 'source dossier' . $fieldEnd
+                . ' and '
+                . $fieldBegin . ' HYPERLINK \l "legacy_anchor" '
+                . $fieldSeparator . 'anchor jump' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $t->same('Field link to ', $paragraph->children[0]->attr('text'));
+        $external = $paragraph->children[1];
+        $t->same('link', $external->type);
+        $t->same('https://example.test/legacy?post=42&step=doc', $external->attr('url'));
+        $t->same('Source packet', $external->attr('title'));
+        $t->same('source dossier', $external->children[0]->attr('text'));
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $internal = $paragraph->children[3];
+        $t->same('link', $internal->type);
+        $t->same('#legacy_anchor', $internal->attr('url'));
+        $t->same('anchor jump', $internal->children[0]->attr('text'));
+
+        $t->contains('Field link to [source dossier](https://example.test/legacy?post=42&step=doc "Source packet") and [anchor jump](#legacy_anchor).', $markdown);
+        $t->true(!str_contains($markdown, 'HYPERLINK'), 'Legacy DOC field instructions should not render to Markdown');
+        $t->contains('<a href="https://example.test/legacy?post=42&amp;step=doc" title="Source packet">source dossier</a>', $blocks);
+        $t->contains('<a href="#legacy_anchor">anchor jump</a>', $blocks);
+        $t->true(!str_contains($blocks, 'HYPERLINK'), 'Legacy DOC field instructions should not render to WordPress blocks');
+    },
+    'preserves legacy DOC non-hyperlink field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument(
+                'Page '
+                . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
+                . ' of '
+                . $fieldBegin . ' NUMPAGES \* Arabic ' . $fieldSeparator . '12' . $fieldEnd
+                . ' updated '
+                . $fieldBegin . ' DATE \@ "MMMM d, yyyy" ' . $fieldSeparator . 'June 5, 2026' . $fieldEnd
+                . ".\r"
+            ),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+
+        $page = $paragraph->children[1];
+        $t->same('span', $page->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-field-page'], $page->attr('classes'));
+        $t->same('page', $page->attr('attributes')['data-legacy-doc-field']);
+        $t->same('PAGE \* Arabic', $page->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('Arabic', $page->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('7', $page->children[0]->attr('text'));
+
+        $pageCount = $paragraph->children[3];
+        $t->same('numpages', $pageCount->attr('attributes')['data-legacy-doc-field']);
+        $t->same('12', $pageCount->children[0]->attr('text'));
+
+        $date = $paragraph->children[5];
+        $t->same('date', $date->attr('attributes')['data-legacy-doc-field']);
+        $t->same('DATE \@ "MMMM d, yyyy"', $date->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('MMMM d, yyyy', $date->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('June 5, 2026', $date->children[0]->attr('text'));
+
+        $t->contains('Page [7]{.legacy-doc-field .legacy-doc-field-page data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \\\\* Arabic" data-legacy-doc-field-format="Arabic"} of', $markdown);
+        $t->contains('updated [June 5, 2026]{.legacy-doc-field .legacy-doc-field-date data-legacy-doc-field="date" data-legacy-doc-field-instruction="DATE \\\\@ \\"MMMM d, yyyy\\"" data-legacy-doc-field-format="MMMM d, yyyy"}.', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-field-date" data-legacy-doc-field="date" data-legacy-doc-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-legacy-doc-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
+    },
+    'rejects malformed legacy DOC field-code boundaries before exposing text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
+        $reader = new LegacyDocReader();
+
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Broken page \x13 PAGE \x147\r"),
+        ])));
+    },
     'rejects encrypted legacy DOC FIBs before exposing extracted text' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $reader = new LegacyDocReader();
 

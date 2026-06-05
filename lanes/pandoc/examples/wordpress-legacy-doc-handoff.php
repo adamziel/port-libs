@@ -180,8 +180,16 @@ $propertySet = static function (array $values) use ($typedLpstr, $typedPropertyS
     return $typedPropertySet($properties);
 };
 
+$fieldBegin = "\x13";
+$fieldSeparator = "\x14";
+$fieldEnd = "\x15";
 $firstPieceText = 'Legacy DOC import ΩЖ魚';
-$secondPieceText = "\rReviewer notes keep hard\vbreaks for block review.\r";
+$secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
+    . $fieldBegin . ' HYPERLINK "https://example.test/legacy-doc?source=42" \o "Source packet" '
+    . $fieldSeparator . 'source dossier' . $fieldEnd
+    . ' on page '
+    . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
+    . ".\r";
 $firstPieceBytes = $utf16le($firstPieceText);
 $secondPieceBytes = $utf16le($secondPieceText);
 $firstPieceStart = 1024;
@@ -467,11 +475,14 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<p>Legacy DOC import ΩЖ魚</p>',
-        '<p>Reviewer notes keep hard<br/>breaks for block review.</p>',
+        '<p>Reviewer notes keep hard<br/>breaks for block review with <a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a> on page <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>.</p>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
         }
+    }
+    if (str_contains($blocks, 'HYPERLINK')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instructions');
     }
     if (($summary['fib']['extendedCharacters'] ?? null) !== true || ($summary['fib']['encrypted'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
