@@ -10149,13 +10149,13 @@ final class PdfTextExtractor
         foreach (array_keys($charProcObjectReferences) as $glyphName) {
             $unicode = $this->glyphNameToUnicode($glyphName);
             if ($unicode === '') {
-                return null;
+                continue;
             }
 
             $unicodeByName[$glyphName] = $unicode;
         }
 
-        return $unicodeByName;
+        return $unicodeByName === [] ? null : $unicodeByName;
     }
 
     /**
