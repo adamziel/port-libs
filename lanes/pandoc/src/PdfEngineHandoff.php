@@ -12,6 +12,7 @@ final class PdfEngineHandoff
     private const MAX_XMP_METADATA_BYTES = 262144;
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
     private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
+    private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
 
     /**
@@ -254,6 +255,8 @@ final class PdfEngineHandoff
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     pdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
+     *     pdfFontSubtypes: array<string, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
@@ -636,6 +639,8 @@ final class PdfEngineHandoff
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
         $pdfPageLabels = [];
+        $pdfFonts = [];
+        $pdfFontSubtypes = [];
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
@@ -676,6 +681,8 @@ final class PdfEngineHandoff
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
+                $pdfFonts = $pdfInspection['fonts'];
+                $pdfFontSubtypes = $pdfInspection['fontSubtypes'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
@@ -715,6 +722,28 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageLabels !== []) {
                     $diagnostics[] = 'pdf-byte-page-labels:' . count($pdfPageLabels);
+                }
+                if ($pdfFonts !== []) {
+                    $diagnostics[] = 'pdf-byte-font-resources:' . count($pdfFonts);
+                    $embeddedFonts = 0;
+                    $fontStreamSkips = [];
+                    foreach ($pdfFonts as $font) {
+                        if (($font['embedded'] ?? false) === true) {
+                            $embeddedFonts++;
+                        }
+                        if (is_string($font['embeddedFileSkipped'] ?? null) && $font['embeddedFileSkipped'] !== '') {
+                            $fontStreamSkips[$font['embeddedFileSkipped']] = true;
+                        }
+                    }
+                    if ($embeddedFonts > 0) {
+                        $diagnostics[] = 'pdf-byte-embedded-fonts:' . $embeddedFonts;
+                    }
+                    foreach (array_keys($fontStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-font-stream-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfFontSubtypes !== []) {
+                    $diagnostics[] = 'pdf-byte-font-subtypes:' . count($pdfFontSubtypes);
                 }
                 if ($pdfTrailerCount > 0) {
                     $diagnostics[] = 'pdf-byte-trailers:' . $pdfTrailerCount;
@@ -992,6 +1021,8 @@ final class PdfEngineHandoff
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageLabels' => $pdfPageLabels,
+            'pdfFonts' => $pdfFonts,
+            'pdfFontSubtypes' => $pdfFontSubtypes,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
@@ -1049,6 +1080,8 @@ final class PdfEngineHandoff
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     finalPdfFonts: list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
+     *     finalPdfFontSubtypes: array<string, int>,
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     finalPdfStartXrefOffsets: list<int>,
@@ -1224,6 +1257,8 @@ final class PdfEngineHandoff
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
+            'finalPdfFonts' => is_array($finalRun) && is_array($finalRun['pdfFonts'] ?? null) ? $finalRun['pdfFonts'] : [],
+            'finalPdfFontSubtypes' => is_array($finalRun) && is_array($finalRun['pdfFontSubtypes'] ?? null) ? $finalRun['pdfFontSubtypes'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
             'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
@@ -2296,6 +2331,8 @@ final class PdfEngineHandoff
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
+     *     fonts:list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>,
+     *     fontSubtypes:array<string, int>,
      *     outlineTitles:list<string>,
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
@@ -2332,6 +2369,7 @@ final class PdfEngineHandoff
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
+        $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
@@ -2355,6 +2393,8 @@ final class PdfEngineHandoff
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
+            'fonts' => $fonts,
+            'fontSubtypes' => $this->summarizePdfFontSubtypes($fonts),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
@@ -3165,7 +3205,7 @@ final class PdfEngineHandoff
                 }
             }
 
-            if (preg_match('/\/([A-Za-z0-9_.#-]+)/A', substr($dictionary, $cursor), $matches) === 1) {
+            if (preg_match('/\/([A-Za-z0-9_.#+-]+)/A', substr($dictionary, $cursor), $matches) === 1) {
                 return ['type' => 'named-action', 'target' => $this->decodePdfNameToken($matches[1])];
             }
 
@@ -3281,7 +3321,7 @@ final class PdfEngineHandoff
                     ? null
                     : ['target' => trim($parsed['value'])];
             }
-            if (preg_match('/\/([A-Za-z0-9_.#-]+)/A', substr($dictionary, $cursor), $matches) === 1) {
+            if (preg_match('/\/([A-Za-z0-9_.#+-]+)/A', substr($dictionary, $cursor), $matches) === 1) {
                 return ['target' => $this->decodePdfNameToken($matches[1])];
             }
 
@@ -3304,7 +3344,7 @@ final class PdfEngineHandoff
             $summary['fit'] = $matches[1];
         }
         if (!isset($summary['pageObject'])) {
-            if (preg_match('/\[\s*\/([A-Za-z0-9_.#-]+)/s', $array, $matches) === 1) {
+            if (preg_match('/\[\s*\/([A-Za-z0-9_.#+-]+)/s', $array, $matches) === 1) {
                 $summary['target'] = $this->decodePdfNameToken($matches[1]);
             } else {
                 $strings = [];
@@ -4126,7 +4166,7 @@ final class PdfEngineHandoff
                 continue;
             }
 
-            if (preg_match('/\A\/([A-Za-z0-9_.#-]+)/s', substr($dictionary, $cursor), $matches) !== 1) {
+            if (preg_match('/\A\/([A-Za-z0-9_.#+-]+)/s', substr($dictionary, $cursor), $matches) !== 1) {
                 $cursor++;
                 continue;
             }
@@ -4184,7 +4224,7 @@ final class PdfEngineHandoff
                 continue;
             }
 
-            if (preg_match('/\A\/([A-Za-z0-9_.#-]+)/s', substr($dictionary, $cursor), $matches) !== 1) {
+            if (preg_match('/\A\/([A-Za-z0-9_.#+-]+)/s', substr($dictionary, $cursor), $matches) !== 1) {
                 $cursor++;
                 continue;
             }
@@ -4248,7 +4288,7 @@ final class PdfEngineHandoff
             ];
         }
 
-        if (preg_match('/\A\/([A-Za-z0-9_.#-]+)/s', $chunk, $matches) === 1) {
+        if (preg_match('/\A\/([A-Za-z0-9_.#+-]+)/s', $chunk, $matches) === 1) {
             return [
                 'kind' => 'name',
                 'value' => $this->decodePdfNameToken($matches[1]),
@@ -4360,7 +4400,7 @@ final class PdfEngineHandoff
 
     private function extractPdfNameToken(string $dictionary, string $name): ?string
     {
-        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\/([A-Za-z0-9_.#-]+)/s', $dictionary, $matches) !== 1) {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\/([A-Za-z0-9_.#+-]+)/s', $dictionary, $matches) !== 1) {
             return null;
         }
 
@@ -4383,6 +4423,15 @@ final class PdfEngineHandoff
         }
 
         return (int) $matches[1];
+    }
+
+    private function extractPdfNumberToken(string $dictionary, string $name): ?float
+    {
+        if (preg_match('/\/' . preg_quote($name, '/') . '\s+([-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[Ee][-+]?\d+)?)\b/s', $dictionary, $matches) !== 1) {
+            return null;
+        }
+
+        return (float) $matches[1];
     }
 
     private function extractPdfBooleanToken(string $dictionary, string $name): ?bool
@@ -4647,6 +4696,326 @@ final class PdfEngineHandoff
         }
 
         return $rotations;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>
+     */
+    private function extractPdfFonts(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $fonts = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfFontsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                null,
+                $visited,
+                $fonts,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($fonts === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $pageFonts = $this->summarizePdfPageFonts($body, $reference, null, $objects);
+                foreach ($pageFonts as &$font) {
+                    $font['page'] = $pageNumber;
+                }
+                unset($font);
+                array_push($fonts, ...$pageFonts);
+            }
+        }
+
+        $fonts = array_values($fonts);
+        usort(
+            $fonts,
+            static fn (array $a, array $b): int => [
+                $a['page'],
+                $a['resourceName'],
+                $a['fontObject'] ?? '',
+                $a['baseFont'] ?? '',
+            ] <=> [
+                $b['page'],
+                $b['resourceName'],
+                $b['fontObject'] ?? '',
+                $b['baseFont'] ?? '',
+            ]
+        );
+
+        return $fonts;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}> $fonts
+     */
+    private function collectPdfFontsFromPageTree(
+        array $objects,
+        string $reference,
+        ?string $inheritedResources,
+        array &$visited,
+        array &$fonts,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($body, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $pageFonts = $this->summarizePdfPageFonts($body, $reference, $ownResources === null ? $inheritedResources : null, $objects);
+            foreach ($pageFonts as &$font) {
+                $font['page'] = $pageNumber;
+            }
+            unset($font);
+            array_push($fonts, ...$pageFonts);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfFontsFromPageTree(
+                $objects,
+                $kidReference,
+                $resources,
+                $visited,
+                $fonts,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}>
+     */
+    private function summarizePdfPageFonts(string $pageDictionary, string $pageReference, ?string $inheritedResources, array $objects): array
+    {
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        if ($resources === null) {
+            return [];
+        }
+
+        $fontDictionary = $this->extractPdfDictionaryOrReferenceValue($resources, 'Font', $objects);
+        if ($fontDictionary === null) {
+            return [];
+        }
+
+        $fonts = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($fontDictionary) as $entry) {
+            $font = $this->summarizePdfFontResource(
+                $entry['key'],
+                $entry['value'],
+                $objects,
+                $pageReference,
+                $ownResources === null
+            );
+            if ($font !== null) {
+                $fonts[] = $font;
+            }
+        }
+
+        return $fonts;
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}|null
+     */
+    private function summarizePdfFontResource(string $resourceName, array $value, array $objects, string $pageReference, bool $inherited): ?array
+    {
+        $fontObject = null;
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $fontDictionary = $objects[$reference] ?? null;
+            $fontObject = $reference . ' R';
+        } elseif ($value['kind'] === 'dictionary') {
+            $fontDictionary = $value['value'];
+        } else {
+            return null;
+        }
+
+        if ($fontDictionary === null) {
+            return null;
+        }
+
+        $descendantFonts = [];
+        $descriptorDictionary = null;
+        $descriptorReference = $this->extractPdfReferenceToken($fontDictionary, 'FontDescriptor');
+        if ($descriptorReference !== null) {
+            $descriptorDictionary = $objects[$this->pdfReferenceKey($descriptorReference)] ?? null;
+        } else {
+            $descriptorDictionary = $this->extractPdfDictionaryOrReferenceValue($fontDictionary, 'FontDescriptor', $objects);
+            if ($descriptorDictionary !== null) {
+                $descriptorReference = 'inline';
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($fontDictionary, 'DescendantFonts') as $descendantReference) {
+            $descendantFonts[] = $descendantReference . ' R';
+            if ($descriptorDictionary !== null || !isset($objects[$descendantReference])) {
+                continue;
+            }
+
+            $descriptorReference = $this->extractPdfReferenceToken($objects[$descendantReference], 'FontDescriptor');
+            if ($descriptorReference !== null) {
+                $descriptorDictionary = $objects[$this->pdfReferenceKey($descriptorReference)] ?? null;
+                continue;
+            }
+
+            $descriptorDictionary = $this->extractPdfDictionaryOrReferenceValue($objects[$descendantReference], 'FontDescriptor', $objects);
+            if ($descriptorDictionary !== null) {
+                $descriptorReference = 'inline';
+            }
+        }
+
+        sort($descendantFonts);
+        $embedded = $descriptorDictionary === null
+            ? $this->emptyPdfFontFileSummary()
+            : $this->extractPdfFontFileSummary($descriptorDictionary, $objects);
+
+        return [
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'resourceName' => $resourceName,
+            'fontObject' => $fontObject,
+            'inherited' => $inherited,
+            'subtype' => $this->extractPdfNameToken($fontDictionary, 'Subtype'),
+            'baseFont' => $this->extractPdfNameToken($fontDictionary, 'BaseFont'),
+            'encoding' => $this->extractPdfNameToken($fontDictionary, 'Encoding'),
+            'toUnicode' => $this->extractPdfReferenceToken($fontDictionary, 'ToUnicode'),
+            'descendantFonts' => $descendantFonts,
+            'descriptor' => $descriptorReference,
+            'descriptorFontName' => $descriptorDictionary === null ? null : $this->extractPdfNameToken($descriptorDictionary, 'FontName'),
+            'descriptorFontFamily' => $descriptorDictionary === null ? null : $this->extractPdfStringOrNameValue($descriptorDictionary, 'FontFamily'),
+            'descriptorFlags' => $descriptorDictionary === null ? null : $this->extractPdfIntegerToken($descriptorDictionary, 'Flags'),
+            'descriptorItalicAngle' => $descriptorDictionary === null ? null : $this->extractPdfNumberToken($descriptorDictionary, 'ItalicAngle'),
+            'descriptorFontWeight' => $descriptorDictionary === null ? null : $this->extractPdfIntegerToken($descriptorDictionary, 'FontWeight'),
+            'embedded' => $embedded['reference'] !== null,
+            'embeddedFile' => $embedded['reference'],
+            'embeddedFileKind' => $embedded['kind'],
+            'embeddedFileSubtype' => $embedded['subtype'],
+            'embeddedFileBytes' => $embedded['bytes'],
+            'embeddedFileSha256' => $embedded['sha256'],
+            'embeddedFileSkipped' => $embedded['skipped'],
+        ];
+    }
+
+    /**
+     * @return array{reference:string|null, kind:string|null, subtype:string|null, bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function emptyPdfFontFileSummary(): array
+    {
+        return [
+            'reference' => null,
+            'kind' => null,
+            'subtype' => null,
+            'bytes' => null,
+            'sha256' => null,
+            'skipped' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{reference:string|null, kind:string|null, subtype:string|null, bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function extractPdfFontFileSummary(string $descriptorDictionary, array $objects): array
+    {
+        foreach (['FontFile', 'FontFile2', 'FontFile3'] as $kind) {
+            $value = $this->extractPdfValueForName($descriptorDictionary, $kind);
+            if ($value === null) {
+                continue;
+            }
+
+            $streamObject = null;
+            $reference = null;
+            if ($value['kind'] === 'reference') {
+                $referenceKey = $this->pdfReferenceKey($value['value']);
+                $streamObject = $objects[$referenceKey] ?? null;
+                $reference = $streamObject === null ? null : $referenceKey . ' R';
+            } elseif ($value['kind'] === 'dictionary') {
+                $streamObject = $value['value'];
+                $reference = 'inline';
+            }
+
+            if ($streamObject === null) {
+                continue;
+            }
+
+            $summary = [
+                'reference' => $reference,
+                'kind' => $kind,
+                'subtype' => $this->extractPdfNameToken($streamObject, 'Subtype'),
+                'bytes' => null,
+                'sha256' => null,
+                'skipped' => null,
+            ];
+            $streamBytes = $this->extractPdfStreamBytes($streamObject);
+            if ($streamBytes === null) {
+                return $summary;
+            }
+
+            $summary['bytes'] = strlen($streamBytes);
+            if (preg_match('/\/Filter\b/s', $streamObject) === 1) {
+                $summary['skipped'] = 'filtered';
+
+                return $summary;
+            }
+            if (strlen($streamBytes) > self::MAX_EMBEDDED_FONT_STREAM_BYTES) {
+                $summary['skipped'] = 'too-large';
+
+                return $summary;
+            }
+
+            $summary['sha256'] = hash('sha256', $streamBytes);
+
+            return $summary;
+        }
+
+        return $this->emptyPdfFontFileSummary();
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, fontObject:string|null, inherited:bool, subtype:string|null, baseFont:string|null, encoding:string|null, toUnicode:string|null, descendantFonts:list<string>, descriptor:string|null, descriptorFontName:string|null, descriptorFontFamily:string|null, descriptorFlags:int|null, descriptorItalicAngle:float|null, descriptorFontWeight:int|null, embedded:bool, embeddedFile:string|null, embeddedFileKind:string|null, embeddedFileSubtype:string|null, embeddedFileBytes:int|null, embeddedFileSha256:string|null, embeddedFileSkipped:string|null}> $fonts
+     * @return array<string, int>
+     */
+    private function summarizePdfFontSubtypes(array $fonts): array
+    {
+        $subtypes = [];
+        foreach ($fonts as $font) {
+            $subtype = $font['subtype'] ?? null;
+            if (!is_string($subtype) || $subtype === '') {
+                continue;
+            }
+
+            $subtypes[$subtype] = ($subtypes[$subtype] ?? 0) + 1;
+        }
+
+        ksort($subtypes);
+
+        return $subtypes;
     }
 
     /**

@@ -848,6 +848,173 @@ MARKDOWN);
         $t->same([1 => 90, 2 => 270], $sequence['finalPdfPageRotations']);
     },
 
+    'fake runner extracts bounded pdf font resources and embedded font streams from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/fonts.pdf']);
+        $embeddedFont = "fake Source Serif font bytes\n";
+        $filteredFont = "compressed fake logo font bytes";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Resources << /Font << /FBase 7 0 R /FBody 8 0 R >> >> /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources 12 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEE+SourceSerif4-Regular /Encoding /Identity-H /DescendantFonts [9 0 R] /ToUnicode 11 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ABCDEE+SourceSerif4-Regular /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 10 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /FontDescriptor /FontName /ABCDEE+SourceSerif4-Regular /FontFamily (Source Serif 4) /Flags 4 /FontWeight 400 /ItalicAngle 0 /FontFile2 14 0 R >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Length 24 >>',
+            'stream',
+            '/CIDInit /ProcSet findresource',
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Font << /FLogo 13 0 R >> >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /Font /Subtype /TrueType /BaseFont /LogoSans-Bold /Encoding /WinAnsiEncoding /FontDescriptor 15 0 R >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Length ' . strlen($embeddedFont) . ' >>',
+            'stream',
+            $embeddedFont,
+            'endstream',
+            'endobj',
+            '15 0 obj',
+            '<< /Type /FontDescriptor /FontName /LogoSans-Bold /FontFamily (Logo Sans) /Flags 32 /ItalicAngle 0 /FontFile2 16 0 R >>',
+            'endobj',
+            '16 0 obj',
+            '<< /Length ' . strlen($filteredFont) . ' /Filter /FlateDecode >>',
+            'stream',
+            $filteredFont,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/fonts.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/fonts.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'FBase',
+                'fontObject' => '7 0 R',
+                'inherited' => true,
+                'subtype' => 'Type1',
+                'baseFont' => 'Helvetica',
+                'encoding' => 'WinAnsiEncoding',
+                'toUnicode' => null,
+                'descendantFonts' => [],
+                'descriptor' => null,
+                'descriptorFontName' => null,
+                'descriptorFontFamily' => null,
+                'descriptorFlags' => null,
+                'descriptorItalicAngle' => null,
+                'descriptorFontWeight' => null,
+                'embedded' => false,
+                'embeddedFile' => null,
+                'embeddedFileKind' => null,
+                'embeddedFileSubtype' => null,
+                'embeddedFileBytes' => null,
+                'embeddedFileSha256' => null,
+                'embeddedFileSkipped' => null,
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'FBody',
+                'fontObject' => '8 0 R',
+                'inherited' => true,
+                'subtype' => 'Type0',
+                'baseFont' => 'ABCDEE+SourceSerif4-Regular',
+                'encoding' => 'Identity-H',
+                'toUnicode' => '11 0 R',
+                'descendantFonts' => ['9 0 R'],
+                'descriptor' => '10 0 R',
+                'descriptorFontName' => 'ABCDEE+SourceSerif4-Regular',
+                'descriptorFontFamily' => 'Source Serif 4',
+                'descriptorFlags' => 4,
+                'descriptorItalicAngle' => 0.0,
+                'descriptorFontWeight' => 400,
+                'embedded' => true,
+                'embeddedFile' => '14 0 R',
+                'embeddedFileKind' => 'FontFile2',
+                'embeddedFileSubtype' => null,
+                'embeddedFileBytes' => strlen($embeddedFont),
+                'embeddedFileSha256' => hash('sha256', $embeddedFont),
+                'embeddedFileSkipped' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'FLogo',
+                'fontObject' => '13 0 R',
+                'inherited' => false,
+                'subtype' => 'TrueType',
+                'baseFont' => 'LogoSans-Bold',
+                'encoding' => 'WinAnsiEncoding',
+                'toUnicode' => null,
+                'descendantFonts' => [],
+                'descriptor' => '15 0 R',
+                'descriptorFontName' => 'LogoSans-Bold',
+                'descriptorFontFamily' => 'Logo Sans',
+                'descriptorFlags' => 32,
+                'descriptorItalicAngle' => 0.0,
+                'descriptorFontWeight' => null,
+                'embedded' => true,
+                'embeddedFile' => '16 0 R',
+                'embeddedFileKind' => 'FontFile2',
+                'embeddedFileSubtype' => null,
+                'embeddedFileBytes' => strlen($filteredFont),
+                'embeddedFileSha256' => null,
+                'embeddedFileSkipped' => 'filtered',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfFonts']);
+        $t->same(['TrueType' => 1, 'Type0' => 1, 'Type1' => 1], $result['pdfFontSubtypes']);
+        $t->contains('pdf-byte-font-resources:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-font-subtypes:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-fonts:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-font-stream-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfFonts']);
+        $t->same(['TrueType' => 1, 'Type0' => 1, 'Type1' => 1], $sequence['finalPdfFontSubtypes']);
+    },
+
     'fake runner extracts bounded pdf page label ranges from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-labels.pdf']);
