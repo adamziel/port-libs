@@ -736,7 +736,7 @@ final class MarkerAppPreview
             $pages[$index]['page_number'] = $index + 1;
         }
 
-        $pageLabels = $this->pageLabelsFromCatalog($catalogBody, $objects, count($pages));
+        $pageLabels = $this->pageLabelsForInventory($pdfBytes, $catalogBody, $objects, count($pages));
         foreach ($pages as $index => $page) {
             $pages[$index]['page_label'] = $pageLabels[$index] ?? (string) ($index + 1);
         }
@@ -1315,6 +1315,26 @@ final class MarkerAppPreview
         }
 
         return in_array($rotation, [0, 90, 180, 270], true) ? $rotation : 0;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @return list<string>
+     */
+    private function pageLabelsForInventory(?string $pdfBytes, ?string $catalogBody, array $objects, int $pageCount): array
+    {
+        if ($pageCount <= 0) {
+            return [];
+        }
+
+        if ($pdfBytes !== null) {
+            $textLabels = (new PdfTextExtractor())->extractPageLabels($pdfBytes);
+            if (count($textLabels) === $pageCount) {
+                return $textLabels;
+            }
+        }
+
+        return $this->pageLabelsFromCatalog($catalogBody, $objects, $pageCount);
     }
 
     /**

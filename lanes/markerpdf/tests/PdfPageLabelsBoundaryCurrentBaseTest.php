@@ -426,6 +426,32 @@ $indirectNumsArrayPageLabelBoundaryPdf = static function (): string {
         . "%%EOF\n";
 };
 
+$objectStreamPageLabelBoundaryPdf = static function (): string {
+    $contents = [
+        10 => 'BT /F1 12 Tf 72 720 Td (Compressed label first imported) Tj ET',
+        11 => 'BT /F1 12 Tf 72 720 Td (Compressed label second imported) Tj ET',
+    ];
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /PageLabels 20 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /MediaBox [0 0 612 792] /Kids [3 0 R 4 0 R] /Count 2 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 10 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 8 0 R >> >> /Contents 11 0 R >>\nendobj\n"
+        . "8 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+
+    foreach ($contents as $objectNumber => $content) {
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    $member = '<< /Nums [0 << /P (Obj-) /S /D /St 4 >> 1 << /P (Tail-) >>] >>';
+    $header = '20 0 ';
+    $payload = $header . $member;
+
+    return $pdf
+        . "40 0 obj\n<< /Type /ObjStm /N 1 /First " . strlen($header) . " /Length " . strlen($payload) . " >>\nstream\n{$payload}\nendstream\nendobj\n"
+        . "%%EOF\n";
+};
+
 $tokenBoundaryPageLabelPdf = static function (): string {
     $contents = [
         10 => 'BT /F1 12 Tf 72 720 Td (Top-level cover imported) Tj ET',
@@ -797,6 +823,24 @@ return [
         $t->true(!in_array('stale-array-99', $labels, true));
         $t->true(!in_array('stale-array-100', $previewLabels, true));
         $t->same('App-Z', $preview->getPageImagePlan($pdf, 3)['page_label']);
+    },
+    'keeps object-stream PageLabels aligned with preview metadata' => static function (TestRunner $t) use ($objectStreamPageLabelBoundaryPdf): void {
+        $pdf = $objectStreamPageLabelBoundaryPdf();
+        $extractor = new PdfTextExtractor();
+        $preview = new MarkerAppPreview();
+
+        $labels = $extractor->extractPageLabels($pdf);
+        $entries = $extractor->extractLabeledPageTexts($pdf);
+        $summary = $preview->openPdfSummary($pdf);
+        $previewLabels = array_column($summary['pages'], 'page_label');
+
+        $t->same(['Obj-4', 'Tail-'], $labels);
+        $t->same($labels, array_column($entries, 'page_label'));
+        $t->same($labels, $previewLabels);
+        $t->same(['Compressed label first imported', 'Compressed label second imported'], array_column($entries, 'text'));
+        $t->true(!in_array('1', $previewLabels, true));
+        $t->true(!in_array('2', $previewLabels, true));
+        $t->same('Tail-', $preview->getPageImagePlan($pdf, 2)['page_label']);
     },
     'keeps PageLabels root kids and nums at top-level token boundaries' => static function (TestRunner $t) use ($tokenBoundaryPageLabelPdf): void {
         $pdf = $tokenBoundaryPageLabelPdf();
