@@ -618,6 +618,51 @@ $buildSecondProgramCMapPdf = static function () use ($utf16beHex): string {
         . "%%EOF";
 };
 
+$buildLiteralNameUseCMapPdf = static function () use ($utf16beHex): string {
+    $baseCMap = "(/CMapName /WPFakeBase-H def)\n"
+        . "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPRealBase-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal Name Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedBaseCMap = gzcompress($baseCMap, 0);
+    if (!is_string($compressedBaseCMap)) {
+        throw new RuntimeException('Unable to compress literal-name CMap filter-boundary fixture.');
+    }
+
+    $derivedCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPDerivedLiteralName-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPLiteralNameBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /UseCMap /WPRealBase-H /Length " . strlen($derivedCMap) . " >>\nstream\n{$derivedCMap}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Type /CMap /Filter /FlateDecode /Length " . strlen($compressedBaseCMap) . " >>\nstream\n{$compressedBaseCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $buildUnsupportedCMapFilterPdf = static function () use ($utf16beHex): string {
     $cMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -728,6 +773,7 @@ $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
 $nestedArrayDictionaryPdf = $buildNestedArrayDictionaryCMapFilterPdf();
 $postEndPdf = $buildPostEndCMapOperatorPdf();
 $secondProgramPdf = $buildSecondProgramCMapPdf();
+$literalNamePdf = $buildLiteralNameUseCMapPdf();
 $unsupportedFilterPdf = $buildUnsupportedCMapFilterPdf();
 $cryptIdentityPdf = $buildCryptIdentityCMapFilterPdf();
 $cryptPrivatePdf = $buildCryptPrivateCMapFilterPdf();
@@ -746,6 +792,7 @@ $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
 $nestedArrayDictionaryLines = $extractor->extractTextLines($nestedArrayDictionaryPdf);
 $postEndLines = $extractor->extractTextLines($postEndPdf);
 $secondProgramLines = $extractor->extractTextLines($secondProgramPdf);
+$literalNameLines = $extractor->extractTextLines($literalNamePdf);
 $unsupportedFilterLines = $extractor->extractTextLines($unsupportedFilterPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $cryptPrivateLines = $extractor->extractTextLines($cryptPrivatePdf);
@@ -762,6 +809,7 @@ $staleReferencePlainText = implode("\n", $staleReferenceLines);
 $nestedArrayDictionaryPlainText = implode("\n", $nestedArrayDictionaryLines);
 $postEndPlainText = implode("\n", $postEndLines);
 $secondProgramPlainText = implode("\n", $secondProgramLines);
+$literalNamePlainText = implode("\n", $literalNameLines);
 $unsupportedFilterPlainText = implode("\n", $unsupportedFilterLines);
 $cryptIdentityPlainText = implode("\n", $cryptIdentityLines);
 $cryptPrivatePlainText = implode("\n", $cryptPrivateLines);
@@ -778,6 +826,7 @@ $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($st
 $nestedArrayDictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($nestedArrayDictionaryPdf);
 $postEndReview = $extractor->extractCMapStreamFilterLengthOwnerReview($postEndPdf);
 $secondProgramReview = $extractor->extractCMapStreamFilterLengthOwnerReview($secondProgramPdf);
+$literalNameReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalNamePdf);
 $unsupportedFilterReview = $extractor->extractCMapStreamFilterLengthOwnerReview($unsupportedFilterPdf);
 $cryptIdentityReview = $extractor->extractCMapStreamFilterLengthOwnerReview($cryptIdentityPdf);
 $cryptPrivateReview = $extractor->extractCMapStreamFilterLengthOwnerReview($cryptPrivatePdf);
@@ -794,6 +843,15 @@ $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
 $nestedArrayDictionaryEntry = $nestedArrayDictionaryReview['entries'][0] ?? [];
 $postEndEntry = $postEndReview['entries'][0] ?? [];
 $secondProgramEntry = $secondProgramReview['entries'][0] ?? [];
+$literalNameDerivedEntry = null;
+$literalNameBaseEntry = null;
+foreach ($literalNameReview['entries'] as $entry) {
+    if (($entry['object_number'] ?? null) === 6) {
+        $literalNameDerivedEntry = $entry;
+    } elseif (($entry['object_number'] ?? null) === 7) {
+        $literalNameBaseEntry = $entry;
+    }
+}
 $unsupportedFilterEntry = $unsupportedFilterReview['entries'][0] ?? [];
 $cryptIdentityEntry = $cryptIdentityReview['entries'][0] ?? [];
 $cryptPrivateEntry = $cryptPrivateReview['entries'][0] ?? [];
@@ -850,6 +908,10 @@ if ($secondProgramLines !== ['SecondProgram Safe Import']) {
     throw new RuntimeException('Expected complete second CMap program to stay excluded from WordPress text.');
 }
 
+if ($literalNameLines !== ['Literal Name Safe Import']) {
+    throw new RuntimeException('Expected literal CMapName decoy to stay excluded before UseCMap inheritance.');
+}
+
 if ($unsupportedFilterLines !== ['Unsupported Filter Safe Import']) {
     throw new RuntimeException('Expected unsupported CMap filter fallback text.');
 }
@@ -891,6 +953,8 @@ if (
     || str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H')
     || str_contains($secondProgramPlainText, 'Second Program CMap Leak')
     || str_contains($secondProgramPlainText, 'WPSecondProgramDecoy-H')
+    || str_contains($literalNamePlainText, 'WPFakeBase-H')
+    || str_contains($literalNamePlainText, 'CMapName')
     || str_contains($unsupportedFilterPlainText, 'Unsupported Filter CMap Leak')
     || str_contains($unsupportedFilterPlainText, 'WPUnsupportedFilterBoundary-H')
     || str_contains($unsupportedFilterPlainText, 'DCTDecode')
@@ -1123,6 +1187,22 @@ if (($secondProgramEntry['parser_excluded_cmap_byte_count'] ?? 0) <= ($secondPro
     throw new RuntimeException('Expected parser-bounded CMap exclusion to exceed trailing post-endcmap cleanup bytes.');
 }
 
+if (!is_array($literalNameBaseEntry) || ($literalNameBaseEntry['cmap_name'] ?? null) !== 'WPRealBase-H') {
+    throw new RuntimeException('Expected literal-string CMapName decoy to be skipped in base CMap review metadata.');
+}
+
+if (!is_array($literalNameDerivedEntry) || ($literalNameDerivedEntry['cmap_name'] ?? null) !== 'WPDerivedLiteralName-H') {
+    throw new RuntimeException('Expected derived UseCMap review metadata to remain current.');
+}
+
+if (($literalNameReview['decoded_cmap_count'] ?? null) !== 2) {
+    throw new RuntimeException('Expected derived and base CMap streams to decode for literal-name UseCMap inheritance.');
+}
+
+if (($literalNameBaseEntry['filter_operand_policy'] ?? null) !== 'filters_resolved') {
+    throw new RuntimeException('Expected literal-name base CMap filter to remain resolved.');
+}
+
 if (($unsupportedFilterReview['decoded_cmap_count'] ?? null) !== 0) {
     throw new RuntimeException('Expected unsupported-filter CMap stream not to decode.');
 }
@@ -1185,6 +1265,7 @@ $lines = array_merge(
     $nestedArrayDictionaryLines,
     $postEndLines,
     $secondProgramLines,
+    $literalNameLines,
     $cryptIdentityLines,
     $cryptPrivateLines,
     $unsupportedFilterLines
@@ -1193,7 +1274,7 @@ $lines = array_merge(
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, direct and indirect null-filter DecodeParms slots, and post-endcmap decoded operators stay bounded before WordPress text import',
+    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, direct and indirect null-filter DecodeParms slots, post-endcmap decoded operators, and literal CMapName decoys stay bounded before WordPress text import',
     'fallback_text' => implode(' | ', $lines),
     'dictionary_decoded_cmap_count' => $dictionaryReview['decoded_cmap_count'] ?? null,
     'dictionary_invalid_filter_operand_count' => $dictionaryReview['invalid_filter_operand_count'] ?? null,
@@ -1298,6 +1379,16 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'second_program_parser_bytes_excluded' => ($secondProgramEntry['parser_bounded_cmap_bytes_excluded'] ?? null) === true,
     'second_program_payload_excluded' => !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
         && !str_contains($secondProgramPlainText, 'WPSecondProgramDecoy-H'),
+    'literal_name_decoded_cmap_count' => $literalNameReview['decoded_cmap_count'] ?? null,
+    'literal_name_derived_cmap_name' => $literalNameDerivedEntry['cmap_name'] ?? null,
+    'literal_name_base_cmap_name' => $literalNameBaseEntry['cmap_name'] ?? null,
+    'literal_name_base_filters' => $literalNameBaseEntry['filters'] ?? [],
+    'literal_name_filter_operand_policy' => $literalNameBaseEntry['filter_operand_policy'] ?? null,
+    'literal_name_usecmap_inherited' => ($literalNameLines === ['Literal Name Safe Import'])
+        && (($literalNameBaseEntry['cmap_name'] ?? null) === 'WPRealBase-H')
+        && (($literalNameReview['decoded_cmap_count'] ?? null) === 2),
+    'literal_name_decoy_excluded' => !str_contains($literalNamePlainText, 'WPFakeBase-H')
+        && !str_contains($literalNamePlainText, 'CMapName'),
     'unsupported_filter_decoded_cmap_count' => $unsupportedFilterReview['decoded_cmap_count'] ?? null,
     'unsupported_filter_count' => $unsupportedFilterReview['unsupported_filter_count'] ?? null,
     'unsupported_filter_names' => $unsupportedFilterEntry['filters'] ?? [],
@@ -1340,6 +1431,8 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($nestedArrayDictionaryPlainText, 'nested dictionary is not a decoder')
         && !str_contains($postEndPlainText, 'PostEnd CMap Leak')
         && !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
+        && !str_contains($literalNamePlainText, 'WPFakeBase-H')
+        && !str_contains($literalNamePlainText, 'CMapName')
         && !str_contains($cryptIdentityPlainText, 'WPCryptIdentityBoundary-H')
         && !str_contains($cryptPrivatePlainText, 'Private Crypt CMap Leak')
         && !str_contains($unsupportedFilterPlainText, 'Unsupported Filter CMap Leak'),

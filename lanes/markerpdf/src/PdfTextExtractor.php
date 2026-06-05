@@ -20105,11 +20105,62 @@ final class PdfTextExtractor
     private function cMapName(string $cmap): ?string
     {
         $cmap = $this->stripPdfLineComments($cmap);
-        if (preg_match('/\/CMapName\s+\/([^\s\[\]()<>{}\/%]+)\s+def\b/s', $cmap, $match) !== 1) {
-            return null;
+        $length = strlen($cmap);
+        for ($index = 0; $index < $length;) {
+            $char = $cmap[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($cmap, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($cmap, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($cmap[$index + 1] ?? '') === '<') {
+                    $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
+                    $index = $dictionaryEnd === null ? $index + 1 : $dictionaryEnd + 1;
+                    continue;
+                }
+
+                $this->readHexToken($cmap, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayBody = $this->readPdfArrayAt($cmap, $index);
+                $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
+                continue;
+            }
+
+            if ($char !== '/') {
+                $index++;
+                continue;
+            }
+
+            $nameToken = $this->readNameToken($cmap, $index);
+            if ($this->decodePdfName(substr($nameToken, 1)) !== 'CMapName') {
+                continue;
+            }
+
+            $nameValueOffset = $this->skipPdfWhitespace($cmap, $index);
+            if (($cmap[$nameValueOffset] ?? '') !== '/') {
+                continue;
+            }
+
+            $nameValueToken = $this->readNameToken($cmap, $nameValueOffset);
+            $defOffset = $this->skipPdfWhitespace($cmap, $nameValueOffset);
+            if (!$this->pdfKeywordAt($cmap, $defOffset, 'def')) {
+                continue;
+            }
+
+            return $this->decodePdfName(substr($nameValueToken, 1));
         }
 
-        return $this->decodePdfName($match[1]);
+        return null;
     }
 
     private function boundedCMapProgram(string $cmap): string
