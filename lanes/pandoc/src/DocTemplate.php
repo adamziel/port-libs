@@ -1804,12 +1804,46 @@ final class DocTemplate
     private function nestTemplateTextChunk(string $value, int $column): string
     {
         $indent = str_repeat(' ', $column);
+        $output = '';
+        $offset = 0;
+        $length = strlen($value);
 
-        return preg_replace_callback(
-            '/(\r\n|\n|\r)([ \t]*)(?!$)/',
-            fn (array $matches): string => $matches[1] . $indent . $this->dropSourceIndentColumns($matches[2], $column),
-            $value,
-        ) ?? $value;
+        while ($offset < $length) {
+            if (preg_match('/\r\n|\n|\r/', $value, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+                $output .= substr($value, $offset);
+                break;
+            }
+
+            $lineEnding = $matches[0][0];
+            $lineEndingStart = $matches[0][1];
+            $afterLineEnding = $lineEndingStart + strlen($lineEnding);
+            $output .= substr($value, $offset, $afterLineEnding - $offset);
+
+            if ($afterLineEnding >= $length) {
+                break;
+            }
+
+            $indentEnd = $afterLineEnding;
+            while ($indentEnd < $length && ($value[$indentEnd] === ' ' || $value[$indentEnd] === "\t")) {
+                $indentEnd++;
+            }
+
+            $sourceIndent = substr($value, $afterLineEnding, $indentEnd - $afterLineEnding);
+            if ($indentEnd < $length && ($value[$indentEnd] === "\r" || $value[$indentEnd] === "\n")) {
+                $offset = $indentEnd;
+                continue;
+            }
+
+            if (strlen($sourceIndent) < $column) {
+                $output .= substr($value, $afterLineEnding);
+                break;
+            }
+
+            $output .= $indent . $this->dropSourceIndentColumns($sourceIndent, $column);
+            $offset = $indentEnd;
+        }
+
+        return $output;
     }
 
     private function dropSourceIndentColumns(string $indent, int $columns): string

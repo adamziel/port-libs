@@ -303,6 +303,32 @@ TPL, [
         ]), $output);
     },
 
+    'ends explicit pandoc doctemplate nesting before dedented source lines' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+<section>
+<p class="summary">$^$$summary$
+</p>
+<p class="status">$^$Status: $status$
+                 Owner: $owner$
+</p>
+</section>
+TPL, [
+            'summary' => 'Ready for import',
+            'status' => 'queued',
+            'owner' => 'Migration desk',
+        ]);
+
+        $t->same(implode("\n", [
+            '<section>',
+            '<p class="summary">Ready for import',
+            '</p>',
+            '<p class="status">Status: queued',
+            '                 Owner: Migration desk',
+            '</p>',
+            '</section>',
+        ]), $output);
+    },
+
     'automatically nests multiline pandoc doctemplate variables that stand alone on indented lines' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 <section class="wp-import-body">
