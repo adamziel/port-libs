@@ -1465,6 +1465,10 @@ final class MarkdownReader
         foreach ($this->splitYamlFlowItems($source) as $item) {
             $mapping = $this->splitYamlFlowMappingItem($item);
             if ($mapping === null) {
+                $key = $this->normalizeYamlFlowKeyOnlyItem($item);
+                if ($key !== '') {
+                    $map[$key] = null;
+                }
                 continue;
             }
 
@@ -1839,6 +1843,18 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function normalizeYamlFlowKeyOnlyItem(string $item): string
+    {
+        $item = trim($item);
+        if (preg_match('/^\?[ \t]+(.+)$/s', $item, $m) !== 1) {
+            return '';
+        }
+
+        $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarValue(trim($m[1])));
+
+        return $normalized ?? '';
     }
 
     private function normalizeYamlFlowKey(string $key): string
