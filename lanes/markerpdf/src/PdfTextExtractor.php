@@ -23117,12 +23117,34 @@ final class PdfTextExtractor
         return null;
     }
 
+    private function firstCMapSourceMappingOperatorOffset(string $cmap): ?int
+    {
+        $firstOffset = null;
+        foreach ([
+            'begincodespacerange',
+            'beginnotdefchar',
+            'beginnotdefrange',
+            'beginbfchar',
+            'beginbfrange',
+            'begincidchar',
+            'begincidrange',
+        ] as $operator) {
+            $offset = $this->nextCMapOperatorOffset($cmap, $operator, 0);
+            if ($offset !== null && ($firstOffset === null || $offset < $firstOffset)) {
+                $firstOffset = $offset;
+            }
+        }
+
+        return $firstOffset;
+    }
+
     /**
      * @return list<string>
      */
     private function cMapUseCMapNames(string $cmap): array
     {
         $names = [];
+        $firstMappingOffset = $this->firstCMapSourceMappingOperatorOffset($cmap);
         $length = strlen($cmap);
         for ($index = 0; $index < $length;) {
             $char = $cmap[$index];
@@ -23162,6 +23184,11 @@ final class PdfTextExtractor
             $nameToken = $this->readNameToken($cmap, $index);
             $operatorOffset = $this->skipPdfWhitespace($cmap, $index);
             if ($this->pdfKeywordAt($cmap, $operatorOffset, 'usecmap')) {
+                if ($firstMappingOffset !== null && $operatorOffset > $firstMappingOffset) {
+                    $index = $operatorOffset + strlen('usecmap');
+                    continue;
+                }
+
                 $name = $this->decodePdfName(substr($nameToken, 1));
                 if ($name !== '') {
                     $names[] = $name;
