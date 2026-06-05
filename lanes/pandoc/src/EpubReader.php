@@ -286,6 +286,7 @@ final class EpubReader
         }
 
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
+        $prefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
         $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier);
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement);
         $encryption = $this->readEncryption($package, $manifestById);
@@ -316,7 +317,10 @@ final class EpubReader
                 'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
                 'opfPart' => $opfPart,
                 'language' => self::xmlLang($root),
-                'prefix' => trim($root->getAttribute('prefix')),
+                'prefix' => $prefixReport['raw'],
+                'prefixes' => $prefixReport['bindingsByPrefix'],
+                'prefixBindings' => $prefixReport['bindings'],
+                'prefixDiagnostics' => $prefixReport['diagnostics'],
             ],
             'manifest' => $manifest,
             'spine' => $spine,
@@ -570,6 +574,69 @@ final class EpubReader
         }
 
         return $properties;
+    }
+
+    /**
+     * @return array{
+     *     raw:string,
+     *     bindings:list<array{index:int, prefix:string, iri:string}>,
+     *     bindingsByPrefix:array<string, string>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePrefixReport(string $raw): array
+    {
+        $value = trim($raw);
+        $bindings = [];
+        $bindingsByPrefix = [];
+        $diagnostics = [];
+
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $offset += strspn($value, " \t\r\n", $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $segment = substr($value, $offset);
+            if (!preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):[ \t\r\n]+([^ \t\r\n]+)/', $segment, $match)) {
+                $diagnostics[] = [
+                    'type' => 'invalid-package-prefix-declaration',
+                    'offset' => $offset,
+                    'value' => $segment,
+                    'message' => 'EPUB OPF prefix declarations must be prefix: IRI pairs separated by whitespace',
+                ];
+                break;
+            }
+
+            $prefix = $match[1];
+            $iri = $match[2];
+            if (isset($bindingsByPrefix[$prefix])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-package-prefix-declaration',
+                    'prefix' => $prefix,
+                    'previousIri' => $bindingsByPrefix[$prefix],
+                    'iri' => $iri,
+                    'message' => 'EPUB OPF prefix declaration repeats a prefix; later binding is retained',
+                ];
+            }
+
+            $bindingsByPrefix[$prefix] = $iri;
+            $bindings[] = [
+                'index' => count($bindings),
+                'prefix' => $prefix,
+                'iri' => $iri,
+            ];
+            $offset += strlen($match[0]);
+        }
+
+        return [
+            'raw' => $value,
+            'bindings' => $bindings,
+            'bindingsByPrefix' => $bindingsByPrefix,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

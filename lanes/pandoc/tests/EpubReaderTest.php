@@ -359,6 +359,34 @@ return [
         $t->contains('Chapter XHTML stays available', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
     },
+    'parses OPF package prefix declarations for metadata vocabulary review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $prefix = 'schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/ bad-prefix';
+        $opfWithPrefixes = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="' . $prefix . '">',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithPrefixes));
+        $package = $result['package'];
+
+        $t->same($prefix, $package['prefix']);
+        $t->same([
+            'schema' => 'https://schema.org/',
+            'marc' => 'http://id.loc.gov/vocabulary/relators/',
+        ], $package['prefixes']);
+        $t->same(2, count($package['prefixBindings']));
+        $t->same(0, $package['prefixBindings'][0]['index']);
+        $t->same('schema', $package['prefixBindings'][0]['prefix']);
+        $t->same('https://schema.org/', $package['prefixBindings'][0]['iri']);
+        $t->same(1, $package['prefixBindings'][1]['index']);
+        $t->same('marc', $package['prefixBindings'][1]['prefix']);
+        $t->same('http://id.loc.gov/vocabulary/relators/', $package['prefixBindings'][1]['iri']);
+        $t->same(1, count($package['prefixDiagnostics']));
+        $t->same('invalid-package-prefix-declaration', $package['prefixDiagnostics'][0]['type']);
+        $t->contains('bad-prefix', $package['prefixDiagnostics'][0]['value']);
+        $t->same($package, $result['importReport']['package']);
+    },
     'reports OPF spine page progression direction and itemref spread properties' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithReadingOrder = str_replace(
             '<spine toc="toc">',

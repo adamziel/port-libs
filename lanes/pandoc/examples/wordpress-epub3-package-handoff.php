@@ -18,7 +18,7 @@ $containerXml = <<<'XML'
 XML;
 
 $opfXml = <<<'XML'
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="source-id">
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="source-id" prefix="schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="source-id">urn:uuid:wordpress-epub-source</dc:identifier>
     <dc:title>WordPress EPUB source packet</dc:title>
@@ -227,6 +227,12 @@ $blocks = (new WordPressBlockWriter())->write($result['document']);
 if (($argv[1] ?? '') === '--self-test') {
     if ($result['metadata']['title'] !== 'WordPress EPUB source packet') {
         throw new RuntimeException('Expected EPUB OPF title metadata');
+    }
+    if (($result['package']['prefixes']['schema'] ?? null) !== 'https://schema.org/' || ($result['package']['prefixes']['marc'] ?? null) !== 'http://id.loc.gov/vocabulary/relators/') {
+        throw new RuntimeException('Expected EPUB OPF prefix declarations to be preserved for metadata vocabulary review');
+    }
+    if (($result['importReport']['package']['prefixBindings'][0]['prefix'] ?? null) !== 'schema') {
+        throw new RuntimeException('Expected EPUB import report to expose OPF prefix bindings');
     }
     if ($result['spine'][0]['part'] !== '/EPUB/text/chapter.xhtml') {
         throw new RuntimeException('Expected spine chapter part to resolve relative to the OPF');
@@ -489,6 +495,8 @@ echo "EPUB3 package handoff for WordPress import:\n";
 echo 'title=' . $result['metadata']['title'] . "\n";
 echo 'identifier=' . $result['metadata']['identifier'] . "\n";
 echo 'opfPart=' . $result['opfPart'] . "\n";
+echo 'opfPrefixes=' . implode(',', array_keys($result['package']['prefixes'] ?? [])) . "\n";
+echo 'schemaPrefix=' . ($result['package']['prefixes']['schema'] ?? '') . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'pageProgressionDirection=' . ($result['spineProperties']['pageProgressionDirection'] ?? '') . "\n";
 echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'yes' : 'no') . "\n";
