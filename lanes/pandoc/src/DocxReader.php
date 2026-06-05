@@ -2923,6 +2923,10 @@ final class DocxReader
             return $symbol === '' ? [] : [new AstNode('text', ['text' => $symbol])];
         }
 
+        if ($this->isWordElement($child, 'ruby')) {
+            return $this->rubyNodes($child, $package, $relationships, $referencedNotes);
+        }
+
         if ($this->isWordElement($child, 'footnoteReference')) {
             $nodes = [];
             $this->appendReferencedNote($nodes, $referencedNotes, 'footnote', $child);
@@ -2998,6 +3002,60 @@ final class DocxReader
             'classes' => ['docx-reference-marker', 'docx-' . $kind . '-reference-marker'],
             'attributes' => ['data-docx-reference-marker' => $kind],
         ], [new AstNode('text', ['text' => 'DOCX ' . $kind . ' reference marker'])])];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
+    private function rubyNodes(\DOMElement $ruby, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
+    {
+        $base = $this->firstChildElement($ruby, self::WORDPROCESSINGML_NS, 'rubyBase');
+        if (!$base instanceof \DOMElement) {
+            return [];
+        }
+
+        $baseNodes = $this->coalesceTextNodes($this->inlineContainerNodes($base, $package, $relationships, $referencedNotes));
+        if ($baseNodes === []) {
+            return [];
+        }
+
+        $attributes = [];
+        $annotation = $this->firstChildElement($ruby, self::WORDPROCESSINGML_NS, 'rt');
+        if ($annotation instanceof \DOMElement) {
+            $annotationText = trim($this->plainInlineText(
+                $this->inlineContainerNodes($annotation, $package, $relationships, $referencedNotes)
+            ));
+            if ($annotationText !== '') {
+                $attributes['data-docx-ruby-text'] = $annotationText;
+            }
+        }
+
+        $properties = $this->firstChildElement($ruby, self::WORDPROCESSINGML_NS, 'rubyPr');
+        if ($properties instanceof \DOMElement) {
+            foreach ([
+                'rubyAlign' => 'data-docx-ruby-align',
+                'lid' => 'data-docx-ruby-lang',
+                'hps' => 'data-docx-ruby-hps',
+                'hpsRaise' => 'data-docx-ruby-hps-raise',
+                'hpsBaseText' => 'data-docx-ruby-hps-base-text',
+            ] as $localName => $attributeName) {
+                $property = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+                if (!$property instanceof \DOMElement) {
+                    continue;
+                }
+
+                $value = trim((string) ($this->wordAttr($property, 'val') ?? ''));
+                if ($value !== '') {
+                    $attributes[$attributeName] = $value;
+                }
+            }
+        }
+
+        return [new AstNode('span', [
+            'classes' => ['docx-ruby'],
+            'attributes' => $attributes,
+        ], $baseNodes)];
     }
 
     /**

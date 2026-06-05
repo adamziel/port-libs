@@ -1220,6 +1220,30 @@ $symbolRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$rubyDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Ruby glossary </w:t></w:r>
+      <w:r>
+        <w:ruby>
+          <w:rubyPr>
+            <w:rubyAlign w:val="center"/>
+            <w:hps w:val="14"/>
+            <w:hpsRaise w:val="18"/>
+            <w:hpsBaseText w:val="24"/>
+            <w:lid w:val="ja-JP"/>
+          </w:rubyPr>
+          <w:rt><w:r><w:t>とうきょう</w:t></w:r></w:rt>
+          <w:rubyBase><w:r><w:rPr><w:b/></w:rPr><w:t>東京</w:t></w:r></w:rubyBase>
+        </w:ruby>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> imported.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $breakRunDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1900,6 +1924,14 @@ $buildSymbolRunPackage = static function () use ($contentTypesXml, $packageRelat
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $symbolRunDocumentXml],
+    ]);
+};
+
+$buildRubyPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $rubyDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $rubyDocumentXml],
     ]);
 };
 
@@ -3499,6 +3531,35 @@ return [
         $t->contains('<p>Checklist symbols α/α • ✓ ← remain visible.</p>', $blocks);
         $t->true(!str_contains($markdown, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into Markdown output');
         $t->true(!str_contains($blocks, 'Unknown Symbol Font'), 'Unknown DOCX symbol fonts should not leak into WordPress blocks');
+    },
+    'preserves DOCX ruby annotations as visible base text with pronunciation metadata' => static function (TestRunner $t) use ($buildRubyPackage): void {
+        $document = (new DocxReader())->readDocument($buildRubyPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(3, count($paragraph->children));
+        $t->same('Ruby glossary ', $paragraph->children[0]->attr('text'));
+
+        $ruby = $paragraph->children[1];
+        $t->same('span', $ruby->type);
+        $t->same(['docx-ruby'], $ruby->attr('classes'));
+        $t->same('とうきょう', $ruby->attr('attributes')['data-docx-ruby-text']);
+        $t->same('center', $ruby->attr('attributes')['data-docx-ruby-align']);
+        $t->same('ja-JP', $ruby->attr('attributes')['data-docx-ruby-lang']);
+        $t->same('14', $ruby->attr('attributes')['data-docx-ruby-hps']);
+        $t->same('18', $ruby->attr('attributes')['data-docx-ruby-hps-raise']);
+        $t->same('24', $ruby->attr('attributes')['data-docx-ruby-hps-base-text']);
+        $t->same(1, count($ruby->children));
+        $t->same('strong', $ruby->children[0]->type);
+        $t->same('東京', $ruby->children[0]->children[0]->attr('text'));
+        $t->same(' imported.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('Ruby glossary [**東京**]{.docx-ruby data-docx-ruby-text="とうきょう" data-docx-ruby-align="center" data-docx-ruby-lang="ja-JP" data-docx-ruby-hps="14" data-docx-ruby-hps-raise="18" data-docx-ruby-hps-base-text="24"} imported.', $markdown);
+        $t->true(!str_contains($markdown, 'とうきょう imported'), 'DOCX ruby pronunciation should stay metadata in Markdown output');
+        $t->contains('<p>Ruby glossary <span class="docx-ruby" data-docx-ruby-text="とうきょう" data-docx-ruby-align="center" data-docx-ruby-lang="ja-JP" data-docx-ruby-hps="14" data-docx-ruby-hps-raise="18" data-docx-ruby-hps-base-text="24"><strong>東京</strong></span> imported.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'とうきょう imported'), 'DOCX ruby pronunciation should stay metadata in WordPress output');
     },
     'preserves DOCX page and column break metadata as reviewer spans' => static function (TestRunner $t) use ($buildBreakRunPackage): void {
         $document = (new DocxReader())->readDocument($buildBreakRunPackage());

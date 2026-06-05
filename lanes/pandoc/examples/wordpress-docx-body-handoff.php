@@ -181,6 +181,23 @@ XML],
       <w:r><w:t xml:space="preserve"> remain visible.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Ruby reviewer term </w:t></w:r>
+      <w:r>
+        <w:ruby>
+          <w:rubyPr>
+            <w:rubyAlign w:val="center"/>
+            <w:hps w:val="14"/>
+            <w:hpsRaise w:val="18"/>
+            <w:hpsBaseText w:val="24"/>
+            <w:lid w:val="ja-JP"/>
+          </w:rubyPr>
+          <w:rt><w:r><w:t>とうきょう</w:t></w:r></w:rt>
+          <w:rubyBase><w:r><w:rPr><w:b/></w:rPr><w:t>東京</w:t></w:r></w:rubyBase>
+        </w:ruby>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> keeps pronunciation metadata.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Reviewer marks </w:t></w:r>
       <w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t>priority update</w:t></w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
@@ -801,6 +818,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Compatibility branch fallback reviewer text and <strong>supported reviewer branch</strong>.</p>',
         '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
+        '<p>Ruby reviewer term <span class="docx-ruby" data-docx-ruby-text="とうきょう" data-docx-ruby-align="center" data-docx-ruby-lang="ja-JP" data-docx-ruby-hps="14" data-docx-ruby-hps-raise="18" data-docx-ruby-hps-base-text="24"><strong>東京</strong></span> keeps pronunciation metadata.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-formatting-change docx-paragraph-formatting-change" data-docx-paragraph-align="center" data-docx-formatting-change="paragraph" data-docx-change-id="24" data-docx-author="Layout Reviewer" data-docx-date="2026-06-05T18:30:00Z" data-docx-previous-paragraph-style="OldReviewLayout" data-docx-previous-paragraph-align="left">Tracked paragraph formatting remains auditable.</span></p>',
         '<p>Tracked run formatting <span class="docx-formatting-change docx-run-formatting-change" data-docx-formatting-change="run" data-docx-change-id="25" data-docx-author="Run Reviewer" data-docx-date="2026-06-05T18:35:00Z" data-docx-previous-italic="true" data-docx-previous-highlight="yellow" data-docx-previous-lang="fr-FR"><strong>approved label</strong></span> stays visible.</p>',
