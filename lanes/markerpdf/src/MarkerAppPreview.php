@@ -1472,7 +1472,7 @@ final class MarkerAppPreview
     private function pageLabelIndexOperand(string $value, array $objects, array $seen): ?int
     {
         $value = trim($value);
-        if (preg_match('/^-?\d+$/', $value) === 1) {
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
             return (int) $value;
         }
 
@@ -1523,7 +1523,7 @@ final class MarkerAppPreview
     private function pageLabelLimitOperand(string $value, array $objects, array $seen): ?int
     {
         $value = trim($value);
-        if (preg_match('/^-?\d+$/', $value) === 1) {
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
             return (int) $value;
         }
 
@@ -1563,7 +1563,7 @@ final class MarkerAppPreview
 
         $start = 1;
         $startValue = $this->resolvedPageLabelValueAfterName($dict, 'St', $objects, $seen);
-        if ($startValue !== null && preg_match('/^-?\d+$/', trim($startValue)) === 1) {
+        if ($startValue !== null && preg_match('/^[+-]?\d+$/', trim($startValue)) === 1) {
             $start = max(1, (int) trim($startValue));
         }
 
