@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
@@ -374,6 +375,20 @@ $paxMetadataTar = $buildRawTarRecord('PaxHeaders/pax-document', 'x', $buildPaxPa
     . $buildRawTarRecord('placeholder-document.xml', '0', $paxDocumentBytes, 0, 0)
     . str_repeat("\0", 1024);
 $paxMetadataPacket = TarArchive::fromString($paxMetadataTar);
+$deflateReviewPacket = DeflateStream::build($tarPacket->bytes(), [
+    'format' => DeflateStream::FORMAT_ZLIB,
+    'compressionLevel' => 9,
+]);
+$deflateReviewMetadata = DeflateStream::inspectZlib($deflateReviewPacket);
+$deflateTarPacketRoundTrip = TarArchive::fromString(DeflateStream::decode($deflateReviewPacket));
+$rawDeflateReviewPacket = DeflateStream::build($tarPacket->bytes(), [
+    'format' => DeflateStream::FORMAT_RAW,
+    'compressionLevel' => 9,
+]);
+$rawDeflateTarPacketRoundTrip = TarArchive::fromString(DeflateStream::decode(
+    $rawDeflateReviewPacket,
+    DeflateStream::FORMAT_RAW
+));
 $lz4ReviewPacket = Lz4Frame::skippableFrame('wordpress import archive metadata', 2)
     . Lz4Frame::build($tarPacket->bytes(), [
         'blockChecksum' => true,
@@ -513,6 +528,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected PAX metadata tar document bytes to round-trip');
     }
 
+    if (($deflateReviewMetadata['compressionMethod'] ?? null) !== 8 || ($deflateReviewMetadata['compressionLevelHint'] ?? null) !== 'maximum') {
+        throw new RuntimeException('Expected zlib-wrapped deflate review packet metadata to be inspectable');
+    }
+
+    if ($deflateTarPacketRoundTrip->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
+        throw new RuntimeException('Expected zlib-wrapped deflate tar document bytes to round-trip');
+    }
+
+    if ($rawDeflateTarPacketRoundTrip->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
+        throw new RuntimeException('Expected raw deflate tar manifest bytes to round-trip');
+    }
+
     if (!$tarPacketRoundTrip->entry('packet/')->isDirectory()) {
         throw new RuntimeException('Expected tar packet directory metadata to round-trip');
     }
@@ -590,6 +617,11 @@ echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml'
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
 echo 'tar.paxOwner=' . $paxMetadataPacket->entry('/' . $paxDocumentName)->userName . ':' . $paxMetadataPacket->entry('/' . $paxDocumentName)->groupName . "\n";
+echo 'deflate.format=' . $deflateReviewMetadata['format'] . "\n";
+echo 'deflate.windowSize=' . $deflateReviewMetadata['windowSize'] . "\n";
+echo 'deflate.levelHint=' . $deflateReviewMetadata['compressionLevelHint'] . "\n";
+echo 'deflate.document.xml=' . $deflateTarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'deflate.rawManifest=' . $rawDeflateTarPacketRoundTrip->read('/packet/manifest.json') . "\n";
 echo 'lz4.frames=' . count($lz4ReviewFrames) . "\n";
 echo 'lz4.skippable=' . $lz4ReviewFrames[0]['data'] . "\n";
 echo 'lz4.blockTypes=' . implode(',', $lz4ReviewFrames[1]['blockTypes']) . "\n";

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
@@ -252,6 +253,69 @@ return [
         $t->same(['packet/manifest.json', 'packet/content.md'], $roundTrip->names());
         $t->same('{"source":"gzip-tar","target":"wordpress"}', $roundTrip->read('packet/manifest.json'));
         $t->same("# Imported archive\n\nReady for block review.\n", $roundTrip->read('/packet/content.md'));
+    },
+
+    'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"deflate-tar","target":"wordpress"}',
+                'modifiedAt' => 1780479029,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Deflate archive\n\nReady for import review.\n",
+                'modifiedAt' => 1780479030,
+            ],
+        ]);
+
+        $zlib = DeflateStream::build($archive->bytes(), [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'compressionLevel' => 9,
+        ]);
+        $raw = DeflateStream::build($archive->bytes(), [
+            'format' => DeflateStream::FORMAT_RAW,
+            'compressionLevel' => 9,
+        ]);
+        $metadata = DeflateStream::inspectZlib($zlib);
+        $zlibRoundTrip = TarArchive::fromString(DeflateStream::decode($zlib));
+        $rawRoundTrip = TarArchive::fromString(DeflateStream::decode($raw, DeflateStream::FORMAT_RAW));
+
+        $t->same(DeflateStream::FORMAT_ZLIB, $metadata['format']);
+        $t->same(8, $metadata['compressionMethod']);
+        $t->same(32768, $metadata['windowSize']);
+        $t->same('maximum', $metadata['compressionLevelHint']);
+        $t->same(strlen($archive->bytes()), $metadata['uncompressedSize']);
+        $t->same(strlen($zlib) - 6, $metadata['compressedSize']);
+        $t->same($archive->bytes(), $metadata['data']);
+        $t->same('{"source":"deflate-tar","target":"wordpress"}', $zlibRoundTrip->read('/packet/manifest.json'));
+        $t->same("# Deflate archive\n\nReady for import review.\n", $zlibRoundTrip->read('/packet/content.md'));
+        $t->same($zlibRoundTrip->read('/packet/content.md'), $rawRoundTrip->read('packet/content.md'));
+        $t->same($metadata['adler32'], intval(hash('adler32', $archive->bytes()), 16));
+    },
+
+    'rejects malformed deflate streams and bounded decode overflows' => static function (TestRunner $t): void {
+        $zlib = DeflateStream::build('review packet', [
+            'format' => DeflateStream::FORMAT_ZLIB,
+        ]);
+        $raw = DeflateStream::build('review packet', [
+            'format' => DeflateStream::FORMAT_RAW,
+        ]);
+        $badHeaderCheck = substr_replace($zlib, chr(ord($zlib[1]) ^ 0x01), 1, 1);
+        $badMethod = "\x79\x01" . substr($zlib, 2);
+        $badDictionaryFlag = "\x78\x3f" . substr($zlib, 2);
+        $badTrailer = substr_replace($zlib, "\xff\xff\xff\xff", -4, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode('not deflate'));
+        $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($badHeaderCheck));
+        $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($badMethod));
+        $t->throws(\RuntimeException::class, static fn (): array => DeflateStream::inspectZlib($badDictionaryFlag));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($badTrailer));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($zlib, DeflateStream::FORMAT_ZLIB, 1));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($raw, DeflateStream::FORMAT_RAW, 1));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::decode($raw, DeflateStream::FORMAT_ZLIB));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::build('x', ['format' => 'zip']));
+        $t->throws(\RuntimeException::class, static fn (): string => DeflateStream::build('x', ['compressionLevel' => 10]));
     },
 
     'builds and reads bounded lz4 frames around package fixture bytes' => static function (TestRunner $t): void {
