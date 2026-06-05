@@ -763,6 +763,7 @@ final class WordPressBlockWriter
         }
 
         $alignment = TableGeometry::cellAlignment($table, $column, $cell);
+        $verticalAlignment = TableGeometry::cellVerticalAlignment($cell);
 
         $styles = [];
         $sourceStyle = $this->storedHtmlStyle($cell);
@@ -777,11 +778,34 @@ final class WordPressBlockWriter
             $styles[] = 'text-align:' . $alignment;
         }
 
+        if (
+            in_array($verticalAlignment, ['baseline', 'top', 'middle', 'bottom'], true)
+            && !$this->sourceTableCellHasVerticalAlignment($cell, $sourceStyle)
+        ) {
+            $styles[] = 'vertical-align:' . $verticalAlignment;
+        }
+
         if ($styles !== []) {
             $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
         }
 
         return $attrs;
+    }
+
+    private function sourceTableCellHasVerticalAlignment(AstNode $cell, string $sourceStyle): bool
+    {
+        if (preg_match('/(?:^|;)\s*vertical-align\s*:/i', $sourceStyle) === 1) {
+            return true;
+        }
+
+        $htmlAttributes = $cell->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            return false;
+        }
+
+        $htmlAttributes = array_change_key_case($htmlAttributes, CASE_LOWER);
+
+        return isset($htmlAttributes['valign']) && trim((string) $htmlAttributes['valign']) !== '';
     }
 
     /**

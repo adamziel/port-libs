@@ -601,4 +601,58 @@ HTML;
         $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:center">49</td><td style="text-align:center">Review</td></tr></tfoot>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'carries html and docbook vertical alignment into geometry packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="vertical-alignment-grid" data-source="html-reader">
+<caption>Vertical alignment review</caption>
+<thead valign="top">
+<tr><th>Scope</th><th style="vertical-align: bottom">State</th></tr>
+</thead>
+<tbody data-section="body" valign="baseline">
+<tr><td valign="middle">Posts</td><td>Ready</td></tr>
+<tr style="vertical-align: top"><td>Total</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $docbook = (new MarkdownReader())->read((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-table.xml'))->children[0];
+        $docbookPacket = $docbook->attr('tableGeometry');
+        $docbookBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$docbook]));
+
+        $t->same('table', $table->type);
+        $t->same('top', $table->children[0]->children[0]->children[0]->attr('valign'));
+        $t->same('bottom', $table->children[0]->children[0]->children[1]->attr('valign'));
+        $t->same('middle', $table->children[1]->children[0]->children[0]->attr('valign'));
+        $t->same('baseline', $table->children[1]->children[0]->children[1]->attr('valign'));
+        $t->same('top', $table->children[1]->children[1]->children[0]->attr('valign'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([
+            'top',
+            'bottom',
+            'middle',
+            'baseline',
+            'top',
+            'top',
+        ], array_map(static fn (array $coverage): string => (string) ($coverage['verticalAlignment'] ?? ''), $packet['coverage'] ?? []));
+        $t->same('top', $packet['sections'][0]['rows'][0]['slots'][0]['verticalAlignment'] ?? null);
+        $t->same('baseline', $packet['sections'][1]['rows'][0]['slots'][1]['verticalAlignment'] ?? null);
+        $t->same('middle', $packet['coverage'][2]['sourceAttributes']['htmlAttributes']['valign'] ?? null);
+        $t->contains('<thead valign="top"><tr><th style="vertical-align:top">Scope</th><th style="vertical-align: bottom">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody data-section="body" valign="baseline"><tr><td valign="middle">Posts</td><td style="vertical-align:baseline">Ready</td></tr><tr style="vertical-align: top"><td style="vertical-align:top">Total</td><td style="vertical-align:top">Review</td></tr></tbody>', $blocks);
+
+        $t->same(true, is_array($docbookPacket));
+        $docbookPacket = is_array($docbookPacket) ? $docbookPacket : [];
+        $t->same('top', $docbook->children[1]->children[0]->children[0]->attr('valign'));
+        $t->same(['top'], array_values(array_unique(array_map(static fn (array $coverage): string => (string) ($coverage['verticalAlignment'] ?? ''), $docbookPacket['coverage'] ?? []))));
+        $t->same('top', $docbookPacket['sections'][1]['rows'][0]['slots'][0]['verticalAlignment'] ?? null);
+        $t->contains('<td colspan="4" style="text-align:center; vertical-align:top"><strong>Migration Batch 42</strong></td>', $docbookBlocks);
+        $t->contains('<td style="text-align:left; vertical-align:top">Posts</td><td style="text-align:right; vertical-align:top">42</td><td style="text-align:center; vertical-align:top">ready</td><td style="vertical-align:top">editorial</td>', $docbookBlocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($docbookPacket, JSON_THROW_ON_ERROR);
+    },
 ];

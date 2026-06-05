@@ -259,6 +259,7 @@ final class TableGeometry
      *     rawRowspan:int,
      *     rowspanToEnd?:bool,
      *     alignment:string,
+     *     verticalAlignment:string,
      *     columnAlignments:list<string>,
      *     widths:list<?float>,
      *     declaredColumns:list<bool>,
@@ -333,6 +334,7 @@ final class TableGeometry
                         'rowspan' => $cell['rowspan'],
                         'rawRowspan' => $rawRowspan,
                         'alignment' => self::cellAlignment($table, $cell['column'], $cell['node']),
+                        'verticalAlignment' => self::cellVerticalAlignment($cell['node']),
                         'columnAlignments' => $columnAlignments,
                         'widths' => $widths,
                         'declaredColumns' => $declaredColumns,
@@ -790,6 +792,26 @@ final class TableGeometry
         return 'default';
     }
 
+    public static function cellVerticalAlignment(AstNode $cell): string
+    {
+        $alignment = self::normalizeVerticalAlignment((string) $cell->attr('valign', ''));
+        if ($alignment !== 'default') {
+            return $alignment;
+        }
+
+        $alignment = self::normalizeVerticalAlignment(self::sourceHtmlAttribute($cell, 'valign'));
+        if ($alignment !== 'default') {
+            return $alignment;
+        }
+
+        $style = self::sourceHtmlAttribute($cell, 'style');
+        if (preg_match('/(?:^|;)\s*vertical-align\s*:\s*(baseline|top|middle|bottom)\b/i', $style, $m) === 1) {
+            return strtolower($m[1]);
+        }
+
+        return 'default';
+    }
+
     /**
      * @return list<array{column:int,alignment:string,width:?float,declared:bool,source?:array<string, mixed>}>
      */
@@ -1221,6 +1243,17 @@ final class TableGeometry
         }
 
         return '';
+    }
+
+    private static function normalizeVerticalAlignment(string $alignment): string
+    {
+        return match (strtolower(trim($alignment))) {
+            'baseline' => 'baseline',
+            'top' => 'top',
+            'middle', 'center' => 'middle',
+            'bottom' => 'bottom',
+            default => 'default',
+        };
     }
 
     /**
@@ -2811,6 +2844,7 @@ final class TableGeometry
             'sourceColumn' => $cell['sourceColumn'],
             'colspan' => $cell['colspan'],
             'rowspan' => $cell['rowspan'],
+            'verticalAlignment' => self::cellVerticalAlignment($cell['node']),
             'anchorRow' => $row,
             'anchorColumn' => $cell['column'],
             'occupiedSlots' => self::occupiedSlotRecords(

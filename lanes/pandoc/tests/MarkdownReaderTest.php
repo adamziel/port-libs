@@ -7992,9 +7992,13 @@ XML;
         $t->same('left', $row->children[1]->attr('align'));
         $t->same('right', $row->children[2]->attr('align'));
         $t->same('default', $row->children[3]->attr('align', 'default'));
+        $t->same('top', $row->children[0]->attr('valign'));
+        $t->same('top', $row->children[1]->attr('valign'));
+        $t->same('top', $row->children[2]->attr('valign'));
+        $t->same('top', $row->children[3]->attr('valign'));
         $t->same('1', $row->children[0]->attr('text'));
         $t->same('4', $row->children[3]->attr('text'));
-        $t->contains('<td style="text-align:center">1</td><td style="text-align:left">2</td><td style="text-align:right">3</td><td>4</td>', $blocks);
+        $t->contains('<td style="text-align:center; vertical-align:top">1</td><td style="text-align:left; vertical-align:top">2</td><td style="text-align:right; vertical-align:top">3</td><td style="vertical-align:top">4</td>', $blocks);
     },
     'maps upstream command docbook table column spans and colspec widths' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
@@ -8061,6 +8065,8 @@ XML;
         $t->same(8, $firstRow->children[0]->attr('colspan'));
         $t->same(8, $firstRow->children[1]->attr('colspan'));
         $t->same('center', $firstRow->children[0]->attr('align'));
+        $t->same('top', $firstRow->children[0]->attr('valign'));
+        $t->same('top', $secondRow->children[15]->attr('valign'));
         $t->same('strong', $firstRow->children[0]->children[0]->type);
         $t->same('Octet no. 1', $firstRow->children[0]->children[0]->children[0]->attr('text'));
         $t->same(16, count($secondRow->children));
@@ -8068,8 +8074,8 @@ XML;
         $t->same('1', $secondRow->children[15]->attr('text'));
         $t->same(8, $table->children[1]->children[2]->children[0]->attr('colspan'));
         $t->contains('<col style="width:6.25%"/>', $blocks);
-        $t->contains('<td colspan="8" style="text-align:center"><strong>Octet no. 1</strong></td>', $blocks);
-        $t->contains('<td colspan="8" style="text-align:center">Code B</td>', $blocks);
+        $t->contains('<td colspan="8" style="text-align:center; vertical-align:top"><strong>Octet no. 1</strong></td>', $blocks);
+        $t->contains('<td colspan="8" style="text-align:center; vertical-align:top">Code B</td>', $blocks);
     },
     'maps upstream command row-span table head body and foot shape' => static function (TestRunner $t): void {
         $docbook = <<<'XML'
@@ -8617,12 +8623,12 @@ XML;
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-table.xml');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
-        $t->contains('<td colspan="4" style="text-align:center"><strong>Migration Batch 42</strong></td>', $blocks);
-        $t->contains('<td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">ready</td><td>editorial</td>', $blocks);
-        $t->contains('<td colspan="2" style="text-align:center">Needs media review</td><td colspan="2" style="text-align:center">Ready for block publish</td>', $blocks);
-        $t->contains('<td rowspan="2" style="text-align:left">Media review window</td><td colspan="3" style="text-align:center">Initial sweep</td>', $blocks);
-        $t->contains('<td colspan="3" style="text-align:center">Follow-up attachments</td>', $blocks);
-        $t->contains('<tfoot><tr><td colspan="4" style="text-align:right">Review before publish</td></tr></tfoot>', $blocks);
+        $t->contains('<td colspan="4" style="text-align:center; vertical-align:top"><strong>Migration Batch 42</strong></td>', $blocks);
+        $t->contains('<td style="text-align:left; vertical-align:top">Posts</td><td style="text-align:right; vertical-align:top">42</td><td style="text-align:center; vertical-align:top">ready</td><td style="vertical-align:top">editorial</td>', $blocks);
+        $t->contains('<td colspan="2" style="text-align:center; vertical-align:top">Needs media review</td><td colspan="2" style="text-align:center; vertical-align:top">Ready for block publish</td>', $blocks);
+        $t->contains('<td rowspan="2" style="text-align:left; vertical-align:top">Media review window</td><td colspan="3" style="text-align:center; vertical-align:top">Initial sweep</td>', $blocks);
+        $t->contains('<td colspan="3" style="text-align:center; vertical-align:top">Follow-up attachments</td>', $blocks);
+        $t->contains('<tfoot><tr><td colspan="4" style="text-align:right; vertical-align:top">Review before publish</td></tr></tfoot>', $blocks);
     },
     'writes wordpress multiline simple table blocks for wrapped review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

@@ -94,6 +94,22 @@ $inheritedAlignmentTables = array_values(array_filter(
     $inheritedAlignmentDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$verticalAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="vertical-alignment-grid" data-source="html-reader">
+<caption>Vertical alignment review</caption>
+<thead valign="top">
+<tr><th>Scope</th><th style="vertical-align: bottom">State</th></tr>
+</thead>
+<tbody data-section="body" valign="baseline">
+<tr><td valign="middle">Posts</td><td>Ready</td></tr>
+<tr style="vertical-align: top"><td>Total</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$verticalAlignmentTables = array_values(array_filter(
+    $verticalAlignmentDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionMetadataTables = [
     new AstNode('table', [
         'caption' => 'Long caption for reviewer',
@@ -651,6 +667,7 @@ $document = new AstNode('document', [], [
     ...$colgroupAlignmentTables,
     ...$colgroupMismatchTables,
     ...$inheritedAlignmentTables,
+    ...$verticalAlignmentTables,
     ...$readerHandoffTables,
     ...$captionMetadataTables,
     $blockCaptionTable,
@@ -1170,6 +1187,42 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for inherited HTML alignment handoff');
     }
     json_encode($inheritedAlignmentPacket, JSON_THROW_ON_ERROR);
+
+    $verticalAlignmentTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'vertical-alignment-grid') {
+            $verticalAlignmentTable = $node;
+            break;
+        }
+    }
+    $verticalAlignmentPacket = $verticalAlignmentTable instanceof AstNode ? $verticalAlignmentTable->attr('tableGeometry') : null;
+    if (
+        !$verticalAlignmentTable instanceof AstNode
+        || ($verticalAlignmentTable->children[0]->children[0]->children[0]->attr('valign') ?? null) !== 'top'
+        || ($verticalAlignmentTable->children[0]->children[0]->children[1]->attr('valign') ?? null) !== 'bottom'
+        || ($verticalAlignmentTable->children[1]->children[0]->children[0]->attr('valign') ?? null) !== 'middle'
+        || ($verticalAlignmentTable->children[1]->children[0]->children[1]->attr('valign') ?? null) !== 'baseline'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML vertical alignment metadata');
+    }
+    if (
+        !is_array($verticalAlignmentPacket)
+        || array_map(static fn (array $coverage): string => (string) ($coverage['verticalAlignment'] ?? ''), $verticalAlignmentPacket['coverage'] ?? []) !== [
+            'top',
+            'bottom',
+            'middle',
+            'baseline',
+            'top',
+            'top',
+        ]
+        || ($verticalAlignmentPacket['sections'][1]['rows'][0]['slots'][1]['verticalAlignment'] ?? null) !== 'baseline'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing vertical alignment review-packet coverage');
+    }
+    if (!str_contains($blocks, '<thead valign="top"><tr><th style="vertical-align:top">Scope</th><th style="vertical-align: bottom">State</th></tr></thead>') || !str_contains($blocks, '<tbody data-section="body" valign="baseline"><tr><td valign="middle">Posts</td><td style="vertical-align:baseline">Ready</td></tr><tr style="vertical-align: top"><td style="vertical-align:top">Total</td><td style="vertical-align:top">Review</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for vertical alignment handoff');
+    }
+    json_encode($verticalAlignmentPacket, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {

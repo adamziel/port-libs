@@ -6021,6 +6021,11 @@ final class MarkdownReader
             $attrs['align'] = $alignment;
         }
 
+        $verticalAlignment = $this->normalizeHtmlTableVerticalAlignment($cell, ...$alignmentFallbacks);
+        if ($verticalAlignment !== 'default') {
+            $attrs['valign'] = $verticalAlignment;
+        }
+
         return new AstNode('table_cell', $attrs, $children);
     }
 
@@ -6165,6 +6170,41 @@ final class MarkdownReader
 
         $style = strtolower($element->getAttribute('style'));
         if (preg_match('/text-align\s*:\s*(left|right|center)\b/', $style, $m) === 1) {
+            return $m[1];
+        }
+
+        return 'default';
+    }
+
+    private function normalizeHtmlTableVerticalAlignment(\DOMElement $cell, \DOMElement ...$fallbacks): string
+    {
+        $alignment = $this->normalizeHtmlElementVerticalAlignment($cell);
+        if ($alignment !== 'default') {
+            return $alignment;
+        }
+
+        foreach ($fallbacks as $fallback) {
+            $alignment = $this->normalizeHtmlElementVerticalAlignment($fallback);
+            if ($alignment !== 'default') {
+                return $alignment;
+            }
+        }
+
+        return 'default';
+    }
+
+    private function normalizeHtmlElementVerticalAlignment(\DOMElement $element): string
+    {
+        $align = strtolower(trim($element->getAttribute('valign')));
+        if (in_array($align, ['baseline', 'top', 'middle', 'bottom'], true)) {
+            return $align;
+        }
+        if ($align === 'center') {
+            return 'middle';
+        }
+
+        $style = strtolower($element->getAttribute('style'));
+        if (preg_match('/vertical-align\s*:\s*(baseline|top|middle|bottom)\b/', $style, $m) === 1) {
             return $m[1];
         }
 
@@ -6479,6 +6519,11 @@ final class MarkdownReader
             $attrs['align'] = $align;
         }
 
+        $valign = $this->normalizeDocBookVerticalAlignment($entry->getAttribute('valign'));
+        if ($valign !== 'default') {
+            $attrs['valign'] = $valign;
+        }
+
         $colSpan = $this->docBookColumnSpan($entry, $columnNames);
         if ($colSpan > 1) {
             $attrs['colspan'] = $colSpan;
@@ -6518,6 +6563,17 @@ final class MarkdownReader
             'left' => 'left',
             'right' => 'right',
             'center' => 'center',
+            default => 'default',
+        };
+    }
+
+    private function normalizeDocBookVerticalAlignment(string $alignment): string
+    {
+        return match (strtolower(trim($alignment))) {
+            'baseline' => 'baseline',
+            'top' => 'top',
+            'middle', 'center' => 'middle',
+            'bottom' => 'bottom',
             default => 'default',
         };
     }
