@@ -155,6 +155,14 @@ final class PdfAttachmentExtractor
                 'annotation_icon',
                 'annotation_icon_label',
                 'annotation_icon_status',
+                'annotation_title',
+                'annotation_subject',
+                'annotation_modified_at',
+                'annotation_name',
+                'annotation_color',
+                'annotation_color_space',
+                'annotation_color_component_count',
+                'annotation_opacity',
             ] as $annotationReviewKey) {
                 if (array_key_exists($annotationReviewKey, $entry)) {
                     $context[$annotationReviewKey] = $entry[$annotationReviewKey];
@@ -210,6 +218,14 @@ final class PdfAttachmentExtractor
             'annotation_icon',
             'annotation_icon_label',
             'annotation_icon_status',
+            'annotation_title',
+            'annotation_subject',
+            'annotation_modified_at',
+            'annotation_name',
+            'annotation_color',
+            'annotation_color_space',
+            'annotation_color_component_count',
+            'annotation_opacity',
         ] as $key) {
             if (array_key_exists($key, $annotationAttachment)) {
                 $target[$key] = $annotationAttachment[$key];
@@ -709,7 +725,41 @@ final class PdfAttachmentExtractor
                 : 'custom_file_attachment_icon';
         }
 
+        foreach ([
+            'annotation_title' => $this->stringValue($this->resolveValue($annotation['T'] ?? null, $objects)),
+            'annotation_subject' => $this->stringValue($this->resolveValue($annotation['Subj'] ?? null, $objects)),
+            'annotation_modified_at' => $this->stringValue($this->resolveValue($annotation['M'] ?? null, $objects)),
+            'annotation_name' => $this->stringValue($this->resolveValue($annotation['NM'] ?? null, $objects)),
+        ] as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $review[$key] = $value;
+            }
+        }
+
+        $color = $this->resolvedNumberArray($annotation['C'] ?? null, $objects);
+        if ($color !== []) {
+            $review['annotation_color'] = $color;
+            $review['annotation_color_space'] = $this->annotationColorSpace(count($color));
+            $review['annotation_color_component_count'] = count($color);
+        }
+
+        $opacity = $this->numberValue($this->resolveValue($annotation['CA'] ?? null, $objects));
+        if ($opacity !== null) {
+            $review['annotation_opacity'] = $opacity;
+        }
+
         return $review;
+    }
+
+    private function annotationColorSpace(int $componentCount): string
+    {
+        return match ($componentCount) {
+            0 => 'transparent',
+            1 => 'grayscale',
+            3 => 'rgb',
+            4 => 'cmyk',
+            default => 'unknown',
+        };
     }
 
     /**
@@ -1138,6 +1188,10 @@ final class PdfAttachmentExtractor
                 'filename_url_scheme',
                 'description',
                 'annotation_contents',
+                'annotation_title',
+                'annotation_subject',
+                'annotation_modified_at',
+                'annotation_name',
                 'portfolio',
                 'portfolio_field_values',
                 'file_identifier',
@@ -4716,6 +4770,20 @@ final class PdfAttachmentExtractor
         }
 
         return $numbers;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<float>
+     */
+    private function resolvedNumberArray(mixed $value, array $objects): array
+    {
+        return $this->numberArray($this->resolveValue($value, $objects));
+    }
+
+    private function numberValue(mixed $value): ?float
+    {
+        return is_int($value) || is_float($value) ? (float) $value : null;
     }
 
     private function skipWhitespaceAndComments(string $text, int &$index): void

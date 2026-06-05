@@ -20,7 +20,9 @@ $pdf = "%PDF-2.0\n"
     . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($sourcePayload) . " /CheckSum <{$sourceChecksum}> /ModDate (D:20260605070300Z) >> /Length " . strlen($sourcePayload) . " >>\n"
     . "stream\n{$sourcePayload}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Names [(source.xml) 4 0 R] >>\nendobj\n"
-    . "8 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [72 700 92 720] /F 4 /Name /Paperclip /Contents (Visible attachment marker) /FS 4 0 R >>\nendobj\n"
+    . "8 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [72 700 92 720] /F 4 /Name /Paperclip"
+    . " /T (Migration reviewer) /Subj (Source packet) /M (D:20260605133754Z) /NM (attach-review-1)"
+    . " /C [0.25 0.5 0.75] /CA 0.5 /Contents (Visible attachment marker) /FS 4 0 R >>\nendobj\n"
     . "10 0 obj\n<< /Type /Annot /Subtype /FileAttachment /Rect [120 700 140 720] /F 38 /Name /PushPin /Contents (Hidden attachment marker) /FS {$hiddenFileSpec} >>\nendobj\n"
     . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size " . strlen($hiddenPayload) . " /CheckSum <{$hiddenChecksum}> /ModDate (D:20260605070301Z) >> /Length " . strlen($hiddenPayload) . " >>\n"
     . "stream\n{$hiddenPayload}\nendstream\nendobj\n"
@@ -47,6 +49,13 @@ if (($summary['attachment_count'] ?? null) !== 2
     || !is_array($hidden)
     || ($source['annotation_visibility'] ?? null) !== 'visible'
     || ($source['annotation_icon'] ?? null) !== 'Paperclip'
+    || ($source['annotation_title'] ?? null) !== 'Migration reviewer'
+    || ($source['annotation_subject'] ?? null) !== 'Source packet'
+    || ($source['annotation_modified_at'] ?? null) !== 'D:20260605133754Z'
+    || ($source['annotation_name'] ?? null) !== 'attach-review-1'
+    || ($source['annotation_color'] ?? null) !== [0.25, 0.5, 0.75]
+    || ($source['annotation_color_space'] ?? null) !== 'rgb'
+    || ($source['annotation_opacity'] ?? null) !== 0.5
     || ($hidden['annotation_visibility'] ?? null) !== 'hidden'
     || ($hidden['annotation_no_view'] ?? null) !== true
     || ($hidden['annotation_icon'] ?? null) !== 'PushPin'
@@ -63,6 +72,12 @@ echo "<!-- markerpdf-pdf-attachment-annotation-presentation-smoke " . htmlspecia
     'attachment_count' => $summary['attachment_count'],
     'visible_attachment_icon' => $source['annotation_icon'] ?? null,
     'visible_attachment_visibility' => $source['annotation_visibility'] ?? null,
+    'visible_attachment_title' => $source['annotation_title'] ?? null,
+    'visible_attachment_subject' => $source['annotation_subject'] ?? null,
+    'visible_attachment_modified_at' => $source['annotation_modified_at'] ?? null,
+    'visible_attachment_name' => $source['annotation_name'] ?? null,
+    'visible_attachment_color_space' => $source['annotation_color_space'] ?? null,
+    'visible_attachment_opacity' => $source['annotation_opacity'] ?? null,
     'hidden_attachment_icon' => $hidden['annotation_icon'] ?? null,
     'hidden_attachment_visibility' => $hidden['annotation_visibility'] ?? null,
     'hidden_attachment_no_view' => $hidden['annotation_no_view'] ?? null,
