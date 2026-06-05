@@ -328,10 +328,7 @@ final class PdfPageArtifactSelector
                 continue;
             }
 
-            $value = $this->integerValue($artifact[$field]);
-            if ($value !== null) {
-                $values[] = $value;
-            }
+            array_push($values, ...$this->integerValues($artifact[$field]));
         }
 
         return array_values(array_unique($values, SORT_REGULAR));
@@ -373,5 +370,30 @@ final class PdfPageArtifactSelector
         }
 
         return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function integerValues(mixed $value): array
+    {
+        $single = $this->integerValue($value);
+        if ($single !== null) {
+            return [$single];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($value as $item) {
+            $integer = $this->integerValue($item);
+            if ($integer !== null) {
+                $values[] = $integer;
+            }
+        }
+
+        return array_values(array_unique($values, SORT_REGULAR));
     }
 }

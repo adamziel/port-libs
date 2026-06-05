@@ -196,6 +196,19 @@ final class LayoutOrderer
             }
         }
 
+        if (is_array($value) && array_is_list($value)) {
+            $values = [];
+            foreach ($value as $item) {
+                $integer = $this->integerValue($item);
+                if ($integer !== null) {
+                    $values[] = $integer;
+                }
+            }
+            $values = array_values(array_unique($values, SORT_REGULAR));
+
+            return count($values) === 1 ? $values[0] : null;
+        }
+
         return null;
     }
 

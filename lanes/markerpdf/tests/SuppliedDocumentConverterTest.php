@@ -1299,6 +1299,93 @@ return [
             unlink($path);
         }
     },
+    'matches singleton array page markers for supplied layout and order alignment' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-array-marker-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied layout order array marker boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(740, [
+                ['text' => 'Array marker cover page should not import.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(741, [
+                ['text' => 'Second array marker column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First array marker column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(742, [
+                ['text' => 'Array marker appendix should not import.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+
+            $coverLayout = [
+                'page' => [740],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $selectedLayout = [
+                'page' => [741],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $coverOrder = [
+                'page' => [740],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                ],
+            ];
+            $selectedOrder = [
+                'page' => [741],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => [740], 'image' => 'array-cover-layout-render'],
+                        ['page' => [741], 'image' => 'array-selected-layout-render'],
+                    ],
+                    'layout_results' => [$coverLayout, $selectedLayout],
+                    'order_images' => [
+                        ['page' => [740], 'image' => 'array-cover-order-render'],
+                        ['page' => [741], 'image' => 'array-selected-order-render'],
+                    ],
+                    'order_results' => [$coverOrder, $selectedOrder],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First array marker column.', $text);
+            $t->contains('Second array marker column.', $text);
+            $t->true(strpos($text, 'First array marker column.') < strpos($text, 'Second array marker column.'));
+            $t->true(!str_contains($text, 'Array marker cover page should not import.'));
+            $t->true(!str_contains($text, 'Array marker appendix should not import.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");
