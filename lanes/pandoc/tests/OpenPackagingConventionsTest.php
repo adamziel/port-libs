@@ -679,6 +679,47 @@ XML;
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $closureById['rIdStyles']['contentType']);
         $t->same(true, $closureById['rIdStyles']['valid']);
     },
+    'loads OPC relationships from source-equivalent package entries' => static function (TestRunner $t): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.XML"/>
+</Relationships>
+XML;
+
+        $reviewRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'Word/_rels/Document.XML.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'Word/styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/review source.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/review source.xml.rels', 'data' => $reviewRelationshipsXml],
+            ['name' => 'word/media/review.png', 'data' => 'PNG'],
+        ]);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($package, '/word/document.xml'));
+        $caseEquivalent = OpcRelationships::fromPackage($package, '/word/document.xml');
+        $t->same('/Word/_rels/Document.XML.rels', $caseEquivalent->relationshipPartName());
+        $t->same('/Word/styles.XML', $caseEquivalent->resolveTarget('rIdStyles'));
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($package, '/word/review source.xml'));
+        $spaceEquivalent = OpcRelationships::fromPackage($package, '/word/review source.xml');
+        $t->same('/word/_rels/review%20source.xml.rels', $spaceEquivalent->relationshipPartName());
+        $t->same('/word/media/review.png', $spaceEquivalent->resolveTarget('rIdReviewImage'));
+
+        $duplicatePackage = ZipPackage::fromParts([
+            ['name' => 'word/review source.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/review%20source.xml.rels', 'data' => $reviewRelationshipsXml],
+            ['name' => 'word/_rels/review source.xml.rels', 'data' => $reviewRelationshipsXml],
+        ]);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($duplicatePackage, '/word/review source.xml'));
+        $t->throws(\RuntimeException::class, static fn (): OpcRelationships => OpcRelationships::fromPackage($duplicatePackage, '/word/review source.xml'));
+    },
     'parses package level OPC relationships and resolves package root targets' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $relationships = OpcRelationships::fromXml($packageRelationshipsXml);
 

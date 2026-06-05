@@ -284,13 +284,15 @@ $caseEquivalentTargetDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
-$caseEquivalentTargetGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+$caseEquivalentTargetPackage = ZipPackage::fromParts([
     ['name' => '[Content_Types].xml', 'data' => $caseEquivalentTargetContentTypesXml],
     ['name' => '_rels/.rels', 'data' => $caseEquivalentTargetRootRelationshipsXml],
     ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'Word/_rels/Document.XML.rels', 'data' => $caseEquivalentTargetDocumentRelationshipsXml],
     ['name' => 'Word/Styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
-]));
+]);
+$caseEquivalentTargetRelationships = OpcRelationships::fromPackage($caseEquivalentTargetPackage, '/word/document.xml');
+$caseEquivalentTargetGraph = OpcRelationshipGraph::fromPackage($caseEquivalentTargetPackage);
 $caseEquivalentTargetRoot = $caseEquivalentTargetGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
 $caseEquivalentTargetClosure = [];
 foreach ($caseEquivalentTargetGraph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -306,6 +308,9 @@ foreach ($caseEquivalentTargetGraph->reachableTargetsForSource('/', OpcRelations
 $caseEquivalentTargets = [
     'officeDocumentPart' => $caseEquivalentTargetGraph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE),
     'lowercaseSourceRelationshipsLoaded' => $caseEquivalentTargetGraph->hasRelationshipsForSource('/word/document.xml'),
+    'directLoaderHasLowercaseSource' => OpcRelationships::packageHasRelationshipsForSource($caseEquivalentTargetPackage, '/word/document.xml'),
+    'directLoaderRelationshipPartName' => $caseEquivalentTargetRelationships->relationshipPartName(),
+    'directLoaderStylesTarget' => $caseEquivalentTargetRelationships->resolveTarget('rIdStyles'),
     'relationshipPartName' => $caseEquivalentTargetGraph->requireRelationshipsForSource('/word/document.xml')->relationshipPartName(),
     'officeDocumentRootTargetPart' => $caseEquivalentTargetRoot['relationships'][0]['targetPart'] ?? null,
     'officeDocumentRootExists' => $caseEquivalentTargetRoot['relationships'][0]['exists'] ?? null,
@@ -889,6 +894,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['contentTypeOverrideDuplicateRejected'] ?? null) !== true
         || ($summary['integrity']['caseEquivalentTargets']['officeDocumentPart'] ?? null) !== '/Word/Document.XML'
         || ($summary['integrity']['caseEquivalentTargets']['lowercaseSourceRelationshipsLoaded'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['directLoaderHasLowercaseSource'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['directLoaderRelationshipPartName'] ?? null) !== '/Word/_rels/Document.XML.rels'
+        || ($summary['integrity']['caseEquivalentTargets']['directLoaderStylesTarget'] ?? null) !== '/Word/styles.xml'
         || ($summary['integrity']['caseEquivalentTargets']['relationshipPartName'] ?? null) !== '/Word/_rels/Document.XML.rels'
         || ($summary['integrity']['caseEquivalentTargets']['officeDocumentRootTargetPart'] ?? null) !== '/Word/Document.XML'
         || ($summary['integrity']['caseEquivalentTargets']['officeDocumentRootExists'] ?? null) !== true

@@ -60,17 +60,17 @@ final class OpcRelationships
 
     public static function fromPackage(ZipPackage $package, string $sourcePartName = '/'): self
     {
-        $relationshipPartName = self::relationshipPartNameForSource($sourcePartName);
-        if (!$package->has($relationshipPartName)) {
-            throw new \RuntimeException('OPC relationship part not found: ' . $relationshipPartName);
+        $relationshipPart = self::relationshipPartForSourceInPackage($package, $sourcePartName);
+        if ($relationshipPart === null) {
+            throw new \RuntimeException('OPC relationship part not found: ' . self::relationshipPartNameForSource($sourcePartName));
         }
 
-        return self::fromXml($package->read($relationshipPartName), $sourcePartName);
+        return self::fromXml($package->read($relationshipPart['relationshipPartName']), $relationshipPart['sourcePartName']);
     }
 
     public static function packageHasRelationshipsForSource(ZipPackage $package, string $sourcePartName = '/'): bool
     {
-        return $package->has(self::relationshipPartNameForSource($sourcePartName));
+        return self::relationshipPartsForSourceInPackage($package, $sourcePartName) !== [];
     }
 
     public static function relationshipPartNameForSource(string $sourcePartName): string
@@ -247,6 +247,75 @@ final class OpcRelationships
     private static function loadXml(string $xml): \DOMDocument
     {
         return XmlHtmlDom::loadXmlDocument($xml, 'OPC relationships XML');
+    }
+
+    /**
+     * @return array{relationshipPartName:string, sourcePartName:string}|null
+     */
+    private static function relationshipPartForSourceInPackage(ZipPackage $package, string $sourcePartName): ?array
+    {
+        $relationshipParts = self::relationshipPartsForSourceInPackage($package, $sourcePartName);
+        if ($relationshipParts === []) {
+            return null;
+        }
+
+        if (count($relationshipParts) > 1) {
+            throw new \RuntimeException(
+                'Duplicate OPC relationship parts for source: '
+                . implode(', ', array_column($relationshipParts, 'relationshipPartName'))
+            );
+        }
+
+        return $relationshipParts[0];
+    }
+
+    /**
+     * @return list<array{relationshipPartName:string, sourcePartName:string}>
+     */
+    private static function relationshipPartsForSourceInPackage(ZipPackage $package, string $sourcePartName): array
+    {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        self::assertRelationshipSourcePartName($sourcePartName);
+        $sourceEquivalenceKey = self::partNameEquivalenceKey($sourcePartName);
+        $relationshipParts = [];
+
+        foreach ($package->names() as $packageName) {
+            if (str_ends_with($packageName, '/')) {
+                continue;
+            }
+
+            try {
+                $relationshipPartName = OpcPackagePath::canonicalPartName($packageName);
+                if (!self::isRelationshipPartName($relationshipPartName)) {
+                    continue;
+                }
+
+                $representedSourcePartName = self::sourcePartNameForRelationshipPart($relationshipPartName);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            if (self::partNameEquivalenceKey($representedSourcePartName) !== $sourceEquivalenceKey) {
+                continue;
+            }
+
+            $relationshipParts[] = [
+                'relationshipPartName' => $relationshipPartName,
+                'sourcePartName' => $representedSourcePartName,
+            ];
+        }
+
+        usort(
+            $relationshipParts,
+            static fn (array $left, array $right): int => $left['relationshipPartName'] <=> $right['relationshipPartName'],
+        );
+
+        return $relationshipParts;
+    }
+
+    private static function partNameEquivalenceKey(string $partName): string
+    {
+        return strtolower($partName);
     }
 
     private static function assertRelationshipSourcePartName(string $sourcePartName): void
