@@ -335,6 +335,26 @@ return [
         );
         $t->same($checkbox . '  ', UnicodeText::padDisplay($checkbox, 4));
     },
+    'keeps unattached emoji skin tone modifiers visible for display accounting' => static function (TestRunner $t): void {
+        $thumb = "\u{1F44D}\u{1F3FD}";
+        $standalone = "\u{1F3FD}";
+        $invalidAfterLetter = "A{$standalone}";
+        $text = $thumb . $standalone . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Emoji {$thumb} {$standalone} tail", 10, '  ');
+
+        $t->same(2, UnicodeText::displayWidth($thumb));
+        $t->same(2, UnicodeText::displayWidth($standalone));
+        $t->same(3, UnicodeText::displayWidth($invalidAfterLetter));
+        $t->same(5, UnicodeText::displayWidth($text));
+        $t->same([$thumb, $standalone, 'X'], UnicodeText::graphemes($text));
+        $t->same([$standalone, 'X'], UnicodeText::splitAtDisplayWidth($standalone . 'X', 1));
+        $t->same([$thumb, $standalone, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [2, 4]));
+        $t->same($standalone . '  ', UnicodeText::padDisplay($standalone, 4));
+        $t->same(['Emoji ' . $thumb, '  ' . $standalone . ' tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Emoji skin-tone wrapped line exceeds requested width');
+        }
+    },
     'measures emoji tag sequences as a single display cluster' => static function (TestRunner $t): void {
         $scotland = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
         $standaloneTags = "\u{E0067}\u{E0062}\u{E007F}";

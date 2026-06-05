@@ -39,6 +39,7 @@ $unicodeSeparatorAuditLines = UnicodeText::wrapByDisplayWidth(
 $emojiCheckbox = "\u{2611}\u{FE0F}";
 $emojiKeycap = "1\u{FE0F}\u{20E3}";
 $emojiThumb = "\u{1F44D}\u{1F3FD}";
+$emojiStandaloneSkinTone = "\u{1F3FD}";
 $emojiFlag = "\u{1F1FA}\u{1F1F8}";
 $emojiSlices = UnicodeText::splitByDisplayBreakpoints($emojiCheckbox . $emojiKeycap . $emojiThumb . $emojiFlag, [2, 4, 6]);
 $emojiTagFlag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
@@ -137,6 +138,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji modifier'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $emojiThumb . ' / ' . $emojiFlag])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($emojiThumb) . ',' . UnicodeText::displayWidth($emojiFlag)])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji skin tone'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $emojiThumb . ' / ' . $emojiStandaloneSkinTone . ' / A' . $emojiStandaloneSkinTone])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($emojiThumb) . ',' . UnicodeText::displayWidth($emojiStandaloneSkinTone) . ',' . UnicodeText::displayWidth('A' . $emojiStandaloneSkinTone)])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Emoji slices'])]),
@@ -262,6 +268,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Emoji slices</td><td>\u{2611}\u{FE0F} / 1\u{FE0F}\u{20E3} / \u{1F44D}\u{1F3FD} / \u{1F1FA}\u{1F1F8}</td><td>2,2,2,2</td>")) {
         throw new RuntimeException('charset handoff self-test missing emoji display-width audit');
+    }
+    if (!str_contains($blocks, "<td>Emoji skin tone</td><td>\u{1F44D}\u{1F3FD} / \u{1F3FD} / A\u{1F3FD}</td><td>2,2,3</td>")) {
+        throw new RuntimeException('charset handoff self-test missing unattached emoji skin-tone width audit');
     }
     if (!str_contains($blocks, '<td>Emoji tag flag</td><td>' . $emojiTagFlag . '</td><td>2</td>')) {
         throw new RuntimeException('charset handoff self-test missing emoji tag display-width audit');
