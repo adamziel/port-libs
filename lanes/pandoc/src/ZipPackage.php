@@ -86,6 +86,7 @@ final class ZipPackage
 
             self::assertRange($bytes, $cursor, 46, 'central directory entry');
             $versionMadeBy = self::readUInt16($bytes, $cursor + 4);
+            $versionNeededToExtract = self::readUInt16($bytes, $cursor + 6);
             $flags = self::readUInt16($bytes, $cursor + 8);
             $method = self::readUInt16($bytes, $cursor + 10);
             $modifiedTime = self::readUInt16($bytes, $cursor + 12);
@@ -162,7 +163,8 @@ final class ZipPackage
                 $rawName,
                 $rawComment,
                 $decodedName['encoding'],
-                $decodedComment['encoding']
+                $decodedComment['encoding'],
+                $versionNeededToExtract
             );
             self::assertDirectoryEntryMetadata($entry);
             if ($entry->isUnixSymlink()) {
@@ -726,6 +728,10 @@ final class ZipPackage
     private function validateEntryLocalLayout(ZipPackageEntry $entry): void
     {
         $localHeader = $this->scanLocalHeaderLayout($entry);
+        if ($localHeader['versionNeededToExtract'] !== $entry->versionNeededToExtract) {
+            throw new \RuntimeException("ZIP local header version needed to extract does not match central directory entry {$entry->name}");
+        }
+
         $dataEnd = $localHeader['dataStart'] + $entry->compressedSize;
         if ($dataEnd > strlen($this->bytes)) {
             throw new \RuntimeException("ZIP compressed data for {$entry->name} extends beyond available bytes");
@@ -779,7 +785,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{dataStart:int}
+     * @return array{versionNeededToExtract:int, dataStart:int}
      */
     private function scanLocalHeaderLayout(ZipPackageEntry $entry): array
     {
@@ -788,12 +794,14 @@ final class ZipPackage
             throw new \RuntimeException("Invalid ZIP local file header for entry {$entry->name}");
         }
 
+        $versionNeededToExtract = self::readUInt16($this->bytes, $entry->localHeaderOffset + 4);
         $nameLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 26);
         $extraLength = self::readUInt16($this->bytes, $entry->localHeaderOffset + 28);
         $nameStart = $entry->localHeaderOffset + 30;
         self::assertRange($this->bytes, $nameStart, $nameLength + $extraLength, 'local file header variable fields');
 
         return [
+            'versionNeededToExtract' => $versionNeededToExtract,
             'dataStart' => $nameStart + $nameLength + $extraLength,
         ];
     }
@@ -864,6 +872,7 @@ final class ZipPackage
             throw new \RuntimeException("Invalid ZIP local file header for entry {$entry->name}");
         }
 
+        $versionNeededToExtract = self::readUInt16($this->bytes, $entry->localHeaderOffset + 4);
         $flags = self::readUInt16($this->bytes, $entry->localHeaderOffset + 6);
         $method = self::readUInt16($this->bytes, $entry->localHeaderOffset + 8);
         $modifiedTime = self::readUInt16($this->bytes, $entry->localHeaderOffset + 10);
@@ -879,6 +888,10 @@ final class ZipPackage
         $localName = substr($this->bytes, $nameStart, $nameLength);
         if ($localName !== $entry->rawName) {
             throw new \RuntimeException("ZIP local header name does not match central directory entry {$entry->name}");
+        }
+
+        if ($versionNeededToExtract !== $entry->versionNeededToExtract) {
+            throw new \RuntimeException("ZIP local header version needed to extract does not match central directory entry {$entry->name}");
         }
 
         $localExtraFieldData = substr($this->bytes, $nameStart + $nameLength, $extraLength);

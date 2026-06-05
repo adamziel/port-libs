@@ -56,6 +56,9 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
  *     diskStart?:int,
  *     externalAttributes?:int,
  *     comment?:string,
+ *     versionNeededToExtract?:int,
+ *     localVersionNeeded?:int,
+ *     centralVersionNeeded?:int,
  *     centralIndex?:int
  * }> $entries
  */
@@ -86,6 +89,8 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $modifiedDate = $entry['modifiedDate'] ?? 0;
         $localModifiedTime = $entry['localModifiedTime'] ?? $modifiedTime;
         $localModifiedDate = $entry['localModifiedDate'] ?? $modifiedDate;
+        $localVersionNeeded = $entry['localVersionNeeded'] ?? ($entry['versionNeededToExtract'] ?? 20);
+        $centralVersionNeeded = $entry['centralVersionNeeded'] ?? ($entry['versionNeededToExtract'] ?? 20);
         $localExtra = $entry['localExtra'] ?? '';
         $centralExtra = $entry['centralExtra'] ?? $localExtra;
         $localCrc = $entry['localCrc'] ?? ($descriptor ? 0 : $actualCrc);
@@ -95,7 +100,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
         $body .= pack(
             'VvvvvvVVVvv',
             0x04034b50,
-            20,
+            $localVersionNeeded,
             $flags,
             $method,
             $localModifiedTime,
@@ -124,7 +129,7 @@ $buildZipPackage = static function (array $entries, string $comment = '') use ($
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             $entry['versionMadeBy'] ?? 0x0314,
-            20,
+            $centralVersionNeeded,
             $flags,
             $method,
             $modifiedTime,
@@ -446,6 +451,42 @@ return [
         $t->same('<w:document><w:body><w:p>Generated WordPress packet</w:p></w:body></w:document>', $roundTrip->read('word/document.xml'));
         $t->same('', $roundTrip->read('word/media/'));
         $t->true($roundTrip->centralDirectoryOffset() > 0);
+    },
+
+    'exposes zip version needed metadata and rejects local version mismatches before package preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>version metadata</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => 'stored reviewer media bytes',
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+            ],
+        ]));
+
+        $document = $package->entry('/word/document.xml');
+        $media = $package->entry('word/media/review.bin');
+
+        $t->same(20, $document->versionNeededToExtract);
+        $t->same(20, $document->neededToExtractVersion());
+        $t->same(10, $media->versionNeededToExtract);
+        $t->same(10, $media->neededToExtractVersion());
+        $t->same('<w:document><w:p>version metadata</w:p></w:document>', $package->read('/word/document.xml'));
+        $t->same('stored reviewer media bytes', $package->read('/word/media/review.bin'));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/settings.xml',
+                'data' => '<w:settings/>',
+                'method' => 0,
+                'centralVersionNeeded' => 20,
+                'localVersionNeeded' => 10,
+            ],
+        ])));
     },
 
     'preserves zip entry modification metadata and external attributes' => static function (TestRunner $t) use ($buildZipPackage): void {

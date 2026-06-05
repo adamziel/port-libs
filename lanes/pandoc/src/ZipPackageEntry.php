@@ -32,6 +32,7 @@ final class ZipPackageEntry
         ?string $rawComment = null,
         public readonly string $nameEncoding = 'utf-8',
         public readonly string $commentEncoding = 'utf-8',
+        public readonly int $versionNeededToExtract = 20,
     ) {
         $this->rawName = $rawName ?? $this->name;
         $this->rawComment = $rawComment ?? $this->comment;
@@ -70,6 +71,11 @@ final class ZipPackageEntry
     public function madeByVersion(): int
     {
         return $this->versionMadeBy & 0xff;
+    }
+
+    public function neededToExtractVersion(): int
+    {
+        return $this->versionNeededToExtract;
     }
 
     public function unixMode(): ?int

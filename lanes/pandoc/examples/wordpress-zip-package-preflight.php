@@ -786,6 +786,53 @@ $buildEncryptedMetadataBackedPackage = static function (int $flags) use ($crc32)
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildVersionNeededMismatchBackedPackage = static function () use ($crc32): string {
+    $name = 'word/settings.xml';
+    $data = '<w:settings><w:updateFields w:val="true"/></w:settings>';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        10,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 $package = ZipPackage::fromParts([
     [
@@ -1081,6 +1128,12 @@ try {
     ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x2800));
 } catch (RuntimeException $exception) {
     $centralDirectoryEncryptionRejected = str_contains($exception->getMessage(), 'central-directory encryption metadata');
+}
+$versionNeededMismatchRejected = false;
+try {
+    ZipPackage::fromString($buildVersionNeededMismatchBackedPackage());
+} catch (RuntimeException $exception) {
+    $versionNeededMismatchRejected = str_contains($exception->getMessage(), 'version needed to extract');
 }
 $missingTarEndMarkerRejected = false;
 try {
@@ -1494,6 +1547,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP central-directory encryption metadata to be rejected before media import');
     }
 
+    if ($package->entry('/word/document.xml')->neededToExtractVersion() !== 20) {
+        throw new RuntimeException('Expected ZIP version-needed metadata to be exposed for package preflight');
+    }
+
+    if (!$versionNeededMismatchRejected) {
+        throw new RuntimeException('Expected ZIP local version-needed mismatches to be rejected before media import');
+    }
+
     if (!$missingTarEndMarkerRejected) {
         throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
     }
@@ -1551,6 +1612,7 @@ foreach ($package->entries() as $entry) {
     echo '- ' . $entry->name
         . ' method=' . $entry->compressionMethod
         . ' crc32=' . $entry->crc32Hex()
+        . ' versionNeeded=' . $entry->neededToExtractVersion()
         . ' modifiedAt=' . ($modifiedAt === null ? 'none' : (string) $modifiedAt)
         . ' externalAttributes=' . sprintf('0x%08x', $entry->externalFileAttributes)
         . ' extraFields=' . count($entry->centralExtraFields())
@@ -1582,6 +1644,7 @@ echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'reject
 echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDanglingPaxPolicy=' . ($danglingPaxMetadataRejected ? 'rejected' : 'not-rejected') . "\n";
