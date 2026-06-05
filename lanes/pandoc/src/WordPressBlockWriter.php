@@ -352,24 +352,26 @@ final class WordPressBlockWriter
         }
 
         $columnCount = $this->tableColumnCount($node);
+        $accessibilityAttrs = $this->tableAccessibilityAttrs($node);
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableRowEntries($head, true), $node, $columnCount);
+            $html .= $this->renderTableRows($this->tableRowEntries($head, true), $node, $columnCount, 'head', $accessibilityAttrs);
             $html .= '</thead>';
         }
 
         if ($bodies === []) {
             $bodies[] = new AstNode('table_body');
         }
-        foreach ($bodies as $body) {
+        foreach ($bodies as $bodyIndex => $body) {
+            $section = 'body' . ($bodyIndex === 0 ? '' : (string) $bodyIndex);
             $html .= '<tbody' . $this->renderStoredHtmlAttrs($body, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableBodyRowEntries($body, $columnCount), $node, $columnCount);
+            $html .= $this->renderTableRows($this->tableBodyRowEntries($body, $columnCount), $node, $columnCount, $section, $accessibilityAttrs);
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
-            $html .= $this->renderTableRows($this->tableRowEntries($foot, false), $node, $columnCount);
+            $html .= $this->renderTableRows($this->tableRowEntries($foot, false), $node, $columnCount, 'foot', $accessibilityAttrs);
             $html .= '</tfoot>';
         }
         $html .= '</table>';
@@ -447,6 +449,31 @@ final class WordPressBlockWriter
     private function tableColumnCount(AstNode $table): int
     {
         return TableGeometry::columnCount($table);
+    }
+
+    /**
+     * @return array<string, array{id?:string,scope?:string,headers?:list<string>}>
+     */
+    private function tableAccessibilityAttrs(AstNode $table): array
+    {
+        $enabled = $table->attr('accessibilityHeaders', false);
+        $prefix = trim((string) $table->attr('accessibilityIdPrefix', ''));
+        if ($enabled !== true && $prefix === '') {
+            return [];
+        }
+
+        if ($prefix === '') {
+            $htmlAttributes = $table->attr('htmlAttributes', []);
+            if (is_array($htmlAttributes) && isset($htmlAttributes['id'])) {
+                $prefix = (string) $htmlAttributes['id'];
+            }
+        }
+
+        if ($prefix === '') {
+            $prefix = (string) $table->attr('id', 'pandoc-table');
+        }
+
+        return TableGeometry::accessibilityAttributes($table, $prefix);
     }
 
     /**
@@ -535,7 +562,7 @@ final class WordPressBlockWriter
     /**
      * @param list<array{row:AstNode,header:bool,rowHeadColumns:int}> $rowEntries
      */
-    private function renderTableRows(array $rowEntries, AstNode $table, int $columnCount): string
+    private function renderTableRows(array $rowEntries, AstNode $table, int $columnCount, string $section, array $accessibilityAttrs): string
     {
         $rows = [];
         foreach ($rowEntries as $entry) {
@@ -548,7 +575,10 @@ final class WordPressBlockWriter
                 $layoutRow,
                 $table,
                 (bool) ($rowEntries[$index]['header'] ?? false),
-                (int) ($rowEntries[$index]['rowHeadColumns'] ?? 0)
+                (int) ($rowEntries[$index]['rowHeadColumns'] ?? 0),
+                $section,
+                $index,
+                $accessibilityAttrs
             );
         }
 
@@ -558,18 +588,33 @@ final class WordPressBlockWriter
     /**
      * @param array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int}>} $layoutRow
      */
-    private function renderTableRow(array $layoutRow, AstNode $table, bool $header, int $rowHeadColumns): string
+    private function renderTableRow(
+        array $layoutRow,
+        AstNode $table,
+        bool $header,
+        int $rowHeadColumns,
+        string $section,
+        int $rowIndex,
+        array $accessibilityAttrs
+    ): string
     {
         $row = $layoutRow['row'];
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
         foreach ($layoutRow['cells'] as $layoutCell) {
             $cell = $layoutCell['node'];
+            $accessibilityKey = TableGeometry::accessibilityKey(
+                $section,
+                $rowIndex,
+                (int) ($layoutCell['sourceCell'] ?? 0),
+                (int) ($layoutCell['sourceColumn'] ?? 0)
+            );
             $attrs = $this->renderTableCellAttrs(
                 $table,
                 $layoutCell['column'],
                 $layoutCell['colspan'],
                 $layoutCell['rowspan'],
-                $cell
+                $cell,
+                $accessibilityAttrs[$accessibilityKey] ?? []
             );
             $tag = TableGeometry::isHeaderCell($header, $rowHeadColumns, $layoutCell['column'], $cell) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
@@ -623,9 +668,10 @@ final class WordPressBlockWriter
         ], true);
     }
 
-    private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell): string
+    private function renderTableCellAttrs(AstNode $table, int $column, int $colspan, int $rowspan, AstNode $cell, array $accessibilityAttrs = []): string
     {
-        $attrs = $this->renderStoredHtmlAttrs($cell, false, ['style']);
+        $attrs = $this->renderComputedTableAccessibilityAttrs($cell, $accessibilityAttrs);
+        $attrs .= $this->renderStoredHtmlAttrs($cell, false, ['style']);
         if ($colspan > 1) {
             $attrs .= ' colspan="' . $colspan . '"';
         }
@@ -651,6 +697,40 @@ final class WordPressBlockWriter
 
         if ($styles !== []) {
             $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array{id?:string,scope?:string,headers?:list<string>} $accessibilityAttrs
+     */
+    private function renderComputedTableAccessibilityAttrs(AstNode $cell, array $accessibilityAttrs): string
+    {
+        if ($accessibilityAttrs === []) {
+            return '';
+        }
+
+        $sourceAttrs = $cell->attr('htmlAttributes', []);
+        if (!is_array($sourceAttrs)) {
+            $sourceAttrs = [];
+        }
+        $lowerSourceAttrs = array_change_key_case($sourceAttrs, CASE_LOWER);
+        $attrs = '';
+
+        $id = (string) ($accessibilityAttrs['id'] ?? '');
+        if ($id !== '') {
+            $attrs .= ' id="' . $this->esc($id) . '"';
+        }
+
+        $scope = (string) ($accessibilityAttrs['scope'] ?? '');
+        if ($scope !== '' && !isset($lowerSourceAttrs['scope'])) {
+            $attrs .= ' scope="' . $this->esc($scope) . '"';
+        }
+
+        $headers = $accessibilityAttrs['headers'] ?? [];
+        if (is_array($headers) && $headers !== [] && !isset($lowerSourceAttrs['headers'])) {
+            $attrs .= ' headers="' . $this->esc(implode(' ', array_map(static fn (mixed $value): string => (string) $value, $headers))) . '"';
         }
 
         return $attrs;

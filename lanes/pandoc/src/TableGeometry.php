@@ -323,6 +323,108 @@ final class TableGeometry
     }
 
     /**
+     * @return array<string, array{id?:string,scope?:string,headers?:list<string>}>
+     */
+    public static function accessibilityAttributes(AstNode $table, string $idPrefix = 'pandoc-table'): array
+    {
+        $idPrefix = self::normalizeHtmlId($idPrefix);
+        $sectionGrids = self::sectionGrids($table);
+        $headers = [];
+        $attributes = [];
+
+        foreach ($sectionGrids as $sectionGrid) {
+            $section = (string) $sectionGrid['section'];
+            foreach ($sectionGrid['rows'] as $rowIndex => $slots) {
+                foreach ($slots as $slot) {
+                    if (($slot['kind'] ?? '') !== 'cell' || ($slot['headerCell'] ?? false) !== true) {
+                        continue;
+                    }
+
+                    $key = self::accessibilityKey(
+                        $section,
+                        (int) $rowIndex,
+                        (int) ($slot['sourceCell'] ?? 0),
+                        (int) ($slot['sourceColumn'] ?? 0)
+                    );
+                    $id = $idPrefix . '-' . self::normalizeHtmlId($section)
+                        . '-r' . ((int) $rowIndex + 1)
+                        . 'c' . ((int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0) + 1);
+                    $scope = self::headerScope($slot);
+                    $columns = [];
+                    $startColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
+                    $colspan = max(1, (int) ($slot['colspan'] ?? 1));
+                    for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
+                        $columns[] = $column;
+                    }
+
+                    $record = [
+                        'key' => $key,
+                        'id' => $id,
+                        'section' => $section,
+                        'row' => (int) $rowIndex,
+                        'columns' => $columns,
+                        'rowspan' => max(1, (int) ($slot['rowspan'] ?? 1)),
+                        'scope' => $scope,
+                    ];
+                    $headers[] = $record;
+                    $attributes[$key] = [
+                        'id' => $id,
+                        'scope' => $scope,
+                        'headers' => [],
+                    ];
+                }
+            }
+        }
+
+        foreach ($sectionGrids as $sectionGrid) {
+            $section = (string) $sectionGrid['section'];
+            foreach ($sectionGrid['rows'] as $rowIndex => $slots) {
+                foreach ($slots as $slot) {
+                    if (($slot['kind'] ?? '') !== 'cell' || ($slot['headerCell'] ?? false) === true) {
+                        continue;
+                    }
+
+                    $columns = [];
+                    $startColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
+                    $colspan = max(1, (int) ($slot['colspan'] ?? 1));
+                    for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
+                        $columns[] = $column;
+                    }
+
+                    $headerIds = [];
+                    foreach ($headers as $header) {
+                        $scope = (string) $header['scope'];
+                        $applies = false;
+                        if (($scope === 'col' || $scope === 'colgroup') && self::columnsOverlap($columns, $header['columns'])) {
+                            $applies = $header['section'] === 'head'
+                                || ($header['section'] === $section && (int) $header['row'] <= (int) $rowIndex);
+                        } elseif (($scope === 'row' || $scope === 'rowgroup') && $header['section'] === $section) {
+                            $headerRow = (int) $header['row'];
+                            $applies = (int) $rowIndex >= $headerRow && (int) $rowIndex < $headerRow + (int) $header['rowspan'];
+                        }
+
+                        if ($applies) {
+                            $headerIds[] = (string) $header['id'];
+                        }
+                    }
+
+                    $key = self::accessibilityKey(
+                        $section,
+                        (int) $rowIndex,
+                        (int) ($slot['sourceCell'] ?? 0),
+                        (int) ($slot['sourceColumn'] ?? 0)
+                    );
+                    $attributes[$key] = [
+                        'headers' => array_values(array_unique($headerIds)),
+                    ];
+                }
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function diagnostics(AstNode $table): array
@@ -472,9 +574,67 @@ final class TableGeometry
         return $headerRow || $cell->attr('header') === true || ($rowHeadColumns > 0 && $column < $rowHeadColumns);
     }
 
+    public static function accessibilityKey(string $section, int $row, int $sourceCell, int $sourceColumn): string
+    {
+        return $section . ':' . $row . ':' . $sourceCell . ':' . $sourceColumn;
+    }
+
     private static function normalizeAlignment(string $alignment): string
     {
         return in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     */
+    private static function headerScope(array $slot): string
+    {
+        $headerRow = (bool) ($slot['headerRow'] ?? false);
+        $rowHeadColumns = (int) ($slot['rowHeadColumns'] ?? 0);
+        $anchorColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
+        $colspan = max(1, (int) ($slot['colspan'] ?? 1));
+        $rowspan = max(1, (int) ($slot['rowspan'] ?? 1));
+
+        if (!$headerRow && $rowHeadColumns > 0 && $anchorColumn < $rowHeadColumns) {
+            return $rowspan > 1 ? 'rowgroup' : 'row';
+        }
+
+        if ($headerRow) {
+            return $colspan > 1 ? 'colgroup' : 'col';
+        }
+
+        return $rowspan > 1 ? 'rowgroup' : 'row';
+    }
+
+    /**
+     * @param list<int> $left
+     * @param list<int> $right
+     */
+    private static function columnsOverlap(array $left, array $right): bool
+    {
+        foreach ($left as $column) {
+            if (in_array($column, $right, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function normalizeHtmlId(string $value): string
+    {
+        $id = strtolower(trim($value));
+        $id = preg_replace('/[^a-z0-9_-]+/', '-', $id) ?? '';
+        $id = trim($id, '-');
+        if ($id === '') {
+            return 'pandoc-table';
+        }
+
+        if (preg_match('/^[a-z]/', $id) !== 1) {
+            return 'pandoc-' . $id;
+        }
+
+        return $id;
     }
 
     private static function tableAttributeColumnCount(mixed $columns): int

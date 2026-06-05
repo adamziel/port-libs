@@ -119,6 +119,39 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Accessible review grid',
+        'alignments' => ['left', 'right', 'center'],
+        'accessibilityHeaders' => true,
+        'accessibilityIdPrefix' => 'Migration Grid',
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Document', 'colspan' => 2], [new AstNode('text', ['text' => 'Document'])]),
+                new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [
+            'rowHeadColumns' => 1,
+            'headRows' => [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                    new AstNode('table_cell', ['text' => 'Queue'], [new AstNode('text', ['text' => 'Queue'])]),
+                    new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                ]),
+            ],
+        ], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                new AstNode('table_cell', ['text' => 'Import'], [new AstNode('text', ['text' => 'Import'])]),
+            ]),
+        ]),
+    ]),
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -231,6 +264,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Malformed overlap review</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing malformed overlap review table');
+    }
+    $accessibleHeaders = TableGeometry::accessibilityAttributes($document->children[5], 'Migration Grid');
+    if (($accessibleHeaders['body:1:1:1']['headers'] ?? null) !== ['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1']) {
+        throw new RuntimeException('Table geometry self-test missing computed accessible header relationships');
+    }
+    if (!str_contains($blocks, '<th id="migration-grid-head-r1c1" scope="colgroup" colspan="2" style="text-align:left">Document</th><th id="migration-grid-head-r1c3" scope="col" style="text-align:center">State</th>')) {
+        throw new RuntimeException('Table geometry self-test missing accessible header scope attributes');
+    }
+    if (!str_contains($blocks, '<td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">42</td>')) {
+        throw new RuntimeException('Table geometry self-test missing accessible data-cell headers attributes');
     }
 
     echo "table geometry handoff self-test ok\n";

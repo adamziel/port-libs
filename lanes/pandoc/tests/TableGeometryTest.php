@@ -277,6 +277,44 @@ $buildBodyHeadRowRoleDocument = static function (): AstNode {
     ]);
 };
 
+$buildAccessibleHeaderDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Accessible review grid',
+            'alignments' => ['left', 'right', 'center'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Migration Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Document', 'colspan' => 2], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'rowHeadColumns' => 1,
+                'headRows' => [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                        new AstNode('table_cell', ['text' => 'Queue'], [new AstNode('text', ['text' => 'Queue'])]),
+                        new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                    ]),
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                    new AstNode('table_cell', ['text' => 'Import'], [new AstNode('text', ['text' => 'Import'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildRowspanOverlapDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -626,5 +664,31 @@ return [
 
         $t->contains('<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Body-local head row review</figcaption>', $blocks);
+    },
+    'computes accessible header scopes and wordpress headers attributes across visual spans' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
+        $document = $buildAccessibleHeaderDocument();
+        $table = $document->children[0];
+        $accessibility = TableGeometry::accessibilityAttributes($table, 'Migration Grid');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('migration-grid-head-r1c1', $accessibility['head:0:0:0']['id'] ?? null);
+        $t->same('colgroup', $accessibility['head:0:0:0']['scope'] ?? null);
+        $t->same([], $accessibility['head:0:0:0']['headers'] ?? null);
+        $t->same('migration-grid-head-r1c3', $accessibility['head:0:1:2']['id'] ?? null);
+        $t->same('col', $accessibility['head:0:1:2']['scope'] ?? null);
+        $t->same('migration-grid-body-r1c2', $accessibility['body:0:1:1']['id'] ?? null);
+        $t->same('col', $accessibility['body:0:1:1']['scope'] ?? null);
+        $t->same('migration-grid-body-r2c1', $accessibility['body:1:0:0']['id'] ?? null);
+        $t->same('rowgroup', $accessibility['body:1:0:0']['scope'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $accessibility['body:1:1:1']['headers'] ?? null);
+        $t->same(['migration-grid-head-r1c3', 'migration-grid-body-r1c3', 'migration-grid-body-r2c1'], $accessibility['body:1:2:2']['headers'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $accessibility['body:2:0:0']['headers'] ?? null);
+        $t->same(['migration-grid-head-r1c3', 'migration-grid-body-r1c3', 'migration-grid-body-r2c1'], $accessibility['body:2:1:1']['headers'] ?? null);
+
+        $t->contains('<th id="migration-grid-head-r1c1" scope="colgroup" colspan="2" style="text-align:left">Document</th><th id="migration-grid-head-r1c3" scope="col" style="text-align:center">State</th>', $blocks);
+        $t->contains('<th id="migration-grid-body-r1c1" scope="col" style="text-align:left">Batch</th><th id="migration-grid-body-r1c2" scope="col" style="text-align:right">Queue</th><th id="migration-grid-body-r1c3" scope="col" style="text-align:center">Decision</th>', $blocks);
+        $t->contains('<th id="migration-grid-body-r2c1" scope="rowgroup" rowspan="2" style="text-align:left">Posts</th><td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">42</td><td headers="migration-grid-head-r1c3 migration-grid-body-r1c3 migration-grid-body-r2c1" style="text-align:center">Review</td>', $blocks);
+        $t->contains('<tr><td headers="migration-grid-head-r1c1 migration-grid-body-r1c2 migration-grid-body-r2c1" style="text-align:right">7</td><td headers="migration-grid-head-r1c3 migration-grid-body-r1c3 migration-grid-body-r2c1" style="text-align:center">Import</td></tr>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Accessible review grid</figcaption>', $blocks);
     },
 ];
