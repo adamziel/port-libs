@@ -2115,6 +2115,91 @@ return [
         $t->true(!str_contains($encoded, $backgroundPayload));
         $t->true(!str_contains($encoded, $contentPayload));
     },
+    'records non-artifact marked-content metadata at image XObject invocation boundaries' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before tagged images) Tj ET\n"
+            . "/Figure << /MCID 7 /Alt (Hero Figure Alt Review) /ActualText (Hero Figure Actual Review) >> BDC q 20 0 0 10 72 690 cm /Tagged#20Image Do Q EMC\n"
+            . "/Figure /Image#20Props BDC q 12 0 0 6 104 690 cm /Property#20Image Do Q EMC\n"
+            . 'BT /F1 12 Tf 72 660 Td (After tagged images) Tj ET';
+        $taggedPayload = 'BT /F1 12 Tf 72 720 Td (Tagged Image Payload Noise) Tj ET';
+        $propertyPayload = 'BT /F1 12 Tf 72 720 Td (Property Image Payload Noise) Tj ET';
+        $taggedCompressed = gzcompress($taggedPayload);
+        $propertyCompressed = gzcompress($propertyPayload);
+        if (!is_string($taggedCompressed) || !is_string($propertyCompressed)) {
+            throw new RuntimeException('Unable to compress tagged image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /Properties << /Image#20Props << /MCID 8 /Alt (Property Figure Alt Review) >> >> /XObject << /Tagged#20Image 5 0 R /Property#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($taggedCompressed) . " >>\nstream\n{$taggedCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($propertyCompressed) . " >>\nstream\n{$propertyCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $tagged = $entriesByName['Tagged Image'];
+        $t->same(true, $tagged['invoked']);
+        $t->same(1, $tagged['invocation_count']);
+        $t->same(true, $tagged['marked_content_review_only']);
+        $t->same([['Figure']], array_column($tagged['invocation_marked_content'], 'tags'));
+        $t->same([[7]], array_column($tagged['invocation_marked_content'], 'mcids'));
+        $t->same([
+            [
+                'tag' => 'Figure',
+                'mcid' => 7,
+                'property_resource_name' => null,
+                'property_source' => 'direct',
+                'actual_text' => 'Hero Figure Actual Review',
+                'alt_text' => 'Hero Figure Alt Review',
+                'review_only' => true,
+            ],
+        ], $tagged['invocation_marked_content'][0]['stack']);
+        $t->same(hash('sha256', $taggedPayload), $tagged['decoded_sha256']);
+
+        $property = $entriesByName['Property Image'];
+        $t->same(true, $property['invoked']);
+        $t->same(1, $property['invocation_count']);
+        $t->same(true, $property['marked_content_review_only']);
+        $t->same([['Figure']], array_column($property['invocation_marked_content'], 'tags'));
+        $t->same([[8]], array_column($property['invocation_marked_content'], 'mcids'));
+        $t->same([
+            [
+                'tag' => 'Figure',
+                'mcid' => 8,
+                'property_resource_name' => 'Image Props',
+                'property_source' => 'Resources.Properties',
+                'actual_text' => null,
+                'alt_text' => 'Property Figure Alt Review',
+                'review_only' => true,
+            ],
+        ], $property['invocation_marked_content'][0]['stack']);
+        $t->same(hash('sha256', $propertyPayload), $property['decoded_sha256']);
+
+        $t->same(['Before tagged images', 'After tagged images'], $extractor->extractTextLines($pdf));
+        $t->same("Before tagged images\nAfter tagged images", $plainText);
+        $t->true(!str_contains($plainText, 'Tagged Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Property Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Hero Figure Alt Review'));
+        $t->true(!str_contains($plainText, 'Hero Figure Actual Review'));
+        $t->true(!str_contains($plainText, 'Property Figure Alt Review'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $taggedPayload));
+        $t->true(!str_contains($encoded, $propertyPayload));
+    },
     'rejects malformed image XObject Do invocations with extra operands' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before malformed image Do) Tj ET\n"
             . "q 16 0 0 8 72 690 cm 99 /Malformed#20Image Do Q\n"

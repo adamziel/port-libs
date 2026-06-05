@@ -970,21 +970,20 @@ return [
             'Visible Intro',
             'Accessible WordPress Import',
             'Resourced WP Blocks',
-            'Figure: migration workflow screenshot',
             'Inline Alt Summary',
         ], $extractor->extractTextLines($pdf));
         $t->same([
             'Visible Intro',
             'Accessible WordPress Import',
             'Resourced WP Blocks',
-            'Figure: migration workflow screenshot',
             'Inline Alt Summary',
         ], $extractor->extractTextRuns($pdf));
-        $t->same("Visible Intro\nAccessible WordPress Import\nResourced WP Blocks\nFigure: migration workflow screenshot\nInline Alt Summary", $plainText);
+        $t->same("Visible Intro\nAccessible WordPress Import\nResourced WP Blocks\nInline Alt Summary", $plainText);
         $t->same($plainText . "\n", $extractor->naiveGetText($pdf));
         $t->true(!str_contains($plainText, 'Glyph Noise'));
         $t->true(!str_contains($plainText, 'Resource Glyph Noise'));
         $t->true(!str_contains($plainText, 'Ignored Alt Text'));
+        $t->true(!str_contains($plainText, 'Figure: migration workflow screenshot'));
         $t->true(!str_contains($plainText, 'Raster Alt Noise'));
     },
     'extracts flate encoded content streams' => static function (TestRunner $t): void {

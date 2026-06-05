@@ -166,7 +166,8 @@ final class PdfTextExtractor
             foreach ($this->textRunsFromContentStream(
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
-                $entry['markedContentProperties']
+                $entry['markedContentProperties'],
+                $entry['imageXObjectResourceNames']
             ) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
@@ -1448,7 +1449,8 @@ final class PdfTextExtractor
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
                 $entry['markedContentProperties'],
-                $pageIndex
+                $pageIndex,
+                $entry['imageXObjectResourceNames']
             );
             if ($lines === []) {
                 continue;
@@ -1554,7 +1556,8 @@ final class PdfTextExtractor
                     $text = trim(implode("\n", $this->textLinesFromContentStream(
                         $segmentStream,
                         $expanded['fontToUnicodeMaps'],
-                        $expanded['markedContentProperties']
+                        $expanded['markedContentProperties'],
+                        $expanded['imageXObjectResourceNames']
                     )));
                     if ($text !== '') {
                         $texts[] = $text;
@@ -1676,7 +1679,8 @@ final class PdfTextExtractor
             foreach ($this->textLinesFromContentStream(
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
-                $entry['markedContentProperties']
+                $entry['markedContentProperties'],
+                $entry['imageXObjectResourceNames']
             ) as $line) {
                 if ($line !== '') {
                     $lines[] = $line;
@@ -1697,7 +1701,8 @@ final class PdfTextExtractor
             $pages[] = implode("\n", $this->textLinesFromContentStream(
                 $entry['stream'],
                 $entry['fontToUnicodeMaps'],
-                $entry['markedContentProperties']
+                $entry['markedContentProperties'],
+                $entry['imageXObjectResourceNames']
             ));
         }
 
@@ -2331,7 +2336,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}>
      */
     private function contentStreamsWithFontMaps(string $pdfBytes): array
     {
@@ -2361,13 +2366,14 @@ final class PdfTextExtractor
                 'stream' => $stream,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
                 'markedContentProperties' => [],
+                'imageXObjectResourceNames' => [],
             ],
             $this->allDecodedStreams($pdfBytes, $objects)
         );
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}>
      * @param array<int, string> $objects
      * @param list<int> $pageObjectNumbers
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
@@ -2430,6 +2436,7 @@ final class PdfTextExtractor
                 'stream' => $expanded['stream'],
                 'fontToUnicodeMaps' => $expanded['fontToUnicodeMaps'],
                 'markedContentProperties' => $expanded['markedContentProperties'],
+                'imageXObjectResourceNames' => $expanded['imageXObjectResourceNames'],
             ];
         }
 
@@ -2437,7 +2444,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}|null
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}|null
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<int|string, bool> $optionalContentStates
@@ -2482,6 +2489,7 @@ final class PdfTextExtractor
             'stream' => implode("\n", $streams),
             'fontToUnicodeMaps' => $this->pageFontToUnicodeMaps($pageObjectNumber, $objects, $fontObjectMaps),
             'markedContentProperties' => $this->pageMarkedContentProperties($pageObjectNumber, $objects),
+            'imageXObjectResourceNames' => [],
         ];
 
         if ($streams !== []) {
@@ -2491,6 +2499,10 @@ final class PdfTextExtractor
             }
 
             if ($resourceOwnerBody !== null) {
+                $expanded['imageXObjectResourceNames'] = $this->imageXObjectResourceNamesForResourceOwnerBody(
+                    $resourceOwnerBody,
+                    $objects
+                );
                 $expandedForms = $this->expandFormXObjectInvocations(
                     $expanded['stream'],
                     $resourceOwnerBody,
@@ -2498,11 +2510,13 @@ final class PdfTextExtractor
                     $fontObjectMaps,
                     $expanded['fontToUnicodeMaps'],
                     $expanded['markedContentProperties'],
+                    $expanded['imageXObjectResourceNames'],
                     $optionalContentStates
                 );
                 $expanded['stream'] = $expandedForms['stream'];
                 $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
                 $expanded['markedContentProperties'] = $expandedForms['markedContentProperties'];
+                $expanded['imageXObjectResourceNames'] = $expandedForms['imageXObjectResourceNames'];
             }
         }
 
@@ -3754,11 +3768,12 @@ final class PdfTextExtractor
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
+     * @param list<string> $imageXObjectResourceNames
      * @param array<int|string, bool> $optionalContentStates
      * @param array<int, true> $activeFormObjectNumbers
      * @param list<float>|null $initialTransformationMatrix
      * @param list<float>|null $formBoundingBox
-     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>}
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}
      */
     private function expandFormXObjectInvocations(
         string $content,
@@ -3767,6 +3782,7 @@ final class PdfTextExtractor
         array $fontObjectMaps,
         array $fontToUnicodeMaps,
         array $markedContentProperties = [],
+        array $imageXObjectResourceNames = [],
         array $optionalContentStates = [],
         array $activeFormObjectNumbers = [],
         ?array $initialTransformationMatrix = null,
@@ -3784,10 +3800,15 @@ final class PdfTextExtractor
                 'stream' => $content,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
                 'markedContentProperties' => $markedContentProperties,
+                'imageXObjectResourceNames' => $imageXObjectResourceNames,
             ];
         }
 
         $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
+        $resourceOwnerImageXObjectResourceNames = $this->imageXObjectResourceNamesForResourceOwnerBody(
+            $resourceOwnerBody,
+            $objects
+        );
         if (
             $xObjectMap === []
             && !$shouldTransformTextPositions
@@ -3797,12 +3818,20 @@ final class PdfTextExtractor
                 'stream' => $content,
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
                 'markedContentProperties' => $markedContentProperties,
+                'imageXObjectResourceNames' => $this->mergedUniqueStrings(
+                    $imageXObjectResourceNames,
+                    $resourceOwnerImageXObjectResourceNames
+                ),
             ];
         }
 
         $expanded = [];
         $expandedFontToUnicodeMaps = $fontToUnicodeMaps;
         $expandedMarkedContentProperties = $markedContentProperties;
+        $expandedImageXObjectResourceNames = $this->mergedUniqueStrings(
+            $imageXObjectResourceNames,
+            $resourceOwnerImageXObjectResourceNames
+        );
         $operands = [];
         $currentTransformationMatrix = $initialTransformationMatrix ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $graphicsStateStack = [];
@@ -3874,6 +3903,7 @@ final class PdfTextExtractor
                             $fontObjectMaps,
                             $expandedFontToUnicodeMaps,
                             $expandedMarkedContentProperties,
+                            $expandedImageXObjectResourceNames,
                             $optionalContentStates,
                             $nextActiveForms,
                             $this->pdfMatrixMultiply(
@@ -3885,6 +3915,9 @@ final class PdfTextExtractor
                         $expanded[] = $expandedForm['stream'];
                         $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
                         $expandedMarkedContentProperties = $expandedForm['markedContentProperties'];
+                        $expandedImageXObjectResourceNames = $expandedForm['imageXObjectResourceNames'];
+                    } else {
+                        $this->appendContentOperator($expanded, $operands, $token);
                     }
                     $operands = [];
                     continue;
@@ -3958,6 +3991,7 @@ final class PdfTextExtractor
             'stream' => implode(' ', array_values(array_filter($expanded, static fn (string $segment): bool => trim($segment) !== ''))),
             'fontToUnicodeMaps' => $expandedFontToUnicodeMaps,
             'markedContentProperties' => $expandedMarkedContentProperties,
+            'imageXObjectResourceNames' => $expandedImageXObjectResourceNames,
         ];
     }
 
@@ -4169,6 +4203,38 @@ final class PdfTextExtractor
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function imageXObjectResourceNamesForResourceOwnerBody(string $resourceOwnerBody, array $objects): array
+    {
+        $names = [];
+        foreach ($this->xObjectResourceReferences($resourceOwnerBody, $objects) as $resourceName => $reference) {
+            $body = $reference['body'] ?? null;
+            if (!is_string($body)) {
+                continue;
+            }
+
+            $stream = $this->streamDictionaryAndPayload($body, $objects);
+            if ($stream !== null && $this->isImageStreamDictionary($stream['dict'], $objects)) {
+                $names[] = $resourceName;
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param list<string> $first
+     * @param list<string> $second
+     * @return list<string>
+     */
+    private function mergedUniqueStrings(array $first, array $second): array
+    {
+        return array_values(array_unique(array_merge($first, $second)));
     }
 
     /**
@@ -4493,14 +4559,16 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>}>>
+     * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}>>
      */
     private function contentXObjectInvocationDetails(
         string $content,
         array $baseStates = [],
-        array $graphicsStateResourceReviews = []
+        array $graphicsStateResourceReviews = [],
+        array $markedContentProperties = []
     ): array
     {
         $currentStates = $this->normalizedInvocationBaseStates($baseStates);
@@ -4546,6 +4614,33 @@ final class PdfTextExtractor
 
             if ($token === 'ET') {
                 $insideTextObject = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BMC' || $token === 'BDC') {
+                $markedContent = $this->imageInvocationMarkedContentFromOperands(
+                    $operands,
+                    $markedContentProperties,
+                    $token === 'BDC'
+                );
+                foreach ($currentStates as $index => $state) {
+                    $stack = $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []);
+                    if ($markedContent !== null) {
+                        $stack[] = $markedContent;
+                    }
+                    $currentStates[$index]['marked_content'] = $stack;
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'EMC') {
+                foreach ($currentStates as $index => $state) {
+                    $stack = $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []);
+                    array_pop($stack);
+                    $currentStates[$index]['marked_content'] = $stack;
+                }
                 $operands = [];
                 continue;
             }
@@ -4630,6 +4725,7 @@ final class PdfTextExtractor
                             'clipped' => $clipRectangle !== null
                                 && ($visibleBbox === null || !$this->pdfRectanglesEqual($bbox, $visibleBbox)),
                             'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
+                            'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
                         ];
                         $graphicsState = $this->nonDefaultInvocationGraphicsState($state['graphics_state'] ?? null);
                         if ($graphicsState !== null) {
@@ -4648,7 +4744,96 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
+     * @param list<string> $operands
+     * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
+     * @return array{tag: string, mcid: int|null, property_resource_name: string|null, property_source: string|null, actual_text: string|null, alt_text: string|null, review_only: true}|null
+     */
+    private function imageInvocationMarkedContentFromOperands(
+        array $operands,
+        array $markedContentProperties,
+        bool $hasPropertyOperand
+    ): ?array {
+        $tagOperand = $operands[0] ?? null;
+        if (!is_string($tagOperand) || !str_starts_with($tagOperand, '/')) {
+            return null;
+        }
+
+        $tag = $this->decodePdfName(substr($tagOperand, 1));
+        $mcid = null;
+        $propertyResourceName = null;
+        $propertySource = null;
+        $actualText = null;
+        $altText = null;
+
+        if ($hasPropertyOperand && count($operands) >= 2) {
+            $propertyOperand = trim((string) $operands[count($operands) - 1]);
+            if (str_starts_with($propertyOperand, '<<')) {
+                $dictionary = $this->readPdfDictionaryAt($propertyOperand, 0);
+                if ($dictionary !== null) {
+                    $mcid = $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'MCID', []);
+                    $actualText = $this->pdfOptionalStringValueAfterName($dictionary, 'ActualText', []);
+                    $altText = $this->pdfOptionalStringValueAfterName($dictionary, 'Alt', []);
+                    $propertySource = 'direct';
+                }
+            } elseif (str_starts_with($propertyOperand, '/')) {
+                $resourceName = $this->decodePdfName(substr($propertyOperand, 1));
+                $property = $markedContentProperties[$resourceName] ?? null;
+                if (is_array($property)) {
+                    $propertyResourceName = $resourceName;
+                    $propertySource = 'Resources.Properties';
+                    $mcid = is_int($property['mcid'] ?? null) ? $property['mcid'] : null;
+                    $actualText = is_string($property['actualText'] ?? null) ? $property['actualText'] : null;
+                    $altText = is_string($property['altText'] ?? null) ? $property['altText'] : null;
+                }
+            }
+        }
+
+        return [
+            'tag' => $tag,
+            'mcid' => $mcid,
+            'property_resource_name' => $propertyResourceName,
+            'property_source' => $propertySource,
+            'actual_text' => $actualText,
+            'alt_text' => $altText,
+            'review_only' => true,
+        ];
+    }
+
+    /**
+     * @return list<array{tag: string, mcid: int|null, property_resource_name: string|null, property_source: string|null, actual_text: string|null, alt_text: string|null, review_only: true}>
+     */
+    private function imageInvocationMarkedContentStack(mixed $stack): array
+    {
+        if (!is_array($stack)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($stack as $entry) {
+            if (!is_array($entry) || !is_string($entry['tag'] ?? null) || $entry['tag'] === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'tag' => $entry['tag'],
+                'mcid' => is_int($entry['mcid'] ?? null) ? $entry['mcid'] : null,
+                'property_resource_name' => is_string($entry['property_resource_name'] ?? null)
+                    ? $entry['property_resource_name']
+                    : null,
+                'property_source' => is_string($entry['property_source'] ?? null)
+                    ? $entry['property_source']
+                    : null,
+                'actual_text' => is_string($entry['actual_text'] ?? null) ? $entry['actual_text'] : null,
+                'alt_text' => is_string($entry['alt_text'] ?? null) ? $entry['alt_text'] : null,
+                'review_only' => true,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
      * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>}>>
      */
@@ -4819,8 +5004,8 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>}> $baseStates
-     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, path_current_point: array{0: float, 1: float}|null, path_start_point: array{0: float, 1: float}|null, graphics_state: array<string, mixed>}>
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseStates
+     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, path_current_point: array{0: float, 1: float}|null, path_start_point: array{0: float, 1: float}|null, graphics_state: array<string, mixed>, marked_content: list<array<string, mixed>>}>
      */
     private function normalizedInvocationBaseStates(array $baseStates): array
     {
@@ -4832,6 +5017,7 @@ final class PdfTextExtractor
                 'path_current_point' => null,
                 'path_start_point' => null,
                 'graphics_state' => $this->defaultInvocationGraphicsState(),
+                'marked_content' => [],
             ]];
         }
 
@@ -4854,6 +5040,7 @@ final class PdfTextExtractor
                 'path_current_point' => null,
                 'path_start_point' => null,
                 'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
+                'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
             ];
         }
 
@@ -4864,6 +5051,7 @@ final class PdfTextExtractor
             'path_current_point' => null,
             'path_start_point' => null,
             'graphics_state' => $this->defaultInvocationGraphicsState(),
+            'marked_content' => [],
         ]] : $normalized;
     }
 
@@ -5573,10 +5761,16 @@ final class PdfTextExtractor
         }
 
         $graphicsStateResourceReviews = $this->extGStateResourceReviews($resourceOwnerBody, $objects);
+        $markedContentProperties = $this->markedContentPropertiesFromResourceOwnerBody($resourceOwnerBody, $objects);
         $invocations = [];
         $patternPaints = [];
         foreach ($decodedContents as $content) {
-            foreach ($this->contentXObjectInvocationDetails($content, $ownerInvocationMatrices, $graphicsStateResourceReviews) as $resourceName => $details) {
+            foreach ($this->contentXObjectInvocationDetails(
+                $content,
+                $ownerInvocationMatrices,
+                $graphicsStateResourceReviews,
+                $markedContentProperties
+            ) as $resourceName => $details) {
                 $invocations[$resourceName] = array_merge($invocations[$resourceName] ?? [], $details);
             }
             foreach ($this->contentPatternPaintInvocationDetails($content, $ownerInvocationMatrices, $graphicsStateResourceReviews) as $resourceName => $details) {
@@ -5652,6 +5846,7 @@ final class PdfTextExtractor
                     'matrix' => $formBaseMatrix,
                     'clip_bbox' => $formClipBbox,
                     'graphics_state' => $detail['graphics_state'] ?? null,
+                    'marked_content' => $detail['marked_content'] ?? [],
                 ];
             }
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
@@ -5720,6 +5915,7 @@ final class PdfTextExtractor
                     'matrix' => $patternBaseMatrix,
                     'clip_bbox' => $patternClipBbox,
                     'graphics_state' => $detail['graphics_state'] ?? null,
+                    'marked_content' => $detail['marked_content'] ?? [],
                 ];
                 $patternMatrices[] = $this->normalizedPdfReviewNumbers($patternBaseMatrix);
                 if (isset($detail['bbox']) && is_array($detail['bbox']) && count($detail['bbox']) >= 4) {
@@ -5896,6 +6092,7 @@ final class PdfTextExtractor
         $invocationClipBboxes = [];
         $invocationVisibleBboxes = [];
         $invocationGraphicsStates = [];
+        $invocationMarkedContent = [];
         $imageMaskPaintColors = [];
         $clipApplied = false;
         $clipReducesPaintedBbox = false;
@@ -5926,6 +6123,23 @@ final class PdfTextExtractor
             }
             if ($graphicsState !== null) {
                 $invocationGraphicsStates[] = $graphicsState;
+            }
+            $markedContentStack = $this->imageInvocationMarkedContentStack($detail['marked_content'] ?? []);
+            if ($markedContentStack !== []) {
+                $tags = [];
+                $mcids = [];
+                foreach ($markedContentStack as $markedContent) {
+                    $tags[] = $markedContent['tag'];
+                    if (is_int($markedContent['mcid'])) {
+                        $mcids[] = $markedContent['mcid'];
+                    }
+                }
+                $invocationMarkedContent[] = [
+                    'stack' => $markedContentStack,
+                    'tags' => $tags,
+                    'mcids' => $mcids,
+                    'review_only' => true,
+                ];
             }
             if ($imageMask) {
                 $imageMaskPaintColors[] = $this->imageMaskPaintColorFromInvocationState(
@@ -6048,6 +6262,8 @@ final class PdfTextExtractor
             'invocation_visible_display_bboxes' => $invocationVisibleDisplayBboxes,
             'invocation_graphics_states' => $invocationGraphicsStates,
             'graphics_state_review_only' => $invocationGraphicsStates !== [],
+            'invocation_marked_content' => $invocationMarkedContent,
+            'marked_content_review_only' => $invocationMarkedContent !== [],
             'image_unit_bbox' => $imageUnitBbox,
             'image_visible_bbox' => $imageVisibleBbox,
             'image_display_bbox' => $imageDisplayBbox,
@@ -8186,6 +8402,7 @@ final class PdfTextExtractor
             $objects,
             $fontObjectMaps,
             $expandedFontToUnicodeMaps,
+            [],
             [],
             $optionalContentStates,
             [],
@@ -15383,7 +15600,21 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array<string, array{actualText: string|null, altText: string|null}>
+     * @return array<string, array{actualText: string|null, altText: string|null, mcid: int|null}>
+     * @param array<int, string> $objects
+     */
+    private function markedContentPropertiesFromResourceOwnerBody(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryLookupBody($resourceOwnerBody, $objects);
+        if ($resourceDictionary === null) {
+            return [];
+        }
+
+        return $this->markedContentPropertiesFromResourceDictionary($resourceDictionary, $objects);
+    }
+
+    /**
+     * @return array<string, array{actualText: string|null, altText: string|null, mcid: int|null}>
      * @param array<int, string> $objects
      */
     private function markedContentPropertiesFromResourceDictionary(string $resourceDictionary, array $objects): array
@@ -15421,6 +15652,7 @@ final class PdfTextExtractor
                 $properties[$name] = [
                     'actualText' => $this->pdfOptionalStringValueAfterName($dictionary, 'ActualText', $objects),
                     'altText' => $this->pdfOptionalStringValueAfterName($dictionary, 'Alt', $objects),
+                    'mcid' => $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'MCID', $objects),
                 ];
             }
         }
@@ -27153,8 +27385,14 @@ final class PdfTextExtractor
      * @return list<string>
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
+     * @param list<string> $imageXObjectResourceNames
      */
-    private function textRunsFromContentStream(string $stream, array $fontToUnicodeMaps, array $markedContentProperties = []): array
+    private function textRunsFromContentStream(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $markedContentProperties = [],
+        array $imageXObjectResourceNames = []
+    ): array
     {
         $runs = [];
         $operands = [];
@@ -27191,6 +27429,9 @@ final class PdfTextExtractor
                 if ($operand !== null) {
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        $markedContentStack[$replacementIndex]['has_text'] = true;
+                    }
                     $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
                     if (!$insideActiveClip) {
                         if ($replacementIndex !== null) {
@@ -27216,6 +27457,16 @@ final class PdfTextExtractor
                         );
                     }
                 }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Do') {
+                $this->markActiveMarkedContentImageXObjectInvocation(
+                    $markedContentStack,
+                    $operands,
+                    $imageXObjectResourceNames
+                );
                 $operands = [];
                 continue;
             }
@@ -27350,6 +27601,8 @@ final class PdfTextExtractor
                 $markedContentStack[] = [
                     'replacement' => null,
                     'emitted' => true,
+                    'has_text' => false,
+                    'has_image_xobject' => false,
                 ];
                 $operands = [];
                 continue;
@@ -27359,6 +27612,8 @@ final class PdfTextExtractor
                 $markedContentStack[] = [
                     'replacement' => $this->markedContentReplacementOperand($operands, $markedContentProperties),
                     'emitted' => false,
+                    'has_text' => false,
+                    'has_image_xobject' => false,
                 ];
                 $operands = [];
                 continue;
@@ -27370,10 +27625,21 @@ final class PdfTextExtractor
                     is_array($markedContent)
                     && $markedContent['replacement'] !== null
                     && !$markedContent['emitted']
+                    && (($markedContent['has_text'] ?? false) || !($markedContent['has_image_xobject'] ?? false))
                     && $this->activeMarkedContentReplacementIndex($markedContentStack) === null
                 ) {
                     $runs[] = $markedContent['replacement'];
                 }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Do') {
+                $this->markActiveMarkedContentImageXObjectInvocation(
+                    $markedContentStack,
+                    $operands,
+                    $imageXObjectResourceNames
+                );
                 $operands = [];
                 continue;
             }
@@ -27406,12 +27672,14 @@ final class PdfTextExtractor
      * @return list<array{spans: list<array<string, mixed>>, bbox: list<float>}>
      * @param array<string, array<string, mixed>> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
+     * @param list<string> $imageXObjectResourceNames
      */
     private function textSpanLinesFromContentStream(
         string $stream,
         array $fontToUnicodeMaps,
         array $markedContentProperties,
-        int $pageIndex
+        int $pageIndex,
+        array $imageXObjectResourceNames = []
     ): array {
         $lines = [];
         $spans = [];
@@ -27465,6 +27733,9 @@ final class PdfTextExtractor
                 if ($operand !== null) {
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        $markedContentStack[$replacementIndex]['has_text'] = true;
+                    }
                     $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
                     if (!$insideActiveClip) {
                         $decoded = '';
@@ -27567,6 +27838,8 @@ final class PdfTextExtractor
                 $markedContentStack[] = [
                     'replacement' => null,
                     'emitted' => true,
+                    'has_text' => false,
+                    'has_image_xobject' => false,
                 ];
                 $operands = [];
                 continue;
@@ -27576,6 +27849,8 @@ final class PdfTextExtractor
                 $markedContentStack[] = [
                     'replacement' => $this->markedContentReplacementOperand($operands, $markedContentProperties),
                     'emitted' => false,
+                    'has_text' => false,
+                    'has_image_xobject' => false,
                 ];
                 $operands = [];
                 continue;
@@ -27587,6 +27862,7 @@ final class PdfTextExtractor
                     is_array($markedContent)
                     && $markedContent['replacement'] !== null
                     && !$markedContent['emitted']
+                    && (($markedContent['has_text'] ?? false) || !($markedContent['has_image_xobject'] ?? false))
                     && $this->activeMarkedContentReplacementIndex($markedContentStack) === null
                 ) {
                     $this->appendNativeTextSpan(
@@ -28525,8 +28801,14 @@ final class PdfTextExtractor
      * @return list<string>
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
+     * @param list<string> $imageXObjectResourceNames
      */
-    private function textLinesFromContentStream(string $stream, array $fontToUnicodeMaps, array $markedContentProperties = []): array
+    private function textLinesFromContentStream(
+        string $stream,
+        array $fontToUnicodeMaps,
+        array $markedContentProperties = [],
+        array $imageXObjectResourceNames = []
+    ): array
     {
         $lines = [];
         $operands = [];
@@ -28576,6 +28858,9 @@ final class PdfTextExtractor
                 if ($operand !== null) {
                     $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
                     $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+                    if ($replacementIndex !== null) {
+                        $markedContentStack[$replacementIndex]['has_text'] = true;
+                    }
                     $insideActiveClip = $this->textPositionInsideActiveClip($currentTextX, $currentTextY, $clipRectangle);
                     if (!$insideActiveClip) {
                         $decoded = '';
@@ -28664,6 +28949,8 @@ final class PdfTextExtractor
                 $markedContentStack[] = [
                     'replacement' => null,
                     'emitted' => true,
+                    'has_text' => false,
+                    'has_image_xobject' => false,
                 ];
                 $operands = [];
                 continue;
@@ -28673,6 +28960,8 @@ final class PdfTextExtractor
                 $markedContentStack[] = [
                     'replacement' => $this->markedContentReplacementOperand($operands, $markedContentProperties),
                     'emitted' => false,
+                    'has_text' => false,
+                    'has_image_xobject' => false,
                 ];
                 $operands = [];
                 continue;
@@ -28684,10 +28973,21 @@ final class PdfTextExtractor
                     is_array($markedContent)
                     && $markedContent['replacement'] !== null
                     && !$markedContent['emitted']
+                    && (($markedContent['has_text'] ?? false) || !($markedContent['has_image_xobject'] ?? false))
                     && $this->activeMarkedContentReplacementIndex($markedContentStack) === null
                 ) {
                     $this->appendPositionedText($currentLine, $markedContent['replacement'], $pendingPositionWordGap);
                 }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Do') {
+                $this->markActiveMarkedContentImageXObjectInvocation(
+                    $markedContentStack,
+                    $operands,
+                    $imageXObjectResourceNames
+                );
                 $operands = [];
                 continue;
             }
@@ -31709,7 +32009,27 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<array{replacement: string|null, emitted: bool}> $markedContentStack
+     * @param list<array{replacement: string|null, emitted: bool, has_text?: bool, has_image_xobject?: bool}> $markedContentStack
+     * @param list<string> $imageXObjectResourceNames
+     */
+    private function markActiveMarkedContentImageXObjectInvocation(
+        array &$markedContentStack,
+        array $operands,
+        array $imageXObjectResourceNames
+    ): void {
+        $resourceName = $this->xObjectNameOperand($operands);
+        if ($resourceName === null || !in_array($resourceName, $imageXObjectResourceNames, true)) {
+            return;
+        }
+
+        $replacementIndex = $this->activeMarkedContentReplacementIndex($markedContentStack);
+        if ($replacementIndex !== null) {
+            $markedContentStack[$replacementIndex]['has_image_xobject'] = true;
+        }
+    }
+
+    /**
+     * @param list<array{replacement: string|null, emitted: bool, has_text?: bool, has_image_xobject?: bool}> $markedContentStack
      */
     private function activeMarkedContentReplacementIndex(array $markedContentStack): ?int
     {
