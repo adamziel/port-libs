@@ -189,6 +189,7 @@ final class XmlHtmlDom
     {
         self::assertSafeSource($html, $label);
         self::assertNoDoctype($html, $label);
+        self::assertNoHtmlFragmentDeclarations($html, $label);
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
             . self::FRAGMENT_ROOT_ATTRIBUTE . '="1">' . $html . '</div></body></html>';
@@ -443,8 +444,18 @@ final class XmlHtmlDom
 
     private static function assertNoDoctype(string $source, string $label): void
     {
-        if (preg_match('/<!DOCTYPE\b/i', $source) === 1) {
+        if (preg_match('/<!\s*DOCTYPE\b/i', $source) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare a document type');
+        }
+    }
+
+    private static function assertNoHtmlFragmentDeclarations(string $source, string $label): void
+    {
+        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $source) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
+        }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $source) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }
 

@@ -171,4 +171,15 @@ return [
         $t->same('/migration/review-fragment.html', $document->children[0]->attr('part'));
         $t->same([], $document->children[0]->attr('diagnostics'));
     },
+    'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
+        $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
+
+        $t->same('<p data-source="review">Safe &amp; bounded</p>', $safe->serialize());
+        $t->same([], $safe->diagnosticCodes());
+        $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml("<p>bad\0packet</p>"));
+        $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<!DOCTYPE html><p>bad</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<!ENTITY reviewer SYSTEM "file:///etc/passwd"><p>&reviewer;</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromHtml('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): Html5DomFragment => Html5DomFragment::fromXml('<?xml-stylesheet href="https://example.invalid/review.xsl"?><root/>'));
+    },
 ];

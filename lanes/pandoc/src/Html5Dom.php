@@ -12,6 +12,7 @@ final class Html5Dom
     public static function parseHtmlFragment(string $html): \DOMElement
     {
         self::assertNoNullByte($html, 'HTML fragment');
+        self::assertNoHtmlFragmentDeclarations($html, 'HTML fragment');
 
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
@@ -241,11 +242,24 @@ final class Html5Dom
         if (preg_match('/<\?xml\b/i', $xml) === 1) {
             throw new \InvalidArgumentException($label . ' must not include an XML declaration');
         }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $xml) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
         if (preg_match('/<!\s*DOCTYPE\b/i', $xml) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare a doctype');
         }
         if (preg_match('/<!\s*ENTITY\b/i', $xml) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare entities');
+        }
+    }
+
+    private static function assertNoHtmlFragmentDeclarations(string $html, string $label): void
+    {
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
+        }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }
 

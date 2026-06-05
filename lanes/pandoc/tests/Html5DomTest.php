@@ -96,7 +96,16 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<?xml version="1.0"?><root/>'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<!DOCTYPE root><root/>'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<!ENTITY reviewer SYSTEM "https://example.invalid/reviewer"><root/>'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<?xml-stylesheet href="https://example.invalid/review.xsl"?><root/>'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseHtmlFragment("review\0packet"));
         $t->throws(RuntimeException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<root><child></root>'));
+    },
+    'rejects unsafe HTML fragment declarations before parser repair' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment('<p data-review="ok">Safe</p>');
+
+        $t->same('<p data-review="ok">Safe</p>', Html5Dom::serializeHtmlChildren($body));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseHtmlFragment('<!DOCTYPE html><p>bad</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseHtmlFragment('<!ENTITY reviewer SYSTEM "file:///etc/passwd"><p>&reviewer;</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseHtmlFragment('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>'));
     },
 ];

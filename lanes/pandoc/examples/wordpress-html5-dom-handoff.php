@@ -51,6 +51,19 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report filtered srcset attribute');
     }
+    foreach ([
+        '<!DOCTYPE html><p>legacy doctype</p>',
+        '<!ENTITY reviewer SYSTEM "file:///etc/passwd"><p>&reviewer;</p>',
+        '<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>stylesheet</p>',
+    ] as $unsafeFragment) {
+        try {
+            Html5DomFragment::fromHtml($unsafeFragment);
+        } catch (InvalidArgumentException) {
+            continue;
+        }
+
+        throw new RuntimeException('HTML5 DOM handoff self-test accepted unsafe fragment declaration');
+    }
 
     echo "wordpress-html5-dom-handoff self-test passed\n";
     return;

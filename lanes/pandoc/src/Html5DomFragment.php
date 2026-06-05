@@ -56,6 +56,8 @@ final class Html5DomFragment
 
     public static function fromHtml(string $html): self
     {
+        self::assertSafeHtmlSource($html, 'HTML fragment');
+
         $diagnostics = [];
         $dom = self::loadHtmlDocument($html, $diagnostics);
         $wrapper = self::htmlWrapper($dom);
@@ -68,9 +70,7 @@ final class Html5DomFragment
 
     public static function fromXml(string $xml): self
     {
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY)\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException('XML fragments with DTD or entity declarations are not supported');
-        }
+        self::assertSafeXmlSource($xml, 'XML fragment');
 
         $diagnostics = [];
         $dom = self::loadXmlDocument($xml, $diagnostics);
@@ -457,6 +457,35 @@ final class Html5DomFragment
         }
 
         return $attrs;
+    }
+
+    private static function assertSafeHtmlSource(string $html, string $label): void
+    {
+        self::assertNoNullByte($html, $label);
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
+        }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+    }
+
+    private static function assertSafeXmlSource(string $xml, string $label): void
+    {
+        self::assertNoNullByte($xml, $label);
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $xml) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $xml) === 1) {
+            throw new \InvalidArgumentException('XML fragments with DTD or entity declarations are not supported');
+        }
+    }
+
+    private static function assertNoNullByte(string $source, string $label): void
+    {
+        if (str_contains($source, "\0")) {
+            throw new \InvalidArgumentException($label . ' must not contain NUL bytes');
+        }
     }
 
     private static function isSafeAttributeName(string $name): bool
