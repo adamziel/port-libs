@@ -94,6 +94,22 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mfrac><mi>x</mi><mi>y</mi></mfrac>', $nodeMathml);
         $t->contains('<annotation encoding="application/x-tex">\\frac{x}{y}</annotation></semantics></math>', $nodeMathml);
     },
+    'adds bounded mathml accessibility text and intent annotations' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $accessible = $converter->texToAccessibleMathMl('\\frac{a_1}{\\sqrt{b^2}} + \\alpha', true);
+        $nodeMathml = $converter->accessibleMathMlFor(new AstNode('math', [
+            'text' => '\\sum_{i=1}^{n} p_i',
+            'display' => true,
+        ]));
+
+        $t->contains('display="block" alttext="fraction a sub 1 over square root of b superscript 2 plus alpha" intent="row(fraction(subscript(a,1),sqrt(superscript(b,2))),plus,alpha)"', $accessible);
+        $t->contains('<annotation encoding="application/x-tex">\\frac{a_1}{\\sqrt{b^2}} + \\alpha</annotation>', $accessible);
+        $t->contains('<annotation encoding="application/x-portlibs-math-alttext">fraction a sub 1 over square root of b superscript 2 plus alpha</annotation>', $accessible);
+        $t->contains('<annotation encoding="application/x-portlibs-math-intent">row(fraction(subscript(a,1),sqrt(superscript(b,2))),plus,alpha)</annotation>', $accessible);
+        $t->contains('alttext="sum sub i equals 1 superscript n p sub i"', $nodeMathml);
+        $t->contains('intent="row(subsup(sum,row(i,equals,1),n),subscript(p,i))"', $nodeMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sum_{i=1}^{n} p_i</annotation>', $nodeMathml);
+    },
     'expands bounded raw tex macros for mathml handoff while preserving source annotations' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $document = (new MarkdownReader())->read(implode("\n", [

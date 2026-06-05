@@ -235,6 +235,80 @@ final class MathTexConverter
         'alignedat*' => true,
     ];
 
+    /** @var array<string, string> */
+    private const ACCESSIBILITY_TOKEN_TEXT = [
+        '+' => 'plus',
+        '-' => 'minus',
+        '=' => 'equals',
+        '<' => 'less than',
+        '>' => 'greater than',
+        '/' => 'slash',
+        ',' => 'comma',
+        ':' => 'colon',
+        ';' => 'semicolon',
+        '(' => 'left parenthesis',
+        ')' => 'right parenthesis',
+        '[' => 'left bracket',
+        ']' => 'right bracket',
+        '{' => 'left brace',
+        '}' => 'right brace',
+        '|' => 'vertical bar',
+        'α' => 'alpha',
+        'β' => 'beta',
+        'γ' => 'gamma',
+        'δ' => 'delta',
+        'ϵ' => 'epsilon',
+        'θ' => 'theta',
+        'λ' => 'lambda',
+        'μ' => 'mu',
+        'π' => 'pi',
+        'σ' => 'sigma',
+        'ω' => 'omega',
+        '∞' => 'infinity',
+        '≈' => 'approximately equals',
+        '∩' => 'intersection',
+        '⋅' => 'dot',
+        '∪' => 'union',
+        '∅' => 'empty set',
+        '≡' => 'equivalent',
+        '∃' => 'there exists',
+        '∀' => 'for all',
+        '≥' => 'greater than or equal to',
+        '⇔' => 'if and only if',
+        '∈' => 'in',
+        '∫' => 'integral',
+        '∧' => 'and',
+        '≤' => 'less than or equal to',
+        '←' => 'left arrow',
+        '↔' => 'left right arrow',
+        '∨' => 'or',
+        '¬' => 'not',
+        '≠' => 'not equal',
+        '∉' => 'not in',
+        '∂' => 'partial',
+        '±' => 'plus or minus',
+        '∏' => 'product',
+        '→' => 'to',
+        '⇒' => 'implies',
+        '∖' => 'set minus',
+        '⊂' => 'subset',
+        '⊆' => 'subset or equal',
+        '⊃' => 'superset',
+        '⊇' => 'superset or equal',
+        '∑' => 'sum',
+        '×' => 'times',
+        '⟨' => 'left angle bracket',
+        '⟩' => 'right angle bracket',
+        '‖' => 'double vertical bar',
+        '⏞' => 'over brace',
+        '⏟' => 'under brace',
+        '¯' => 'bar',
+        '‾' => 'overline',
+        '˙' => 'dot',
+        '¨' => 'double dot',
+        '~' => 'tilde',
+    ];
+
     private int $activeLeftFenceDepth = 0;
 
     /** @var array<string, array{label:string, id:string, reference:string, tag:?string, tagStarred:bool}> */
@@ -264,7 +338,25 @@ final class MathTexConverter
      * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
      * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
      */
-    public function texToMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = []): string
+    public function accessibleMathMlFor(AstNode $node, array $macros = [], array $referenceLabels = []): string
+    {
+        return $this->texToMathMl((string) $node->attr('text', ''), $node->attr('display') === true, $macros, $referenceLabels, true);
+    }
+
+    /**
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
+     */
+    public function texToAccessibleMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = []): string
+    {
+        return $this->texToMathMl($tex, $display, $macros, $referenceLabels, true);
+    }
+
+    /**
+     * @param array<string, array{arity?: int, template?: string, optionalDefault?: string}> $macros
+     * @param array<string, array{label?: string, id?: string, reference?: string, tag?: ?string, tagStarred?: bool}|string> $referenceLabels
+     */
+    public function texToMathMl(string $tex, bool $display = false, array $macros = [], array $referenceLabels = [], bool $includeAccessibility = false): string
     {
         $previousReferenceLabels = $this->equationReferenceLabels;
         $this->equationReferenceLabels = $this->normalizeEquationReferenceLabels($referenceLabels);
@@ -282,20 +374,260 @@ final class MathTexConverter
             }
 
             $displayMode = $display ? 'block' : 'inline';
+            $body = $this->renderEquationBody($children, $equation);
+            $mathAttributes = 'display="' . $displayMode . '"';
             $annotations = '<annotation encoding="application/x-tex">' . $this->esc($tex) . '</annotation>';
             if ($equation['label'] !== null) {
                 $annotations .= '<annotation encoding="application/x-tex-label">' . $this->esc($equation['label']) . '</annotation>';
             }
+            if ($includeAccessibility) {
+                $accessibility = $this->mathMlAccessibilityMetadata($body);
+                $mathAttributes .= ' alttext="' . $this->esc($accessibility['alttext']) . '" intent="' . $this->esc($accessibility['intent']) . '"';
+                $annotations .= '<annotation encoding="application/x-portlibs-math-alttext">' . $this->esc($accessibility['alttext']) . '</annotation>'
+                    . '<annotation encoding="application/x-portlibs-math-intent">' . $this->esc($accessibility['intent']) . '</annotation>';
+            }
 
-            return '<math xmlns="http://www.w3.org/1998/Math/MathML" display="' . $displayMode . '">'
+            return '<math xmlns="http://www.w3.org/1998/Math/MathML" ' . $mathAttributes . '>'
                 . '<semantics>'
-                . $this->renderEquationBody($children, $equation)
+                . $body
                 . $annotations
                 . '</semantics>'
                 . '</math>';
         } finally {
             $this->equationReferenceLabels = $previousReferenceLabels;
         }
+    }
+
+    /**
+     * @return array{alttext:string, intent:string}
+     */
+    private function mathMlAccessibilityMetadata(string $mathml): array
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadXML(
+            '<math-accessibility-root>' . $mathml . '</math-accessibility-root>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+            throw new \InvalidArgumentException('Generated MathML accessibility handoff is not well-formed');
+        }
+
+        $altText = $this->normalizeAccessibilityText($this->mathMlNodeAltText($dom->documentElement));
+        $intent = $this->mathMlNodeIntent($dom->documentElement);
+
+        return [
+            'alttext' => $altText !== '' ? $altText : 'math expression',
+            'intent' => $intent !== '' ? $intent : 'math',
+        ];
+    }
+
+    private function mathMlNodeAltText(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText) {
+            return $node->wholeText;
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return $this->joinAccessibilityText($this->mathMlChildAltTexts($node));
+        }
+
+        $name = $node->localName;
+        if ($name === 'mi' || $name === 'mn' || $name === 'mo' || $name === 'mtext') {
+            return $this->accessibilityTokenText($node->textContent);
+        }
+
+        $children = $this->mathMlElementChildren($node);
+
+        return match ($name) {
+            'mfrac' => 'fraction ' . $this->mathMlChildAltText($children, 0) . ' over ' . $this->mathMlChildAltText($children, 1),
+            'msqrt' => 'square root of ' . $this->joinAccessibilityText($this->mathMlChildAltTexts($node)),
+            'mroot' => $this->mathMlChildAltText($children, 1) . ' root of ' . $this->mathMlChildAltText($children, 0),
+            'msub' => $this->mathMlChildAltText($children, 0) . ' sub ' . $this->mathMlChildAltText($children, 1),
+            'msup' => $this->mathMlChildAltText($children, 0) . ' superscript ' . $this->mathMlChildAltText($children, 1),
+            'msubsup' => $this->mathMlChildAltText($children, 0) . ' sub ' . $this->mathMlChildAltText($children, 1) . ' superscript ' . $this->mathMlChildAltText($children, 2),
+            'munder' => $this->mathMlChildAltText($children, 0) . ' under ' . $this->mathMlChildAltText($children, 1),
+            'mover' => $this->mathMlChildAltText($children, 0) . ' over ' . $this->mathMlChildAltText($children, 1),
+            'munderover' => $this->mathMlChildAltText($children, 0) . ' under ' . $this->mathMlChildAltText($children, 1) . ' over ' . $this->mathMlChildAltText($children, 2),
+            'mtable' => 'table ' . implode('; ', array_map(fn (\DOMElement $child): string => $this->mathMlNodeAltText($child), $children)),
+            'mtr', 'mlabeledtr' => 'row ' . implode(', ', array_map(fn (\DOMElement $child): string => $this->mathMlNodeAltText($child), $children)),
+            'mtd' => $this->joinAccessibilityText($this->mathMlChildAltTexts($node)),
+            'mspace' => 'space',
+            'menclose' => 'enclosed ' . $this->joinAccessibilityText($this->mathMlChildAltTexts($node)),
+            'annotation', 'annotation-xml' => '',
+            default => $this->joinAccessibilityText($this->mathMlChildAltTexts($node)),
+        };
+    }
+
+    private function mathMlNodeIntent(\DOMNode $node): string
+    {
+        if (!$node instanceof \DOMElement) {
+            return $this->joinIntentText($this->mathMlChildIntents($node));
+        }
+
+        $name = $node->localName;
+        if ($name === 'mi' || $name === 'mn' || $name === 'mo' || $name === 'mtext') {
+            return $this->accessibilityIntentToken($node->textContent);
+        }
+
+        $children = $this->mathMlElementChildren($node);
+
+        return match ($name) {
+            'mfrac' => $this->intentCall('fraction', $children),
+            'msqrt' => $this->intentCall('sqrt', $children),
+            'mroot' => $this->intentCall('root', $children),
+            'msub' => $this->intentCall('subscript', $children),
+            'msup' => $this->intentCall('superscript', $children),
+            'msubsup' => $this->intentCall('subsup', $children),
+            'munder' => $this->intentCall('under', $children),
+            'mover' => $this->intentCall('over', $children),
+            'munderover' => $this->intentCall('underover', $children),
+            'mtable' => $this->intentCall('table', $children),
+            'mtr', 'mlabeledtr' => $this->intentCall('row', $children),
+            'mtd' => $this->joinIntentText($this->mathMlChildIntents($node)),
+            'mspace' => 'space',
+            'menclose' => $this->intentCall('enclose', $children),
+            'annotation', 'annotation-xml' => '',
+            default => $this->intentRow($this->mathMlChildIntents($node)),
+        };
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function mathMlElementChildren(\DOMNode $node): array
+    {
+        $children = [];
+        foreach ($node->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mathMlChildAltTexts(\DOMNode $node): array
+    {
+        $texts = [];
+        foreach ($node->childNodes as $child) {
+            $text = $this->normalizeAccessibilityText($this->mathMlNodeAltText($child));
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mathMlChildIntents(\DOMNode $node): array
+    {
+        $intents = [];
+        foreach ($node->childNodes as $child) {
+            $intent = $this->mathMlNodeIntent($child);
+            if ($intent !== '') {
+                $intents[] = $intent;
+            }
+        }
+
+        return $intents;
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     */
+    private function mathMlChildAltText(array $children, int $index): string
+    {
+        return isset($children[$index]) ? $this->normalizeAccessibilityText($this->mathMlNodeAltText($children[$index])) : '';
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     */
+    private function intentCall(string $name, array $children): string
+    {
+        return $name . '(' . implode(',', $this->mathMlElementChildIntents($children)) . ')';
+    }
+
+    /**
+     * @param list<\DOMElement> $children
+     * @return list<string>
+     */
+    private function mathMlElementChildIntents(array $children): array
+    {
+        $intents = [];
+        foreach ($children as $child) {
+            $intent = $this->mathMlNodeIntent($child);
+            if ($intent !== '') {
+                $intents[] = $intent;
+            }
+        }
+
+        return $intents;
+    }
+
+    /**
+     * @param list<string> $intents
+     */
+    private function intentRow(array $intents): string
+    {
+        if (count($intents) === 0) {
+            return '';
+        }
+
+        if (count($intents) === 1) {
+            return $intents[0];
+        }
+
+        return 'row(' . implode(',', $intents) . ')';
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function joinAccessibilityText(array $parts): string
+    {
+        return $this->normalizeAccessibilityText(implode(' ', array_filter($parts, static fn (string $part): bool => $part !== '')));
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function joinIntentText(array $parts): string
+    {
+        return implode(' ', array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    private function accessibilityTokenText(string $token): string
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return '';
+        }
+
+        return self::ACCESSIBILITY_TOKEN_TEXT[$token] ?? $token;
+    }
+
+    private function accessibilityIntentToken(string $token): string
+    {
+        $text = $this->accessibilityTokenText($token);
+        $slug = strtolower(trim($text));
+        $slug = preg_replace('/[^a-z0-9]+/', '_', $slug) ?? '';
+        $slug = trim($slug, '_');
+
+        return $slug !== '' ? $slug : 'token';
+    }
+
+    private function normalizeAccessibilityText(string $text): string
+    {
+        $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
+
+        return $text;
     }
 
     /**
