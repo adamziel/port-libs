@@ -159,6 +159,27 @@ $overfullWidthTable = new AstNode('table', [
     ]),
 ]);
 
+$underfullWidthTable = new AstNode('table', [
+    'caption' => 'Underfull source width audit',
+    'alignments' => ['left', 'right', 'center'],
+    'widths' => [0.2, 0.3, 0.4],
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+            new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $invalidWidthTable = new AstNode('table', [
     'caption' => 'Invalid source width audit',
     'alignments' => ['left', 'right', 'center', 'default'],
@@ -565,6 +586,7 @@ $document = new AstNode('document', [], [
     ...$captionMetadataTables,
     $blockCaptionTable,
     $malformedSpanTable,
+    $underfullWidthTable,
     $invalidWidthTable,
     $blockContentTable,
 ]);
@@ -583,6 +605,22 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing per-column width percentages');
     }
     json_encode($overfullWidthPacket, JSON_THROW_ON_ERROR);
+
+    $underfullWidthPacket = TableGeometry::reviewPacket($underfullWidthTable, ['accessibility' => false]);
+    if (($underfullWidthPacket['summary']['diagnosticCodes'] ?? null) !== ['table-widths-underfill-full-width']) {
+        throw new RuntimeException('Table geometry self-test missing underfull source width diagnostic');
+    }
+    if (($underfullWidthPacket['widthSummary']['underflowAmount'] ?? null) !== 0.1 || ($underfullWidthPacket['widthSummary']['normalizedWidths'] ?? null) !== [0.222222, 0.333333, 0.444444]) {
+        throw new RuntimeException('Table geometry self-test missing normalized underfull source width metadata');
+    }
+    if (($underfullWidthPacket['columns'][1]['percentWidth'] ?? null) !== 30.0 || ($underfullWidthPacket['columns'][2]['normalizedWidth'] ?? null) !== 0.444444) {
+        throw new RuntimeException('Table geometry self-test missing per-column underfull width percentages');
+    }
+    $underfullWidthBlock = '<figure class="wp-block-table"><table><colgroup><col style="width:20%"/><col style="width:30%"/><col style="width:40%"/></colgroup><thead><tr><th style="text-align:left">Scope</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead><tbody><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Ready</td></tr></tbody></table><figcaption class="wp-element-caption">Underfull source width audit</figcaption></figure>';
+    if (!str_contains($blocks, $underfullWidthBlock)) {
+        throw new RuntimeException('Table geometry self-test missing underfull source width review table');
+    }
+    json_encode($underfullWidthPacket, JSON_THROW_ON_ERROR);
 
     $invalidWidthPacket = TableGeometry::reviewPacket($invalidWidthTable, ['accessibility' => false]);
     if (($invalidWidthPacket['summary']['diagnosticCodes'] ?? null) !== ['table-widths-have-invalid-values']) {

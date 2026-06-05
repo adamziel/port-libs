@@ -476,7 +476,7 @@ final class TableGeometry
     public static function diagnostics(AstNode $table): array
     {
         $diagnostics = self::columnDiagnostics($table);
-        array_push($diagnostics, ...self::widthDiagnostics($table));
+        array_push($diagnostics, ...self::widthDiagnostics($table, $diagnostics !== []));
         array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
         foreach (self::sectionRowGroups($table, null) as $group) {
@@ -533,7 +533,7 @@ final class TableGeometry
     /**
      * @return list<array<string, mixed>>
      */
-    private static function widthDiagnostics(AstNode $table): array
+    private static function widthDiagnostics(AstNode $table, bool $suppressUnderfull = false): array
     {
         $summary = self::columnWidthSummary($table);
         $diagnostics = [];
@@ -554,10 +554,6 @@ final class TableGeometry
             ];
         }
 
-        if (($summary['overfull'] ?? false) !== true) {
-            return $diagnostics;
-        }
-
         $columns = [];
         foreach ($summary['percentWidths'] as $column => $percentWidth) {
             if ($percentWidth !== null) {
@@ -565,16 +561,31 @@ final class TableGeometry
             }
         }
 
-        $diagnostics[] = [
-            'code' => 'table-widths-exceed-full-width',
-            'source' => 'table-widths',
-            'columnCount' => (int) $summary['columnCount'],
-            'columns' => $columns,
-            'widthTotal' => (float) $summary['widthTotal'],
-            'overflowAmount' => (float) $summary['overflowAmount'],
-            'normalizedWidths' => $summary['normalizedWidths'],
-            'percentWidths' => $summary['percentWidths'],
-        ];
+        if (($summary['overfull'] ?? false) === true) {
+            $diagnostics[] = [
+                'code' => 'table-widths-exceed-full-width',
+                'source' => 'table-widths',
+                'columnCount' => (int) $summary['columnCount'],
+                'columns' => $columns,
+                'widthTotal' => (float) $summary['widthTotal'],
+                'overflowAmount' => (float) $summary['overflowAmount'],
+                'normalizedWidths' => $summary['normalizedWidths'],
+                'percentWidths' => $summary['percentWidths'],
+            ];
+        }
+
+        if (!$suppressUnderfull && ($summary['underfull'] ?? false) === true) {
+            $diagnostics[] = [
+                'code' => 'table-widths-underfill-full-width',
+                'source' => 'table-widths',
+                'columnCount' => (int) $summary['columnCount'],
+                'columns' => $columns,
+                'widthTotal' => (float) $summary['widthTotal'],
+                'underflowAmount' => (float) $summary['underflowAmount'],
+                'normalizedWidths' => $summary['normalizedWidths'],
+                'percentWidths' => $summary['percentWidths'],
+            ];
+        }
 
         return $diagnostics;
     }
@@ -883,7 +894,8 @@ final class TableGeometry
      *     missingColumns:list<int>,
      *     overfull:bool,
      *     underfull:bool,
-     *     overflowAmount:float
+     *     overflowAmount:float,
+     *     underflowAmount:float
      * }
      */
     public static function columnWidthSummary(AstNode $table, ?int $columnCount = null): array
@@ -943,6 +955,7 @@ final class TableGeometry
             'overfull' => $overfull,
             'underfull' => $underfull,
             'overflowAmount' => $overfull ? self::roundWidth($widthTotal - 1.0) : 0.0,
+            'underflowAmount' => $underfull ? self::roundWidth(1.0 - $widthTotal) : 0.0,
         ];
     }
 

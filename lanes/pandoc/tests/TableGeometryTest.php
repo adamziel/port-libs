@@ -103,6 +103,31 @@ $buildOverfullColumnWidthDocument = static function (): AstNode {
     ]);
 };
 
+$buildUnderfullColumnWidthDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Underfull source width audit',
+            'alignments' => ['left', 'right', 'center'],
+            'widths' => [0.2, 0.3, 0.4],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildInvalidColumnWidthDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -713,6 +738,41 @@ return [
         $t->same($summary, $packet['widthSummary'] ?? null);
         $t->same(['table-widths-exceed-full-width'], $packet['summary']['diagnosticCodes'] ?? null);
         $t->same([0.4, 0.4, 0.2], array_map(static fn (array $spec): ?float => $spec['normalizedWidth'], $packet['columns']));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'reports underfull relative widths without changing source colgroup handoff' => static function (TestRunner $t) use ($buildUnderfullColumnWidthDocument): void {
+        $document = $buildUnderfullColumnWidthDocument();
+        $table = $document->children[0];
+        $summary = TableGeometry::columnWidthSummary($table);
+        $specs = TableGeometry::columnSpecs($table, 3);
+        $diagnostics = TableGeometry::diagnostics($table);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, $summary['columnCount']);
+        $t->same(true, $summary['hasExplicitWidths']);
+        $t->same(true, $summary['hasCompleteWidths']);
+        $t->same(false, $summary['hasPartialWidths']);
+        $t->same(0.9, $summary['widthTotal']);
+        $t->same(0.0, $summary['overflowAmount']);
+        $t->same(0.1, $summary['underflowAmount']);
+        $t->same(false, $summary['overfull']);
+        $t->same(true, $summary['underfull']);
+        $t->same([], $summary['missingColumns']);
+        $t->same([0.222222, 0.333333, 0.444444], $summary['normalizedWidths']);
+        $t->same([20.0, 30.0, 40.0], $summary['percentWidths']);
+
+        $t->same([0.222222, 0.333333, 0.444444], array_map(static fn (array $spec): ?float => $spec['normalizedWidth'], $specs));
+        $t->same([20.0, 30.0, 40.0], array_map(static fn (array $spec): ?float => $spec['percentWidth'], $specs));
+        $t->same(['table-widths-underfill-full-width'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $diagnostics));
+        $t->same(0.9, $diagnostics[0]['widthTotal'] ?? null);
+        $t->same(0.1, $diagnostics[0]['underflowAmount'] ?? null);
+        $t->same([0, 1, 2], $diagnostics[0]['columns'] ?? null);
+        $t->same($summary, $packet['widthSummary'] ?? null);
+        $t->same(['table-widths-underfill-full-width'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same([0.222222, 0.333333, 0.444444], array_map(static fn (array $spec): ?float => $spec['normalizedWidth'], $packet['columns']));
+        $t->contains('<colgroup><col style="width:20%"/><col style="width:30%"/><col style="width:40%"/></colgroup>', $blocks);
+        $t->contains('<figcaption class="wp-element-caption">Underfull source width audit</figcaption>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'reports invalid relative width values without losing usable column metadata' => static function (TestRunner $t) use ($buildInvalidColumnWidthDocument): void {
