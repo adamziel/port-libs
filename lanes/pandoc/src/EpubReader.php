@@ -25,6 +25,7 @@ final class EpubReader
      * @return array{
      *     document:AstNode,
      *     metadata:array<string, mixed>,
+     *     accessibility:array<string, mixed>,
      *     container:array<string, mixed>,
      *     opfPart:string,
      *     package:array<string, mixed>,
@@ -63,6 +64,7 @@ final class EpubReader
             $opf['guide'],
             $opf['collections'],
             $opf['bindings'],
+            $opf['accessibility'],
             $opf['resourceProperties'],
             $renditions
         );
@@ -70,6 +72,7 @@ final class EpubReader
         return [
             'document' => $document,
             'metadata' => $opf['metadata'],
+            'accessibility' => $opf['accessibility'],
             'container' => $container,
             'opfPart' => $opfPart,
             'package' => $opf['package'],
@@ -116,6 +119,7 @@ final class EpubReader
                 'collections' => $opf['collections'],
                 'renditions' => $renditions,
                 'bindings' => $opf['bindings'],
+                'accessibility' => $opf['accessibility'],
                 'resourceProperties' => $opf['resourceProperties'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
@@ -241,6 +245,7 @@ final class EpubReader
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
+     *     accessibility:array<string, mixed>,
      *     resourceProperties:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
@@ -306,6 +311,7 @@ final class EpubReader
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
+            'accessibility' => $metadata['accessibility'],
             'resourceProperties' => $resourceProperties,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
@@ -633,7 +639,7 @@ final class EpubReader
             $dc['identifier'] ?? []
         );
 
-        return [
+        $metadata = [
             'title' => $dc['title'][0]['text'] ?? '',
             'creators' => array_map(static fn (array $entry): string => $entry['text'], $dc['creator'] ?? []),
             'language' => $dc['language'][0]['text'] ?? null,
@@ -653,6 +659,9 @@ final class EpubReader
             'linksByRel' => self::linksByRel($links),
             'raw' => $raw,
         ];
+        $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
+
+        return $metadata;
     }
 
     /**
@@ -818,8 +827,240 @@ final class EpubReader
 
         $metadata['links'] = $links;
         $metadata['linksByRel'] = self::linksByRel($links);
+        $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function accessibilityMetadataReport(array $metadata): array
+    {
+        $entries = [];
+        $entriesByProperty = [];
+        foreach (($metadata['raw'] ?? []) as $rawEntry) {
+            if (!is_array($rawEntry) || ($rawEntry['type'] ?? null) !== 'meta') {
+                continue;
+            }
+
+            $rawProperty = is_string($rawEntry['property'] ?? null) ? $rawEntry['property'] : null;
+            $rawName = is_string($rawEntry['name'] ?? null) ? $rawEntry['name'] : null;
+            $property = self::canonicalAccessibilityProperty($rawProperty);
+            $source = 'property';
+            if ($property === null) {
+                $property = self::canonicalAccessibilityProperty($rawName);
+                $source = 'name';
+            }
+            if ($property === null) {
+                continue;
+            }
+
+            $text = self::metadataEntryValue($rawEntry);
+            if ($text === '') {
+                continue;
+            }
+
+            $entry = [
+                'property' => $property,
+                'source' => $source,
+                'rawProperty' => $rawProperty,
+                'rawName' => $rawName,
+                'text' => $text,
+                'content' => is_string($rawEntry['content'] ?? null) ? $rawEntry['content'] : null,
+                'id' => is_string($rawEntry['id'] ?? null) ? $rawEntry['id'] : null,
+                'refines' => is_string($rawEntry['refines'] ?? null) ? $rawEntry['refines'] : null,
+                'scheme' => is_string($rawEntry['scheme'] ?? null) ? $rawEntry['scheme'] : null,
+                'language' => is_string($rawEntry['language'] ?? null) ? $rawEntry['language'] : null,
+            ];
+
+            $entries[] = $entry;
+            $entriesByProperty[$property][] = $entry;
+        }
+
+        $accessModeSufficient = [];
+        foreach ($entriesByProperty['accessModeSufficient'] ?? [] as $entry) {
+            $accessModeSufficient[] = [
+                'text' => $entry['text'],
+                'modes' => self::accessModeSufficientModes((string) $entry['text']),
+                'source' => $entry['source'],
+                'id' => $entry['id'],
+                'language' => $entry['language'],
+            ];
+        }
+
+        $linkedRecords = self::accessibilityLinkedRecords(
+            is_array($metadata['links'] ?? null) ? $metadata['links'] : []
+        );
+
+        return [
+            'present' => $entries !== [] || $linkedRecords !== [],
+            'entries' => $entries,
+            'entriesByProperty' => $entriesByProperty,
+            'accessModes' => self::accessibilityValues($entriesByProperty, 'accessMode'),
+            'accessModeSufficient' => $accessModeSufficient,
+            'accessibilityFeatures' => self::accessibilityValues($entriesByProperty, 'accessibilityFeature'),
+            'accessibilityHazards' => self::accessibilityValues($entriesByProperty, 'accessibilityHazard'),
+            'accessibilityControls' => self::accessibilityValues($entriesByProperty, 'accessibilityControl'),
+            'accessibilityApis' => self::accessibilityValues($entriesByProperty, 'accessibilityAPI'),
+            'accessibilitySummary' => self::firstAccessibilityValue($entriesByProperty, 'accessibilitySummary'),
+            'certification' => [
+                'certifiedBy' => self::firstAccessibilityValue($entriesByProperty, 'certifiedBy'),
+                'certifierCredential' => self::firstAccessibilityValue($entriesByProperty, 'certifierCredential'),
+                'certifierReport' => self::firstAccessibilityValue($entriesByProperty, 'certifierReport'),
+                'conformsTo' => self::accessibilityValues($entriesByProperty, 'conformsTo'),
+            ],
+            'linkedRecords' => $linkedRecords,
+            'diagnostics' => [],
+        ];
+    }
+
+    private static function canonicalAccessibilityProperty(?string $property): ?string
+    {
+        if ($property === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($property));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return [
+            'accessmode' => 'accessMode',
+            'schema:accessmode' => 'accessMode',
+            'accessmodesufficient' => 'accessModeSufficient',
+            'schema:accessmodesufficient' => 'accessModeSufficient',
+            'accessibilityapi' => 'accessibilityAPI',
+            'schema:accessibilityapi' => 'accessibilityAPI',
+            'accessibilitycontrol' => 'accessibilityControl',
+            'schema:accessibilitycontrol' => 'accessibilityControl',
+            'accessibilityfeature' => 'accessibilityFeature',
+            'schema:accessibilityfeature' => 'accessibilityFeature',
+            'accessibilityhazard' => 'accessibilityHazard',
+            'schema:accessibilityhazard' => 'accessibilityHazard',
+            'accessibilitysummary' => 'accessibilitySummary',
+            'schema:accessibilitysummary' => 'accessibilitySummary',
+            'certifiedby' => 'certifiedBy',
+            'a11y:certifiedby' => 'certifiedBy',
+            'certifiercredential' => 'certifierCredential',
+            'a11y:certifiercredential' => 'certifierCredential',
+            'certifierreport' => 'certifierReport',
+            'a11y:certifierreport' => 'certifierReport',
+            'conformsto' => 'conformsTo',
+            'dcterms:conformsto' => 'conformsTo',
+        ][$normalized] ?? null;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function metadataEntryValue(array $entry): string
+    {
+        $text = trim((string) ($entry['text'] ?? ''));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return trim((string) ($entry['content'] ?? ''));
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $entriesByProperty
+     *
+     * @return list<string>
+     */
+    private static function accessibilityValues(array $entriesByProperty, string $property): array
+    {
+        $values = [];
+        foreach ($entriesByProperty[$property] ?? [] as $entry) {
+            $text = trim((string) ($entry['text'] ?? ''));
+            if ($text !== '') {
+                $values[$text] = $text;
+            }
+        }
+
+        return array_values($values);
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $entriesByProperty
+     */
+    private static function firstAccessibilityValue(array $entriesByProperty, string $property): ?string
+    {
+        foreach ($entriesByProperty[$property] ?? [] as $entry) {
+            $text = trim((string) ($entry['text'] ?? ''));
+            if ($text !== '') {
+                return $text;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function accessModeSufficientModes(string $value): array
+    {
+        $tokens = preg_split('/[\s,]+/', trim($value)) ?: [];
+        $modes = [];
+        foreach ($tokens as $token) {
+            if ($token === '') {
+                continue;
+            }
+
+            $modes[$token] = $token;
+        }
+
+        return array_values($modes);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function accessibilityLinkedRecords(array $links): array
+    {
+        $records = [];
+        foreach ($links as $link) {
+            if (!is_array($link)) {
+                continue;
+            }
+
+            $rel = is_array($link['rel'] ?? null) ? array_values($link['rel']) : [];
+            $properties = is_array($link['properties'] ?? null) ? array_values($link['properties']) : [];
+            $lowerRel = array_map(static fn (mixed $value): string => strtolower((string) $value), $rel);
+            $lowerProperties = array_map(static fn (mixed $value): string => strtolower((string) $value), $properties);
+            $isAccessibilityRecord = in_array('accessibility', $lowerRel, true)
+                || in_array('accessibility-summary', $lowerRel, true)
+                || in_array('accessibility-metadata', $lowerProperties, true)
+                || in_array('a11y', $lowerProperties, true);
+
+            if (!$isAccessibilityRecord) {
+                continue;
+            }
+
+            $records[] = [
+                'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
+                'rel' => $rel,
+                'href' => is_string($link['href'] ?? null) ? $link['href'] : null,
+                'target' => is_string($link['target'] ?? null) ? $link['target'] : null,
+                'part' => is_string($link['part'] ?? null) ? $link['part'] : null,
+                'external' => (bool) ($link['external'] ?? false),
+                'exists' => (bool) ($link['exists'] ?? false),
+                'byteLength' => is_int($link['byteLength'] ?? null) ? $link['byteLength'] : null,
+                'byteSha256' => is_string($link['byteSha256'] ?? null) ? $link['byteSha256'] : null,
+                'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+                'properties' => $properties,
+                'diagnostics' => is_array($link['diagnostics'] ?? null) ? array_values($link['diagnostics']) : [],
+            ];
+        }
+
+        return $records;
     }
 
     /**
@@ -2784,6 +3025,7 @@ final class EpubReader
      * @param array<string, mixed> $guide
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
+     * @param array<string, mixed> $accessibility
      * @param array<string, mixed> $resourceProperties
      * @param array<string, mixed> $renditions
      */
@@ -2796,6 +3038,7 @@ final class EpubReader
         array $guide,
         array $collections,
         array $bindings,
+        array $accessibility,
         array $resourceProperties,
         array $renditions
     ): AstNode {
@@ -2855,6 +3098,7 @@ final class EpubReader
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
+            'accessibility' => $accessibility,
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
             'renditions' => $renditions,

@@ -25,6 +25,17 @@ $opfXml = <<<'XML'
     <dc:creator id="creator">Migration Desk</dc:creator>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
+    <meta property="schema:accessMode">textual</meta>
+    <meta property="schema:accessMode">visual</meta>
+    <meta property="schema:accessModeSufficient">textual</meta>
+    <meta property="schema:accessibilityFeature">alternativeText</meta>
+    <meta property="schema:accessibilityFeature">MathML</meta>
+    <meta property="schema:accessibilityFeature">pageNavigation</meta>
+    <meta property="schema:accessibilityHazard">noFlashingHazard</meta>
+    <meta property="schema:accessibilityHazard">noSoundHazard</meta>
+    <meta property="schema:accessibilitySummary">Images have alternative text and MathML is preserved for review.</meta>
+    <meta property="a11y:certifiedBy">Migration Desk</meta>
+    <meta property="dcterms:conformsTo">EPUB Accessibility 1.1 - WCAG 2.1 AA</meta>
     <meta refines="#source-id" property="identifier-type" scheme="onix:codelist5">15</meta>
     <meta refines="#creator" property="file-as">Desk, Migration</meta>
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
@@ -33,6 +44,7 @@ $opfXml = <<<'XML'
     <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
     <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
+    <link id="a11y-record" rel="record accessibility-summary" href="meta/accessibility.json" media-type="application/ld+json" properties="accessibility-metadata schema-org"/>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -192,6 +204,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/package.opf', 'data' => $opfXml],
     ['name' => 'EPUB/fixed/package.opf', 'data' => $alternateOpfXml],
     ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
+    ['name' => 'EPUB/meta/accessibility.json', 'data' => '{"@context":"https://schema.org","accessibilitySummary":"Reviewer accessibility record"}'],
     ['name' => 'EPUB/nav.xhtml', 'data' => $navXhtml],
     ['name' => 'EPUB/text/chapter.xhtml', 'data' => $chapterXhtml],
     ['name' => 'EPUB/text/slideshow-fallback.xhtml', 'data' => $slideshowFallbackXhtml],
@@ -302,6 +315,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['scheme'] ?? null) !== 'marc:relators') {
         throw new RuntimeException('Expected EPUB OPF creator role scheme to stay reviewable');
+    }
+    if (($result['accessibility']['accessModes'] ?? []) !== ['textual', 'visual']) {
+        throw new RuntimeException('Expected EPUB accessibility access modes to be summarized');
+    }
+    if (($result['accessibility']['accessibilityFeatures'] ?? []) !== ['alternativeText', 'MathML', 'pageNavigation']) {
+        throw new RuntimeException('Expected EPUB accessibility feature metadata to be summarized');
+    }
+    if (($result['accessibility']['accessibilityHazards'] ?? []) !== ['noFlashingHazard', 'noSoundHazard']) {
+        throw new RuntimeException('Expected EPUB accessibility hazard metadata to be summarized');
+    }
+    if (($result['accessibility']['certification']['conformsTo'][0] ?? null) !== 'EPUB Accessibility 1.1 - WCAG 2.1 AA') {
+        throw new RuntimeException('Expected EPUB accessibility conformance metadata to be summarized');
+    }
+    if (($result['accessibility']['linkedRecords'][0]['target'] ?? null) !== '/EPUB/meta/accessibility.json') {
+        throw new RuntimeException('Expected EPUB linked accessibility record to resolve to a package part');
+    }
+    if (($result['document']->attr('accessibility')['accessibilitySummary'] ?? null) !== 'Images have alternative text and MathML is preserved for review.') {
+        throw new RuntimeException('Expected WordPress document handoff to expose EPUB accessibility summary');
     }
     if (($result['resourceProperties']['summary']['mathmlCount'] ?? null) !== 1 || ($result['resourceProperties']['summary']['svgCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB resource-property report to count MathML and SVG content markers');
@@ -447,6 +478,11 @@ echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? fa
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";
 echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
+echo 'accessibilityModes=' . implode(',', $result['accessibility']['accessModes'] ?? []) . "\n";
+echo 'accessibilityFeatures=' . implode(',', $result['accessibility']['accessibilityFeatures'] ?? []) . "\n";
+echo 'accessibilityHazards=' . implode(',', $result['accessibility']['accessibilityHazards'] ?? []) . "\n";
+echo 'accessibilityConformsTo=' . implode(',', $result['accessibility']['certification']['conformsTo'] ?? []) . "\n";
+echo 'accessibilityRecord=' . ($result['accessibility']['linkedRecords'][0]['target'] ?? '') . "\n";
 echo 'resourceReviewItems=' . ($result['resourceProperties']['summary']['reviewRequiredCount'] ?? 0) . "\n";
 echo 'chapterReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) . "\n";
 echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) . "\n";

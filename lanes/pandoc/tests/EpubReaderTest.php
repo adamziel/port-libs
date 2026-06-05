@@ -875,6 +875,70 @@ return [
         $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
         $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
     },
+    'reports EPUB accessibility metadata and linked records for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $a11yRecordBytes = '{"@context":"https://schema.org","accessibilitySummary":"Reviewer accessibility record"}';
+        $opfWithAccessibility = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta property="schema:accessMode">textual</meta>'
+            . '<meta property="schema:accessMode">visual</meta>'
+            . '<meta property="schema:accessModeSufficient">textual</meta>'
+            . '<meta property="schema:accessModeSufficient">textual visual</meta>'
+            . '<meta property="schema:accessibilityFeature">alternativeText</meta>'
+            . '<meta property="schema:accessibilityFeature">MathML</meta>'
+            . '<meta property="schema:accessibilityFeature">pageNavigation</meta>'
+            . '<meta name="schema:accessibilityHazard" content="noFlashingHazard"/>'
+            . '<meta property="schema:accessibilityHazard" content="noSoundHazard"/>'
+            . '<meta property="schema:accessibilitySummary">Images have alternative text and MathML is preserved for review.</meta>'
+            . '<meta property="a11y:certifiedBy">Migration Desk</meta>'
+            . '<meta property="a11y:certifierCredential">WAS reviewer</meta>'
+            . '<meta property="a11y:certifierReport">https://example.invalid/a11y/report</meta>'
+            . '<meta property="dcterms:conformsTo">EPUB Accessibility 1.1 - WCAG 2.1 AA</meta>',
+            $opfXml
+        );
+        $opfWithAccessibility = str_replace(
+            '</metadata>',
+            '<link id="a11y-record" rel="record accessibility-summary" href="meta/accessibility.json" media-type="application/ld+json" properties="accessibility-metadata schema-org"/>'
+            . '</metadata>',
+            $opfWithAccessibility
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithAccessibility,
+            null,
+            [
+                ['name' => 'OEBPS/meta/accessibility.json', 'data' => $a11yRecordBytes],
+            ]
+        ));
+
+        $accessibility = $result['accessibility'];
+        $t->same(true, $accessibility['present']);
+        $t->same(['textual', 'visual'], $accessibility['accessModes']);
+        $t->same(['alternativeText', 'MathML', 'pageNavigation'], $accessibility['accessibilityFeatures']);
+        $t->same(['noFlashingHazard', 'noSoundHazard'], $accessibility['accessibilityHazards']);
+        $t->same('Images have alternative text and MathML is preserved for review.', $accessibility['accessibilitySummary']);
+        $t->same('textual', $accessibility['accessModeSufficient'][0]['text']);
+        $t->same(['textual'], $accessibility['accessModeSufficient'][0]['modes']);
+        $t->same(['textual', 'visual'], $accessibility['accessModeSufficient'][1]['modes']);
+        $t->same('Migration Desk', $accessibility['certification']['certifiedBy']);
+        $t->same('WAS reviewer', $accessibility['certification']['certifierCredential']);
+        $t->same('https://example.invalid/a11y/report', $accessibility['certification']['certifierReport']);
+        $t->same(['EPUB Accessibility 1.1 - WCAG 2.1 AA'], $accessibility['certification']['conformsTo']);
+        $t->same('schema:accessMode', $accessibility['entriesByProperty']['accessMode'][0]['rawProperty']);
+        $t->same('property', $accessibility['entriesByProperty']['accessMode'][0]['source']);
+        $t->same('schema:accessibilityHazard', $accessibility['entriesByProperty']['accessibilityHazard'][0]['rawName']);
+        $t->same('name', $accessibility['entriesByProperty']['accessibilityHazard'][0]['source']);
+        $t->same(1, count($accessibility['linkedRecords']));
+        $t->same('a11y-record', $accessibility['linkedRecords'][0]['id']);
+        $t->same('/OEBPS/meta/accessibility.json', $accessibility['linkedRecords'][0]['target']);
+        $t->same(hash('sha256', $a11yRecordBytes), $accessibility['linkedRecords'][0]['byteSha256']);
+        $t->same(['record', 'accessibility-summary'], $accessibility['linkedRecords'][0]['rel']);
+        $t->same(['accessibility-metadata', 'schema-org'], $accessibility['linkedRecords'][0]['properties']);
+        $t->same([], $accessibility['diagnostics']);
+        $t->same($accessibility, $result['metadata']['accessibility']);
+        $t->same($accessibility, $result['importReport']['accessibility']);
+        $t->same($accessibility, $result['document']->attr('accessibility'));
+    },
     'summarizes EPUB manifest resource properties for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithResourceProperties = str_replace(
             '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
