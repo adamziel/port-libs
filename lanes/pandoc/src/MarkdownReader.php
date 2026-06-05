@@ -29,6 +29,9 @@ final class MarkdownReader
     /** @var list<array<string, string>> */
     private array $yamlMetadataDiagnostics = [];
 
+    /** @var list<array<string, string>> */
+    private array $yamlMetadataTagProvenance = [];
+
     private bool $resolveFootnoteReferences = true;
 
     /**
@@ -404,16 +407,22 @@ final class MarkdownReader
             if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
                 $previousYamlMetadataAnchors = $this->yamlMetadataAnchors;
                 $previousYamlMetadataDiagnostics = $this->yamlMetadataDiagnostics;
+                $previousYamlMetadataTagProvenance = $this->yamlMetadataTagProvenance;
                 $this->yamlMetadataAnchors = [];
                 $this->yamlMetadataDiagnostics = [];
+                $this->yamlMetadataTagProvenance = [];
                 try {
                     $metadata = $this->parseYamlMetadataLines($yamlLines);
                     if ($this->yamlMetadataDiagnostics !== []) {
                         $metadata['__yamlMetadataDiagnostics'] = $this->yamlMetadataDiagnostics;
                     }
+                    if ($this->yamlMetadataTagProvenance !== []) {
+                        $metadata['__yamlMetadataTagProvenance'] = $this->yamlMetadataTagProvenance;
+                    }
                 } finally {
                     $this->yamlMetadataAnchors = $previousYamlMetadataAnchors;
                     $this->yamlMetadataDiagnostics = $previousYamlMetadataDiagnostics;
+                    $this->yamlMetadataTagProvenance = $previousYamlMetadataTagProvenance;
                 }
                 if ($metadata === []) {
                     return null;
@@ -437,12 +446,23 @@ final class MarkdownReader
     {
         $currentDiagnostics = $this->yamlMetadataDiagnosticList($current['__yamlMetadataDiagnostics'] ?? []);
         $nextDiagnostics = $this->yamlMetadataDiagnosticList($next['__yamlMetadataDiagnostics'] ?? []);
-        unset($current['__yamlMetadataDiagnostics'], $next['__yamlMetadataDiagnostics']);
+        $currentTags = $this->yamlMetadataTagProvenanceList($current['__yamlMetadataTagProvenance'] ?? []);
+        $nextTags = $this->yamlMetadataTagProvenanceList($next['__yamlMetadataTagProvenance'] ?? []);
+        unset(
+            $current['__yamlMetadataDiagnostics'],
+            $next['__yamlMetadataDiagnostics'],
+            $current['__yamlMetadataTagProvenance'],
+            $next['__yamlMetadataTagProvenance']
+        );
 
         $merged = array_replace($current, $next);
         $diagnostics = array_merge($currentDiagnostics, $nextDiagnostics);
         if ($diagnostics !== []) {
             $merged['__yamlMetadataDiagnostics'] = $diagnostics;
+        }
+        $tagProvenance = array_merge($currentTags, $nextTags);
+        if ($tagProvenance !== []) {
+            $merged['__yamlMetadataTagProvenance'] = $tagProvenance;
         }
 
         return $merged;
@@ -468,6 +488,28 @@ final class MarkdownReader
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function yamlMetadataTagProvenanceList(mixed $value): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return [];
+        }
+
+        $provenance = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $provenance[] = array_filter(
+                    $item,
+                    static fn (mixed $entry): bool => is_string($entry)
+                );
+            }
+        }
+
+        return $provenance;
     }
 
     /**
@@ -2295,6 +2337,10 @@ final class MarkdownReader
             break;
         }
 
+        foreach ($tags as $tag) {
+            $this->recordYamlMetadataTagProvenance($tag);
+        }
+
         return [$value, $anchorName, $tags];
     }
 
@@ -2349,6 +2395,21 @@ final class MarkdownReader
         }
 
         return $normalized;
+    }
+
+    private function recordYamlMetadataTagProvenance(string $tag): void
+    {
+        $normalized = $this->normalizeYamlTag($tag);
+        if ($tag === '!' || in_array($normalized, ['str', 'int', 'float', 'bool', 'null', 'timestamp', 'binary', 'set', 'omap', 'pairs', 'seq', 'map'], true)) {
+            return;
+        }
+
+        $this->yamlMetadataTagProvenance[] = [
+            'type' => 'yaml-tag',
+            'tag' => str_starts_with($tag, '!') ? $tag : '!<' . $tag . '>',
+            'normalizedTag' => $normalized,
+            'kind' => str_starts_with($tag, '!') ? 'local' : 'verbatim',
+        ];
     }
 
     private function parseYamlExplicitTaggedScalar(string $value, string $tag): mixed
@@ -2629,9 +2690,14 @@ final class MarkdownReader
     {
         $meta = [];
         $diagnostics = [];
+        $tagProvenance = [];
         foreach ($metadata as $key => $value) {
             if ($key === '__yamlMetadataDiagnostics') {
                 $diagnostics = $this->yamlMetadataDiagnosticList($value);
+                continue;
+            }
+            if ($key === '__yamlMetadataTagProvenance') {
+                $tagProvenance = $this->yamlMetadataTagProvenanceList($value);
                 continue;
             }
 
@@ -2682,6 +2748,9 @@ final class MarkdownReader
         $attrs = $meta === [] ? [] : ['meta' => $meta];
         if ($diagnostics !== []) {
             $attrs['yamlMetadataDiagnostics'] = $diagnostics;
+        }
+        if ($tagProvenance !== []) {
+            $attrs['yamlMetadataTagProvenance'] = $tagProvenance;
         }
 
         return $attrs;

@@ -1764,6 +1764,55 @@ return [
         $t->same('verbatim-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="verbatim-tag-yaml-body">Verbatim tag YAML body</h1>', $blocks);
     },
+    'records pandoc yaml custom tag provenance without changing metadata values' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: !wp-title Tagged **Packet**',
+            'review: !<tag:example.test,2026:review>',
+            '  owner: !wp-reviewer Import Desk',
+            '  labels: [!wp-label migration, !wp-label wordpress]',
+            '  ticket: !!str 007',
+            'flow-review: {? !<tag:example.test,2026:key> "source:key": !<tag:example.test,2026:value> metadata value, status: ! queued}',
+            '...',
+            '',
+            '# Tag provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Tagged **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same(['migration', 'wordpress'], $meta['review']['labels']);
+        $t->same('007', $meta['review']['ticket']);
+        $t->same('metadata value', $meta['flow-review']['source:key']);
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same(false, array_key_exists('__yamlMetadataTagProvenance', $meta));
+        $t->same(7, count($provenance));
+        $t->same([
+            '!wp-title',
+            '!<tag:example.test,2026:review>',
+            '!wp-reviewer',
+            '!wp-label',
+            '!wp-label',
+            '!<tag:example.test,2026:key>',
+            '!<tag:example.test,2026:value>',
+        ], array_column($provenance, 'tag'));
+        $t->same([
+            'local',
+            'verbatim',
+            'local',
+            'local',
+            'local',
+            'verbatim',
+            'verbatim',
+        ], array_column($provenance, 'kind'));
+        $t->same(false, in_array('!!str', array_column($provenance, 'tag'), true));
+        $t->same(false, in_array('!', array_column($provenance, 'tag'), true));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('tag-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="tag-provenance-body">Tag provenance body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit set tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

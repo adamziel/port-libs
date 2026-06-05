@@ -276,6 +276,7 @@ MARKDOWN;
 $document = (new MarkdownReader())->read($markdown);
 $meta = $document->attr('meta', []);
 $yamlDiagnostics = $document->attr('yamlMetadataDiagnostics', []);
+$yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -353,6 +354,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['flow-non-specific-review']['labels'] ?? []) !== ['yaml', 'metadata']) {
         throw new RuntimeException('YAML metadata self-test missing bare non-specific tag flow metadata');
+    }
+    $yamlTags = array_column($yamlTagProvenance, 'tag');
+    if (!in_array('!wp-reviewer', $yamlTags, true)) {
+        throw new RuntimeException('YAML metadata self-test missing local tag provenance');
+    }
+    if (!in_array('!<tag:example.test,2026:reviewer>', $yamlTags, true)) {
+        throw new RuntimeException('YAML metadata self-test missing verbatim tag provenance');
+    }
+    if (in_array('!!str', $yamlTags, true) || in_array('!', $yamlTags, true)) {
+        throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
     }
     if (($meta['verbatim-tag-review']['owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing verbatim tag owner metadata');
@@ -693,6 +704,7 @@ echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['ke
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'YAML alias diagnostics: ' . count($yamlDiagnostics) . "\n";
+echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
