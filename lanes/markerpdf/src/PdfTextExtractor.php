@@ -19543,6 +19543,10 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($this->inlineImageUsesUnsupportedFilter($filters)) {
+            return false;
+        }
+
         $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
         if ($filters === []) {
             return $expectedLength === null || strlen($candidate) >= $expectedLength;
@@ -19582,6 +19586,10 @@ final class PdfTextExtractor
             || (
                 $this->inlineImageUsesCcittFaxDecode($filters)
                 && $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
+            )
+            || (
+                $this->inlineImageUsesUnsupportedFilter($filters)
+                && $this->inlineUnsupportedFilterCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
             );
     }
 
@@ -19597,7 +19605,10 @@ final class PdfTextExtractor
             return false;
         }
 
-        $previewFilters = ['JBIG2Decode', 'CCITTFaxDecode', 'CCF'];
+        $previewFilters = array_merge(
+            ['JBIG2Decode', 'CCITTFaxDecode', 'CCF'],
+            $this->inlineImageUnsupportedFilters($filters)
+        );
         $hasOpenEndedPreviewFilter = false;
         foreach ($filters as $filter) {
             if (in_array($filter, $previewFilters, true)) {
@@ -19668,6 +19679,54 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function inlineImageUsesUnsupportedFilter(array $filters): bool
+    {
+        return $this->inlineImageUnsupportedFilters($filters) !== [];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @return list<string>
+     */
+    private function inlineImageUnsupportedFilters(array $filters): array
+    {
+        $unsupported = [];
+        foreach ($filters as $filter) {
+            if ($filter === null || $this->inlineImageFilterHasTokenizerBoundary($filter)) {
+                continue;
+            }
+
+            $unsupported[] = $filter;
+        }
+
+        return $unsupported;
+    }
+
+    private function inlineImageFilterHasTokenizerBoundary(string $filter): bool
+    {
+        return in_array($filter, [
+            'ASCII85Decode',
+            'A85',
+            'ASCIIHexDecode',
+            'AHx',
+            'FlateDecode',
+            'Fl',
+            'LZWDecode',
+            'LZW',
+            'RunLengthDecode',
+            'RL',
+            'DCTDecode',
+            'DCT',
+            'JPXDecode',
+            'JBIG2Decode',
+            'CCITTFaxDecode',
+            'CCF',
+        ], true);
     }
 
     /**
@@ -19783,6 +19842,28 @@ final class PdfTextExtractor
         }
 
         return $this->inlineCcittFaxCandidateState($bytes);
+    }
+
+    /**
+     * Unknown inline image filters are raster/decryption payloads from this
+     * native tokenizer's point of view. Keep them closed like preview-only
+     * image data instead of letting delimiter-looking bytes reopen text parse.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineUnsupportedFilterCandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
+    {
+        $unsupportedFilters = $this->inlineImageUnsupportedFilters($filters);
+        if ($unsupportedFilters === []) {
+            return 'unknown';
+        }
+
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, $unsupportedFilters);
+        if ($bytes === null) {
+            return 'unknown';
+        }
+
+        return rtrim($bytes, "\x00\t\n\f\r ") === '' ? 'unknown' : 'incomplete';
     }
 
     /**

@@ -172,6 +172,48 @@ $inlineImageTokenizerMultipleCcittPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerUnsupportedFilterPdf = static function (): string {
+    $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Unsupported Inline Payload Noise) Tj ET rawtail';
+    $content = "BT /F1 12 Tf 72 720 Td (Before Unsupported Inline) Tj ET\n"
+        . "BI /W 8 /H 1 /CS /G /BPC 8 /F /Crypt ID\n"
+        . $payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 704 Td (After Unsupported Inline) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
+$inlineImageTokenizerWrappedUnsupportedFilterPdf = static function (): string {
+    $runLengthEncode = static function (string $bytes): string {
+        $encoded = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += 128) {
+            $chunk = substr($bytes, $offset, 128);
+            $encoded .= chr(strlen($chunk) - 1) . $chunk;
+        }
+
+        return $encoded . chr(128);
+    };
+
+    $payload = $runLengthEncode('wrapped EI BT /F1 12 Tf 72 660 Td (Wrapped Unsupported Inline Payload Noise) Tj ET rawtail');
+    $content = "BT /F1 12 Tf 72 720 Td (Before Wrapped Unsupported Inline) Tj ET\n"
+        . "BI /W 8 /H 1 /CS /G /BPC 8 /F [/RL /Crypt] ID\n"
+        . $payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 704 Td (After Wrapped Unsupported Inline) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -367,5 +409,43 @@ return [
         $t->true(!str_contains($plainText, 'First CCITT Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'Second CCF Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'keeps unsupported inline image filter payload closed across delimiter-looking EI bytes' => static function (TestRunner $t) use ($inlineImageTokenizerUnsupportedFilterPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerUnsupportedFilterPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Unsupported Inline',
+            'After Unsupported Inline',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Unsupported Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'Crypt'));
+    },
+    'keeps wrapped unsupported inline image filter chains closed before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerWrappedUnsupportedFilterPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerWrappedUnsupportedFilterPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Wrapped Unsupported Inline',
+            'After Wrapped Unsupported Inline',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Wrapped Unsupported Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'Crypt'));
     },
 ];

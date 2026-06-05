@@ -49,6 +49,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "\x00\x01\x02 EI BT /F1 12 Tf 72 642 Td (Raw JBIG2 Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 644 Td (After Raw JBIG2 Boundary) Tj ET\n"
+    . "BI /W 8 /H 1 /CS /G /BPC 8 /F /Crypt ID\n"
+    . "abc EI BT /F1 12 Tf 72 638 Td (Unsupported Inline Payload Noise) Tj ET rawtail\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 640 Td (After Unsupported Filter Boundary) Tj ET\n"
     . "BT /F1 12 Tf 72 672 Td (After Real Inline Image) Tj ET";
 
 $pdf = "%PDF-1.4\n"
@@ -100,7 +104,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, ignores nested modifier-dictionary decoys, and preserves slash-delimited BI image payload boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, ignores nested modifier-dictionary decoys, and preserves slash-delimited plus unsupported-filter BI image payload boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -120,6 +124,9 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'raw_jbig2_segment_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Raw JBIG2 Inline Payload Noise')
         && !str_contains($plainText, 'rawtail')
         && str_contains($plainText, 'After Raw JBIG2 Boundary'),
+    'unsupported_inline_filter_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Unsupported Inline Payload Noise')
+        && !str_contains($plainText, 'Crypt')
+        && str_contains($plainText, 'After Unsupported Filter Boundary'),
     'preview_only_ccitt_payload_excluded_until_safe_boundary' => !str_contains($ccittPlainText, 'CCITT Inline Payload Noise')
         && !str_contains($ccittPlainText, 'rawtail')
         && str_contains($ccittPlainText, 'Before CCITT Boundary')
