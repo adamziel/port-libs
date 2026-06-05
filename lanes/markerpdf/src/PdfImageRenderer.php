@@ -7325,7 +7325,7 @@ final class PdfImageRenderer
             $offset = $streamStart;
             while (($markerOffset = strpos($value, $payloadMarker, $offset)) !== false) {
                 $terminator = $this->skipPdfWhitespace($value, $markerOffset + strlen($payloadMarker));
-                if ($this->streamEndKeywordAt($value, $terminator)) {
+                if ($this->streamEndTerminatorAt($value, $terminator, $streamStart)) {
                     $candidateTerminators[] = $terminator;
                 }
                 $offset = $markerOffset + 1;
@@ -7334,7 +7334,7 @@ final class PdfImageRenderer
 
         $offset = $streamStart;
         while (($terminator = strpos($value, 'endstream', $offset)) !== false) {
-            if ($this->streamEndKeywordAt($value, $terminator)) {
+            if ($this->streamEndTerminatorAt($value, $terminator, $streamStart)) {
                 $candidateTerminators[] = $terminator;
             }
             $offset = $terminator + strlen('endstream');
@@ -7384,7 +7384,7 @@ final class PdfImageRenderer
         $lastCompleteTerminator = null;
         foreach ($this->dctPreviewEoiEndOffsets($value, $jpegStart) as $eoiEnd) {
             $terminator = $this->skipDctPreviewPadding($value, $eoiEnd);
-            if ($this->streamEndKeywordAt($value, $terminator)) {
+            if ($this->streamEndTerminatorAt($value, $terminator, $streamStart)) {
                 $lastCompleteTerminator = $terminator;
             }
         }
@@ -7415,7 +7415,7 @@ final class PdfImageRenderer
         $offset = $streamStart;
         while (($terminator = strpos($value, 'endstream', $offset)) !== false) {
             $offset = $terminator + strlen('endstream');
-            if (!$this->streamEndKeywordAt($value, $terminator)) {
+            if (!$this->streamEndTerminatorAt($value, $terminator, $streamStart)) {
                 continue;
             }
 
@@ -7677,6 +7677,20 @@ final class PdfImageRenderer
 
         $after = $offset + 9;
         return $after >= strlen($value) || ctype_space($value[$after]);
+    }
+
+    private function streamEndTerminatorAt(string $value, int $offset, int $streamStart): bool
+    {
+        if (!$this->streamEndKeywordAt($value, $offset)) {
+            return false;
+        }
+
+        if ($offset <= $streamStart) {
+            return true;
+        }
+
+        $previous = $value[$offset - 1] ?? '';
+        return $previous === "\n" || $previous === "\r";
     }
 
     private function stripStreamTerminatingLineEnding(string $stream): string
