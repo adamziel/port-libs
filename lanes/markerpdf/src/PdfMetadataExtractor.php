@@ -4488,6 +4488,9 @@ final class PdfMetadataExtractor
         if ($entry['object'] !== null) {
             $metadata['object_number'] = $entry['object'];
         }
+        if (isset($entry['generation'])) {
+            $metadata['object_generation'] = $entry['generation'];
+        }
 
         $filter = $this->dictionaryNameValue($dictionary, 'Filter', $objects)
             ?? $this->dictionaryStringValue($dictionary, 'Filter');
@@ -4868,7 +4871,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null, source: string}|null
+     * @return array{body: string, object: int|null, generation?: int, source: string}|null
      */
     private function encryptionDictionaryEntry(string $pdfBytes, array $objects): ?array
     {
@@ -4913,7 +4916,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{parsed: bool, entry: array{body: string, object: int|null, source: string}|null}
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string}|null}
      */
     private function trailerEncryptionDictionaryEntryFromStartxrefChain(string $pdfBytes, array $objects): array
     {
@@ -4935,7 +4938,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @param array<int, true> $seenOffsets
-     * @return array{parsed: bool, entry: array{body: string, object: int|null, source: string}|null}
+     * @return array{parsed: bool, entry: array{body: string, object: int|null, generation?: int, source: string}|null}
      */
     private function trailerEncryptionDictionaryEntryAtOffsetChain(
         string $pdfBytes,
@@ -4999,7 +5002,7 @@ final class PdfMetadataExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{body: string, object: int|null, source: string}|null
+     * @return array{body: string, object: int|null, generation?: int, source: string}|null
      */
     private function resolvedEncryptionDictionary(string $value, array $objects, string $source): ?array
     {
@@ -5008,16 +5011,19 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        if (preg_match('/^(\d+)\s+\d+\s+R\b/s', $trimmed, $match) === 1) {
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $trimmed, $match) === 1) {
             $objectNumber = (int) $match[1];
-            if (!isset($objects[$objectNumber])) {
+            $generation = (int) $match[2];
+            $objectBody = $this->objectBodyForReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
                 return null;
             }
 
-            $dictionary = $this->dictionaryObjectBody($objects[$objectNumber]);
+            $dictionary = $this->dictionaryObjectBody($objectBody);
             return $dictionary === null ? null : [
                 'body' => $dictionary,
                 'object' => $objectNumber,
+                'generation' => $generation,
                 'source' => $source,
             ];
         }
@@ -8676,8 +8682,8 @@ final class PdfMetadataExtractor
     }
 
     /**
-     * Incremental xref updates can name the current catalog or Info generation
-     * in the latest trailer while carrying damaged explicit offsets for those
+     * Incremental xref updates can name the current catalog, Info, or Encrypt
+     * generation in the latest trailer while carrying damaged explicit offsets for those
      * rows. Keep that latest trailer generation authoritative instead of
      * falling back to stale /Prev metadata.
      *
@@ -8693,7 +8699,7 @@ final class PdfMetadataExtractor
         }
 
         $repaired = $objects;
-        foreach (['Root', 'Info'] as $name) {
+        foreach (['Root', 'Info', 'Encrypt'] as $name) {
             $reference = $this->objectReferenceFromValue($this->dictionaryTopLevelRawValue($trailer, $name));
             if ($reference === null || $reference['generation'] <= 0) {
                 continue;

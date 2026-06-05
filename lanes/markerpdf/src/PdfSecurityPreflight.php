@@ -5064,6 +5064,7 @@ final class PdfSecurityPreflight
             'is_encrypted' => true,
             'source' => $encryption['source'] ?? null,
             'object_number' => $encryption['object_number'] ?? null,
+            'object_generation' => $encryption['object_generation'] ?? null,
             'filter' => $encryption['filter'] ?? null,
             'subfilter' => $encryption['subfilter'] ?? null,
             'algorithm' => $encryption['algorithm'] ?? null,
