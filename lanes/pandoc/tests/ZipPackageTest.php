@@ -217,6 +217,55 @@ $buildDuplicateLocalOffsetPackage = static function () use ($crc32, $buildUnicod
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
 };
+$buildCentralDirectorySignaturePackage = static function () use ($crc32): string {
+    $name = 'word/document.xml';
+    $data = '<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+    $centralDirectorySignature = pack('Vv', 0x05054b50, strlen('central-signature')) . 'central-signature';
+
+    return $body
+        . $central
+        . $centralDirectorySignature
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 
 return [
     'reads current zip package central directory and stored deflated parts' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
@@ -540,6 +589,10 @@ return [
 
     'rejects duplicate zip local header offsets before package import preflight' => static function (TestRunner $t) use ($buildDuplicateLocalOffsetPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildDuplicateLocalOffsetPackage()));
+    },
+
+    'rejects zip central directory digital signatures before package import preflight' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildCentralDirectorySignaturePackage()));
     },
 
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {

@@ -690,6 +690,55 @@ $buildDuplicateLocalOffsetBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
 };
+$buildCentralDirectorySignatureBackedPackage = static function () use ($crc32): string {
+    $name = 'word/document.xml';
+    $data = '<w:document><w:body><w:p>Signed central directory should stay blocked</w:p></w:body></w:document>';
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+    $centralDirectorySignature = pack('Vv', 0x05054b50, strlen('central-signature')) . 'central-signature';
+
+    return $body
+        . $central
+        . $centralDirectorySignature
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildEncryptedMetadataBackedPackage = static function (int $flags) use ($crc32): string {
     $name = 'word/media/encrypted-review.xml';
     $data = "Encrypted metadata should stay blocked\n";
@@ -952,6 +1001,12 @@ try {
     ZipPackage::fromString($buildDuplicateLocalOffsetBackedPackage());
 } catch (RuntimeException $exception) {
     $duplicateLocalOffsetRejected = str_contains($exception->getMessage(), 'Duplicate ZIP local header offset');
+}
+$centralDirectorySignatureRejected = false;
+try {
+    ZipPackage::fromString($buildCentralDirectorySignatureBackedPackage());
+} catch (RuntimeException $exception) {
+    $centralDirectorySignatureRejected = str_contains($exception->getMessage(), 'central-directory digital signature');
 }
 $strongEncryptionRejected = false;
 try {
@@ -1276,6 +1331,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected duplicate ZIP local header offsets to be rejected before media import');
     }
 
+    if (!$centralDirectorySignatureRejected) {
+        throw new RuntimeException('Expected ZIP central-directory digital signatures to be rejected before media import');
+    }
+
     if (!$strongEncryptionRejected) {
         throw new RuntimeException('Expected ZIP strong-encryption metadata to be rejected before media import');
     }
@@ -1357,6 +1416,7 @@ echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";

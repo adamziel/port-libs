@@ -8,6 +8,7 @@ final class ZipPackage
 {
     private const EOCD_SIGNATURE = "PK\x05\x06";
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
+    private const CENTRAL_DIRECTORY_DIGITAL_SIGNATURE = "PK\x05\x05";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
     private const ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x0001;
     private const STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG = 0x0040;
@@ -173,8 +174,17 @@ final class ZipPackage
             $cursor += 46 + $variableLength;
         }
 
-        if ($cursor !== $centralDirectoryOffset + $centralDirectorySize) {
-            throw new \RuntimeException('Central directory size does not match parsed ZIP entries');
+        $centralDirectoryEnd = $centralDirectoryOffset + $centralDirectorySize;
+        if ($cursor !== $centralDirectoryEnd) {
+            self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+        }
+
+        if ($centralDirectoryEnd !== $eocdOffset) {
+            self::rejectUnexpectedCentralDirectoryTail(
+                $bytes,
+                $centralDirectoryEnd,
+                'between the central directory and end-of-central-directory record'
+            );
         }
 
         $packageComment = substr($bytes, $eocdOffset + 22, $packageCommentLength);
@@ -677,6 +687,17 @@ final class ZipPackage
         }
 
         throw new \RuntimeException('ZIP end-of-central-directory record not found');
+    }
+
+    private static function rejectUnexpectedCentralDirectoryTail(string $bytes, int $offset, string $label): void
+    {
+        if (substr($bytes, $offset, 4) === self::CENTRAL_DIRECTORY_DIGITAL_SIGNATURE) {
+            throw new \RuntimeException(
+                'ZIP central-directory digital signature records are not supported by the pandoc package reader'
+            );
+        }
+
+        throw new \RuntimeException("Unexpected ZIP bytes {$label}");
     }
 
     private function readCompressedEntryBytes(ZipPackageEntry $entry): string
