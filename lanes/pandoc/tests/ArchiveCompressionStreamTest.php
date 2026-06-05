@@ -207,6 +207,38 @@ return [
         $t->same($documentBytes, $roundTrip->read('/' . $documentName));
     },
 
+    'builds and reads global pax metadata for tar review packets' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"global-pax","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/word/document.xml',
+                'data' => '<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>',
+            ],
+        ], [
+            'globalPaxHeaders' => [
+                'comment' => 'wordpress import review packet',
+                'hdrcharset' => 'BINARY',
+                'LIBARCHIVE.creationtime' => '1780479036',
+            ],
+        ]);
+        $roundTrip = TarArchive::fromString($archive->bytes());
+        $manifest = $roundTrip->entry('/packet/manifest.json');
+        $document = $roundTrip->entry('/packet/word/document.xml');
+
+        $t->same([
+            'comment' => 'wordpress import review packet',
+            'hdrcharset' => 'BINARY',
+            'LIBARCHIVE.creationtime' => '1780479036',
+        ], $roundTrip->globalPaxHeaders());
+        $t->same('wordpress import review packet', $manifest->paxHeaders['comment'] ?? null);
+        $t->same('BINARY', $document->paxHeaders['hdrcharset'] ?? null);
+        $t->same('{"source":"global-pax","target":"wordpress"}', $roundTrip->read('/packet/manifest.json'));
+        $t->same('<w:document><w:body><w:p>Global PAX tar review metadata</w:p></w:body></w:document>', $roundTrip->read('/packet/word/document.xml'));
+    },
+
     'reads gnu long name metadata for tar package fixture entries' => static function (TestRunner $t) use ($rawTarHeader): void {
         $longDocumentName = 'packet/' . str_repeat('migration-review-', 7) . 'word/document.xml';
         $longDirectoryName = 'packet/' . str_repeat('review-directory-', 6) . 'assets/';

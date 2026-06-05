@@ -20,11 +20,13 @@ final class TarArchive
     /**
      * @param array<string, TarArchiveEntry> $entriesByName
      * @param list<TarArchiveEntry> $entries
+     * @param array<string, string> $globalPaxHeaders
      */
     private function __construct(
         private readonly string $bytes,
         private readonly array $entriesByName,
         private readonly array $entries,
+        private readonly array $globalPaxHeaders,
     ) {
     }
 
@@ -173,24 +175,40 @@ final class TarArchive
             throw new \RuntimeException('TAR archive is missing the required two-block end marker');
         }
 
-        return new self($bytes, $entriesByName, $entries);
+        return new self($bytes, $entriesByName, $entries, $globalPaxHeaders);
     }
 
     /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
+     * @param array{globalPaxHeaders?:array<string, string>} $options
      */
-    public static function fromEntries(array $entries): self
+    public static function fromEntries(array $entries, array $options = []): self
     {
-        return self::fromString(self::build($entries));
+        return self::fromString(self::build($entries, $options));
     }
 
     /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
+     * @param array{globalPaxHeaders?:array<string, string>} $options
      */
-    public static function build(array $entries): string
+    public static function build(array $entries, array $options = []): string
     {
         $bytes = '';
         $names = [];
+        $globalPaxHeaders = self::normalizePaxHeaders($options['globalPaxHeaders'] ?? [], 'TAR global PAX headers');
+
+        if ($globalPaxHeaders !== []) {
+            $globalPayload = self::buildPaxPayload($globalPaxHeaders);
+            $bytes .= self::buildHeader('GlobalHead/PaxGlobal', self::TYPE_PAX_GLOBAL, strlen($globalPayload), [
+                'mode' => 0644,
+                'uid' => 0,
+                'gid' => 0,
+                'modifiedAt' => 0,
+                'userName' => '',
+                'groupName' => '',
+            ]);
+            $bytes .= $globalPayload . str_repeat("\0", self::paddingSize(strlen($globalPayload)));
+        }
 
         foreach ($entries as $index => $entry) {
             if (!is_array($entry)) {
@@ -288,6 +306,14 @@ final class TarArchive
     public function bytes(): string
     {
         return $this->bytes;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function globalPaxHeaders(): array
+    {
+        return $this->globalPaxHeaders;
     }
 
     public function has(string $name): bool
@@ -604,16 +630,38 @@ final class TarArchive
      */
     private static function buildPaxPayload(array $headers): string
     {
+        $headers = self::normalizePaxHeaders($headers, 'TAR PAX headers');
         $payload = '';
         foreach ($headers as $key => $value) {
-            if ($key === '' || str_contains($key, "\0") || str_contains($value, "\0")) {
-                throw new \RuntimeException('TAR PAX header key/value pairs must not contain empty keys or NUL bytes');
-            }
-
             $payload .= self::buildPaxRecord($key, $value);
         }
 
         return $payload;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function normalizePaxHeaders(mixed $headers, string $label): array
+    {
+        if (!is_array($headers)) {
+            throw new \RuntimeException("{$label} must be an associative array");
+        }
+
+        $normalized = [];
+        foreach ($headers as $key => $value) {
+            if (!is_string($key) || $key === '' || str_contains($key, "\0") || str_contains($key, '=')) {
+                throw new \RuntimeException("{$label} keys must be non-empty strings without NUL bytes or equals signs");
+            }
+
+            if (!is_string($value) || str_contains($value, "\0")) {
+                throw new \RuntimeException("{$label} values must be strings without NUL bytes");
+            }
+
+            $normalized[$key] = $value;
+        }
+
+        return $normalized;
     }
 
     private static function buildPaxRecord(string $key, string $value): string

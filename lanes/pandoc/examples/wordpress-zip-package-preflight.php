@@ -670,6 +670,10 @@ $compressedPackage = GzipStream::build($package->bytes(), [
     'headerCrc' => true,
 ]);
 $compressedPackageMembers = GzipStream::members($compressedPackage);
+$tarPacketGlobalPaxHeaders = [
+    'comment' => 'wordpress import review packet',
+    'hdrcharset' => 'BINARY',
+];
 $tarPacket = TarArchive::fromEntries([
     [
         'name' => 'packet/',
@@ -686,6 +690,8 @@ $tarPacket = TarArchive::fromEntries([
         'data' => '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>',
         'modifiedAt' => $documentModifiedAt,
     ],
+], [
+    'globalPaxHeaders' => $tarPacketGlobalPaxHeaders,
 ]);
 $compressedTarPacket = GzipStream::build($tarPacket->bytes(), [
     'modifiedAt' => $documentModifiedAt,
@@ -955,6 +961,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected gzip-wrapped tar document bytes to round-trip');
     }
 
+    if ($tarPacketRoundTrip->globalPaxHeaders() !== $tarPacketGlobalPaxHeaders) {
+        throw new RuntimeException('Expected TAR global PAX review metadata to round-trip');
+    }
+
+    if (($tarPacketRoundTrip->entry('/packet/manifest.json')->paxHeaders['comment'] ?? null) !== 'wordpress import review packet') {
+        throw new RuntimeException('Expected TAR global PAX review comment to be visible on entries');
+    }
+
     if ($streamDispatchedTarPacket->read('/packet/word/document.xml') !== '<w:document><w:body><w:p>Tar packet WordPress source</w:p></w:body></w:document>') {
         throw new RuntimeException('Expected archive stream auto-detection to open gzip-wrapped tar packets');
     }
@@ -1151,6 +1165,7 @@ echo 'gzip.extraSubfields=' . implode(',', array_map(static fn (array $field): s
 echo 'gzip.compressedSize=' . $compressedPackageMembers[0]['compressedSize'] . "\n";
 echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
+echo 'tar.globalPaxComment=' . ($tarPacketRoundTrip->globalPaxHeaders()['comment'] ?? 'none') . "\n";
 echo 'tar.detectedFormat=' . $streamDetectedTarFormat . "\n";
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
