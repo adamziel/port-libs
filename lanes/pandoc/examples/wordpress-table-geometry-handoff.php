@@ -81,6 +81,7 @@ $blocks = (new WordPressBlockWriter())->write($document);
 if (($argv[1] ?? '') === '--self-test') {
     $migrationGrids = TableGeometry::sectionGrids($document->children[0]);
     $columnSpecs = TableGeometry::columnSpecs($document->children[0], 5);
+    $cellCoverage = TableGeometry::cellCoverage($document->children[0]);
     if (array_map(static fn (array $spec): string => $spec['alignment'], $columnSpecs) !== ['left', 'right', 'center', 'default', 'default']) {
         throw new RuntimeException('Table geometry self-test missing normalized column alignment specs');
     }
@@ -102,6 +103,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($migrationGrids[1]['rows'][1][3]['kind'] ?? null) !== 'missing') {
         throw new RuntimeException('Table geometry self-test missing body trailing missing-slot report');
+    }
+    if (($cellCoverage[0]['section'] ?? null) !== 'head' || ($cellCoverage[0]['columns'] ?? null) !== [0, 1]) {
+        throw new RuntimeException('Table geometry self-test missing head cell visual coverage report');
+    }
+    if (($cellCoverage[0]['columnAlignments'] ?? null) !== ['left', 'right'] || ($cellCoverage[0]['widths'] ?? null) !== [0.25, 0.25]) {
+        throw new RuntimeException('Table geometry self-test missing covered column specs');
+    }
+    if (($cellCoverage[2]['section'] ?? null) !== 'body' || ($cellCoverage[2]['rowspan'] ?? null) !== 2 || ($cellCoverage[2]['columns'] ?? null) !== [0]) {
+        throw new RuntimeException('Table geometry self-test missing rowspanned body cell coverage report');
+    }
+    if (($cellCoverage[5]['sourceCell'] ?? null) !== 0 || ($cellCoverage[5]['sourceColumn'] ?? null) !== 0 || ($cellCoverage[5]['column'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing source-to-visual coverage coordinates');
     }
 
     $sectionDiagnostics = TableGeometry::diagnostics($document->children[1]);

@@ -217,6 +217,83 @@ final class TableGeometry
     }
 
     /**
+     * @return list<array{
+     *     section:string,
+     *     row:int,
+     *     column:int,
+     *     endColumn:int,
+     *     rawEndColumn:int,
+     *     columns:list<int>,
+     *     sourceCell:int,
+     *     sourceColumn:int,
+     *     colspan:int,
+     *     rawColspan:int,
+     *     rowspan:int,
+     *     rawRowspan:int,
+     *     alignment:string,
+     *     columnAlignments:list<string>,
+     *     widths:list<?float>,
+     *     declaredColumns:list<bool>,
+     *     node:AstNode
+     * }>
+     */
+    public static function cellCoverage(AstNode $table): array
+    {
+        $columnCount = self::columnCount($table);
+        if ($columnCount <= 0) {
+            return [];
+        }
+
+        $columnSpecs = self::columnSpecs($table, $columnCount);
+        $coverage = [];
+        foreach (self::sectionRowGroups($table) as $group) {
+            foreach (self::layoutRows($group['rows'], $columnCount) as $rowIndex => $layoutRow) {
+                foreach ($layoutRow['cells'] as $cell) {
+                    $columns = [];
+                    $columnAlignments = [];
+                    $widths = [];
+                    $declaredColumns = [];
+                    for ($column = $cell['column']; $column < $cell['column'] + $cell['colspan'] && $column < $columnCount; $column++) {
+                        $spec = $columnSpecs[$column] ?? [
+                            'alignment' => 'default',
+                            'width' => null,
+                            'declared' => false,
+                        ];
+                        $columns[] = $column;
+                        $columnAlignments[] = (string) $spec['alignment'];
+                        $widths[] = $spec['width'];
+                        $declaredColumns[] = (bool) $spec['declared'];
+                    }
+
+                    $rawColspan = self::cellColspan($cell['node']);
+                    $rawRowspan = self::cellRowspan($cell['node']);
+                    $coverage[] = [
+                        'section' => $group['section'],
+                        'row' => $rowIndex,
+                        'column' => $cell['column'],
+                        'endColumn' => $cell['column'] + $cell['colspan'],
+                        'rawEndColumn' => $cell['column'] + $rawColspan,
+                        'columns' => $columns,
+                        'sourceCell' => $cell['sourceCell'],
+                        'sourceColumn' => $cell['sourceColumn'],
+                        'colspan' => $cell['colspan'],
+                        'rawColspan' => $rawColspan,
+                        'rowspan' => $cell['rowspan'],
+                        'rawRowspan' => $rawRowspan,
+                        'alignment' => self::cellAlignment($table, $cell['column'], $cell['node']),
+                        'columnAlignments' => $columnAlignments,
+                        'widths' => $widths,
+                        'declaredColumns' => $declaredColumns,
+                        'node' => $cell['node'],
+                    ];
+                }
+            }
+        }
+
+        return $coverage;
+    }
+
+    /**
      * @return list<array<string, int|string>>
      */
     public static function diagnostics(AstNode $table): array

@@ -213,6 +213,33 @@ $buildSectionGridDocument = static function (): AstNode {
     ]);
 };
 
+$buildCellCoverageDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Cell coverage review',
+            'alignments' => ['left', 'center', 'right', 'default'],
+            'widths' => [0.15, 0.2, 0.25, 0.4],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope', 'colspan' => 2], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts', 'rowspan' => 2, 'align' => 'right'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42', 'colspan' => 2], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Needs media', 'colspan' => 4], [new AstNode('text', ['text' => 'Needs media'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 return [
     'lays out pandoc table spans by visual columns for writer handoff' => static function (TestRunner $t) use ($buildSpannedTableDocument): void {
         $table = $buildSpannedTableDocument()->children[0];
@@ -419,5 +446,47 @@ return [
         $t->contains('<tbody><tr><td colspan="2" rowspan="2" style="text-align:left">Posts</td><td style="text-align:right">Ready</td></tr><tr><td style="text-align:right">Needs media</td></tr></tbody>', $blocks);
         $t->contains('| Posts      |            |       Ready |            |', $markdown);
         $t->contains('|            |            | Needs media |            |', $markdown);
+    },
+    'reports cell coverage with visual column specs for importer audits' => static function (TestRunner $t) use ($buildCellCoverageDocument): void {
+        $document = $buildCellCoverageDocument();
+        $table = $document->children[0];
+        $coverage = TableGeometry::cellCoverage($table);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(6, count($coverage));
+        $t->same('head', $coverage[0]['section']);
+        $t->same([0, 1], $coverage[0]['columns']);
+        $t->same(['left', 'center'], $coverage[0]['columnAlignments']);
+        $t->same([0.15, 0.2], $coverage[0]['widths']);
+        $t->same([true, true], $coverage[0]['declaredColumns']);
+        $t->same(2, $coverage[0]['colspan']);
+        $t->same(2, $coverage[0]['rawColspan']);
+        $t->same(2, $coverage[0]['endColumn']);
+        $t->same(2, $coverage[0]['rawEndColumn']);
+
+        $posts = $coverage[2];
+        $t->same('body', $posts['section']);
+        $t->same(0, $posts['row']);
+        $t->same(0, $posts['sourceCell']);
+        $t->same([0], $posts['columns']);
+        $t->same('right', $posts['alignment']);
+        $t->same(['left'], $posts['columnAlignments']);
+        $t->same(2, $posts['rowspan']);
+        $t->same(2, $posts['rawRowspan']);
+
+        $needsMedia = $coverage[5];
+        $t->same(1, $needsMedia['row']);
+        $t->same(0, $needsMedia['sourceCell']);
+        $t->same(0, $needsMedia['sourceColumn']);
+        $t->same(1, $needsMedia['column']);
+        $t->same([1, 2, 3, 4], $needsMedia['columns']);
+        $t->same(4, $needsMedia['colspan']);
+        $t->same(4, $needsMedia['rawColspan']);
+        $t->same(5, $needsMedia['endColumn']);
+        $t->same(5, $needsMedia['rawEndColumn']);
+        $t->same(['center', 'right', 'default', 'default'], $needsMedia['columnAlignments']);
+        $t->same([0.2, 0.25, 0.4, null], $needsMedia['widths']);
+        $t->same([true, true, true, false], $needsMedia['declaredColumns']);
+        $t->contains('<tr><td colspan="4" style="text-align:center">Needs media</td></tr>', $blocks);
     },
 ];
