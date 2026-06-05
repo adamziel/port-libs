@@ -4973,7 +4973,7 @@ final class PdfAttachmentExtractor
      */
     private function xrefTableRows(string $sectionBody): ?array
     {
-        $sectionBody = str_replace("\0", ' ', $sectionBody);
+        $sectionBody = str_replace(["\0", "\f"], ' ', $sectionBody);
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', $sectionBody);
         if (!is_array($lines)) {

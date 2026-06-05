@@ -22927,7 +22927,7 @@ final class PdfTextExtractor
      */
     private function xrefTableRows(string $sectionBody): ?array
     {
-        $sectionBody = str_replace("\0", ' ', $sectionBody);
+        $sectionBody = str_replace(["\0", "\f"], ' ', $sectionBody);
         $entries = [];
         $lines = preg_split('/\r\n|\r|\n/', trim($sectionBody));
         if ($lines === false) {
