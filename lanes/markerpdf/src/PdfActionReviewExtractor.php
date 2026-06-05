@@ -8,6 +8,17 @@ final class PdfActionReviewExtractor
 {
     private const MAX_ACTION_CHAIN_DEPTH = 20;
 
+    private const VALID_DESTINATION_VIEW_NAMES = [
+        'Fit' => true,
+        'FitB' => true,
+        'FitBH' => true,
+        'FitBV' => true,
+        'FitH' => true,
+        'FitR' => true,
+        'FitV' => true,
+        'XYZ' => true,
+    ];
+
     private const SUBMIT_FORM_FLAG_NAMES = [
         2 => 'include_no_value_fields',
         3 => 'html_format',
@@ -912,6 +923,10 @@ final class PdfActionReviewExtractor
 
         $array = $this->arrayItems($resolved);
         if ($array !== null && $array !== []) {
+            if (!$this->destinationArrayViewModeIsValid($array)) {
+                return null;
+            }
+
             return $this->explicitDestinationDetails($array, $destinationName);
         }
 
@@ -1022,10 +1037,28 @@ final class PdfActionReviewExtractor
 
         $array = $this->arrayItems($resolved);
         if ($array !== null && $array !== []) {
+            if (!$this->destinationArrayViewModeIsValid($array)) {
+                return false;
+            }
+
             return $this->destinationValueAllowedForMap($array[0], $depth + 1);
         }
 
         return false;
+    }
+
+    /**
+     * @param list<mixed> $array
+     */
+    private function destinationArrayViewModeIsValid(array $array): bool
+    {
+        if (count($array) < 2) {
+            return false;
+        }
+
+        $viewMode = $this->nameValue($this->resolveValue($array[1] ?? null));
+
+        return $viewMode !== null && isset(self::VALID_DESTINATION_VIEW_NAMES[$viewMode]);
     }
 
     /**
