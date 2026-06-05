@@ -19478,21 +19478,89 @@ final class PdfTextExtractor
      */
     private function cMapOperatorBlocks(string $cmap, string $beginOperator, string $endOperator): array
     {
-        $pattern = '/(?:(\d+)\s+)?' . preg_quote($beginOperator, '/') . '(.*?)' . preg_quote($endOperator, '/') . '/s';
-        if (!preg_match_all($pattern, $cmap, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $blocks = [];
-        foreach ($matches as $match) {
-            $rawCount = $match[1] ?? '';
+        $offset = 0;
+        while (($beginOffset = $this->nextCMapOperatorOffset($cmap, $beginOperator, $offset)) !== null) {
+            $bodyStart = $beginOffset + strlen($beginOperator);
+            $endOffset = $this->nextCMapOperatorOffset($cmap, $endOperator, $bodyStart);
+            if ($endOffset === null) {
+                break;
+            }
+
             $blocks[] = [
-                'body' => $match[2],
-                'declaredCount' => $rawCount === '' ? null : max(0, (int) $rawCount),
+                'body' => substr($cmap, $bodyStart, $endOffset - $bodyStart),
+                'declaredCount' => $this->cMapDeclaredOperatorCountBefore($cmap, $beginOffset),
             ];
+            $offset = $endOffset + strlen($endOperator);
         }
 
         return $blocks;
+    }
+
+    private function nextCMapOperatorOffset(string $cmap, string $operator, int $offset): ?int
+    {
+        $length = strlen($cmap);
+        while ($offset < $length) {
+            $char = $cmap[$offset];
+            if ($char === '%') {
+                $this->skipPdfComment($cmap, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($cmap, $offset);
+                $offset = $skipped === null ? $offset + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($cmap[$offset + 1] ?? '') === '<') {
+                    $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $offset);
+                    $offset = $dictionaryEnd === null ? $offset + 1 : $dictionaryEnd;
+                    continue;
+                }
+
+                $this->readHexToken($cmap, $offset);
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayBody = $this->readPdfArrayAt($cmap, $offset);
+                $offset = $arrayBody === null ? $offset + 1 : $offset + strlen($arrayBody) + 2;
+                continue;
+            }
+
+            if ($this->pdfKeywordAt($cmap, $offset, $operator)) {
+                return $offset;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    private function cMapDeclaredOperatorCountBefore(string $cmap, int $beginOffset): ?int
+    {
+        $end = $beginOffset;
+        while ($end > 0 && ctype_space($cmap[$end - 1])) {
+            $end--;
+        }
+
+        $start = $end;
+        while ($start > 0 && ctype_digit($cmap[$start - 1])) {
+            $start--;
+        }
+
+        if ($start === $end) {
+            return null;
+        }
+
+        if ($start > 0 && !$this->isDelimiter($cmap[$start - 1])) {
+            return null;
+        }
+
+        return max(0, (int) substr($cmap, $start, $end - $start));
     }
 
     /**
@@ -19635,18 +19703,14 @@ final class PdfTextExtractor
     {
         $cmap = $this->boundedCMapProgram($cmap);
         $ranges = [];
-        if (!preg_match_all('/(?:(\d+)\s+)?begincodespacerange(.*?)endcodespacerange/s', $cmap, $blocks, PREG_SET_ORDER)) {
-            return [];
-        }
-
-        foreach ($blocks as $blockMatch) {
-            $block = $blockMatch[2];
+        foreach ($this->cMapOperatorBlocks($cmap, 'begincodespacerange', 'endcodespacerange') as $blockMatch) {
+            $block = $blockMatch['body'];
             if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
                 continue;
             }
 
-            if (($blockMatch[1] ?? '') !== '') {
-                $entries = array_slice($entries, 0, max(0, (int) $blockMatch[1]));
+            if ($blockMatch['declaredCount'] !== null) {
+                $entries = array_slice($entries, 0, max(0, (int) $blockMatch['declaredCount']));
             }
 
             foreach ($entries as $entry) {

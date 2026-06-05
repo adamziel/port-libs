@@ -708,6 +708,50 @@ $parserMalformedCMapSecondProgramBoundaryCurrentBasePdf = static function (): st
         . "%%EOF";
 };
 
+$parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /LiteralOperatorBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal Operator Safe Import') . ">\n"
+        . "endbfchar\n"
+        . "(1 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Literal Operator CMap Leak') . ">\n"
+        . "endbfchar)\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused literal-operator CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /LiteralOperatorBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /LiteralOperatorBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserMalformedCMapUnsupportedFilterBoundaryCurrentBasePdf = static function (): string {
     $utf16beHex = static function (string $ascii): string {
         $hex = '';
@@ -1477,6 +1521,34 @@ return [
         $t->true(($entry['parser_bounded_cmap_bytes_excluded'] ?? false) === true);
         $t->true(($entry['parser_excluded_cmap_byte_count'] ?? 0) > ($entry['post_endcmap_byte_count'] ?? 0));
         $t->true(($entry['parser_bounded_cmap_length'] ?? 0) < ($entry['bounded_cmap_length'] ?? 0));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores CMap block operators inside decoded literal strings before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Literal Operator Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Literal Operator Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Literal Operator Safe Import', $text);
+        $t->same("Literal Operator Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Literal Operator CMap Leak'));
+        $t->true(!str_contains($text, 'beginbfchar'));
+        $t->true(!str_contains($text, "\0"));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('LiteralOperatorBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },
