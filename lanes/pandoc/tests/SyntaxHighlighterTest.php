@@ -50,6 +50,8 @@ return [
         $t->same('ini', SyntaxHighlighter::normalizeLanguage('cfg'));
         $t->same('ini', SyntaxHighlighter::normalizeLanguage('gitconfig'));
         $t->same('ini', SyntaxHighlighter::normalizeLanguage('editorconfig'));
+        $t->same('toml', SyntaxHighlighter::normalizeLanguage('toml'));
+        $t->same('toml', SyntaxHighlighter::normalizeLanguage('Cargo.lock'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('md'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
@@ -766,6 +768,44 @@ return [
         $t->same('ini', $directCfg['language']);
         $t->contains('<span class="dt">enabled</span> <span class="op">=</span> <span class="kw">True</span>', $directCfg['html']);
         $t->contains('<span class="dt">error_reporting</span> <span class="op">=</span> <span class="op">~</span><span class="kw">E_ALL</span>', $directCfg['html']);
+    },
+    'highlights toml configuration review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[15] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a TOML code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'kate');
+        $cargoLock = (new SyntaxHighlighter())->highlight("[[package]]\nname = \"wp-import\"\nversion = \"1.0.0\"", 'Cargo.lock');
+
+        $t->same('toml', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('toml', $highlighted['language']);
+        $t->same('toml', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(11, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource toml numberLines"><code class="sourceCode toml" style="counter-reset: source-line 10;">', $highlighted['html']);
+        $t->contains('<span id="toml-review-11"><a href="#toml-review-11"></a><span class="co"># WordPress static export review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">[tool.wordpress-import]</span>', $highlighted['html']);
+        $t->contains('<span class="dt">enabled</span> <span class="op">=</span> <span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<span class="dt">source</span> <span class="op">=</span> <span class="st">&quot;markdown&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">published_at</span> <span class="op">=</span> <span class="cn">2026-06-05T08:40:00Z</span>', $highlighted['html']);
+        $t->contains('<span class="dt">max_posts</span> <span class="op">=</span> <span class="dv">250</span>', $highlighted['html']);
+        $t->contains('<span class="dt">media_paths</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;uploads&quot;</span><span class="op">,</span> <span class="st">&quot;assets&quot;</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">[theme.variation]</span>', $highlighted['html']);
+        $t->contains('<span class="dt">palette</span> <span class="op">=</span> <span class="op">{</span> <span class="dt">primary</span> <span class="op">=</span> <span class="st">&quot;#005cc5&quot;</span><span class="op">,</span> <span class="dt">contrast</span> <span class="op">=</span> <span class="st">&quot;#ffffff&quot;</span> <span class="op">}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="kw">[tool.wordpress-import]</span>', $wordpressBlock);
+        $t->same('toml', $cargoLock['language']);
+        $t->contains('<span class="kw">[[package]]</span>', $cargoLock['html']);
+        $t->contains('<span class="dt">name</span> <span class="op">=</span> <span class="st">&quot;wp-import&quot;</span>', $cargoLock['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

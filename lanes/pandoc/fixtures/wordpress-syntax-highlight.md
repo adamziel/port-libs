@@ -178,3 +178,15 @@ error_reporting = E_ALL
 [opcache]
 opcache.enable = 1
 ```
+
+``` {.toml #toml-review .numberLines startFrom=11}
+# WordPress static export review
+[tool.wordpress-import]
+enabled = true
+source = "markdown"
+published_at = 2026-06-05T08:40:00Z
+max_posts = 250
+media_paths = ["uploads", "assets"]
+[theme.variation]
+palette = { primary = "#005cc5", contrast = "#ffffff" }
+```

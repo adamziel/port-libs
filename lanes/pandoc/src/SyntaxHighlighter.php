@@ -26,6 +26,7 @@ final class SyntaxHighlighter
     private const LANGUAGE_ALIASES = [
         'bash' => 'bash',
         'c' => 'c',
+        'cargo-lock' => 'toml',
         'cc' => 'cpp',
         'cpp' => 'cpp',
         'c++' => 'cpp',
@@ -95,6 +96,7 @@ final class SyntaxHighlighter
         'shell' => 'bash',
         'sql' => 'sql',
         'tex' => 'tex',
+        'toml' => 'toml',
         'ts' => 'typescript',
         'typescript' => 'typescript',
         'udiff' => 'diff',
@@ -527,6 +529,7 @@ final class SyntaxHighlighter
             'ruby' => $this->tokenizeRuby($code),
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
+            'toml' => $this->tokenizeToml($code),
             'typescript' => $this->tokenizeTypeScript($code),
             'yaml' => $this->tokenizeYaml($code),
             default => [['type' => 'text', 'text' => $code, 'class' => '']],
@@ -777,6 +780,170 @@ final class SyntaxHighlighter
         ];
 
         return in_array(strtolower($value), $keywords, true);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeToml(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $this->tokenizeTomlLine($line, $tokens);
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeTomlLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(#.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(\[\[?[A-Za-z0-9_."\047 -]+(?:\.[A-Za-z0-9_."\047 -]+)*\]?\])(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'keyword', $matches[2]);
+            $this->appendTomlTrailingText($matches[3], $tokens);
+            return;
+        }
+
+        $assignmentOffset = self::tomlAssignmentOffset($line);
+        if ($assignmentOffset === null) {
+            $this->appendTomlValue($line, $tokens);
+            return;
+        }
+
+        $key = substr($line, 0, $assignmentOffset);
+        $value = substr($line, $assignmentOffset + 1);
+        if (preg_match('/^([ \t]*)(.*?)([ \t]*)$/', $key, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            if ($matches[2] !== '') {
+                $this->appendTomlKey($matches[2], $tokens);
+            }
+            $this->appendToken($tokens, 'text', $matches[3]);
+        } else {
+            $this->appendTomlKey($key, $tokens);
+        }
+
+        $this->appendToken($tokens, 'operator', '=');
+        $this->appendTomlValue($value, $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendTomlTrailingText(string $text, array &$tokens): void
+    {
+        if ($text === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]+)(#.*)$/', $text, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        $this->appendToken($tokens, 'text', $text);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendTomlKey(string $key, array &$tokens): void
+    {
+        $this->scanInto($key, [
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['operator', '/^\\./'],
+            ['datatype', '/^[A-Za-z0-9_-]+/'],
+        ], $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendTomlValue(string $value, array &$tokens): void
+    {
+        if ($value === '') {
+            return;
+        }
+
+        $this->scanInto($value, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', "/^'''[\\s\\S]*?'''/"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['constant', '/^\\b\\d{4}-\\d{2}-\\d{2}(?:[T ]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?)?\\b/'],
+            ['constant', '/^\\b\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?\\b/'],
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['number', '/^[+-]?(?:0[xX][0-9A-Fa-f]+(?:_[0-9A-Fa-f]+)*|0[oO][0-7]+(?:_[0-7]+)*|0[bB][01]+(?:_[01]+)*|(?:\\d+(?:_\\d+)*)(?:\\.\\d+(?:_\\d+)*)?(?:[eE][+-]?\\d+(?:_\\d+)*)?|inf|nan)\\b/i'],
+            ['datatype', '/^[A-Za-z0-9_-]+(?=\\s*=)/'],
+            ['operator', '/^[\\[\\]{},=]/'],
+            ['operator', '/^\\./'],
+            ['variable', '/^[A-Za-z0-9_-]+/'],
+        ], $tokens);
+    }
+
+    private static function tomlAssignmentOffset(string $line): ?int
+    {
+        $quote = null;
+        $length = strlen($line);
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $line[$offset];
+            if ($quote !== null) {
+                if ($char === '\\' && $quote === '"' && $offset + 1 < $length) {
+                    $offset++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '#') {
+                return null;
+            }
+
+            if ($char === '=') {
+                return $offset;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1125,6 +1292,17 @@ final class SyntaxHighlighter
     private function scan(string $code, array $patterns): array
     {
         $tokens = [];
+        $this->scanInto($code, $patterns, $tokens);
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{0:string, 1:string}> $patterns
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function scanInto(string $code, array $patterns, array &$tokens): void
+    {
         $offset = 0;
         $length = strlen($code);
 
@@ -1144,8 +1322,6 @@ final class SyntaxHighlighter
             $this->appendToken($tokens, 'text', $code[$offset]);
             $offset++;
         }
-
-        return $tokens;
     }
 
     /**

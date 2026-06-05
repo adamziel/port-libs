@@ -126,6 +126,12 @@ if (!$iniCodeBlock instanceof PortLibs\Pandoc\AstNode || $iniCodeBlock->type !==
 }
 $ini = $highlighter->highlightCodeBlock($iniCodeBlock, 'haddock');
 $iniWordpressBlock = $highlighter->wordpressHtmlBlock($iniCodeBlock, 'haddock');
+$tomlCodeBlock = $document->children[15] ?? null;
+if (!$tomlCodeBlock instanceof PortLibs\Pandoc\AstNode || $tomlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a TOML code block');
+}
+$toml = $highlighter->highlightCodeBlock($tomlCodeBlock, 'kate');
+$tomlWordpressBlock = $highlighter->wordpressHtmlBlock($tomlCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -469,6 +475,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($iniWordpressBlock, '<span class="dt">error_reporting</span> <span class="op">=</span> <span class="kw">E_ALL</span>')) {
         throw new RuntimeException('Expected INI PHP constant token handoff');
     }
+    if (($toml['language'] ?? '') !== 'toml') {
+        throw new RuntimeException('Expected TOML alias to normalize to TOML highlighting');
+    }
+    if (($toml['lineNumbering']['start'] ?? null) !== 11) {
+        throw new RuntimeException('Expected TOML source startFrom line-number handoff');
+    }
+    if (!str_contains($toml['html'], '<span class="kw">[tool.wordpress-import]</span>')) {
+        throw new RuntimeException('Expected TOML table token handoff');
+    }
+    if (!str_contains($toml['html'], '<span class="dt">enabled</span> <span class="op">=</span> <span class="cn">true</span>')) {
+        throw new RuntimeException('Expected TOML boolean token handoff');
+    }
+    if (!str_contains($toml['html'], '<span class="dt">published_at</span> <span class="op">=</span> <span class="cn">2026-06-05T08:40:00Z</span>')) {
+        throw new RuntimeException('Expected TOML datetime token handoff');
+    }
+    if (!str_contains($toml['html'], '<span class="dt">media_paths</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;uploads&quot;</span>')) {
+        throw new RuntimeException('Expected TOML array token handoff');
+    }
+    if (!str_contains($tomlWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected TOML WordPress style metadata');
+    }
+    if (!str_contains($tomlWordpressBlock, '<span class="dt">palette</span> <span class="op">=</span> <span class="op">{</span> <span class="dt">primary</span>')) {
+        throw new RuntimeException('Expected TOML inline table token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -507,6 +537,7 @@ echo "makefileHighlightedHtml:\n" . $makefile['html'] . "\n";
 echo "jsxHighlightedHtml:\n" . $jsx['html'] . "\n";
 echo "rHighlightedHtml:\n" . $rScript['html'] . "\n";
 echo "iniHighlightedHtml:\n" . $ini['html'] . "\n";
+echo "tomlHighlightedHtml:\n" . $toml['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -517,4 +548,5 @@ echo "makefileWordpressBlock:\n" . $makefileWordpressBlock . "\n";
 echo "jsxWordpressBlock:\n" . $jsxWordpressBlock . "\n";
 echo "rWordpressBlock:\n" . $rWordpressBlock . "\n";
 echo "iniWordpressBlock:\n" . $iniWordpressBlock . "\n";
+echo "tomlWordpressBlock:\n" . $tomlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
