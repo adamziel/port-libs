@@ -47,6 +47,16 @@ $nonStreamPdf = "%PDF-1.7\n"
     . "7 0 obj\n<< /Type /Metadata /Subtype /XML /HiddenTitle (Hidden Non Stream Metadata Leak) /Length 321 >>\nendobj\n"
     . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
 
+$duplicateContent = 'BT /F1 12 Tf 72 720 Td (Duplicate Metadata Boundary Body) Tj ET';
+$duplicatePdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata null /Metadata 8 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($duplicateContent) . " >>\nstream\n{$duplicateContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Title (Duplicate Metadata Info Title) /Author (Duplicate Metadata Info Author) /Producer (Duplicate Metadata Info Producer) /CreationDate (D:20260605233038Z) >>\nendobj\n"
+    . "8 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+    . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
 $metadataExtractor = new PdfMetadataExtractor();
 $textExtractor = new PdfTextExtractor();
 
@@ -54,10 +64,14 @@ $metadata = $metadataExtractor->extractDocumentMetadata($pdf);
 $plainText = $textExtractor->extractPlainText($pdf);
 $nonStreamMetadata = $metadataExtractor->extractDocumentMetadata($nonStreamPdf);
 $nonStreamText = $textExtractor->extractPlainText($nonStreamPdf);
+$duplicateMetadata = $metadataExtractor->extractDocumentMetadata($duplicatePdf);
+$duplicateText = $textExtractor->extractPlainText($duplicatePdf);
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 $review = $metadata['catalog']['metadata_stream_review'] ?? [];
 $nonStreamEncoded = json_encode($nonStreamMetadata, JSON_UNESCAPED_SLASHES);
 $nonStreamReview = $nonStreamMetadata['catalog']['metadata_stream_review'] ?? [];
+$duplicateEncoded = json_encode($duplicateMetadata, JSON_UNESCAPED_SLASHES);
+$duplicateReview = $duplicateMetadata['catalog']['metadata_stream_review'] ?? [];
 
 if (($metadata['title'] ?? null) !== 'Info Boundary Title') {
     throw new RuntimeException('Expected trailer Info title to win when catalog Metadata points at an EmbeddedFile stream.');
@@ -79,6 +93,18 @@ if (!is_string($nonStreamEncoded) || str_contains($nonStreamEncoded, 'Hidden Non
 }
 if (str_contains($nonStreamText, 'Hidden Non Stream Metadata Leak')) {
     throw new RuntimeException('Non-stream catalog Metadata dictionary leaked into visible WordPress text.');
+}
+if (($duplicateMetadata['title'] ?? null) !== 'Duplicate Metadata Info Title') {
+    throw new RuntimeException('Expected duplicate catalog Metadata keys to fall back to trailer Info metadata.');
+}
+if (($duplicateReview['status'] ?? null) !== 'rejected_duplicate_metadata_entries') {
+    throw new RuntimeException('Expected duplicate catalog Metadata review status.');
+}
+if (!is_string($duplicateEncoded) || str_contains($duplicateEncoded, 'Hidden Embedded XML XMP Title')) {
+    throw new RuntimeException('Duplicate catalog Metadata XMP values leaked into metadata review output.');
+}
+if (str_contains($duplicateText, 'Hidden Embedded XML XMP Title')) {
+    throw new RuntimeException('Duplicate catalog Metadata XMP leaked into visible WordPress text.');
 }
 
 $htmlJson = static fn (array $data): string => htmlspecialchars(
@@ -110,6 +136,13 @@ echo '<!-- markerpdf-pdf-xmp-metadata-boundary-currentbase ' . $htmlJson([
     'non_stream_metadata_values_redacted' => is_string($nonStreamEncoded)
         && !str_contains($nonStreamEncoded, 'Hidden Non Stream Metadata Leak'),
     'non_stream_metadata_not_visible_text' => !str_contains($nonStreamText, 'Hidden Non Stream Metadata Leak'),
+    'duplicate_metadata_status' => $duplicateReview['status'] ?? null,
+    'duplicate_metadata_entry_count' => $duplicateReview['metadata_entry_count'] ?? null,
+    'duplicate_metadata_candidate_objects' => $duplicateReview['candidate_object_numbers'] ?? [],
+    'duplicate_metadata_info_fallback_title' => $duplicateMetadata['title'] ?? null,
+    'duplicate_metadata_values_redacted' => is_string($duplicateEncoded)
+        && !str_contains($duplicateEncoded, 'Hidden Embedded XML XMP Title'),
+    'duplicate_metadata_not_visible_text' => !str_contains($duplicateText, 'Hidden Embedded XML XMP Title'),
 ],) . " -->\n";
 
 echo "<!-- wp:paragraph -->\n";
@@ -132,6 +165,14 @@ echo '<!-- markerpdf:catalog-non-stream-metadata-review ' . $htmlJson([
     'declared_length' => $nonStreamReview['declared_length'] ?? null,
     'accepted_as_document_xmp' => $nonStreamReview['accepted_as_document_xmp'] ?? null,
     'payload_included' => $nonStreamReview['payload_included'] ?? null,
+]) . " -->\n\n";
+
+echo '<!-- markerpdf:catalog-duplicate-metadata-review ' . $htmlJson([
+    'status' => $duplicateReview['status'] ?? null,
+    'metadata_entry_count' => $duplicateReview['metadata_entry_count'] ?? null,
+    'candidate_object_numbers' => $duplicateReview['candidate_object_numbers'] ?? [],
+    'accepted_as_document_xmp' => $duplicateReview['accepted_as_document_xmp'] ?? null,
+    'payload_included' => $duplicateReview['payload_included'] ?? null,
 ]) . " -->\n\n";
 
 echo "<!-- wp:paragraph -->\n";

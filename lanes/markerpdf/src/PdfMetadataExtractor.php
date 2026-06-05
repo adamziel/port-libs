@@ -245,7 +245,7 @@ final class PdfMetadataExtractor
         $catalog = $this->catalogObjectBody($pdfBytes, $objects);
         $trailer = $this->trailerDictionaryBody($pdfBytes);
         $encryptMetadata = ($encryption['encrypt_metadata'] ?? true) !== false;
-        $hasXmp = $catalog !== null && $this->dictionaryTopLevelRawValue($catalog, 'Metadata') !== null;
+        $hasXmp = $catalog !== null && $this->dictionaryTopLevelRawValues($catalog, 'Metadata') !== [];
         $hasInfo = $trailer !== null && $this->dictionaryRawValue($trailer, 'Info') !== null;
         $hasOutputIntents = $catalog !== null && $this->dictionaryTopLevelRawValue($catalog, 'OutputIntents') !== null;
         $hasAssociatedFiles = $catalog !== null && $this->catalogHasAssociatedFileMetadata($catalog, $objects);
@@ -676,7 +676,12 @@ final class PdfMetadataExtractor
             return [];
         }
 
-        $value = $this->dictionaryTopLevelRawValue($catalog, 'Metadata');
+        $metadataValues = $this->dictionaryTopLevelRawValues($catalog, 'Metadata');
+        if (count($metadataValues) !== 1) {
+            return [];
+        }
+
+        $value = $metadataValues[0];
         if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) !== 1) {
             return [];
         }
@@ -705,11 +710,17 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function catalogMetadataStreamBoundaryReview(?string $value, array $objects): array
+    private function catalogMetadataStreamBoundaryReview(array $values, array $objects): array
     {
-        if ($value === null) {
+        if ($values === []) {
             return [];
         }
+
+        if (count($values) > 1) {
+            return $this->duplicateCatalogMetadataStreamBoundaryReview($values, $objects);
+        }
+
+        $value = $values[0];
         if ($this->trimPdfWhitespaceAndComments($value) === 'null') {
             return [];
         }
@@ -852,6 +863,84 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Duplicate PDF dictionary keys are malformed and ambiguous. Catalog
+     * /Metadata is a document-wide XMP trust boundary, so keep every duplicate
+     * candidate review-only instead of picking one stream to promote.
+     *
+     * @param list<string> $values
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function duplicateCatalogMetadataStreamBoundaryReview(array $values, array $objects): array
+    {
+        $entries = [];
+        $objectNumbers = [];
+        foreach ($values as $index => $value) {
+            $entry = [
+                'index' => $index,
+            ];
+            $trimmed = $this->trimPdfWhitespaceAndComments($value);
+            if ($trimmed === 'null') {
+                $entry['kind'] = 'null';
+                $entries[] = $entry;
+                continue;
+            }
+
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null) {
+                $entry['kind'] = 'indirect_reference';
+                $entry['object_number'] = $reference['objectNumber'];
+                $entry['object_generation'] = $reference['generation'];
+                $objectNumbers[] = $reference['objectNumber'];
+
+                $objectBody = $this->objectBodyForReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($objectBody !== null) {
+                    $dictionary = $this->dictionaryObjectBody($objectBody);
+                    if ($dictionary !== null) {
+                        foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                            $entry[$key] = $metadataValue;
+                        }
+                        $entry['has_stream_keyword'] = $this->streamObjectHasStreamKeyword($objectBody);
+                    }
+                }
+
+                $entries[] = $entry;
+                continue;
+            }
+
+            if (str_starts_with($trimmed, '<<')) {
+                $entry['kind'] = 'direct_dictionary';
+                $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+                if ($dictionary !== null) {
+                    foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                        $entry[$key] = $metadataValue;
+                    }
+                }
+                $entries[] = $entry;
+                continue;
+            }
+
+            $entry['kind'] = 'non_indirect_metadata_value';
+            $entries[] = $entry;
+        }
+
+        return [
+            'source' => 'catalog_metadata_stream_boundary',
+            'review_only' => true,
+            'payload_included' => false,
+            'accepted_as_document_xmp' => false,
+            'status' => 'rejected_duplicate_metadata_entries',
+            'metadata_entry_count' => count($values),
+            'candidate_object_numbers' => $this->uniqueIntegers($objectNumbers),
+            'entries' => $entries,
+        ];
     }
 
     /**
@@ -1437,7 +1526,7 @@ final class PdfMetadataExtractor
         }
 
         $metadataStreamReview = $this->catalogMetadataStreamBoundaryReview(
-            $this->dictionaryTopLevelRawValue($catalog, 'Metadata'),
+            $this->dictionaryTopLevelRawValues($catalog, 'Metadata'),
             $objects
         );
         if ($metadataStreamReview !== []) {

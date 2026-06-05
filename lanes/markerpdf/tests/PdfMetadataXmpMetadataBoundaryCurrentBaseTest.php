@@ -22,6 +22,28 @@ $xmpMetadataBoundaryPdf = static function (
         . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
 };
 
+$xmpMetadataBoundaryPacket = static function (string $title, string $description, string $date): string {
+    return '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        . '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about=""'
+        . ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+        . ' xmlns:pdf="http://ns.adobe.com/pdf/1.3/"'
+        . ' xmlns:xmp="http://ns.adobe.com/xap/1.0/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">' . htmlspecialchars($title, ENT_XML1) . '</rdf:li></rdf:Alt></dc:title>'
+        . '<dc:creator><rdf:Seq><rdf:li>Duplicate Metadata Editor</rdf:li></rdf:Seq></dc:creator>'
+        . '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">' . htmlspecialchars($description, ENT_XML1) . '</rdf:li></rdf:Alt></dc:description>'
+        . '<dc:subject><rdf:Bag><rdf:li>wordpress</rdf:li><rdf:li>xmp-duplicate-metadata</rdf:li></rdf:Bag></dc:subject>'
+        . '<pdf:Producer>Duplicate Metadata Producer</pdf:Producer>'
+        . '<xmp:CreatorTool>Duplicate Metadata Tool</xmp:CreatorTool>'
+        . '<xmp:CreateDate>' . htmlspecialchars($date, ENT_XML1) . '</xmp:CreateDate>'
+        . '<xmp:MetadataDate>2026-06-05T23:30:38Z</xmp:MetadataDate>'
+        . '</rdf:Description>'
+        . '</rdf:RDF>'
+        . '</x:xmpmeta>'
+        . '<?xpacket end="w"?>';
+};
+
 return [
     'treats catalog Metadata null as absent before WordPress import' => static function (
         TestRunner $t
@@ -155,5 +177,55 @@ return [
         $t->same(false, $review['payload_included'] ?? null);
         $t->true(is_string($encoded) && !str_contains($encoded, 'Unreadable Metadata XMP Leak Title'));
         $t->true(!str_contains($plainText, 'Unreadable Metadata XMP Leak Title'));
+    },
+    'rejects duplicate catalog Metadata entries before XMP promotion' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
+        $xmp = $xmpMetadataBoundaryPacket(
+            'Duplicate Catalog Metadata Hidden XMP Title',
+            'A duplicate catalog Metadata key must not define WordPress metadata',
+            '2026-06-05T19:30:38-04:00'
+        );
+        $compressedXmp = gzcompress($xmp);
+        if (!is_string($compressedXmp)) {
+            throw new RuntimeException('Unable to compress duplicate catalog Metadata fixture stream.');
+        }
+
+        $metadataObject = "5 0 obj\n"
+            . '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($compressedXmp) . " >>\n"
+            . "stream\n{$compressedXmp}\nendstream\nendobj\n";
+        $pdf = $xmpMetadataBoundaryPdf(
+            'null /Metadata 5 0 R',
+            'Duplicate Catalog Metadata Boundary Body',
+            $metadataObject
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+        $entries = $review['entries'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same(['Metadata Boundary Author'], $metadata['authors']);
+        $t->same('Duplicate Catalog Metadata Boundary Body', $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_duplicate_metadata_entries', $review['status'] ?? null);
+        $t->same(2, $review['metadata_entry_count'] ?? null);
+        $t->same([5], $review['candidate_object_numbers'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->same('null', $entries[0]['kind'] ?? null);
+        $t->same('indirect_reference', $entries[1]['kind'] ?? null);
+        $t->same(5, $entries[1]['object_number'] ?? null);
+        $t->same(0, $entries[1]['object_generation'] ?? null);
+        $t->same('Metadata', $entries[1]['type'] ?? null);
+        $t->same('XML', $entries[1]['subtype'] ?? null);
+        $t->same(true, $entries[1]['has_stream_keyword'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Duplicate Catalog Metadata Hidden XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'duplicate catalog Metadata key'));
+        $t->true(!str_contains($plainText, 'Duplicate Catalog Metadata Hidden XMP Title'));
     },
 ];
