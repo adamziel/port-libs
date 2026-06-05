@@ -2299,6 +2299,99 @@ MARKDOWN);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
     },
 
+    'fake runner extracts bounded pdf optional content layer metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layers.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OCProperties 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /OCGs [10 0 R 11 0 R] /D << /Name (Review layer config) /Creator (Pandoc native handoff) /BaseState /ON /ON [10 0 R] /OFF [11 0 R] /Order [(Reviewer overlays) 10 0 R [11 0 R]] /ListMode /VisiblePages >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /OCG /Name (Reviewer notes) /Intent [/View /Design] /Usage << /View << /ViewState /ON >> /Print << /PrintState /OFF >> /Export << /ExportState /OFF >> /CreatorInfo << /Creator (layer package) /Subtype /Artwork >> /Language << /Lang (en-US) /Preferred true >> /Zoom << /min 0.5 /max 2.0 >> >> >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /OCG /Name <FEFF005000720069006E00740020006D00610072006B0073> /Intent /View /Usage << /Print << /PrintState /ON >> /Export << /ExportState /ON >> >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/layers.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/layers.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedGroups = [
+            [
+                'object' => '10 0 R',
+                'name' => 'Reviewer notes',
+                'intent' => ['View', 'Design'],
+                'usageViewState' => 'ON',
+                'usagePrintState' => 'OFF',
+                'usageExportState' => 'OFF',
+                'usageCreator' => 'layer package',
+                'usageCreatorSubtype' => 'Artwork',
+                'usageLanguage' => 'en-US',
+                'usageLanguagePreferred' => true,
+                'usageZoomMin' => 0.5,
+                'usageZoomMax' => 2.0,
+            ],
+            [
+                'object' => '11 0 R',
+                'name' => 'Print marks',
+                'intent' => ['View'],
+                'usageViewState' => null,
+                'usagePrintState' => 'ON',
+                'usageExportState' => 'ON',
+                'usageCreator' => null,
+                'usageCreatorSubtype' => null,
+                'usageLanguage' => null,
+                'usageLanguagePreferred' => null,
+                'usageZoomMin' => null,
+                'usageZoomMax' => null,
+            ],
+        ];
+        $expectedConfig = [
+            'name' => 'Review layer config',
+            'creator' => 'Pandoc native handoff',
+            'baseState' => 'ON',
+            'listMode' => 'VisiblePages',
+            'on' => ['10 0 R'],
+            'off' => ['11 0 R'],
+            'order' => ['10 0 R', '11 0 R'],
+            'orderLabels' => ['Reviewer overlays'],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedGroups, $result['pdfOptionalContentGroups']);
+        $t->same($expectedConfig, $result['pdfOptionalContentConfig']);
+        $t->contains('pdf-byte-optional-content-groups:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-config', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-off:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedGroups, $sequence['finalPdfOptionalContentGroups']);
+        $t->same($expectedConfig, $sequence['finalPdfOptionalContentConfig']);
+    },
+
     'fake runner flags encrypted pdf output permission dictionaries without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/protected.pdf']);

@@ -280,6 +280,8 @@ final class PdfEngineHandoff
      *     pdfViewerPreferences: array<string, bool|int|string>,
      *     pdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
+     *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfAnnotationTypes: array<string, int>,
@@ -673,6 +675,8 @@ final class PdfEngineHandoff
         $pdfViewerPreferences = [];
         $pdfTaggingMetadata = [];
         $pdfStructureElements = [];
+        $pdfOptionalContentGroups = [];
+        $pdfOptionalContentConfig = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
         $pdfAnnotationTypes = [];
@@ -724,6 +728,8 @@ final class PdfEngineHandoff
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfTaggingMetadata = $pdfInspection['taggingMetadata'];
                 $pdfStructureElements = $pdfInspection['structureElements'];
+                $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
+                $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
@@ -981,6 +987,33 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-structure-languages:' . $languageCount;
                     }
                 }
+                if ($pdfOptionalContentGroups !== []) {
+                    $diagnostics[] = 'pdf-byte-optional-content-groups:' . count($pdfOptionalContentGroups);
+                    $intentCount = 0;
+                    foreach ($pdfOptionalContentGroups as $optionalContentGroup) {
+                        if (isset($optionalContentGroup['intent']) && is_array($optionalContentGroup['intent'])) {
+                            $intentCount += count($optionalContentGroup['intent']);
+                        }
+                    }
+                    if ($intentCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-intents:' . $intentCount;
+                    }
+                }
+                if ($pdfOptionalContentConfig !== []) {
+                    $diagnostics[] = 'pdf-byte-optional-content-config';
+                    if (is_string($pdfOptionalContentConfig['baseState'] ?? null) && $pdfOptionalContentConfig['baseState'] !== '') {
+                        $diagnostics[] = 'pdf-byte-optional-content-base-state:' . $pdfOptionalContentConfig['baseState'];
+                    }
+                    if (isset($pdfOptionalContentConfig['on']) && is_array($pdfOptionalContentConfig['on']) && $pdfOptionalContentConfig['on'] !== []) {
+                        $diagnostics[] = 'pdf-byte-optional-content-on:' . count($pdfOptionalContentConfig['on']);
+                    }
+                    if (isset($pdfOptionalContentConfig['off']) && is_array($pdfOptionalContentConfig['off']) && $pdfOptionalContentConfig['off'] !== []) {
+                        $diagnostics[] = 'pdf-byte-optional-content-off:' . count($pdfOptionalContentConfig['off']);
+                    }
+                    if (isset($pdfOptionalContentConfig['order']) && is_array($pdfOptionalContentConfig['order']) && $pdfOptionalContentConfig['order'] !== []) {
+                        $diagnostics[] = 'pdf-byte-optional-content-order:' . count($pdfOptionalContentConfig['order']);
+                    }
+                }
                 if ($pdfActiveActions !== []) {
                     $diagnostics[] = 'pdf-byte-active-actions:' . count($pdfActiveActions);
                 }
@@ -1192,6 +1225,8 @@ final class PdfEngineHandoff
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfTaggingMetadata' => $pdfTaggingMetadata,
             'pdfStructureElements' => $pdfStructureElements,
+            'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
+            'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
@@ -1264,6 +1299,8 @@ final class PdfEngineHandoff
      *     finalPdfViewerPreferences: array<string, bool|int|string>,
      *     finalPdfTaggingMetadata: array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
+     *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfAnnotationTypes: array<string, int>,
@@ -1450,6 +1487,8 @@ final class PdfEngineHandoff
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfTaggingMetadata' => is_array($finalRun) && is_array($finalRun['pdfTaggingMetadata'] ?? null) ? $finalRun['pdfTaggingMetadata'] : [],
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
+            'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
+            'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
@@ -2559,6 +2598,7 @@ final class PdfEngineHandoff
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
+        $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
@@ -2604,6 +2644,8 @@ final class PdfEngineHandoff
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'taggingMetadata' => $this->extractPdfTaggingMetadata($pdfBytes, $catalog),
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
+            'optionalContentGroups' => $optionalContent['groups'],
+            'optionalContentConfig' => $optionalContent['config'],
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
@@ -4478,6 +4520,306 @@ final class PdfEngineHandoff
             'title' => $this->extractPdfStringOrNameValue($dictionary, 'T'),
             'childCount' => $children,
         ];
+    }
+
+    /**
+     * @return array{
+     *     groups:list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
+     *     config:array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{}
+     * }
+     */
+    private function extractPdfOptionalContent(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $groupReferences = [];
+        $config = [];
+
+        if ($catalog !== null && str_contains($catalog, '/OCProperties')) {
+            $properties = $this->extractPdfDictionaryOrReferenceValue($catalog, 'OCProperties', $objects);
+            if ($properties !== null) {
+                foreach ($this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($properties, 'OCGs', $objects)) as $reference) {
+                    $groupReferences[$this->pdfReferenceKey($reference)] = $reference;
+                }
+                $config = $this->summarizePdfOptionalContentConfig($properties, $objects);
+            }
+        }
+
+        foreach ($objects as $reference => $body) {
+            if ($this->extractPdfNameToken($body, 'Type') === 'OCG') {
+                $groupReferences[$reference] = $reference . ' R';
+            }
+        }
+
+        $references = array_values($groupReferences);
+        usort($references, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a) <=> $this->pdfReferenceSortKey($b));
+
+        $groups = [];
+        foreach ($references as $reference) {
+            $body = $objects[$this->pdfReferenceKey($reference)] ?? null;
+            if ($body === null) {
+                continue;
+            }
+
+            $groups[] = $this->summarizePdfOptionalContentGroup($reference, $body, $objects);
+        }
+
+        return [
+            'groups' => $groups,
+            'config' => $config,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}
+     */
+    private function summarizePdfOptionalContentGroup(string $reference, string $dictionary, array $objects): array
+    {
+        $usage = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'Usage', $objects);
+        $creatorInfo = $usage === null ? null : $this->extractPdfDictionaryOrReferenceValue($usage, 'CreatorInfo', $objects);
+        $language = $usage === null ? null : $this->extractPdfDictionaryOrReferenceValue($usage, 'Language', $objects);
+        $zoom = $usage === null ? null : $this->extractPdfDictionaryOrReferenceValue($usage, 'Zoom', $objects);
+
+        return [
+            'object' => $reference,
+            'name' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'intent' => $this->extractPdfOptionalContentIntent($dictionary, $objects),
+            'usageViewState' => $this->extractPdfOptionalContentUsageState($usage, 'View', 'ViewState', $objects),
+            'usagePrintState' => $this->extractPdfOptionalContentUsageState($usage, 'Print', 'PrintState', $objects),
+            'usageExportState' => $this->extractPdfOptionalContentUsageState($usage, 'Export', 'ExportState', $objects),
+            'usageCreator' => $creatorInfo === null ? null : $this->extractPdfStringOrNameValue($creatorInfo, 'Creator'),
+            'usageCreatorSubtype' => $creatorInfo === null ? null : $this->extractPdfNameToken($creatorInfo, 'Subtype'),
+            'usageLanguage' => $language === null ? null : $this->extractPdfStringOrNameValue($language, 'Lang'),
+            'usageLanguagePreferred' => $language === null ? null : $this->extractPdfBooleanToken($language, 'Preferred'),
+            'usageZoomMin' => $zoom === null ? null : $this->extractPdfNumberToken($zoom, 'min'),
+            'usageZoomMax' => $zoom === null ? null : $this->extractPdfNumberToken($zoom, 'max'),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function extractPdfOptionalContentUsageState(?string $usage, string $section, string $stateName, array $objects): ?string
+    {
+        if ($usage === null) {
+            return null;
+        }
+
+        $dictionary = $this->extractPdfDictionaryOrReferenceValue($usage, $section, $objects);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        return $this->extractPdfNameToken($dictionary, $stateName);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function extractPdfOptionalContentIntent(string $dictionary, array $objects): array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'Intent');
+        if ($value === null) {
+            return [];
+        }
+
+        return $this->pdfValueToNameList($value, $objects);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function pdfValueToNameList(array $value, array $objects, int $depth = 0): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        if (in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+            $name = trim($value['value']);
+
+            return $name === '' ? [] : [$name];
+        }
+
+        if ($value['kind'] === 'array') {
+            return $this->collectPdfNamesFromArray($value['value']);
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return [];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+
+            return $resolved === null ? [] : $this->pdfValueToNameList($resolved, $objects, $depth + 1);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{}
+     */
+    private function summarizePdfOptionalContentConfig(string $properties, array $objects): array
+    {
+        $configuration = $this->extractPdfDictionaryOrReferenceValue($properties, 'D', $objects);
+        if ($configuration === null) {
+            return [];
+        }
+
+        return [
+            'name' => $this->extractPdfStringOrNameValue($configuration, 'Name'),
+            'creator' => $this->extractPdfStringOrNameValue($configuration, 'Creator'),
+            'baseState' => $this->extractPdfNameToken($configuration, 'BaseState'),
+            'listMode' => $this->extractPdfNameToken($configuration, 'ListMode'),
+            'on' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'ON', $objects)),
+            'off' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'OFF', $objects)),
+            'order' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
+            'orderLabels' => $this->collectPdfStringsFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function extractPdfArrayOrReferenceValue(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value['kind'] === 'array') {
+            return $value['value'];
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return null;
+        }
+
+        $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        if ($body === null) {
+            return null;
+        }
+
+        $resolved = $this->parsePdfValueAt($body, 0);
+
+        return $resolved !== null && $resolved['kind'] === 'array' ? $resolved['value'] : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectPdfReferencesFromArray(?string $array): array
+    {
+        if ($array === null) {
+            return [];
+        }
+
+        $references = [];
+        $this->walkPdfArrayValues($array, static function (array $value) use (&$references): void {
+            if ($value['kind'] === 'reference') {
+                $references[] = $value['value'];
+            }
+        });
+
+        return $this->uniqueStrings($references);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectPdfNamesFromArray(string $array): array
+    {
+        $names = [];
+        $this->walkPdfArrayValues($array, static function (array $value) use (&$names): void {
+            if (!in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+                return;
+            }
+
+            $name = trim($value['value']);
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        });
+
+        return $this->uniqueStrings($names);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectPdfStringsFromArray(?string $array): array
+    {
+        if ($array === null) {
+            return [];
+        }
+
+        $strings = [];
+        $this->walkPdfArrayValues($array, static function (array $value) use (&$strings): void {
+            if (!in_array($value['kind'], ['literal', 'hex'], true)) {
+                return;
+            }
+
+            $string = trim($value['value']);
+            if ($string !== '') {
+                $strings[] = $string;
+            }
+        });
+
+        return $this->uniqueStrings($strings);
+    }
+
+    private function walkPdfArrayValues(string $array, callable $visitor, int $depth = 0): void
+    {
+        if ($depth > 8) {
+            return;
+        }
+
+        $cursor = str_starts_with($array, '[') ? 1 : 0;
+        $length = strlen($array);
+        if (str_ends_with($array, ']')) {
+            $length--;
+        }
+
+        while ($cursor < $length) {
+            $value = $this->parsePdfValueAt($array, $cursor);
+            if ($value === null) {
+                $cursor++;
+                continue;
+            }
+
+            $visitor($value);
+            if ($value['kind'] === 'array') {
+                $this->walkPdfArrayValues($value['value'], $visitor, $depth + 1);
+            }
+            $cursor = max($cursor + 1, min($length, $value['next']));
+        }
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private function uniqueStrings(array $values): array
+    {
+        $unique = [];
+        $seen = [];
+        foreach ($values as $value) {
+            if (isset($seen[$value])) {
+                continue;
+            }
+
+            $seen[$value] = true;
+            $unique[] = $value;
+        }
+
+        return $unique;
     }
 
     private function countPdfTopLevelArrayValues(string $array): int
