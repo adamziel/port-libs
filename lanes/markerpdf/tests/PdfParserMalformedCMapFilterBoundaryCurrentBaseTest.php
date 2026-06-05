@@ -937,6 +937,50 @@ $parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf = static f
         . "%%EOF";
 };
 
+$parserMalformedCMapNestedTargetArrayBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $safeText = 'Nested Target Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $sourceCode = substr($safeHex, 0, 4);
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /NestedTargetArrayBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfrange\n"
+        . "<{$sourceCode}> <{$sourceCode}> [ [<" . $utf16beHex('Nested Target CMap Leak') . ">] ]\n"
+        . "endbfrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused nested-target-array CMap fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NestedTargetArrayBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /NestedTargetArrayBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserMalformedCMapLiteralNameUseCMapBoundaryCurrentBasePdf = static function (): string {
     $utf16beHex = static function (string $ascii): string {
         $hex = '';
@@ -2243,6 +2287,45 @@ return [
         $t->same(true, $entry['decoded_with_current_operands'] ?? null);
         $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
         $t->true(is_string($entry['decoded_cmap_sha256'] ?? null));
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores nested bfrange target arrays in filtered CMaps before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapNestedTargetArrayBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapNestedTargetArrayBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Nested Target Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Nested Target Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Nested Target Safe Import', $text);
+        $t->same("Nested Target Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Nested Target CMap Leak'));
+        $t->true(!str_contains($text, 'NestedTargetArrayBoundary-H'));
+        $t->true(!str_contains($text, "\0"));
+
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['cmap_stream_count']);
+        $t->same(1, $review['to_unicode_cmap_stream_count']);
+        $t->same(0, $review['encoding_cmap_stream_count']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(0, $review['invalid_filter_operand_count']);
+        $t->same(0, $review['malformed_filter_operand_count']);
+        $t->same(0, $review['unsupported_filter_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('NestedTargetArrayBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same(false, $entry['decodeparms_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('filter_end_markers_resolved', $entry['filter_end_marker_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(($entry['parser_bounded_cmap_length'] ?? 0) > 0);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },

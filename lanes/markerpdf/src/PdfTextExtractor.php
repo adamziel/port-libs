@@ -23570,8 +23570,7 @@ final class PdfTextExtractor
             $sourceWidth = strlen($start);
             $arrayTargets = $range[3] ?? '';
             if ($arrayTargets !== '') {
-                preg_match_all('/<([\da-fA-F\s]+)>/s', $arrayTargets, $targets);
-                foreach ($targets[1] ?? [] as $target) {
+                foreach ($this->cMapTopLevelHexTokens($arrayTargets) as $target) {
                     if ($source > $last) {
                         break;
                     }
@@ -23799,6 +23798,64 @@ final class PdfTextExtractor
         }
 
         return $clean;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cMapTopLevelHexTokens(string $source): array
+    {
+        $tokens = [];
+        $index = 0;
+        $length = strlen($source);
+
+        while ($index < $length) {
+            $char = $source[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($source, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->skipPdfLiteralStringAt($source, $index);
+                if ($end === null) {
+                    break;
+                }
+                $index = $end + 1;
+                continue;
+            }
+
+            if ($char === '[') {
+                $body = $this->readPdfArrayAt($source, $index);
+                if ($body === null) {
+                    break;
+                }
+                $index += strlen($body) + 2;
+                continue;
+            }
+
+            if ($char === '<' && ($source[$index + 1] ?? '') === '<') {
+                $end = $this->pdfDictionaryEndOffset($source, $index);
+                if ($end === null) {
+                    break;
+                }
+                $index = $end + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                $token = $this->readHexToken($source, $index);
+                $hex = substr($token, 1, -1);
+                if ($this->normalizeHexKey($hex) !== '') {
+                    $tokens[] = $hex;
+                }
+                continue;
+            }
+
+            $index++;
+        }
+
+        return $tokens;
     }
 
     private function normalizeHexKey(string $hex): string
