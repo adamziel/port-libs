@@ -39,6 +39,7 @@ final class EpubReader
      *     renditions:array<string, mixed>,
      *     bindings:array<string, mixed>,
      *     resourceProperties:array<string, mixed>,
+     *     remoteResources:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
@@ -69,6 +70,7 @@ final class EpubReader
             $opf['bindings'],
             $opf['accessibility'],
             $opf['resourceProperties'],
+            $opf['remoteResources'],
             $opf['mediaDurations'],
             $opf['pageBreaks'],
             $opf['xhtmlResourceReport'],
@@ -92,6 +94,7 @@ final class EpubReader
             'renditions' => $renditions,
             'bindings' => $opf['bindings'],
             'resourceProperties' => $opf['resourceProperties'],
+            'remoteResources' => $opf['remoteResources'],
             'encryption' => $opf['encryption'],
             'mediaOverlays' => $opf['mediaOverlays'],
             'mediaDurations' => $opf['mediaDurations'],
@@ -130,6 +133,7 @@ final class EpubReader
                 'bindings' => $opf['bindings'],
                 'accessibility' => $opf['accessibility'],
                 'resourceProperties' => $opf['resourceProperties'],
+                'remoteResources' => $opf['remoteResources'],
                 'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
@@ -259,6 +263,7 @@ final class EpubReader
      *     bindings:array<string, mixed>,
      *     accessibility:array<string, mixed>,
      *     resourceProperties:array<string, mixed>,
+     *     remoteResources:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     mediaDurations:array<string, mixed>,
@@ -318,6 +323,7 @@ final class EpubReader
         $pageBreaks = self::pageBreakReport($nav, $spine);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, self::manifestByPart($manifestById));
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
+        $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport);
 
         return [
             'metadata' => $metadata,
@@ -343,6 +349,7 @@ final class EpubReader
             'bindings' => $bindings,
             'accessibility' => $metadata['accessibility'],
             'resourceProperties' => $resourceProperties,
+            'remoteResources' => $remoteResources,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'mediaDurations' => $mediaDurations,
@@ -3318,6 +3325,176 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $xhtmlAssets
+     * @param array<string, mixed> $xhtmlResourceReport
+     *
+     * @return array<string, mixed>
+     */
+    private static function remoteResourceReport(array $manifest, array $xhtmlAssets, array $xhtmlResourceReport): array
+    {
+        $declaredItems = [];
+        $declaredByPart = [];
+        foreach ($manifest as $item) {
+            $flags = is_array($item['resourceFlags'] ?? null)
+                ? $item['resourceFlags']
+                : self::resourcePropertyFlags(is_array($item['properties'] ?? null) ? $item['properties'] : []);
+            if (($flags['remoteResources'] ?? false) !== true) {
+                continue;
+            }
+
+            $declared = self::remoteResourceManifestItem($item);
+            $declaredItems[] = $declared;
+            if (is_string($declared['part'] ?? null) && $declared['part'] !== '') {
+                $declaredByPart[$declared['part']] = $declared;
+            }
+        }
+
+        $observedItems = [];
+        $observedItemsByPart = [];
+        $remoteReferences = [];
+        $undeclaredItems = [];
+        $declaredButUnobservedItems = [];
+        $diagnostics = [];
+
+        foreach ($xhtmlAssets as $asset) {
+            $references = self::xhtmlAssetRemoteResourceReferences($asset);
+            if ($references === []) {
+                continue;
+            }
+
+            array_push($remoteReferences, ...$references);
+            $part = is_string($asset['part'] ?? null) ? $asset['part'] : '';
+            $manifestDeclared = isset($declaredByPart[$part])
+                || (($asset['resourceFlags']['remoteResources'] ?? false) === true);
+            $observed = [
+                'id' => (string) ($asset['id'] ?? ''),
+                'href' => (string) ($asset['href'] ?? ''),
+                'part' => $part,
+                'manifestDeclared' => $manifestDeclared,
+                'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
+                'remoteReferenceCount' => count($references),
+                'remoteReferences' => $references,
+                'reviewFlags' => is_array($asset['contentResourceReviewFlags'] ?? null)
+                    ? array_values($asset['contentResourceReviewFlags'])
+                    : [],
+                'diagnostics' => [],
+            ];
+
+            if (!$manifestDeclared) {
+                $diagnostic = [
+                    'type' => 'undeclared-xhtml-remote-resources',
+                    'id' => $observed['id'],
+                    'part' => $part === '' ? null : $part,
+                    'remoteReferenceCount' => count($references),
+                    'message' => 'EPUB XHTML content references remote resources but the OPF manifest item does not declare remote-resources',
+                ];
+                $observed['diagnostics'][] = $diagnostic;
+                $undeclaredItems[] = $observed;
+                $diagnostics[] = $diagnostic;
+            }
+
+            $observedItems[] = $observed;
+            if ($part !== '') {
+                $observedItemsByPart[$part] = $observed;
+            }
+        }
+
+        foreach ($declaredItems as $declared) {
+            $part = is_string($declared['part'] ?? null) ? $declared['part'] : null;
+            if ($part !== null && isset($observedItemsByPart[$part])) {
+                continue;
+            }
+
+            $mediaType = is_string($declared['mediaType'] ?? null) ? $declared['mediaType'] : null;
+            $diagnostic = [
+                'type' => $mediaType === self::XHTML_MEDIA_TYPE
+                    ? 'declared-remote-resources-not-observed'
+                    : 'declared-remote-resources-unscanned-resource',
+                'id' => (string) ($declared['id'] ?? ''),
+                'part' => $part,
+                'mediaType' => $mediaType,
+                'message' => $mediaType === self::XHTML_MEDIA_TYPE
+                    ? 'EPUB OPF manifest item declares remote-resources but the bounded XHTML scan did not observe resource-loading remote references'
+                    : 'EPUB OPF manifest item declares remote-resources on a media type outside the bounded XHTML scanner',
+            ];
+            $declared['diagnostics'] = [$diagnostic];
+            $declaredButUnobservedItems[] = $declared;
+            $diagnostics[] = $diagnostic;
+        }
+
+        return [
+            'present' => $declaredItems !== [] || $remoteReferences !== [],
+            'declaredCount' => count($declaredItems),
+            'observedAssetCount' => count($observedItems),
+            'remoteReferenceCount' => count($remoteReferences),
+            'xhtmlExternalReferenceCount' => is_int($xhtmlResourceReport['externalReferenceCount'] ?? null)
+                ? $xhtmlResourceReport['externalReferenceCount']
+                : 0,
+            'undeclaredAssetCount' => count($undeclaredItems),
+            'declaredButUnobservedCount' => count($declaredButUnobservedItems),
+            'declaredItems' => $declaredItems,
+            'declaredItemsByPart' => $declaredByPart,
+            'observedItems' => $observedItems,
+            'observedItemsByPart' => $observedItemsByPart,
+            'undeclaredItems' => $undeclaredItems,
+            'declaredButUnobservedItems' => $declaredButUnobservedItems,
+            'remoteReferences' => $remoteReferences,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function remoteResourceManifestItem(array $item): array
+    {
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+            'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+            'external' => (bool) ($item['external'] ?? false),
+            'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+            'exists' => (bool) ($item['exists'] ?? false),
+            'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function xhtmlAssetRemoteResourceReferences(array $asset): array
+    {
+        $references = is_array($asset['contentReferences'] ?? null) ? $asset['contentReferences'] : [];
+
+        return array_values(array_filter(
+            $references,
+            static fn (array $reference): bool => self::isRemoteResourceReference($reference),
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $reference
+     */
+    private static function isRemoteResourceReference(array $reference): bool
+    {
+        if (($reference['external'] ?? false) !== true) {
+            return false;
+        }
+
+        $element = strtolower((string) ($reference['element'] ?? ''));
+        $attribute = strtolower((string) ($reference['attribute'] ?? ''));
+
+        return !($element === 'a' && $attribute === 'href');
+    }
+
+    /**
      * @param list<array<string, mixed>> $xhtmlAssets
      *
      * @return array<string, mixed>
@@ -4047,6 +4224,7 @@ final class EpubReader
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $accessibility
      * @param array<string, mixed> $resourceProperties
+     * @param array<string, mixed> $remoteResources
      * @param array<string, mixed> $mediaDurations
      * @param array<string, mixed> $pageBreaks
      * @param array<string, mixed> $xhtmlResourceReport
@@ -4063,6 +4241,7 @@ final class EpubReader
         array $bindings,
         array $accessibility,
         array $resourceProperties,
+        array $remoteResources,
         array $mediaDurations,
         array $pageBreaks,
         array $xhtmlResourceReport,
@@ -4143,6 +4322,7 @@ final class EpubReader
             'accessibility' => $accessibility,
             'spineProperties' => $spineProperties,
             'resourceProperties' => $resourceProperties,
+            'remoteResources' => $remoteResources,
             'xhtmlResourceReport' => $xhtmlResourceReport,
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,

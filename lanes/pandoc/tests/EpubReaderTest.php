@@ -1332,6 +1332,96 @@ XML;
         $t->same($asset['references'], $scanBlock->attr('contentReferences'));
         $t->same($asset['diagnostics'], $scanBlock->attr('contentDiagnostics'));
     },
+    'reconciles OPF remote-resources declarations with observed XHTML resource references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $declaredRemoteXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p><img src="https://cdn.example.test/epub/declared.png" alt="declared remote"/></p></body>
+</html>
+XML;
+        $undeclaredRemoteXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p><img src="//cdn.example.test/epub/undeclared.png" alt="undeclared remote"/></p>
+    <iframe src="https://widgets.example.test/review-frame.html"></iframe>
+  </body>
+</html>
+XML;
+        $declaredCleanXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p>Remote resources are declared for a scripted reading-system path, but none are directly visible in the XHTML scan.</p></body>
+</html>
+XML;
+        $opfWithRemoteResources = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="remote-declared" href="text/remote-declared.xhtml" media-type="application/xhtml+xml" properties="remote-resources"/>'
+            . '<item id="remote-undeclared" href="text/remote-undeclared.xhtml" media-type="application/xhtml+xml"/>'
+            . '<item id="remote-clean" href="text/remote-clean.xhtml" media-type="application/xhtml+xml" properties="remote-resources"/>',
+            $opfXml
+        );
+        $opfWithRemoteResources = str_replace(
+            '</spine>',
+            '<itemref idref="remote-declared"/><itemref idref="remote-undeclared"/><itemref idref="remote-clean"/></spine>',
+            $opfWithRemoteResources
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithRemoteResources,
+            null,
+            [
+                ['name' => 'OEBPS/text/remote-declared.xhtml', 'data' => $declaredRemoteXhtml],
+                ['name' => 'OEBPS/text/remote-undeclared.xhtml', 'data' => $undeclaredRemoteXhtml],
+                ['name' => 'OEBPS/text/remote-clean.xhtml', 'data' => $declaredCleanXhtml],
+            ]
+        ));
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(true, $remoteResources['present']);
+        $t->same(2, $remoteResources['declaredCount']);
+        $t->same(2, $remoteResources['observedAssetCount']);
+        $t->same(3, $remoteResources['remoteReferenceCount']);
+        $t->same(3, $remoteResources['xhtmlExternalReferenceCount']);
+        $t->same(1, $remoteResources['undeclaredAssetCount']);
+        $t->same(1, $remoteResources['declaredButUnobservedCount']);
+
+        $t->same('remote-declared', $remoteResources['declaredItems'][0]['id']);
+        $t->same('/OEBPS/text/remote-declared.xhtml', $remoteResources['declaredItems'][0]['part']);
+        $t->same('remote-clean', $remoteResources['declaredItems'][1]['id']);
+        $t->same('remote-declared', $remoteResources['declaredItemsByPart']['/OEBPS/text/remote-declared.xhtml']['id']);
+
+        $declaredObserved = $remoteResources['observedItemsByPart']['/OEBPS/text/remote-declared.xhtml'];
+        $t->same('remote-declared', $declaredObserved['id']);
+        $t->same(true, $declaredObserved['manifestDeclared']);
+        $t->same(1, $declaredObserved['remoteReferenceCount']);
+        $t->same('https://cdn.example.test/epub/declared.png', $declaredObserved['remoteReferences'][0]['target']);
+        $t->same([], $declaredObserved['diagnostics']);
+
+        $undeclaredObserved = $remoteResources['observedItemsByPart']['/OEBPS/text/remote-undeclared.xhtml'];
+        $t->same('remote-undeclared', $undeclaredObserved['id']);
+        $t->same(false, $undeclaredObserved['manifestDeclared']);
+        $t->same(2, $undeclaredObserved['remoteReferenceCount']);
+        $t->same('//cdn.example.test/epub/undeclared.png', $undeclaredObserved['remoteReferences'][0]['target']);
+        $t->same('https://widgets.example.test/review-frame.html', $undeclaredObserved['remoteReferences'][1]['target']);
+        $t->same('undeclared-xhtml-remote-resources', $undeclaredObserved['diagnostics'][0]['type']);
+
+        $t->same('remote-undeclared', $remoteResources['undeclaredItems'][0]['id']);
+        $t->same('remote-clean', $remoteResources['declaredButUnobservedItems'][0]['id']);
+        $t->same('declared-remote-resources-not-observed', $remoteResources['declaredButUnobservedItems'][0]['diagnostics'][0]['type']);
+        $t->same('undeclared-xhtml-remote-resources', $remoteResources['diagnostics'][0]['type']);
+        $t->same('declared-remote-resources-not-observed', $remoteResources['diagnostics'][1]['type']);
+        $t->same($remoteResources, $result['importReport']['remoteResources']);
+        $t->same($remoteResources, $result['document']->attr('remoteResources'));
+
+        $declaredBlock = $result['document']->children[2];
+        $undeclaredBlock = $result['document']->children[3];
+        $cleanBlock = $result['document']->children[4];
+        $t->same(['remote-resources'], $declaredBlock->attr('resourceReviewFlags'));
+        $t->same(['remote-resources'], $declaredBlock->attr('contentResourceReviewFlags'));
+        $t->same([], $undeclaredBlock->attr('resourceReviewFlags'));
+        $t->same(['remote-resources'], $undeclaredBlock->attr('contentResourceReviewFlags'));
+        $t->same(['remote-resources'], $cleanBlock->attr('resourceReviewFlags'));
+        $t->same([], $cleanBlock->attr('contentResourceReviewFlags'));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,

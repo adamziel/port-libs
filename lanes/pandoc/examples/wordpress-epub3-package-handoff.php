@@ -422,6 +422,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['document']->children[0]->attr('contentReferences')[0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose remote XHTML content reference diagnostics');
     }
+    if (($result['remoteResources']['declaredCount'] ?? null) !== 1 || ($result['remoteResources']['observedAssetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB remote-resources declarations to reconcile with observed XHTML resource references');
+    }
+    if (($result['remoteResources']['remoteReferenceCount'] ?? null) !== 1 || ($result['remoteResources']['xhtmlExternalReferenceCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB remote resource report to separate resource loads from external navigation links');
+    }
+    if (($result['remoteResources']['undeclaredAssetCount'] ?? null) !== 0 || ($result['remoteResources']['declaredButUnobservedCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected EPUB declared remote resources to avoid mismatch diagnostics in the review packet');
+    }
+    if (($result['remoteResources']['observedItemsByPart']['/EPUB/text/chapter.xhtml']['remoteReferences'][0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
+        throw new RuntimeException('Expected EPUB remote resource report to expose the chapter remote image without fetching it');
+    }
+    if (($result['document']->attr('remoteResources')['remoteReferenceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected WordPress document handoff to expose EPUB remote resource reconciliation metadata');
+    }
     if (($result['renditions']['count'] ?? null) !== 2 || ($result['renditions']['alternateCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB multiple rootfile renditions to be summarized');
     }
@@ -597,6 +612,10 @@ echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsB
 echo 'xhtmlContentRemoteReferences=' . ($result['xhtmlResourceReport']['externalReferenceCount'] ?? 0) . "\n";
 echo 'xhtmlContentMathmlAssets=' . ($result['xhtmlResourceReport']['mathmlAssetCount'] ?? 0) . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";
+echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
+echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";
+echo 'remoteResourceReferences=' . ($result['remoteResources']['remoteReferenceCount'] ?? 0) . "\n";
+echo 'remoteResourceMismatches=' . count($result['remoteResources']['diagnostics'] ?? []) . "\n";
 echo 'renditions=' . ($result['renditions']['count'] ?? 0) . "\n";
 echo 'alternateRenditionTitle=' . ($result['renditions']['items'][1]['metadata']['title'] ?? '') . "\n";
 echo 'alternateRenditionLayout=' . ($result['renditions']['items'][1]['renditionProperties']['layout'] ?? '') . "\n";
