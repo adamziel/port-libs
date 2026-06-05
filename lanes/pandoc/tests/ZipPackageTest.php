@@ -1360,6 +1360,49 @@ return [
         ])));
     },
 
+    'rejects unsupported zip general purpose flag bits before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/enhanced-deflate.bin',
+                'data' => 'enhanced deflate metadata should stay blocked',
+                'method' => 8,
+                'flags' => 0x0810,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/patched-data.bin',
+                'data' => 'compressed patched data should stay blocked',
+                'method' => 8,
+                'flags' => 0x0820,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reserved-flags.bin',
+                'data' => 'reserved general-purpose flags should stay blocked',
+                'method' => 0,
+                'flags' => 0xc800,
+            ],
+        ])));
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>supported descriptor and deflate option flags</w:p></w:document>',
+                'method' => 8,
+                'flags' => 0x080e,
+                'descriptor' => true,
+            ],
+        ]));
+
+        $t->same(0x080e, $package->entry('word/document.xml')->generalPurposeFlags);
+        $t->same(
+            '<w:document><w:p>supported descriptor and deflate option flags</w:p></w:document>',
+            $package->read('/word/document.xml')
+        );
+    },
+
     'rejects crc and local file header names before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [

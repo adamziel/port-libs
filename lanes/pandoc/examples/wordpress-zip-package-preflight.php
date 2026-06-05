@@ -1273,6 +1273,12 @@ try {
 } catch (RuntimeException $exception) {
     $centralDirectoryEncryptionRejected = str_contains($exception->getMessage(), 'central-directory encryption metadata');
 }
+$compressedPatchedDataRejected = false;
+try {
+    ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x0820));
+} catch (RuntimeException $exception) {
+    $compressedPatchedDataRejected = str_contains($exception->getMessage(), 'Compressed-patched ZIP entries');
+}
 $versionNeededMismatchRejected = false;
 try {
     ZipPackage::fromString($buildVersionNeededMismatchBackedPackage());
@@ -1784,6 +1790,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP central-directory encryption metadata to be rejected before media import');
     }
 
+    if (!$compressedPatchedDataRejected) {
+        throw new RuntimeException('Expected ZIP compressed-patched data metadata to be rejected before media import');
+    }
+
     if ($package->entry('/word/document.xml')->neededToExtractVersion() !== 20) {
         throw new RuntimeException('Expected ZIP version-needed metadata to be exposed for package preflight');
     }
@@ -1903,6 +1913,7 @@ echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'reject
 echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";

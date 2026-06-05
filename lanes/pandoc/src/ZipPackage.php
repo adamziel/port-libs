@@ -11,9 +11,12 @@ final class ZipPackage
     private const CENTRAL_DIRECTORY_DIGITAL_SIGNATURE = "PK\x05\x05";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
     private const ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x0001;
+    private const ENHANCED_DEFLATE_GENERAL_PURPOSE_FLAG = 0x0010;
+    private const COMPRESSED_PATCHED_DATA_GENERAL_PURPOSE_FLAG = 0x0020;
     private const STRONG_ENCRYPTION_GENERAL_PURPOSE_FLAG = 0x0040;
     private const UTF8_GENERAL_PURPOSE_FLAG = 0x0800;
     private const CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x2000;
+    private const SUPPORTED_GENERAL_PURPOSE_FLAGS = 0x0002 | 0x0004 | 0x0008 | self::UTF8_GENERAL_PURPOSE_FLAG;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
@@ -794,8 +797,23 @@ final class ZipPackage
             throw new \RuntimeException("Strong-encrypted ZIP entries are not supported by the pandoc package reader: {$label}");
         }
 
+        if (($flags & self::ENHANCED_DEFLATE_GENERAL_PURPOSE_FLAG) !== 0) {
+            throw new \RuntimeException("Enhanced-deflate ZIP entries are not supported by the pandoc package reader: {$label}");
+        }
+
+        if (($flags & self::COMPRESSED_PATCHED_DATA_GENERAL_PURPOSE_FLAG) !== 0) {
+            throw new \RuntimeException("Compressed-patched ZIP entries are not supported by the pandoc package reader: {$label}");
+        }
+
         if (($flags & self::CENTRAL_DIRECTORY_ENCRYPTED_GENERAL_PURPOSE_FLAG) !== 0) {
             throw new \RuntimeException("ZIP entries with central-directory encryption metadata are not supported by the pandoc package reader: {$label}");
+        }
+
+        $unsupportedFlags = $flags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+        if ($unsupportedFlags !== 0) {
+            throw new \RuntimeException(
+                sprintf('Unsupported ZIP general-purpose flag bits 0x%04x for %s', $unsupportedFlags, $label)
+            );
         }
     }
 
