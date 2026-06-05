@@ -1173,6 +1173,20 @@ final class CitationCslProcessor
                 continue;
             }
 
+            if ($type === 'choose') {
+                foreach (($element['branches'] ?? []) as $branch) {
+                    if (is_array($branch) && isset($branch['children']) && is_array($branch['children']) && $this->hasNonNameRenderingElement($branch['children'])) {
+                        return true;
+                    }
+                }
+
+                if (isset($element['else']) && is_array($element['else']) && $this->hasNonNameRenderingElement($element['else'])) {
+                    return true;
+                }
+
+                continue;
+            }
+
             if ($type !== 'names') {
                 return true;
             }
@@ -1332,6 +1346,7 @@ final class CitationCslProcessor
             'text' => $this->renderTextElement($element, $item, $scope, $macroStack),
             'date' => $this->renderDateElement($element, $item, $scope),
             'names' => $this->renderNamesElement($element, $item, $scope),
+            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack),
             default => '',
         };
 
@@ -1400,6 +1415,16 @@ final class CitationCslProcessor
                     return true;
                 }
             }
+        }
+
+        if ($type === 'choose') {
+            foreach (($element['branches'] ?? []) as $branch) {
+                if (is_array($branch) && isset($branch['children']) && is_array($branch['children']) && $this->hasVariableRenderingElement($branch['children'])) {
+                    return true;
+                }
+            }
+
+            return isset($element['else']) && is_array($element['else']) && $this->hasVariableRenderingElement($element['else']);
         }
 
         return false;
@@ -1482,6 +1507,65 @@ final class CitationCslProcessor
         }
 
         return $this->joinRenderedElements($rendered, $delimiter);
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param array<string, mixed> $item
+     * @param list<string> $macroStack
+     */
+    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack): string
+    {
+        foreach (($element['branches'] ?? []) as $branch) {
+            if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, $scope)) {
+                continue;
+            }
+
+            $children = $branch['children'] ?? [];
+
+            return is_array($children)
+                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack)
+                : '';
+        }
+
+        $else = $element['else'] ?? [];
+
+        return is_array($else)
+            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack)
+            : '';
+    }
+
+    /**
+     * @param array<string, mixed> $branch
+     * @param array<string, mixed> $item
+     */
+    private function chooseBranchMatches(array $branch, array $item, string $scope): bool
+    {
+        $conditions = [];
+        $variables = $branch['variables'] ?? [];
+        if (is_array($variables)) {
+            foreach ($variables as $variable) {
+                if (is_scalar($variable)) {
+                    $conditions[] = $this->renderingVariableIsPresent($item, (string) $variable, $scope);
+                }
+            }
+        }
+
+        $types = $branch['types'] ?? [];
+        if (is_array($types) && $types !== []) {
+            $normalizedTypes = array_map(static fn (mixed $type): string => strtolower(trim((string) $type)), $types);
+            $conditions[] = in_array(strtolower((string) ($item['type'] ?? '')), $normalizedTypes, true);
+        }
+
+        if ($conditions === []) {
+            return false;
+        }
+
+        return match ((string) ($branch['match'] ?? 'all')) {
+            'any' => in_array(true, $conditions, true),
+            'none' => !in_array(true, $conditions, true),
+            default => !in_array(false, $conditions, true),
+        };
     }
 
     /**
@@ -1590,6 +1674,34 @@ final class CitationCslProcessor
             'editor' => $this->renderNamesElement(['variable' => 'editor'], $item, $scope),
             default => $this->rawVariableValue($item, $variable),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderingVariableIsPresent(array $item, string $variable, string $scope): bool
+    {
+        $normalized = strtolower(trim($variable));
+        if ($normalized === '') {
+            return false;
+        }
+
+        if (in_array($normalized, ['author', 'editor'], true)) {
+            return $this->namesForRenderingVariable($item, $normalized) !== [];
+        }
+
+        if (in_array($normalized, ['issued', 'date', 'accessed'], true)) {
+            $date = $this->dateVariableForRendering($item, $normalized);
+            if (!is_array($date)) {
+                return false;
+            }
+
+            return (isset($date['parts']) && is_array($date['parts']) && $date['parts'] !== [])
+                || (string) ($date['display'] ?? '') !== ''
+                || (string) ($date['literal'] ?? '') !== '';
+        }
+
+        return $this->renderVariableValue($item, $variable, $scope) !== '';
     }
 
     /**

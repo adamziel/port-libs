@@ -1355,6 +1355,157 @@ XML
 XML
         ));
     },
+    'applies bounded csl choose conditionals for variable and type branches' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'article-doi',
+                'type' => 'article-journal',
+                'title' => 'Conditional Article Packet',
+                'container-title' => 'Import Review',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026, 6, 5]]],
+                'DOI' => '10.5555/conditional',
+            ],
+            [
+                'id' => 'web-url',
+                'type' => 'webpage',
+                'title' => 'Conditional Web Packet',
+                'author' => [
+                    ['literal' => 'Archive Team'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/conditional-web',
+            ],
+            [
+                'id' => 'local-report',
+                'type' => 'report',
+                'title' => 'Local Report Packet',
+                'author' => [
+                    ['literal' => 'Migration Committee'],
+                ],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Conditional Review Style</title>
+    <id>https://example.test/styles/conditional-review</id>
+    <updated>2026-06-05T02:40:00+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="no date">undated</term>
+    </terms>
+  </locale>
+  <macro name="source-locator">
+    <choose>
+      <if variable="DOI" match="any">
+        <text variable="DOI" prefix="doi:"/>
+      </if>
+      <else-if variable="DOI URL" match="none">
+        <text value="no stable source locator"/>
+      </else-if>
+      <else-if variable="URL" match="any">
+        <text variable="URL" prefix="available:"/>
+      </else-if>
+      <else>
+        <text value="unclassified source locator"/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=": ">
+        <names variable="author editor"/>
+        <choose>
+          <if type="article-journal" match="any">
+            <group delimiter=" ">
+              <text value="article"/>
+              <date variable="issued">
+                <date-part name="year"/>
+              </date>
+            </group>
+          </if>
+          <else-if variable="issued" match="any">
+            <date variable="issued">
+              <date-part name="year"/>
+            </date>
+          </else-if>
+          <else>
+            <text term="no date"/>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group delimiter=". " suffix=".">
+        <names variable="author editor"/>
+        <text variable="title"/>
+        <text macro="source-locator"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('choose', $summary['macros']['source-locator'][0]['type'] ?? null);
+        $t->same(['DOI'], $summary['macros']['source-locator'][0]['branches'][0]['variables'] ?? null);
+        $t->same('none', $summary['macros']['source-locator'][0]['branches'][1]['match'] ?? null);
+        $t->same(['article-journal'], $summary['citationRendering'][0]['children'][1]['branches'][0]['types'] ?? null);
+        $t->same(['issued'], $summary['citationRendering'][0]['children'][1]['branches'][1]['variables'] ?? null);
+        $t->same('any', $summary['citationRendering'][0]['children'][1]['branches'][1]['match'] ?? null);
+
+        $t->same('(de la Cruz: article 2026; Archive Team: 2024; Migration Committee: undated)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'article-doi', 'text' => '[@article-doi]']),
+            new AstNode('citation', ['id' => 'web-url', 'text' => '[@web-url]']),
+            new AstNode('citation', ['id' => 'local-report', 'text' => '[@local-report]']),
+        ]));
+        $t->same('de la Cruz, Ana Maria. Conditional Article Packet. doi:10.5555/conditional.', $processor->renderBibliographyEntry('article-doi'));
+        $t->same('Archive Team. Conditional Web Packet. available:https://example.test/conditional-web.', $processor->renderBibliographyEntry('web-url'));
+        $t->same('Migration Committee. Local Report Packet. no stable source locator.', $processor->renderBibliographyEntry('local-report'));
+
+        $document = (new MarkdownReader())->read('Review cites [@article-doi; @web-url; @local-report].');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (de la Cruz: article 2026; Archive Team: 2024; Migration Committee: undated).', $markdown);
+        $t->contains('Migration Committee undated' . "\n" . ':   Migration Committee. Local Report Packet. no stable source locator.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (de la Cruz: article 2026; Archive Team: 2024; Migration Committee: undated).</p>', $blocks);
+        $t->contains('<dt>Migration Committee undated</dt><dd>Migration Committee. Local Report Packet. no stable source locator.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <choose><if match="sometimes" variable="title"><text variable="title"/></if></choose>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <choose><if><text variable="title"/></if></choose>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

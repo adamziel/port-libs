@@ -384,6 +384,18 @@ final class CslStyle
             if (($element['type'] ?? '') === 'group' && isset($element['children']) && is_array($element['children'])) {
                 self::validateRenderingMacroReferences($element['children'], $macros, $stack, $context);
             }
+
+            if (($element['type'] ?? '') === 'choose') {
+                foreach (($element['branches'] ?? []) as $branch) {
+                    if (is_array($branch) && isset($branch['children']) && is_array($branch['children'])) {
+                        self::validateRenderingMacroReferences($branch['children'], $macros, $stack, $context);
+                    }
+                }
+
+                if (isset($element['else']) && is_array($element['else'])) {
+                    self::validateRenderingMacroReferences($element['else'], $macros, $stack, $context);
+                }
+            }
         }
     }
 
@@ -492,6 +504,26 @@ final class CslStyle
                 $options = self::nameRenderingOptionsForRenderingElements($element['children'], $scope, $macros, $stack);
                 if ($options !== null) {
                     return $options;
+                }
+            }
+
+            if ($type === 'choose') {
+                foreach (($element['branches'] ?? []) as $branch) {
+                    if (!is_array($branch) || !isset($branch['children']) || !is_array($branch['children'])) {
+                        continue;
+                    }
+
+                    $options = self::nameRenderingOptionsForRenderingElements($branch['children'], $scope, $macros, $stack);
+                    if ($options !== null) {
+                        return $options;
+                    }
+                }
+
+                if (isset($element['else']) && is_array($element['else'])) {
+                    $options = self::nameRenderingOptionsForRenderingElements($element['else'], $scope, $macros, $stack);
+                    if ($options !== null) {
+                        return $options;
+                    }
                 }
             }
 
@@ -649,6 +681,7 @@ final class CslStyle
             'text' => self::textRenderingElement($element, $scope),
             'date' => self::dateRenderingElement($element, $scope),
             'names' => self::namesRenderingElement($element, $scope),
+            'choose' => self::chooseRenderingElement($element, $scope),
             default => null,
         };
     }
@@ -752,6 +785,108 @@ final class CslStyle
         }
 
         return $element;
+    }
+
+    /**
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     */
+    private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
+    {
+        $branches = [];
+        $else = [];
+        $seenIf = false;
+        $seenElse = false;
+
+        foreach ($choose->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = $child->localName;
+            if ($name === 'if') {
+                if ($seenIf || $seenElse) {
+                    throw new \InvalidArgumentException('CSL ' . $scope . ' choose element must start with a single if branch');
+                }
+
+                $seenIf = true;
+                $branches[] = self::conditionalRenderingBranch($child, $scope);
+                continue;
+            }
+
+            if ($name === 'else-if') {
+                if (!$seenIf || $seenElse) {
+                    throw new \InvalidArgumentException('CSL ' . $scope . ' choose else-if branch must follow if and precede else');
+                }
+
+                $branches[] = self::conditionalRenderingBranch($child, $scope);
+                continue;
+            }
+
+            if ($name === 'else') {
+                if (!$seenIf || $seenElse) {
+                    throw new \InvalidArgumentException('CSL ' . $scope . ' choose else branch must follow if and appear once');
+                }
+
+                $seenElse = true;
+                $else = self::renderingElements($child, $scope);
+                continue;
+            }
+
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose element may only contain if, else-if, or else branches');
+        }
+
+        if ($branches === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose element must contain an if branch');
+        }
+
+        return [
+            'type' => 'choose',
+            'branches' => $branches,
+            'else' => $else,
+        ];
+    }
+
+    /**
+     * @return array{match:string, variables:list<string>, types:list<string>, children:list<array<string, mixed>>}
+     */
+    private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
+    {
+        $match = trim($branch->getAttribute('match'));
+        if ($match === '') {
+            $match = 'all';
+        }
+        if (!in_array($match, ['all', 'any', 'none'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch match must be all, any, or none');
+        }
+
+        $variables = self::spaceSeparatedAttribute($branch, 'variable');
+        $types = self::spaceSeparatedAttribute($branch, 'type');
+        if ($variables === [] && $types === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable or type');
+        }
+
+        return [
+            'match' => $match,
+            'variables' => $variables,
+            'types' => $types,
+            'children' => self::renderingElements($branch, $scope),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function spaceSeparatedAttribute(\DOMElement $element, string $name): array
+    {
+        $value = trim($element->getAttribute($name));
+        if ($value === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            preg_split('/\s+/', $value) ?: [],
+            static fn (string $part): bool => $part !== ''
+        ));
     }
 
     private static function optionalAttribute(\DOMElement $element, string $name): string

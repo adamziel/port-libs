@@ -113,6 +113,19 @@ $cslStyleXml = <<<'XML'
       <date variable="accessed"/>
     </group>
   </macro>
+  <macro name="review-source-locator">
+    <choose>
+      <if variable="DOI" match="any">
+        <text variable="DOI" prefix="DOI "/>
+      </if>
+      <else-if variable="URL" match="any">
+        <text variable="URL"/>
+      </else-if>
+      <else>
+        <text value="No stable source locator"/>
+      </else>
+    </choose>
+  </macro>
   <macro name="review-bibliography-entry">
     <group delimiter=". " suffix=".">
       <names variable="author editor" delimiter="; ">
@@ -120,8 +133,7 @@ $cslStyleXml = <<<'XML'
       </names>
       <text variable="title"/>
       <text macro="review-publication"/>
-      <text variable="DOI" prefix="DOI "/>
-      <text variable="URL"/>
+      <text macro="review-source-locator"/>
       <text macro="review-accessed"/>
     </group>
   </macro>
@@ -159,7 +171,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>The reviewer packet cites de la Cruz (2026) for imported source access dates.</p>',
         '<p>The local style renders Adams, Baker, and others (undated) when source dates are missing.</p>',
         '<dt>de la Cruz 2026</dt><dd>[de la Cruz, A. M., Jr. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>',
-        '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet.]</dd>',
+        '<dt>Adams, Baker, and others undated</dt><dd>[Adams, A.; Baker, B.; Clark, C. Undated Committee Packet. No stable source locator.]</dd>',
         '<p>The source archive keeps (see @missing-source; URL Key Source 2000, p. 33) visible for reviewer follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
