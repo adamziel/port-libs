@@ -128,6 +128,15 @@ final class PdfTextExtractor
     private array $currentDirectObjectBodiesByGeneration = [];
 
     /**
+     * @var array{objectNumber: int, generation: int}|null
+     */
+    private ?array $currentTrailerRootReference = null;
+
+    private bool $currentTrailerRootReferencePresent = false;
+
+    private bool $currentTrailerRootReferenceBlocksFallback = false;
+
+    /**
      * @return list<string>
      */
     public function extractTextRuns(string $pdfBytes): array
@@ -223,6 +232,9 @@ final class PdfTextExtractor
 
         $objects = $this->pdfObjects($pdfBytes);
         $pageObjectNumbers = $this->orderedPageObjectNumbers($objects);
+        if ($pageObjectNumbers === [] && $this->currentTrailerRootReferenceBlocksFallback) {
+            return [];
+        }
         $pageCount = count($pageObjectNumbers);
         if ($pageCount === 0) {
             $pageCount = count($this->allDecodedStreams($pdfBytes, $objects));
@@ -1927,6 +1939,29 @@ final class PdfTextExtractor
      */
     private function catalogObjectBody(array $objects): ?string
     {
+        if ($this->currentTrailerRootReferencePresent) {
+            $rootReference = $this->currentTrailerRootReference;
+            if ($rootReference === null) {
+                return null;
+            }
+
+            $rootBody = $this->objectBodyForExactReference(
+                $objects,
+                $rootReference['objectNumber'],
+                $rootReference['generation']
+            );
+            if (
+                $rootBody !== null
+                && isset($objects[$rootReference['objectNumber']])
+                && $objects[$rootReference['objectNumber']] === $rootBody
+                && $this->isCatalogObject($rootBody)
+            ) {
+                return $rootBody;
+            }
+
+            return null;
+        }
+
         foreach ($objects as $body) {
             if ($this->isCatalogObject($body)) {
                 return $body;
@@ -7837,14 +7872,11 @@ final class PdfTextExtractor
      */
     private function orderedPageObjectNumbers(array $objects): array
     {
-        foreach ($objects as $objectNumber => $body) {
-            if (!$this->isCatalogObject($body)) {
-                continue;
-            }
-
-            $pagesReference = $this->objectReferenceAfterName($body, 'Pages');
+        $catalog = $this->catalogObjectBody($objects);
+        if ($catalog !== null) {
+            $pagesReference = $this->objectReferenceAfterName($catalog, 'Pages');
             if ($pagesReference === null) {
-                continue;
+                return [];
             }
 
             $pages = $this->pageObjectNumbersFromTree(
@@ -7853,6 +7885,10 @@ final class PdfTextExtractor
                 $objects
             );
             return array_values(array_unique($pages, SORT_REGULAR));
+        }
+
+        if ($this->currentTrailerRootReferenceBlocksFallback) {
+            return [];
         }
 
         $pages = [];
@@ -14987,6 +15023,9 @@ final class PdfTextExtractor
     {
         $this->currentObjectReferenceOwners = [];
         $this->currentDirectObjectBodiesByGeneration = [];
+        $this->currentTrailerRootReference = null;
+        $this->currentTrailerRootReferencePresent = false;
+        $this->currentTrailerRootReferenceBlocksFallback = false;
         if ($this->hasEncryptedTrailer($pdfBytes)) {
             return [];
         }
@@ -15028,8 +15067,10 @@ final class PdfTextExtractor
         ksort($objects, SORT_NUMERIC);
         $this->currentObjectReferenceOwners = $this->objectReferenceOwners($objects, $definitions, $xrefEntries);
 
-        $rootReference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions)
-            ?? $this->trailerRootReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
+        $rootResolution = $this->currentTrailerRootReferenceResolution($pdfBytes, $definitions);
+        $this->currentTrailerRootReferencePresent = $rootResolution['present'];
+        $this->currentTrailerRootReference = $rootResolution['reference'];
+        $rootReference = $rootResolution['reference'];
         if ($rootReference !== null && $rootReference['generation'] > 0) {
             $objects = $this->withDirectGenerationObjectReference(
                 $objects,
@@ -15051,7 +15092,87 @@ final class PdfTextExtractor
             $objects = $this->promoteObjectToFront($objects, $rootReference['objectNumber']);
         }
 
+        $this->currentTrailerRootReferenceBlocksFallback = $this->trailerRootReferenceBlocksFallback($objects);
+
         return $objects;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array{present: bool, reference: array{objectNumber: int, generation: int}|null}
+     */
+    private function currentTrailerRootReferenceResolution(string $pdfBytes, array $definitions): array
+    {
+        $reference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions)
+            ?? $this->trailerRootReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
+        if ($reference !== null) {
+            return [
+                'present' => true,
+                'reference' => $reference,
+            ];
+        }
+
+        $trailers = $this->trailerDictionaryBodies($pdfBytes);
+        for ($index = count($trailers) - 1; $index >= 0; $index--) {
+            $value = $this->topLevelPdfValueAfterName($trailers[$index], 'Root');
+            if ($value === null) {
+                continue;
+            }
+
+            return [
+                'present' => true,
+                'reference' => $this->objectReferenceAfterName($trailers[$index], 'Root'),
+            ];
+        }
+
+        return [
+            'present' => false,
+            'reference' => null,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function trailerRootReferenceBlocksFallback(array $objects): bool
+    {
+        if (!$this->currentTrailerRootReferencePresent) {
+            return false;
+        }
+
+        $rootReference = $this->currentTrailerRootReference;
+        if ($rootReference === null) {
+            return $this->hasCatalogObject($objects);
+        }
+
+        $rootBody = $this->objectBodyForExactReference(
+            $objects,
+            $rootReference['objectNumber'],
+            $rootReference['generation']
+        );
+        if (
+            $rootBody !== null
+            && isset($objects[$rootReference['objectNumber']])
+            && $objects[$rootReference['objectNumber']] === $rootBody
+        ) {
+            return false;
+        }
+
+        return $this->hasCatalogObject($objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function hasCatalogObject(array $objects): bool
+    {
+        foreach ($objects as $body) {
+            if ($this->isCatalogObject($body)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

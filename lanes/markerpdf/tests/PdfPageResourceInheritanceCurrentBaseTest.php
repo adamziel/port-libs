@@ -232,12 +232,16 @@ $pageResourceKidGenerationAllStaleCurrentBasePdf = static function () use ($page
 };
 
 $pageResourceTrailerRootGenerationMismatchCurrentBasePdf = static function (): string {
+    $content = 'BT /F1 12 Tf 72 720 Td (Stale trailer root resource text) Tj ET q /StaleRootForm Do Q';
+    $form = 'BT /F1 12 Tf 12 24 Td (Stale trailer root inherited form) Tj ET';
+
     return "%PDF-1.7\n"
         . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
         . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
-        . "3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
         . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
-        . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length 0 >>\nstream\n\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($form) . " >>\nstream\n{$form}\nendstream\nendobj\n"
         . "10 0 obj\n<< /Font << /F1 5 0 R >> /XObject << /StaleRootForm 6 0 R >> >>\nendobj\n"
         . "trailer\n<< /Root 1 1 R >>\n%%EOF";
 };
@@ -502,7 +506,14 @@ return [
     },
     'blocks page-resource review when trailer Root generation does not resolve to the current catalog' => static function (TestRunner $t) use ($pageResourceTrailerRootGenerationMismatchCurrentBasePdf): void {
         $pdf = $pageResourceTrailerRootGenerationMismatchCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
 
+        $t->same([], $extractor->extractTextLines($pdf));
+        $t->same([], $extractor->extractTextRuns($pdf));
+        $t->same('', $extractor->extractPlainText($pdf));
+        $t->same('', $extractor->naiveGetText($pdf));
+        $t->same(0, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same([], $extractor->extractPageLabels($pdf));
         $t->same([], (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf));
         $t->same([], (new PdfPagePropertyExtractor())->extractPageReviewMetadata($pdf));
     },
