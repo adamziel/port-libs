@@ -71,6 +71,41 @@ $buildRawTarRecord = static function (string $name, string $typeFlag, string $da
 
     return substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8) . $data . $padding;
 };
+$buildBase256TarField = static function (int $value, int $length): string {
+    if ($value < 0) {
+        throw new RuntimeException('base-256 TAR fixture values must be non-negative');
+    }
+
+    $field = str_repeat("\0", $length);
+    for ($index = $length - 1; $index >= 0 && $value > 0; $index--) {
+        $field[$index] = chr($value & 0xff);
+        $value = intdiv($value, 256);
+    }
+
+    if ($value !== 0) {
+        throw new RuntimeException('base-256 TAR fixture value is too large');
+    }
+
+    $field[0] = chr(ord($field[0]) | 0x80);
+
+    return $field;
+};
+$rewriteTarHeaderFields = static function (string $archive, array $fields): string {
+    $header = substr($archive, 0, 512);
+    foreach ($fields as $offset => $field) {
+        $header = substr_replace($header, $field, (int) $offset, strlen($field));
+    }
+
+    $header = substr_replace($header, str_repeat(' ', 8), 148, 8);
+    $checksum = 0;
+    for ($index = 0, $length = strlen($header); $index < $length; $index++) {
+        $checksum += ord($header[$index]);
+    }
+
+    $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
+
+    return $header . substr($archive, 512);
+};
 $buildPaxPayload = static function (array $headers): string {
     $payload = '';
     foreach ($headers as $key => $value) {
@@ -611,6 +646,18 @@ $paxMetadataTar = $buildRawTarRecord('PaxHeaders/pax-document', 'x', $buildPaxPa
     . $buildRawTarRecord('placeholder-document.xml', '0', $paxDocumentBytes, 0, 0)
     . str_repeat("\0", 1024);
 $paxMetadataPacket = TarArchive::fromString($paxMetadataTar);
+$base256DocumentBytes = '<w:document><w:body><w:p>Base-256 tar metadata source</w:p></w:body></w:document>';
+$base256NumericTar = $rewriteTarHeaderFields(
+    $buildRawTarRecord('packet/base256/document.xml', '0', $base256DocumentBytes),
+    [
+        100 => $buildBase256TarField(0640, 8),
+        108 => $buildBase256TarField(100001, 8),
+        116 => $buildBase256TarField(100002, 8),
+        124 => $buildBase256TarField(strlen($base256DocumentBytes), 12),
+        136 => $buildBase256TarField($documentModifiedAt + 18, 12),
+    ]
+) . str_repeat("\0", 1024);
+$base256NumericPacket = TarArchive::fromString($base256NumericTar);
 $deflateReviewPacket = DeflateStream::build($tarPacket->bytes(), [
     'format' => DeflateStream::FORMAT_ZLIB,
     'compressionLevel' => 9,
@@ -831,6 +878,23 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected PAX metadata tar document bytes to round-trip');
     }
 
+    $base256Entry = $base256NumericPacket->entry('/packet/base256/document.xml');
+    if ($base256Entry->size !== strlen($base256DocumentBytes)) {
+        throw new RuntimeException('Expected base-256 TAR size metadata to define the document payload length');
+    }
+
+    if ($base256Entry->modifiedAt !== $documentModifiedAt + 18 || $base256Entry->mode !== 0640) {
+        throw new RuntimeException('Expected base-256 TAR timestamp and mode metadata to round-trip');
+    }
+
+    if ($base256Entry->uid !== 100001 || $base256Entry->gid !== 100002) {
+        throw new RuntimeException('Expected base-256 TAR owner ids to round-trip');
+    }
+
+    if ($base256NumericPacket->read('/packet/base256/document.xml') !== $base256DocumentBytes) {
+        throw new RuntimeException('Expected base-256 TAR document bytes to round-trip');
+    }
+
     if (($deflateReviewMetadata['compressionMethod'] ?? null) !== 8 || ($deflateReviewMetadata['compressionLevelHint'] ?? null) !== 'maximum') {
         throw new RuntimeException('Expected zlib-wrapped deflate review packet metadata to be inspectable');
     }
@@ -966,6 +1030,8 @@ echo 'tar.detectedFormat=' . $streamDetectedTarFormat . "\n";
 echo 'tar.gnuLongName=' . implode(',', $gnuLongNamePacket->names()) . "\n";
 echo 'tar.paxDocument=' . $paxMetadataPacket->read('/' . $paxDocumentName) . "\n";
 echo 'tar.paxOwner=' . $paxMetadataPacket->entry('/' . $paxDocumentName)->userName . ':' . $paxMetadataPacket->entry('/' . $paxDocumentName)->groupName . "\n";
+echo 'tar.base256Owner=' . $base256NumericPacket->entry('/packet/base256/document.xml')->uid . ':' . $base256NumericPacket->entry('/packet/base256/document.xml')->gid . "\n";
+echo 'tar.base256ModifiedAt=' . $base256NumericPacket->entry('/packet/base256/document.xml')->modifiedAt . "\n";
 echo 'deflate.format=' . $deflateReviewMetadata['format'] . "\n";
 echo 'deflate.windowSize=' . $deflateReviewMetadata['windowSize'] . "\n";
 echo 'deflate.levelHint=' . $deflateReviewMetadata['compressionLevelHint'] . "\n";

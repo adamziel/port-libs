@@ -45,6 +45,43 @@ $rawTarHeader = static function (string $name, string $typeFlag, string $data = 
     return $header . $data . $padding . ($withEndMarker ? str_repeat("\0", 1024) : '');
 };
 
+$base256TarField = static function (int $value, int $length): string {
+    if ($value < 0) {
+        throw new RuntimeException('base-256 TAR fixture values must be non-negative');
+    }
+
+    $field = str_repeat("\0", $length);
+    for ($index = $length - 1; $index >= 0 && $value > 0; $index--) {
+        $field[$index] = chr($value & 0xff);
+        $value = intdiv($value, 256);
+    }
+
+    if ($value !== 0) {
+        throw new RuntimeException('base-256 TAR fixture value is too large');
+    }
+
+    $field[0] = chr(ord($field[0]) | 0x80);
+
+    return $field;
+};
+
+$rewriteTarHeaderFields = static function (string $archive, array $fields): string {
+    $header = substr($archive, 0, 512);
+    foreach ($fields as $offset => $field) {
+        $header = substr_replace($header, $field, (int) $offset, strlen($field));
+    }
+
+    $header = substr_replace($header, str_repeat(' ', 8), 148, 8);
+    $checksum = 0;
+    for ($index = 0; $index < strlen($header); $index++) {
+        $checksum += ord($header[$index]);
+    }
+
+    $header = substr_replace($header, sprintf('%06o', $checksum) . "\0 ", 148, 8);
+
+    return $header . substr($archive, 512);
+};
+
 $paxPayload = static function (array $headers): string {
     $payload = '';
     foreach ($headers as $key => $value) {
@@ -194,6 +231,31 @@ return [
         $t->same('', $roundTrip->read($longDirectoryName));
     },
 
+    'reads base-256 tar numeric fields for package fixture entries' => static function (TestRunner $t) use ($rawTarHeader, $base256TarField, $rewriteTarHeaderFields): void {
+        $documentBytes = '<w:document><w:body><w:p>Base-256 tar metadata source</w:p></w:body></w:document>';
+        $archive = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/base256/document.xml', '0', $documentBytes),
+            [
+                100 => $base256TarField(0640, 8),
+                108 => $base256TarField(100001, 8),
+                116 => $base256TarField(100002, 8),
+                124 => $base256TarField(strlen($documentBytes), 12),
+                136 => $base256TarField(1780479035, 12),
+            ]
+        );
+        $roundTrip = TarArchive::fromString($archive);
+        $entry = $roundTrip->entry('/packet/base256/document.xml');
+
+        $t->same(['packet/base256/document.xml'], $roundTrip->names());
+        $t->true($entry->isRegularFile());
+        $t->same(strlen($documentBytes), $entry->size);
+        $t->same(0640, $entry->mode);
+        $t->same(100001, $entry->uid);
+        $t->same(100002, $entry->gid);
+        $t->same(1780479035, $entry->modifiedAt);
+        $t->same($documentBytes, $roundTrip->read('/packet/base256/document.xml'));
+    },
+
     'rejects unsafe or unsupported tar archive entries' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $valid = TarArchive::build([
             ['name' => 'packet/document.xml', 'data' => '<w:document/>'],
@@ -223,6 +285,19 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($danglingGnuLongName));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($badPaxSize));
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($valid, 1));
+    },
+
+    'rejects negative and overflowing base-256 tar numeric fields' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderFields): void {
+        $valid = $rawTarHeader('packet/base256-bounds.xml', '0', '<w:document/>');
+        $negativeSize = $rewriteTarHeaderFields($valid, [
+            124 => str_repeat("\xff", 12),
+        ]);
+        $overflowingSize = $rewriteTarHeaderFields($valid, [
+            124 => "\x80\x80" . str_repeat("\0", 10),
+        ]);
+
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($negativeSize));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($overflowingSize));
     },
 
     'rejects tar package streams without two zero end marker blocks' => static function (TestRunner $t) use ($rawTarHeader): void {

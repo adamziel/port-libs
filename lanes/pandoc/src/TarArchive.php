@@ -70,7 +70,7 @@ final class TarArchive
                 $typeFlag = self::TYPE_REGULAR;
             }
 
-            $headerSize = self::readOctalField(substr($header, 124, 12), 'TAR entry size');
+            $headerSize = self::readNumericField(substr($header, 124, 12), 'TAR entry size');
             $dataOffset = $cursor + self::BLOCK_SIZE;
             self::assertRange($bytes, $dataOffset, $headerSize, 'entry payload');
             $nextCursor = $dataOffset + self::paddedSize($headerSize);
@@ -140,7 +140,7 @@ final class TarArchive
                 $entryType,
                 $size,
                 self::resolvedModifiedAtFromHeader($header, $metadataHeaders),
-                self::readOctalField(substr($header, 100, 8), "TAR mode for {$name}"),
+                self::readNumericField(substr($header, 100, 8), "TAR mode for {$name}"),
                 self::resolvedUidFromHeader($header, $metadataHeaders, $name),
                 self::resolvedGidFromHeader($header, $metadataHeaders, $name),
                 self::trimNullField(substr($header, 157, 100)),
@@ -404,7 +404,7 @@ final class TarArchive
             return self::parsePaxNonNegativeInteger($headers['size'], 'TAR PAX size');
         }
 
-        return self::readOctalField(substr($header, 124, 12), 'TAR entry size');
+        return self::readNumericField(substr($header, 124, 12), 'TAR entry size');
     }
 
     /**
@@ -416,7 +416,7 @@ final class TarArchive
             return self::parsePaxIntegerTimestamp($headers['mtime'], 'TAR PAX mtime');
         }
 
-        return self::readOctalField(substr($header, 136, 12), 'TAR entry mtime');
+        return self::readNumericField(substr($header, 136, 12), 'TAR entry mtime');
     }
 
     /**
@@ -428,7 +428,7 @@ final class TarArchive
             return self::parsePaxNonNegativeInteger($headers['uid'], "TAR PAX uid for {$name}");
         }
 
-        return self::readOctalField(substr($header, 108, 8), "TAR uid for {$name}");
+        return self::readNumericField(substr($header, 108, 8), "TAR uid for {$name}");
     }
 
     /**
@@ -440,7 +440,7 @@ final class TarArchive
             return self::parsePaxNonNegativeInteger($headers['gid'], "TAR PAX gid for {$name}");
         }
 
-        return self::readOctalField(substr($header, 116, 8), "TAR gid for {$name}");
+        return self::readNumericField(substr($header, 116, 8), "TAR gid for {$name}");
     }
 
     /**
@@ -495,6 +495,39 @@ final class TarArchive
         }
 
         return intval($value, 8);
+    }
+
+    private static function readNumericField(string $field, string $label): int
+    {
+        if ($field !== '' && (ord($field[0]) & 0x80) !== 0) {
+            return self::readBase256Field($field, $label);
+        }
+
+        return self::readOctalField($field, $label);
+    }
+
+    private static function readBase256Field(string $field, string $label): int
+    {
+        if ($field === '') {
+            return 0;
+        }
+
+        $first = ord($field[0]);
+        if (($first & 0x40) !== 0) {
+            throw new \RuntimeException("{$label} is a negative base-256 TAR field, which is not supported");
+        }
+
+        $field[0] = chr($first & 0x7f);
+        $value = 0;
+        for ($index = 0, $length = strlen($field); $index < $length; $index++) {
+            $byte = ord($field[$index]);
+            if ($value > intdiv(PHP_INT_MAX - $byte, 256)) {
+                throw new \RuntimeException("{$label} is too large for this PHP runtime");
+            }
+            $value = ($value * 256) + $byte;
+        }
+
+        return $value;
     }
 
     /**
