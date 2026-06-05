@@ -2010,6 +2010,34 @@ try {
 $tarDuplicatePaxKeywordRejected = $tarDuplicatePaxPathRejected
     && $tarDuplicatePaxSizeRejected
     && $tarDuplicatePaxGlobalRejected;
+$tarPaxMtimeOverflowRejected = false;
+$tarPaxMtimeLocalOverflowRejected = false;
+$tarPaxMtimeOverflowValue = (string) PHP_INT_MAX . '0.25';
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('PaxHeaders/overflow-mtime', 'x', $buildPaxPayload([
+            'path' => 'packet/overflow-mtime.xml',
+            'mtime' => $tarPaxMtimeOverflowValue,
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('placeholder.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarPaxMtimeLocalOverflowRejected = str_contains($exception->getMessage(), 'PAX mtime');
+}
+$tarPaxMtimeGlobalOverflowRejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('GlobalHead/overflow-mtime', 'g', $buildPaxPayload([
+            'mtime' => $tarPaxMtimeOverflowValue,
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('packet/global-overflow-mtime.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarPaxMtimeGlobalOverflowRejected = str_contains($exception->getMessage(), 'PAX mtime');
+}
+$tarPaxMtimeOverflowRejected = $tarPaxMtimeLocalOverflowRejected && $tarPaxMtimeGlobalOverflowRejected;
 $tarPaxLinkpathRejected = false;
 try {
     TarArchive::fromString(
@@ -2880,6 +2908,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR duplicate PAX keyword metadata to be rejected before import');
     }
 
+    if (!$tarPaxMtimeOverflowRejected) {
+        throw new RuntimeException('Expected TAR PAX mtime overflow metadata to be rejected before import');
+    }
+
     if (!$tarPaxLinkpathRejected) {
         throw new RuntimeException('Expected TAR PAX linkpath metadata to be rejected before import');
     }
@@ -3028,6 +3060,7 @@ echo 'tarSparsePolicy=' . ($tarSparseRejected ? 'rejected' : 'not-rejected') . "
 echo 'tarUstarVersionPolicy=' . ($tarUstarVersionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGlobalPaxPerEntryPolicy=' . ($tarGlobalPaxPerEntryRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarDuplicatePaxKeywordPolicy=' . ($tarDuplicatePaxKeywordRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarPaxMtimeOverflowPolicy=' . ($tarPaxMtimeOverflowRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxLinkpathPolicy=' . ($tarPaxLinkpathRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongLinkPolicy=' . ($tarGnuLongLinkRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-rejected') . "\n";

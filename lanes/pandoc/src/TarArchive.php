@@ -775,7 +775,9 @@ final class TarArchive
             throw new \RuntimeException("{$label} is not a supported non-negative timestamp");
         }
 
-        return (int) floor((float) $value);
+        $integerPart = explode('.', $value, 2)[0];
+
+        return self::parsePaxNonNegativeInteger($integerPart, $label);
     }
 
     private static function parsePaxNonNegativeInteger(string $value, string $label): int

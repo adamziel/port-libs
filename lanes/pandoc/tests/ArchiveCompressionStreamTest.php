@@ -208,6 +208,37 @@ return [
         $t->same($documentBytes, $roundTrip->read('/' . $documentName));
     },
 
+    'rejects overflowing pax mtime metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $documentBytes = '<w:document><w:body><w:p>Overflowing PAX mtime source</w:p></w:body></w:document>';
+        $tooLargeTimestamp = (string) PHP_INT_MAX . '0.25';
+        $overflowingMtime = $rawTarHeader('PaxHeaders/overflow-mtime', 'x', $paxPayload([
+            'path' => 'packet/overflow-mtime.xml',
+            'size' => (string) strlen($documentBytes),
+            'mtime' => $tooLargeTimestamp,
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', $documentBytes, 0, false, 0)
+            . str_repeat("\0", 1024);
+        $overflowingGlobalMtime = $rawTarHeader('GlobalHead/overflow-mtime', 'g', $paxPayload([
+            'mtime' => $tooLargeTimestamp,
+        ]), 0, false)
+            . $rawTarHeader('packet/global-overflow-mtime.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $validFractionalMtime = $rawTarHeader('PaxHeaders/fractional-mtime', 'x', $paxPayload([
+            'path' => 'packet/fractional-mtime.xml',
+            'size' => (string) strlen($documentBytes),
+            'mtime' => '1780479048.75',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', $documentBytes, 0, false, 0)
+            . str_repeat("\0", 1024);
+
+        $entry = TarArchive::fromString($validFractionalMtime)->entry('/packet/fractional-mtime.xml');
+
+        $t->same(1780479048, $entry->modifiedAt);
+        $t->same('1780479048.75', $entry->paxHeaders['mtime'] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($overflowingMtime));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($overflowingGlobalMtime));
+    },
+
     'rejects invalid utf8 tar owner metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload, $rewriteTarHeaderFields): void {
         $invalidUserName = $rewriteTarHeaderFields(
             $rawTarHeader('packet/invalid-user.xml', '0', '<w:document/>'),
