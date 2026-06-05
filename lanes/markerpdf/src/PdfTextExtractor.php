@@ -20812,6 +20812,12 @@ final class PdfTextExtractor
                     return true;
                 }
 
+                $rawCandidate = substr($stream, $dataStart, $end - $dataStart);
+                if ($this->inlineImageRawTerminalWhitespaceCandidateMatchesSampleFloor($dictionary, $rawCandidate, $candidate)) {
+                    $index = $end + 2;
+                    return true;
+                }
+
                 if ($this->inlineImageCandidateIsIncompletePreviewOnly($dictionary, $candidate)) {
                     $incompletePreviewFallbackEnd = $end;
                     $incompletePreviewFallbackCanCloseBeforeNextImage =
@@ -21316,6 +21322,29 @@ final class PdfTextExtractor
                 $this->inlineImageUsesUnsupportedFilter($filters)
                 && $this->inlineUnsupportedFilterCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
             );
+    }
+
+    private function inlineImageRawTerminalWhitespaceCandidateMatchesSampleFloor(
+        string $dictionary,
+        string $rawCandidate,
+        string $trimmedCandidate
+    ): bool {
+        if ($rawCandidate === $trimmedCandidate) {
+            return false;
+        }
+
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters !== []) {
+            return false;
+        }
+
+        $sampleFloor = $this->inlineImageExpectedDecodedLength($dictionary)
+            ?? $this->inlineImageMinimumUnfilteredLength($dictionary);
+        if ($sampleFloor === null) {
+            return false;
+        }
+
+        return strlen($trimmedCandidate) < $sampleFloor && strlen($rawCandidate) === $sampleFloor;
     }
 
     private function inlineImageIncompletePreviewCandidateReachedSampleFloor(string $dictionary, string $candidate): bool

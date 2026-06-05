@@ -172,6 +172,12 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl ID "
     . $oversizedCompressedImage . "\nEI\n"
     . "BT /F1 12 Tf 72 624 Td (After Oversized Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 620 Td (Before Space Sample Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /G /BPC 8 ID  EI\n"
+    . "BT /F1 12 Tf 72 616 Td (After Space Sample Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 612 Td (Before Named Space Sample Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS /CSWordPress /BPC 8 ID  EI\n"
+    . "BT /F1 12 Tf 72 609 Td (After Named Space Sample Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 608 Td (Before RunLength Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
@@ -303,6 +309,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After A85 Inline Image',
         'Before Oversized Inline Image',
         'After Oversized Inline Image',
+        'Before Space Sample Inline Image',
+        'After Space Sample Inline Image',
+        'Before Named Space Sample Inline Image',
+        'After Named Space Sample Inline Image',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
         'Before Malformed Filter Inline',
@@ -312,6 +322,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     ],
     'requires_ascii85_end_marker_before_ei' => true,
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
+    'terminal_whitespace_inline_sample_preserved' => in_array('After Space Sample Inline Image', $lines, true),
+    'named_colorspace_terminal_whitespace_sample_preserved' => in_array('After Named Space Sample Inline Image', $lines, true),
     'complete_ascii85_review_decoded' => ($completeInlineReview['image_stream']['decoded_with_current_filters'] ?? false) === true,
     'complete_ascii85_review_preview_pixels' => $completeInlineReview['preview_pixel_count'] ?? null,
     'incomplete_ascii85_review_decode_failed' => $incompleteAscii85ReviewDecodeFailed,

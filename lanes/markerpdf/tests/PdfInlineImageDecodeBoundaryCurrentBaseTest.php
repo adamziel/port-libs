@@ -330,6 +330,48 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'keeps terminal whitespace samples inside unfiltered inline images before text extraction' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $content = "BT /F1 12 Tf 72 720 Td (Before Space Sample Inline Image) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC 8 ID  EI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Space Sample Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before Space Sample Inline Image',
+            'After Space Sample Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'BI /W'));
+    },
+    'keeps terminal whitespace samples inside named-colorspace inline image floors' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $content = "BT /F1 12 Tf 72 720 Td (Before Named Space Sample Inline Image) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /CSWordPress /BPC 8 ID  EI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Named Space Sample Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before Named Space Sample Inline Image',
+            'After Named Space Sample Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'CSWordPress'));
+    },
     'decodes LZW DecodeParms inline image payload before Indexed RGB preview' => static function (TestRunner $t) use ($lzwLiteralEncode, $tiffPredictorEncode): void {
         $renderer = new PdfImageRenderer();
         $objects = [
