@@ -151,7 +151,7 @@ $navXhtml = <<<'XML'
 XML;
 
 $chapterXhtml = <<<'XML'
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <body>
     <h1 id="source">Source chapter</h1>
     <span id="page-1"></span>
@@ -159,6 +159,10 @@ $chapterXhtml = <<<'XML'
     <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
     <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi><mo>=</mo><mn>1</mn></math>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title>Source mark</title><circle cx="5" cy="5" r="4"/></svg>
+    <epub:switch id="source-format-choice">
+      <epub:case required-namespace="http://www.w3.org/2000/svg"><p>Reading-system SVG path.</p></epub:case>
+      <epub:default><p>Fallback text preserved for WordPress review.</p></epub:default>
+    </epub:switch>
   </body>
 </html>
 XML;
@@ -542,14 +546,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['xhtmlResourceReport']['externalReferenceCount'] ?? null) !== 2) {
         throw new RuntimeException('Expected EPUB XHTML content scan to keep remote references unfetched for review');
     }
-    if (($result['xhtmlResourceReport']['mathmlAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['svgAssetCount'] ?? null) !== 1) {
-        throw new RuntimeException('Expected EPUB XHTML content scan to identify embedded MathML and SVG markers');
+    if (($result['xhtmlResourceReport']['mathmlAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['svgAssetCount'] ?? null) !== 1 || ($result['xhtmlResourceReport']['switchAssetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB XHTML content scan to identify embedded MathML, SVG, and switch markers');
     }
-    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'remote-resources']) {
+    if (($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'switch', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB XHTML content review flags for the source chapter');
     }
-    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'remote-resources']) {
+    if (($result['document']->children[0]->attr('contentResourceReviewFlags') ?? []) !== ['mathml', 'svg', 'switch', 'remote-resources']) {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB XHTML content review flags');
+    }
+    if (($result['document']->children[0]->attr('contentResourceFlags')['switch'] ?? null) !== true) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB switch content metadata');
     }
     if (($result['document']->children[0]->attr('contentReferences')[0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose remote XHTML content reference diagnostics');
@@ -777,6 +784,7 @@ echo 'chapterReviewFlags=' . implode(',', $result['resourceProperties']['itemsBy
 echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) . "\n";
 echo 'xhtmlContentRemoteReferences=' . ($result['xhtmlResourceReport']['externalReferenceCount'] ?? 0) . "\n";
 echo 'xhtmlContentMathmlAssets=' . ($result['xhtmlResourceReport']['mathmlAssetCount'] ?? 0) . "\n";
+echo 'xhtmlContentSwitchAssets=' . ($result['xhtmlResourceReport']['switchAssetCount'] ?? 0) . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";

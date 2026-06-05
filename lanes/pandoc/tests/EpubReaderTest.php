@@ -1688,6 +1688,53 @@ XML;
         $t->same($asset['references'], $scanBlock->attr('contentReferences'));
         $t->same($asset['diagnostics'], $scanBlock->attr('contentDiagnostics'));
     },
+    'flags EPUB switch XHTML content for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $switchXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <h1>Layout alternate</h1>
+    <epub:switch id="layout-choice">
+      <epub:case required-namespace="http://www.w3.org/2000/svg"><p>Reading-system SVG path.</p></epub:case>
+      <epub:default><p>Fallback text preserved for WordPress review.</p></epub:default>
+    </epub:switch>
+  </body>
+</html>
+XML;
+        $opfWithSwitchContent = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="switch-content" href="text/switch-content.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+        $opfWithSwitchContent = str_replace(
+            '</spine>',
+            '<itemref idref="switch-content"/></spine>',
+            $opfWithSwitchContent
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithSwitchContent,
+            null,
+            [
+                ['name' => 'OEBPS/text/switch-content.xhtml', 'data' => $switchXhtml],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/switch-content.xhtml'];
+        $switchBlock = $result['document']->children[2];
+
+        $t->same(1, $report['switchAssetCount'] ?? null);
+        $t->same(['switch'], $asset['reviewFlags']);
+        $t->same(true, $asset['flags']['switch'] ?? null);
+        $t->same(0, $asset['referenceCount']);
+        $t->same([], $asset['references']);
+        $t->same('/OEBPS/text/switch-content.xhtml', $switchBlock->attr('part'));
+        $t->same(['switch'], $switchBlock->attr('contentResourceReviewFlags'));
+        $t->same($asset['flags'], $switchBlock->attr('contentResourceFlags'));
+        $t->same($asset['references'], $switchBlock->attr('contentReferences'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reconciles OPF remote-resources declarations with observed XHTML resource references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $declaredRemoteXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">

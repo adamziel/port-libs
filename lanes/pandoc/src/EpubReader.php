@@ -4895,6 +4895,7 @@ final class EpubReader
         $mathmlAssetCount = 0;
         $svgAssetCount = 0;
         $scriptedAssetCount = 0;
+        $switchAssetCount = 0;
         $reviewRequiredCount = 0;
         $referenceCount = 0;
 
@@ -4926,6 +4927,9 @@ final class EpubReader
             }
             if (($item['flags']['scripted'] ?? false) === true) {
                 ++$scriptedAssetCount;
+            }
+            if (($item['flags']['switch'] ?? false) === true) {
+                ++$switchAssetCount;
             }
             if ($item['reviewFlags'] !== []) {
                 ++$reviewRequiredCount;
@@ -4969,6 +4973,7 @@ final class EpubReader
             'mathmlAssetCount' => $mathmlAssetCount,
             'svgAssetCount' => $svgAssetCount,
             'scriptedAssetCount' => $scriptedAssetCount,
+            'switchAssetCount' => $switchAssetCount,
             'reviewRequiredCount' => $reviewRequiredCount,
             'items' => $items,
             'itemsByPart' => $itemsByPart,
@@ -5059,6 +5064,9 @@ final class EpubReader
         }
         if ($namespace === self::XHTML_NS && $localName === 'script') {
             $flags['scripted'] = true;
+        }
+        if ($namespace === self::EPUB_OPS_NS && $localName === 'switch') {
+            $flags['switch'] = true;
         }
 
         foreach (self::xhtmlEventHandlerAttributes($element) as $attributeName) {
@@ -5171,7 +5179,7 @@ final class EpubReader
     }
 
     /**
-     * @return array{mathml:bool, svg:bool, scripted:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
+     * @return array{mathml:bool, svg:bool, scripted:bool, switch:bool, remoteResources:bool, missingReferences:bool, encryptedReferences:bool}
      */
     private static function emptyXhtmlContentResourceFlags(): array
     {
@@ -5179,6 +5187,7 @@ final class EpubReader
             'mathml' => false,
             'svg' => false,
             'scripted' => false,
+            'switch' => false,
             'remoteResources' => false,
             'missingReferences' => false,
             'encryptedReferences' => false,
@@ -5197,6 +5206,7 @@ final class EpubReader
             'mathml' => 'mathml',
             'svg' => 'svg',
             'scripted' => 'scripted',
+            'switch' => 'switch',
             'remoteResources' => 'remote-resources',
             'missingReferences' => 'missing-references',
             'encryptedReferences' => 'encrypted-references',
