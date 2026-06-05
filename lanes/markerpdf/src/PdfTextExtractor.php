@@ -4769,7 +4769,6 @@ final class PdfTextExtractor
     private function imageXObjectFilterDetails(array $filters, ?array $decodeParms, array $objects): array
     {
         $details = [];
-        $stringFilterCount = count(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
 
         foreach ($filters as $index => $filter) {
             if (!is_string($filter)) {
@@ -4778,7 +4777,7 @@ final class PdfTextExtractor
 
             $decodeParmsValue = $decodeParms === null
                 ? null
-                : ($decodeParms[$index] ?? ($stringFilterCount === 1 ? ($decodeParms[0] ?? null) : null));
+                : $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
 
             $details[] = [
                 'filter' => $filter,

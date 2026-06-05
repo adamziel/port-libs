@@ -491,6 +491,85 @@ return [
         $t->contains('inline_ccitt_fax_image_filter_review_only', implode(',', $plan['notes']));
         $t->true(!str_contains(json_encode($plan, JSON_UNESCAPED_SLASHES) ?: '', 'Inline null-filter CCITT payload noise'));
     },
+    'aligns XObject CCITT Fax DecodeParms arrays after null filter entries before WordPress review' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before compact CCITT XObject) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After compact CCITT XObject) Tj ET';
+        $faxPayload = 'BT /F1 12 Tf 72 700 Td (Compact CCITT DecodeParms Payload Noise) Tj ET';
+        $encodedFaxPayload = strtoupper(bin2hex($faxPayload)) . '>';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /CompactFax 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 24 /Height 2 /ImageMask true /BitsPerComponent 1 /Filter [null /ASCIIHexDecode /CCF] /DecodeParms [null << /K -1 /Columns 24 /Rows 2 /BlackIs1 true /EncodedByteAlign true /EndOfLine true /EndOfBlock false /DamagedRowsBeforeError 1 >>] /Length " . strlen($encodedFaxPayload) . " >>\nstream\n{$encodedFaxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Before compact CCITT XObject', 'After compact CCITT XObject'], $extractor->extractTextLines($pdf));
+        $t->same("Before compact CCITT XObject\nAfter compact CCITT XObject", $extractor->extractPlainText($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'Compact CCITT DecodeParms Payload Noise'));
+        $t->same(['ASCIIHexDecode', 'CCF'], $entry['filters'] ?? null);
+        $t->same(['CCF'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same([
+            [
+                'filter' => 'ASCIIHexDecode',
+                'preview_only' => false,
+                'decode_parms' => null,
+            ],
+            [
+                'filter' => 'CCF',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 24,
+                    'rows' => 2,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => true,
+                    'end_of_line' => true,
+                    'end_of_block' => false,
+                    'damaged_rows_before_error' => 1,
+                ],
+            ],
+        ], $entry['filter_details'] ?? null);
+        $t->same([
+            'filter' => 'CCF',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'invalid_decode_parms_fields' => [],
+            'effective_decode_parms' => [
+                'k' => -1,
+                'columns' => 24,
+                'rows' => 2,
+                'black_is_1' => true,
+                'encoded_byte_align' => true,
+                'end_of_line' => true,
+                'end_of_block' => false,
+                'damaged_rows_before_error' => 1,
+            ],
+            'defaults_applied' => [],
+            'dictionary_width' => 24,
+            'dictionary_height' => 2,
+            'effective_width' => 24,
+            'effective_height' => 2,
+            'width_source' => 'image_dictionary',
+            'height_source' => 'image_dictionary',
+            'columns_match_width' => true,
+            'rows_match_height' => true,
+            'dimension_mismatch' => false,
+        ], $entry['ccitt_fax_decode_boundary'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encodedReview, $faxPayload));
+        $t->true(!str_contains($encodedReview, $encodedFaxPayload));
+    },
     'keeps Flate-wrapped CCITT Fax endstream decoys inside image payload boundaries' => static function (TestRunner $t) use ($ccittFaxFilterBoundaryZlibStored): void {
         $extractor = new PdfTextExtractor();
         $before = 'BT /F1 12 Tf 72 720 Td (Before Flate CCITT stream) Tj ET';

@@ -134,6 +134,22 @@ $geometryPdf = "%PDF-1.4\n"
     . "6 0 obj\n<< /Length " . strlen($geometryAfter) . " >>\nstream\n{$geometryAfter}\nendstream\nendobj\n"
     . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
 $geometryReview = $boundaryExtractor->extractImageXObjectBoundaryReview($geometryPdf);
+$compactXobjectBefore = 'BT /F1 12 Tf 72 720 Td (Before compact CCITT import) Tj ET';
+$compactXobjectAfter = 'BT /F1 12 Tf 72 680 Td (After compact CCITT import) Tj ET';
+$compactXobjectPayload = 'BT /F1 12 Tf 72 700 Td (WordPress compact CCITT DecodeParms leak) Tj ET';
+$compactXobjectEncodedPayload = strtoupper(bin2hex($compactXobjectPayload)) . '>';
+$compactXobjectPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /CompactFax 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($compactXobjectBefore) . " >>\nstream\n{$compactXobjectBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 24 /Height 2 /ImageMask true /BitsPerComponent 1 /Filter [null /ASCIIHexDecode /CCF] /DecodeParms [null << /K -1 /Columns 24 /Rows 2 /BlackIs1 true /EncodedByteAlign true /EndOfLine true /EndOfBlock false /DamagedRowsBeforeError 1 >>] /Length " . strlen($compactXobjectEncodedPayload) . " >>\nstream\n{$compactXobjectEncodedPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($compactXobjectAfter) . " >>\nstream\n{$compactXobjectAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$compactXobjectReview = $boundaryExtractor->extractImageXObjectBoundaryReview($compactXobjectPdf);
+$compactXobjectEntry = $compactXobjectReview['entries'][0] ?? [];
+$compactXobjectParms = $compactXobjectEntry['filter_details'][1]['decode_parms'] ?? [];
+$compactXobjectBoundary = $compactXobjectEntry['ccitt_fax_decode_boundary'] ?? [];
 $inlineNotes = $inlineReview['notes'] ?? [];
 $invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $inlineGeometryBoundary = $inlineGeometryReview['ccitt_fax_decode_boundary'] ?? [];
@@ -198,6 +214,17 @@ if (
 ) {
     throw new RuntimeException('Null-filter CCITT DecodeParms renderer boundary smoke failed.');
 }
+if (
+    ($compactXobjectParms['k'] ?? null) !== -1
+    || ($compactXobjectParms['columns'] ?? null) !== 24
+    || ($compactXobjectParms['rows'] ?? null) !== 2
+    || ($compactXobjectParms['end_of_block'] ?? null) !== false
+    || ($compactXobjectBoundary['dimension_mismatch'] ?? null) !== false
+    || str_contains($boundaryExtractor->extractPlainText($compactXobjectPdf), 'WordPress compact CCITT DecodeParms leak')
+    || str_contains(json_encode($compactXobjectReview, JSON_UNESCAPED_SLASHES) ?: '', $compactXobjectPayload)
+) {
+    throw new RuntimeException('XObject compact CCITT DecodeParms boundary smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
@@ -237,6 +264,23 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
         && ($nullFilterInlineParms['rows'] ?? null) === 2,
     'inline_null_filter_payload_excluded_from_review' => !str_contains(json_encode($nullFilterInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $nullFilterInlinePayload),
     'inline_null_filter_dimension_mismatch' => $nullFilterInlineBoundary['dimension_mismatch'] ?? null,
+    'xobject_compact_decode_parms' => [
+        'k' => $compactXobjectParms['k'] ?? null,
+        'columns' => $compactXobjectParms['columns'] ?? null,
+        'rows' => $compactXobjectParms['rows'] ?? null,
+        'black_is_1' => $compactXobjectParms['black_is_1'] ?? null,
+        'encoded_byte_align' => $compactXobjectParms['encoded_byte_align'] ?? null,
+        'end_of_line' => $compactXobjectParms['end_of_line'] ?? null,
+        'end_of_block' => $compactXobjectParms['end_of_block'] ?? null,
+        'damaged_rows_before_error' => $compactXobjectParms['damaged_rows_before_error'] ?? null,
+    ],
+    'xobject_compact_decode_parms_aligned' => ($compactXobjectParms['columns'] ?? null) === 24
+        && ($compactXobjectParms['rows'] ?? null) === 2
+        && ($compactXobjectParms['end_of_block'] ?? null) === false,
+    'xobject_compact_filter_details' => $compactXobjectEntry['filter_details'] ?? [],
+    'xobject_compact_payload_excluded_from_review' => !str_contains(json_encode($compactXobjectReview, JSON_UNESCAPED_SLASHES) ?: '', $compactXobjectPayload),
+    'xobject_compact_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($compactXobjectPdf), 'WordPress compact CCITT DecodeParms leak'),
+    'xobject_compact_dimension_mismatch' => $compactXobjectBoundary['dimension_mismatch'] ?? null,
     'xobject_geometry_effective_width' => $geometryBoundary['effective_width'] ?? null,
     'xobject_geometry_effective_height' => $geometryBoundary['effective_height'] ?? null,
     'xobject_geometry_width_source' => $geometryBoundary['width_source'] ?? null,
