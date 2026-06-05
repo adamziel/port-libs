@@ -817,6 +817,7 @@ final class TableGeometry
                 'section' => (string) $section['section'],
                 'columnCount' => (int) $section['columnCount'],
                 'rowCount' => count($rows),
+                'summary' => self::sectionGridSummary($section['rows']),
                 'rows' => $rows,
             ];
         }
@@ -837,6 +838,101 @@ final class TableGeometry
         }
 
         return $slot;
+    }
+
+    /**
+     * @param list<list<array<string, mixed>>> $rows
+     * @return array<string, mixed>
+     */
+    private static function sectionGridSummary(array $rows): array
+    {
+        $cellCount = 0;
+        $headerCellCount = 0;
+        $coveredSlotCount = 0;
+        $missingSlotCount = 0;
+        $nestedTableCount = 0;
+        $nestedTableCellCount = 0;
+        $nestedTableDiagnosticCount = 0;
+        $nestedTableCaptions = [];
+        $nestedTableDescendantCaptions = [];
+        $nestedTableDiagnosticCodes = [];
+
+        foreach ($rows as $slots) {
+            foreach ($slots as $slot) {
+                $kind = (string) ($slot['kind'] ?? '');
+                if ($kind === 'covered') {
+                    $coveredSlotCount++;
+                    continue;
+                }
+
+                if ($kind === 'missing') {
+                    $missingSlotCount++;
+                    continue;
+                }
+
+                if ($kind !== 'cell') {
+                    continue;
+                }
+
+                $cellCount++;
+                if (($slot['headerCell'] ?? false) === true) {
+                    $headerCellCount++;
+                }
+
+                $node = $slot['node'] ?? null;
+                if (!$node instanceof AstNode) {
+                    continue;
+                }
+
+                $nestedTables = self::nestedTableSummaries($node);
+                if ($nestedTables === []) {
+                    continue;
+                }
+
+                $nestedTableCellCount++;
+                $nestedTableCount += count($nestedTables);
+                foreach ($nestedTables as $nestedTable) {
+                    $caption = (string) ($nestedTable['caption'] ?? '');
+                    if ($caption !== '') {
+                        $nestedTableCaptions[] = $caption;
+                        $path = $nestedTable['path'] ?? [];
+                        if (is_array($path) && count($path) > 1) {
+                            $nestedTableDescendantCaptions[] = $caption;
+                        }
+                    }
+
+                    $diagnosticCount = (int) ($nestedTable['diagnosticCount'] ?? 0);
+                    $nestedTableDiagnosticCount += $diagnosticCount;
+                    $diagnosticCodes = $nestedTable['diagnosticCodes'] ?? [];
+                    if (is_array($diagnosticCodes)) {
+                        foreach ($diagnosticCodes as $code) {
+                            $code = (string) $code;
+                            if ($code !== '') {
+                                $nestedTableDiagnosticCodes[] = $code;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        sort($nestedTableCaptions);
+        sort($nestedTableDescendantCaptions);
+        sort($nestedTableDiagnosticCodes);
+
+        return [
+            'cellCount' => $cellCount,
+            'headerCellCount' => $headerCellCount,
+            'coveredSlotCount' => $coveredSlotCount,
+            'missingSlotCount' => $missingSlotCount,
+            'nestedTableCount' => $nestedTableCount,
+            'nestedTableCellCount' => $nestedTableCellCount,
+            'hasNestedTables' => $nestedTableCount > 0,
+            'nestedTableCaptions' => array_values(array_unique($nestedTableCaptions)),
+            'nestedTableDescendantCaptions' => array_values(array_unique($nestedTableDescendantCaptions)),
+            'nestedTableDiagnosticCount' => $nestedTableDiagnosticCount,
+            'nestedTableDiagnosticCodes' => array_values(array_unique($nestedTableDiagnosticCodes)),
+        ];
     }
 
     /**

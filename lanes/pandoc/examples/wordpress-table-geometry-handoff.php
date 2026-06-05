@@ -479,6 +479,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($nestedPacket['summary']['nestedTableCount'] ?? null) !== 1 || ($nestedPacket['summary']['nestedTableCellCount'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing nested table summary counts');
     }
+    if (($nestedPacket['sections'][1]['summary']['nestedTableCount'] ?? null) !== 1 || ($nestedPacket['sections'][1]['summary']['nestedTableCellCount'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing body-local nested table summary counts');
+    }
+    if (($nestedPacket['sections'][0]['summary']['hasNestedTables'] ?? null) !== false || ($nestedPacket['sections'][1]['summary']['hasNestedTables'] ?? null) !== true) {
+        throw new RuntimeException('Table geometry self-test missing per-section nested table flags');
+    }
+    if (($nestedPacket['sections'][1]['summary']['nestedTableCaptions'] ?? null) !== ['Nested queue audit']) {
+        throw new RuntimeException('Table geometry self-test missing per-section nested table captions');
+    }
     if (($nestedPacket['coverage'][2]['nestedTables'][0]['caption'] ?? null) !== 'Nested queue audit') {
         throw new RuntimeException('Table geometry self-test missing nested table caption rollup');
     }

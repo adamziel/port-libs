@@ -973,6 +973,14 @@ return [
 
         $t->same(2, $packet['summary']['nestedTableCount']);
         $t->same(1, $packet['summary']['nestedTableCellCount']);
+        $t->same(0, $packet['sections'][0]['summary']['nestedTableCount'] ?? null);
+        $t->same(0, $packet['sections'][0]['summary']['nestedTableCellCount'] ?? null);
+        $t->same(false, $packet['sections'][0]['summary']['hasNestedTables'] ?? null);
+        $t->same(2, $packet['sections'][1]['summary']['nestedTableCount'] ?? null);
+        $t->same(1, $packet['sections'][1]['summary']['nestedTableCellCount'] ?? null);
+        $t->same(true, $packet['sections'][1]['summary']['hasNestedTables'] ?? null);
+        $t->same(['Deep audit', 'Nested queue audit'], $packet['sections'][1]['summary']['nestedTableCaptions'] ?? null);
+        $t->same(['Deep audit'], $packet['sections'][1]['summary']['nestedTableDescendantCaptions'] ?? null);
         $t->same('Review packetNested scopeNested stateMediaInner posts42', $outerCell['text']);
         $t->same(true, isset($outerCell['nestedTables']));
         $t->same(2, count($outerCell['nestedTables'] ?? []));
