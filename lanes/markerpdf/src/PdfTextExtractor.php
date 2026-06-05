@@ -11248,7 +11248,7 @@ final class PdfTextExtractor
     private function decodeCryptIdentityStream(string $stream, ?string $decodeParms, array $objects = []): ?string
     {
         if ($decodeParms === null || trim($decodeParms) === '') {
-            return null;
+            return $stream;
         }
 
         $nameOffset = $this->topLevelNameValueOffset($decodeParms, 'Name');
@@ -24774,7 +24774,12 @@ final class PdfTextExtractor
             $filterDecodeParms = $decodeParms === null
                 ? null
                 : $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
-            if ($filter === 'Crypt' && $this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])) {
+            if (
+                $filter === 'Crypt'
+                && $filterDecodeParms !== null
+                && trim($filterDecodeParms) !== ''
+                && $this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])
+            ) {
                 continue;
             }
 
@@ -25087,7 +25092,11 @@ final class PdfTextExtractor
 
             if ($filter === 'Crypt' && $decodeParms !== null) {
                 $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
-                if ($this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])) {
+                if (
+                    $filterDecodeParms !== null
+                    && trim($filterDecodeParms) !== ''
+                    && $this->textStreamFilterIsSupported($filter, $filterDecodeParms, [])
+                ) {
                     return true;
                 }
             }

@@ -556,6 +556,38 @@ $parserStreamFilterStackBoundaryCurrentBaseIndirectCryptNamePdf = static functio
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseDefaultCryptPdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $defaultCryptContent = "BT /F1 12 Tf 72 720 Td (Default Crypt Stack Before) Tj ET\n"
+        . "\nendstream\n"
+        . "BT /F1 12 Tf 72 704 Td (Default Crypt Stack After) Tj ET";
+    $defaultCryptCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($defaultCryptContent);
+    if (!str_contains($defaultCryptCompressed, "\nendstream\n")) {
+        throw new RuntimeException('Focused default-Crypt stack fixture must expose a fake compressed endstream boundary.');
+    }
+
+    $nullDecodeParmsContent = 'BT /F1 12 Tf 72 688 Td (Default Crypt Null DecodeParms) Tj ET';
+    $nullDecodeParmsCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($nullDecodeParmsContent);
+    $emptyDictContent = 'BT /F1 12 Tf 72 672 Td (Default Crypt Empty Dict) Tj ET';
+    $emptyDictCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($emptyDictContent);
+    $privateContent = 'BT /F1 12 Tf 72 656 Td (Default Crypt Private Leak) Tj ET';
+    $privateCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($privateContent);
+    $visibleAfter = 'BT /F1 12 Tf 72 640 Td (Visible After Default Crypt) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R 8 0 R 9 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter [ /Crypt /FlateDecode ] >>\nstream\n{$defaultCryptCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ null null ] /Length " . strlen($nullDecodeParmsCompressed) . " >>\nstream\n{$nullDecodeParmsCompressed}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /Filter [ /FlateDecode /Crypt ] /DecodeParms [ null << >> ] /Length " . strlen($emptyDictCompressed) . " >>\nstream\n{$emptyDictCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /PrivateCF >> null ] /Length " . strlen($privateCompressed) . " >>\nstream\n{$privateCompressed}\nendstream\nendobj\n"
+        . "9 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
 ): string {
@@ -874,6 +906,29 @@ return [
         $t->true(!str_contains($text, 'Indirect Private Crypt Leak'));
         $t->true(!str_contains($text, 'PrivateCF'));
         $t->true(!str_contains($text, 'FlateDecode'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'treats omitted Crypt DecodeParms names as default Identity stack stages' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseDefaultCryptPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseDefaultCryptPdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Default Crypt Stack Before',
+            'Default Crypt Stack After',
+            'Default Crypt Null DecodeParms',
+            'Default Crypt Empty Dict',
+            'Visible After Default Crypt',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Default Crypt Private Leak'));
+        $t->true(!str_contains($text, 'PrivateCF'));
+        $t->true(!str_contains($text, 'endstream'));
         $t->true(!str_contains($text, "\0"));
     },
     'rejects extra non-null DecodeParms entries that are not aligned to stream filters' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf): void {

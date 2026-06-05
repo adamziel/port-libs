@@ -419,6 +419,33 @@ $indirectCryptNamePdf = "%PDF-1.4\n"
     . "11 0 obj\n/PrivateCF\nendobj\n"
     . "%%EOF";
 
+$defaultCryptContent = "BT /F1 12 Tf 72 720 Td (Default Crypt Stack Before) Tj ET\n"
+    . "\nendstream\n"
+    . "BT /F1 12 Tf 72 704 Td (Default Crypt Stack After) Tj ET";
+$defaultCryptCompressed = $zlibStored($defaultCryptContent);
+if (!str_contains($defaultCryptCompressed, "\nendstream\n")) {
+    throw new RuntimeException('Focused default-Crypt stack smoke fixture must expose a fake compressed endstream boundary.');
+}
+
+$defaultCryptNullDecodeParmsContent = 'BT /F1 12 Tf 72 688 Td (Default Crypt Null DecodeParms) Tj ET';
+$defaultCryptNullDecodeParmsCompressed = $zlibStored($defaultCryptNullDecodeParmsContent);
+$defaultCryptEmptyDictContent = 'BT /F1 12 Tf 72 672 Td (Default Crypt Empty Dict) Tj ET';
+$defaultCryptEmptyDictCompressed = $zlibStored($defaultCryptEmptyDictContent);
+$defaultCryptPrivateContent = 'BT /F1 12 Tf 72 656 Td (Default Crypt Private Leak) Tj ET';
+$defaultCryptPrivateCompressed = $zlibStored($defaultCryptPrivateContent);
+$defaultCryptVisibleAfter = 'BT /F1 12 Tf 72 640 Td (Visible After Default Crypt) Tj ET';
+$defaultCryptPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 7 0 R 8 0 R 9 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Filter [ /Crypt /FlateDecode ] >>\nstream\n{$defaultCryptCompressed}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "6 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ null null ] /Length " . strlen($defaultCryptNullDecodeParmsCompressed) . " >>\nstream\n{$defaultCryptNullDecodeParmsCompressed}\nendstream\nendobj\n"
+    . "7 0 obj\n<< /Filter [ /FlateDecode /Crypt ] /DecodeParms [ null << >> ] /Length " . strlen($defaultCryptEmptyDictCompressed) . " >>\nstream\n{$defaultCryptEmptyDictCompressed}\nendstream\nendobj\n"
+    . "8 0 obj\n<< /Filter [ /Crypt /FlateDecode ] /DecodeParms [ << /Name /PrivateCF >> null ] /Length " . strlen($defaultCryptPrivateCompressed) . " >>\nstream\n{$defaultCryptPrivateCompressed}\nendstream\nendobj\n"
+    . "9 0 obj\n<< /Length " . strlen($defaultCryptVisibleAfter) . " >>\nstream\n{$defaultCryptVisibleAfter}\nendstream\nendobj\n"
+    . "%%EOF";
+
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
 $stackLines = $extractor->extractTextLines($stackPdf);
@@ -437,6 +464,7 @@ $indirectNullFilterLines = $extractor->extractTextLines($indirectNullFilterPdf);
 $lzwShortLengthLines = $extractor->extractTextLines($lzwShortLengthPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
 $indirectCryptNameLines = $extractor->extractTextLines($indirectCryptNamePdf);
+$defaultCryptLines = $extractor->extractTextLines($defaultCryptPdf);
 $allLines = [
     ...$lines,
     ...$stackLines,
@@ -455,6 +483,7 @@ $allLines = [
     ...$lzwShortLengthLines,
     ...$cryptIdentityLines,
     ...$indirectCryptNameLines,
+    ...$defaultCryptLines,
 ];
 $joined = implode("\n", $allLines);
 
@@ -481,6 +510,10 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         ['FlateDecode', 'Crypt'],
         ['Crypt', 'FlateDecode'],
         ['Crypt', 'FlateDecode'],
+        ['Crypt', 'FlateDecode'],
+        ['Crypt', 'FlateDecode'],
+        ['Crypt', 'FlateDecode'],
+        ['FlateDecode', 'Crypt'],
         ['Crypt', 'FlateDecode'],
     ],
     'singleton_decodeparms_after_null_filter_stack_entry' => true,
@@ -530,6 +563,14 @@ echo '<!-- markerpdf:pdf-stream-filter-stack-boundary ' . htmlspecialchars(json_
         'Visible After Indirect Crypt',
     ],
     'indirect_private_crypt_name_fail_closed' => !str_contains($joined, 'Indirect Private Crypt Leak'),
+    'default_crypt_decodeparms_identity_passthrough' => $defaultCryptLines === [
+        'Default Crypt Stack Before',
+        'Default Crypt Stack After',
+        'Default Crypt Null DecodeParms',
+        'Default Crypt Empty Dict',
+        'Visible After Default Crypt',
+    ],
+    'default_crypt_private_filter_fail_closed' => !str_contains($joined, 'Default Crypt Private Leak'),
     'missing_length_stream_payload' => true,
     'declared_length_points_at_encoded_fake_endstream' => true,
     'short_declared_length_before_encoded_fake_endstream' => true,
