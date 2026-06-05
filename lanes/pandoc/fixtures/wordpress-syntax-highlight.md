@@ -303,3 +303,17 @@ impl<'a> ReviewPacket<'a> {
     }
 }
 ```
+
+``` {.nix #nix-review .numberLines startFrom=101}
+# WordPress deployment expression review
+{ pkgs ? import <nixpkgs> {} }:
+let
+  inherit (pkgs) stdenv writeText;
+  pluginSlug = "legacy-import";
+  mediaPaths = [ ./uploads ./assets ];
+  reviewer = if stdenv.isLinux then "wp-cli" else "manual";
+in
+pkgs.writeText "${pluginSlug}-review.json" ''
+  {"reviewer":"${reviewer}","media":${builtins.toJSON mediaPaths}}
+''
+```

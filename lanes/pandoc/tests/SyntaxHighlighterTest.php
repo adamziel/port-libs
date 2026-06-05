@@ -57,6 +57,9 @@ return [
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('commonmark'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
+        $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix'));
+        $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-expr'));
+        $t->same('nix', SyntaxHighlighter::normalizeLanguage('nix-shell'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('make'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('makefile'));
         $t->same('makefile', SyntaxHighlighter::normalizeLanguage('GNUmakefile'));
@@ -323,6 +326,46 @@ return [
         $t->contains('<span class="fu">format!</span><span class="op">(</span><span class="st">&quot;import-{}&quot;</span>', $wordpressBlock);
         $t->same('rust', $directRust['language']);
         $t->contains('<span class="kw">let</span> <span class="va">block</span><span class="op">:</span> <span class="dt">Option</span><span class="op">&lt;&amp;</span><span class="dt">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="cn">Some</span><span class="op">(</span><span class="st">r#&quot;ok&quot;#</span><span class="op">);</span>', $directRust['html']);
+    },
+    'highlights nix deployment review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[23] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Nix code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'kate');
+        $directNix = (new SyntaxHighlighter())->highlight('{ lib ? import <nixpkgs/lib> }: rec { enabled = true; }', 'nix-expr');
+
+        $t->same('nix', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('nix', $highlighted['language']);
+        $t->same('nix', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(101, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource nix numberLines"><code class="sourceCode nix" style="counter-reset: source-line 100;">', $highlighted['html']);
+        $t->contains('<span id="nix-review-101"><a href="#nix-review-101"></a><span class="co"># WordPress deployment expression review</span></span>', $highlighted['html']);
+        $t->contains('<span class="op">{</span> <span class="va">pkgs</span> <span class="op">?</span> <span class="fu">import</span> <span class="cn">&lt;nixpkgs&gt;</span> <span class="op">{}</span> <span class="op">}:</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span>', $highlighted['html']);
+        $t->contains('<span class="kw">inherit</span> <span class="op">(</span><span class="va">pkgs</span><span class="op">)</span> <span class="va">stdenv</span> <span class="va">writeText</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">pluginSlug</span> <span class="op">=</span> <span class="st">&quot;legacy-import&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">mediaPaths</span> <span class="op">=</span> <span class="op">[</span> <span class="st">./uploads</span> <span class="st">./assets</span> <span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="ot">reviewer</span> <span class="op">=</span> <span class="kw">if</span> <span class="va">stdenv</span><span class="op">.</span><span class="va">isLinux</span> <span class="kw">then</span> <span class="st">&quot;wp-cli&quot;</span> <span class="kw">else</span> <span class="st">&quot;manual&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">in</span>', $highlighted['html']);
+        $t->contains('<span class="va">pkgs</span><span class="op">.</span><span class="va">writeText</span> <span class="st">&quot;${pluginSlug}-review.json&quot;</span> <span class="st">&#039;&#039;', $highlighted['html']);
+        $t->contains('<span class="st">  {&quot;reviewer&quot;:&quot;${reviewer}&quot;,&quot;media&quot;:${builtins.toJSON mediaPaths}}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="va">pkgs</span><span class="op">.</span><span class="va">writeText</span>', $wordpressBlock);
+        $t->same('nix', $directNix['language']);
+        $t->same('nix-expr', $directNix['requestedLanguage']);
+        $t->contains('<span class="op">{</span> <span class="va">lib</span> <span class="op">?</span> <span class="fu">import</span> <span class="cn">&lt;nixpkgs/lib&gt;</span>', $directNix['html']);
+        $t->contains('<span class="kw">rec</span> <span class="op">{</span> <span class="ot">enabled</span> <span class="op">=</span> <span class="cn">true</span><span class="op">;</span>', $directNix['html']);
     },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();

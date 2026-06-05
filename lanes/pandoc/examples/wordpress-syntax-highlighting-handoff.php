@@ -178,6 +178,12 @@ if (!$rustCodeBlock instanceof PortLibs\Pandoc\AstNode || $rustCodeBlock->type !
 }
 $rust = $highlighter->highlightCodeBlock($rustCodeBlock, 'zenburn');
 $rustWordpressBlock = $highlighter->wordpressHtmlBlock($rustCodeBlock, 'zenburn');
+$nixCodeBlock = $document->children[23] ?? null;
+if (!$nixCodeBlock instanceof PortLibs\Pandoc\AstNode || $nixCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Nix code block');
+}
+$nix = $highlighter->highlightCodeBlock($nixCodeBlock, 'kate');
+$nixWordpressBlock = $highlighter->wordpressHtmlBlock($nixCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -701,6 +707,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($rustWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
         throw new RuntimeException('Expected Rust WordPress style metadata');
     }
+    if (($nix['language'] ?? '') !== 'nix') {
+        throw new RuntimeException('Expected Nix language handoff');
+    }
+    if (($nix['lineNumbering']['start'] ?? null) !== 101) {
+        throw new RuntimeException('Expected Nix source startFrom line-number handoff');
+    }
+    if (!str_contains($nix['html'], '<span class="fu">import</span> <span class="cn">&lt;nixpkgs&gt;</span>')) {
+        throw new RuntimeException('Expected Nix import and angle-path token handoff');
+    }
+    if (!str_contains($nix['html'], '<span class="kw">inherit</span> <span class="op">(</span><span class="va">pkgs</span><span class="op">)</span> <span class="va">stdenv</span>')) {
+        throw new RuntimeException('Expected Nix inherit token handoff');
+    }
+    if (!str_contains($nix['html'], '<span class="ot">mediaPaths</span> <span class="op">=</span> <span class="op">[</span> <span class="st">./uploads</span> <span class="st">./assets</span>')) {
+        throw new RuntimeException('Expected Nix path token handoff');
+    }
+    if (!str_contains($nixWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected Nix WordPress style metadata');
+    }
+    if (!str_contains($nixWordpressBlock, '<span class="va">pkgs</span><span class="op">.</span><span class="va">writeText</span>')) {
+        throw new RuntimeException('Expected Nix function-application handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -748,6 +775,7 @@ echo "shellHighlightedHtml:\n" . $shell['html'] . "\n";
 echo "tokenTitleHighlightedHtml:\n" . $tokenTitle['html'] . "\n";
 echo "cssHighlightedHtml:\n" . $css['html'] . "\n";
 echo "rustHighlightedHtml:\n" . $rust['html'] . "\n";
+echo "nixHighlightedHtml:\n" . $nix['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -766,4 +794,5 @@ echo "shellWordpressBlock:\n" . $shellWordpressBlock . "\n";
 echo "tokenTitleWordpressBlock:\n" . $tokenTitleWordpressBlock . "\n";
 echo "cssWordpressBlock:\n" . $cssWordpressBlock . "\n";
 echo "rustWordpressBlock:\n" . $rustWordpressBlock . "\n";
+echo "nixWordpressBlock:\n" . $nixWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

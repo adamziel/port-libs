@@ -88,6 +88,9 @@ final class SyntaxHighlighter
         'md' => 'markdown',
         'mmd' => 'markdown',
         'multimarkdown' => 'markdown',
+        'nix' => 'nix',
+        'nix-expr' => 'nix',
+        'nix-shell' => 'nix',
         'pandoc' => 'markdown',
         'pandoc-markdown' => 'markdown',
         'patch' => 'diff',
@@ -558,6 +561,7 @@ final class SyntaxHighlighter
             'lua' => $this->tokenizeLua($code),
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
+            'nix' => $this->tokenizeNix($code),
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
@@ -615,6 +619,29 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['operator', '/^(?:=>|->|::|===|!==|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:-])/'],
         ];
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeNix(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^#[^\\n]*/'],
+            ['string', "/^''[\\s\\S]*?''/"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['constant', '/^<[^>\\n]+>/'],
+            ['string', '/^(?:\\.{1,2}|~)?\\/[A-Za-z0-9_+.,%:@=-][A-Za-z0-9_+.,%:@=\\/-]*/'],
+            ['keyword', '/^\\b(?:assert|else|if|in|inherit|let|or|rec|then|with)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['function', '/^\\b(?:abort|baseNameOf|derivation|dirOf|fetchTarball|import|map|removeAttrs|throw|toString)\\b(?=\\s|$)/'],
+            ['datatype', '/^\\bbuiltins\\b/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*=)/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_-]*/'],
+            ['operator', '/^(?:\\$\\{|\\+\\+|==|!=|<=|>=|&&|\\|\\||->|\\/\\/|[{}()[\\];,.?:=+*\\/!<>|-])/'],
+        ]);
     }
 
     /**
