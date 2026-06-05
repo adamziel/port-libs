@@ -2785,10 +2785,10 @@ final class MarkdownReader
             $attrs['shortCaptionInlines'] = $this->parseInlines($shortCaption);
         }
 
-        return new AstNode('table', $attrs, [
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, [
             new AstNode('table_head'),
             new AstNode('table_body', [], $bodyRows),
-        ]);
+        ]));
     }
 
     /**
@@ -2980,7 +2980,7 @@ final class MarkdownReader
             $children[] = new AstNode('table_foot', [], $footRows);
         }
 
-        return new AstNode('table', $attrs, $children);
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -6324,7 +6324,7 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -6366,7 +6366,7 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -6516,7 +6516,7 @@ final class MarkdownReader
 
         $index = $cursor - 1;
 
-        return new AstNode('table', $attrs, $children);
+        return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**

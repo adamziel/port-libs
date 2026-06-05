@@ -5,8 +5,22 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
+
+$readerHandoffDocument = (new MarkdownReader())->read(implode("\n", [
+    '| Source | Count | State |',
+    '|:-------|------:|:----:|',
+    '| Posts | 42 | Ready |',
+    '| Media | 7 | Review |',
+    '',
+    ': Reader packet import metrics',
+]));
+$readerHandoffTables = array_values(array_filter(
+    $readerHandoffDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 
 $document = new AstNode('document', [], [
     new AstNode('table', [
@@ -194,6 +208,7 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    ...$readerHandoffTables,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -353,6 +368,22 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>')) {
         throw new RuntimeException('Table geometry self-test missing source headers override preservation');
+    }
+
+    $readerTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('caption') === 'Reader packet import metrics') {
+            $readerTable = $node;
+            break;
+        }
+    }
+    $readerPacket = $readerTable instanceof AstNode ? $readerTable->attr('tableGeometry') : null;
+    if (!is_array($readerPacket) || ($readerPacket['summary']['cellCount'] ?? null) !== 9 || ($readerPacket['coverage'][6]['text'] ?? null) !== 'Media') {
+        throw new RuntimeException('Table geometry self-test missing Markdown reader attached review packet');
+    }
+    json_encode($readerPacket, JSON_THROW_ON_ERROR);
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption">Reader packet import metrics</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing Markdown reader table WordPress output');
     }
 
     echo "table geometry handoff self-test ok\n";

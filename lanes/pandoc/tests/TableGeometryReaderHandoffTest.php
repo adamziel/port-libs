@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -57,5 +58,106 @@ HTML;
         $t->contains('<tr><td>7</td><td>Needs media</td></tr>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">Importer <em>review</em></figcaption>', $blocks);
         json_encode($geometry, JSON_THROW_ON_ERROR);
+    },
+    'attaches table geometry review packets to markdown and docbook table reader paths' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $firstTable = static function (array $nodes): ?AstNode {
+            foreach ($nodes as $node) {
+                if ($node instanceof AstNode && $node->type === 'table') {
+                    return $node;
+                }
+            }
+
+            return null;
+        };
+
+        $pipeTable = $firstTable($reader->read(implode("\n", [
+            '| Item | Count | State |',
+            '|:-----|------:|:----:|',
+            '| Posts | 42 | Ready |',
+            '| Media | 7 | Review |',
+            '',
+            ': Import metrics',
+        ]))->children);
+        $simpleTable = $firstTable($reader->read(implode("\n", [
+            'Simple source totals:',
+            '',
+            '    Field Count    Status',
+            '  ------- ----- ---------',
+            '    Posts 42    Ready',
+            '    Media 7     Needs alt text',
+            '',
+            '  : Legacy simple-table summary.',
+        ]))->children);
+        $gridTable = $firstTable($reader->read(implode("\n", [
+            '+------------------+-----------+------------+',
+            '| Source           | Count     | Status     |',
+            '+=================:+:==========+:==========:+',
+            '| Posts            | 42        | ready      |',
+            '+------------------+-----------+------------+',
+            '| Media files      | 108       | needs alt  |',
+            '|                  |           | text       |',
+            '+------------------+-----------+------------+',
+        ]))->children);
+        $latexTable = $firstTable($reader->read(<<<'LATEX'
+\begin{table}
+\caption[Batch 42]{Long source table caption for reviewer handoff.}
+\begin{tabular}{lr}
+Posts & 42 \\
+Media & 7 \\
+\end{tabular}
+\end{table}
+LATEX)->children);
+        $docbookTable = $firstTable($reader->read((string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-docbook-table.xml'))->children);
+
+        foreach ([
+            'pipe' => $pipeTable,
+            'simple' => $simpleTable,
+            'grid' => $gridTable,
+            'latex' => $latexTable,
+            'docbook' => $docbookTable,
+        ] as $label => $table) {
+            $t->true($table !== null, $label . ' table should parse through the native table path');
+            $packet = $table?->attr('tableGeometry');
+            $t->same(true, is_array($packet), $label . ' table should carry a tableGeometry packet');
+            json_encode($packet, JSON_THROW_ON_ERROR);
+        }
+
+        $pipeGeometry = $pipeTable?->attr('tableGeometry');
+        $simpleGeometry = $simpleTable?->attr('tableGeometry');
+        $gridGeometry = $gridTable?->attr('tableGeometry');
+        $latexGeometry = $latexTable?->attr('tableGeometry');
+        $docbookGeometry = $docbookTable?->attr('tableGeometry');
+
+        $t->same('Import metrics', $pipeGeometry['caption'] ?? null);
+        $t->same(3, $pipeGeometry['columnCount'] ?? null);
+        $t->same(['head', 'body'], array_map(static fn (array $section): string => $section['section'], $pipeGeometry['sections'] ?? []));
+        $t->same('Posts', $pipeGeometry['coverage'][3]['text'] ?? null);
+        $t->same(['left'], $pipeGeometry['coverage'][3]['columnAlignments'] ?? null);
+        $t->same('Review', $pipeGeometry['coverage'][8]['text'] ?? null);
+        $t->same(0, $pipeGeometry['summary']['diagnosticCount'] ?? null);
+
+        $t->same('Legacy simple-table summary.', $simpleGeometry['caption'] ?? null);
+        $t->same(['right', 'default', 'right'], array_map(static fn (array $column): string => $column['alignment'], $simpleGeometry['columns'] ?? []));
+        $t->same(9, $simpleGeometry['summary']['cellCount'] ?? null);
+        $t->same('Media', $simpleGeometry['coverage'][6]['text'] ?? null);
+
+        $t->same(3, $gridGeometry['columnCount'] ?? null);
+        $t->same([0.2638888888888889, 0.16666666666666666, 0.18055555555555555], array_map(static fn (array $column): ?float => $column['width'], $gridGeometry['columns'] ?? []));
+        $t->same('Media files', $gridGeometry['coverage'][6]['text'] ?? null);
+        $t->same(9, $gridGeometry['summary']['cellCount'] ?? null);
+
+        $t->same('Long source table caption for reviewer handoff.', $latexGeometry['caption'] ?? null);
+        $t->same(['left', 'right'], array_map(static fn (array $column): string => $column['alignment'], $latexGeometry['columns'] ?? []));
+        $t->same('Media', $latexGeometry['coverage'][2]['text'] ?? null);
+
+        $t->same(4, $docbookGeometry['columnCount'] ?? null);
+        $t->same([0.25, 0.25, 0.25, 0.25], array_map(static fn (array $column): ?float => $column['width'], $docbookGeometry['columns'] ?? []));
+        $t->same(['head', 'body', 'foot'], array_map(static fn (array $section): string => $section['section'], $docbookGeometry['sections'] ?? []));
+        $t->same('Migration Batch 42', $docbookGeometry['coverage'][0]['text'] ?? null);
+        $t->same([0, 1, 2, 3], $docbookGeometry['coverage'][0]['columns'] ?? null);
+        $t->same('Follow-up attachments', $docbookGeometry['coverage'][9]['text'] ?? null);
+        $t->same(13, $docbookGeometry['summary']['coveredSlotCount'] ?? null);
+        $t->same([], $docbookGeometry['summary']['diagnosticCodes'] ?? null);
     },
 ];
