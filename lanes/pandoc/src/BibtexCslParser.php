@@ -641,6 +641,36 @@ final class BibtexCslParser
             $item['translator'] = $translator;
         }
 
+        $originalAuthor = self::namesFromBibtex($fields['origauthor'] ?? ($fields['originalauthor'] ?? ''));
+        if ($originalAuthor !== []) {
+            $item['original-author'] = $originalAuthor;
+        }
+
+        $commentator = self::namesFromBibtex($fields['commentator'] ?? '');
+        if ($commentator !== []) {
+            $item['commentator'] = $commentator;
+        }
+
+        $annotator = self::namesFromBibtex($fields['annotator'] ?? '');
+        if ($annotator !== []) {
+            $item['annotator'] = $annotator;
+        }
+
+        $introduction = self::namesFromBibtex($fields['introduction'] ?? '');
+        if ($introduction !== []) {
+            $item['introduction'] = $introduction;
+        }
+
+        $foreword = self::namesFromBibtex($fields['foreword'] ?? '');
+        if ($foreword !== []) {
+            $item['foreword'] = $foreword;
+        }
+
+        $afterword = self::namesFromBibtex($fields['afterword'] ?? '');
+        if ($afterword !== []) {
+            $item['afterword'] = $afterword;
+        }
+
         $issued = self::dateFromFields($fields, ['date'], ['year', 'month', 'day']);
         if ($issued !== null) {
             $item['issued'] = $issued;

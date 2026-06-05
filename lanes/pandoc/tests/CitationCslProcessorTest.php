@@ -998,6 +998,108 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex editorial role name lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{role-review,
+  author       = {Smith, Ada},
+  title        = {Annotated Migration Manual},
+  date         = {2026},
+  publisher    = {Review Press},
+  origauthor   = {Garc{\'i}a, Gia},
+  commentator  = {Roe, Pat and {{Migration Desk}}},
+  annotator    = {Ng, Nia},
+  introduction = {de la Cruz, Ana Maria},
+  foreword     = {M{\"u}ller, Mia},
+  afterword    = {Curator, Eli}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('role-review', $items[0]['id']);
+        $t->same([['family' => 'García', 'given' => 'Gia']], $items[0]['original-author']);
+        $t->same([['family' => 'Roe', 'given' => 'Pat'], ['literal' => 'Migration Desk']], $items[0]['commentator']);
+        $t->same([['family' => 'Ng', 'given' => 'Nia']], $items[0]['annotator']);
+        $t->same([['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la']], $items[0]['introduction']);
+        $t->same([['family' => 'Müller', 'given' => 'Mia']], $items[0]['foreword']);
+        $t->same([['family' => 'Curator', 'given' => 'Eli']], $items[0]['afterword']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('role-review');
+        $t->same('García', $item['originalAuthors'][0]['family'] ?? null);
+        $t->same('Roe', $item['commentators'][0]['family'] ?? null);
+        $t->same('Migration Desk', $item['commentators'][1]['literal'] ?? null);
+        $t->same('Ng', $item['annotators'][0]['family'] ?? null);
+        $t->same('de la', $item['introductionAuthors'][0]['nonDroppingParticle'] ?? null);
+        $t->same('Müller', $item['forewordAuthors'][0]['family'] ?? null);
+        $t->same('Curator', $item['afterwordAuthors'][0]['family'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('role-review', '[@role-review]')]));
+        $t->same(
+            'Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.',
+            $processor->renderBibliographyEntry('role-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text value="review roles"/>
+        <names variable="commentator annotator"/>
+        <names variable="introduction"/>
+        <names variable="foreword"/>
+        <names variable="afterword"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="commentator" prefix="commentary: "/>
+      <names variable="annotator" prefix="annotation: "/>
+      <names variable="original-author" prefix="original: "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[review roles | Roe and Migration Desk | de la Cruz | Müller | Curator]', $styled->renderCitationCluster([$citation('role-review', '[@role-review]')]));
+        $t->same('Annotated Migration Manual :: commentary: Roe, Pat; Migration Desk :: annotation: Ng, Nia :: original: García, Gia', $styled->renderBibliographyEntry('role-review'));
+
+        $noRoleStyle = CitationCslProcessor::fromItems([[
+            'id' => 'plain-role',
+            'title' => 'Plain Role Source',
+            'issued' => ['date-parts' => [[2026]]],
+        ]])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" ">
+        <text value="roles"/>
+        <names variable="commentator annotator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography><layout><text variable="title"/></layout></bibliography>
+</style>
+XML);
+        $t->same('[Plain Role Source 2026]', $noRoleStyle->renderCitationCluster([$citation('plain-role', '[@plain-role]')]));
+
+        $document = (new MarkdownReader())->read('Role-rich source @role-review keeps editorial review names attached.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Role-rich source Smith (2026) keeps editorial review names attached.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.</dd>', $blocks);
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-role',
+            'title' => 'Manual Role Source',
+            'commentator' => [
+                ['family' => 'Roe', 'given' => 'Pat'],
+            ],
+        ]])->item('manual-role');
+        $t->same('Roe', $manual['commentators'][0]['family'] ?? null);
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(

@@ -334,6 +334,10 @@ final class CitationCslProcessor
             $parts[] = 'Translated by ' . rtrim($translators, '.') . '.';
         }
 
+        foreach ($this->bibliographyRoleNameParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         $originalTitle = (string) $item['originalTitle'];
         if ($originalTitle !== '') {
             $parts[] = 'Original title: ' . $originalTitle . '.';
@@ -492,6 +496,12 @@ final class CitationCslProcessor
             'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
             'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
             'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
+            'originalAuthors' => self::names($item['original-author'] ?? [], $id, 'original-author'),
+            'commentators' => self::names($item['commentator'] ?? [], $id, 'commentator'),
+            'annotators' => self::names($item['annotator'] ?? [], $id, 'annotator'),
+            'introductionAuthors' => self::names($item['introduction'] ?? [], $id, 'introduction'),
+            'forewordAuthors' => self::names($item['foreword'] ?? [], $id, 'foreword'),
+            'afterwordAuthors' => self::names($item['afterword'] ?? [], $id, 'afterword'),
             'raw' => $item,
         ];
     }
@@ -1623,6 +1633,34 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @return list<string>
      */
+    private function bibliographyRoleNameParts(array $item): array
+    {
+        $roles = [
+            ['commentators', 'Commentary by'],
+            ['annotators', 'Annotated by'],
+            ['introductionAuthors', 'Introduction by'],
+            ['forewordAuthors', 'Foreword by'],
+            ['afterwordAuthors', 'Afterword by'],
+            ['originalAuthors', 'Original author:'],
+        ];
+
+        $parts = [];
+        foreach ($roles as [$key, $label]) {
+            $names = $item[$key] ?? [];
+            if (!is_array($names) || $names === []) {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . rtrim($this->renderNameList($names, $this->style->bibliographyNameRendering(), true), '.') . '.';
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
     private function legalPatentBibliographyParts(array $item): array
     {
         $type = (string) ($item['type'] ?? '');
@@ -2130,9 +2168,10 @@ final class CitationCslProcessor
      */
     private function renderNamesElement(array $element, array $item, string $scope): string
     {
-        $names = $this->namesForRenderingVariable($item, (string) ($element['variable'] ?? 'author editor'));
+        $variable = (string) ($element['variable'] ?? 'author editor');
+        $names = $this->namesForRenderingVariable($item, $variable);
         if ($names === []) {
-            if ($scope === 'citation') {
+            if ($scope === 'citation' && $this->namesVariableAllowsTitleFallback($variable)) {
                 $title = (string) ($item['title'] ?? '');
 
                 return $title === '' ? (string) ($item['id'] ?? '') : $title;
@@ -2151,6 +2190,22 @@ final class CitationCslProcessor
             $options,
             $scope === 'bibliography'
         );
+    }
+
+    private function namesVariableAllowsTitleFallback(string $variable): bool
+    {
+        $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
+        if ($variables === [] || $variables === ['']) {
+            return true;
+        }
+
+        foreach ($variables as $nameVariable) {
+            if (in_array($nameVariable, ['author', 'editor'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2580,6 +2635,13 @@ final class CitationCslProcessor
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
             'editor' => $this->renderNamesElement(['variable' => 'editor'], $item, $scope),
             'holder' => $this->renderNamesElement(['variable' => 'holder'], $item, $scope),
+            'translator' => $this->renderNamesElement(['variable' => 'translator'], $item, $scope),
+            'original-author' => $this->renderNamesElement(['variable' => 'original-author'], $item, $scope),
+            'commentator' => $this->renderNamesElement(['variable' => 'commentator'], $item, $scope),
+            'annotator' => $this->renderNamesElement(['variable' => 'annotator'], $item, $scope),
+            'introduction' => $this->renderNamesElement(['variable' => 'introduction'], $item, $scope),
+            'foreword' => $this->renderNamesElement(['variable' => 'foreword'], $item, $scope),
+            'afterword' => $this->renderNamesElement(['variable' => 'afterword'], $item, $scope),
             default => $this->rawVariableValue($item, $variable),
         };
     }
@@ -2598,7 +2660,7 @@ final class CitationCslProcessor
             return $this->citationLocatorParts($citation)['value'] !== '';
         }
 
-        if (in_array($normalized, ['author', 'editor'], true)) {
+        if (in_array($normalized, ['author', 'editor', 'holder', 'translator', 'original-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -2652,6 +2714,13 @@ final class CitationCslProcessor
                 'author' => $item['authors'] ?? [],
                 'editor' => $item['editors'] ?? [],
                 'holder' => $item['holders'] ?? [],
+                'translator' => $item['translators'] ?? [],
+                'original-author' => $item['originalAuthors'] ?? [],
+                'commentator' => $item['commentators'] ?? [],
+                'annotator' => $item['annotators'] ?? [],
+                'introduction' => $item['introductionAuthors'] ?? [],
+                'foreword' => $item['forewordAuthors'] ?? [],
+                'afterword' => $item['afterwordAuthors'] ?? [],
                 default => [],
             };
             if (is_array($names) && $names !== []) {

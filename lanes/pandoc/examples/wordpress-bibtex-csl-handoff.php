@@ -35,6 +35,8 @@ Title metadata sources @title-review and @chapter-title-review keep reviewer sub
 
 Publication detail sources @journal-detail and @book-detail preserve volume, issue, series, and identifier metadata.
 
+Role-rich source @role-review keeps editorial review names attached.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -253,6 +255,19 @@ $bibtex = <<<'BIB'
   publisher    = {Review Press},
   isbn         = {978-1-2345-6789-0}
 }
+
+@book{role-review,
+  author       = {Smith, Ada},
+  title        = {Annotated Migration Manual},
+  date         = {2026},
+  publisher    = {Review Press},
+  origauthor   = {Garc{\'i}a, Gia},
+  commentator  = {Roe, Pat and {{Migration Desk}}},
+  annotator    = {Ng, Nia},
+  introduction = {de la Cruz, Ana Maria},
+  foreword     = {M{\"u}ller, Mia},
+  afterword    = {Curator, Eli}
+}
 BIB;
 
 $processor = CitationCslProcessor::fromBibtex($bibtex);
@@ -368,6 +383,25 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bookDetail['isbn'] ?? null) !== '978-1-2345-6789-0') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book ISBN metadata');
     }
+    $roleReview = $processor->item('role-review');
+    if (($roleReview['originalAuthors'][0]['family'] ?? null) !== 'García') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve original author role metadata');
+    }
+    if (($roleReview['commentators'][1]['literal'] ?? null) !== 'Migration Desk') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve literal commentator role metadata');
+    }
+    if (($roleReview['annotators'][0]['family'] ?? null) !== 'Ng') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve annotator role metadata');
+    }
+    if (($roleReview['introductionAuthors'][0]['nonDroppingParticle'] ?? null) !== 'de la') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve introduction name particle metadata');
+    }
+    if (($roleReview['forewordAuthors'][0]['family'] ?? null) !== 'Müller') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve foreword role metadata');
+    }
+    if (($roleReview['afterwordAuthors'][0]['family'] ?? null) !== 'Curator') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve afterword role metadata');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -398,6 +432,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Publication detail sources Doe (2026) and Curator (2025) preserve volume, issue, series, and identifier metadata.</p>',
         '<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>',
         '<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>',
+        '<p>Role-rich source Smith (2026) keeps editorial review names attached.</p>',
+        '<dt>Smith 2026</dt><dd>Smith, Ada. Annotated Migration Manual. Review Press, 2026. Commentary by Roe, Pat; Migration Desk. Annotated by Ng, Nia. Introduction by de la Cruz, Ana Maria. Foreword by Müller, Mia. Afterword by Curator, Eli. Original author: García, Gia.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
