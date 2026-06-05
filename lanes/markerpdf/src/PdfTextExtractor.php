@@ -13096,8 +13096,24 @@ final class PdfTextExtractor
             $charProc = trim($objectBody);
         }
         $operands = [];
+        $compatibilityDepth = 0;
 
         foreach ($this->contentTokens($charProc, true) as $token) {
+            if ($token === 'BX') {
+                $compatibilityDepth++;
+                $operands = [];
+                continue;
+            }
+
+            if ($compatibilityDepth > 0) {
+                if ($token === 'EX') {
+                    $compatibilityDepth--;
+                }
+
+                $operands = [];
+                continue;
+            }
+
             if ($token === 'd0') {
                 if (count($operands) < 2) {
                     return null;
