@@ -194,12 +194,38 @@ final class PdfNamedDestinationExtractor
             return [];
         }
 
+        return $this->xrefStreamEntriesFromOffsetChain($offset, $definitions);
+    }
+
+    /**
+     * @param list<array{object_id: int, generation: int, body: string, offset: int}> $definitions
+     * @param list<int> $seenOffsets
+     * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
+     */
+    private function xrefStreamEntriesFromOffsetChain(int $offset, array $definitions, array $seenOffsets = []): array
+    {
+        if ($offset < 0 || in_array($offset, $seenOffsets, true)) {
+            return [];
+        }
+
+        $seenOffsets[] = $offset;
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
         if ($section === null) {
             return [];
         }
 
-        return $this->xrefStreamEntriesFromSection($section);
+        $entries = $this->xrefStreamEntriesFromSection($section);
+        $previousOffset = $this->xrefPreviousOffset($section['dictionary']);
+        if ($previousOffset !== null) {
+            foreach ($this->xrefStreamEntriesFromOffsetChain($previousOffset, $definitions, $seenOffsets) as $objectId => $entry) {
+                if (!array_key_exists($objectId, $entries)) {
+                    $entries[$objectId] = $entry;
+                }
+            }
+        }
+        ksort($entries, SORT_NUMERIC);
+
+        return $entries;
     }
 
     /**
