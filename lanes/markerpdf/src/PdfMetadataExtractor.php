@@ -4434,11 +4434,7 @@ final class PdfMetadataExtractor
             ];
         }
 
-        $text = $this->stringValueFromRaw($resolved);
-        return $text === null || $text === '' ? null : [
-            'text' => $text,
-            'bytes' => $text,
-        ];
+        return null;
     }
 
     /**

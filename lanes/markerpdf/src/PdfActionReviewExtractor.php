@@ -1296,7 +1296,7 @@ final class PdfActionReviewExtractor
                 : $inheritedLimits;
 
             for ($index = 0, $count = count($names); $index + 1 < $count; $index += 2) {
-                $name = $this->stringOrNameValue($this->resolveValue($names[$index]));
+                $name = $this->stringValue($this->resolveValue($names[$index]));
                 if ($name !== null && $name !== '' && $this->nameTreeNameWithinLimits($name, $entryLimits)) {
                     $destinations[$name] = $names[$index + 1];
                 }
@@ -1365,8 +1365,8 @@ final class PdfActionReviewExtractor
             return null;
         }
 
-        $lower = $this->stringOrNameValue($this->resolveValue($limits[0]));
-        $upper = $this->stringOrNameValue($this->resolveValue($limits[1]));
+        $lower = $this->stringValue($this->resolveValue($limits[0]));
+        $upper = $this->stringValue($this->resolveValue($limits[1]));
         if ($lower === null || $upper === null || $lower === '' || $upper === '') {
             return null;
         }
@@ -1405,7 +1405,7 @@ final class PdfActionReviewExtractor
         }
 
         for ($index = 0, $count = count($items); $index + 1 < $count; $index += 2) {
-            $name = $this->stringOrNameValue($this->resolveValue($items[$index]));
+            $name = $this->stringValue($this->resolveValue($items[$index]));
             if ($name !== null && $this->nameTreeNameWithinLimits($name, $limits)) {
                 return true;
             }
@@ -1719,10 +1719,18 @@ final class PdfActionReviewExtractor
             : null;
     }
 
+    private function stringValue(mixed $value): ?string
+    {
+        return is_array($value) && ($value['pdfType'] ?? null) === 'string' && is_string($value['value'] ?? null)
+            ? $value['value']
+            : null;
+    }
+
     private function stringOrNameValue(mixed $value): ?string
     {
-        if (is_array($value) && ($value['pdfType'] ?? null) === 'string' && is_string($value['value'] ?? null)) {
-            return $value['value'];
+        $string = $this->stringValue($value);
+        if ($string !== null) {
+            return $string;
         }
 
         return $this->nameValue($value);
