@@ -3986,7 +3986,12 @@ final class PdfAttachmentExtractor
         }
 
         $sectionBodyOffset = $offset + 4;
-        if ($sectionBodyOffset >= strlen($pdfBytes) || !ctype_space($pdfBytes[$sectionBodyOffset])) {
+        if ($sectionBodyOffset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        $afterKeyword = $pdfBytes[$sectionBodyOffset];
+        if ($afterKeyword !== '%' && !ctype_space($afterKeyword)) {
             return null;
         }
 

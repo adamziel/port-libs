@@ -22038,7 +22038,12 @@ final class PdfTextExtractor
             return null;
         }
         $afterKeywordOffset = $offset + 4;
-        if ($afterKeywordOffset >= strlen($pdfBytes) || !ctype_space($pdfBytes[$afterKeywordOffset])) {
+        if ($afterKeywordOffset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        $afterKeyword = $pdfBytes[$afterKeywordOffset];
+        if ($afterKeyword !== '%' && !ctype_space($afterKeyword)) {
             return null;
         }
 
