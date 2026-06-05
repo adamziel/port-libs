@@ -54,22 +54,27 @@ final class LayoutOrderer
             $bboxCounts[] = count($bboxes);
         }
 
-        $assignedPages = min(count($pages), count($orderResults));
-        for ($index = 0; $index < $assignedPages; $index++) {
+        $assignedPages = 0;
+        $assignmentSlots = min(count($pages), count($orderResults));
+        for ($index = 0; $index < $assignmentSlots; $index++) {
+            if (PdfPageArtifactSelector::isMissingPageArtifact($orderResults[$index])) {
+                continue;
+            }
             if (!is_array($orderResults[$index])) {
                 throw new InvalidArgumentException('Supplied ordering predictions must be arrays.');
             }
             $pages[$index]['order'] = $orderResults[$index];
+            $assignedPages++;
         }
 
         return [
             'pages' => $pages,
             'plan' => [
-                'image_count' => count($images),
+                'image_count' => PdfPageArtifactSelector::countPresentArtifacts($images),
                 'page_count' => count($pages),
                 'layout_bbox_counts' => $bboxCounts,
                 'requested_bboxes' => $requestedBboxes,
-                'order_result_count' => count($orderResults),
+                'order_result_count' => PdfPageArtifactSelector::countPresentArtifacts($orderResults),
                 'assigned_pages' => $assignedPages,
                 'batch_size' => $this->batchSize($batchMultiplier),
                 'order_max_bboxes' => $maxBboxes,

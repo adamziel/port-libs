@@ -6,6 +6,8 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfPageArtifactSelector
 {
+    private const MISSING_PAGE_ARTIFACT = '__markerpdf_missing_page_artifact';
+
     /**
      * @param list<mixed> $artifacts
      * @param list<int> $pageRange
@@ -59,6 +61,22 @@ final class PdfPageArtifactSelector
         return $numbers;
     }
 
+    public static function isMissingPageArtifact(mixed $artifact): bool
+    {
+        return is_array($artifact) && ($artifact[self::MISSING_PAGE_ARTIFACT] ?? false) === true;
+    }
+
+    /**
+     * @param list<mixed> $artifacts
+     */
+    public static function countPresentArtifacts(array $artifacts): int
+    {
+        return count(array_filter(
+            $artifacts,
+            static fn (mixed $artifact): bool => !self::isMissingPageArtifact($artifact)
+        ));
+    }
+
     /**
      * @param list<mixed> $artifacts
      * @param list<int> $pageRange
@@ -96,7 +114,7 @@ final class PdfPageArtifactSelector
                 continue;
             }
 
-            $selected[] = [];
+            $selected[] = [self::MISSING_PAGE_ARTIFACT => true];
         }
 
         if (!$hasMarkers) {

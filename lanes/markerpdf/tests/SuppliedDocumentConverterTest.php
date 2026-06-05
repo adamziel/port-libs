@@ -546,6 +546,82 @@ return [
             unlink($path);
         }
     },
+    'preserves partial sparse keyed layout and order alignment across selected pages' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-partial-keyed-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied partial sparse keyed layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(100, [
+                ['text' => 'Partial sparse cover page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+            $firstSelectedPage = $pdftextPage(101, [
+                ['text' => 'Second partial page keeps source order.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First partial page has no supplied order.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $secondSelectedPage = $pdftextPage(102, [
+                ['text' => 'Second matched sparse page column.', 'bbox' => [330.0, 140.0, 560.0, 156.0]],
+                ['text' => 'First matched sparse page column.', 'bbox' => [72.0, 140.0, 280.0, 156.0]],
+            ]);
+            $appendixPage = $pdftextPage(103, [
+                ['text' => 'Partial sparse appendix page artifact.', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+            ]);
+
+            $layout = [
+                'page' => 102,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 132.0, 290.0, 168.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 132.0, 570.0, 168.0]],
+                ],
+            ];
+            $order = [
+                'page' => 102,
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 132.0, 290.0, 168.0]],
+                    ['position' => 2, 'bbox' => [318.0, 132.0, 570.0, 168.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $firstSelectedPage, $secondSelectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 2,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 102, 'image' => 'matched-second-selected-layout-render'],
+                    ],
+                    'layout_results' => [$layout],
+                    'order_images' => [
+                        ['page' => 102, 'image' => 'matched-second-selected-order-render'],
+                    ],
+                    'order_results' => [$order],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1, 2], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('Second partial page keeps source order.', $text);
+            $t->contains('First partial page has no supplied order.', $text);
+            $t->contains('First matched sparse page column.', $text);
+            $t->contains('Second matched sparse page column.', $text);
+            $t->true(strpos($text, 'Second partial page keeps source order.') < strpos($text, 'First partial page has no supplied order.'));
+            $t->true(strpos($text, 'First matched sparse page column.') < strpos($text, 'Second matched sparse page column.'));
+            $t->true(!str_contains($text, 'Partial sparse cover page artifact.'));
+            $t->true(!str_contains($text, 'Partial sparse appendix page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");

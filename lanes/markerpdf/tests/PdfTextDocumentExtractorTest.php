@@ -590,4 +590,57 @@ return [
         $t->same(0, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'preserves partial sparse keyed order alignment without counting missing selected pages' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(100, [
+                    ['text' => 'Partial keyed cover page should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(101, [
+                    ['text' => 'Second partial page keeps source order', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First partial page has no supplied order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(102, [
+                    ['text' => 'Second matched sparse page column', 'bbox' => [330.0, 140.0, 560.0, 154.0]],
+                    ['text' => 'First matched sparse page column', 'bbox' => [72.0, 140.0, 280.0, 154.0]],
+                ]),
+                $pdftextLinesPage(103, [
+                    ['text' => 'Partial keyed appendix should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 102,
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 132.0, 290.0, 168.0]],
+                        ['position' => 2, 'bbox' => [318.0, 132.0, 570.0, 168.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 102, 'image' => 'matched-second-selected-order-render'],
+            ],
+            maxPages: 2,
+            startPage: 1
+        );
+
+        $pageOneBlocks = array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        );
+        $pageTwoBlocks = array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][1]['blocks']
+        );
+
+        $t->same([1, 2], $result['page_range']);
+        $t->same(101, $result['pages'][0]['pnum']);
+        $t->same(102, $result['pages'][1]['pnum']);
+        $t->same(['Second partial page keeps source order', 'First partial page has no supplied order'], $pageOneBlocks);
+        $t->same(['First matched sparse page column', 'Second matched sparse page column'], $pageTwoBlocks);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];

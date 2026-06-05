@@ -45,25 +45,30 @@ final class LayoutAnnotator
     ): array {
         $pages = array_values($pages);
         $layoutResults = array_values($layoutResults);
-        $assignedPages = min(count($pages), count($layoutResults));
+        $assignedPages = 0;
+        $assignmentSlots = min(count($pages), count($layoutResults));
 
-        for ($index = 0; $index < $assignedPages; $index++) {
+        for ($index = 0; $index < $assignmentSlots; $index++) {
+            if (PdfPageArtifactSelector::isMissingPageArtifact($layoutResults[$index])) {
+                continue;
+            }
             if (!is_array($layoutResults[$index])) {
                 throw new InvalidArgumentException('Supplied layout predictions must be arrays.');
             }
             $pages[$index]['layout'] = $layoutResults[$index];
+            $assignedPages++;
         }
 
         return [
             'pages' => $pages,
             'plan' => [
-                'image_count' => count($images),
+                'image_count' => PdfPageArtifactSelector::countPresentArtifacts($images),
                 'page_count' => count($pages),
                 'detection_result_count' => count(array_filter(
                     $pages,
                     static fn (array $page): bool => array_key_exists('text_lines', $page)
                 )),
-                'layout_result_count' => count($layoutResults),
+                'layout_result_count' => PdfPageArtifactSelector::countPresentArtifacts($layoutResults),
                 'assigned_pages' => $assignedPages,
                 'batch_size' => $this->batchSize($batchMultiplier),
             ],
