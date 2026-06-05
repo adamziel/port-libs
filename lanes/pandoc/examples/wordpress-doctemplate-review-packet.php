@@ -20,7 +20,9 @@ HTML,
     'review-packets/components/review-header.html' => <<<'HTML'
 <header>
 <h1>$title/uppercase$</h1>
-<p class="summary">$~$$warnings/length$ warnings queued for $title$$~$</p>
+<p class="summary">$~$$warnings/length$
+warnings	queued
+for $title$$~$</p>
 <p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
 <p class="ticket">Ticket: ${ review-id/left 8 "[" "]" }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
@@ -43,7 +45,8 @@ $endfor$</ul>
 $endif$
 HTML,
     'review-packets/components/warning-row.html' => <<<'HTML'
-<li data-index="$it.index$" data-source="$it.source$" data-review-title="$title$">$~$<span class="marker">$it.index/alpha/uppercase$.</span> <span class="source">${ it.source/uppercase/left 8 "{" "}" }</span> <span class="priority">$it.priority/roman/uppercase/right 4$</span> $it.message$$~$</li>
+<li data-index="$it.index$" data-source="$it.source$" data-review-title="$title$">$~$<span class="marker">$it.index/alpha/uppercase$.</span> <span class="source">${ it.source/uppercase/left 8 "{" "}" }</span> <span class="priority">$it.priority/roman/uppercase/right 4$</span>
+$it.message$$~$</li>
 HTML,
     'wp-data/templates/review-body.html' => <<<'HTML'
 <section class="wp-import-body">

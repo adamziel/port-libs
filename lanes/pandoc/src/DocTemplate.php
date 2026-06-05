@@ -283,6 +283,7 @@ final class DocTemplate
     {
         $tokens = [];
         $buffer = '';
+        $breakableSpaces = false;
         $length = strlen($template);
 
         for ($index = 0; $index < $length; $index++) {
@@ -319,11 +320,18 @@ final class DocTemplate
                     throw new \UnexpectedValueException('Unclosed doctemplate ${...} directive');
                 }
 
-                $this->appendTextToken($tokens, $buffer);
+                $this->appendTextToken($tokens, $buffer, $breakableSpaces);
                 $buffer = '';
+                $directive = trim(substr($template, $index + 2, $closing - $index - 2), " \t");
+                if ($directive === '~') {
+                    $breakableSpaces = !$breakableSpaces;
+                    $index = $closing;
+                    continue;
+                }
+
                 $tokens[] = [
                     'type' => 'directive',
-                    'value' => trim(substr($template, $index + 2, $closing - $index - 2), " \t"),
+                    'value' => $directive,
                 ];
                 $index = $closing;
                 continue;
@@ -335,16 +343,23 @@ final class DocTemplate
                 continue;
             }
 
-            $this->appendTextToken($tokens, $buffer);
+            $this->appendTextToken($tokens, $buffer, $breakableSpaces);
             $buffer = '';
+            $directive = trim(substr($template, $index + 1, $closing - $index - 1), " \t");
+            if ($directive === '~') {
+                $breakableSpaces = !$breakableSpaces;
+                $index = $closing;
+                continue;
+            }
+
             $tokens[] = [
                 'type' => 'directive',
-                'value' => trim(substr($template, $index + 1, $closing - $index - 1), " \t"),
+                'value' => $directive,
             ];
             $index = $closing;
         }
 
-        $this->appendTextToken($tokens, $buffer);
+        $this->appendTextToken($tokens, $buffer, $breakableSpaces);
 
         return $tokens;
     }
@@ -409,7 +424,12 @@ final class DocTemplate
         for ($index = $start; $index < $end; $index++) {
             $token = $tokens[$index];
             if ($token['type'] === 'text') {
-                $this->appendRenderedChunk($output, $token['value'], $pendingNestColumn);
+                $text = $token['value'];
+                if (($token['breakable'] ?? false) === true) {
+                    $text = $this->normalizeBreakableSpaces($text);
+                }
+
+                $this->appendRenderedChunk($output, $text, $pendingNestColumn);
                 continue;
             }
 
@@ -1682,10 +1702,15 @@ final class DocTemplate
     /**
      * @param list<array{type:string, value:string}> $tokens
      */
-    private function appendTextToken(array &$tokens, string $text): void
+    private function appendTextToken(array &$tokens, string $text, bool $breakableSpaces = false): void
     {
         if ($text !== '') {
-            $tokens[] = ['type' => 'text', 'value' => $text];
+            $tokens[] = ['type' => 'text', 'value' => $text, 'breakable' => $breakableSpaces];
         }
+    }
+
+    private function normalizeBreakableSpaces(string $text): string
+    {
+        return preg_replace('/[ \t\r\n]+/', ' ', $text) ?? $text;
     }
 }

@@ -304,6 +304,37 @@ TPL;
         ]), $output);
     },
 
+    'reflows literal whitespace inside pandoc doctemplate breakable-space regions' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Summary: $~$$warnings/length$
+  warnings	queued
+for $title$$~$
+Plain: one
+  two
+Inline: $~$alpha   beta	gamma$~$
+Loop: $~$$for(warnings)$
+$it.source$: $it.message$$sep$
+ /
+$endfor$$~$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'title' => 'Batch 42 Review',
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Check alt text'],
+                ['source' => 'links', 'message' => 'Verify redirects'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            'Summary: 2 warnings queued for Batch 42 Review',
+            'Plain: one',
+            '  two',
+            'Inline: alpha beta gamma',
+            'Loop: media: Check alt text / links: Verify redirects',
+        ]), $output);
+    },
+
     'renders parameter-free pandoc doctemplate pipes for text arrays and maps' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Title: $title/uppercase$ / $title/uppercase/lowercase$
