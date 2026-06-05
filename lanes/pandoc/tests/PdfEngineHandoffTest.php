@@ -686,6 +686,64 @@ MARKDOWN);
         $t->same(['Migration packet', 'Final page'], $sequence['finalPdfOutlineTitles']);
     },
 
+    'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(review-assets.zip) 6 0 R] >> >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Link /A << /S /URI /URI (https://example.test/review?id=7) >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /FileAttachment /FS 6 0 R >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Filespec /F (review-assets.zip) /UF <FEFF007200650076006900650077002D006100730073006500740073002E007A00690070> /EF << /F 7 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /EmbeddedFile /Subtype /application#2Fzip >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['FileAttachment' => 1, 'Link' => 1], $result['pdfAnnotationTypes']);
+        $t->same(['https://example.test/review?id=7'], $result['pdfLinkTargets']);
+        $t->same(['review-assets.zip'], $result['pdfEmbeddedFileNames']);
+        $t->contains('pdf-byte-annotations:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-link-targets:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-embedded-files:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same(['FileAttachment' => 1, 'Link' => 1], $sequence['finalPdfAnnotationTypes']);
+        $t->same(['https://example.test/review?id=7'], $sequence['finalPdfLinkTargets']);
+        $t->same(['review-assets.zip'], $sequence['finalPdfEmbeddedFileNames']);
+    },
+
     'fake runner rejects truncated stale or mismatched pdf output artifacts' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);

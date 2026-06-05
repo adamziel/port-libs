@@ -245,6 +245,9 @@ final class PdfEngineHandoff
      *     pdfTrailerComplete: bool,
      *     pdfPageCount: int|null,
      *     pdfOutlineTitles: list<string>,
+     *     pdfAnnotationTypes: array<string, int>,
+     *     pdfLinkTargets: list<string>,
+     *     pdfEmbeddedFileNames: list<string>,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -594,6 +597,9 @@ final class PdfEngineHandoff
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
         $pdfPageCount = null;
         $pdfOutlineTitles = [];
+        $pdfAnnotationTypes = [];
+        $pdfLinkTargets = [];
+        $pdfEmbeddedFileNames = [];
         if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')) {
             if (strlen($pdfBytes) > self::MAX_PDF_OUTPUT_INSPECTION_BYTES) {
                 $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
@@ -601,11 +607,23 @@ final class PdfEngineHandoff
                 $pdfInspection = $this->inspectPdfOutput($pdfBytes);
                 $pdfPageCount = $pdfInspection['pageCount'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
+                $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
+                $pdfLinkTargets = $pdfInspection['linkTargets'];
+                $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
                 }
                 if ($pdfOutlineTitles !== []) {
                     $diagnostics[] = 'pdf-byte-outline-items:' . count($pdfOutlineTitles);
+                }
+                if ($pdfAnnotationTypes !== []) {
+                    $diagnostics[] = 'pdf-byte-annotations:' . array_sum($pdfAnnotationTypes);
+                }
+                if ($pdfLinkTargets !== []) {
+                    $diagnostics[] = 'pdf-byte-link-targets:' . count($pdfLinkTargets);
+                }
+                if ($pdfEmbeddedFileNames !== []) {
+                    $diagnostics[] = 'pdf-byte-embedded-files:' . count($pdfEmbeddedFileNames);
                 }
             }
         }
@@ -734,6 +752,9 @@ final class PdfEngineHandoff
             'pdfTrailerComplete' => $pdfTrailerComplete,
             'pdfPageCount' => $pdfPageCount,
             'pdfOutlineTitles' => $pdfOutlineTitles,
+            'pdfAnnotationTypes' => $pdfAnnotationTypes,
+            'pdfLinkTargets' => $pdfLinkTargets,
+            'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -762,6 +783,9 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputBytes: int|null,
      *     finalPdfPageCount: int|null,
      *     finalPdfOutlineTitles: list<string>,
+     *     finalPdfAnnotationTypes: array<string, int>,
+     *     finalPdfLinkTargets: list<string>,
+     *     finalPdfEmbeddedFileNames: list<string>,
      *     sourceSha256: string|null,
      *     finalResourceArtifactsSha256: array<string, string>,
      *     finalEngineDependencyArtifactsSha256: array<string, string>,
@@ -904,6 +928,9 @@ final class PdfEngineHandoff
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
+            'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
+            'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
+            'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
@@ -1936,13 +1963,16 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{pageCount:int|null, outlineTitles:list<string>}
+     * @return array{pageCount:int|null, outlineTitles:list<string>, annotationTypes:array<string, int>, linkTargets:list<string>, embeddedFileNames:list<string>}
      */
     private function inspectPdfOutput(string $pdfBytes): array
     {
         return [
             'pageCount' => $this->extractPdfPageCount($pdfBytes),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
+            'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
+            'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
+            'embeddedFileNames' => $this->extractPdfEmbeddedFileNames($pdfBytes),
         ];
     }
 
@@ -1997,6 +2027,220 @@ final class PdfEngineHandoff
         }
 
         return $titles;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function extractPdfAnnotationTypes(string $pdfBytes): array
+    {
+        $counts = [];
+        foreach ($this->pdfObjectBodies($pdfBytes) as $body) {
+            if (preg_match_all('/\/Subtype\s*\/([A-Za-z0-9_.-]+)/s', $body, $matches) < 1) {
+                continue;
+            }
+
+            foreach ($matches[1] as $type) {
+                if (!$this->isPdfAnnotationSubtype($type)) {
+                    continue;
+                }
+
+                $counts[$type] = ($counts[$type] ?? 0) + 1;
+            }
+        }
+
+        ksort($counts);
+
+        return $counts;
+    }
+
+    private function isPdfAnnotationSubtype(string $type): bool
+    {
+        return in_array($type, [
+            '3D',
+            'Caret',
+            'Circle',
+            'FileAttachment',
+            'FreeText',
+            'Highlight',
+            'Ink',
+            'Line',
+            'Link',
+            'Movie',
+            'Polygon',
+            'PolyLine',
+            'Popup',
+            'PrinterMark',
+            'Redact',
+            'Screen',
+            'Sound',
+            'Square',
+            'Squiggly',
+            'Stamp',
+            'StrikeOut',
+            'Text',
+            'TrapNet',
+            'Underline',
+            'Watermark',
+            'Widget',
+        ], true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfLinkTargets(string $pdfBytes): array
+    {
+        $targets = [];
+        foreach ($this->pdfObjectBodies($pdfBytes) as $body) {
+            if (!str_contains($body, '/URI')) {
+                continue;
+            }
+            if (preg_match('/\/(?:Subtype\s*\/Link|S\s*\/URI)\b/s', $body) !== 1) {
+                continue;
+            }
+
+            foreach ($this->extractPdfNamedStrings($body, 'URI') as $target) {
+                $target = trim($target);
+                if ($target !== '') {
+                    $targets[] = $target;
+                }
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfEmbeddedFileNames(string $pdfBytes): array
+    {
+        $names = [];
+        foreach ($this->pdfObjectBodies($pdfBytes) as $body) {
+            if (
+                !str_contains($body, '/EmbeddedFile')
+                && !str_contains($body, '/EmbeddedFiles')
+                && !str_contains($body, '/Filespec')
+                && !str_contains($body, '/FileAttachment')
+            ) {
+                continue;
+            }
+
+            foreach (['UF', 'F'] as $key) {
+                foreach ($this->extractPdfNamedStrings($body, $key) as $name) {
+                    $name = trim($name);
+                    if ($name !== '') {
+                        $names[] = $name;
+                    }
+                }
+            }
+            if (str_contains($body, '/EmbeddedFiles')) {
+                foreach ($this->extractPdfNamesArrayStrings($body) as $name) {
+                    $name = trim($name);
+                    if ($name !== '') {
+                        $names[] = $name;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfNamedStrings(string $objectBody, string $name): array
+    {
+        $values = [];
+        $needle = '/' . $name;
+        $offset = 0;
+        $length = strlen($objectBody);
+        while (($position = strpos($objectBody, $needle, $offset)) !== false) {
+            $cursor = $position + strlen($needle);
+            if ($cursor < $length && preg_match('/[A-Za-z0-9_.-]/', $objectBody[$cursor]) === 1) {
+                $offset = $cursor;
+                continue;
+            }
+            while ($cursor < $length && ctype_space($objectBody[$cursor])) {
+                $cursor++;
+            }
+
+            $parsed = null;
+            if ($cursor < $length && $objectBody[$cursor] === '(') {
+                $parsed = $this->parsePdfLiteralString($objectBody, $cursor);
+            } elseif (
+                $cursor < $length
+                && $objectBody[$cursor] === '<'
+                && ($cursor + 1 >= $length || $objectBody[$cursor + 1] !== '<')
+            ) {
+                $parsed = $this->parsePdfHexString($objectBody, $cursor);
+            }
+
+            if ($parsed !== null) {
+                $values[] = $parsed['value'];
+                $offset = $parsed['next'];
+                continue;
+            }
+
+            $offset = $cursor;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfNamesArrayStrings(string $objectBody): array
+    {
+        $values = [];
+        $offset = 0;
+        $length = strlen($objectBody);
+        while (($position = strpos($objectBody, '/Names', $offset)) !== false) {
+            $cursor = $position + strlen('/Names');
+            if ($cursor < $length && preg_match('/[A-Za-z0-9_.-]/', $objectBody[$cursor]) === 1) {
+                $offset = $cursor;
+                continue;
+            }
+            while ($cursor < $length && ctype_space($objectBody[$cursor])) {
+                $cursor++;
+            }
+            if ($cursor >= $length || $objectBody[$cursor] !== '[') {
+                $offset = $cursor + 1;
+                continue;
+            }
+
+            $cursor++;
+            while ($cursor < $length) {
+                if ($objectBody[$cursor] === ']') {
+                    break;
+                }
+
+                $parsed = null;
+                if ($objectBody[$cursor] === '(') {
+                    $parsed = $this->parsePdfLiteralString($objectBody, $cursor);
+                } elseif (
+                    $objectBody[$cursor] === '<'
+                    && ($cursor + 1 >= $length || $objectBody[$cursor + 1] !== '<')
+                ) {
+                    $parsed = $this->parsePdfHexString($objectBody, $cursor);
+                }
+
+                if ($parsed !== null) {
+                    $values[] = $parsed['value'];
+                    $cursor = $parsed['next'];
+                    continue;
+                }
+
+                $cursor++;
+            }
+
+            $offset = $cursor + 1;
+        }
+
+        return $values;
     }
 
     /**
