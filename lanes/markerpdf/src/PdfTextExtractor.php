@@ -18068,6 +18068,10 @@ final class PdfTextExtractor
             return $previousOffset;
         }
 
+        if ($previousOffset >= $currentOffset) {
+            return $this->latestXrefSectionOffsetBefore($pdfBytes, $currentOffset, $definitions);
+        }
+
         if ($this->xrefSectionExistsAtOffset($pdfBytes, $previousOffset, $definitions)) {
             return $previousOffset;
         }
