@@ -1278,6 +1278,78 @@ XML;
         $t->contains('<div class="odf-form-control odf-control-checkbox" data-odf-control-id="ctrl-publish" data-odf-control-type="checkbox" data-odf-control-exists="true"', $blocksHtml);
         $t->contains('Ready to publish', $blocksHtml);
     },
+    'maps ODT form submission metadata onto review controls' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFormSubmission = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <office:forms>
+        <form:form
+          form:name="Submission Form"
+          xlink:href="https://example.test/import-review"
+          xlink:type="simple"
+          form:method="post"
+          form:enctype="application/x-www-form-urlencoded"
+          form:target-frame="_blank"
+          form:command-type="table"
+          form:command="import_review_packets"
+          form:datasource="wp_import_queue"
+          form:apply-filter="true"
+          form:filter="status = 'ready'"
+          form:order="created DESC"
+          form:navigation-mode="current"
+          form:tab-cycle="records"
+          form:ignore-result="false"
+          form:escape-processing="true"
+          form:master-fields="source_id"
+          form:detail-fields="source_id">
+          <form:text form:id="ctrl-submit-title" form:name="SourceTitle" form:label="Source title" form:current-value="Ready packet"/>
+        </form:form>
+      </office:forms>
+      <text:p>Submission <draw:control draw:control="ctrl-submit-title"/> stays auditable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFormSubmission));
+        $control = $result['document']->children[0]->children[1];
+        $formMetadata = $control->attr('formControl')['formMetadata'] ?? [];
+
+        $t->same('Source title', $control->children[0]->attr('text'));
+        $t->same('https://example.test/import-review', $formMetadata['action'] ?? null);
+        $t->same('post', $formMetadata['method'] ?? null);
+        $t->same('application/x-www-form-urlencoded', $formMetadata['enctype'] ?? null);
+        $t->same('_blank', $formMetadata['targetFrame'] ?? null);
+        $t->same('table', $formMetadata['commandType'] ?? null);
+        $t->same('import_review_packets', $formMetadata['command'] ?? null);
+        $t->same('wp_import_queue', $formMetadata['datasource'] ?? null);
+        $t->same(true, $formMetadata['applyFilter'] ?? null);
+        $t->same(false, $formMetadata['ignoreResult'] ?? null);
+        $t->same(true, $formMetadata['escapeProcessing'] ?? null);
+        $t->same('source_id', $formMetadata['masterFields'] ?? null);
+        $t->same('source_id', $formMetadata['detailFields'] ?? null);
+        $t->same('https://example.test/import-review', $control->attr('formControl')['formAction']);
+        $t->same('post', $control->attr('attributes')['data-odf-control-form-method']);
+        $t->same('table', $control->attr('attributes')['data-odf-control-form-command-type']);
+        $t->same('true', $control->attr('attributes')['data-odf-control-form-apply-filter']);
+        $t->same('false', $control->attr('attributes')['data-odf-control-form-ignore-result']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->contains('data-odf-control-form-action="https://example.test/import-review"', $markdown);
+        $t->contains('data-odf-control-form-command="import_review_packets"', $markdown);
+        $t->contains('data-odf-control-form-datasource="wp_import_queue"', $markdown);
+        $t->contains('<span class="odf-form-control odf-control-text" data-odf-control-id="ctrl-submit-title"', $blocksHtml);
+        $t->contains('data-odf-control-form-target-frame="_blank"', $blocksHtml);
+        $t->contains('data-odf-control-form-master-fields="source_id"', $blocksHtml);
+    },
     'maps ODT field declarations and user-field fallback values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFieldDeclarations = <<<'XML'
 <office:document-content

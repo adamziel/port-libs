@@ -1440,26 +1440,24 @@ final class OdfReader
         }
 
         $controls = [];
-        $this->collectFormControls($forms, '', $controls);
+        $this->collectFormControls($forms, [], $controls);
 
         return $controls;
     }
 
     /**
+     * @param array<string, mixed> $formMetadata
      * @param array<string, array<string, mixed>> $controls
      */
-    private function collectFormControls(\DOMElement $container, string $formName, array &$controls): void
+    private function collectFormControls(\DOMElement $container, array $formMetadata, array &$controls): void
     {
         if ($this->isElement($container, self::FORM_NS, 'form')) {
-            $name = self::attr($container, self::FORM_NS, 'name');
-            if ($name !== '') {
-                $formName = $name;
-            }
+            $formMetadata = array_merge($formMetadata, $this->formDefinition($container));
         }
 
         foreach (self::childElements($container) as $child) {
             if ($this->isElement($child, self::FORM_NS, 'form')) {
-                $this->collectFormControls($child, $formName, $controls);
+                $this->collectFormControls($child, $formMetadata, $controls);
                 continue;
             }
 
@@ -1467,7 +1465,7 @@ final class OdfReader
                 continue;
             }
 
-            $control = $this->formControlDefinition($child, $formName);
+            $control = $this->formControlDefinition($child, $formMetadata);
             if ($control !== null) {
                 $controls[(string) $control['id']] = $control;
             }
@@ -1475,9 +1473,59 @@ final class OdfReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function formDefinition(\DOMElement $form): array
+    {
+        $targetFrame = self::attr($form, self::FORM_NS, 'target-frame');
+        if ($targetFrame === '') {
+            $targetFrame = self::attr($form, self::OFFICE_NS, 'target-frame-name');
+        }
+
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($form, self::FORM_NS, 'name')),
+            'action' => self::nullable($this->formAction($form)),
+            'method' => self::nullable(self::attr($form, self::FORM_NS, 'method')),
+            'enctype' => self::nullable(self::attr($form, self::FORM_NS, 'enctype')),
+            'targetFrame' => self::nullable($targetFrame),
+            'command' => self::nullable(self::attr($form, self::FORM_NS, 'command')),
+            'commandType' => self::nullable(self::attr($form, self::FORM_NS, 'command-type')),
+            'datasource' => self::nullable(self::attr($form, self::FORM_NS, 'datasource')),
+            'filter' => self::nullable(self::attr($form, self::FORM_NS, 'filter')),
+            'order' => self::nullable(self::attr($form, self::FORM_NS, 'order')),
+            'applyFilter' => self::nullableBool(self::attr($form, self::FORM_NS, 'apply-filter')),
+            'ignoreResult' => self::nullableBool(self::attr($form, self::FORM_NS, 'ignore-result')),
+            'escapeProcessing' => self::nullableBool(self::attr($form, self::FORM_NS, 'escape-processing')),
+            'navigationMode' => self::nullable(self::attr($form, self::FORM_NS, 'navigation-mode')),
+            'tabCycle' => self::nullable(self::attr($form, self::FORM_NS, 'tab-cycle')),
+            'masterFields' => self::nullable(self::attr($form, self::FORM_NS, 'master-fields')),
+            'detailFields' => self::nullable(self::attr($form, self::FORM_NS, 'detail-fields')),
+            'defaultControlImplementation' => self::nullable(self::attr($form, self::FORM_NS, 'control-implementation')),
+            'xlinkType' => self::nullable(self::attr($form, self::XLINK_NS, 'type')),
+            'xlinkShow' => self::nullable(self::attr($form, self::XLINK_NS, 'show')),
+            'xlinkActuate' => self::nullable(self::attr($form, self::XLINK_NS, 'actuate')),
+        ]);
+    }
+
+    private function formAction(\DOMElement $form): string
+    {
+        $href = self::attr($form, self::XLINK_NS, 'href');
+        if ($href !== '') {
+            return $href;
+        }
+
+        $action = self::attr($form, self::FORM_NS, 'action');
+        if ($action !== '') {
+            return $action;
+        }
+
+        return self::attr($form, self::FORM_NS, 'href');
+    }
+
+    /**
      * @return ?array<string, mixed>
      */
-    private function formControlDefinition(\DOMElement $control, string $formName): ?array
+    private function formControlDefinition(\DOMElement $control, array $formMetadata): ?array
     {
         $id = self::attr($control, self::FORM_NS, 'id');
         if ($id === '') {
@@ -1487,10 +1535,9 @@ final class OdfReader
             return null;
         }
 
-        return self::withoutEmpty([
+        return self::withoutEmpty(array_merge([
             'id' => $id,
             'type' => $control->localName,
-            'formName' => self::nullable($formName),
             'name' => self::nullable(self::attr($control, self::FORM_NS, 'name')),
             'label' => self::nullable(self::attr($control, self::FORM_NS, 'label')),
             'implementation' => self::nullable(self::attr($control, self::FORM_NS, 'control-implementation')),
@@ -1503,7 +1550,26 @@ final class OdfReader
             'href' => self::nullable(self::attr($control, self::XLINK_NS, 'href')),
             'disabled' => self::nullableBool(self::attr($control, self::FORM_NS, 'disabled')),
             'printable' => self::nullableBool(self::attr($control, self::FORM_NS, 'printable')),
-        ]);
+            'formMetadata' => $formMetadata,
+        ], $this->prefixedFormMetadata($formMetadata)));
+    }
+
+    /**
+     * @param array<string, mixed> $formMetadata
+     * @return array<string, mixed>
+     */
+    private function prefixedFormMetadata(array $formMetadata): array
+    {
+        $prefixed = [];
+        foreach ($formMetadata as $name => $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $prefixed['form' . ucfirst($name)] = $value;
+        }
+
+        return $prefixed;
     }
 
     /**
@@ -1624,6 +1690,26 @@ final class OdfReader
                 'href',
                 'disabled',
                 'printable',
+                'formAction',
+                'formMethod',
+                'formEnctype',
+                'formTargetFrame',
+                'formCommand',
+                'formCommandType',
+                'formDatasource',
+                'formFilter',
+                'formOrder',
+                'formApplyFilter',
+                'formIgnoreResult',
+                'formEscapeProcessing',
+                'formNavigationMode',
+                'formTabCycle',
+                'formMasterFields',
+                'formDetailFields',
+                'formDefaultControlImplementation',
+                'formXlinkType',
+                'formXlinkShow',
+                'formXlinkActuate',
             ] as $name) {
                 if (!array_key_exists($name, $definition)) {
                     continue;

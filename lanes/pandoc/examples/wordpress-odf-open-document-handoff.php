@@ -111,7 +111,7 @@ $contentXml = <<<'XML'
         </text:changed-region>
       </text:tracked-changes>
       <office:forms>
-        <form:form form:name="Import Review">
+        <form:form form:name="Import Review" xlink:href="https://example.test/import-review" xlink:type="simple" form:method="post" form:target-frame="_blank" form:command-type="table" form:command="import_review_packets" form:datasource="wp_import_queue" form:apply-filter="true">
           <form:checkbox form:id="ctrl-review-approval" form:name="ReviewApproval" form:label="Review approved" form:current-state="checked"/>
         </form:form>
       </office:forms>
@@ -395,8 +395,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['content']['missingFormControlCount'] ?? 0) !== 0) {
         throw new RuntimeException('Expected ODT form controls to resolve from office:forms');
     }
-    if (!str_contains($blocks, '<span class="odf-form-control odf-control-checkbox" data-odf-control-id="ctrl-review-approval" data-odf-control-type="checkbox" data-odf-control-exists="true" data-odf-control-form-name="Import Review" data-odf-control-name="ReviewApproval" data-odf-control-label="Review approved" data-odf-control-current-state="checked">Review approved</span>')) {
+    if (!str_contains($blocks, '<span class="odf-form-control odf-control-checkbox" data-odf-control-id="ctrl-review-approval" data-odf-control-type="checkbox" data-odf-control-exists="true" data-odf-control-form-name="Import Review"')) {
         throw new RuntimeException('Expected ODT form control placeholder to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-control-form-action="https://example.test/import-review" data-odf-control-form-method="post"')) {
+        throw new RuntimeException('Expected ODT form submission action metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-control-form-command="import_review_packets" data-odf-control-form-command-type="table" data-odf-control-form-datasource="wp_import_queue" data-odf-control-form-apply-filter="true"')) {
+        throw new RuntimeException('Expected ODT form command metadata to render in WordPress blocks');
     }
     if (($result['importReport']['content']['softPageBreakCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT soft page break to be counted in the import report');
