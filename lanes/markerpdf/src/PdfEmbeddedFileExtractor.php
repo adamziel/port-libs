@@ -337,6 +337,7 @@ final class PdfEmbeddedFileExtractor
                 'source' => $source,
                 'name' => $attachmentName,
                 'filename' => $filename,
+                'filename_source' => $filenameSource,
                 'content' => $stream['content'],
                 'size' => strlen($stream['content']),
                 'content_sha256' => hash('sha256', $stream['content']),
@@ -1997,11 +1998,18 @@ final class PdfEmbeddedFileExtractor
     private function dedupeEmbeddedFiles(array $files): array
     {
         $seen = [];
+        $seenNamedStreams = [];
         $deduped = [];
 
         foreach ($files as $file) {
             $fileSpecObject = $file['file_spec_object'] ?? null;
             $embeddedFileObject = $file['embedded_file_object'] ?? null;
+            $filenameSource = $file['filename_source'] ?? null;
+            $streamKey = is_int($embeddedFileObject) ? 'stream:' . $embeddedFileObject : null;
+            if ($filenameSource === 'generated' && $streamKey !== null && isset($seenNamedStreams[$streamKey])) {
+                continue;
+            }
+
             $key = is_int($fileSpecObject) && is_int($embeddedFileObject)
                 ? 'objects:' . $fileSpecObject . ':' . $embeddedFileObject
                 : 'values:' . ($embeddedFileObject ?? 'direct') . ':' . ($file['name'] ?? '') . ':' . ($file['filename'] ?? '');
@@ -2009,6 +2017,9 @@ final class PdfEmbeddedFileExtractor
                 continue;
             }
             $seen[$key] = true;
+            if ($streamKey !== null && is_string($filenameSource) && $filenameSource !== 'generated') {
+                $seenNamedStreams[$streamKey] = true;
+            }
             $deduped[] = $file;
         }
 

@@ -350,9 +350,26 @@ final class PdfAttachmentExtractor
             return $attachmentFileSpecId === $candidateFileSpecId;
         }
 
+        if ($this->hasGeneratedFilenameMirror($attachment, $candidate)) {
+            return true;
+        }
+
         return ($attachment['filename'] ?? null) === ($candidate['filename'] ?? null)
             && ($attachment['byte_length'] ?? null) === ($candidate['byte_length'] ?? null)
             && ($attachment['sha256'] ?? null) === ($candidate['sha256'] ?? null);
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     * @param array<string, mixed> $candidate
+     */
+    private function hasGeneratedFilenameMirror(array $attachment, array $candidate): bool
+    {
+        $attachmentSource = $attachment['filename_source'] ?? null;
+        $candidateSource = $candidate['filename_source'] ?? null;
+
+        return ($attachmentSource === 'generated' && is_string($candidateSource) && $candidateSource !== 'generated')
+            || ($candidateSource === 'generated' && is_string($attachmentSource) && $attachmentSource !== 'generated');
     }
 
     /**
