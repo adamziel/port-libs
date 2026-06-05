@@ -104,6 +104,26 @@ $inlineImageTokenizerCcittPdf = static function (string $filter, string $prefix)
         . "%%EOF";
 };
 
+$inlineImageTokenizerMultipleCcittPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before First CCITT) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /CCITTFaxDecode ID\n"
+        . "\x00\x10\x04 EI BT /F1 12 Tf 72 660 Td (First CCITT Inline Payload Noise) Tj ET rawtail\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 704 Td (Between CCITT Images) Tj ET\n"
+        . "BI /W 128 /H 1 /IM true /F /CCF ID\n"
+        . "\x00\x10\x04 EI BT /F1 12 Tf 72 640 Td (Second CCF Inline Payload Noise) Tj ET rawtail\n"
+        . "EI\n"
+        . "BT /F1 12 Tf 72 688 Td (After Second CCITT) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'keeps malformed BI tokenizer boundary from swallowing later WordPress text' => static function (TestRunner $t) use ($inlineImageTokenizerBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
@@ -220,6 +240,27 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->true(!str_contains($plainText, 'CCF Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
+    'preserves text between multiple CCITT inline image tokenizer fallbacks' => static function (TestRunner $t) use ($inlineImageTokenizerMultipleCcittPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerMultipleCcittPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before First CCITT',
+            'Between CCITT Images',
+            'After Second CCITT',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Between CCITT Images'));
+        $t->true(!str_contains($plainText, 'First CCITT Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'Second CCF Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
     },
 ];

@@ -17132,6 +17132,7 @@ final class PdfTextExtractor
         $this->consumeInlineImageDataPrefixWhitespace($stream, $index);
         $dataStart = $index;
         $incompletePreviewFallbackEnd = null;
+        $incompletePreviewFallbackCanCloseBeforeNextImage = false;
         while ($index < $length) {
             $end = strpos($stream, 'EI', $index);
             if ($end === false) {
@@ -17140,6 +17141,17 @@ final class PdfTextExtractor
             }
 
             if ($this->inlineImageEndMarkerAt($stream, $end)) {
+                if (
+                    $incompletePreviewFallbackEnd !== null
+                    && $incompletePreviewFallbackCanCloseBeforeNextImage
+                    && $this->contentSegmentContainsInlineImagePreamble(
+                        substr($stream, $incompletePreviewFallbackEnd + 2, $end - $incompletePreviewFallbackEnd - 2)
+                    )
+                ) {
+                    $index = $incompletePreviewFallbackEnd + 2;
+                    return true;
+                }
+
                 $candidate = $this->inlineImageDataCandidate($stream, $dataStart, $end);
                 if ($this->inlineImageCandidateMatchesDictionary($dictionary, $candidate)) {
                     $index = $end + 2;
@@ -17148,6 +17160,8 @@ final class PdfTextExtractor
 
                 if ($this->inlineImageCandidateIsIncompletePreviewOnly($dictionary, $candidate)) {
                     $incompletePreviewFallbackEnd = $end;
+                    $incompletePreviewFallbackCanCloseBeforeNextImage =
+                        $this->inlineImageIncompletePreviewCandidateReachedSampleFloor($dictionary, $candidate);
                 }
             }
 
@@ -17160,6 +17174,72 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    private function contentSegmentContainsInlineImagePreamble(string $segment): bool
+    {
+        $index = 0;
+        $length = strlen($segment);
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if ($index + 1 < $length && $segment[$index + 1] === '<') {
+                    $this->readDictionaryToken($segment, $index);
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $this->readArrayToken($segment, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($segment, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isDelimiter($segment[$index])) {
+                $index++;
+            }
+
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            if (substr($segment, $start, $index - $start) !== 'BI') {
+                continue;
+            }
+
+            $dictionaryEnd = $index;
+            $dictionary = $this->readInlineImageDictionary($segment, $dictionaryEnd);
+            if ($dictionary !== null && $this->inlineImageDictionaryHasImageKeys($dictionary)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function readInlineImageDictionary(string $stream, int &$index): ?string
@@ -17400,6 +17480,35 @@ final class PdfTextExtractor
                 $this->inlineImageUsesCcittFaxDecode($filters)
                 && $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate) === 'incomplete'
             );
+    }
+
+    private function inlineImageIncompletePreviewCandidateReachedSampleFloor(string $dictionary, string $candidate): bool
+    {
+        $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
+        if ($expectedLength === null) {
+            return false;
+        }
+
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters === null || $filters === []) {
+            return false;
+        }
+
+        $previewFilters = ['JBIG2Decode', 'CCITTFaxDecode', 'CCF'];
+        $hasOpenEndedPreviewFilter = false;
+        foreach ($filters as $filter) {
+            if (in_array($filter, $previewFilters, true)) {
+                $hasOpenEndedPreviewFilter = true;
+                break;
+            }
+        }
+
+        if (!$hasOpenEndedPreviewFilter) {
+            return false;
+        }
+
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, $previewFilters);
+        return $bytes !== null && strlen($bytes) >= $expectedLength;
     }
 
     /**
