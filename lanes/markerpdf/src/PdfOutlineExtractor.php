@@ -1333,7 +1333,7 @@ final class PdfOutlineExtractor
                 }
             }
 
-            if ($level < $maxDepth) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->outlineActionReviewRows(
                     $dict['First'] ?? null,
                     $objects,
@@ -1404,6 +1404,20 @@ final class PdfOutlineExtractor
         $previous = $this->validReferenceObjectNumber($outline['Prev'], $objects);
 
         return $previous !== null && $previous === $previousSiblingObject;
+    }
+
+    /**
+     * A zero `/Count` on an outline item declares no open descendants. Treat
+     * contradictory `/First` links as review metadata only.
+     *
+     * @param array<string, mixed> $outline
+     * @param array<int, mixed> $objects
+     */
+    private function outlineItemAllowsChildTraversal(array $outline, array $objects): bool
+    {
+        $count = $this->integerOrNullValue($this->resolveValue($outline['Count'] ?? null, $objects));
+
+        return $count !== 0;
     }
 
     /**
@@ -2779,7 +2793,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->outlineItems($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
@@ -2873,7 +2887,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->outlineItemsWithDestinationViews($dict['First'] ?? null, $objects, $pageIndexes, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }
@@ -3002,7 +3016,7 @@ final class PdfOutlineExtractor
                 $items[] = $row;
             }
 
-            if ($level < $maxDepth) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->outlineStructureDestinationPageContextItems(
                     $dict['First'] ?? null,
                     $objects,
@@ -3322,7 +3336,7 @@ final class PdfOutlineExtractor
                 ];
             }
 
-            if ($level < $maxDepth) {
+            if ($level < $maxDepth && $this->outlineItemAllowsChildTraversal($dict, $objects)) {
                 foreach ($this->remoteGoToOutlineItems($dict['First'] ?? null, $objects, $destinations, $current, $this->validReferenceObjectNumber($dict['Last'] ?? null, $objects), $maxDepth, $level + 1, $seen) as $child) {
                     $items[] = $child;
                 }

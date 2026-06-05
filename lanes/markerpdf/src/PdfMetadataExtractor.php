@@ -3234,20 +3234,22 @@ final class PdfMetadataExtractor
                 $structureContext
             );
 
-            foreach ($this->documentOutlineItemMetadataRows(
-                $this->dictionaryTopLevelRawValue($dictionary, 'First'),
-                $objects,
-                $pageIndexes,
-                $pageLabels,
-                $destinationsByName,
-                $structureContext,
-                $current,
-                $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
-                $maxDepth,
-                $level + 1,
-                $seen
-            ) as $child) {
-                $items[] = $child;
+            if ($this->documentOutlineItemAllowsChildTraversal($dictionary, $objects)) {
+                foreach ($this->documentOutlineItemMetadataRows(
+                    $this->dictionaryTopLevelRawValue($dictionary, 'First'),
+                    $objects,
+                    $pageIndexes,
+                    $pageLabels,
+                    $destinationsByName,
+                    $structureContext,
+                    $current,
+                    $this->validObjectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last'), $objects),
+                    $maxDepth,
+                    $level + 1,
+                    $seen
+                ) as $child) {
+                    $items[] = $child;
+                }
             }
 
             if ($lastItemObject !== null && $current === $lastItemObject) {
@@ -3294,6 +3296,19 @@ final class PdfMetadataExtractor
         $previous = $this->validObjectNumberFromReference($prevValue, $objects);
 
         return $previous !== null && $previous === $previousSiblingObject;
+    }
+
+    /**
+     * A zero `/Count` declares no open descendants. Preserve contradictory
+     * child references on the item row, but do not import those child rows.
+     *
+     * @param array<int, string> $objects
+     */
+    private function documentOutlineItemAllowsChildTraversal(string $dictionary, array $objects): bool
+    {
+        $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
+
+        return $count !== 0;
     }
 
     /**
