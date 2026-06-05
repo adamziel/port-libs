@@ -260,6 +260,27 @@ return [
         $t->true(!str_contains($encoded, 'raw_font_stream'));
         $t->true(!str_contains($encoded, 'debug_payload'));
     },
+    'rejects malformed pdftext keep chars rows before WordPress rendering' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $missingChar = $pdftextCharsPage();
+        unset($missingChar['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$missingChar], maxPages: 1, keepChars: true));
+
+        $badBbox = $pdftextCharsPage();
+        $badBbox['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['bbox'] = [0.10, 0.10, 'right', 0.13];
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badBbox], maxPages: 1, keepChars: true));
+
+        $badFont = $pdftextCharsPage();
+        $badFont['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['font']['weight'] = 'bold';
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badFont], maxPages: 1, keepChars: true));
+
+        $badRotation = $pdftextCharsPage();
+        $badRotation['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['rotation'] = '0';
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badRotation], maxPages: 1, keepChars: true));
+
+        $badIndex = $pdftextCharsPage();
+        $badIndex['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = '7';
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$badIndex], maxPages: 1, keepChars: true));
+    },
     'preserves pdftext superscript and subscript flags at the core boundary' => static function (TestRunner $t) use ($pdftextScriptPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextScriptPage()], maxPages: 1);
         $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];

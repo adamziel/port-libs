@@ -58,12 +58,21 @@ $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1
 $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0] ?? [];
 $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0] ?? [];
 $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+$malformedPage = $page;
+$malformedPage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char_idx'] = '0';
+$malformedCharRejected = false;
+try {
+    (new PdfTextDocumentExtractor())->getTextBlocks([$malformedPage], maxPages: 1, keepChars: true);
+} catch (InvalidArgumentException) {
+    $malformedCharRejected = true;
+}
 
 if (array_key_exists('c', $span['chars'][0] ?? [])
     || str_contains($encoded, 'legacy alias should not cross the boundary')
     || str_contains($encoded, 'embedded_font_program')
     || str_contains($encoded, 'raw_font_stream')
     || str_contains($encoded, 'debug_payload')
+    || !$malformedCharRejected
 ) {
     throw new RuntimeException('Expected pdftext keep_chars character dictionaries to keep only upstream-shaped keys.');
 }
@@ -84,6 +93,7 @@ echo '<!-- markerpdf-pdftext-dictionary-char-core-boundary-currentbase ' . htmls
     'font_payload_excluded' => !str_contains($encoded, 'embedded_font_program')
         && !str_contains($encoded, 'raw_font_stream')
         && !str_contains($encoded, 'debug_payload'),
+    'malformed_keep_chars_row_rejected' => $malformedCharRejected,
     'executes_python_pdftext' => false,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

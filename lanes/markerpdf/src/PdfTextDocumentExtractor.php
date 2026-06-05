@@ -329,12 +329,7 @@ final class PdfTextDocumentExtractor
                 }
             }
 
-            if (array_key_exists('bbox', $sanitizedChar)) {
-                $sanitizedChar['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedChar['bbox'], $bboxScale);
-            }
-            if (array_key_exists('font', $sanitizedChar) && is_array($sanitizedChar['font'])) {
-                $sanitizedChar['font'] = $this->sanitizeDictionaryOutputFont($sanitizedChar['font']);
-            }
+            $sanitizedChar = $this->validatedDictionaryOutputChar($sanitizedChar, $index, $bboxScale);
 
             $sanitizedChars[] = $sanitizedChar;
         }
@@ -356,6 +351,87 @@ final class PdfTextDocumentExtractor
         }
 
         return $sanitizedFont;
+    }
+
+    /**
+     * @param array<string, mixed> $char
+     * @param array{width: float, height: float}|null $bboxScale
+     * @return array{char: string, bbox: list<float>, rotation: int, font: array<string, mixed>, char_idx: int}
+     */
+    private function validatedDictionaryOutputChar(array $char, int $index, ?array $bboxScale): array
+    {
+        foreach (['char', 'bbox', 'rotation', 'font', 'char_idx'] as $key) {
+            if (!array_key_exists($key, $char)) {
+                throw new InvalidArgumentException("pdftext char {$index}.{$key} is required when keep_chars=true.");
+            }
+        }
+
+        if (!is_string($char['char'])) {
+            throw new InvalidArgumentException("pdftext char {$index}.char must be a string when keep_chars=true.");
+        }
+
+        $bbox = $this->unnormalizeDictionaryOutputBbox($char['bbox'], $bboxScale);
+        $char['bbox'] = $this->dictionaryOutputRequiredBbox($bbox, "char {$index}.bbox");
+
+        $this->assertNumeric($char['rotation'], "char {$index}.rotation");
+        $char['rotation'] = (int) $char['rotation'];
+
+        if (!is_array($char['font'])) {
+            throw new InvalidArgumentException("pdftext char {$index}.font must be a dictionary when keep_chars=true.");
+        }
+        $this->assertDictionaryOutputFont($char['font'], "char {$index}.font");
+        $char['font'] = $this->sanitizeDictionaryOutputFont($char['font']);
+
+        $this->assertNumeric($char['char_idx'], "char {$index}.char_idx");
+        $char['char_idx'] = (int) $char['char_idx'];
+
+        return $char;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<float>
+     */
+    private function dictionaryOutputRequiredBbox(mixed $value, string $field): array
+    {
+        if (!is_array($value) || count($value) !== 4) {
+            throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox.");
+        }
+
+        $bbox = [];
+        foreach (array_values($value) as $part) {
+            if (!is_int($part) && !is_float($part)) {
+                throw new InvalidArgumentException("pdftext {$field} must be a four-number bbox.");
+            }
+            $bbox[] = (float) $part;
+        }
+
+        return $bbox;
+    }
+
+    private function assertNumeric(mixed $value, string $field): void
+    {
+        if (!is_int($value) && !is_float($value)) {
+            throw new InvalidArgumentException("pdftext {$field} must be numeric.");
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $font
+     */
+    private function assertDictionaryOutputFont(array $font, string $field): void
+    {
+        if (!array_key_exists('name', $font) || ($font['name'] !== null && !is_string($font['name']))) {
+            throw new InvalidArgumentException("pdftext {$field}.name must be a string or null.");
+        }
+
+        foreach (['weight', 'size'] as $fontKey) {
+            $this->assertNumeric($font[$fontKey] ?? null, "{$field}.{$fontKey}");
+        }
+
+        if (array_key_exists('flags', $font) && $font['flags'] !== null) {
+            $this->assertNumeric($font['flags'], "{$field}.flags");
+        }
     }
 
     /**
