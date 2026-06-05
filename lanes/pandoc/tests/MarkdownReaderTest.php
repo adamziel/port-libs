@@ -1096,6 +1096,53 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('yaml-anchor-body', $document->children[0]->attr('id'));
     },
+    'maps pandoc yaml merge sequences with earlier map precedence' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Merge sequence **Packet**',
+            'review-base: &review_base',
+            '  status: queued',
+            '  priority: 5',
+            '  labels: [base, import]',
+            '  reviewer: Base Desk',
+            'review-override: &review_override',
+            '  status: approved',
+            '  labels: [override, review]',
+            'review:',
+            '  <<: [*review_override, *review_base]',
+            '  priority: 1',
+            '  owner: Import Desk',
+            'audit:',
+            '  <<:',
+            '    - *review_override',
+            '    - *review_base',
+            '  status: needs-review',
+            'flow-review: {<<: [*review_override, *review_base], reviewer: Flow Desk}',
+            '...',
+            '',
+            '# YAML merge sequence body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Merge sequence **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('approved', $meta['review']['status']);
+        $t->same(1, $meta['review']['priority']);
+        $t->same(['override', 'review'], $meta['review']['labels']);
+        $t->same('Base Desk', $meta['review']['reviewer']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('needs-review', $meta['audit']['status']);
+        $t->same(5, $meta['audit']['priority']);
+        $t->same(['override', 'review'], $meta['audit']['labels']);
+        $t->same('approved', $meta['flow-review']['status']);
+        $t->same(5, $meta['flow-review']['priority']);
+        $t->same('Flow Desk', $meta['flow-review']['reviewer']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('yaml-merge-sequence-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-merge-sequence-body">YAML merge sequence body</h1>', $blocks);
+    },
     'maps pandoc yaml comments and block scalar chomping in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

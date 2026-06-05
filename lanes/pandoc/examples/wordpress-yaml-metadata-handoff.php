@@ -21,9 +21,26 @@ reviewDefaults_: &review_defaults
   status: queued
   priority: 3
   labels: &review_labels [front-matter, wordpress]
+reviewBase_: &merge_review_base
+  status: queued
+  priority: 5
+  labels: [base, import]
+  reviewer: Base Desk
+reviewOverride_: &merge_review_override
+  status: approved
+  labels: [override, review]
 review:
   <<: *review_defaults
   owner: !wp-reviewer "Import Desk"
+merge-sequence-review:
+  <<: [*merge_review_override, *merge_review_base]
+  priority: 1
+merge-sequence-audit:
+  <<:
+    - *merge_review_override
+    - *merge_review_base
+  status: needs-review
+flow-merge-review: {<<: [*merge_review_override, *merge_review_base], reviewer: Flow Desk}
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
@@ -74,6 +91,21 @@ $blocks = (new WordPressBlockWriter())->write($document);
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
+    }
+    if (($meta['merge-sequence-review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing earlier merge-sequence precedence');
+    }
+    if (($meta['merge-sequence-review']['priority'] ?? null) !== 1) {
+        throw new RuntimeException('YAML metadata self-test missing explicit merge-sequence override');
+    }
+    if (($meta['merge-sequence-review']['labels'] ?? []) !== ['override', 'review']) {
+        throw new RuntimeException('YAML metadata self-test missing merge-sequence labels');
+    }
+    if (($meta['merge-sequence-audit']['status'] ?? '') !== 'needs-review') {
+        throw new RuntimeException('YAML metadata self-test missing block merge-sequence explicit override');
+    }
+    if (($meta['flow-merge-review']['reviewer'] ?? '') !== 'Flow Desk') {
+        throw new RuntimeException('YAML metadata self-test missing flow merge-sequence override');
     }
     if (($meta['references'][0]['issued']['date-parts'][0] ?? []) !== [2026, 6, 3]) {
         throw new RuntimeException('YAML metadata self-test missing block-style date-parts');
@@ -130,6 +162,7 @@ echo 'Authors: ' . implode(', ', $meta['authors'] ?? []) . "\n";
 echo 'Review status: ' . ($meta['review']['status'] ?? '') . "\n";
 echo 'Review labels: ' . implode(', ', $meta['review']['labels'] ?? []) . "\n";
 echo 'Keywords: ' . implode(', ', $meta['keywords'] ?? []) . "\n\n";
+echo 'Merge sequence review: ' . ($meta['merge-sequence-review']['status'] ?? '') . ' / priority ' . ($meta['merge-sequence-review']['priority'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
 echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";

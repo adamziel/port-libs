@@ -1455,7 +1455,7 @@ final class MarkdownReader
         if ($this->isYamlAssociativeArray($mergeValue)) {
             $merged = $mergeValue;
         } elseif (is_array($mergeValue)) {
-            foreach ($mergeValue as $item) {
+            foreach (array_reverse($mergeValue) as $item) {
                 if ($this->isYamlAssociativeArray($item)) {
                     $merged = array_replace($merged, $item);
                 }
