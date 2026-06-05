@@ -4737,7 +4737,9 @@ final class PdfMetadataExtractor
         if ($compatible === false) {
             $violations[] = 'standard_security_handler_version_revision_mismatch';
         }
-        if (($keyLength['valid'] ?? null) === false) {
+        if (($keyLength['status'] ?? null) === 'missing_standard_security_handler_key_length_review') {
+            $violations[] = 'missing_standard_security_handler_key_length';
+        } elseif (($keyLength['valid'] ?? null) === false) {
             $violations[] = 'invalid_standard_security_handler_key_length';
         }
         if (!$permissionWordPresent) {
@@ -4809,6 +4811,15 @@ final class PdfMetadataExtractor
         }
 
         if ($keyLengthBits === null) {
+            if ($version === 5) {
+                return [
+                    'valid' => false,
+                    'status' => 'missing_standard_security_handler_key_length_review',
+                    'minimum_key_length_bits' => $range['minimum'],
+                    'maximum_key_length_bits' => $range['maximum'],
+                ];
+            }
+
             return [
                 'valid' => $version === 1 ? false : null,
                 'status' => $version === 1
