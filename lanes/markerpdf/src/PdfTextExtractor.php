@@ -20021,22 +20021,46 @@ final class PdfTextExtractor
         int $beforeOffset
     ): array {
         $reference = $this->objectReferenceAfterName($sectionBody, 'Prev');
-        if ($reference === null || $reference['generation'] !== 0) {
+        if ($reference === null) {
             return $objects;
         }
 
-        $helper = $this->compressedStreamDictionaryOperandHelperBeforeOffset(
-            $definitions,
-            $objects,
-            $reference['objectNumber'],
+        $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+            $definitions[$reference['objectNumber']] ?? [],
             $reference['generation'],
             $beforeOffset
         );
-        if ($helper === null || !$this->xrefPrevOperandHelperBodyIsSafe($helper['body'])) {
+        $helper = $reference['generation'] === 0
+            ? $this->compressedStreamDictionaryOperandHelperBeforeOffset(
+                $definitions,
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $beforeOffset
+            )
+            : null;
+
+        $directBody = $definition === null ? null : trim($definition['body']);
+        $helperBody = $helper === null ? null : trim($helper['body']);
+        if (
+            $helperBody !== null
+            && $this->xrefPrevOperandHelperBodyIsSafe($helperBody)
+            && ($definition === null || $helper['carrierOffset'] > $definition['offset'])
+        ) {
+            $objects[$reference['objectNumber']] = $helperBody;
             return $objects;
         }
 
-        $objects[$reference['objectNumber']] = $helper['body'];
+        if ($directBody !== null && $this->xrefPrevOperandHelperBodyIsSafe($directBody)) {
+            $objects[$reference['objectNumber']] = $directBody;
+            return $objects;
+        }
+
+        if ($helperBody === null || !$this->xrefPrevOperandHelperBodyIsSafe($helperBody)) {
+            return $objects;
+        }
+
+        $objects[$reference['objectNumber']] = $helperBody;
         return $objects;
     }
 
