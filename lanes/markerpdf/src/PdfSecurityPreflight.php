@@ -667,6 +667,8 @@ final class PdfSecurityPreflight
             'auth_event_defaulted_filter_names' => $this->cryptFilterAuthEventDefaultedFilterNames($roles),
             'auth_event_mismatch_role_names' => $this->cryptFilterAuthEventMismatchRoleNames($roles),
             'auth_event_mismatch_filter_names' => $this->cryptFilterAuthEventMismatchFilterNames($roles),
+            'cfm_defaulted_role_names' => $this->cryptFilterCfmDefaultedRoleNames($roles),
+            'cfm_defaulted_filter_names' => $this->cryptFilterCfmDefaultedFilterNames($roles),
             'key_length_statuses' => $this->uniqueStringColumn($roles, 'key_length_status'),
             'key_length_invalid_role_names' => $this->cryptFilterKeyLengthInvalidRoleNames($roles),
             'key_length_invalid_filter_names' => $this->cryptFilterKeyLengthInvalidFilterNames($roles),
@@ -749,6 +751,8 @@ final class PdfSecurityPreflight
             'auth_event_source' => is_string($filter['auth_event_source'] ?? null) ? $filter['auth_event_source'] : null,
             'auth_event_status' => $authEventStatus,
             'auth_event_applies_to_role' => $this->cryptFilterAuthEventAppliesToRole($authEventStatus),
+            'cfm_defaulted' => ($filter['cfm_defaulted'] ?? false) === true,
+            'cfm_source' => is_string($filter['cfm_source'] ?? null) ? $filter['cfm_source'] : null,
             'key_length_bytes' => $keyLengthBytes,
             'minimum_key_length_bytes' => $keyLengthReview['minimum_key_length_bytes'],
             'maximum_key_length_bytes' => $keyLengthReview['maximum_key_length_bytes'],
@@ -1143,6 +1147,46 @@ final class PdfSecurityPreflight
         foreach ($roles as $role) {
             if (
                 ($role['auth_event_applies_to_role'] ?? null) === false
+                && is_string($role['filter_name'] ?? null)
+                && !in_array($role['filter_name'], $names, true)
+            ) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterCfmDefaultedRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['cfm_defaulted'] ?? false) === true
+                && is_string($role['role'] ?? null)
+                && !in_array($role['role'], $names, true)
+            ) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterCfmDefaultedFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['cfm_defaulted'] ?? false) === true
                 && is_string($role['filter_name'] ?? null)
                 && !in_array($role['filter_name'], $names, true)
             ) {

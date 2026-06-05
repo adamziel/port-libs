@@ -22,7 +22,7 @@ $unsupportedCryptFilterPdf = static function (): array {
         . " /P -44 /EncryptMetadata true"
         . " /CF <<"
         . " /VendorStreams << /CFM /VendorAES /AuthEvent /DocOpen /Length 16 >>"
-        . " /MysteryStrings << /AuthEvent /DocOpen /Length 16 >>"
+        . " /MysteryStrings << /CFM [] /AuthEvent /DocOpen /Length 16 >>"
         . " /ClearEmbedded << /CFM /Identity /AuthEvent /EFOpen >>"
         . " >>"
         . " /StmF /VendorStreams /StrF /MysteryStrings /EFF /ClearEmbedded >>\nendobj\n"

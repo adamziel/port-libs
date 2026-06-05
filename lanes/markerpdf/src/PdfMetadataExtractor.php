@@ -5412,10 +5412,17 @@ final class PdfMetadataExtractor
 
             $filterBody = $filterDictionary['body'];
             $metadata = [];
-            $method = $this->dictionaryNameValue($filterBody, 'CFM', $objects)
-                ?? $this->dictionaryStringValue($filterBody, 'CFM');
+            $methodRawValue = $this->dictionaryTopLevelRawValue($filterBody, 'CFM');
+            $method = $methodRawValue === null
+                ? null
+                : ($this->dictionaryNameValue($filterBody, 'CFM', $objects)
+                    ?? $this->dictionaryStringValue($filterBody, 'CFM'));
             if ($method !== null) {
                 $metadata['method'] = $method;
+            } elseif ($methodRawValue === null) {
+                $metadata['method'] = 'None';
+                $metadata['cfm_defaulted'] = true;
+                $metadata['cfm_source'] = 'pdf_default_none';
             }
 
             $authEvent = $this->dictionaryNameValue($filterBody, 'AuthEvent', $objects)
