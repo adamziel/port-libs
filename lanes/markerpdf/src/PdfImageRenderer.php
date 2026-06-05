@@ -7854,8 +7854,9 @@ final class PdfImageRenderer
 
             return ['value' => substr($source, $offset, $next - $offset + 1), 'next' => $next + 1];
         }
-        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $source, $match, 0, $offset) === 1) {
-            return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
+        $reference = $this->pdfIndirectReferenceTokenAt($source, $offset);
+        if ($reference !== null) {
+            return ['value' => $reference['token'], 'next' => $reference['endOffset']];
         }
         if (preg_match('/\G(?:true|false|null)\b/s', $source, $match, 0, $offset) === 1) {
             return ['value' => $match[0], 'next' => $offset + strlen($match[0])];
@@ -7920,11 +7921,12 @@ final class PdfImageRenderer
     private function resolvePdfValueWithSeen(string $value, array $objects, array $seenObjects = []): array
     {
         $trimmed = trim($value);
-        if (preg_match('/^(\d+)\s+\d+\s+R$/', $trimmed, $match) !== 1) {
+        $reference = $this->pdfIndirectReferenceTokenAt($trimmed, 0);
+        if ($reference === null || $this->skipPdfWhitespace($trimmed, $reference['endOffset']) !== strlen($trimmed)) {
             return ['value' => $trimmed, 'seen' => $seenObjects];
         }
 
-        $objectNumber = (int) $match[1];
+        $objectNumber = $reference['objectNumber'];
         if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
             return ['value' => $trimmed, 'seen' => $seenObjects];
         }
@@ -7932,6 +7934,56 @@ final class PdfImageRenderer
         $seenObjects[$objectNumber] = true;
 
         return ['value' => trim($objects[$objectNumber]), 'seen' => $seenObjects];
+    }
+
+    /**
+     * PDF comments are whitespace, including inside indirect-reference operands.
+     *
+     * @return array{token: string, objectNumber: int, generation: int, endOffset: int}|null
+     */
+    private function pdfIndirectReferenceTokenAt(string $source, int $offset): ?array
+    {
+        $length = strlen($source);
+        $start = $this->skipPdfWhitespace($source, $offset);
+        if ($start >= $length || preg_match('/\G\d+/s', $source, $objectMatch, 0, $start) !== 1) {
+            return null;
+        }
+
+        $afterObject = $start + strlen($objectMatch[0]);
+        $generationOffset = $this->skipPdfWhitespace($source, $afterObject);
+        if (
+            $generationOffset <= $afterObject
+            || $generationOffset >= $length
+            || preg_match('/\G\d+/s', $source, $generationMatch, 0, $generationOffset) !== 1
+        ) {
+            return null;
+        }
+
+        $afterGeneration = $generationOffset + strlen($generationMatch[0]);
+        $referenceOffset = $this->skipPdfWhitespace($source, $afterGeneration);
+        if (
+            $referenceOffset <= $afterGeneration
+            || ($source[$referenceOffset] ?? '') !== 'R'
+        ) {
+            return null;
+        }
+
+        $endOffset = $referenceOffset + 1;
+        if ($endOffset < $length && !$this->isPdfBareTokenDelimiter($source[$endOffset])) {
+            return null;
+        }
+
+        return [
+            'token' => (int) $objectMatch[0] . ' ' . (int) $generationMatch[0] . ' R',
+            'objectNumber' => (int) $objectMatch[0],
+            'generation' => (int) $generationMatch[0],
+            'endOffset' => $endOffset,
+        ];
+    }
+
+    private function isPdfBareTokenDelimiter(string $char): bool
+    {
+        return str_contains(" \t\r\n\f[]()<>{}/%\0", $char);
     }
 
     /**
