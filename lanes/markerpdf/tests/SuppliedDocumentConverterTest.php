@@ -1386,6 +1386,154 @@ return [
             unlink($path);
         }
     },
+    'matches singleton wrapper-list page markers for supplied layout and order alignment' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-wrapper-list-marker-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied layout order wrapper-list marker boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(840, [
+                ['text' => 'Wrapper-list cover page should not import.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(841, [
+                ['text' => 'Second wrapper-list marker column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First wrapper-list marker column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(842, [
+                ['text' => 'Wrapper-list appendix should not import.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+
+            $coverLayout = [
+                'metadata' => [['page' => 840]],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $selectedLayout = [
+                'page_metadata' => [['page' => 841]],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $coverOrder = [
+                'metadata' => [['page' => 840]],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                ],
+            ];
+            $selectedOrder = [
+                'page_metadata' => [['page' => 841]],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['metadata' => [['page' => 840]], 'image' => 'wrapper-list-cover-layout-render'],
+                        ['page_metadata' => [['page' => 841]], 'image' => 'wrapper-list-selected-layout-render'],
+                    ],
+                    'layout_results' => [$coverLayout, $selectedLayout],
+                    'order_images' => [
+                        ['metadata' => [['page' => 840]], 'image' => 'wrapper-list-cover-order-render'],
+                        ['page_metadata' => [['page' => 841]], 'image' => 'wrapper-list-selected-order-render'],
+                    ],
+                    'order_results' => [$coverOrder, $selectedOrder],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First wrapper-list marker column.', $text);
+            $t->contains('Second wrapper-list marker column.', $text);
+            $t->true(strpos($text, 'First wrapper-list marker column.') < strpos($text, 'Second wrapper-list marker column.'));
+            $t->true(!str_contains($text, 'Wrapper-list cover page should not import.'));
+            $t->true(!str_contains($text, 'Wrapper-list appendix should not import.'));
+        } finally {
+            unlink($path);
+        }
+    },
+    'rejects ambiguous wrapper-list page markers for supplied layout and order alignment' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-ambiguous-wrapper-list-marker-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied layout order ambiguous wrapper-list marker boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(860, [
+                ['text' => 'Ambiguous wrapper-list cover page should not import.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(861, [
+                ['text' => 'Second ambiguous wrapper-list column remains source ordered.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First ambiguous wrapper-list column has no trusted order.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+
+            $ambiguousLayout = [
+                'metadata' => [['page' => 860], ['page' => 861]],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+            $ambiguousOrder = [
+                'metadata' => [['page' => 860], ['page' => 861]],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['metadata' => [['page' => 860], ['page' => 861]], 'image' => 'ambiguous-wrapper-list-layout-render'],
+                    ],
+                    'layout_results' => [$ambiguousLayout],
+                    'order_images' => [
+                        ['metadata' => [['page' => 860], ['page' => 861]], 'image' => 'ambiguous-wrapper-list-order-render'],
+                    ],
+                    'order_results' => [$ambiguousOrder],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same([], $result['metadata']['supplied_boundaries']);
+            $t->true(!array_key_exists('layout_plan', $result['metadata']));
+            $t->true(!array_key_exists('order_plan', $result['metadata']));
+            $t->contains('Second ambiguous wrapper-list column remains source ordered.', $text);
+            $t->contains('First ambiguous wrapper-list column has no trusted order.', $text);
+            $t->true(strpos($text, 'Second ambiguous wrapper-list column remains source ordered.') < strpos($text, 'First ambiguous wrapper-list column has no trusted order.'));
+            $t->true(!str_contains($text, 'Ambiguous wrapper-list cover page should not import.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");

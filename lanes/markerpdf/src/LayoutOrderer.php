@@ -169,11 +169,33 @@ final class LayoutOrderer
 
         foreach (self::ORDER_RESULT_PAGE_MARKER_WRAPPERS as $key) {
             $value = $artifact[$key] ?? null;
-            if (!is_array($value) || array_is_list($value)) {
+            if (!is_array($value)) {
                 continue;
             }
-            $this->collectOrderResultPageMarkerSources($value, $sources, $depth + 1);
+            foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+                $this->collectOrderResultPageMarkerSources($wrapperValue, $sources, $depth + 1);
+            }
         }
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @return list<array<string, mixed>>
+     */
+    private function dictionaryWrapperValues(array $value): array
+    {
+        if (!array_is_list($value)) {
+            return [$value];
+        }
+
+        $dictionaries = [];
+        foreach ($value as $item) {
+            if (is_array($item) && !array_is_list($item)) {
+                $dictionaries[] = $item;
+            }
+        }
+
+        return $dictionaries;
     }
 
     private function integerValue(mixed $value): ?int

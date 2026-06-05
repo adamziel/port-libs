@@ -233,11 +233,33 @@ final class PdfPageArtifactSelector
             }
 
             $value = $artifact[$key] ?? null;
-            if (!is_array($value) || array_is_list($value)) {
+            if (!is_array($value)) {
                 continue;
             }
-            $this->collectPageMarkerSources($value, $sources, $depth + 1, $includePdftextPayload);
+            foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+                $this->collectPageMarkerSources($wrapperValue, $sources, $depth + 1, $includePdftextPayload);
+            }
         }
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @return list<array<string, mixed>>
+     */
+    private function dictionaryWrapperValues(array $value): array
+    {
+        if (!array_is_list($value)) {
+            return [$value];
+        }
+
+        $dictionaries = [];
+        foreach ($value as $item) {
+            if (is_array($item) && !array_is_list($item)) {
+                $dictionaries[] = $item;
+            }
+        }
+
+        return $dictionaries;
     }
 
     /**

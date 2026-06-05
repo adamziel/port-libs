@@ -862,6 +862,104 @@ return [
         $t->same(0, $result['metadata']['order_plan']['order_result_count']);
         $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
     },
+    'matches singleton wrapper-list page markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(800, [
+                    ['text' => 'Wrapper-list cover page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+                $pdftextLinesPage(801, [
+                    ['text' => 'Second wrapper-list selected column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First wrapper-list selected column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(802, [
+                    ['text' => 'Wrapper-list appendix page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => [['page' => 800]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+                [
+                    'page_metadata' => [['page' => 801]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['metadata' => [['page' => 800]], 'image' => 'wrapper-list-cover-order-render'],
+                ['page_metadata' => [['page' => 801]], 'image' => 'wrapper-list-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(801, $result['pages'][0]['pnum']);
+        $t->same(['First wrapper-list selected column', 'Second wrapper-list selected column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First wrapper-list selected column Second wrapper-list selected column', $blocks[0]['text']);
+        $t->same(801, $result['pages'][0]['order']['page']);
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'rejects ambiguous wrapper-list page markers before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(820, [
+                    ['text' => 'Ambiguous wrapper-list cover page skipped', 'bbox' => [72.0, 80.0, 320.0, 94.0]],
+                ]),
+                $pdftextLinesPage(821, [
+                    ['text' => 'Second ambiguous wrapper-list column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First ambiguous wrapper-list column has no trusted order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => [['page' => 820], ['page' => 821]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['metadata' => [['page' => 820], ['page' => 821]], 'image' => 'ambiguous-wrapper-list-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $processor = new MarkdownPostProcessor();
+        $blocks = $processor->mergeBlocks($processor->mergeSpans($result['pages']));
+
+        $t->same([1], $result['page_range']);
+        $t->same(821, $result['pages'][0]['pnum']);
+        $t->same(['Second ambiguous wrapper-list column remains source ordered', 'First ambiguous wrapper-list column has no trusted order'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second ambiguous wrapper-list column remains source ordered First ambiguous wrapper-list column has no trusted order', $blocks[0]['text']);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
     'prefers exact page markers over weaker page_number collisions before layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
