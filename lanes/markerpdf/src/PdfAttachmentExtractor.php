@@ -2364,6 +2364,24 @@ final class PdfAttachmentExtractor
     }
 
     /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGenerationBeforeOffset(array $definitions, int $generation, int $beforeOffset): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] !== $generation || $definition['offset'] >= $beforeOffset) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
      * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
      * @return array{objectNumber: int, generation: int}|null
      */
@@ -2690,8 +2708,8 @@ final class PdfAttachmentExtractor
             return [];
         }
 
-        $entries = $this->xrefStreamEntriesFromSection($stream);
-        $previousOffset = $this->intValue($stream['dictionary']['Prev'] ?? null);
+        $entries = $this->xrefStreamEntriesFromSection($stream, $definitions);
+        $previousOffset = $this->intValue($this->xrefStreamDictionaryValue($stream, 'Prev', $definitions));
         if ($previousOffset !== null) {
             foreach ($this->xrefEntriesAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets) as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry;
@@ -3023,7 +3041,7 @@ final class PdfAttachmentExtractor
 
     /**
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
-     * @return array{dictionary: array<string, mixed>, stream: string}|null
+     * @return array{dictionary: array<string, mixed>, stream: string, offset: int}|null
      */
     private function xrefStreamSectionAt(int $offset, array $definitions): ?array
     {
@@ -3048,6 +3066,7 @@ final class PdfAttachmentExtractor
                 return [
                     'dictionary' => $dictionary,
                     'stream' => $stream,
+                    'offset' => $definition['offset'],
                 ];
             }
         }
@@ -3056,14 +3075,14 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array{dictionary: array<string, mixed>, stream: string} $section
+     * @param array{dictionary: array<string, mixed>, stream: string, offset?: int} $section
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int}>
      */
-    private function xrefStreamEntriesFromSection(array $section): array
+    private function xrefStreamEntriesFromSection(array $section, array $definitions = []): array
     {
-        $dictionary = $section['dictionary'];
         $decoded = $section['stream'];
-        foreach ($this->filterNames($dictionary['Filter'] ?? null, []) as $filter) {
+        foreach ($this->filterNames($this->xrefStreamDictionaryValue($section, 'Filter', $definitions), []) as $filter) {
             $decodedFilter = match ($filter) {
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($decoded),
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($decoded),
@@ -3075,7 +3094,7 @@ final class PdfAttachmentExtractor
             $decoded = $decodedFilter;
         }
 
-        $widths = $this->xrefStreamFieldWidths($dictionary['W'] ?? null);
+        $widths = $this->xrefStreamFieldWidths($this->xrefStreamDictionaryValue($section, 'W', $definitions));
         if ($widths === null) {
             return [];
         }
@@ -3088,7 +3107,7 @@ final class PdfAttachmentExtractor
         $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
         $entries = [];
         $fieldOffset = 0;
-        foreach ($this->xrefStreamIndexRanges($dictionary, $decodedEntryCount) as $range) {
+        foreach ($this->xrefStreamIndexRanges($section, $decodedEntryCount, $definitions) as $range) {
             for ($row = 0; $row < $range['count'] && $fieldOffset + $entryWidth <= strlen($decoded); $row++) {
                 $objectNumber = $range['first'] + $row;
                 $type = $widths[0] === 0 ? 1 : $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[0]);
@@ -3122,6 +3141,37 @@ final class PdfAttachmentExtractor
     }
 
     /**
+     * @param array{dictionary: array<string, mixed>, offset?: int} $section
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function xrefStreamDictionaryValue(array $section, string $name, array $definitions): mixed
+    {
+        $value = $section['dictionary'][$name] ?? null;
+        if ($definitions === [] || !isset($section['offset'])) {
+            return $value;
+        }
+
+        $reference = $this->refObjectReference($value);
+        if ($reference === null) {
+            return $value;
+        }
+
+        $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation'],
+            (int) $section['offset']
+        );
+        if ($definition === null) {
+            return $value;
+        }
+
+        $index = 0;
+        $resolved = $this->parseValue(trim($definition['body']), $index);
+
+        return $resolved ?? $value;
+    }
+
+    /**
      * @return array{0: int, 1: int, 2: int}|null
      */
     private function xrefStreamFieldWidths(mixed $value): ?array
@@ -3143,14 +3193,15 @@ final class PdfAttachmentExtractor
     }
 
     /**
-     * @param array<string, mixed> $dictionary
+     * @param array{dictionary: array<string, mixed>, offset?: int} $section
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return list<array{first: int, count: int}>
      */
-    private function xrefStreamIndexRanges(array $dictionary, int $decodedEntryCount): array
+    private function xrefStreamIndexRanges(array $section, int $decodedEntryCount, array $definitions = []): array
     {
-        $index = $this->arrayValue($dictionary['Index'] ?? null);
+        $index = $this->arrayValue($this->xrefStreamDictionaryValue($section, 'Index', $definitions));
         if ($index === null || $index === []) {
-            $size = $this->intValue($dictionary['Size'] ?? null);
+            $size = $this->intValue($this->xrefStreamDictionaryValue($section, 'Size', $definitions));
             return [[
                 'first' => 0,
                 'count' => $size === null ? $decodedEntryCount : min($size, $decodedEntryCount),

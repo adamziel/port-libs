@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
 use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
@@ -2102,9 +2103,11 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $extractor = new PdfTextExtractor();
         $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
         $text = $extractor->extractPlainText($pdf);
         $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 
         $t->same(['Current indirect xref operand page', 'Indirect W Index operands selected'], $extractor->extractTextLines($pdf));
         $t->same("Current indirect xref operand page\nIndirect W Index operands selected", $text);
@@ -2119,11 +2122,38 @@ return [
         $t->same('current-indirect-operands.xml', $files[0]['filename']);
         $t->same('Current indirect operand attachment', $files[0]['description']);
         $t->same('<wp-export><post id="current-indirect-operands"/></wp-export>', $files[0]['content']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-indirect-operands.xml'], $attachmentSummary['filenames']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Post Xref Decoy'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-post-xref-decoy'));
+        $t->true(is_string($encodedAttachmentSummary) && !str_contains($encodedAttachmentSummary, 'previous-indirect-operands'));
+        $t->true(is_string($encodedAttachmentSummary) && !str_contains($encodedAttachmentSummary, 'stale-post-xref-decoy'));
         $t->true(!str_contains($text, 'Stale post xref decoy page'));
         $t->true(!str_contains($text, 'Previous indirect xref operand page'));
         $t->true(!str_contains($text, "\0"));
+    },
+    'repairs attachment preflight rows when xref-stream W and Index operands are indirect' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainStreamIndirectOperandsPdf): void {
+        $pdf = $xrefPrevChainStreamIndirectOperandsPdf();
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $currentPayload = '<wp-export><post id="current-indirect-operands"/></wp-export>';
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same(['current-indirect-operands.xml'], $summary['filenames']);
+        $t->same('Current indirect operand attachment', $summary['attachments'][0]['description']);
+        $t->same('current-indirect-operands.xml', $summary['attachments'][0]['filename']);
+        $t->same('embedded-files-name-tree', $summary['attachments'][0]['source']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(str_contains($pdf, '/W 30 0 R'));
+        $t->true(str_contains($pdf, '/Index 31 0 R'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'previous-indirect-operands'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-post-xref-decoy'));
     },
     'repairs damaged middle Prev pointers to the earlier base xref before post-xref decoys' => static function (
         TestRunner $t
