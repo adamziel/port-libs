@@ -8889,17 +8889,16 @@ final class PdfTextExtractor
      */
     private function charProcsDictionaryBody(string $fontBody, array $objects): ?string
     {
-        $offset = $this->nameValueOffset($fontBody, 'CharProcs');
+        $offset = $this->topLevelNameValueOffset($fontBody, 'CharProcs');
         if ($offset === null) {
             return null;
         }
 
-        $reference = $this->objectReferenceAfterName($fontBody, 'CharProcs');
-        if ($reference !== null) {
+        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $fontBody, $match, 0, $offset) === 1) {
             $objectBody = $this->objectBodyForExactReference(
                 $objects,
-                $reference['objectNumber'],
-                $reference['generation']
+                (int) $match[1],
+                (int) $match[2]
             );
 
             return $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
