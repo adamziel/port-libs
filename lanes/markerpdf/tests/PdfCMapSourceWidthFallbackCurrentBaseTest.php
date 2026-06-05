@@ -302,6 +302,38 @@ $cMapSourceVerticalTjAdjustmentGapCurrentBasePdf = static function (): string {
         . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$cMapMalformedVerticalSubtypeSourceWidthCurrentBasePdf = static function (): string {
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<00> <FF>\n"
+        . "endcodespacerange\n"
+        . "6 beginbfchar\n"
+        . "<01> <0056>\n"
+        . "<02> <0065>\n"
+        . "<03> <0072>\n"
+        . "<04> <0074>\n"
+        . "<05> <0058>\n"
+        . "<06> <0059>\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fv 12 Tf '
+        . '1 0 0 1 72 720 Tm <0001000200030004> Tj '
+        . '1 0 0 1 72 690 Tm <00050006> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fv 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /MalformedVerticalSourceWidth /Encoding /MissingCustom-V /DescendantFonts [4 0 R] /ToUnicode 3 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /BaseFont /MalformedVerticalSourceWidth /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW2 [880 -1000] /W2 [1 4 -500 500 880 5 6 -250 500 880] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+};
+
 $cMapSourceOddHexFallbackCurrentBasePdf = static function (): string {
     $toUnicode = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1332,6 +1364,26 @@ return [
         $t->same('Vert Import', $span['text'] ?? null);
         $t->same([0.0, 0.0, 12.0, 54.0], $span['bbox'] ?? null);
         $t->true(!str_contains($plainText, 'VertImport'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses vertical W2 source-width evidence before padding bytes create false gaps on current base' => static function (TestRunner $t) use ($cMapMalformedVerticalSubtypeSourceWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapMalformedVerticalSubtypeSourceWidthCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $runs = $extractor->extractTextRuns($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['VertXY'], $extractor->extractTextLines($pdf));
+        $t->same(['Vert', 'XY'], $runs);
+        $t->same('VertXY', $plainText);
+        $t->same("VertXY\n", $extractor->naiveGetText($pdf));
+        $t->same(['Vert', 'XY'], array_column($spans, 'text'));
+        $t->same([0.0, 0.0, 12.0, 24.0], $spans[0]['bbox'] ?? null);
+        $t->same([12.0, 0.0, 24.0, 6.0], $spans[1]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 24.0, 24.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'Vert XY'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'pads odd-length hex string operands on the right before CMap source-width fallback on current base' => static function (TestRunner $t) use ($cMapSourceOddHexFallbackCurrentBasePdf): void {

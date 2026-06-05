@@ -16755,6 +16755,8 @@ final class PdfTextExtractor
         $map['cidDefaultVerticalDisplacement'] = $writingMode === 1
             ? ($metrics['defaultVerticalDisplacement'] ?? -1000.0)
             : $metrics['defaultVerticalDisplacement'];
+        $map['cidHasVerticalMetrics'] = $metrics['verticalDisplacements'] !== []
+            || $metrics['defaultVerticalDisplacement'] !== null;
         if ($metrics['cidSet'] !== null) {
             $map['cidSet'] = $metrics['cidSet'];
         }
@@ -32759,8 +32761,34 @@ final class PdfTextExtractor
             return true;
         }
 
+        if ($this->mapWritingMode($toUnicodeMap) === 1 && $this->fontVerticalMapContainsCid($cid, $toUnicodeMap)) {
+            return true;
+        }
+
         $cidSet = $toUnicodeMap['cidSet'] ?? [];
         return is_array($cidSet) && isset($cidSet[$cid]);
+    }
+
+    private function fontVerticalMapContainsCid(int $cid, array $toUnicodeMap): bool
+    {
+        if (($toUnicodeMap['cidHasVerticalMetrics'] ?? false) !== true) {
+            return false;
+        }
+
+        $cidDisplacements = $toUnicodeMap['cidVerticalDisplacements'] ?? [];
+        if (
+            is_array($cidDisplacements)
+            && array_key_exists($cid, $cidDisplacements)
+            && $this->finiteFontAdvanceMetric((float) $cidDisplacements[$cid]) !== null
+        ) {
+            return true;
+        }
+
+        $defaultDisplacement = $toUnicodeMap['cidDefaultVerticalDisplacement'] ?? null;
+        return (is_int($defaultDisplacement) || is_float($defaultDisplacement))
+            && $this->finiteFontAdvanceMetric((float) $defaultDisplacement) !== null
+            && $cid >= 0
+            && $cid <= 0xffff;
     }
 
     /**
@@ -32842,10 +32870,16 @@ final class PdfTextExtractor
 
         $defaultWidth = $toUnicodeMap['cidDefaultWidth'] ?? null;
         $cid = $this->cidForWidthSourceKey($sourceKey, $toUnicodeMap);
-        return (is_int($defaultWidth) || is_float($defaultWidth))
+        if (
+            (is_int($defaultWidth) || is_float($defaultWidth))
             && $this->finiteHorizontalFontAdvanceMetric((float) $defaultWidth) !== null
             && $cid >= 0
-            && $cid <= 0xffff;
+            && $cid <= 0xffff
+        ) {
+            return true;
+        }
+
+        return $this->mapWritingMode($toUnicodeMap) === 1 && $this->fontVerticalMapContainsCid($cid, $toUnicodeMap);
     }
 
     private function sourceKeyHasDirectFontMetric(string $sourceKey, array $toUnicodeMap): bool
@@ -32858,6 +32892,17 @@ final class PdfTextExtractor
             && $this->finiteHorizontalFontAdvanceMetric((float) $cidWidths[$cid]) !== null
         ) {
             return true;
+        }
+
+        if ($this->mapWritingMode($toUnicodeMap) === 1) {
+            $cidDisplacements = $toUnicodeMap['cidVerticalDisplacements'] ?? [];
+            if (
+                is_array($cidDisplacements)
+                && array_key_exists($cid, $cidDisplacements)
+                && $this->finiteFontAdvanceMetric((float) $cidDisplacements[$cid]) !== null
+            ) {
+                return true;
+            }
         }
 
         $cidSet = $toUnicodeMap['cidSet'] ?? [];
