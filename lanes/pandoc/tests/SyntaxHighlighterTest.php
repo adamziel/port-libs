@@ -49,6 +49,10 @@ return [
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('commonmark'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('gfm'));
+        $t->same('makefile', SyntaxHighlighter::normalizeLanguage('make'));
+        $t->same('makefile', SyntaxHighlighter::normalizeLanguage('makefile'));
+        $t->same('makefile', SyntaxHighlighter::normalizeLanguage('GNUmakefile'));
+        $t->same('makefile', SyntaxHighlighter::normalizeLanguage('mk'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rb'));
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
@@ -604,6 +608,43 @@ return [
         $t->contains('<span class="kw">FROM</span> wordpress<span class="op">:</span>php', $wordpressBlock);
         $t->same('dockerfile', $containerfile['language']);
         $t->contains('<span class="kw">RUN</span> <span class="fu">echo</span> <span class="st">&quot;$WP_ENV&quot;</span>', $containerfile['html']);
+    },
+    'highlights makefile review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[11] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Makefile code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directMakefile = (new SyntaxHighlighter())->highlight("include .env\nclean:\n\trm -rf build", 'mk');
+
+        $t->same('Makefile', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('makefile', $highlighted['language']);
+        $t->same('Makefile', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(6, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource Makefile numberLines"><code class="sourceCode makefile" style="counter-reset: source-line 5;">', $highlighted['html']);
+        $t->contains('<span id="make-review-6"><a href="#make-review-6"></a><span class="co"># WordPress asset build review</span></span>', $highlighted['html']);
+        $t->contains('<span class="ot">PLUGIN_VERSION</span> <span class="op">?=</span> <span class="dv">1.2.3</span>', $highlighted['html']);
+        $t->contains('<span class="re">assets/build</span><span class="op">:</span> <span class="va">package.json</span> <span class="va">src/block.js</span>', $highlighted['html']);
+        $t->contains('<span class="va">$(NPM)</span> <span class="va">run</span> <span class="va">build</span>', $highlighted['html']);
+        $t->contains('<span class="fu">wp</span> <span class="va">i18n</span> <span class="va">make-pot</span> <span class="op">.</span> <span class="va">languages/plugin.pot</span>', $highlighted['html']);
+        $t->contains('<span class="re">deploy</span><span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="op">@</span><span class="va">$(WP_CLI)</span> <span class="va">plugin</span> <span class="va">update</span> <span class="va">my-plugin</span> <span class="op">--version</span> <span class="va">$(PLUGIN_VERSION)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="re">assets/build</span><span class="op">:</span>', $wordpressBlock);
+        $t->same('makefile', $directMakefile['language']);
+        $t->contains('<span class="kw">include</span> <span class="va">.env</span>', $directMakefile['html']);
+        $t->contains('<span class="re">clean</span><span class="op">:</span>', $directMakefile['html']);
+        $t->contains('<span class="fu">rm</span> <span class="op">-rf</span> <span class="va">build</span>', $directMakefile['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

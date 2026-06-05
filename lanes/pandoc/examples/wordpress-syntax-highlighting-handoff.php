@@ -102,6 +102,12 @@ if (!$dockerfileCodeBlock instanceof PortLibs\Pandoc\AstNode || $dockerfileCodeB
 }
 $dockerfile = $highlighter->highlightCodeBlock($dockerfileCodeBlock, 'tango');
 $dockerfileWordpressBlock = $highlighter->wordpressHtmlBlock($dockerfileCodeBlock, 'tango');
+$makefileCodeBlock = $document->children[11] ?? null;
+if (!$makefileCodeBlock instanceof PortLibs\Pandoc\AstNode || $makefileCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Makefile code block');
+}
+$makefile = $highlighter->highlightCodeBlock($makefileCodeBlock, 'zenburn');
+$makefileWordpressBlock = $highlighter->wordpressHtmlBlock($makefileCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -355,6 +361,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($dockerfileWordpressBlock, '<span class="kw">ENV</span> <span class="ot">WORDPRESS_CONFIG_EXTRA</span>')) {
         throw new RuntimeException('Expected Dockerfile environment assignment token handoff');
     }
+    if (($makefile['language'] ?? '') !== 'makefile') {
+        throw new RuntimeException('Expected Makefile alias to normalize to Makefile highlighting');
+    }
+    if (($makefile['lineNumbering']['start'] ?? null) !== 6) {
+        throw new RuntimeException('Expected Makefile source startFrom line-number handoff');
+    }
+    if (!str_contains($makefile['html'], '<span class="ot">PLUGIN_VERSION</span> <span class="op">?=</span> <span class="dv">1.2.3</span>')) {
+        throw new RuntimeException('Expected Makefile assignment token handoff');
+    }
+    if (!str_contains($makefile['html'], '<span class="re">assets/build</span><span class="op">:</span>')) {
+        throw new RuntimeException('Expected Makefile target token handoff');
+    }
+    if (!str_contains($makefile['html'], '<span class="fu">wp</span> <span class="va">i18n</span> <span class="va">make-pot</span>')) {
+        throw new RuntimeException('Expected Makefile wp-cli recipe token handoff');
+    }
+    if (!str_contains($makefileWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Makefile WordPress style metadata');
+    }
+    if (!str_contains($makefileWordpressBlock, '<span class="op">@</span><span class="va">$(WP_CLI)</span>')) {
+        throw new RuntimeException('Expected Makefile quiet recipe variable handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -389,10 +416,12 @@ echo "typescriptHighlightedHtml:\n" . $typescript['html'] . "\n";
 echo "pythonHighlightedHtml:\n" . $python['html'] . "\n";
 echo "cppHighlightedHtml:\n" . $cpp['html'] . "\n";
 echo "dockerfileHighlightedHtml:\n" . $dockerfile['html'] . "\n";
+echo "makefileHighlightedHtml:\n" . $makefile['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
 echo "pythonWordpressBlock:\n" . $pythonWordpressBlock . "\n";
 echo "cppWordpressBlock:\n" . $cppWordpressBlock . "\n";
 echo "dockerfileWordpressBlock:\n" . $dockerfileWordpressBlock . "\n";
+echo "makefileWordpressBlock:\n" . $makefileWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

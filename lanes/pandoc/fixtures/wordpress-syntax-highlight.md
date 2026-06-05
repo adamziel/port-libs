@@ -132,3 +132,13 @@ COPY --from=source /var/www/html /review/html
 RUN set -eux; \
     php -m | grep json
 ```
+
+``` {.Makefile #make-review .numberLines startFrom=6}
+# WordPress asset build review
+PLUGIN_VERSION ?= 1.2.3
+assets/build: package.json src/block.js
+	$(NPM) run build
+	wp i18n make-pot . languages/plugin.pot
+deploy:
+	@$(WP_CLI) plugin update my-plugin --version $(PLUGIN_VERSION)
+```

@@ -63,6 +63,10 @@ final class SyntaxHighlighter
         'pandoc' => 'markdown',
         'pandoc-markdown' => 'markdown',
         'patch' => 'diff',
+        'gnumakefile' => 'makefile',
+        'make' => 'makefile',
+        'makefile' => 'makefile',
+        'mk' => 'makefile',
         'php' => 'php',
         'postgres' => 'sql',
         'postgresql' => 'sql',
@@ -499,6 +503,7 @@ final class SyntaxHighlighter
             'javascript' => $this->tokenizeJavaScript($code),
             'json' => $this->tokenizeJson($code),
             'lua' => $this->tokenizeLua($code),
+            'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
             'php' => $this->tokenizePhp($code),
             'python' => $this->tokenizePython($code),
@@ -835,6 +840,27 @@ final class SyntaxHighlighter
             ['attribute', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*(?=\\s*=)/'],
             ['function', '/^\\b(?:cat|cd|chmod|chown|composer|cp|curl|echo|find|grep|make|mkdir|mv|npm|php|rm|sed|set|sh|tar|test|wp)(?=\\s)/'],
             ['operator', '/^(?:\\\\(?=\\r?\\n)|&&|\\|\\||[{}()[\\];,.+*\\%=!<>?:|&\\\\-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeMakefile(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:define|else|endef|endif|export|if|ifdef|ifeq|ifndef|ifneq|include|override|private|sinclude|unexport|vpath)\\b/'],
+            ['variable', '/^\\$\\([A-Za-z_][A-Za-z0-9_.-]*\\)|^\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\}|^\\$[@<^?*+%]/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_.-]*(?=\\s*(?::=|\\?=|\\+=|!=|=))/'],
+            ['region', '/^(?:\\.[A-Za-z0-9_.\\/-]+|[A-Za-z0-9_%.\\/-]+)(?=\\s*:(?![=]))/'],
+            ['variable', '/^\\.[A-Za-z0-9_.\\/-]+/'],
+            ['operator', '/^(?::=|\\?=|\\+=|!=|::|&&|\\|\\||\\|>|-{1,2}[A-Za-z][A-Za-z0-9-]*|[{}()[\\];,.+*\\/%=!<>?:|&@\\\\-])/'],
+            ['number', '/^\\b\\d+(?:\\.\\d+)*\\b/'],
+            ['function', '/^\\b(?:cat|cd|chmod|chown|composer|cp|curl|echo|find|grep|make|mkdir|mv|npm|php|rm|sed|set|sh|tar|test|wp)(?=\\s|$)/'],
+            ['variable', '/^(?:\\.[A-Za-z0-9_.\\/-]+|\\b[A-Za-z_][A-Za-z0-9_.\\/-]*\\b)/'],
         ]);
     }
 
