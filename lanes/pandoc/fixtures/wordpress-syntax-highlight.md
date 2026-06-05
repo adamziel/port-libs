@@ -19,3 +19,15 @@ function render_title($post) {
 \includegraphics[width=0.5\textwidth]{media.png}
 \end{document}
 ```
+
+``` {.patch #source-diff .numberLines startFrom=9}
+diff --git a/content.php b/content.php
+index 1111111..2222222 100644
+--- a/content.php
++++ b/content.php
+@@ -1,3 +1,4 @@
+-echo $old_title;
++echo esc_html($new_title);
+ context line
+\ No newline at end of file
+```

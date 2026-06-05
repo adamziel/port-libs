@@ -29,6 +29,8 @@ return [
         $t->same('php', SyntaxHighlighter::languageFromCodeBlock($lineNumberNode));
         $t->same('haskell', SyntaxHighlighter::normalizeLanguage('lhs'));
         $t->same('haskell', SyntaxHighlighter::normalizeLanguage('literate-haskell'));
+        $t->same('diff', SyntaxHighlighter::normalizeLanguage('patch'));
+        $t->same('diff', SyntaxHighlighter::normalizeLanguage('unified-diff'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
@@ -224,6 +226,45 @@ return [
         $t->contains('<span class="kw">\\end</span><span class="dt">{document}</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
         $t->contains('<span class="kw">\\usepackage</span><span class="dt">{graphicx}</span>', $wordpressBlock);
+    },
+    'highlights unified diff and patch review snippets' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'source-diff',
+            'classes' => ['sourceCode', 'patch', 'numberLines'],
+            'attributes' => ['startFrom' => '9'],
+            'text' => implode("\n", [
+                'diff --git a/content.php b/content.php',
+                'index 1111111..2222222 100644',
+                '--- a/content.php',
+                '+++ b/content.php',
+                '@@ -1,3 +1,4 @@',
+                '-echo $old_title;',
+                '+echo esc_html($new_title);',
+                ' context line',
+                '\ No newline at end of file',
+            ]),
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'tango');
+
+        $t->same('patch', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('diff', $highlighted['language']);
+        $t->same('patch', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(9, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource patch numberLines"><code class="sourceCode diff" style="counter-reset: source-line 8;">', $highlighted['html']);
+        $t->contains('<span id="source-diff-9"><a href="#source-diff-9"></a><span class="re">diff --git a/content.php b/content.php</span></span>', $highlighted['html']);
+        $t->contains('<span id="source-diff-10"><a href="#source-diff-10"></a><span class="ot">index 1111111..2222222 100644</span></span>', $highlighted['html']);
+        $t->contains('<span class="re">@@ -1,3 +1,4 @@</span>', $highlighted['html']);
+        $t->contains('<span class="al">-echo $old_title;</span>', $highlighted['html']);
+        $t->contains('<span class="in">+echo esc_html($new_title);</span>', $highlighted['html']);
+        $t->contains('<span class="co">\ No newline at end of file</span>', $highlighted['html']);
+        $t->contains('.sourceCode .re', $highlighted['css']);
+        $t->contains('.sourceCode .in', $highlighted['css']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="in">+echo esc_html($new_title);</span>', $wordpressBlock);
     },
     'writes highlighted wordpress blocks through writer opt in' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [

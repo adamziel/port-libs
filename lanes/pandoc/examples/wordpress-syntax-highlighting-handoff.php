@@ -54,6 +54,12 @@ if (!$latexCodeBlock instanceof PortLibs\Pandoc\AstNode || $latexCodeBlock->type
 }
 $latex = $highlighter->highlightCodeBlock($latexCodeBlock, 'haddock');
 $latexWordpressBlock = $highlighter->wordpressHtmlBlock($latexCodeBlock, 'haddock');
+$diffCodeBlock = $document->children[3] ?? null;
+if (!$diffCodeBlock instanceof PortLibs\Pandoc\AstNode || $diffCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a diff code block');
+}
+$diff = $highlighter->highlightCodeBlock($diffCodeBlock, 'tango');
+$diffWordpressBlock = $highlighter->wordpressHtmlBlock($diffCodeBlock, 'tango');
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($highlighted['language'] ?? '') !== 'php') {
@@ -110,6 +116,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($latexWordpressBlock, '<span class="fu">\\includegraphics</span>')) {
         throw new RuntimeException('Expected TeX includegraphics token handoff');
     }
+    if (($diff['language'] ?? '') !== 'diff') {
+        throw new RuntimeException('Expected patch alias to normalize to diff');
+    }
+    if (($diff['lineNumbering']['start'] ?? null) !== 9) {
+        throw new RuntimeException('Expected diff source startFrom line-number handoff');
+    }
+    if (!str_contains($diff['html'], '<pre class="sourceCode numberSource patch numberLines"><code class="sourceCode diff" style="counter-reset: source-line 8;">')) {
+        throw new RuntimeException('Expected numbered diff source wrapper handoff');
+    }
+    if (!str_contains($diff['html'], '<span class="re">diff --git a/content.php b/content.php</span>')) {
+        throw new RuntimeException('Expected diff header token handoff');
+    }
+    if (!str_contains($diff['html'], '<span class="al">-echo $old_title;</span>')) {
+        throw new RuntimeException('Expected deleted diff line token handoff');
+    }
+    if (!str_contains($diff['html'], '<span class="in">+echo esc_html($new_title);</span>')) {
+        throw new RuntimeException('Expected added diff line token handoff');
+    }
+    if (!str_contains($diffWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected diff WordPress style metadata');
+    }
+    if (!str_contains($diffWordpressBlock, '<span class="co">\ No newline at end of file</span>')) {
+        throw new RuntimeException('Expected diff no-newline diagnostic token handoff');
+    }
 
     echo "syntax highlighting handoff self-test ok\n";
     exit(0);
@@ -121,5 +151,6 @@ echo "highlightedHtml:\n" . $highlighted['html'] . "\n";
 echo "numberedHighlightedHtml:\n" . $numbered['html'] . "\n";
 echo "haskellHighlightedHtml:\n" . $haskell['html'] . "\n";
 echo "latexHighlightedHtml:\n" . $latex['html'] . "\n";
+echo "diffHighlightedHtml:\n" . $diff['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";

@@ -12,10 +12,12 @@ final class SyntaxHighlighter
         'constant' => 'cn',
         'datatype' => 'dt',
         'function' => 'fu',
+        'information' => 'in',
         'keyword' => 'kw',
         'number' => 'dv',
         'operator' => 'op',
         'preprocessor' => 'pp',
+        'region' => 're',
         'string' => 'st',
         'variable' => 'va',
         'warning' => 'al',
@@ -25,6 +27,8 @@ final class SyntaxHighlighter
         'bash' => 'bash',
         'console' => 'bash',
         'css' => 'css',
+        'diff' => 'diff',
+        'git-diff' => 'diff',
         'html' => 'html',
         'html5' => 'html',
         'haskell' => 'haskell',
@@ -36,6 +40,7 @@ final class SyntaxHighlighter
         'lhs' => 'haskell',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
+        'patch' => 'diff',
         'php' => 'php',
         'postgres' => 'sql',
         'postgresql' => 'sql',
@@ -45,6 +50,8 @@ final class SyntaxHighlighter
         'shell' => 'bash',
         'sql' => 'sql',
         'tex' => 'tex',
+        'udiff' => 'diff',
+        'unified-diff' => 'diff',
         'xhtml' => 'html',
         'xml' => 'html',
         'yaml' => 'yaml',
@@ -216,6 +223,8 @@ final class SyntaxHighlighter
             "{$selector} .op { color: {$colors['operator']}; }",
             "{$selector} .pp { color: {$colors['preprocessor']}; }",
             "{$selector} .cn { color: {$colors['constant']}; }",
+            "{$selector} .in { color: {$colors['information']}; }",
+            "{$selector} .re { color: {$colors['region']}; font-weight: 600; }",
             "{$selector} .al { color: {$colors['warning']}; font-weight: 600; }",
             'pre.numberSource code { counter-reset: source-line 0; }',
             'pre.numberSource code > span { position: relative; left: -4em; counter-increment: source-line; }',
@@ -277,6 +286,7 @@ final class SyntaxHighlighter
         return match ($language) {
             'bash' => $this->tokenizeBash($code),
             'css' => $this->tokenizeCss($code),
+            'diff' => $this->tokenizeDiff($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
             'javascript' => $this->tokenizeJavaScript($code),
@@ -482,6 +492,22 @@ final class SyntaxHighlighter
             ['number', '/^-?\\b\\d+(?:\\.\\d+)?(?:px|em|rem|%|vh|vw)?\\b/i'],
             ['keyword', '/^\\b(?:important|media|supports)\\b/i'],
             ['operator', '/^[{}()[\\]:;,.#>+~=*|-]/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeDiff(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\\\ No newline at end of file/'],
+            ['region', '/^(?:diff --git|Index:)[^\\n]*/'],
+            ['region', '/^(?:---|\\+\\+\\+)\\s[^\\n]*/'],
+            ['region', '/^@@[^\\n]*@@/'],
+            ['attribute', '/^(?:index|new file mode|deleted file mode|similarity index|dissimilarity index|rename from|rename to|copy from|copy to|old mode|new mode)[^\\n]*/i'],
+            ['information', '/^\\+(?!\\+\\+)[^\\n]*/'],
+            ['warning', '/^-(?!--)[^\\n]*/'],
         ]);
     }
 
@@ -724,6 +750,8 @@ final class SyntaxHighlighter
                 'operator' => '#c0392b',
                 'preprocessor' => '#16a085',
                 'constant' => '#9b59b6',
+                'information' => '#27ae60',
+                'region' => '#3daee9',
                 'warning' => '#da4453',
             ],
             'monochrome' => [
@@ -740,6 +768,8 @@ final class SyntaxHighlighter
                 'operator' => 'inherit',
                 'preprocessor' => 'inherit',
                 'constant' => 'inherit',
+                'information' => 'inherit',
+                'region' => 'inherit',
                 'warning' => 'inherit',
             ],
             'zenburn' => [
@@ -756,6 +786,8 @@ final class SyntaxHighlighter
                 'operator' => '#f0efd0',
                 'preprocessor' => '#ffcfaf',
                 'constant' => '#dca3a3',
+                'information' => '#7f9f7f',
+                'region' => '#efef8f',
                 'warning' => '#e37170',
             ],
         ];
@@ -774,6 +806,8 @@ final class SyntaxHighlighter
             'operator' => '#d73a49',
             'preprocessor' => '#d73a49',
             'constant' => '#005cc5',
+            'information' => '#22863a',
+            'region' => '#6f42c1',
             'warning' => '#b31d28',
         ];
 
