@@ -32,6 +32,8 @@ final class PdfImageRenderer
         'RGB' => 'DeviceRGB',
         'RL' => 'RunLengthDecode',
     ];
+    private const MALFORMED_IMAGE_FILTER_OPERAND = 'MalformedFilterOperand';
+    private const UNRESOLVED_IMAGE_FILTER_OPERAND = 'UnresolvedFilterOperand';
 
     private BboxGeometry $geometry;
 
@@ -443,6 +445,7 @@ final class PdfImageRenderer
             $imageFilters,
             fn (string $filter): bool => $this->isPreviewOnlyImageFilter($filter)
         ));
+        $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($imageFilters);
         $jpxSoftMaskInData = $this->jpxSoftMaskInDataDetails($imageDictionary, $imageFilters, $objects);
         $jpxEmbeddedSoftMaskPresent = is_array($jpxSoftMaskInData)
             && ($jpxSoftMaskInData['uses_embedded_soft_mask'] ?? false) === true;
@@ -579,6 +582,11 @@ final class PdfImageRenderer
                 default => 'image_filter_review_only',
             };
         }
+        foreach ($operandBoundaryFilters as $filter) {
+            $notes[] = $filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND
+                ? 'unresolved_image_filter_operand_fail_closed'
+                : 'malformed_image_filter_operand_fail_closed';
+        }
         if ($imageMaskPresent) {
             $notes[] = 'image_mask_stencil_applied_before_rgb_conversion';
             if (($imageMask['inverted'] ?? false) === true) {
@@ -638,7 +646,7 @@ final class PdfImageRenderer
             'image_filter_boundary' => [
                 'preview_only_filters' => $previewOnlyFilters,
                 'jbig2_globals_present' => $this->jbig2GlobalsPresent($imageDictionary, $objects),
-                'native_raster_decode' => $previewOnlyFilters === [],
+                'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
             ],
             'ccitt_fax_decode_boundary' => $this->ccittFaxDecodeBoundaryReview(
                 $imageFilterDetails,
@@ -825,6 +833,7 @@ final class PdfImageRenderer
         $plan = $this->imageColorSpaceSoftMaskPlan($canonical, $objects);
         $filters = $plan['image_filters'];
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
+        $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
         $softMask = is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null;
         $softMaskBoundary = is_array($plan['soft_mask_filter_boundary'] ?? null) ? $plan['soft_mask_filter_boundary'] : null;
         $jpxSoftMaskInData = is_array($plan['jpx_soft_mask_in_data'] ?? null) ? $plan['jpx_soft_mask_in_data'] : null;
@@ -839,7 +848,7 @@ final class PdfImageRenderer
             'has_object_number' => false,
             'excluded_from_visible_text' => true,
             'review_only_filters' => $previewOnlyFilters,
-            'native_raster_decode' => $previewOnlyFilters === [],
+            'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
             'soft_mask_present' => $softMask !== null && ($softMask['present'] ?? false) === true,
             'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
             'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
@@ -865,6 +874,11 @@ final class PdfImageRenderer
         }
         if (in_array('CCITTFaxDecode', $filters, true) || in_array('CCF', $filters, true)) {
             $plan['notes'][] = 'inline_ccitt_fax_image_filter_review_only';
+        }
+        foreach ($operandBoundaryFilters as $filter) {
+            $plan['notes'][] = $filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND
+                ? 'inline_unresolved_image_filter_operand_fail_closed'
+                : 'inline_malformed_image_filter_operand_fail_closed';
         }
         if (
             ($plan['inline_image']['soft_mask_present'] ?? false) === true
@@ -4088,7 +4102,10 @@ final class PdfImageRenderer
                 $name = $this->pdfNameValue($entry);
                 if ($name !== null) {
                     $filters[] = $name;
+                    continue;
                 }
+
+                $filters[] = $this->imageFilterOperandFallbackName($entry);
             }
 
             return $filters;
@@ -4096,7 +4113,14 @@ final class PdfImageRenderer
 
         $name = $this->pdfNameValue($resolved);
 
-        return $name === null ? [] : [$name];
+        return $name === null ? [$this->imageFilterOperandFallbackName($resolved)] : [$name];
+    }
+
+    private function imageFilterOperandFallbackName(string $resolved): string
+    {
+        return preg_match('/^\d+\s+\d+\s+R$/', trim($resolved)) === 1
+            ? self::UNRESOLVED_IMAGE_FILTER_OPERAND
+            : self::MALFORMED_IMAGE_FILTER_OPERAND;
     }
 
     /**
@@ -4164,6 +4188,22 @@ final class PdfImageRenderer
     private function isPreviewOnlyImageFilter(string $filter): bool
     {
         return in_array($filter, ['DCTDecode', 'DCT', 'JPXDecode', 'JBIG2Decode', 'CCITTFaxDecode', 'CCF'], true);
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return list<string>
+     */
+    private function imageFilterOperandBoundaryFilters(array $filters): array
+    {
+        return array_values(array_filter(
+            $filters,
+            static fn (string $filter): bool => in_array(
+                $filter,
+                [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND],
+                true
+            )
+        ));
     }
 
     /**
