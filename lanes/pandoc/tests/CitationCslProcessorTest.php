@@ -626,6 +626,117 @@ XML
         $t->contains('<dt>de la Cruz 2026</dt><dd>[de la Cruz, Ana Maria. Source Packet. 2026. https://example.test/source-packet. Retrieved 2026-06-05.]</dd>', $blocks);
         $t->contains('<dt>Adams and colleagues no source date</dt><dd>[Adams, Ari; Baker, Bea; Clark, Cy. Undated Packet.]</dd>', $blocks);
     },
+    'applies bounded csl citation and bibliography sort keys' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'zed2023',
+                'type' => 'webpage',
+                'title' => 'Zed Packet',
+                'author' => [
+                    ['family' => 'Zed', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'URL' => 'https://example.test/zed',
+            ],
+            [
+                'id' => 'adams2024',
+                'type' => 'webpage',
+                'title' => 'Newer Adams Packet',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/adams-new',
+            ],
+            [
+                'id' => 'adams2020',
+                'type' => 'report',
+                'title' => 'Older Adams Packet',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2020]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Sorted WordPress Review Style</title>
+    <id>https://example.test/styles/sorted-wordpress-review</id>
+    <updated>2026-06-05T00:30:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="issued" sort="descending"/>
+      <key variable="author"/>
+    </sort>
+    <layout prefix="(" suffix=")" delimiter="; "/>
+  </citation>
+  <bibliography second-field-align="flush">
+    <sort>
+      <key variable="author"/>
+      <key variable="issued"/>
+      <key variable="title"/>
+    </sort>
+    <layout/>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Sorted WordPress Review Style', $summary['title'] ?? null);
+        $t->same('issued', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('descending', $summary['citationSort'][0]['sort'] ?? null);
+        $t->same('author', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('issued', $summary['bibliographySort'][1]['variable'] ?? null);
+        $t->same('flush', $summary['bibliographyOptions']['secondFieldAlign'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'Review cites [@zed2023; @adams2024; @adams2020].'
+            . "\n\n" . 'First-cited order in source remains inspectable before sorting.'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+
+        $cluster = $processed->children[0]->children[1];
+        $bibliography = $processed->children[3];
+        $t->same('(Adams 2024; Zed 2023; Adams 2020)', $cluster->attr('rendered'));
+        $t->same('definition_list', $bibliography->type);
+        $t->same('flush', $bibliography->attr('secondFieldAlign'));
+        $t->same('Adams 2020', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('Adams 2024', $bibliography->children[1]->children[0]->attr('text'));
+        $t->same('Zed 2023', $bibliography->children[2]->children[0]->attr('text'));
+        $t->same(['zed2023', 'adams2024', 'adams2020'], $processor->citationIds($document));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites (Adams 2024; Zed 2023; Adams 2020).', $markdown);
+        $adamsOldPosition = strpos($markdown, 'Adams 2020' . "\n" . ':   Adams, Ari. Older Adams Packet. 2020.');
+        $adamsNewPosition = strpos($markdown, 'Adams 2024' . "\n" . ':   Adams, Ari. Newer Adams Packet. 2024. https://example.test/adams-new.');
+        $zedPosition = strpos($markdown, 'Zed 2023' . "\n" . ':   Zed, Zoe. Zed Packet. 2023. https://example.test/zed.');
+        $t->true(is_int($adamsOldPosition) && is_int($adamsNewPosition) && is_int($zedPosition), 'Sorted bibliography entries were not rendered');
+        $t->true($adamsOldPosition < $adamsNewPosition && $adamsNewPosition < $zedPosition, 'Bibliography entries should follow CSL sort order');
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (Adams 2024; Zed 2023; Adams 2020).</p>', $blocks);
+        $blocksAdamsOldPosition = strpos($blocks, '<dt>Adams 2020</dt><dd>Adams, Ari. Older Adams Packet. 2020.</dd>');
+        $blocksAdamsNewPosition = strpos($blocks, '<dt>Adams 2024</dt><dd>Adams, Ari. Newer Adams Packet. 2024. https://example.test/adams-new.</dd>');
+        $blocksZedPosition = strpos($blocks, '<dt>Zed 2023</dt><dd>Zed, Zoe. Zed Packet. 2023. https://example.test/zed.</dd>');
+        $t->true(is_int($blocksAdamsOldPosition) && is_int($blocksAdamsNewPosition) && is_int($blocksZedPosition), 'Sorted WordPress bibliography entries were not rendered');
+        $t->true($blocksAdamsOldPosition < $blocksAdamsNewPosition && $blocksAdamsNewPosition < $blocksZedPosition, 'WordPress bibliography entries should follow CSL sort order');
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort><key variable="issued" sort="sideways"/></sort>
+    <layout/>
+  </citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

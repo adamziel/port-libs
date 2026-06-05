@@ -93,6 +93,10 @@ $cslStyleXml = <<<'XML'
     <layout prefix="(" suffix=")" delimiter="; "/>
   </citation>
   <bibliography hanging-indent="true" entry-spacing="0" line-spacing="1">
+    <sort>
+      <key variable="issued" sort="descending"/>
+      <key variable="title"/>
+    </sort>
     <layout prefix="[" suffix="]" delimiter=" "/>
   </bibliography>
 </style>
@@ -113,6 +117,22 @@ if (($argv[1] ?? '') === '--self-test') {
         if (!str_contains($blocks, $snippet)) {
             throw new RuntimeException('Citation CSL handoff self-test missing expected snippet: ' . $snippet);
         }
+    }
+
+    $sortedTerms = [
+        '<dt>de la Cruz 2026</dt>',
+        '<dt>WordPress Migration Team 2024</dt>',
+        '<dt>URL Key Source 2000</dt>',
+        '<dt>Smith 1899</dt>',
+        '<dt>Adams and others undated</dt>',
+    ];
+    $previousPosition = -1;
+    foreach ($sortedTerms as $term) {
+        $position = strpos($blocks, $term);
+        if (!is_int($position) || $position <= $previousPosition) {
+            throw new RuntimeException('Citation CSL handoff self-test bibliography sort order mismatch at ' . $term);
+        }
+        $previousPosition = $position;
     }
 
     echo "wordpress-citation-csl-handoff self-test passed\n";

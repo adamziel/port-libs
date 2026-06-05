@@ -21,6 +21,8 @@ final class CslStyle
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
+     * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
+     * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
      * @param array<string, array{single:string, multiple:string}> $terms
      * @param array{title:string, id:string, class:string, defaultLocale:string} $metadata
      */
@@ -28,6 +30,8 @@ final class CslStyle
         private readonly array $citationLayout,
         private readonly array $bibliographyLayout,
         private readonly array $bibliographyOptions,
+        private readonly array $citationSortKeys,
+        private readonly array $bibliographySortKeys,
         private readonly array $terms,
         private readonly array $metadata,
     ) {
@@ -39,6 +43,8 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            [],
+            [],
             self::DEFAULT_TERMS,
             ['title' => '', 'id' => '', 'class' => 'in-text', 'defaultLocale' => '']
         );
@@ -114,6 +120,8 @@ final class CslStyle
             $bibliography instanceof \DOMElement
                 ? self::parseBibliographyOptions($bibliography)
                 : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            self::sortKeys($citation, 'citation'),
+            $bibliography instanceof \DOMElement ? self::sortKeys($bibliography, 'bibliography') : [],
             $terms,
             $metadata
         );
@@ -168,7 +176,23 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return list<array{sort:string, variable?:string, macro?:string}>
+     */
+    public function citationSortKeys(): array
+    {
+        return $this->citationSortKeys;
+    }
+
+    /**
+     * @return list<array{sort:string, variable?:string, macro?:string}>
+     */
+    public function bibliographySortKeys(): array
+    {
+        return $this->bibliographySortKeys;
+    }
+
+    /**
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -177,6 +201,8 @@ final class CslStyle
             'citationLayout' => $this->citationLayout,
             'bibliographyLayout' => $this->bibliographyLayout,
             'bibliographyOptions' => $this->bibliographyOptions,
+            'citationSort' => $this->citationSortKeys,
+            'bibliographySort' => $this->bibliographySortKeys,
             'terms' => [
                 'and' => $this->term('and'),
                 'etAl' => $this->term('et-al'),
@@ -241,6 +267,48 @@ final class CslStyle
         }
 
         return (int) $value;
+    }
+
+    /**
+     * @return list<array{sort:string, variable?:string, macro?:string}>
+     */
+    private static function sortKeys(\DOMElement $container, string $label): array
+    {
+        $sort = self::directChild($container, 'sort');
+        if (!$sort instanceof \DOMElement) {
+            return [];
+        }
+
+        $keys = [];
+        foreach (self::directChildren($sort, 'key') as $keyElement) {
+            $variable = trim($keyElement->getAttribute('variable'));
+            $macro = trim($keyElement->getAttribute('macro'));
+            if (($variable === '') === ($macro === '')) {
+                throw new \InvalidArgumentException('CSL ' . $label . ' sort key must declare exactly one variable or macro');
+            }
+
+            $order = trim($keyElement->getAttribute('sort'));
+            if ($order === '') {
+                $order = 'ascending';
+            }
+            if ($order !== 'ascending' && $order !== 'descending') {
+                throw new \InvalidArgumentException('CSL ' . $label . ' sort key sort must be ascending or descending');
+            }
+
+            $key = ['sort' => $order];
+            if ($variable !== '') {
+                $key['variable'] = $variable;
+            } else {
+                $key['macro'] = $macro;
+            }
+            $keys[] = $key;
+        }
+
+        if ($keys === []) {
+            throw new \InvalidArgumentException('CSL ' . $label . ' sort element must contain at least one key');
+        }
+
+        return $keys;
     }
 
     /**

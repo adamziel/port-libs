@@ -79,7 +79,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -217,6 +217,7 @@ final class CitationCslProcessor
     public function bibliographyBlocks(AstNode $document, string $headingText = 'References'): array
     {
         $ids = $this->uniqueKnownCitationIds($document);
+        $ids = $this->sortBibliographyIds($ids);
         if ($ids === []) {
             return [];
         }
@@ -238,6 +239,7 @@ final class CitationCslProcessor
      */
     public function renderCitationCluster(array $citations): string
     {
+        $citations = $this->sortCitationCluster($citations);
         $entries = [];
         foreach ($citations as $citation) {
             if (!$citation instanceof AstNode || $citation->type !== 'citation') {
@@ -620,6 +622,193 @@ final class CitationCslProcessor
         }
 
         return $ids;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return list<string>
+     */
+    private function sortBibliographyIds(array $ids): array
+    {
+        $sortKeys = $this->style->bibliographySortKeys();
+        if ($sortKeys === [] || count($ids) < 2) {
+            return $ids;
+        }
+
+        $entries = [];
+        foreach ($ids as $index => $id) {
+            $entries[] = [
+                'index' => $index,
+                'id' => $id,
+                'item' => $this->itemsById[$id] ?? null,
+                'fallback' => $id,
+            ];
+        }
+
+        usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys));
+
+        return array_map(static fn (array $entry): string => (string) $entry['id'], $entries);
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<AstNode>
+     */
+    private function sortCitationCluster(array $citations): array
+    {
+        $sortKeys = $this->style->citationSortKeys();
+        if ($sortKeys === [] || count($citations) < 2) {
+            return $citations;
+        }
+
+        $entries = [];
+        foreach ($citations as $index => $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return $citations;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            $entries[] = [
+                'index' => $index,
+                'node' => $citation,
+                'item' => $this->itemsById[$id] ?? null,
+                'fallback' => $this->sourceCitationText($citation),
+            ];
+        }
+
+        usort($entries, fn (array $left, array $right): int => $this->compareSortEntries($left, $right, $sortKeys));
+
+        return array_map(static fn (array $entry): AstNode => $entry['node'], $entries);
+    }
+
+    /**
+     * @param array{index:int, item:array<string, mixed>|null, fallback:string} $left
+     * @param array{index:int, item:array<string, mixed>|null, fallback:string} $right
+     * @param list<array{sort:string, variable?:string, macro?:string}> $sortKeys
+     */
+    private function compareSortEntries(array $left, array $right, array $sortKeys): int
+    {
+        $leftItem = $left['item'];
+        $rightItem = $right['item'];
+        if ($leftItem === null || $rightItem === null) {
+            if ($leftItem === null && $rightItem === null) {
+                return $left['index'] <=> $right['index'];
+            }
+
+            return $leftItem === null ? 1 : -1;
+        }
+
+        foreach ($sortKeys as $key) {
+            $leftValue = $this->sortValue($leftItem, $key, (string) $left['fallback']);
+            $rightValue = $this->sortValue($rightItem, $key, (string) $right['fallback']);
+            $comparison = $leftValue <=> $rightValue;
+            if ($comparison !== 0) {
+                return ($key['sort'] ?? 'ascending') === 'descending' ? -$comparison : $comparison;
+            }
+        }
+
+        return $left['index'] <=> $right['index'];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array{sort:string, variable?:string, macro?:string} $key
+     */
+    private function sortValue(array $item, array $key, string $fallback): string
+    {
+        $variable = $this->sortVariable($key);
+
+        return match ($variable) {
+            'author' => $this->normalizeSortText($this->namesSortValue($item['authors'] ?? [], $item['editors'] ?? [])),
+            'editor' => $this->normalizeSortText($this->namesSortValue($item['editors'] ?? [], [])),
+            'issued', 'date' => $this->issuedSortValue($item),
+            'title' => $this->normalizeSortText((string) $item['title']),
+            'container-title' => $this->normalizeSortText((string) $item['containerTitle']),
+            'publisher' => $this->normalizeSortText((string) $item['publisher']),
+            'type' => $this->normalizeSortText((string) $item['type']),
+            'citation-number' => '',
+            'id' => $this->normalizeSortText((string) $item['id']),
+            default => $this->normalizeSortText($fallback),
+        };
+    }
+
+    /**
+     * @param array{sort:string, variable?:string, macro?:string} $key
+     */
+    private function sortVariable(array $key): string
+    {
+        $variable = strtolower(trim((string) ($key['variable'] ?? '')));
+        if ($variable !== '') {
+            return $variable;
+        }
+
+        $macro = strtolower(trim((string) ($key['macro'] ?? '')));
+        if (str_contains($macro, 'author') || str_contains($macro, 'creator') || str_contains($macro, 'name')) {
+            return 'author';
+        }
+        if (str_contains($macro, 'date') || str_contains($macro, 'issued') || str_contains($macro, 'year')) {
+            return 'issued';
+        }
+        if (str_contains($macro, 'title')) {
+            return 'title';
+        }
+
+        return 'id';
+    }
+
+    /**
+     * @param mixed $primary
+     * @param mixed $fallback
+     */
+    private function namesSortValue(mixed $primary, mixed $fallback): string
+    {
+        $names = is_array($primary) && $primary !== [] ? $primary : $fallback;
+        if (!is_array($names) || $names === []) {
+            return '';
+        }
+
+        $parts = [];
+        foreach ($names as $name) {
+            if (!is_array($name)) {
+                continue;
+            }
+
+            if ((string) ($name['literal'] ?? '') !== '') {
+                $parts[] = (string) $name['literal'];
+                continue;
+            }
+
+            $parts[] = trim(implode(' ', array_filter([
+                (string) ($name['nonDroppingParticle'] ?? ''),
+                (string) ($name['family'] ?? ''),
+                (string) ($name['given'] ?? ''),
+                (string) ($name['droppingParticle'] ?? ''),
+                (string) ($name['suffix'] ?? ''),
+            ], static fn (string $part): bool => $part !== '')));
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function issuedSortValue(array $item): string
+    {
+        $date = $item['issuedDate'] ?? null;
+        $parts = is_array($date) && isset($date['parts']) && is_array($date['parts']) ? $date['parts'] : [];
+        if ($parts !== []) {
+            return sprintf('%+08d-%02d-%02d', (int) ($parts[0] ?? 0), (int) ($parts[1] ?? 0), (int) ($parts[2] ?? 0));
+        }
+
+        return $this->normalizeSortText(is_array($date) ? (string) ($date['display'] ?? $date['literal'] ?? '') : '');
+    }
+
+    private function normalizeSortText(string $value): string
+    {
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+
+        return strtolower($value);
     }
 
     private function renderCitationEntry(AstNode $citation): string
