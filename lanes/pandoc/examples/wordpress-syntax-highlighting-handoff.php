@@ -154,6 +154,12 @@ $xslt = $highlighter->highlight(
     "<xsl:template match=\"/rss/channel/item\">\n  <xsl:value-of select=\"normalize-space(title)\"/>\n</xsl:template>",
     'xsl'
 );
+$shellCodeBlock = $document->children[19] ?? null;
+if (!$shellCodeBlock instanceof PortLibs\Pandoc\AstNode || $shellCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Bash shell code block');
+}
+$shell = $highlighter->highlightCodeBlock($shellCodeBlock, 'pygments');
+$shellWordpressBlock = $highlighter->wordpressHtmlBlock($shellCodeBlock, 'pygments');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -599,6 +605,33 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($xslt['html'], '<span class="kw">&lt;xsl:value-of</span> <span class="ot">select</span>')) {
         throw new RuntimeException('Expected XSLT value-of token handoff');
     }
+    if (($shell['language'] ?? '') !== 'bash') {
+        throw new RuntimeException('Expected shell alias to normalize to Bash highlighting');
+    }
+    if (($shell['lineNumbering']['start'] ?? null) !== 50) {
+        throw new RuntimeException('Expected shell source startFrom line-number handoff');
+    }
+    if (!str_contains($shell['html'], '<span class="kw">#!/usr/bin/env bash</span>')) {
+        throw new RuntimeException('Expected shell shebang token handoff');
+    }
+    if (!str_contains($shell['html'], '<span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span> <span class="ot">--post_type</span>')) {
+        throw new RuntimeException('Expected wp-cli command and long-option token handoff');
+    }
+    if (!str_contains($shell['html'], '<span class="kw">if</span> <span class="op">[[</span> <span class="op">-z</span> <span class="st">&quot;$title&quot;</span>')) {
+        throw new RuntimeException('Expected shell test expression token handoff');
+    }
+    if (!str_contains($shell['html'], '<span class="fu">cat</span> <span class="op">&lt;&lt;</span><span class="st">&#039;HTML&#039;</span>')) {
+        throw new RuntimeException('Expected shell heredoc delimiter token handoff');
+    }
+    if (!str_contains($shell['html'], '<span class="st">&lt;!-- wp:paragraph --&gt;&lt;p&gt;Missing title&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;</span>')) {
+        throw new RuntimeException('Expected shell heredoc body string token handoff');
+    }
+    if (!str_contains($shellWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
+        throw new RuntimeException('Expected shell WordPress style metadata');
+    }
+    if (!str_contains($shellWordpressBlock, '<span class="re">HTML</span>')) {
+        throw new RuntimeException('Expected shell heredoc close token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -642,6 +675,7 @@ echo "perlHighlightedHtml:\n" . $perl['html'] . "\n";
 echo "javaHighlightedHtml:\n" . $java['html'] . "\n";
 echo "xmlHighlightedHtml:\n" . $xml['html'] . "\n";
 echo "xsltHighlightedHtml:\n" . $xslt['html'] . "\n";
+echo "shellHighlightedHtml:\n" . $shell['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -656,4 +690,5 @@ echo "tomlWordpressBlock:\n" . $tomlWordpressBlock . "\n";
 echo "perlWordpressBlock:\n" . $perlWordpressBlock . "\n";
 echo "javaWordpressBlock:\n" . $javaWordpressBlock . "\n";
 echo "xmlWordpressBlock:\n" . $xmlWordpressBlock . "\n";
+echo "shellWordpressBlock:\n" . $shellWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

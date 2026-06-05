@@ -75,6 +75,11 @@ return [
         $t->same('ruby', SyntaxHighlighter::normalizeLanguage('rake'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('lua'));
         $t->same('lua', SyntaxHighlighter::normalizeLanguage('pandoc-lua'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('bash'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('sh'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('shell'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('console'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('language-sh'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('py'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('py3'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('python3'));
@@ -942,6 +947,45 @@ return [
         $t->same('xml', $svg['language']);
         $t->contains('<span class="kw">&lt;svg</span> <span class="ot">viewBox</span><span class="op">=</span><span class="st">&quot;0 0 10 10&quot;</span><span class="op">&gt;</span>', $svg['html']);
         $t->contains('<span class="kw">&lt;use</span> <span class="ot">href</span><span class="op">=</span><span class="st">&quot;#icon&quot;</span><span class="op">/&gt;</span>', $svg['html']);
+    },
+    'highlights bash shell review snippets with heredoc state and pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[19] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Bash shell code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'pygments');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'pygments');
+        $console = (new SyntaxHighlighter())->highlight('printf "%s\n" "$title"', 'console');
+
+        $t->same('sh', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('bash', $highlighted['language']);
+        $t->same('sh', $highlighted['requestedLanguage']);
+        $t->same('pygments', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(50, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource sh numberLines"><code class="sourceCode bash" style="counter-reset: source-line 49;">', $highlighted['html']);
+        $t->contains('<span id="shell-review-50"><a href="#shell-review-50"></a><span class="kw">#!/usr/bin/env bash</span></span>', $highlighted['html']);
+        $t->contains('<span class="fu">set</span> <span class="op">-euo</span> <span class="va">pipefail</span>', $highlighted['html']);
+        $t->contains('<span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span> <span class="ot">--post_type</span><span class="op">=</span><span class="va">post</span>', $highlighted['html']);
+        $t->contains('<span class="kw">while</span> <span class="fu">read</span> <span class="op">-r</span> <span class="va">post_id</span><span class="op">;</span> <span class="kw">do</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">=$(</span><span class="fu">wp</span> <span class="va">post</span> <span class="va">get</span> <span class="st">&quot;$post_id&quot;</span> <span class="ot">--field</span><span class="op">=</span><span class="va">post_title</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">[[</span> <span class="op">-z</span> <span class="st">&quot;$title&quot;</span> <span class="op">]];</span> <span class="kw">then</span>', $highlighted['html']);
+        $t->contains('<span class="fu">cat</span> <span class="op">&lt;&lt;</span><span class="st">&#039;HTML&#039;</span> <span class="op">&gt;</span> <span class="st">&quot;$TMPDIR/post-$post_id.html&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="st">&lt;!-- wp:paragraph --&gt;&lt;p&gt;Missing title&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="re">HTML</span>', $highlighted['html']);
+        $t->contains('<span class="kw">done</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="pygments">', $wordpressBlock);
+        $t->contains('<span class="st">&lt;!-- wp:paragraph --&gt;&lt;p&gt;Missing title&lt;/p&gt;', $wordpressBlock);
+        $t->same('bash', $console['language']);
+        $t->same('console', $console['requestedLanguage']);
+        $t->contains('<span class="fu">printf</span> <span class="st">&quot;%s\\n&quot;</span> <span class="st">&quot;$title&quot;</span>', $console['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

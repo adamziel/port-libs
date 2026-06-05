@@ -251,3 +251,16 @@ public final class ReviewPacket {
   </channel>
 </rss>
 ```
+
+``` {.sh #shell-review .numberLines startFrom=50}
+#!/usr/bin/env bash
+set -euo pipefail
+wp post list --post_type=post --format=ids | while read -r post_id; do
+  title=$(wp post get "$post_id" --field=post_title)
+  if [[ -z "$title" ]]; then
+    cat <<'HTML' > "$TMPDIR/post-$post_id.html"
+<!-- wp:paragraph --><p>Missing title</p><!-- /wp:paragraph -->
+HTML
+  fi
+done
+```

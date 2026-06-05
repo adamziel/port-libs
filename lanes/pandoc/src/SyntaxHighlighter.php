@@ -1261,15 +1261,79 @@ final class SyntaxHighlighter
      */
     private function tokenizeBash(string $code): array
     {
-        return $this->scan($code, [
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+        $heredocDelimiter = null;
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            if ($heredocDelimiter !== null) {
+                if (ltrim(rtrim($line, "\r"), "\t") === $heredocDelimiter) {
+                    $this->appendToken($tokens, 'region', $line);
+                    $heredocDelimiter = null;
+                } else {
+                    $this->appendToken($tokens, 'string', $line);
+                }
+            } else {
+                $this->tokenizeBashLine($line, $tokens);
+                $heredocDelimiter = self::bashHeredocDelimiter($line);
+            }
+
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeBashLine(string $line, array &$tokens): void
+    {
+        $this->scanInto($line, [
+            ['keyword', '/^#![^\\n]*/'],
             ['comment', '/^#[^\\n]*/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['operator', '/^<<-?/'],
+            ['operator', '/^\\[\\[|^\\]\\]/'],
+            ['attribute', '/^--[A-Za-z0-9][A-Za-z0-9_-]*/'],
+            ['operator', '/^-[A-Za-z][A-Za-z0-9-]*/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_]*(?=\\s*=)/'],
             ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*|^\\$\\{[^}]+\\}/'],
             ['keyword', '/^\\b(?:case|do|done|elif|else|esac|fi|for|function|if|in|then|while)\\b/'],
-            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*(?=\\s)/'],
-            ['operator', '/^(?:&&|\\|\\||[{}()[\\];|&<>=$])/'],
-        ]);
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['function', '/^\\b(?:awk|basename|cat|cd|chmod|chown|composer|cp|curl|dirname|echo|env|find|getopts|grep|jq|make|mkdir|mv|npm|php|printf|read|rm|rsync|sed|set|sh|sort|tar|tee|test|touch|tr|wp)(?=\\s|$|[;&|<>])/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*\\b/'],
+            ['operator', '/^(?:\\$\\(|\\)\\)|;;|&&|\\|\\||>>|[{}()[\\];|&<>=$])/'],
+        ], $tokens);
+    }
+
+    private static function bashHeredocDelimiter(string $line): ?string
+    {
+        if (preg_match('/(?:^|\\s)<<-?\\s*(?:\\\'([A-Za-z_][A-Za-z0-9_]*)\\\'|"([A-Za-z_][A-Za-z0-9_]*)"|\\\\?([A-Za-z_][A-Za-z0-9_]*))/', $line, $matches) !== 1) {
+            return null;
+        }
+
+        foreach ([1, 2, 3] as $index) {
+            if (isset($matches[$index]) && $matches[$index] !== '') {
+                return $matches[$index];
+            }
+        }
+
+        return null;
     }
 
     /**
