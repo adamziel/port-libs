@@ -17,6 +17,8 @@ final class PdfEmbeddedFileExtractor
         'Unspecified' => 'unspecified',
     ];
 
+    private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
+
     /**
      * Native boundary for catalog /Names /EmbeddedFiles and /AF attachment lookup.
      *
@@ -1199,12 +1201,11 @@ final class PdfEmbeddedFileExtractor
      */
     private function embeddedFileKeys(string $filenameSource): array
     {
-        $keys = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
-        if (in_array($filenameSource, $keys, true)) {
-            return array_values(array_unique([$filenameSource, ...$keys]));
+        if (in_array($filenameSource, self::EMBEDDED_FILE_FALLBACK_KEYS, true)) {
+            return array_values(array_unique([$filenameSource, ...self::EMBEDDED_FILE_FALLBACK_KEYS]));
         }
 
-        return $keys;
+        return self::EMBEDDED_FILE_FALLBACK_KEYS;
     }
 
     /**

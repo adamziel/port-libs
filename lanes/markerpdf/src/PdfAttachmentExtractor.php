@@ -39,6 +39,8 @@ final class PdfAttachmentExtractor
         'Tag' => 'tag',
     ];
 
+    private const EMBEDDED_FILE_FALLBACK_KEYS = ['UF', 'F', 'Unix', 'Mac', 'DOS'];
+
     /**
      * Native PDF attachment preflight for embedded file streams referenced by
      * document EmbeddedFiles name trees or page FileAttachment annotations.
@@ -2102,12 +2104,11 @@ final class PdfAttachmentExtractor
      */
     private function embeddedFileKeyOrder(string $preferredKey): array
     {
-        $keys = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
-        if (in_array($preferredKey, $keys, true)) {
-            return array_values(array_unique([$preferredKey, ...$keys]));
+        if (in_array($preferredKey, self::EMBEDDED_FILE_FALLBACK_KEYS, true)) {
+            return array_values(array_unique([$preferredKey, ...self::EMBEDDED_FILE_FALLBACK_KEYS]));
         }
 
-        return $keys;
+        return self::EMBEDDED_FILE_FALLBACK_KEYS;
     }
 
     /**
