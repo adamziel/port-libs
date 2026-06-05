@@ -79,7 +79,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -252,13 +252,16 @@ final class CitationCslProcessor
         $citations = $this->ensureClusterCitationPositions($citations);
         $citations = $this->sortCitationCluster($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
-        $entries = [];
-        foreach ($citations as $citation) {
-            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
-                throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
-            }
+        $entries = $this->renderCollapsedCitationEntries($citations);
+        if ($entries === null) {
+            $entries = [];
+            foreach ($citations as $citation) {
+                if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                    throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
+                }
 
-            $entries[] = $this->renderCitationEntry($citation);
+                $entries[] = $this->renderCitationEntry($citation);
+            }
         }
 
         if ($entries === []) {
@@ -1711,6 +1714,312 @@ final class CitationCslProcessor
         $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
 
         return strtolower($value);
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<string>|null
+     */
+    private function renderCollapsedCitationEntries(array $citations): ?array
+    {
+        $mode = $this->citationCollapseMode();
+        if ($mode === '' || $mode === 'citation-number' || count($citations) < 2) {
+            return null;
+        }
+
+        if (!$this->citationCollapseLayoutIsAuthorDateLike()) {
+            return null;
+        }
+
+        $entries = [];
+        $run = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                throw new \InvalidArgumentException('Citation cluster entries must be citation AST nodes');
+            }
+
+            $entry = $this->collapseableCitationEntry($citation);
+            if ($entry === null) {
+                $this->appendCollapsedCitationRun($entries, $run, $mode);
+                $run = [];
+                $entries[] = $this->renderCitationEntry($citation);
+                continue;
+            }
+
+            if ($run !== [] && (string) $entry['prefix'] !== '') {
+                $this->appendCollapsedCitationRun($entries, $run, $mode);
+                $run = [$entry];
+                continue;
+            }
+
+            if ($run === [] || $this->citationCollapseEntriesMatch($run[0], $entry, $mode)) {
+                $run[] = $entry;
+                continue;
+            }
+
+            $this->appendCollapsedCitationRun($entries, $run, $mode);
+            $run = [$entry];
+        }
+
+        $this->appendCollapsedCitationRun($entries, $run, $mode);
+
+        return $entries;
+    }
+
+    private function citationCollapseMode(): string
+    {
+        $options = $this->style->citationOptions();
+        $mode = (string) ($options['collapse'] ?? '');
+
+        return in_array($mode, ['citation-number', 'year', 'year-suffix', 'year-suffix-ranged'], true) ? $mode : '';
+    }
+
+    private function citationCollapseLayoutIsAuthorDateLike(): bool
+    {
+        $elements = $this->style->citationRenderingElements();
+        if ($elements === []) {
+            return true;
+        }
+
+        $shape = $this->citationCollapseRenderingShape($elements);
+
+        return $shape['hasCreator'] && $shape['hasYear'] && !$shape['unsupported'];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $elements
+     * @param list<string> $macroStack
+     * @return array{hasCreator:bool, hasYear:bool, unsupported:bool}
+     */
+    private function citationCollapseRenderingShape(array $elements, array $macroStack = []): array
+    {
+        $shape = ['hasCreator' => false, 'hasYear' => false, 'unsupported' => false];
+        foreach ($elements as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $childShape = $this->citationCollapseRenderingElementShape($element, $macroStack);
+            $shape['hasCreator'] = $shape['hasCreator'] || $childShape['hasCreator'];
+            $shape['hasYear'] = $shape['hasYear'] || $childShape['hasYear'];
+            $shape['unsupported'] = $shape['unsupported'] || $childShape['unsupported'];
+        }
+
+        return $shape;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     * @param list<string> $macroStack
+     * @return array{hasCreator:bool, hasYear:bool, unsupported:bool}
+     */
+    private function citationCollapseRenderingElementShape(array $element, array $macroStack): array
+    {
+        $empty = ['hasCreator' => false, 'hasYear' => false, 'unsupported' => false];
+        $type = (string) ($element['type'] ?? '');
+        if ($type === 'group') {
+            $children = $element['children'] ?? [];
+
+            return is_array($children)
+                ? $this->citationCollapseRenderingShape($children, $macroStack)
+                : ['hasCreator' => false, 'hasYear' => false, 'unsupported' => true];
+        }
+
+        if ($type === 'names') {
+            $variable = strtolower(trim((string) ($element['variable'] ?? 'author editor')));
+            $variables = preg_split('/\s+/', $variable) ?: [];
+            $hasCreator = in_array('author', $variables, true) || in_array('editor', $variables, true);
+
+            return ['hasCreator' => $hasCreator, 'hasYear' => false, 'unsupported' => !$hasCreator];
+        }
+
+        if ($type === 'date') {
+            $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+            $dateParts = is_array($element['dateParts'] ?? null) ? $element['dateParts'] : [];
+            $hasYear = false;
+            foreach ($dateParts as $datePart) {
+                if (is_array($datePart) && strtolower(trim((string) ($datePart['name'] ?? ''))) === 'year') {
+                    $hasYear = true;
+                    break;
+                }
+            }
+
+            return [
+                'hasCreator' => false,
+                'hasYear' => in_array($variable, ['issued', 'date'], true) && $hasYear,
+                'unsupported' => !in_array($variable, ['issued', 'date'], true) || !$hasYear,
+            ];
+        }
+
+        if ($type === 'text') {
+            if (isset($element['macro']) && is_string($element['macro'])) {
+                $name = $element['macro'];
+                if (in_array($name, $macroStack, true)) {
+                    return ['hasCreator' => false, 'hasYear' => false, 'unsupported' => true];
+                }
+
+                $macro = $this->style->macroRenderingElements($name);
+
+                return is_array($macro)
+                    ? $this->citationCollapseRenderingShape($macro, [...$macroStack, $name])
+                    : ['hasCreator' => false, 'hasYear' => false, 'unsupported' => true];
+            }
+
+            $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+            if ($variable === 'year-suffix') {
+                return $empty;
+            }
+        }
+
+        return ['hasCreator' => false, 'hasYear' => false, 'unsupported' => true];
+    }
+
+    /**
+     * @return array{citation:AstNode, author:string, year:string, yearBase:string, yearSuffix:string, prefix:string}|null
+     */
+    private function collapseableCitationEntry(AstNode $citation): ?array
+    {
+        $id = (string) $citation->attr('id', '');
+        $item = $this->itemsById[$id] ?? null;
+        if ($item === null || (string) $citation->attr('mode', 'normal') !== 'normal') {
+            return null;
+        }
+
+        if ($this->citationSuffix($citation) !== '') {
+            return null;
+        }
+
+        $item = $this->itemWithCitationContext($item, $citation);
+        $withoutSuffix = $this->itemWithYearSuffix($item, '');
+
+        return [
+            'citation' => $citation,
+            'author' => $this->citationAuthorLabel($item),
+            'year' => $this->citationYear($item),
+            'yearBase' => $this->citationYear($withoutSuffix),
+            'yearSuffix' => (string) ($item['yearSuffix'] ?? ''),
+            'prefix' => $this->citationPrefix($citation),
+        ];
+    }
+
+    /**
+     * @param array{author:string, yearBase:string} $left
+     * @param array{author:string, yearBase:string} $right
+     */
+    private function citationCollapseEntriesMatch(array $left, array $right, string $mode): bool
+    {
+        if ((string) $left['author'] !== (string) $right['author']) {
+            return false;
+        }
+
+        if ($mode === 'year') {
+            return true;
+        }
+
+        return (string) $left['yearBase'] === (string) $right['yearBase'];
+    }
+
+    /**
+     * @param list<string> $entries
+     * @param list<array{citation:AstNode, author:string, year:string, yearBase:string, yearSuffix:string, prefix:string}> $run
+     */
+    private function appendCollapsedCitationRun(array &$entries, array $run, string $mode): void
+    {
+        if ($run === []) {
+            return;
+        }
+
+        if (count($run) === 1) {
+            $entries[] = $this->renderCitationEntry($run[0]['citation']);
+
+            return;
+        }
+
+        $entries[] = $this->collapsedCitationRunText($run, $mode);
+    }
+
+    /**
+     * @param list<array{author:string, year:string, yearBase:string, yearSuffix:string, prefix:string}> $run
+     */
+    private function collapsedCitationRunText(array $run, string $mode): string
+    {
+        $author = (string) $run[0]['author'];
+        $prefix = (string) $run[0]['prefix'];
+        if ($mode === 'year-suffix' || $mode === 'year-suffix-ranged') {
+            $baseYear = (string) $run[0]['yearBase'];
+            $suffixes = [];
+            $allSameBase = true;
+            $allHaveSuffixes = true;
+            foreach ($run as $entry) {
+                $allSameBase = $allSameBase && (string) $entry['yearBase'] === $baseYear;
+                $suffix = (string) $entry['yearSuffix'];
+                $allHaveSuffixes = $allHaveSuffixes && $suffix !== '';
+                if (!in_array($suffix, $suffixes, true)) {
+                    $suffixes[] = $suffix;
+                }
+            }
+
+            if ($allSameBase && $allHaveSuffixes) {
+                $entry = $author . ' ' . $baseYear . $this->collapsedYearSuffixes($suffixes, $mode === 'year-suffix-ranged');
+
+                return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+            }
+        }
+
+        $years = [];
+        foreach ($run as $entry) {
+            $year = (string) $entry['year'];
+            if (!in_array($year, $years, true)) {
+                $years[] = $year;
+            }
+        }
+
+        $entry = $author . ' ' . implode(', ', $years);
+
+        return $prefix === '' ? $entry : $prefix . ' ' . $entry;
+    }
+
+    /**
+     * @param list<string> $suffixes
+     */
+    private function collapsedYearSuffixes(array $suffixes, bool $ranged): string
+    {
+        if ($suffixes === []) {
+            return '';
+        }
+
+        if ($ranged && count($suffixes) > 1 && $this->yearSuffixesAreSequentialSingleLetters($suffixes)) {
+            return $suffixes[0] . '-' . $suffixes[count($suffixes) - 1];
+        }
+
+        return implode(',', $suffixes);
+    }
+
+    /**
+     * @param list<string> $suffixes
+     */
+    private function yearSuffixesAreSequentialSingleLetters(array $suffixes): bool
+    {
+        $expected = null;
+        foreach ($suffixes as $suffix) {
+            if (preg_match('/^[a-z]$/', $suffix) !== 1) {
+                return false;
+            }
+
+            $ordinal = ord($suffix);
+            if ($expected === null) {
+                $expected = $ordinal;
+                continue;
+            }
+
+            if ($ordinal !== $expected + 1) {
+                return false;
+            }
+
+            $expected = $ordinal;
+        }
+
+        return true;
     }
 
     private function renderCitationEntry(AstNode $citation): string

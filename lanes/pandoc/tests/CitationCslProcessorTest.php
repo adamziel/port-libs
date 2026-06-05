@@ -3850,7 +3850,7 @@ XML
     <id>https://example.test/styles/bounded-year-suffix-review</id>
     <updated>2026-06-05T07:53:00+00:00</updated>
   </info>
-  <citation disambiguate-add-year-suffix="true">
+  <citation disambiguate-add-year-suffix="true" collapse="year-suffix">
     <layout prefix="(" suffix=")" delimiter="; ">
       <group delimiter=" ">
         <names variable="author"/>
@@ -3881,10 +3881,11 @@ XML
         $summary = $processor->cslStyleSummary();
         $t->same('Bounded Year Suffix Review Style', $summary['title'] ?? null);
         $t->same(true, $summary['citationOptions']['disambiguateAddYearSuffix'] ?? null);
+        $t->same('year-suffix', $summary['citationOptions']['collapse'] ?? null);
         $t->same('year-suffix', $summary['citationRendering'][0]['children'][1]['children'][1]['variable'] ?? null);
         $t->same('year-suffix', $summary['bibliographyRendering'][1]['children'][1]['variable'] ?? null);
 
-        $t->same('(Smith 2026a; Smith 2026b; Ng 2026; Smith 2025)', $processor->renderCitationCluster([
+        $t->same('(Smith 2026a,b; Ng 2026; Smith 2025)', $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'smith-post', 'text' => '[@smith-post]']),
             new AstNode('citation', ['id' => 'smith-media', 'text' => '[@smith-media]']),
             new AstNode('citation', ['id' => 'ng-2026', 'text' => '[@ng-2026]']),
@@ -3964,6 +3965,121 @@ XML
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
   <citation disambiguate-add-year-suffix="sometimes">
+    <layout><text variable="title"/></layout>
+  </citation>
+</style>
+XML
+        ));
+    },
+    'applies bounded csl citation collapse for author date clusters' => static function (TestRunner $t): void {
+        $items = [
+            [
+                'id' => 'smith-2024',
+                'type' => 'report',
+                'title' => 'Source Packet 2024',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'smith-2025',
+                'type' => 'report',
+                'title' => 'Source Packet 2025',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'ng-2025',
+                'type' => 'report',
+                'title' => 'Ng Source Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ];
+        $processor = CitationCslProcessor::fromItems($items)->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation collapse="year">
+    <layout prefix="(" suffix=")" delimiter="; "/>
+  </citation>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('year', $summary['citationOptions']['collapse'] ?? null);
+        $t->same('(Smith 2024, 2025; Ng 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-2024', 'text' => '[@smith-2024]']),
+            new AstNode('citation', ['id' => 'smith-2025', 'text' => '[@smith-2025]']),
+            new AstNode('citation', ['id' => 'ng-2025', 'text' => '[@ng-2025]']),
+        ]));
+        $t->same('(see Smith 2024, 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-2024', 'text' => '[@smith-2024]', 'prefix' => 'see']),
+            new AstNode('citation', ['id' => 'smith-2025', 'text' => '[@smith-2025]']),
+        ]));
+        $t->same('(Smith 2024, p. 7; Smith 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-2024', 'text' => '[@smith-2024]', 'locator' => 'p. 7']),
+            new AstNode('citation', ['id' => 'smith-2025', 'text' => '[@smith-2025]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Review cites [@smith-2024; @smith-2025; @ng-2025].');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites (Smith 2024, 2025; Ng 2025).</p>', $blocks);
+
+        $ranged = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-a',
+                'title' => 'A',
+                'author' => [['family' => 'Smith', 'given' => 'Ada']],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'smith-b',
+                'title' => 'B',
+                'author' => [['family' => 'Smith', 'given' => 'Ada']],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'smith-c',
+                'title' => 'C',
+                'author' => [['family' => 'Smith', 'given' => 'Ada']],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation disambiguate-add-year-suffix="true" collapse="year-suffix-ranged">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <group delimiter="">
+          <date variable="issued"><date-part name="year"/></date>
+          <text variable="year-suffix"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML
+        );
+        $t->same('(Smith 2026a-c)', $ranged->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-a', 'text' => '[@smith-a]']),
+            new AstNode('citation', ['id' => 'smith-b', 'text' => '[@smith-b]']),
+            new AstNode('citation', ['id' => 'smith-c', 'text' => '[@smith-c]']),
+        ]));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems($items)->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation collapse="sideways">
     <layout><text variable="title"/></layout>
   </citation>
 </style>

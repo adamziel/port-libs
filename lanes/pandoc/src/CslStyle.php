@@ -101,7 +101,7 @@ final class CslStyle
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
-     * @param array{disambiguateAddYearSuffix:bool} $citationOptions
+     * @param array{disambiguateAddYearSuffix:bool, collapse:string} $citationOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
      * @param list<array<string, mixed>> $citationRenderingElements
@@ -133,7 +133,7 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
-            ['disambiguateAddYearSuffix' => false],
+            ['disambiguateAddYearSuffix' => false, 'collapse' => ''],
             [],
             [],
             [],
@@ -285,7 +285,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{disambiguateAddYearSuffix:bool}
+     * @return array{disambiguateAddYearSuffix:bool, collapse:string}
      */
     public function citationOptions(): array
     {
@@ -379,7 +379,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -513,12 +513,18 @@ final class CslStyle
     }
 
     /**
-     * @return array{disambiguateAddYearSuffix:bool}
+     * @return array{disambiguateAddYearSuffix:bool, collapse:string}
      */
     private static function parseCitationOptions(\DOMElement $citation): array
     {
+        $collapse = trim($citation->getAttribute('collapse'));
+        if ($collapse !== '' && !in_array($collapse, ['citation-number', 'year', 'year-suffix', 'year-suffix-ranged'], true)) {
+            throw new \InvalidArgumentException('CSL citation attribute collapse must be citation-number, year, year-suffix, or year-suffix-ranged');
+        }
+
         return [
             'disambiguateAddYearSuffix' => self::booleanAttribute($citation, 'disambiguate-add-year-suffix', false, 'citation'),
+            'collapse' => $collapse,
         ];
     }
 

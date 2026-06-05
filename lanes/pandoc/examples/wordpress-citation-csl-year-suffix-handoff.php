@@ -11,7 +11,7 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 $markdown = <<<'MARKDOWN'
 # Citation Year Suffix Review
 
-Review cites @smith-post and later [@smith-media; @ng-2026] before the bibliography.
+Review cites @smith-post and later [@smith-media; @smith-docs; @ng-2026] before the bibliography.
 MARKDOWN;
 
 $cslJson = <<<'JSON'
@@ -37,6 +37,16 @@ $cslJson = <<<'JSON'
     "URL": "https://example.test/media-import"
   },
   {
+    "id": "smith-docs",
+    "type": "report",
+    "title": "Documentation Import Packet",
+    "author": [
+      {"family": "Smith", "given": "Ada"}
+    ],
+    "issued": {"date-parts": [[2026]]},
+    "URL": "https://example.test/docs-import"
+  },
+  {
     "id": "ng-2026",
     "type": "report",
     "title": "Ng Import Packet",
@@ -57,7 +67,7 @@ $styleXml = <<<'XML'
     <id>https://example.test/styles/wordpress-citation-year-suffix-review</id>
     <updated>2026-06-05T07:53:00+00:00</updated>
   </info>
-  <citation disambiguate-add-year-suffix="true">
+  <citation disambiguate-add-year-suffix="true" collapse="year-suffix">
     <layout prefix="(" suffix=")" delimiter="; ">
       <group delimiter=" ">
         <names variable="author"/>
@@ -93,11 +103,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['citationOptions']['disambiguateAddYearSuffix'] ?? null) !== true) {
         throw new RuntimeException('CSL year-suffix handoff did not preserve citation disambiguation metadata');
     }
+    if (($summary['citationOptions']['collapse'] ?? null) !== 'year-suffix') {
+        throw new RuntimeException('CSL year-suffix handoff did not preserve citation collapse metadata');
+    }
 
     foreach ([
-        '<p>Review cites Smith (2026a) and later (Smith 2026b; Ng 2026) before the bibliography.</p>',
+        '<p>Review cites Smith (2026a) and later (Smith 2026b,c; Ng 2026) before the bibliography.</p>',
         '<dt>Smith 2026a</dt><dd>Smith, A. 2026a. Post Import Packet. https://example.test/post-import.</dd>',
         '<dt>Smith 2026b</dt><dd>Smith, A. 2026b. Media Import Packet. https://example.test/media-import.</dd>',
+        '<dt>Smith 2026c</dt><dd>Smith, A. 2026c. Documentation Import Packet. https://example.test/docs-import.</dd>',
         '<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
