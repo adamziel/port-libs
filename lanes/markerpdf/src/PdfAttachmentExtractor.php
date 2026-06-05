@@ -1550,6 +1550,7 @@ final class PdfAttachmentExtractor
         foreach ($this->filterNames($dict['Filter'] ?? null, $objects) as $filter) {
             $decoded = match ($filter) {
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($bytes),
+                'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($bytes),
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($bytes),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($bytes),
                 default => null,
@@ -1622,6 +1623,79 @@ final class PdfAttachmentExtractor
 
         $decoded = hex2bin($hex);
         return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeAscii85Stream(string $bytes): ?string
+    {
+        $body = trim($bytes);
+        if (str_starts_with($body, '<~')) {
+            $body = substr($body, 2);
+        }
+
+        $terminator = strpos($body, '~>');
+        if ($terminator !== false) {
+            $body = substr($body, 0, $terminator);
+        }
+
+        $out = '';
+        $group = [];
+        $length = strlen($body);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $body[$offset];
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === 'z') {
+                if ($group !== []) {
+                    return null;
+                }
+                $out .= "\0\0\0\0";
+                continue;
+            }
+
+            $ord = ord($char);
+            if ($ord < 33 || $ord > 117) {
+                return null;
+            }
+
+            $group[] = $ord - 33;
+            if (count($group) === 5) {
+                $out .= $this->decodeAscii85Group($group, 4);
+                $group = [];
+            }
+        }
+
+        if ($group !== []) {
+            $groupLength = count($group);
+            if ($groupLength === 1) {
+                return null;
+            }
+            while (count($group) < 5) {
+                $group[] = 84;
+            }
+            $out .= $this->decodeAscii85Group($group, $groupLength - 1);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<int> $group
+     */
+    private function decodeAscii85Group(array $group, int $bytesToReturn): string
+    {
+        $value = 0;
+        foreach ($group as $digit) {
+            $value = ($value * 85) + $digit;
+        }
+
+        $bytes = '';
+        for ($shift = 24; $shift >= 0; $shift -= 8) {
+            $bytes .= chr(($value >> $shift) & 0xff);
+        }
+
+        return substr($bytes, 0, $bytesToReturn);
     }
 
     private function decodeRunLengthStream(string $bytes): ?string

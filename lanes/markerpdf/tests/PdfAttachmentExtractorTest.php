@@ -36,6 +36,34 @@ $fileAttachmentAnnotationPdf = static function (): array {
     return [$pdf, $payload];
 };
 
+$attachmentStreamFilterStackAscii85 = static function (string $bytes): string {
+    $encoded = '';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $chunkLength = strlen($chunk);
+        if ($chunkLength < 4) {
+            $chunk = str_pad($chunk, 4, "\0");
+        }
+
+        $value = unpack('N', $chunk)[1];
+        if ($value === 0 && $chunkLength === 4) {
+            $encoded .= 'z';
+            continue;
+        }
+
+        $chars = '';
+        for ($index = 0; $index < 5; $index++) {
+            $chars = chr(($value % 85) + 33) . $chars;
+            $value = intdiv($value, 85);
+        }
+
+        $encoded .= substr($chars, 0, $chunkLength + 1);
+    }
+
+    return $encoded . '~>';
+};
+
 return [
     'extracts document EmbeddedFiles name tree attachments for WordPress review' => static function (TestRunner $t) use ($embeddedFilesPdf): void {
         [$pdf, $payload, $checksum] = $embeddedFilesPdf();
@@ -97,6 +125,47 @@ return [
         $t->same(false, array_key_exists('bytes', $attachment));
         $t->same(false, $summary['executes_python_or_models']);
         $t->same(false, $summary['executes_external_pdf_tools']);
+    },
+    'decodes ASCII85 and Flate attachment filter stacks before checksum review' => static function (TestRunner $t) use ($attachmentStreamFilterStackAscii85): void {
+        $payload = "Title,Status\nStacked Attachment,Ready\n";
+        $encodedPayload = $attachmentStreamFilterStackAscii85(gzcompress($payload));
+        $checksum = md5($payload);
+
+        $pdf = "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Names [(stacked.csv) 4 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (stacked.csv) /Desc (Stacked filter attachment) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ null /ASCII85Decode /FlateDecode ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($encodedPayload) . " >>\n"
+            . "stream\n{$encodedPayload}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(['stacked.csv'], $summary['filenames']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('stacked.csv', $attachment['name_key']);
+        $t->same('stacked.csv', $attachment['filename']);
+        $t->same('Data', $attachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $attachment['relationship_role']);
+        $t->same('text/csv', $attachment['content_type']);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters']);
+        $t->same(strlen($payload), $attachment['declared_size']);
+        $t->same(true, $attachment['declared_size_matches']);
+        $t->same(strlen($payload), $attachment['byte_length']);
+        $t->same(hash('sha256', $payload), $attachment['sha256']);
+        $t->same($checksum, $attachment['checksum_hex']);
+        $t->same($checksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->true($encodedSummary !== false && !str_contains($encodedSummary, 'Stacked Attachment,Ready'));
+        $t->true($encodedSummary !== false && !str_contains($encodedSummary, $payload));
     },
     'prunes out-of-limits EmbeddedFiles name-tree attachments in WordPress preflight' => static function (TestRunner $t): void {
         $currentPayload = "Title,Status\nCurrent,Ready\n";
