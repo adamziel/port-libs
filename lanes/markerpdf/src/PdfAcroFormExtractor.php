@@ -3461,7 +3461,9 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $childFieldRefs[] = $kidRef;
+            if ($this->isFieldDictionaryCandidate($kidBody)) {
+                $childFieldRefs[] = $kidRef;
+            }
         }
 
         if ($childFieldRefs !== []) {
@@ -9011,7 +9013,7 @@ final class PdfAcroFormExtractor
 
     private function isWidget(string $body): bool
     {
-        return preg_match('/\/Subtype\s*\/Widget\b/', $body) === 1;
+        return $this->pdfNameValueAfterName($body, 'Subtype') === 'Widget';
     }
 
     /**

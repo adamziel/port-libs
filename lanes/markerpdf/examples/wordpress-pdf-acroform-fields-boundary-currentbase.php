@@ -11,10 +11,10 @@ $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm page widget boundary body)
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R 24 0 R 110 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Fields [6 0 R 23 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
-    . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n] >>\nendobj\n"
+    . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n112 0 R] >>\nendobj\n"
     . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
     . "10 0 obj\n<< /FT /Ch /T (omitted.category) /V (page) /Opt [(post) (page)] /Kids [12 0 R] >>\nendobj\n"
     . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 260 624] /P 3 0 R /F 4 >>\nendobj\n"
@@ -43,6 +43,8 @@ $pdf = "%PDF-1.7\n"
     . "99 0 obj\n<< /FT /Tx /T (decoy.kids.nested_array) /V (Kids nested array decoy) >>\nendobj\n"
     . "100 0 obj\n<< /FT /Tx /T (decoy.kids.nested_dict) /V (Kids nested dictionary decoy) >>\nendobj\n"
     . "101 0 obj\n<< /FT /Tx /T (decoy.kids.comment) /V (Kids comment decoy) >>\nendobj\n"
+    . "110 0 obj\n<< /Type /Annot\n% /Subtype /Widget should not promote this text annotation into an AcroForm field\n/Subtype /Text /FT /Tx /T (decoy.comment_subtype.promoted) /V (Comment subtype page decoy) /Rect [72 340 320 364] /P 3 0 R /F 4 /Contents (Comment page widget marker decoy) >>\nendobj\n"
+    . "112 0 obj\n<< /Type /Annot\n% /Subtype /Widget /Parent 6 0 R stays a comment-only child widget marker\n/Subtype /Text /Rect [72 300 320 324] /P 3 0 R /F 4 /Contents (Comment child widget marker decoy) >>\nendobj\n"
     . "%%EOF";
 
 $form = (new PdfAcroFormExtractor())->extractForm($pdf);
@@ -100,11 +102,15 @@ $decoyNames = [
     'decoy.kids.nested_array',
     'decoy.kids.nested_dict',
     'decoy.kids.comment',
+    'decoy.comment_subtype.promoted',
 ];
 foreach ($decoyNames as $decoyName) {
     if (isset($fieldsByName[$decoyName])) {
         throw new RuntimeException("AcroForm array decoy field {$decoyName} must not be promoted.");
     }
+}
+if (in_array(112, array_column($fieldsByName['listed.email']['widgets'] ?? [], 'object'), true)) {
+    throw new RuntimeException('Comment-only child Widget subtype marker must not attach as an AcroForm widget.');
 }
 
 $rows = [];
@@ -126,7 +132,7 @@ foreach ($form['fields'] as $field) {
 
 echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-catalog-acroform-page-widget-boundary',
-    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them; AcroForm alternate and mapping names stay review-only',
+    'native_boundary' => 'Page-owned Widget annotations and their Parent fields are reviewed when malformed AcroForm Fields omits them; comment-only Widget subtype markers and AcroForm alternate/mapping names stay review-only',
     'field_count' => count($form['fields']),
     'field_names' => array_column($rows, 'name'),
     'promoted_page_widget_parent_fields' => ['omitted.category'],
@@ -144,6 +150,8 @@ echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialcha
     'indirect_widget_visibility' => $indirectWidget['annotation_visibility'] ?? null,
     'array_decoy_fields_excluded' => count(array_intersect($decoyNames, array_keys($fieldsByName))) === 0,
     'array_decoy_sources' => ['annots_literal_nested_comment', 'fields_literal_nested_comment', 'kids_literal_nested_comment'],
+    'comment_widget_subtype_decoys_excluded' => !isset($fieldsByName['decoy.comment_subtype.promoted'])
+        && !in_array(112, array_column($fieldsByName['listed.email']['widgets'] ?? [], 'object'), true),
     'detached_widget_excluded' => !isset($fieldsByName['detached.secret']),
     'executes_form_actions' => false,
     'executes_javascript' => false,
