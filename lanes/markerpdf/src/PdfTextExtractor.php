@@ -498,7 +498,7 @@ final class PdfTextExtractor
                 && $this->objectStreamMemberIsTopLevelStreamObject($selectedMemberBody);
             $objectStreamCarrierHasFilter = isset($objects[$objectStreamNumber])
                 && $this->objectStreamCarrierHasFilters($objects[$objectStreamNumber], $objects);
-            $streamMemberRejected = $selectedMemberIsStream && $objectStreamCarrierHasFilter;
+            $streamMemberRejected = $selectedMemberIsStream;
             if ($streamMemberRejected) {
                 $review['stream_member_rejection_count']++;
             }
@@ -1783,7 +1783,7 @@ final class PdfTextExtractor
 
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
                     $info = $this->objectReferenceAfterName($streamSection['body'], 'Info');
                     if ($info !== null) {
@@ -1798,7 +1798,7 @@ final class PdfTextExtractor
                 : $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return null;
         }
@@ -14265,7 +14265,7 @@ final class PdfTextExtractor
 
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
                     $value = $this->topLevelPdfValueAfterName($streamSection['body'], 'Encrypt');
                     if ($value !== null) {
@@ -14283,7 +14283,7 @@ final class PdfTextExtractor
             return ['parsed' => true, 'value' => null];
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return ['parsed' => false, 'value' => null];
         }
@@ -15489,7 +15489,8 @@ final class PdfTextExtractor
             return false;
         }
 
-        $definition = $this->xrefStreamDefinitionAtOffset($definitions, $offset);
+        $section = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
+        $definition = $section['definition'] ?? null;
         if ($definition === null) {
             return false;
         }
@@ -15590,7 +15591,7 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return [];
         }
@@ -16001,7 +16002,7 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return [];
         }
@@ -16115,7 +16116,7 @@ final class PdfTextExtractor
 
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
-                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
                 if ($streamSection !== null) {
                     $root = $this->objectReferenceAfterName($streamSection['body'], 'Root');
                     if ($root !== null) {
@@ -16130,7 +16131,7 @@ final class PdfTextExtractor
                 : $this->trailerRootReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return null;
         }
@@ -16300,7 +16301,7 @@ final class PdfTextExtractor
         array $definitions,
         ?int $candidateBeforeOffset = null
     ): ?int {
-        if ($this->xrefStreamSectionAtOffset($offset, $definitions) !== null) {
+        if ($this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes) !== null) {
             return null;
         }
 
@@ -16409,7 +16410,7 @@ final class PdfTextExtractor
     private function xrefSectionExistsAtOffset(string $pdfBytes, int $offset, array $definitions): bool
     {
         return $this->xrefTableSectionAt($pdfBytes, $offset, $definitions) !== null
-            || $this->xrefStreamSectionAtOffset($offset, $definitions) !== null;
+            || $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes) !== null;
     }
 
     /**
@@ -16502,7 +16503,7 @@ final class PdfTextExtractor
             return $entries;
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return [];
         }
@@ -16782,7 +16783,7 @@ final class PdfTextExtractor
             ];
         }
 
-        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions, $pdfBytes);
         if ($streamSection === null) {
             return null;
         }
@@ -17314,8 +17315,6 @@ final class PdfTextExtractor
             if ($hasSelectedXrefEntries && !$hasCompressedXrefEntriesForStream) {
                 continue;
             }
-            $carrierRejectsTopLevelStreamMembers = $this->objectStreamCarrierHasFilters($body, $objects);
-
             foreach ($pairs as $pair) {
                 $objectNumber = $pair['objectNumber'];
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
@@ -17360,10 +17359,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                if (
-                    $carrierRejectsTopLevelStreamMembers
-                    && $this->objectStreamMemberIsTopLevelStreamObject($memberBody)
-                ) {
+                if ($this->objectStreamMemberIsTopLevelStreamObject($memberBody)) {
                     continue;
                 }
 
@@ -18547,9 +18543,21 @@ final class PdfTextExtractor
      * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
      * @return array{definition: array{generation: int, offset: int, body: string}, body: string}|null
      */
-    private function xrefStreamSectionAtOffset(int $offset, array $definitions): ?array
+    private function xrefStreamSectionAtOffset(int $offset, array $definitions, ?string $pdfBytes = null): ?array
     {
         $definition = $this->xrefStreamDefinitionAtOffset($definitions, $offset);
+        if (
+            $definition === null
+            && $pdfBytes !== null
+            && $offset >= 0
+            && !$this->offsetOwnedByDirectObjectBody($offset, $definitions)
+        ) {
+            $normalizedOffset = $this->skipPdfWhitespace($pdfBytes, $offset);
+            if ($normalizedOffset !== $offset) {
+                $definition = $this->xrefStreamDefinitionAtOffset($definitions, $normalizedOffset);
+            }
+        }
+
         if ($definition === null) {
             return null;
         }
