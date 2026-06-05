@@ -24838,16 +24838,82 @@ final class PdfTextExtractor
 
         $colorSpace = trim($colorSpace);
         if (str_starts_with($colorSpace, '[')) {
-            return str_contains($colorSpace, '/Indexed') ? 1 : null;
+            return $this->inlineImageArrayColorComponents($colorSpace);
         }
 
-        return match ($colorSpace) {
+        $name = $this->inlineImageColorSpaceName($colorSpace);
+
+        return match ($name) {
             '/DeviceGray' => 1,
             '/DeviceRGB' => 3,
             '/DeviceCMYK' => 4,
             '/Indexed' => 1,
             default => null,
         };
+    }
+
+    private function inlineImageArrayColorComponents(string $colorSpace): ?int
+    {
+        $arrayBody = $this->pdfArrayAtStart($colorSpace);
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $values = $this->pdfArrayItems($arrayBody);
+        $family = isset($values[0]) ? $this->inlineImageColorSpaceName($values[0]) : null;
+
+        return match ($family) {
+            '/DeviceGray', '/CalGray' => 1,
+            '/DeviceRGB', '/CalRGB', '/Lab' => 3,
+            '/DeviceCMYK' => 4,
+            '/Indexed' => 1,
+            '/Separation' => 1,
+            '/DeviceN' => $this->inlineImageDeviceNColorantCount($values[1] ?? null),
+            '/ICCBased' => $this->inlineImageIccBasedComponentCount($values[1] ?? null),
+            default => null,
+        };
+    }
+
+    private function inlineImageColorSpaceName(string $value): ?string
+    {
+        $value = trim($value);
+        if (!str_starts_with($value, '/')) {
+            return null;
+        }
+
+        $name = $this->decodePdfName(substr($value, 1));
+        return '/' . (self::INLINE_IMAGE_VALUE_ABBREVIATIONS[$name] ?? $name);
+    }
+
+    private function inlineImageDeviceNColorantCount(?string $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $arrayBody = $this->pdfArrayAtStart(trim($value));
+        if ($arrayBody === null) {
+            return null;
+        }
+
+        $count = 0;
+        foreach ($this->pdfArrayItems($arrayBody) as $item) {
+            if ($this->inlineImageColorSpaceName($item) !== null) {
+                $count++;
+            }
+        }
+
+        return $count > 0 ? $count : null;
+    }
+
+    private function inlineImageIccBasedComponentCount(?string $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $components = $this->pdfIntegerValueAfterName(trim($value), 'N');
+        return $components !== null && $components > 0 ? $components : null;
     }
 
     private function pdfBooleanValueAfterName(string $body, string $name): ?bool

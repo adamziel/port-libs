@@ -453,6 +453,40 @@ return [
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->true(!str_contains($plainText, 'CSWordPress'));
     },
+    'uses inline array color-space component counts before accepting unfiltered EI boundaries' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $deviceNPayload = "\x01EI BT /F1 12 Tf 72 690 Td (DeviceN Inline Decode Noise) Tj ET \x02";
+        $calRgbPayload = "\x10EI BT /F1 12 Tf 72 650 Td (CalRGB Inline Decode Noise) Tj ET \x20\x30";
+        $content = "BT /F1 12 Tf 72 720 Td (Before DeviceN Inline Image) Tj ET\n"
+            . "BI /W 1 /H 1 /CS [/DeviceN [/Spot#20Red /Spot#20Blue] /CMYK 99 0 R << /Subtype /NChannel >>] /BPC 8 ID\n"
+            . $deviceNPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After DeviceN Inline Image) Tj ET\n"
+            . "BT /F1 12 Tf 72 680 Td (Before CalRGB Inline Image) Tj ET\n"
+            . "BI /W 1 /H 1 /CS [/CalRGB << /WhitePoint [1 1 1] >>] /BPC 8 ID\n"
+            . $calRgbPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 664 Td (After CalRGB Inline Image) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before DeviceN Inline Image',
+            'After DeviceN Inline Image',
+            'Before CalRGB Inline Image',
+            'After CalRGB Inline Image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($deviceNPayload, 'EI BT'));
+        $t->true(str_contains($calRgbPayload, 'EI BT'));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'DeviceN Inline Decode Noise'));
+        $t->true(!str_contains($plainText, 'CalRGB Inline Decode Noise'));
+        $t->true(!str_contains($plainText, 'Spot Red'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'decodes LZW DecodeParms inline image payload before Indexed RGB preview' => static function (TestRunner $t) use ($lzwLiteralEncode, $tiffPredictorEncode): void {
         $renderer = new PdfImageRenderer();
         $objects = [

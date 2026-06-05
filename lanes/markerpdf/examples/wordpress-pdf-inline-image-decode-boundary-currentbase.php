@@ -163,6 +163,8 @@ $unsupportedCryptFilterPayload = 'abc EI BT /F1 12 Tf 72 530 Td (Crypt Inline De
 $unsupportedCryptFilterDictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Crypt /D [0 1]';
 $identityCryptFilterPayload = 'ABC EI BT /F1 12 Tf 72 516 Td (Identity Crypt Inline Noise) Tj ET rawtail';
 $identityCryptFilterDictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F /Crypt /DP << /Name /Identity >> /D [0 1 0 1 0 1]';
+$deviceNArrayColorSpacePayload = "\x01EI BT /F1 12 Tf 72 506 Td (DeviceN Array Inline Noise) Tj ET \x02";
+$calRgbArrayColorSpacePayload = "\x10EI BT /F1 12 Tf 72 498 Td (CalRGB Array Inline Noise) Tj ET \x20\x30";
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -187,6 +189,14 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 612 Td (Before Named Space Sample Inline Image) Tj ET\n"
     . "BI /W 1 /H 1 /CS /CSWordPress /BPC 8 ID  EI\n"
     . "BT /F1 12 Tf 72 609 Td (After Named Space Sample Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 608 Td (Before DeviceN Array Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS [/DeviceN [/Spot#20Red /Spot#20Blue] /CMYK 99 0 R << /Subtype /NChannel >>] /BPC 8 ID\n"
+    . $deviceNArrayColorSpacePayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 605 Td (After DeviceN Array Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 604 Td (Before CalRGB Array Inline Image) Tj ET\n"
+    . "BI /W 1 /H 1 /CS [/CalRGB << /WhitePoint [1 1 1] >>] /BPC 8 ID\n"
+    . $calRgbArrayColorSpacePayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 601 Td (After CalRGB Array Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 608 Td (Before RunLength Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($runLengthImageRow) . ' /H 1 /CS /G /BPC 8 /F /RL ID '
     . $runLengthPayload . "\nEI\n"
@@ -424,6 +434,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Space Sample Inline Image',
         'Before Named Space Sample Inline Image',
         'After Named Space Sample Inline Image',
+        'Before DeviceN Array Inline Image',
+        'After DeviceN Array Inline Image',
+        'Before CalRGB Array Inline Image',
+        'After CalRGB Array Inline Image',
         'Before RunLength Inline Image',
         'After RunLength Inline Image',
         'Before Malformed Filter Inline',
@@ -441,6 +455,12 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'asciihex_surplus_preview_decode_rejected' => $asciiHexSurplusPreviewRejected,
     'terminal_whitespace_inline_sample_preserved' => in_array('After Space Sample Inline Image', $lines, true),
     'named_colorspace_terminal_whitespace_sample_preserved' => in_array('After Named Space Sample Inline Image', $lines, true),
+    'array_colorspace_tight_ei_payloads_present' => str_contains($deviceNArrayColorSpacePayload, 'EI BT')
+        && str_contains($calRgbArrayColorSpacePayload, 'EI BT'),
+    'array_colorspace_component_floor_preserved' => in_array('After DeviceN Array Inline Image', $lines, true)
+        && in_array('After CalRGB Array Inline Image', $lines, true)
+        && !str_contains($plainText, 'DeviceN Array Inline Noise')
+        && !str_contains($plainText, 'CalRGB Array Inline Noise'),
     'complete_ascii85_review_decoded' => ($completeInlineReview['image_stream']['decoded_with_current_filters'] ?? false) === true,
     'complete_ascii85_review_preview_pixels' => $completeInlineReview['preview_pixel_count'] ?? null,
     'incomplete_ascii85_review_decode_failed' => $incompleteAscii85ReviewDecodeFailed,
@@ -507,6 +527,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'X EI')
         && !str_contains($plainText, 'ASCIIHex Surplus Inline Noise')
         && !str_contains($plainText, '414243 EI')
+        && !str_contains($plainText, 'DeviceN Array Inline Noise')
+        && !str_contains($plainText, 'CalRGB Array Inline Noise')
         && !str_contains($plainText, 'RunLength Inline Noise')
         && !str_contains($plainText, 'RL EI')
         && !str_contains($plainText, 'Malformed Filter Inline Noise')
