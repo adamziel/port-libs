@@ -19,6 +19,9 @@ final class OdfReader
     private const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
 
+    /** @var array<string, array<string, mixed>> */
+    private array $trackedChanges = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -27,6 +30,7 @@ final class OdfReader
      *     styles:array<string, mixed>,
      *     listStyles:array<string, mixed>,
      *     media:list<array<string, mixed>>,
+     *     trackedChanges:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
      * }
      */
@@ -58,6 +62,10 @@ final class OdfReader
                 'count' => count($styleCatalog['listStyles']),
                 'items' => array_values($styleCatalog['listStyles']),
             ],
+            'trackedChanges' => [
+                'count' => count($content['trackedChanges']),
+                'items' => $content['trackedChanges'],
+            ],
         ], $content['blocks']);
 
         return [
@@ -67,6 +75,7 @@ final class OdfReader
             'styles' => $styleCatalog['styles'],
             'listStyles' => $styleCatalog['listStyles'],
             'media' => $media,
+            'trackedChanges' => $content['trackedChanges'],
             'importReport' => [
                 'mimetype' => self::MIMETYPE,
                 'manifest' => [
@@ -90,12 +99,17 @@ final class OdfReader
                     'count' => count($media),
                     'items' => $media,
                 ],
+                'trackedChanges' => [
+                    'count' => count($content['trackedChanges']),
+                    'items' => $content['trackedChanges'],
+                ],
                 'content' => [
                     'blockCount' => count($content['blocks']),
                     'automaticStyleCount' => $content['automaticStyleCount'],
                     'noteCount' => $contentStats['noteCount'],
                     'bookmarkCount' => $contentStats['bookmarkCount'],
                     'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
+                    'trackedChangeCount' => $contentStats['trackedChangeCount'],
                 ],
             ],
         ];
@@ -200,7 +214,7 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $styleCatalog
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>}, automaticStyleCount:int}
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog): array
     {
@@ -222,10 +236,13 @@ final class OdfReader
             throw new \RuntimeException('ODT content.xml is missing office:body/office:text');
         }
 
+        $this->trackedChanges = $this->trackedChangesFromText($text);
+
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
             'styleCatalog' => $styleCatalog,
             'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']),
+            'trackedChanges' => array_values($this->trackedChanges),
         ];
     }
 
@@ -305,6 +322,105 @@ final class OdfReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function trackedChangesFromText(\DOMElement $text): array
+    {
+        $trackedChanges = self::firstChildElement($text, 'tracked-changes', self::TEXT_NS);
+        if (!$trackedChanges instanceof \DOMElement) {
+            return [];
+        }
+
+        $changes = [];
+        foreach (self::childElements($trackedChanges, 'changed-region', self::TEXT_NS) as $region) {
+            $id = self::attr($region, self::TEXT_NS, 'id');
+            if ($id === '') {
+                continue;
+            }
+
+            $changeElement = $this->firstTrackedChangeElement($region);
+            if (!$changeElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $changeInfo = self::firstChildElement($changeElement, 'change-info', self::OFFICE_NS);
+            $comments = [];
+            if ($changeInfo instanceof \DOMElement) {
+                foreach (self::childElements($changeInfo, 'p', self::TEXT_NS) as $paragraph) {
+                    $textContent = self::normalizedText($paragraph);
+                    if ($textContent !== '') {
+                        $comments[] = $textContent;
+                    }
+                }
+            }
+
+            $entry = [
+                'id' => $id,
+                'type' => $changeElement->localName,
+                'creator' => $changeInfo instanceof \DOMElement ? $this->changeInfoText($changeInfo, 'creator') : '',
+                'date' => $changeInfo instanceof \DOMElement ? $this->changeInfoText($changeInfo, 'date') : '',
+                'comments' => $comments,
+                'text' => $this->trackedChangeBodyText($changeElement),
+            ];
+
+            $changes[$id] = array_filter(
+                $entry,
+                static fn (mixed $value): bool => $value !== '' && $value !== []
+            );
+        }
+
+        return $changes;
+    }
+
+    private function firstTrackedChangeElement(\DOMElement $region): ?\DOMElement
+    {
+        foreach (self::childElements($region) as $child) {
+            if ($this->isElement($child, self::TEXT_NS, 'insertion')
+                || $this->isElement($child, self::TEXT_NS, 'deletion')
+                || $this->isElement($child, self::TEXT_NS, 'format-change')
+            ) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function changeInfoText(\DOMElement $changeInfo, string $name): string
+    {
+        $element = self::firstChildElement($changeInfo, $name, self::DC_NS);
+
+        return $element instanceof \DOMElement ? self::normalizedText($element) : '';
+    }
+
+    private function trackedChangeBodyText(\DOMElement $changeElement): string
+    {
+        $parts = [];
+        foreach ($changeElement->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isElement($child, self::OFFICE_NS, 'change-info')) {
+                continue;
+            }
+            if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
+                $text = trim($child->textContent);
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+                continue;
+            }
+            if ($child instanceof \DOMElement) {
+                $text = self::normalizedText($child);
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+        }
+
+        $text = implode(' ', $parts);
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**
@@ -662,8 +778,24 @@ final class OdfReader
      */
     private function inlineNodes(\DOMElement $parent, array $catalog, ?ZipPackage $package = null): array
     {
-        $nodes = [];
+        $children = [];
         foreach ($parent->childNodes as $child) {
+            $children[] = $child;
+        }
+
+        return $this->inlineNodesFromNodeList($children, $catalog, $package);
+    }
+
+    /**
+     * @param list<\DOMNode> $children
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @return list<AstNode>
+     */
+    private function inlineNodesFromNodeList(array $children, array $catalog, ?ZipPackage $package = null): array
+    {
+        $nodes = [];
+        for ($index = 0, $count = count($children); $index < $count; $index++) {
+            $child = $children[$index];
             if ($child instanceof \DOMText || $child instanceof \DOMCdataSection) {
                 if ($child->textContent !== '') {
                     $nodes[] = new AstNode('text', ['text' => $child->textContent]);
@@ -674,6 +806,30 @@ final class OdfReader
                 continue;
             }
 
+            if ($this->isElement($child, self::TEXT_NS, 'change-start')) {
+                $changeId = self::attr($child, self::TEXT_NS, 'change-id');
+                $range = $changeId === '' ? null : $this->trackedChangeRange($children, $index, $changeId);
+                if ($range !== null) {
+                    $inner = $this->coalesceTextNodes($this->inlineNodesFromNodeList($range['nodes'], $catalog, $package));
+                    $node = $this->trackedChangeSpanNode($changeId, $inner);
+                    if ($node instanceof AstNode) {
+                        $nodes[] = $node;
+                    }
+                    $index = $range['endIndex'];
+                    continue;
+                }
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'change')) {
+                $changeId = self::attr($child, self::TEXT_NS, 'change-id');
+                $node = $this->standaloneTrackedChangeNode($changeId);
+                if ($node instanceof AstNode) {
+                    $nodes[] = $node;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'change-end')) {
+                continue;
+            }
             if ($this->isElement($child, self::TEXT_NS, 'span')) {
                 array_push($nodes, ...$this->spanNodes($child, $catalog, $package));
                 continue;
@@ -688,8 +844,8 @@ final class OdfReader
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 's')) {
-                $count = max(1, self::intAttr($child, self::TEXT_NS, 'c', 1));
-                $nodes[] = new AstNode('text', ['text' => str_repeat(' ', $count)]);
+                $spaceCount = max(1, self::intAttr($child, self::TEXT_NS, 'c', 1));
+                $nodes[] = new AstNode('text', ['text' => str_repeat(' ', $spaceCount)]);
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 'tab')) {
@@ -731,6 +887,102 @@ final class OdfReader
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param list<\DOMNode> $children
+     * @return ?array{nodes:list<\DOMNode>, endIndex:int}
+     */
+    private function trackedChangeRange(array $children, int $startIndex, string $changeId): ?array
+    {
+        $range = [];
+        for ($index = $startIndex + 1, $count = count($children); $index < $count; $index++) {
+            $child = $children[$index];
+            if ($child instanceof \DOMElement && $this->isElement($child, self::TEXT_NS, 'change-end')) {
+                $endChangeId = self::attr($child, self::TEXT_NS, 'change-id');
+                if ($endChangeId === $changeId) {
+                    return [
+                        'nodes' => $range,
+                        'endIndex' => $index,
+                    ];
+                }
+            }
+
+            $range[] = $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function trackedChangeSpanNode(string $changeId, array $children): ?AstNode
+    {
+        if ($changeId === '') {
+            return null;
+        }
+
+        $change = $this->trackedChanges[$changeId] ?? [
+            'id' => $changeId,
+            'type' => 'change',
+        ];
+        if ($children === []) {
+            $text = (string) ($change['text'] ?? '');
+            if ($text === '') {
+                return null;
+            }
+            $children = [new AstNode('text', ['text' => $text])];
+        }
+
+        $type = $this->trackedChangeType($change);
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'classes' => ['odf-change', 'odf-' . $type],
+            'attributes' => [
+                'data-odf-change-id' => $changeId,
+                'data-odf-change-type' => $type,
+            ],
+        ];
+        foreach (['creator' => 'data-odf-change-creator', 'date' => 'data-odf-change-date'] as $source => $target) {
+            $value = (string) ($change[$source] ?? '');
+            if ($value !== '') {
+                $attrs['attributes'][$target] = $value;
+            }
+        }
+
+        return new AstNode('span', $attrs, $children);
+    }
+
+    private function standaloneTrackedChangeNode(string $changeId): ?AstNode
+    {
+        if ($changeId === '' || !isset($this->trackedChanges[$changeId])) {
+            return null;
+        }
+
+        $change = $this->trackedChanges[$changeId];
+        if ($this->trackedChangeType($change) !== 'deletion') {
+            return $this->trackedChangeSpanNode($changeId, []);
+        }
+
+        $text = (string) ($change['text'] ?? '');
+        if ($text === '') {
+            return null;
+        }
+
+        return $this->trackedChangeSpanNode($changeId, [new AstNode('text', ['text' => $text])]);
+    }
+
+    /**
+     * @param array<string, mixed> $change
+     */
+    private function trackedChangeType(array $change): string
+    {
+        $type = (string) ($change['type'] ?? 'change');
+        $type = strtolower(preg_replace('/[^a-zA-Z0-9-]+/', '-', $type) ?? 'change');
+        $type = trim($type, '-');
+
+        return $type === '' ? 'change' : $type;
     }
 
     /**
@@ -1220,7 +1472,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, trackedChangeCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -1228,6 +1480,7 @@ final class OdfReader
             'noteCount' => 0,
             'bookmarkCount' => 0,
             'bookmarkReferenceCount' => 0,
+            'trackedChangeCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -1238,6 +1491,9 @@ final class OdfReader
             }
             if ($node->type === 'link' && $this->nodeHasClass($node, 'odf-bookmark-ref')) {
                 $stats['bookmarkReferenceCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-change')) {
+                $stats['trackedChangeCount']++;
             }
 
             $childStats = $this->contentNodeStats($node->children);

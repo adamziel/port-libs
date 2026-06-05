@@ -47,8 +47,28 @@ $contentXml = <<<'XML'
   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <office:body>
     <office:text>
+      <text:tracked-changes>
+        <text:changed-region text:id="chg-add-source-note">
+          <text:insertion>
+            <office:change-info>
+              <dc:creator>Migration Reviewer</dc:creator>
+              <dc:date>2026-06-05T00:20:00Z</dc:date>
+              <text:p>Inserted while reconciling source ODT revisions.</text:p>
+            </office:change-info>
+          </text:insertion>
+        </text:changed-region>
+        <text:changed-region text:id="chg-delete-draft-claim">
+          <text:deletion>
+            <office:change-info>
+              <dc:creator>Migration Reviewer</dc:creator>
+              <dc:date>2026-06-05T00:22:00Z</dc:date>
+            </office:change-info>
+            <text:p>removed draft claim</text:p>
+          </text:deletion>
+        </text:changed-region>
+      </text:tracked-changes>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
-      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
+      <text:p>Reviewer <text:span text:style-name="StrongSource">summary</text:span> keeps <text:change-start text:change-id="chg-add-source-note"/>tracked source note<text:change-end text:change-id="chg-add-source-note"/> and <text:change text:change-id="chg-delete-draft-claim"/>, <text:bookmark-start text:name="Review Anchor"/>review anchor<text:bookmark-end text:name="Review Anchor"/>, <text:bookmark-ref text:ref-name="Review Anchor" text:reference-format="text">internal reference</text:bookmark-ref>, <text:a xlink:href="https://example.test/odt-source">source URL</text:a>, and annotations<text:note text:id="ftn-review" text:note-class="footnote"><text:note-citation>1</text:note-citation><text:note-body><text:p>ODT footnote reviewer context.</text:p></text:note-body></text:note><office:annotation><dc:creator>Migration Desk</dc:creator><dc:date>2026-06-04T23:20:00Z</dc:date><text:p>Check imported captions before publishing.</text:p></office:annotation>.</text:p>
       <text:list text:style-name="ReviewSteps">
         <text:list-item><text:p>Match ODT media to WordPress attachments</text:p></text:list-item>
         <text:list-item><text:p>Review table spans</text:p></text:list-item>
@@ -123,6 +143,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['importReport']['content']['noteCount'] ?? 0) < 2) {
         throw new RuntimeException('Expected ODT footnote and annotation notes to be reported');
+    }
+    if (($result['importReport']['trackedChanges']['count'] ?? 0) !== 2) {
+        throw new RuntimeException('Expected ODT tracked changes to be reported');
+    }
+    if (!str_contains($blocks, '<span class="odf-change odf-insertion" data-odf-change-id="chg-add-source-note" data-odf-change-type="insertion" data-odf-change-creator="Migration Reviewer" data-odf-change-date="2026-06-05T00:20:00Z">tracked source note</span>')) {
+        throw new RuntimeException('Expected ODT insertion tracked change to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<span class="odf-change odf-deletion" data-odf-change-id="chg-delete-draft-claim" data-odf-change-type="deletion" data-odf-change-creator="Migration Reviewer" data-odf-change-date="2026-06-05T00:22:00Z">removed draft claim</span>')) {
+        throw new RuntimeException('Expected ODT deletion tracked change to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<section class="footnotes" role="doc-endnotes">')) {
         throw new RuntimeException('Expected ODT annotation to render as a review footnote');

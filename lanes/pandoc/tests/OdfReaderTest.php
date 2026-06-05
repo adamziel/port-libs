@@ -320,6 +320,90 @@ XML;
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
     },
+    'maps ODT tracked changes into review spans and import report metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTrackedChanges = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <office:body>
+    <office:text>
+      <text:tracked-changes>
+        <text:changed-region text:id="ct-ins">
+          <text:insertion>
+            <office:change-info>
+              <dc:creator>Editor A</dc:creator>
+              <dc:date>2026-06-05T00:10:00Z</dc:date>
+              <text:p>Inserted during source review.</text:p>
+            </office:change-info>
+          </text:insertion>
+        </text:changed-region>
+        <text:changed-region text:id="ct-del">
+          <text:deletion>
+            <office:change-info>
+              <dc:creator>Editor B</dc:creator>
+              <dc:date>2026-06-05T00:12:00Z</dc:date>
+            </office:change-info>
+            <text:p>legacy deleted claim</text:p>
+          </text:deletion>
+        </text:changed-region>
+        <text:changed-region text:id="ct-fmt">
+          <text:format-change>
+            <office:change-info>
+              <dc:creator>Editor C</dc:creator>
+              <dc:date>2026-06-05T00:14:00Z</dc:date>
+            </office:change-info>
+          </text:format-change>
+        </text:changed-region>
+      </text:tracked-changes>
+      <text:p>Stable <text:change-start text:change-id="ct-ins"/>inserted review text<text:change-end text:change-id="ct-ins"/> and <text:change text:change-id="ct-del"/> plus <text:change-start text:change-id="ct-fmt"/>formatted cue<text:change-end text:change-id="ct-fmt"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTrackedChanges));
+        $paragraph = $result['document']->children[0];
+        $changesById = [];
+        foreach ($result['trackedChanges'] as $change) {
+            $changesById[$change['id']] = $change;
+        }
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Stable inserted review text and legacy deleted claim plus formatted cue.', $paragraph->attr('text'));
+        $t->same(3, count($result['trackedChanges']));
+        $t->same('insertion', $changesById['ct-ins']['type']);
+        $t->same('Editor A', $changesById['ct-ins']['creator']);
+        $t->same('2026-06-05T00:10:00Z', $changesById['ct-ins']['date']);
+        $t->same(['Inserted during source review.'], $changesById['ct-ins']['comments']);
+        $t->same('deletion', $changesById['ct-del']['type']);
+        $t->same('legacy deleted claim', $changesById['ct-del']['text']);
+        $t->same('format-change', $changesById['ct-fmt']['type']);
+
+        $insertion = $paragraph->children[1];
+        $deletion = $paragraph->children[3];
+        $formatChange = $paragraph->children[5];
+        $t->same('span', $insertion->type);
+        $t->same(['odf-change', 'odf-insertion'], $insertion->attr('classes'));
+        $t->same('ct-ins', $insertion->attr('attributes')['data-odf-change-id']);
+        $t->same('insertion', $insertion->attr('attributes')['data-odf-change-type']);
+        $t->same('Editor A', $insertion->attr('attributes')['data-odf-change-creator']);
+        $t->same('inserted review text', $insertion->children[0]->attr('text'));
+        $t->same(['odf-change', 'odf-deletion'], $deletion->attr('classes'));
+        $t->same('legacy deleted claim', $deletion->children[0]->attr('text'));
+        $t->same(['odf-change', 'odf-format-change'], $formatChange->attr('classes'));
+        $t->same('formatted cue', $formatChange->children[0]->attr('text'));
+
+        $t->same(3, $result['importReport']['trackedChanges']['count']);
+        $t->same(3, $result['importReport']['content']['trackedChangeCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[inserted review text]{.odf-change .odf-insertion data-odf-change-id="ct-ins" data-odf-change-type="insertion" data-odf-change-creator="Editor A" data-odf-change-date="2026-06-05T00:10:00Z"}', $markdown);
+        $t->contains('[legacy deleted claim]{.odf-change .odf-deletion data-odf-change-id="ct-del" data-odf-change-type="deletion" data-odf-change-creator="Editor B" data-odf-change-date="2026-06-05T00:12:00Z"}', $markdown);
+        $t->contains('<span class="odf-change odf-insertion" data-odf-change-id="ct-ins" data-odf-change-type="insertion" data-odf-change-creator="Editor A" data-odf-change-date="2026-06-05T00:10:00Z">inserted review text</span>', $blocksHtml);
+        $t->contains('<span class="odf-change odf-deletion" data-odf-change-id="ct-del" data-odf-change-type="deletion" data-odf-change-creator="Editor B" data-odf-change-date="2026-06-05T00:12:00Z">legacy deleted claim</span>', $blocksHtml);
+    },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = (new OdfReader())->readDocument($buildOdtPackage());
         $markdown = (new MarkdownWriter())->write($document);
