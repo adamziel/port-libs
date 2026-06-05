@@ -13526,7 +13526,7 @@ final class PdfTextExtractor
             }
 
             if ($this->isOperator($token)) {
-                if (!$this->type3CharProcAllowsPreMetricSetupOperator($token)) {
+                if (!$this->type3CharProcAllowsPreMetricSetupOperator($token, $operands)) {
                     return null;
                 }
 
@@ -13540,9 +13540,12 @@ final class PdfTextExtractor
         return null;
     }
 
-    private function type3CharProcAllowsPreMetricSetupOperator(string $token): bool
+    /**
+     * @param list<string> $operands
+     */
+    private function type3CharProcAllowsPreMetricSetupOperator(string $token, array $operands): bool
     {
-        return in_array($token, [
+        if (!in_array($token, [
             'q',
             'Q',
             'cm',
@@ -13579,7 +13582,23 @@ final class PdfTextExtractor
             'BMC',
             'BDC',
             'EMC',
-        ], true);
+        ], true)) {
+            return false;
+        }
+
+        if ($token === 'BMC') {
+            return count($operands) === 1 && str_starts_with($operands[0], '/');
+        }
+
+        if ($token === 'BDC') {
+            return count($operands) === 2 && str_starts_with($operands[0], '/');
+        }
+
+        if ($token === 'EMC') {
+            return count($operands) === 0;
+        }
+
+        return true;
     }
 
     /**
