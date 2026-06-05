@@ -3473,6 +3473,36 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array<string, array{objectNumber: int, generation: int, body: string|null}>
+     * @param array<int, string> $objects
+     */
+    private function xObjectResourceReferences(string $resourceOwnerBody, array $objects): array
+    {
+        $resourceDictionary = $this->resourceDictionaryBody($resourceOwnerBody, $objects) ?? $resourceOwnerBody;
+        $xObjectDictionary = $this->xObjectResourceDictionaryBody($resourceDictionary, $objects);
+        if ($xObjectDictionary === null) {
+            return [];
+        }
+
+        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $xObjectDictionary, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($matches as $resource) {
+            $objectNumber = (int) $resource[2];
+            $generation = (int) $resource[3];
+            $references[$this->decodePdfName($resource[1])] = [
+                'objectNumber' => $objectNumber,
+                'generation' => $generation,
+                'body' => $this->objectBodyForExactReference($objects, $objectNumber, $generation),
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
      * @return list<string>
      * @param array<int, string> $objects
      */
@@ -3744,7 +3774,7 @@ final class PdfTextExtractor
      * @param list<string> $decodedContents
      * @param array<int, bool> $optionalContentStates
      * @param list<string> $resourcePath
-     * @param array<int, true> $activeFormObjectNumbers
+     * @param array<string, true> $activeFormObjectNumbers
      */
     private function imageXObjectBoundaryEntriesForResourceOwner(
         int $pageIndex,
@@ -3759,7 +3789,7 @@ final class PdfTextExtractor
         bool $includeUninvokedImageResources = true,
         array $ownerInvocationMatrices = []
     ): array {
-        $xObjectMap = $this->xObjectResourceObjectNumbers($resourceOwnerBody, $objects);
+        $xObjectMap = $this->xObjectResourceReferences($resourceOwnerBody, $objects);
         if ($xObjectMap === []) {
             return [];
         }
@@ -3788,9 +3818,12 @@ final class PdfTextExtractor
         }
 
         $entries = [];
-        foreach ($xObjectMap as $resourceName => $objectNumber) {
-            $optionalContentVisible = isset($objects[$objectNumber])
-                ? $this->optionalContentObjectVisible($objects[$objectNumber], $objects, $optionalContentStates)
+        foreach ($xObjectMap as $resourceName => $reference) {
+            $objectNumber = $reference['objectNumber'];
+            $objectGeneration = $reference['generation'];
+            $objectBody = $reference['body'];
+            $optionalContentVisible = $objectBody !== null
+                ? $this->optionalContentObjectVisible($objectBody, $objects, $optionalContentStates)
                 : true;
             $localInvocationDetails = $invocations[$resourceName] ?? [];
             $effectiveInvocationDetails = $localInvocationDetails !== [] && $optionalContentVisible
@@ -3806,23 +3839,26 @@ final class PdfTextExtractor
                 $objects,
                 $entryResourcePath,
                 $parentFormObjectNumber,
-                $optionalContentVisible
+                $optionalContentVisible,
+                $objectGeneration,
+                $objectBody
             );
             if ($entry !== null && ($includeUninvokedImageResources || $entry['invoked'])) {
                 $entries[] = $entry;
             }
 
-            if ($localInvocationDetails === [] || !$optionalContentVisible || isset($activeFormObjectNumbers[$objectNumber])) {
+            $activeFormKey = $objectNumber . ':' . $objectGeneration;
+            if ($localInvocationDetails === [] || !$optionalContentVisible || isset($activeFormObjectNumbers[$activeFormKey])) {
                 continue;
             }
 
-            $form = $this->decodedFormXObject($objects, $objectNumber);
+            $form = $this->decodedFormXObjectBody($objectBody, $objects);
             if ($form === null) {
                 continue;
             }
 
             $nextActiveForms = $activeFormObjectNumbers;
-            $nextActiveForms[$objectNumber] = true;
+            $nextActiveForms[$activeFormKey] = true;
             $formHasOwnResources = $this->topLevelNameValueOffset($form['body'], 'Resources') !== null;
             $formResourceOwnerBody = $this->formXObjectResourceOwnerBody($form['body'], $resourceOwnerBody);
             $formMatrix = $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects)
@@ -3877,16 +3913,18 @@ final class PdfTextExtractor
         foreach ($entries as $entry) {
             $resourcePath = $entry['resource_path'] ?? null;
             $objectNumber = $entry['object_number'] ?? null;
+            $objectGeneration = $entry['object_generation'] ?? null;
             if (
                 ($entry['invoked'] ?? false) !== true
                 || !is_array($resourcePath)
                 || count($resourcePath) < 2
                 || !is_int($objectNumber)
+                || !is_int($objectGeneration)
             ) {
                 continue;
             }
 
-            $nestedInvokedResourceKeys[$objectNumber . "\0" . (string) ($entry['resource_name'] ?? '')] = true;
+            $nestedInvokedResourceKeys[$objectNumber . ':' . $objectGeneration . "\0" . (string) ($entry['resource_name'] ?? '')] = true;
         }
 
         if ($nestedInvokedResourceKeys === []) {
@@ -3897,12 +3935,14 @@ final class PdfTextExtractor
         foreach ($entries as $entry) {
             $resourcePath = $entry['resource_path'] ?? null;
             $objectNumber = $entry['object_number'] ?? null;
+            $objectGeneration = $entry['object_generation'] ?? null;
             if (
                 ($entry['invoked'] ?? false) === false
                 && is_array($resourcePath)
                 && count($resourcePath) === 1
                 && is_int($objectNumber)
-                && isset($nestedInvokedResourceKeys[$objectNumber . "\0" . (string) ($entry['resource_name'] ?? '')])
+                && is_int($objectGeneration)
+                && isset($nestedInvokedResourceKeys[$objectNumber . ':' . $objectGeneration . "\0" . (string) ($entry['resource_name'] ?? '')])
             ) {
                 continue;
             }
@@ -3927,13 +3967,16 @@ final class PdfTextExtractor
         array $objects,
         array $resourcePath = [],
         ?int $parentFormObjectNumber = null,
-        bool $optionalContentVisible = true
+        bool $optionalContentVisible = true,
+        ?int $objectGeneration = null,
+        ?string $objectBody = null
     ): ?array {
-        if (!isset($objects[$objectNumber])) {
+        $objectBody ??= $objects[$objectNumber] ?? null;
+        if ($objectBody === null) {
             return null;
         }
 
-        $stream = $this->streamDictionaryAndPayload($objects[$objectNumber], $objects);
+        $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
             return null;
         }
@@ -4014,6 +4057,7 @@ final class PdfTextExtractor
             'form_xobject_depth' => max(0, count($resourcePath) - 1),
             'parent_form_xobject_object' => $parentFormObjectNumber,
             'object_number' => $objectNumber,
+            'object_generation' => $objectGeneration,
             'optional_content_visible' => $optionalContentVisible,
             'invoked' => $invocationMatrices !== [],
             'invocation_count' => count($invocationMatrices),
@@ -4707,17 +4751,26 @@ final class PdfTextExtractor
      */
     private function decodedFormXObject(array $objects, int $objectNumber): ?array
     {
-        if (!isset($objects[$objectNumber]) || preg_match('/\/Subtype\s*\/Form\b/', $objects[$objectNumber]) !== 1) {
+        return $this->decodedFormXObjectBody($objects[$objectNumber] ?? null, $objects);
+    }
+
+    /**
+     * @return array{body: string, stream: string}|null
+     * @param array<int, string> $objects
+     */
+    private function decodedFormXObjectBody(?string $objectBody, array $objects): ?array
+    {
+        if ($objectBody === null || preg_match('/\/Subtype\s*\/Form\b/', $objectBody) !== 1) {
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objects[$objectNumber], $objects);
+        $decoded = $this->decodeStreamObject($objectBody, $objects);
         if ($decoded === null) {
             return null;
         }
 
         return [
-            'body' => $objects[$objectNumber],
+            'body' => $objectBody,
             'stream' => $decoded,
         ];
     }

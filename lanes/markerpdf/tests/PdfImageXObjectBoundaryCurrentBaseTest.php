@@ -723,6 +723,58 @@ return [
         $t->true(!str_contains($encoded, $maskPayload));
         $t->true(!str_contains($encoded, $colorKeyPayload));
     },
+    'resolves image XObject resource references by exact object generation' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before exact generation image) Tj ET\n"
+            . "q 30 0 0 10 72 690 cm /Exact#20Image Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After exact generation image) Tj ET';
+        $currentPayload = 'BT /F1 12 Tf 72 720 Td (Current Generation Image Payload Noise) Tj ET';
+        $stalePayload = 'BT /F1 12 Tf 72 720 Td (Stale Generation Image Payload Noise) Tj ET';
+        $currentCompressed = gzcompress($currentPayload);
+        $staleCompressed = gzcompress($stalePayload);
+        if (!is_string($currentCompressed) || !is_string($staleCompressed)) {
+            throw new RuntimeException('Unable to compress exact-generation image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Exact#20Image 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($currentCompressed) . " >>\nstream\n{$currentCompressed}\nendstream\nendobj\n"
+            . "5 1 obj\n<< /Type /XObject /Subtype /Image /Width 9 /Height 9 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($staleCompressed) . " >>\nstream\n{$staleCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+        $entry = $review['entries'][0];
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->same('Exact Image', $entry['resource_name']);
+        $t->same(5, $entry['object_number']);
+        $t->same(0, $entry['object_generation']);
+        $t->same(3, $entry['width']);
+        $t->same(1, $entry['height']);
+        $t->same('DeviceRGB', $entry['color_space']);
+        $t->same(strlen($currentCompressed), $entry['raw_length']);
+        $t->same(true, $entry['decoded_with_current_filters']);
+        $t->same(strlen($currentPayload), $entry['decoded_length']);
+        $t->same(hash('sha256', $currentPayload), $entry['decoded_sha256']);
+        $t->same([[30.0, 0.0, 0.0, 10.0, 72.0, 690.0]], $entry['invocation_matrices']);
+        $t->same([72.0, 690.0, 102.0, 700.0], $entry['image_unit_bbox']);
+        $t->same(['Before exact generation image', 'After exact generation image'], $extractor->extractTextLines($pdf));
+        $t->same("Before exact generation image\nAfter exact generation image", $plainText);
+        $t->true(!str_contains($plainText, 'Current Generation Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Stale Generation Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $currentPayload));
+        $t->true(!str_contains($encoded, $stalePayload));
+        $t->true(str_contains($encoded, hash('sha256', $currentPayload)));
+        $t->true(!str_contains($encoded, hash('sha256', $stalePayload)));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
