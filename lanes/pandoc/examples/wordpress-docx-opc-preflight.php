@@ -85,7 +85,7 @@ XML;
 $signatureXml = <<<'XML'
 <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
-    <ds:Reference URI="/word/_rels/document.xml.rels">
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero"/>
@@ -280,6 +280,9 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'referenceIndex' => $transform['referenceIndex'],
         'referenceUri' => $transform['referenceUri'],
         'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
         'source' => $transform['source'],
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
@@ -300,6 +303,9 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-s
         'signaturePart' => $transform['signaturePart'],
         'referenceUri' => $transform['referenceUri'],
         'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
         'source' => $transform['source'],
         'sourceIds' => $transform['sourceIds'],
         'sourceTypes' => $transform['sourceTypes'],
@@ -719,8 +725,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'rIdDraftReview')
         || count($summary['signatureRelationshipTransforms'] ?? []) !== 1
         || ($summary['signatureRelationshipTransforms'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig1.xml'
-        || ($summary['signatureRelationshipTransforms'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransforms'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
         || ($summary['signatureRelationshipTransforms'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransforms'][0]['referenceTargetContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipTransforms'][0]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipTransforms'][0]['referenceContentTypeMatches'] ?? null) !== true
         || ($summary['signatureRelationshipTransforms'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['signatureRelationshipTransforms'][0]['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer']
         || ($summary['signatureRelationshipTransforms'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
@@ -738,6 +747,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-selector-shape.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
         || ($summary['signatureRelationshipTransformGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureRelationshipTransformGuards'][0]['referenceTargetContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureRelationshipTransformGuards'][0]['referenceContentType'] ?? null) !== null
+        || ($summary['signatureRelationshipTransformGuards'][0]['referenceContentTypeMatches'] ?? null) !== null
         || ($summary['signatureRelationshipTransformGuards'][0]['source'] ?? null) !== '/word/document.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
         || ($summary['signatureRelationshipTransformGuards'][0]['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]

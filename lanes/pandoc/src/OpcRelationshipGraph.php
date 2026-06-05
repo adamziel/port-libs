@@ -998,7 +998,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, followingCanonicalizationAlgorithm:?string, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, followingCanonicalizationAlgorithm:?string, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -1026,6 +1026,9 @@ final class OpcRelationshipGraph
                 }
 
                 $relationshipPartName = null;
+                $referenceTargetContentType = null;
+                $referenceContentType = null;
+                $referenceContentTypeMatches = null;
                 $sourcePartName = null;
                 $parseError = null;
                 $issues = [];
@@ -1039,12 +1042,27 @@ final class OpcRelationshipGraph
                         if (!OpcRelationships::isRelationshipPartName($relationshipPartName)) {
                             $issues[] = 'reference-not-relationship-part';
                         } else {
+                            $referenceTargetContentType = $this->contentTypes->contentTypeForPart($relationshipPartName);
                             $sourcePartName = OpcRelationships::sourcePartNameForRelationshipPart($relationshipPartName);
                             $rowsByRelationshipPart[$relationshipPartName][] = count($rows);
                         }
                     } catch (\InvalidArgumentException $exception) {
                         $issues[] = 'invalid-reference-uri';
                         $parseError = $exception->getMessage();
+                    }
+                }
+
+                $referenceContentTypeQuery = self::referenceContentTypeQuery($referenceUri);
+                $referenceContentType = $referenceContentTypeQuery['contentType'];
+                $issues = array_merge($issues, $referenceContentTypeQuery['issues']);
+                if ($parseError === null && $referenceContentTypeQuery['parseError'] !== null) {
+                    $parseError = $referenceContentTypeQuery['parseError'];
+                }
+
+                if ($referenceContentType !== null) {
+                    $referenceContentTypeMatches = $referenceTargetContentType === $referenceContentType;
+                    if (!$referenceContentTypeMatches) {
+                        $issues[] = 'reference-content-type-mismatch';
                     }
                 }
 
@@ -1089,6 +1107,9 @@ final class OpcRelationshipGraph
                     'referenceIndex' => $referenceIndex,
                     'referenceUri' => $referenceUri,
                     'relationshipPartName' => $relationshipPartName,
+                    'referenceTargetContentType' => $referenceTargetContentType,
+                    'referenceContentType' => $referenceContentType,
+                    'referenceContentTypeMatches' => $referenceContentTypeMatches,
                     'source' => $sourcePartName,
                     'transformAlgorithm' => self::RELATIONSHIP_TRANSFORM_ALGORITHM,
                     'sourceIds' => $selector['sourceIds'],
@@ -1346,6 +1367,76 @@ final class OpcRelationshipGraph
             'http://www.w3.org/2006/12/xml-c14n11',
             'http://www.w3.org/2006/12/xml-c14n11#WithComments',
         ], true);
+    }
+
+    /**
+     * @return array{contentType:?string, issues:list<string>, parseError:?string}
+     */
+    private static function referenceContentTypeQuery(string $referenceUri): array
+    {
+        $queryStart = strpos($referenceUri, '?');
+        if ($queryStart === false) {
+            return [
+                'contentType' => null,
+                'issues' => [],
+                'parseError' => null,
+            ];
+        }
+
+        $queryEnd = strpos($referenceUri, '#', $queryStart + 1);
+        $query = $queryEnd === false
+            ? substr($referenceUri, $queryStart + 1)
+            : substr($referenceUri, $queryStart + 1, $queryEnd - $queryStart - 1);
+
+        $contentType = null;
+        $issues = [];
+        $parseError = null;
+        foreach (explode('&', $query) as $pair) {
+            if ($pair === '') {
+                continue;
+            }
+
+            $parts = explode('=', $pair, 2);
+            try {
+                $name = self::decodeReferenceQueryComponent($parts[0]);
+                $value = self::decodeReferenceQueryComponent($parts[1] ?? '');
+            } catch (\InvalidArgumentException $exception) {
+                self::appendUniqueString($issues, 'invalid-reference-content-type-query');
+                $parseError = $exception->getMessage();
+                continue;
+            }
+
+            if ($name !== 'ContentType') {
+                continue;
+            }
+
+            if ($contentType !== null) {
+                self::appendUniqueString($issues, 'duplicate-reference-content-type-query');
+                continue;
+            }
+
+            if ($value === '') {
+                self::appendUniqueString($issues, 'empty-reference-content-type-query');
+                continue;
+            }
+
+            $contentType = $value;
+        }
+
+        return [
+            'contentType' => $contentType,
+            'issues' => $issues,
+            'parseError' => $parseError,
+        ];
+    }
+
+    private static function decodeReferenceQueryComponent(string $value): string
+    {
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $value) === 1) {
+            throw new \InvalidArgumentException('OPC signature reference query contains malformed percent escape');
+        }
+
+        return rawurldecode($value);
     }
 
     /**

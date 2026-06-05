@@ -1528,6 +1528,156 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/missing.xml'));
     },
+    'preflights OPC signature relationship transform reference content type queries' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/sig-content-type.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $footnotesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnoteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footnote.png"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $customXmlRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCustomImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../word/media/custom.png"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/_rels/.rels?ContentType=application%2Fvnd.openxmlformats-package.relationships%2Bxml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdDocument"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/footnotes.xml.rels?ContentType=application/xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdFootnoteImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/_rels/comments.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml&amp;ContentType=application/xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdCommentImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/_rels/item1.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships%ZZxml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdCustomImage"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $customXmlRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/media/footnote.png', 'data' => 'PNG'],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+            ['name' => 'word/media/custom.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-content-type.xml', 'data' => $signatureXml],
+        ]));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-content-type.xml');
+
+        $t->same(5, count($transforms));
+        $t->same('/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml', $transforms[0]['referenceUri']);
+        $t->same('/word/_rels/document.xml.rels', $transforms[0]['relationshipPartName']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $transforms[0]['referenceTargetContentType']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $transforms[0]['referenceContentType']);
+        $t->same(true, $transforms[0]['referenceContentTypeMatches']);
+        $t->same(true, $transforms[0]['valid']);
+        $t->same([], $transforms[0]['issues']);
+        $t->same(['rIdHero'], $transforms[0]['relationshipIds']);
+
+        $t->same('/_rels/.rels', $transforms[1]['relationshipPartName']);
+        $t->same('/', $transforms[1]['source']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $transforms[1]['referenceContentType']);
+        $t->same(true, $transforms[1]['referenceContentTypeMatches']);
+        $t->same(true, $transforms[1]['valid']);
+        $t->same(['rIdDocument'], $transforms[1]['relationshipIds']);
+
+        $t->same('application/xml', $transforms[2]['referenceContentType']);
+        $t->same(false, $transforms[2]['referenceContentTypeMatches']);
+        $t->same(false, $transforms[2]['valid']);
+        $t->same(['reference-content-type-mismatch'], $transforms[2]['issues']);
+        $t->same('/word/_rels/footnotes.xml.rels', $transforms[2]['relationshipPartName']);
+        $t->same(['rIdFootnoteImage'], $transforms[2]['relationshipIds']);
+
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $transforms[3]['referenceContentType']);
+        $t->same(true, $transforms[3]['referenceContentTypeMatches']);
+        $t->same(false, $transforms[3]['valid']);
+        $t->same(['duplicate-reference-content-type-query'], $transforms[3]['issues']);
+        $t->same('/word/_rels/comments.xml.rels', $transforms[3]['relationshipPartName']);
+        $t->same(['rIdCommentImage'], $transforms[3]['relationshipIds']);
+
+        $t->same(null, $transforms[4]['referenceContentType']);
+        $t->same(null, $transforms[4]['referenceContentTypeMatches']);
+        $t->same(false, $transforms[4]['valid']);
+        $t->same(['invalid-reference-content-type-query'], $transforms[4]['issues']);
+        $t->same('/customXml/_rels/item1.xml.rels', $transforms[4]['relationshipPartName']);
+        $t->same(['rIdCustomImage'], $transforms[4]['relationshipIds']);
+        $t->contains('malformed percent escape', $transforms[4]['parseError'] ?? '');
+    },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
