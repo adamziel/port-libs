@@ -460,7 +460,7 @@ final class PdfNamedDestinationExtractor
         $entries = [];
         $limits = $this->nameTreeEffectiveLimits($dictionary, $objects, $cache, $inheritedLimits);
         $childLimits = $limits;
-        $names = $dictionary['Names'] ?? null;
+        $names = $this->resolve($dictionary['Names'] ?? null, $objects, $cache);
         if (is_array($names) && array_is_list($names)) {
             $entryLimits = $this->nameTreeLimitsMatchAnyPairKey($names, $objects, $cache, $limits)
                 ? $limits
@@ -480,7 +480,7 @@ final class PdfNamedDestinationExtractor
             }
         }
 
-        foreach ($this->arrayValues($dictionary['Kids'] ?? null) as $kid) {
+        foreach ($this->arrayValues($this->resolve($dictionary['Kids'] ?? null, $objects, $cache)) as $kid) {
             foreach ($this->collectNameTreeEntries($kid, $objects, $cache, $seenObjects, $childLimits, $depth + 1) as $entry) {
                 $entries[] = $entry;
             }
@@ -524,7 +524,7 @@ final class PdfNamedDestinationExtractor
      */
     private function nameTreeNodeLimits(array $node, array $objects, array &$cache): ?array
     {
-        $limits = $this->arrayValues($node['Limits'] ?? null);
+        $limits = $this->arrayValues($this->resolve($node['Limits'] ?? null, $objects, $cache));
         if (count($limits) < 2) {
             return null;
         }
