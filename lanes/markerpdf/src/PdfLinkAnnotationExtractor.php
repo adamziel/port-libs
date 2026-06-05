@@ -285,21 +285,74 @@ final class PdfLinkAnnotationExtractor
             return null;
         }
 
-        foreach ($links as $link) {
-            foreach ($this->linkRectCandidatesForPage($link, $page) as $candidate) {
-                if ($this->bboxesIntersect($bbox, $candidate['rect'])) {
-                    return [
-                        'link' => $link,
-                        'rect' => $candidate['rect'],
-                        'coordinate_space' => $candidate['coordinate_space'],
-                    ]
-                        + (array_key_exists('quad_index', $candidate) ? ['quad_index' => $candidate['quad_index']] : [])
-                        + (array_key_exists('visible_quad_position', $candidate) ? ['visible_quad_position' => $candidate['visible_quad_position']] : []);
+        $spanArea = $this->rectArea($bbox);
+        if ($spanArea <= 0.0) {
+            return null;
+        }
+
+        $best = null;
+        $bestScore = null;
+        foreach (array_values($links) as $linkOrder => $link) {
+            foreach ($this->linkRectCandidatesForPage($link, $page) as $candidateOrder => $candidate) {
+                if (!$this->bboxesIntersect($bbox, $candidate['rect'])) {
+                    continue;
                 }
+
+                $intersection = $this->intersectRects($bbox, $candidate['rect']);
+                if (!$this->rectHasArea($intersection)) {
+                    continue;
+                }
+
+                $score = [
+                    'span_coverage' => $this->rectArea($intersection) / $spanArea,
+                    'candidate_area' => $this->rectArea($candidate['rect']),
+                    'intersection_area' => $this->rectArea($intersection),
+                    'link_order' => $linkOrder,
+                    'candidate_order' => $candidateOrder,
+                ];
+                if ($bestScore !== null && !$this->linkCandidateBeats($score, $bestScore)) {
+                    continue;
+                }
+
+                $bestScore = $score;
+                $best = [
+                    'link' => $link,
+                    'rect' => $candidate['rect'],
+                    'coordinate_space' => $candidate['coordinate_space'],
+                ]
+                    + (array_key_exists('quad_index', $candidate) ? ['quad_index' => $candidate['quad_index']] : [])
+                    + (array_key_exists('visible_quad_position', $candidate) ? ['visible_quad_position' => $candidate['visible_quad_position']] : []);
             }
         }
 
-        return null;
+        return $best;
+    }
+
+    /**
+     * @param array{span_coverage: float, candidate_area: float, intersection_area: float, link_order: int, candidate_order: int} $candidate
+     * @param array{span_coverage: float, candidate_area: float, intersection_area: float, link_order: int, candidate_order: int} $incumbent
+     */
+    private function linkCandidateBeats(array $candidate, array $incumbent): bool
+    {
+        $epsilon = 0.000001;
+
+        if (abs($candidate['span_coverage'] - $incumbent['span_coverage']) > $epsilon) {
+            return $candidate['span_coverage'] > $incumbent['span_coverage'];
+        }
+
+        if (abs($candidate['candidate_area'] - $incumbent['candidate_area']) > $epsilon) {
+            return $candidate['candidate_area'] < $incumbent['candidate_area'];
+        }
+
+        if (abs($candidate['intersection_area'] - $incumbent['intersection_area']) > $epsilon) {
+            return $candidate['intersection_area'] > $incumbent['intersection_area'];
+        }
+
+        if ($candidate['link_order'] !== $incumbent['link_order']) {
+            return $candidate['link_order'] < $incumbent['link_order'];
+        }
+
+        return $candidate['candidate_order'] < $incumbent['candidate_order'];
     }
 
     /**
@@ -1539,6 +1592,14 @@ final class PdfLinkAnnotationExtractor
     private function rectHeight(array $rect): float
     {
         return max(0.0, $rect[3] - $rect[1]);
+    }
+
+    /**
+     * @param list<float> $rect
+     */
+    private function rectArea(array $rect): float
+    {
+        return $this->rectWidth($rect) * $this->rectHeight($rect);
     }
 
     /**
