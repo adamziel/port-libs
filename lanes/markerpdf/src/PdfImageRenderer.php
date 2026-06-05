@@ -7659,7 +7659,7 @@ final class PdfImageRenderer
 
         $lastCompleteTerminator = null;
         foreach ($this->dctPreviewEoiEndOffsets($value, $jpegStart) as $eoiEnd) {
-            $terminator = $this->skipDctPreviewPadding($value, $eoiEnd);
+            $terminator = $this->skipDctPreviewTerminatorPadding($value, $eoiEnd);
             if ($this->streamEndTerminatorAt($value, $terminator, $streamStart)) {
                 $lastCompleteTerminator = $terminator;
             }
@@ -7943,6 +7943,11 @@ final class PdfImageRenderer
         }
 
         return $offset;
+    }
+
+    private function skipDctPreviewTerminatorPadding(string $value, int $offset): int
+    {
+        return $this->skipPdfWhitespace($value, $this->skipDctPreviewPadding($value, $offset));
     }
 
     private function streamEndKeywordAt(string $value, int $offset): bool

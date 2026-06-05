@@ -12157,7 +12157,7 @@ final class PdfTextExtractor
 
         $lastCompleteTerminator = null;
         foreach ($this->dctPreviewEoiEndOffsets($value, $jpegStart) as $eoiEnd) {
-            $terminator = $this->skipDctPreviewPadding($value, $eoiEnd);
+            $terminator = $this->skipDctPreviewTerminatorPadding($value, $eoiEnd);
             if ($minimumTerminatorOffset !== null && $terminator < $minimumTerminatorOffset) {
                 continue;
             }
@@ -12226,6 +12226,11 @@ final class PdfTextExtractor
         }
 
         return $offset;
+    }
+
+    private function skipDctPreviewTerminatorPadding(string $value, int $offset): int
+    {
+        return $this->skipPdfWhitespace($value, $this->skipDctPreviewPadding($value, $offset));
     }
 
     /**
