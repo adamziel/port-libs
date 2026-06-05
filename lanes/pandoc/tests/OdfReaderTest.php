@@ -723,6 +723,52 @@ XML;
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
     },
+    'preserves ODT link metadata for Markdown and WordPress review output' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithLinkMetadata = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Source <text:a xlink:href="https://example.test/source.odt#review" xlink:type="simple" xlink:show="new" xlink:actuate="onRequest" office:name="Source Link" office:title="Source ODT review" office:target-frame-name="_blank" text:style-name="SourceLink" text:visited-style-name="VisitedSourceLink">review link</text:a> remains auditable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithLinkMetadata));
+        $paragraph = $result['document']->children[0];
+        $link = $paragraph->children[1];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Source review link remains auditable.', $paragraph->attr('text'));
+        $t->same('link', $link->type);
+        $t->same('https://example.test/source.odt#review', $link->attr('url'));
+        $t->same('Source ODT review', $link->attr('title'));
+        $t->same('review link', $link->children[0]->attr('text'));
+        $t->same('odt', $link->attr('sourceFormat'));
+        $t->same(['odf-link'], $link->attr('classes'));
+        $t->same('Source Link', $link->attr('odfLinkMetadata')['name']);
+        $t->same('SourceLink', $link->attr('odfLinkMetadata')['styleName']);
+        $t->same('VisitedSourceLink', $link->attr('odfLinkMetadata')['visitedStyleName']);
+        $t->same('_blank', $link->attr('odfLinkMetadata')['targetFrameName']);
+        $t->same('simple', $link->attr('odfLinkMetadata')['type']);
+        $t->same('new', $link->attr('odfLinkMetadata')['show']);
+        $t->same('onRequest', $link->attr('odfLinkMetadata')['actuate']);
+        $t->same('Source Link', $link->attr('attributes')['data-odf-link-name']);
+        $t->same('SourceLink', $link->attr('attributes')['data-odf-link-style-name']);
+        $t->same('VisitedSourceLink', $link->attr('attributes')['data-odf-link-visited-style-name']);
+        $t->same('_blank', $link->attr('attributes')['data-odf-link-target-frame-name']);
+        $t->same('simple', $link->attr('attributes')['data-odf-link-type']);
+        $t->same('new', $link->attr('attributes')['data-odf-link-show']);
+        $t->same('onRequest', $link->attr('attributes')['data-odf-link-actuate']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[review link](https://example.test/source.odt#review "Source ODT review"){.odf-link data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest"}', $markdown);
+        $t->contains('<a href="https://example.test/source.odt#review" title="Source ODT review" class="odf-link" data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest">review link</a>', $blocksHtml);
+    },
     'maps ODT annotation ranges into review spans and note handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnnotationRange = <<<'XML'
 <office:document-content

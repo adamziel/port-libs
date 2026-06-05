@@ -1087,12 +1087,7 @@ final class OdfReader
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 'a')) {
-                $attrs = ['url' => self::attr($child, self::XLINK_NS, 'href')];
-                $title = self::attr($child, self::OFFICE_NS, 'title');
-                if ($title !== '') {
-                    $attrs['title'] = $title;
-                }
-                $nodes[] = new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($child, $catalog, $package)));
+                $nodes[] = $this->linkNode($child, $catalog, $package);
                 continue;
             }
             if ($this->isElement($child, self::TEXT_NS, 's')) {
@@ -1198,6 +1193,41 @@ final class OdfReader
         }
 
         return $nodes;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function linkNode(\DOMElement $link, array $catalog, ?ZipPackage $package): AstNode
+    {
+        $attrs = [
+            'url' => self::attr($link, self::XLINK_NS, 'href'),
+        ];
+        $title = self::attr($link, self::OFFICE_NS, 'title');
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $metadata = self::withoutEmpty([
+            'name' => self::nullable(self::attr($link, self::OFFICE_NS, 'name')),
+            'styleName' => self::nullable(self::attr($link, self::TEXT_NS, 'style-name')),
+            'visitedStyleName' => self::nullable(self::attr($link, self::TEXT_NS, 'visited-style-name')),
+            'targetFrameName' => self::nullable(self::attr($link, self::OFFICE_NS, 'target-frame-name')),
+            'type' => self::nullable(self::attr($link, self::XLINK_NS, 'type')),
+            'show' => self::nullable(self::attr($link, self::XLINK_NS, 'show')),
+            'actuate' => self::nullable(self::attr($link, self::XLINK_NS, 'actuate')),
+        ]);
+        if ($metadata !== []) {
+            $attrs['sourceFormat'] = 'odt';
+            $attrs['odfLinkMetadata'] = $metadata;
+            $attrs['classes'] = ['odf-link'];
+            $attrs['attributes'] = [];
+            foreach ($metadata as $name => $value) {
+                $attrs['attributes']['data-odf-link-' . self::kebabCase((string) $name)] = (string) $value;
+            }
+        }
+
+        return new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($link, $catalog, $package)));
     }
 
     private function isTextFieldElement(\DOMElement $element): bool
