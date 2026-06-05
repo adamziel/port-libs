@@ -45,11 +45,17 @@ final class SyntaxHighlighter
         'html5' => 'html',
         'haskell' => 'haskell',
         'hs' => 'haskell',
+        'cfg' => 'ini',
+        'editorconfig' => 'ini',
+        'gitconfig' => 'ini',
+        'gitmodules' => 'ini',
+        'ini' => 'ini',
         'javascript' => 'javascript',
         'javascript-react' => 'jsx',
         'js' => 'javascript',
         'jsx' => 'jsx',
         'json' => 'json',
+        'kcfgc' => 'ini',
         'latex' => 'tex',
         'lhs' => 'haskell',
         'literate-haskell' => 'haskell',
@@ -65,6 +71,7 @@ final class SyntaxHighlighter
         'pandoc' => 'markdown',
         'pandoc-markdown' => 'markdown',
         'patch' => 'diff',
+        'pls' => 'ini',
         'gnumakefile' => 'makefile',
         'make' => 'makefile',
         'makefile' => 'makefile',
@@ -507,6 +514,7 @@ final class SyntaxHighlighter
             'dockerfile' => $this->tokenizeDockerfile($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
+            'ini' => $this->tokenizeIni($code),
             'javascript' => $this->tokenizeJavaScript($code),
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
@@ -603,6 +611,172 @@ final class SyntaxHighlighter
             ['number', '/^-?\\b(?:0|[1-9]\\d*)(?:\\.\\d+)?\\b/'],
             ['operator', '/^(?:---|\\.\\.\\.|[\\[\\]{}:,.&*|-])/'],
         ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeIni(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $this->tokenizeIniLine($line, $tokens);
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeIniLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)([;#].*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(\[[^\]\r]*\])(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'keyword', $matches[2]);
+            $this->appendIniTrailingText($matches[3], $tokens);
+            return;
+        }
+
+        $assignmentOffset = strpos($line, '=');
+        if ($assignmentOffset === false) {
+            $this->appendToken($tokens, 'text', $line);
+            return;
+        }
+
+        $key = substr($line, 0, $assignmentOffset);
+        if (preg_match('/^([ \t]*)(.*?)([ \t]*)$/', $key, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            if ($matches[2] !== '') {
+                $this->appendToken($tokens, 'datatype', $matches[2]);
+            }
+            $this->appendToken($tokens, 'text', $matches[3]);
+        } else {
+            $this->appendToken($tokens, 'datatype', $key);
+        }
+
+        $this->appendToken($tokens, 'operator', '=');
+        $this->appendIniValue(substr($line, $assignmentOffset + 1), $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendIniTrailingText(string $text, array &$tokens): void
+    {
+        if ($text === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]+)([;#].*)$/', $text, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        $this->appendToken($tokens, 'text', $text);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendIniValue(string $value, array &$tokens): void
+    {
+        if ($value === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(.*?)([ \t]*)$/', $value, $matches) !== 1) {
+            $this->appendToken($tokens, 'string', $value);
+            return;
+        }
+
+        $this->appendToken($tokens, 'text', $matches[1]);
+        $body = $matches[2];
+        if ($body !== '') {
+            if (self::isIniNumber($body)) {
+                $this->appendToken($tokens, 'number', $body);
+            } elseif (self::isIniPhpErrorConstantNegation($body)) {
+                $this->appendToken($tokens, 'operator', '~');
+                $this->appendToken($tokens, 'keyword', substr($body, 1));
+            } elseif (self::isIniKeyword($body)) {
+                $this->appendToken($tokens, 'keyword', $body);
+            } else {
+                $this->appendToken($tokens, 'string', $body);
+            }
+        }
+        $this->appendToken($tokens, 'text', $matches[3]);
+    }
+
+    private static function isIniNumber(string $value): bool
+    {
+        return preg_match('/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/', $value) === 1;
+    }
+
+    private static function isIniPhpErrorConstantNegation(string $value): bool
+    {
+        $constant = substr($value, 1);
+
+        return str_starts_with($value, '~')
+            && str_starts_with(strtolower($constant), 'e_')
+            && self::isIniKeyword($constant);
+    }
+
+    private static function isIniKeyword(string $value): bool
+    {
+        static $keywords = [
+            'default',
+            'defaults',
+            'e_all',
+            'e_compile_error',
+            'e_compile_warning',
+            'e_core_error',
+            'e_core_warning',
+            'e_error',
+            'e_notice',
+            'e_parse',
+            'e_strict',
+            'e_user_error',
+            'e_user_notice',
+            'e_user_warning',
+            'e_warning',
+            'false',
+            'localhost',
+            'no',
+            'normal',
+            'null',
+            'off',
+            'on',
+            'true',
+            'yes',
+        ];
+
+        return in_array(strtolower($value), $keywords, true);
     }
 
     /**

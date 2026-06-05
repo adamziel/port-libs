@@ -46,6 +46,10 @@ return [
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('hpp'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('latex'));
         $t->same('tex', SyntaxHighlighter::normalizeLanguage('TeX'));
+        $t->same('ini', SyntaxHighlighter::normalizeLanguage('ini'));
+        $t->same('ini', SyntaxHighlighter::normalizeLanguage('cfg'));
+        $t->same('ini', SyntaxHighlighter::normalizeLanguage('gitconfig'));
+        $t->same('ini', SyntaxHighlighter::normalizeLanguage('editorconfig'));
         $t->same('yaml', SyntaxHighlighter::normalizeLanguage('yml'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('md'));
         $t->same('markdown', SyntaxHighlighter::normalizeLanguage('pandoc-markdown'));
@@ -725,6 +729,43 @@ return [
         $t->contains('<span class="kw">include</span> <span class="va">.env</span>', $directMakefile['html']);
         $t->contains('<span class="re">clean</span><span class="op">:</span>', $directMakefile['html']);
         $t->contains('<span class="fu">rm</span> <span class="op">-rf</span> <span class="va">build</span>', $directMakefile['html']);
+    },
+    'highlights ini config review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[14] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an INI code block');
+        }
+
+        $highlighted = (new SyntaxHighlighter())->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directCfg = (new SyntaxHighlighter())->highlight("enabled = True\nerror_reporting = ~E_ALL", 'cfg');
+
+        $t->same('ini', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('ini', $highlighted['language']);
+        $t->same('ini', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(2, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource ini numberLines"><code class="sourceCode ini" style="counter-reset: source-line 1;">', $highlighted['html']);
+        $t->contains('<span id="php-ini-review-2"><a href="#php-ini-review-2"></a><span class="co">; WordPress hosting php.ini review</span></span>', $highlighted['html']);
+        $t->contains('<span id="php-ini-review-3"><a href="#php-ini-review-3"></a><span class="kw">[PHP]</span></span>', $highlighted['html']);
+        $t->contains('<span class="dt">memory_limit</span> <span class="op">=</span> <span class="st">256M</span>', $highlighted['html']);
+        $t->contains('<span class="dt">upload_max_filesize</span> <span class="op">=</span> <span class="st">64M</span>', $highlighted['html']);
+        $t->contains('<span class="dt">display_errors</span> <span class="op">=</span> <span class="kw">Off</span>', $highlighted['html']);
+        $t->contains('<span class="dt">error_reporting</span> <span class="op">=</span> <span class="kw">E_ALL</span>', $highlighted['html']);
+        $t->contains('<span class="kw">[opcache]</span>', $highlighted['html']);
+        $t->contains('<span class="dt">opcache.enable</span> <span class="op">=</span> <span class="dv">1</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="dt">display_errors</span> <span class="op">=</span> <span class="kw">Off</span>', $wordpressBlock);
+        $t->same('ini', $directCfg['language']);
+        $t->contains('<span class="dt">enabled</span> <span class="op">=</span> <span class="kw">True</span>', $directCfg['html']);
+        $t->contains('<span class="dt">error_reporting</span> <span class="op">=</span> <span class="op">~</span><span class="kw">E_ALL</span>', $directCfg['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

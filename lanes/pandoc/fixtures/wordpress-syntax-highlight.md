@@ -167,3 +167,14 @@ if (any(scores$views > 100)) {
   print("popular import")
 }
 ```
+
+``` {.ini #php-ini-review .numberLines startFrom=2}
+; WordPress hosting php.ini review
+[PHP]
+memory_limit = 256M
+upload_max_filesize = 64M
+display_errors = Off
+error_reporting = E_ALL
+[opcache]
+opcache.enable = 1
+```

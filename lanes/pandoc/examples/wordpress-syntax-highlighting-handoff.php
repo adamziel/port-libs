@@ -120,6 +120,12 @@ if (!$rCodeBlock instanceof PortLibs\Pandoc\AstNode || $rCodeBlock->type !== 'co
 }
 $rScript = $highlighter->highlightCodeBlock($rCodeBlock, 'espresso');
 $rWordpressBlock = $highlighter->wordpressHtmlBlock($rCodeBlock, 'espresso');
+$iniCodeBlock = $document->children[14] ?? null;
+if (!$iniCodeBlock instanceof PortLibs\Pandoc\AstNode || $iniCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an INI code block');
+}
+$ini = $highlighter->highlightCodeBlock($iniCodeBlock, 'haddock');
+$iniWordpressBlock = $highlighter->wordpressHtmlBlock($iniCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -442,6 +448,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($rWordpressBlock, '<span class="fu">mutate</span><span class="op">(</span><span class="ot">slug</span>')) {
         throw new RuntimeException('Expected R WordPress mutate named-argument handoff');
     }
+    if (($ini['language'] ?? '') !== 'ini') {
+        throw new RuntimeException('Expected INI alias to normalize to INI highlighting');
+    }
+    if (($ini['lineNumbering']['start'] ?? null) !== 2) {
+        throw new RuntimeException('Expected INI source startFrom line-number handoff');
+    }
+    if (!str_contains($ini['html'], '<span class="kw">[PHP]</span>')) {
+        throw new RuntimeException('Expected INI section token handoff');
+    }
+    if (!str_contains($ini['html'], '<span class="dt">display_errors</span> <span class="op">=</span> <span class="kw">Off</span>')) {
+        throw new RuntimeException('Expected INI keyword value token handoff');
+    }
+    if (!str_contains($ini['html'], '<span class="dt">opcache.enable</span> <span class="op">=</span> <span class="dv">1</span>')) {
+        throw new RuntimeException('Expected INI numeric value token handoff');
+    }
+    if (!str_contains($iniWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected INI WordPress style metadata');
+    }
+    if (!str_contains($iniWordpressBlock, '<span class="dt">error_reporting</span> <span class="op">=</span> <span class="kw">E_ALL</span>')) {
+        throw new RuntimeException('Expected INI PHP constant token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -479,6 +506,7 @@ echo "dockerfileHighlightedHtml:\n" . $dockerfile['html'] . "\n";
 echo "makefileHighlightedHtml:\n" . $makefile['html'] . "\n";
 echo "jsxHighlightedHtml:\n" . $jsx['html'] . "\n";
 echo "rHighlightedHtml:\n" . $rScript['html'] . "\n";
+echo "iniHighlightedHtml:\n" . $ini['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -488,4 +516,5 @@ echo "dockerfileWordpressBlock:\n" . $dockerfileWordpressBlock . "\n";
 echo "makefileWordpressBlock:\n" . $makefileWordpressBlock . "\n";
 echo "jsxWordpressBlock:\n" . $jsxWordpressBlock . "\n";
 echo "rWordpressBlock:\n" . $rWordpressBlock . "\n";
+echo "iniWordpressBlock:\n" . $iniWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
