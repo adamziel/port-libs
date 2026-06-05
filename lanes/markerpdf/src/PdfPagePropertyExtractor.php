@@ -1571,11 +1571,20 @@ final class PdfPagePropertyExtractor
                     return $catalogLineage;
                 }
 
+                if ($catalogLineage !== []) {
+                    return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 break;
             }
 
             $parentReference = $this->objectReferenceFromValue($parentValue);
             if ($parentReference === null) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                if ($catalogLineage !== []) {
+                    return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 break;
             }
 
@@ -1584,11 +1593,21 @@ final class PdfPagePropertyExtractor
                 !isset($objects[$parentObjectNumber])
                 || ($this->currentObjectGenerations[$parentObjectNumber] ?? null) !== $parentReference['generation']
             ) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                if ($catalogLineage !== []) {
+                    return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 break;
             }
 
             $parentDictionary = $this->dictionaryObjectBody($objects[$parentObjectNumber]);
             if ($parentDictionary === null || $this->pdfObjectTypeName($parentDictionary, $objects) !== 'Pages') {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                if ($catalogLineage !== []) {
+                    return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 break;
             }
 
@@ -1597,6 +1616,11 @@ final class PdfPagePropertyExtractor
                 $childGeneration === null
                 || !$this->pageTreeParentListsChild($parentDictionary, $objectNumber, $childGeneration, $objects)
             ) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects);
+                if ($catalogLineage !== []) {
+                    return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 break;
             }
 
@@ -1707,6 +1731,25 @@ final class PdfPagePropertyExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<int> $lineage
+     * @param list<int> $catalogLineage
+     * @return list<int>
+     */
+    private function pageObjectLineageCommonPrefix(array $lineage, array $catalogLineage): array
+    {
+        $prefix = [];
+        foreach ($lineage as $index => $objectNumber) {
+            if (($catalogLineage[$index] ?? null) !== $objectNumber) {
+                break;
+            }
+
+            $prefix[] = $objectNumber;
+        }
+
+        return $prefix;
     }
 
     /**

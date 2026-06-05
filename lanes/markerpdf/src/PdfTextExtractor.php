@@ -13968,10 +13968,21 @@ final class PdfTextExtractor
                     ];
                 }
 
+                if ($catalogLineage !== []) {
+                    $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                    $blocked = true;
+                }
+
                 break;
             }
 
             if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', trim($parentValue), $match) !== 1) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                if ($catalogLineage !== []) {
+                    $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                    $blocked = true;
+                }
+
                 break;
             }
 
@@ -13984,6 +13995,11 @@ final class PdfTextExtractor
                 || $objects[$parentObjectNumber] !== $parentBody
                 || !$this->isPagesObject($parentBody)
             ) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                if ($catalogLineage !== []) {
+                    $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 $blocked = true;
                 break;
             }
@@ -13993,6 +14009,11 @@ final class PdfTextExtractor
                 $childGeneration === null
                 || !$this->pageTreeParentListsChild($parentBody, $objectNumber, $childGeneration, $objects)
             ) {
+                $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects);
+                if ($catalogLineage !== []) {
+                    $lineage = $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);
+                }
+
                 $blocked = true;
                 break;
             }
@@ -14095,6 +14116,25 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param list<int> $lineage
+     * @param list<int> $catalogLineage
+     * @return list<int>
+     */
+    private function pageObjectLineageCommonPrefix(array $lineage, array $catalogLineage): array
+    {
+        $prefix = [];
+        foreach ($lineage as $index => $objectNumber) {
+            if (($catalogLineage[$index] ?? null) !== $objectNumber) {
+                break;
+            }
+
+            $prefix[] = $objectNumber;
+        }
+
+        return $prefix;
     }
 
     /**
