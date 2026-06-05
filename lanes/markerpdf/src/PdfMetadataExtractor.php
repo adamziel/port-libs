@@ -8744,13 +8744,12 @@ final class PdfMetadataExtractor
 
     private function bytesThroughCurrentEof(string $pdfBytes): string
     {
-        if (preg_match_all('/\bstartxref\s+[+-]?\d+/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
-            $latest = end($matches[0]);
-            if (is_array($latest)) {
-                $eofOffset = strpos($pdfBytes, '%%EOF', $latest[1]);
-                if ($eofOffset !== false) {
-                    return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
-                }
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        $entry = $this->latestStartxrefEntry($pdfBytes, $definitions === [] ? null : $definitions);
+        if ($entry !== null) {
+            $eofOffset = strpos($pdfBytes, '%%EOF', $entry['tokenOffset']);
+            if ($eofOffset !== false) {
+                return substr($pdfBytes, 0, $eofOffset + strlen('%%EOF'));
             }
         }
 
@@ -10737,14 +10736,13 @@ final class PdfMetadataExtractor
      */
     private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
     {
-        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes, $definitions);
-        for ($index = count($matches) - 1; $index >= 0; $index--) {
-            $match = $matches[$index];
-            $tokenOffset = $match[0][1] ?? null;
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
             if (
                 !is_int($tokenOffset)
                 || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
@@ -10759,8 +10757,14 @@ final class PdfMetadataExtractor
                 continue;
             }
 
+            $declaredOffset = 0;
+            $operandBytes = substr($pdfBytes, $tokenOffset + strlen('startxref'), 64);
+            if (preg_match('/^\s*([+-]?\d+)/', $operandBytes, $operandMatch) === 1) {
+                $declaredOffset = (int) $operandMatch[1];
+            }
+
             return [
-                'offset' => max(0, (int) ($match[1][0] ?? 0)),
+                'offset' => max(0, $declaredOffset),
                 'tokenOffset' => $tokenOffset,
             ];
         }

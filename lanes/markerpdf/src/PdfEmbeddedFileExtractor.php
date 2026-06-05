@@ -3769,14 +3769,13 @@ final class PdfEmbeddedFileExtractor
      */
     private function latestStartxrefEntry(string $pdfBytes, ?array $definitions = null): ?array
     {
-        if (preg_match_all('/\bstartxref\s+([+-]?\d+)/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+        if (preg_match_all('/\bstartxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
             return null;
         }
 
         $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes, $definitions);
-        for ($index = count($matches) - 1; $index >= 0; $index--) {
-            $match = $matches[$index];
-            $tokenOffset = $match[0][1] ?? null;
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
             if (
                 !is_int($tokenOffset)
                 || !$this->pdfKeywordAt($pdfBytes, $tokenOffset, 'startxref')
@@ -3791,8 +3790,14 @@ final class PdfEmbeddedFileExtractor
                 continue;
             }
 
+            $declaredOffset = 0;
+            $operandBytes = substr($pdfBytes, $tokenOffset + strlen('startxref'), 64);
+            if (preg_match('/^\s*([+-]?\d+)/', $operandBytes, $operandMatch) === 1) {
+                $declaredOffset = (int) $operandMatch[1];
+            }
+
             return [
-                'offset' => max(0, (int) ($match[1][0] ?? 0)),
+                'offset' => max(0, $declaredOffset),
                 'tokenOffset' => $tokenOffset,
             ];
         }
