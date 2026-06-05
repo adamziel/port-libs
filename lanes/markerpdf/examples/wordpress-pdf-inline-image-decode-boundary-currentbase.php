@@ -204,6 +204,9 @@ $wrappedJpxPrefixPayload = strtoupper(bin2hex($wrappedJpxPrefixBytes)) . '>';
 $wrappedJpxPrefixDictionary = '/W 2 /H 1 /CS /RGB /BPC 8 /F [/AHx /JPXDecode] /D [0 1 1 0 0 1] /Mask [0 0 120 140 200 255]';
 $wrappedJpxPrefixSurplusPayload = $wrappedJpxPrefixPayload
     . 'ZZ EI BT /F1 12 Tf 72 594 Td (Wrapped JPX Prefix Surplus Inline Noise) Tj ET rawtail';
+$jpxPostEocSurplusPayload = "\xFF\x4F\xFF\xD9"
+    . 'ZZ EI BT /F1 12 Tf 72 594 Td (JPX Post EOC Inline Noise) Tj ET rawtail';
+$jpxPostEocDictionary = '/W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode';
 $flateWrappedJpxBytes = "\xFF\x4F\xFF\xD9";
 $flateWrappedJpxCompressed = gzcompress($flateWrappedJpxBytes, 0);
 if (!is_string($flateWrappedJpxCompressed)) {
@@ -275,6 +278,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 596 Td (Before Wrapped JPX Prefix Surplus Inline) Tj ET\n"
     . "BI {$wrappedJpxPrefixDictionary} ID {$wrappedJpxPrefixSurplusPayload}\nEI\n"
     . "BT /F1 12 Tf 72 595 Td (After Wrapped JPX Prefix Surplus Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 596 Td (Before JPX Post EOC Inline) Tj ET\n"
+    . "BI {$jpxPostEocDictionary} ID\n"
+    . $jpxPostEocSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 595 Td (After JPX Post EOC Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 596 Td (Before Flate JPX No Floor) Tj ET\n"
     . "BI {$flateWrappedJpxDictionary} ID {$flateWrappedJpxSurplusPayload}\nEI\n"
     . "BT /F1 12 Tf 72 595 Td (After Flate JPX No Floor) Tj ET\n"
@@ -694,6 +701,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_ascii85_post_eod_surplus_payload' => str_contains($ascii85PostEodSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
     'fake_ei_inside_wrapped_jpx_prefix_surplus_payload' => str_contains($wrappedJpxPrefixSurplusPayload, ' EI '),
+    'fake_ei_inside_jpx_post_eoc_surplus_payload' => str_contains($jpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_flate_wrapped_jpx_surplus_payload' => str_contains($flateWrappedJpxSurplusPayload, ' EI '),
     'fake_ei_inside_stacked_native_filter_surplus_payload' => str_contains($stackedNativeFilterSurplusPayload, ' EI '),
     'fake_ei_inside_runlength_post_eod_surplus_payload' => str_contains($runLengthPostEodSurplusPayload, ' EI '),
@@ -701,6 +709,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_direct_null_filter_samples' => str_contains($directNullFilterSamples, ' EI '),
     'asciihex_surplus_eod_present' => str_contains($asciiHexSurplusPayload, '>'),
     'wrapped_jpx_prefix_surplus_first_eod_present' => str_contains($wrappedJpxPrefixSurplusPayload, '>ZZ EI'),
+    'jpx_post_eoc_surplus_has_raw_eoc_before_fake_ei' => str_contains($jpxPostEocSurplusPayload, "\xFF\xD9ZZ EI"),
     'flate_wrapped_jpx_surplus_native_filter_eod_before_fake_ei' => str_contains($flateWrappedJpxSurplusPayload, 'ZZ EI'),
     'stacked_native_filter_first_eod_present' => str_contains($stackedNativeFilterSurplusPayload, '>ZZ EI'),
     'visible_text_imported' => $lines === [
@@ -733,6 +742,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Wrapped JPX Prefix Inline',
         'Before Wrapped JPX Prefix Surplus Inline',
         'After Wrapped JPX Prefix Surplus Inline',
+        'Before JPX Post EOC Inline',
+        'After JPX Post EOC Inline',
         'Before Flate JPX No Floor',
         'After Flate JPX No Floor',
         'Before Stacked Native Inline',
@@ -842,6 +853,9 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'wrapped_jpx_prefix_surplus_payload_excluded_until_real_ei' => in_array('After Wrapped JPX Prefix Surplus Inline', $lines, true)
         && !str_contains($plainText, 'Wrapped JPX Prefix Surplus Inline Noise')
         && !str_contains($plainText, 'rawtail'),
+    'jpx_post_eoc_surplus_payload_excluded_until_real_ei' => in_array('After JPX Post EOC Inline', $lines, true)
+        && !str_contains($plainText, 'JPX Post EOC Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
     'wrapped_jpx_prefix_native_filter_decoded_before_preview_only' => ($wrappedJpxPrefixReview['image_stream']['native_prefix_decoded'] ?? false) === true
         && ($wrappedJpxPrefixReview['image_stream']['native_prefix_decoded_length'] ?? null) === strlen($wrappedJpxPrefixBytes)
         && ($wrappedJpxPrefixReview['image_stream']['native_prefix_decoded_sha256'] ?? null) === hash('sha256', $wrappedJpxPrefixBytes),
@@ -928,6 +942,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'CalRGB Array Inline Noise')
         && !str_contains($plainText, 'WordPress wrapped JPX prefix bytes')
         && !str_contains($plainText, 'Wrapped JPX Prefix Surplus Inline Noise')
+        && !str_contains($plainText, 'JPX Post EOC Inline Noise')
         && !str_contains($plainText, 'Flate Wrapped JPX Inline Noise')
         && !str_contains($plainText, 'Stacked Native Inline Noise')
         && !str_contains($plainText, $directNullFilterSamples)

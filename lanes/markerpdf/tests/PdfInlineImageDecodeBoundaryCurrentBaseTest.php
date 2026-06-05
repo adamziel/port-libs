@@ -376,6 +376,37 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'keeps raw JPX post-EOC surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $postEocSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (JPX Post EOC Inline Noise) Tj ET rawtail';
+        $jpxPayload = "\xff\x4f\xff\xd9" . $postEocSurplus;
+        $content = "BT /F1 12 Tf 72 720 Td (Before JPX Post EOC Inline) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode ID\n"
+            . $jpxPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After JPX Post EOC Inline) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC 8 ID Q\nEI\n"
+            . "BT /F1 12 Tf 72 688 Td (After Followup Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before JPX Post EOC Inline',
+            'After JPX Post EOC Inline',
+            'After Followup Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_starts_with($jpxPayload, "\xff\x4f"));
+        $t->true(str_contains($postEocSurplus, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'JPX Post EOC Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
     'decodes native inline prefix filters before preview-only JPX handoff' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $renderer = new PdfImageRenderer();

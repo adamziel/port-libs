@@ -29448,13 +29448,13 @@ final class PdfTextExtractor
                     }
                 }
 
+                $rawCandidate = substr($stream, $dataStart, $end - $dataStart);
                 $candidate = $this->inlineImageDataCandidate($stream, $dataStart, $end);
-                if ($this->inlineImageCandidateMatchesDictionary($dictionary, $candidate)) {
+                if ($this->inlineImageCandidateMatchesDictionary($dictionary, $candidate, $rawCandidate)) {
                     $index = $end + 2;
                     return true;
                 }
 
-                $rawCandidate = substr($stream, $dataStart, $end - $dataStart);
                 if ($this->inlineImageRawTerminalWhitespaceCandidateMatchesSampleFloor($dictionary, $rawCandidate, $candidate)) {
                     $index = $end + 2;
                     return true;
@@ -30527,15 +30527,19 @@ final class PdfTextExtractor
         return substr($stream, $dataStart, $dataEnd - $dataStart);
     }
 
-    private function inlineImageCandidateMatchesDictionary(string $dictionary, string $candidate): bool
+    private function inlineImageCandidateMatchesDictionary(string $dictionary, string $candidate, ?string $rawCandidate = null): bool
     {
         $filters = $this->streamFilters($dictionary, []);
         if ($filters === null) {
             return false;
         }
 
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        $jpxCandidate = $rawCandidate !== null && $nonNullFilters === ['JPXDecode']
+            ? $rawCandidate
+            : $candidate;
         $jpxState = $this->inlineImageUsesJpxDecode($filters)
-            ? $this->inlineJpxCandidateStateForFilters($dictionary, $filters, $candidate)
+            ? $this->inlineJpxCandidateStateForFilters($dictionary, $filters, $jpxCandidate)
             : null;
         if ($jpxState === 'incomplete') {
             return false;
@@ -31444,6 +31448,7 @@ final class PdfTextExtractor
      */
     private function inlineJpxCandidateState(string $candidate): string
     {
+        $candidateEndsAtLineBreak = $this->endsWithPdfLineBreak($candidate);
         $bytes = rtrim($candidate, "\x00\t\n\f\r ");
         if ($bytes === '') {
             return 'unknown';
@@ -31455,15 +31460,15 @@ final class PdfTextExtractor
             return 'unknown';
         }
 
-        $structuredComplete = $this->jpxPreviewBytesAreCompleteCodestream($bytes);
+        $structuredComplete = $this->jpxPreviewBytesAreCompleteCodestream($bytes, $candidateEndsAtLineBreak);
         if ($structuredComplete !== null) {
             return $structuredComplete ? 'complete' : 'incomplete';
         }
 
-        return str_contains($bytes, "\xff\xd9") ? 'complete' : 'incomplete';
+        return $this->jpxPreviewBytesEndAtEoc($bytes) ? 'complete' : 'incomplete';
     }
 
-    private function jpxPreviewBytesAreCompleteCodestream(string $bytes): ?bool
+    private function jpxPreviewBytesAreCompleteCodestream(string $bytes, bool $candidateEndsAtLineBreak = false): ?bool
     {
         if (!str_starts_with($bytes, "\xff\x4f")) {
             return null;
@@ -31489,10 +31494,15 @@ final class PdfTextExtractor
                 return null;
             }
             if ($marker === 0xd9) {
-                return true;
+                return $this->streamHasOnlyWhitespaceAfterOffset($bytes, $offset) || $candidateEndsAtLineBreak;
             }
             if ($marker === 0x93) {
-                return strpos($bytes, "\xff\xd9", $offset) !== false;
+                $eocOffset = strpos($bytes, "\xff\xd9", $offset);
+                return $eocOffset !== false
+                    && (
+                        $this->streamHasOnlyWhitespaceAfterOffset($bytes, $eocOffset + 2)
+                        || $candidateEndsAtLineBreak
+                    );
             }
             if (!$this->jpxMarkerSegmentHasLength($marker)) {
                 continue;
@@ -31514,6 +31524,22 @@ final class PdfTextExtractor
         }
 
         return false;
+    }
+
+    private function jpxPreviewBytesEndAtEoc(string $bytes): bool
+    {
+        $eocOffset = strrpos($bytes, "\xff\xd9");
+        return $eocOffset !== false && $this->streamHasOnlyWhitespaceAfterOffset($bytes, $eocOffset + 2);
+    }
+
+    private function endsWithPdfLineBreak(string $bytes): bool
+    {
+        if ($bytes === '') {
+            return false;
+        }
+
+        $lastByte = substr($bytes, -1);
+        return $lastByte === "\n" || $lastByte === "\r" || $lastByte === "\f";
     }
 
     private function jpxMarkerSegmentHasLength(int $marker): bool
