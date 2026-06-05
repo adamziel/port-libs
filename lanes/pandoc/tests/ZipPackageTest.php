@@ -281,7 +281,10 @@ $buildDuplicateLocalOffsetPackage = static function () use ($crc32, $buildUnicod
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
 };
-$buildCentralDirectorySignaturePackage = static function () use ($crc32): string {
+$buildCentralDirectorySignaturePackage = static function (
+    bool $includeInCentralDirectorySize = false,
+    ?int $declaredSignatureLength = null
+) use ($crc32): string {
     $name = 'word/document.xml';
     $data = '<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>';
     $crc = $crc32($data);
@@ -323,12 +326,18 @@ $buildCentralDirectorySignaturePackage = static function () use ($crc32): string
         0
     );
     $central .= $name;
-    $centralDirectorySignature = pack('Vv', 0x05054b50, strlen('central-signature')) . 'central-signature';
+    $centralDirectorySignatureData = 'central-signature';
+    $centralDirectorySignature = pack(
+        'Vv',
+        0x05054b50,
+        $declaredSignatureLength ?? strlen($centralDirectorySignatureData)
+    ) . $centralDirectorySignatureData;
+    $centralDirectorySize = strlen($central) + ($includeInCentralDirectorySize ? strlen($centralDirectorySignature) : 0);
 
     return $body
         . $central
         . $centralDirectorySignature
-        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, $centralDirectorySize, strlen($body), 0);
 };
 
 return [
@@ -798,8 +807,32 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildDuplicateLocalOffsetPackage()));
     },
 
-    'rejects zip central directory digital signatures before package import preflight' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildCentralDirectorySignaturePackage()));
+    'preflights zip central directory digital signatures before package import handoff' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
+        $package = ZipPackage::fromString($buildCentralDirectorySignaturePackage());
+        $signature = $package->centralDirectorySignaturePreflight();
+
+        $t->true($package->hasCentralDirectorySignature());
+        $t->same('central-signature', $package->centralDirectorySignature());
+        $t->same(true, $signature['present']);
+        $t->same($package->centralDirectoryOffset() + 46 + strlen('word/document.xml'), $signature['offset']);
+        $t->same('central-signature', $signature['signatureData']);
+        $t->same(strlen('central-signature'), $signature['signatureLength']);
+        $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
+        $t->same('<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>', $package->read('/word/document.xml'));
+
+        $includedSizePackage = ZipPackage::fromString($buildCentralDirectorySignaturePackage(true));
+        $t->true($includedSizePackage->hasCentralDirectorySignature());
+        $t->same('central-signature', $includedSizePackage->centralDirectorySignaturePreflight()['signatureData']);
+        $t->same(
+            '<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>',
+            $includedSizePackage->read('/word/document.xml')
+        );
+    },
+
+    'rejects malformed zip central directory digital signature records' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString(
+            $buildCentralDirectorySignaturePackage(false, 5)
+        ));
     },
 
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {

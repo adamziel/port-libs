@@ -701,7 +701,7 @@ $buildDuplicateLocalOffsetBackedPackage = static function () use ($crc32): strin
 };
 $buildCentralDirectorySignatureBackedPackage = static function () use ($crc32): string {
     $name = 'word/document.xml';
-    $data = '<w:document><w:body><w:p>Signed central directory should stay blocked</w:p></w:body></w:document>';
+    $data = '<w:document><w:body><w:p>Signed central directory metadata is inspectable</w:p></w:body></w:document>';
     $crc = $crc32($data);
 
     $body = pack(
@@ -1268,12 +1268,11 @@ try {
 } catch (RuntimeException $exception) {
     $duplicateLocalOffsetRejected = str_contains($exception->getMessage(), 'Duplicate ZIP local header offset');
 }
-$centralDirectorySignatureRejected = false;
-try {
-    ZipPackage::fromString($buildCentralDirectorySignatureBackedPackage());
-} catch (RuntimeException $exception) {
-    $centralDirectorySignatureRejected = str_contains($exception->getMessage(), 'central-directory digital signature');
-}
+$centralDirectorySignaturePackage = ZipPackage::fromString($buildCentralDirectorySignatureBackedPackage());
+$centralDirectorySignaturePreflight = $centralDirectorySignaturePackage->centralDirectorySignaturePreflight();
+$centralDirectorySignatureParsed = ($centralDirectorySignaturePreflight['signatureData'] ?? null) === 'central-signature'
+    && ($centralDirectorySignaturePreflight['cryptographicVerification'] ?? null) === 'not-performed-native-bounded-reader'
+    && $centralDirectorySignaturePackage->read('/word/document.xml') === '<w:document><w:body><w:p>Signed central directory metadata is inspectable</w:p></w:body></w:document>';
 $strongEncryptionRejected = false;
 try {
     ZipPackage::fromString($buildEncryptedMetadataBackedPackage(0x0840));
@@ -1827,8 +1826,12 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected duplicate ZIP local header offsets to be rejected before media import');
     }
 
-    if (!$centralDirectorySignatureRejected) {
-        throw new RuntimeException('Expected ZIP central-directory digital signatures to be rejected before media import');
+    if (!$centralDirectorySignatureParsed) {
+        throw new RuntimeException('Expected ZIP central-directory digital signature metadata to be inspectable before media import');
+    }
+
+    if (($centralDirectorySignaturePreflight['signatureLength'] ?? null) !== strlen('central-signature')) {
+        throw new RuntimeException('Expected ZIP central-directory digital signature length to be preserved for review');
     }
 
     if (!$strongEncryptionRejected) {
@@ -1961,7 +1964,9 @@ echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'rejected' : 'not-rejected') . "\n";
-echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureParsed ? 'inspectable' : 'not-inspectable') . "\n";
+echo 'zipCentralDirectorySignatureLength=' . $centralDirectorySignaturePreflight['signatureLength'] . "\n";
+echo 'zipCentralDirectorySignatureVerification=' . $centralDirectorySignaturePreflight['cryptographicVerification'] . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -50,6 +50,8 @@ final class ZipPackage
         private readonly array $entries,
         private readonly int $centralDirectoryOffset,
         private readonly string $packageComment = '',
+        private readonly ?string $centralDirectorySignatureData = null,
+        private readonly ?int $centralDirectorySignatureOffset = null,
     ) {
     }
 
@@ -180,21 +182,54 @@ final class ZipPackage
         }
 
         $centralDirectoryEnd = $centralDirectoryOffset + $centralDirectorySize;
+        $centralDirectorySignatureData = null;
+        $centralDirectorySignatureOffset = null;
         if ($cursor !== $centralDirectoryEnd) {
-            self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature === null || $signature['endOffset'] !== $centralDirectoryEnd) {
+                self::rejectUnexpectedCentralDirectoryTail($bytes, $cursor, 'inside the central directory');
+            }
+
+            $centralDirectorySignatureData = $signature['data'];
+            $centralDirectorySignatureOffset = $signature['offset'];
+            $cursor = $signature['endOffset'];
         }
 
         if ($centralDirectoryEnd !== $eocdOffset) {
-            self::rejectUnexpectedCentralDirectoryTail(
-                $bytes,
-                $centralDirectoryEnd,
-                'between the central directory and end-of-central-directory record'
-            );
+            if ($centralDirectorySignatureData !== null) {
+                self::rejectUnexpectedCentralDirectoryTail(
+                    $bytes,
+                    $centralDirectoryEnd,
+                    'between the central-directory digital signature and end-of-central-directory record'
+                );
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $centralDirectoryEnd);
+            if ($signature !== null && $signature['endOffset'] === $eocdOffset) {
+                $centralDirectorySignatureData = $signature['data'];
+                $centralDirectorySignatureOffset = $signature['offset'];
+            }
+
+            if ($centralDirectorySignatureOffset === null) {
+                self::rejectUnexpectedCentralDirectoryTail(
+                    $bytes,
+                    $centralDirectoryEnd,
+                    'between the central directory and end-of-central-directory record'
+                );
+            }
         }
 
         $packageComment = substr($bytes, $eocdOffset + 22, $packageCommentLength);
 
-        $package = new self($bytes, $entriesByName, $entries, $centralDirectoryOffset, $packageComment);
+        $package = new self(
+            $bytes,
+            $entriesByName,
+            $entries,
+            $centralDirectoryOffset,
+            $packageComment,
+            $centralDirectorySignatureData,
+            $centralDirectorySignatureOffset
+        );
         $package->validateLocalEntryPrefix();
         foreach ($entries as $entry) {
             $package->validateEntryLocalLayout($entry);
@@ -410,6 +445,32 @@ final class ZipPackage
     public function packageComment(): string
     {
         return $this->packageComment;
+    }
+
+    public function hasCentralDirectorySignature(): bool
+    {
+        return $this->centralDirectorySignatureOffset !== null;
+    }
+
+    public function centralDirectorySignature(): ?string
+    {
+        return $this->centralDirectorySignatureData;
+    }
+
+    /**
+     * @return array{present:bool, offset:?int, signatureData:?string, signatureLength:int, cryptographicVerification:string}
+     */
+    public function centralDirectorySignaturePreflight(): array
+    {
+        return [
+            'present' => $this->hasCentralDirectorySignature(),
+            'offset' => $this->centralDirectorySignatureOffset,
+            'signatureData' => $this->centralDirectorySignatureData,
+            'signatureLength' => $this->centralDirectorySignatureData === null ? 0 : strlen($this->centralDirectorySignatureData),
+            'cryptographicVerification' => $this->centralDirectorySignatureData === null
+                ? 'not-present'
+                : 'not-performed-native-bounded-reader',
+        ];
     }
 
     /**
@@ -970,11 +1031,32 @@ final class ZipPackage
     {
         if (substr($bytes, $offset, 4) === self::CENTRAL_DIRECTORY_DIGITAL_SIGNATURE) {
             throw new \RuntimeException(
-                'ZIP central-directory digital signature records are not supported by the pandoc package reader'
+                'Malformed ZIP central-directory digital signature record'
             );
         }
 
         throw new \RuntimeException("Unexpected ZIP bytes {$label}");
+    }
+
+    /**
+     * @return array{offset:int, data:string, endOffset:int}|null
+     */
+    private static function centralDirectoryDigitalSignatureRecordAt(string $bytes, int $offset): ?array
+    {
+        if (substr($bytes, $offset, 4) !== self::CENTRAL_DIRECTORY_DIGITAL_SIGNATURE) {
+            return null;
+        }
+
+        self::assertRange($bytes, $offset, 6, 'central-directory digital signature record');
+        $length = self::readUInt16($bytes, $offset + 4);
+        $dataOffset = $offset + 6;
+        self::assertRange($bytes, $dataOffset, $length, 'central-directory digital signature data');
+
+        return [
+            'offset' => $offset,
+            'data' => substr($bytes, $dataOffset, $length),
+            'endOffset' => $dataOffset + $length,
+        ];
     }
 
     private function readCompressedEntryBytes(ZipPackageEntry $entry): string
