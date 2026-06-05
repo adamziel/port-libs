@@ -55,6 +55,25 @@ $revisionSixPdf = static function (bool $includePerms) use ($hex): array {
     return [$pdf, $content, $ownerValidation, $userValidation, $ownerEncryptionKey, $userEncryptionKey, $permissionDigest];
 };
 
+$duplicatePermissionWordPdf = static function () use ($hex): array {
+    $content = 'BT /F1 12 Tf 72 720 Td (Duplicate permission encrypted text leak) Tj ET';
+    $ownerValidation = str_repeat('A', 32);
+    $userValidation = str_repeat('B', 32);
+
+    $pdf = "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128"
+        . " /O " . $hex($ownerValidation)
+        . " /U " . $hex($userValidation)
+        . " /P -60 /P -44 /EncryptMetadata true >>\nendobj\n"
+        . "trailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF";
+
+    return [$pdf, $content, $ownerValidation, $userValidation];
+};
+
 return [
     'marks malformed legacy Standard authentication material before permission import review' => static function (
         TestRunner $t
@@ -200,5 +219,51 @@ return [
             && !str_contains($encoded, $userEncryptionKey)
             && !str_contains($encoded, $permissionDigest)
             && !str_contains($encoded, strtoupper(bin2hex($permissionDigest))));
+    },
+    'fails closed when Standard encryption dictionary declares duplicate permission words' => static function (
+        TestRunner $t
+    ) use ($duplicatePermissionWordPdf): void {
+        [$pdf, $content, $ownerValidation, $userValidation] = $duplicatePermissionWordPdf();
+        $report = (new PdfSecurityPreflight())->analyze($pdf);
+        $permission = $report['permission_preflight'];
+        $handler = $permission['permission_handler_review'];
+        $declaration = $permission['standard_permission_word_review'];
+        $encryptionDeclaration = $report['encryption']['standard_permission_word_review'];
+        $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
+
+        $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
+        $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
+        $t->same('permissions_malformed_blocked_without_decryption', $permission['policy']);
+        $t->same('blocked_encrypted_permissions_malformed', $permission['content_extraction_boundary']);
+        $t->same('duplicate_standard_permission_entries_review', $handler['permission_word_status']);
+        $t->same(false, $permission['permission_bits_reliable']);
+        $t->same(false, $permission['permission_word_well_formed']);
+        $t->same(null, $permission['copy_or_extract_allowed']);
+        $t->same(null, $report['encryption']['copy_or_extract_allowed']);
+        $t->same(true, $permission['standard_authentication_ready_for_password_attempt']);
+
+        $t->same($declaration, $encryptionDeclaration);
+        $t->same('standard_permission_word_declaration_review', $declaration['source']);
+        $t->same(2, $declaration['declared_entry_count']);
+        $t->same(true, $declaration['duplicate_permission_entries']);
+        $t->same(true, $declaration['permission_word_ambiguous']);
+        $t->same('duplicate_standard_permission_entries_review', $declaration['status']);
+        $t->same([4294967236, 4294967252], $declaration['unsigned_values']);
+        $t->same(['FFFFFFC4', 'FFFFFFD4'], $declaration['hex_values']);
+        $t->same(['copy_or_extract'], $declaration['conflicting_permission_names']);
+        $t->same(['denied_by_permission_bit', 'allowed_by_permission_bit'], $declaration['conflicting_statuses']['copy_or_extract']);
+        $t->same('denied_by_permission_bit', $declaration['entries'][0]['permission_bits_by_name']['copy_or_extract']['status']);
+        $t->same('allowed_by_permission_bit', $declaration['entries'][1]['permission_bits_by_name']['copy_or_extract']['status']);
+
+        $t->true(in_array('permission_word_duplicate_entries', $report['review_reasons'], true));
+        $t->same(false, $report['executes_decryption']);
+        $t->same(false, $report['executes_permission_enforcement']);
+        $t->same(false, $report['executes_external_pdf_tools']);
+        $t->true(is_string($encoded)
+            && !str_contains($encoded, $content)
+            && !str_contains($encoded, $ownerValidation)
+            && !str_contains($encoded, $userValidation)
+            && !str_contains($encoded, strtoupper(bin2hex($ownerValidation)))
+            && !str_contains($encoded, strtoupper(bin2hex($userValidation))));
     },
 ];

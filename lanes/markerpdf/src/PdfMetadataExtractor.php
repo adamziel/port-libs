@@ -4082,6 +4082,11 @@ final class PdfMetadataExtractor
             $metadata['perms'] = $perms;
         }
 
+        $permissionReview = $this->standardPermissionWordDeclarationReview($dictionary, $objects, $revision);
+        if ($permissionReview !== []) {
+            $metadata['standard_permission_word_review'] = $permissionReview;
+        }
+
         $permissionValue = $this->dictionaryIntegerValue($dictionary, 'P', $objects);
         if ($permissionValue !== null) {
             $metadata['standard_permissions'] = $this->standardPermissionMetadata($permissionValue, $revision);
@@ -4350,6 +4355,143 @@ final class PdfMetadataExtractor
             'permission_bits' => $permissionBits,
             'print_quality' => !$canPrint ? 'disallowed' : ($effectiveRevision >= 3 && !$highQuality ? 'low_resolution' : 'high_resolution'),
         ], $reserved);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function standardPermissionWordDeclarationReview(string $dictionary, array $objects, ?int $revision): array
+    {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'P');
+        if ($values === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($values as $index => $value) {
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $valueForReview = trim($resolved ?? $value);
+            $entry = [
+                'source' => 'standard_permission_word_entry_review',
+                'index' => $index,
+                'pdf_name' => 'P',
+                'present' => true,
+                'resolved' => $resolved !== null,
+                'integer' => false,
+                'review_only' => true,
+            ];
+
+            if (preg_match('/^-?\d+$/', $valueForReview) !== 1) {
+                $entries[] = $entry + [
+                    'status' => $resolved === null && $this->objectReferenceFromValue($value) !== null
+                        ? 'permission_word_unresolved_reference'
+                        : 'permission_word_non_integer_review',
+                ];
+                continue;
+            }
+
+            $metadata = $this->standardPermissionMetadata((int) $valueForReview, $revision);
+            $permissionBitsByName = [];
+            foreach ($metadata['permission_bits'] as $bit) {
+                if (is_array($bit) && is_string($bit['name'] ?? null)) {
+                    $permissionBitsByName[$bit['name']] = $bit;
+                }
+            }
+
+            $entries[] = array_merge($entry, [
+                'integer' => true,
+                'declared' => $metadata['declared'],
+                'declared_form' => $metadata['declared_form'],
+                'signed' => $metadata['signed'],
+                'unsigned' => $metadata['unsigned'],
+                'hex' => $metadata['hex'],
+                'permission_word_status' => $metadata['permission_word_status'],
+                'reserved_bits_valid' => $metadata['reserved_bits_valid'],
+                'allowed' => $metadata['allowed'],
+                'denied' => $metadata['denied'],
+                'permission_bit_statuses' => $metadata['permission_bit_statuses'],
+                'permission_bits_by_name' => $permissionBitsByName,
+                'status' => $metadata['permission_word_status'],
+            ]);
+        }
+
+        $integerEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['integer'] ?? false) === true
+        ));
+        $duplicate = count($values) > 1;
+        $conflicts = $this->standardPermissionWordConflicts($integerEntries);
+        $entryStatuses = $this->uniqueStrings(array_values(array_filter(
+            array_map(
+                static fn (array $entry): mixed => $entry['status'] ?? null,
+                $entries
+            ),
+            static fn (mixed $status): bool => is_string($status)
+        )));
+        $malformedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['status'] ?? null) !== 'well_formed_standard_permissions'
+        ));
+        $ambiguous = $duplicate || $conflicts !== [] || $malformedEntries !== [];
+
+        return [
+            'source' => 'standard_permission_word_declaration_review',
+            'pdf_name' => 'P',
+            'declared_entry_count' => count($values),
+            'integer_entry_count' => count($integerEntries),
+            'duplicate_permission_entries' => $duplicate,
+            'permission_word_ambiguous' => $ambiguous,
+            'status' => $duplicate
+                ? 'duplicate_standard_permission_entries_review'
+                : ($ambiguous ? 'malformed_standard_permission_word_review' : 'well_formed_standard_permissions'),
+            'entry_statuses' => $entryStatuses,
+            'unsigned_values' => array_values(array_map(
+                static fn (array $entry): int => (int) $entry['unsigned'],
+                $integerEntries
+            )),
+            'hex_values' => array_values(array_map(
+                static fn (array $entry): string => (string) $entry['hex'],
+                $integerEntries
+            )),
+            'conflicting_permission_names' => array_keys($conflicts),
+            'conflicting_statuses' => $conflicts,
+            'entries' => $entries,
+            'review_only' => true,
+            'decryption_performed' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, list<string>>
+     */
+    private function standardPermissionWordConflicts(array $entries): array
+    {
+        $statusesByName = [];
+        foreach ($entries as $entry) {
+            $bits = is_array($entry['permission_bits_by_name'] ?? null) ? $entry['permission_bits_by_name'] : [];
+            foreach ($bits as $name => $bit) {
+                if (!is_string($name) || !is_array($bit) || !is_string($bit['status'] ?? null)) {
+                    continue;
+                }
+
+                $statusesByName[$name] ??= [];
+                if (!in_array($bit['status'], $statusesByName[$name], true)) {
+                    $statusesByName[$name][] = $bit['status'];
+                }
+            }
+        }
+
+        $conflicts = [];
+        foreach ($statusesByName as $name => $statuses) {
+            if (count($statuses) > 1) {
+                $conflicts[$name] = $statuses;
+            }
+        }
+
+        return $conflicts;
     }
 
     /**
@@ -9597,6 +9739,47 @@ final class PdfMetadataExtractor
         $entries = $this->dictionaryTopLevelEntries($dictionary);
 
         return $entries[$key] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function dictionaryTopLevelRawValues(string $dictionary, string $key): array
+    {
+        $body = $this->normalizedDictionaryBody($dictionary);
+        $values = [];
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset++;
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if ($this->decodePdfName($match[1]) === $key) {
+                $values[] = $value;
+            }
+
+            $offset = $valueOffset + strlen($value);
+        }
+
+        return $values;
     }
 
     /**
