@@ -249,4 +249,55 @@ HTML;
         $t->contains('<thead id="source-head" data-section="thead"><tr data-row="head-1"><th id="source-scope" class="header-cell" data-origin="docx">Scope</th><th data-origin="manual">State</th></tr></thead>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'expands html rowspan zero through the current tbody geometry group' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="rowspan-zero-grid" data-source="html-reader">
+<tbody id="posts-body">
+<tr data-row="posts-total"><th rowspan="0" align="left">Posts</th><td align="right">42</td></tr>
+<tr data-row="posts-media"><td align="right">7</td><td>Needs media</td></tr>
+<tr data-row="posts-review"><td align="right">3</td><td>Review</td></tr>
+</tbody>
+<tbody id="pages-body">
+<tr data-row="pages-total"><th>Pages</th><td align="right">5</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same([1 / 3, 1 / 3, 1 / 3], $table->attr('widths'));
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(['head', 'body', 'body1'], array_map(static fn (array $section): string => $section['section'], $packet['sections'] ?? []));
+        $t->same([0, 3, 1], array_map(static fn (array $section): int => $section['rowCount'], $packet['sections'] ?? []));
+        $t->same('posts-body', $packet['sections'][1]['sourceAttributes']['id'] ?? null);
+        $t->same('pages-body', $packet['sections'][2]['sourceAttributes']['id'] ?? null);
+        $t->same(2, $packet['sections'][1]['summary']['coveredSlotCount'] ?? null);
+        $t->same(0, $packet['sections'][2]['summary']['coveredSlotCount'] ?? null);
+        $t->same(1, $packet['sections'][1]['summary']['missingSlotCount'] ?? null);
+        $t->same('Posts', $packet['coverage'][0]['text'] ?? null);
+        $t->same(3, $packet['coverage'][0]['rowspan'] ?? null);
+        $t->same(3, $packet['coverage'][0]['rawRowspan'] ?? null);
+        $t->same(true, $packet['coverage'][0]['rowspanToEnd'] ?? null);
+        $t->same([
+            ['row' => 0, 'column' => 0, 'covering' => 'anchor'],
+            ['row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+            ['row' => 2, 'column' => 0, 'covering' => 'rowspan'],
+        ], $packet['coverage'][0]['occupiedSlots'] ?? null);
+        $t->same('7', $packet['coverage'][2]['text'] ?? null);
+        $t->same(1, $packet['coverage'][2]['column'] ?? null);
+        $t->same('Needs media', $packet['coverage'][3]['text'] ?? null);
+        $t->same(2, $packet['coverage'][3]['column'] ?? null);
+        $t->same('Pages', $packet['coverage'][6]['text'] ?? null);
+        $t->same('body1', $packet['coverage'][6]['section'] ?? null);
+        $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(['markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->contains('<figure class="wp-block-table"><table id="rowspan-zero-grid" data-source="html-reader"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];

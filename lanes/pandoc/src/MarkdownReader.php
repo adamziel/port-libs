@@ -4822,7 +4822,7 @@ final class MarkdownReader
 
                 if (
                     $this->positiveHtmlSpan($cell->getAttribute('colspan')) > 1
-                    || $this->positiveHtmlSpan($cell->getAttribute('rowspan')) > 1
+                    || $this->htmlRowspan($cell->getAttribute('rowspan')) !== 1
                 ) {
                     return true;
                 }
@@ -5116,6 +5116,10 @@ final class MarkdownReader
             );
         }
 
+        if ($rows !== []) {
+            $maxColumns = max($maxColumns, TableGeometry::columnCountForRows($rows));
+        }
+
         return $rows;
     }
 
@@ -5132,8 +5136,8 @@ final class MarkdownReader
             $attrs['colspan'] = $colspan;
         }
 
-        $rowspan = $this->positiveHtmlSpan($cell->getAttribute('rowspan'));
-        if ($rowspan > 1) {
+        $rowspan = $this->htmlRowspan($cell->getAttribute('rowspan'));
+        if ($rowspan === 0 || $rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
 
@@ -5236,6 +5240,18 @@ final class MarkdownReader
         $value = trim($value);
 
         return preg_match('/^\d+$/', $value) === 1 ? max(1, (int) $value) : 1;
+    }
+
+    private function htmlRowspan(string $value): int
+    {
+        $value = trim($value);
+        if (preg_match('/^\d+$/', $value) !== 1) {
+            return 1;
+        }
+
+        $span = (int) $value;
+
+        return $span === 0 ? 0 : max(1, $span);
     }
 
     private function normalizeHtmlTableAlignment(\DOMElement $cell): string

@@ -21,6 +21,22 @@ $readerHandoffTables = array_values(array_filter(
     $readerHandoffDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$rowspanZeroDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="rowspan-zero-grid" data-source="html-reader">
+<tbody id="posts-body">
+<tr data-row="posts-total"><th rowspan="0" align="left">Posts</th><td align="right">42</td></tr>
+<tr data-row="posts-media"><td align="right">7</td><td>Needs media</td></tr>
+<tr data-row="posts-review"><td align="right">3</td><td>Review</td></tr>
+</tbody>
+<tbody id="pages-body">
+<tr data-row="pages-total"><th>Pages</th><td align="right">5</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$rowspanZeroTables = array_values(array_filter(
+    $rowspanZeroDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 
 $document = new AstNode('document', [], [
     new AstNode('table', [
@@ -325,6 +341,7 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    ...$rowspanZeroTables,
     ...$readerHandoffTables,
 ]);
 
@@ -568,6 +585,31 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Nested table packet review</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing nested table packet WordPress output');
     }
+
+    $rowspanZeroTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'rowspan-zero-grid') {
+            $rowspanZeroTable = $node;
+            break;
+        }
+    }
+    $rowspanZeroPacket = $rowspanZeroTable instanceof AstNode ? $rowspanZeroTable->attr('tableGeometry') : null;
+    if (!$rowspanZeroTable instanceof AstNode || TableGeometry::columnCount($rowspanZeroTable) !== 3 || $rowspanZeroTable->attr('widths') !== [1 / 3, 1 / 3, 1 / 3]) {
+        throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero visual column normalization');
+    }
+    if (!is_array($rowspanZeroPacket) || ($rowspanZeroPacket['coverage'][0]['rowspan'] ?? null) !== 3 || ($rowspanZeroPacket['coverage'][0]['rowspanToEnd'] ?? null) !== true) {
+        throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero coverage packet');
+    }
+    if (($rowspanZeroPacket['sections'][1]['summary']['coveredSlotCount'] ?? null) !== 2 || ($rowspanZeroPacket['sections'][2]['summary']['coveredSlotCount'] ?? null) !== 0) {
+        throw new RuntimeException('Table geometry self-test let HTML rowspan-zero cross tbody boundaries');
+    }
+    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-rowspan-flattened']) {
+        throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero Markdown downgrade packet');
+    }
+    if (!str_contains($blocks, '<tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing finite WordPress rowspan output for HTML rowspan-zero');
+    }
+    json_encode($rowspanZeroPacket, JSON_THROW_ON_ERROR);
 
     $readerTable = null;
     foreach ($document->children as $node) {

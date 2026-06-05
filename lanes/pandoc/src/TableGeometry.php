@@ -34,14 +34,15 @@ final class TableGeometry
      */
     public static function columnCountForRows(array $rows): int
     {
+        $rows = array_values(array_filter(
+            $rows,
+            static fn (AstNode $row): bool => $row->type === 'table_row'
+        ));
+        $rowCount = count($rows);
         $columnCount = 0;
         $activeRowspans = [];
 
-        foreach ($rows as $row) {
-            if ($row->type !== 'table_row') {
-                continue;
-            }
-
+        foreach ($rows as $rowIndex => $row) {
             $previousActiveColumns = self::activeColumns($activeRowspans);
             $consumedActiveColumns = [];
             $column = 0;
@@ -54,7 +55,7 @@ final class TableGeometry
                 self::skipCoveredColumns($activeRowspans, $column, $consumedActiveColumns);
 
                 $colspan = self::cellColspan($cell);
-                $rowspan = self::cellRowspan($cell);
+                $rowspan = self::cellRowspanForRows($cell, $rowIndex, $rowCount);
                 if ($rowspan > 1) {
                     self::activateRowspan($activeRowspans, $column, $colspan, $rowspan);
                 }
@@ -72,7 +73,7 @@ final class TableGeometry
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int}>}>
+     * @return list<array{row:AstNode,cells:list<array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int}>}>
      */
     public static function layoutRows(array $rows, int $columnCount): array
     {
@@ -119,12 +120,14 @@ final class TableGeometry
                 }
 
                 $colspan = min($rawColspan, $columnCount - $column);
-                $rowspan = min(self::cellRowspan($cell), max(1, $rowCount - $rowIndex));
+                $rowspanToEnd = self::cellRowspanToEnd($cell);
+                $rowspan = min(self::cellRowspanForRows($cell, $rowIndex, $rowCount), max(1, $rowCount - $rowIndex));
                 $layoutCells[] = [
                     'node' => $cell,
                     'column' => $column,
                     'colspan' => $colspan,
                     'rowspan' => $rowspan,
+                    'rowspanToEnd' => $rowspanToEnd,
                     'sourceCell' => $cellSourceCell,
                     'sourceColumn' => $cellSourceColumn,
                 ];
@@ -249,6 +252,7 @@ final class TableGeometry
      *     rawColspan:int,
      *     rowspan:int,
      *     rawRowspan:int,
+     *     rowspanToEnd?:bool,
      *     alignment:string,
      *     columnAlignments:list<string>,
      *     widths:list<?float>,
@@ -295,8 +299,8 @@ final class TableGeometry
                     }
 
                     $rawColspan = self::cellColspan($cell['node']);
-                    $rawRowspan = self::cellRowspan($cell['node']);
-                    $coverage[] = [
+                    $rawRowspan = self::cellRowspanForRows($cell['node'], $rowIndex, $sectionRowCount);
+                    $record = [
                         'section' => $group['section'],
                         'row' => $rowIndex,
                         'column' => $cell['column'],
@@ -327,6 +331,11 @@ final class TableGeometry
                         ),
                         'node' => $cell['node'],
                     ];
+                    if (($cell['rowspanToEnd'] ?? false) === true) {
+                        $record['rowspanToEnd'] = true;
+                    }
+
+                    $coverage[] = $record;
                 }
             }
         }
@@ -459,7 +468,7 @@ final class TableGeometry
             foreach ($layoutRows as $rowIndex => $layoutRow) {
                 $availableRows = max(1, $rowCount - $rowIndex);
                 foreach ($layoutRow['cells'] as $cell) {
-                    $rowspan = self::cellRowspan($cell['node']);
+                    $rowspan = self::cellRowspanForRows($cell['node'], $rowIndex, $rowCount);
                     if ($rowspan <= $availableRows) {
                         if ($declaredColumnCount > 0) {
                             self::appendDeclaredColumnDiagnostic(
@@ -1451,12 +1460,12 @@ final class TableGeometry
     }
 
     /**
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
      * @return array<string, mixed>
      */
     private static function cellGridSlot(int $row, array $cell, int $rowCount, int $columnCount): array
     {
-        return [
+        $slot = [
             'kind' => 'cell',
             'row' => $row,
             'column' => $cell['column'],
@@ -1476,10 +1485,15 @@ final class TableGeometry
                 $columnCount
             ),
         ];
+        if (($cell['rowspanToEnd'] ?? false) === true) {
+            $slot['rowspanToEnd'] = true;
+        }
+
+        return $slot;
     }
 
     /**
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
      * @return array<string, mixed>
      */
     private static function coveredGridSlot(
@@ -1490,7 +1504,7 @@ final class TableGeometry
         string $covering,
         array $cell
     ): array {
-        return [
+        $slot = [
             'kind' => 'covered',
             'row' => $row,
             'column' => $column,
@@ -1503,6 +1517,11 @@ final class TableGeometry
             'anchorColumn' => $anchorColumn,
             'covering' => $covering,
         ];
+        if (($cell['rowspanToEnd'] ?? false) === true) {
+            $slot['rowspanToEnd'] = true;
+        }
+
+        return $slot;
     }
 
     /**
@@ -1545,7 +1564,7 @@ final class TableGeometry
 
     /**
      * @param list<array<string, mixed>> $diagnostics
-     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,sourceCell:int,sourceColumn:int} $cell
+     * @param array{node:AstNode,column:int,colspan:int,rowspan:int,rowspanToEnd:bool,sourceCell:int,sourceColumn:int} $cell
      */
     private static function appendDeclaredColumnDiagnostic(
         array &$diagnostics,
@@ -1641,7 +1660,7 @@ final class TableGeometry
                     ];
                 }
 
-                $rowspan = min(self::cellRowspan($cell), max(1, $rowCount - $rowIndex));
+                $rowspan = min(self::cellRowspanForRows($cell, $rowIndex, $rowCount), max(1, $rowCount - $rowIndex));
                 if ($rowspan > 1) {
                     self::activateRichRowspan(
                         $activeRowspans,
@@ -1840,7 +1859,40 @@ final class TableGeometry
 
     private static function cellRowspan(AstNode $cell): int
     {
-        return max(1, (int) $cell->attr('rowspan', 1));
+        return max(1, self::cellRawRowspan($cell));
+    }
+
+    private static function cellRowspanForRows(AstNode $cell, int $rowIndex, int $rowCount): int
+    {
+        if (self::cellRowspanToEnd($cell)) {
+            return max(1, $rowCount - $rowIndex);
+        }
+
+        return self::cellRowspan($cell);
+    }
+
+    private static function cellRowspanToEnd(AstNode $cell): bool
+    {
+        return self::cellRawRowspan($cell) === 0;
+    }
+
+    private static function cellRawRowspan(AstNode $cell): int
+    {
+        $value = $cell->attr('rowspan', 1);
+        if (is_string($value)) {
+            $value = trim($value);
+            if (preg_match('/^-?\d+$/', $value) !== 1) {
+                return 1;
+            }
+
+            return (int) $value;
+        }
+
+        if (!is_int($value) && !is_float($value)) {
+            return 1;
+        }
+
+        return (int) $value;
     }
 
     /**
