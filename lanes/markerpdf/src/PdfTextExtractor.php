@@ -26115,7 +26115,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (!$lineSeparated) {
+            if (!$lineSeparated && $char !== 'B') {
                 return false;
             }
 
@@ -26180,6 +26180,20 @@ final class PdfTextExtractor
             }
 
             $token = substr($segment, $start, $index - $start);
+            if (!$lineSeparated) {
+                if (
+                    $token !== 'BT'
+                    || $insideTextObject
+                    || $outsideTextOperands !== []
+                    || $graphicsStateDepth !== 0
+                    || $markedContentDepth !== 0
+                ) {
+                    return false;
+                }
+
+                $lineSeparated = true;
+            }
+
             if (!$insideTextObject) {
                 if ($token === 'cm') {
                     if (!$this->contentSegmentGraphicsMatrixOperands($outsideTextOperands)) {
