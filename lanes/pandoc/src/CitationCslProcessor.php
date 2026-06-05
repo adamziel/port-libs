@@ -244,8 +244,10 @@ final class CitationCslProcessor
     {
         $state = $this->emptyCitationPositionState();
         $positioned = $this->annotateCitationPositions($document, $state);
-        $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($positioned));
-        $annotated = $this->annotateCitationYearSuffixes($positioned, $yearSuffixes);
+        $citationNumbers = $this->citationNumbersForIds($this->sortBibliographyIds($this->uniqueKnownCitationIds($positioned)));
+        $numbered = $this->annotateCitationNumbers($positioned, $citationNumbers);
+        $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($numbered));
+        $annotated = $this->annotateCitationYearSuffixes($numbered, $yearSuffixes);
 
         return $this->mapNode($annotated);
     }
@@ -299,6 +301,7 @@ final class CitationCslProcessor
     {
         $citations = $this->ensureClusterCitationPositions($citations);
         $citations = $this->sortCitationCluster($citations);
+        $citations = $this->annotateCitationNumbersForCluster($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
         $entries = $this->renderCollapsedCitationEntries($citations);
         if ($entries === null) {
@@ -335,6 +338,7 @@ final class CitationCslProcessor
         $canonicalId = $this->canonicalCitationId($id);
         $yearSuffixes = $this->yearSuffixesForIds($this->primaryIds);
         $item = $this->itemWithYearSuffix($item, $yearSuffixes[$canonicalId] ?? '');
+        $item = $this->itemWithCitationNumber($item, $this->citationNumberForId($canonicalId));
 
         return $this->renderBibliographyEntryForItem($item);
     }
@@ -474,6 +478,7 @@ final class CitationCslProcessor
             $yearSuffixes = $this->yearSuffixesForIds($ids);
         }
 
+        $citationNumbers = $this->citationNumbersForIds($ids);
         $items = [];
         foreach ($ids as $id) {
             $item = $this->itemsById[$id] ?? null;
@@ -482,6 +487,7 @@ final class CitationCslProcessor
             }
 
             $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? '');
+            $item = $this->itemWithCitationNumber($item, $citationNumbers[$this->canonicalCitationId($id)] ?? '');
             $label = $this->citationLabel($item);
             $entry = $this->renderBibliographyEntryForItem($item);
             $attrs = ['term' => $label, 'cslId' => $id];
@@ -1472,6 +1478,125 @@ final class CitationCslProcessor
         return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
     }
 
+    /**
+     * @param array<string, string> $citationNumbers
+     */
+    private function annotateCitationNumbers(AstNode $node, array $citationNumbers): AstNode
+    {
+        if ($node->type === 'citation') {
+            $id = (string) $node->attr('id', '');
+            if ($id === '' || !isset($this->itemsById[$id])) {
+                return $node;
+            }
+
+            $canonicalId = $this->canonicalCitationId($id);
+
+            return new AstNode($node->type, [
+                ...$node->attrs,
+                'cslCitationNumber' => $citationNumbers[$canonicalId] ?? '',
+            ], $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $annotated = $this->annotateCitationNumbers($child, $citationNumbers);
+            $children[] = $annotated;
+            $changed = $changed || $annotated !== $child;
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<AstNode>
+     */
+    private function annotateCitationNumbersForCluster(array $citations): array
+    {
+        if ($citations === []) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return $citations;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            if ($id !== '' && isset($this->itemsById[$id])) {
+                $canonicalId = $this->canonicalCitationId($id);
+                if (!in_array($canonicalId, $ids, true)) {
+                    $ids[] = $canonicalId;
+                }
+            }
+        }
+
+        $numbers = $this->citationNumbersForIds($this->sortBibliographyIds($ids));
+        $annotated = [];
+        foreach ($citations as $citation) {
+            if (array_key_exists('cslCitationNumber', $citation->attrs)) {
+                $annotated[] = $citation;
+                continue;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            $canonicalId = $this->canonicalCitationId($id);
+            $annotated[] = new AstNode($citation->type, [
+                ...$citation->attrs,
+                'cslCitationNumber' => $numbers[$canonicalId] ?? '',
+            ], $citation->children);
+        }
+
+        return $annotated;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array<string, string>
+     */
+    private function citationNumbersForIds(array $ids): array
+    {
+        $numbers = [];
+        $number = 1;
+        foreach ($ids as $id) {
+            $canonicalId = $this->canonicalCitationId($id);
+            if (!isset($this->itemsById[$canonicalId]) || array_key_exists($canonicalId, $numbers)) {
+                continue;
+            }
+
+            $numbers[$canonicalId] = (string) $number;
+            $number++;
+        }
+
+        return $numbers;
+    }
+
+    private function citationNumberForId(string $id): string
+    {
+        $canonicalId = $this->canonicalCitationId($id);
+        $numbers = $this->citationNumbersForIds($this->sortBibliographyIds($this->primaryIds));
+
+        return $numbers[$canonicalId] ?? '';
+    }
+
+    private function primaryCitationNumberForId(string $id): string
+    {
+        $canonicalId = $this->canonicalCitationId($id);
+        foreach ($this->primaryIds as $index => $primaryId) {
+            if ($this->canonicalCitationId($primaryId) === $canonicalId) {
+                return (string) ($index + 1);
+            }
+        }
+
+        return '';
+    }
+
     private function mapNode(AstNode $node): AstNode
     {
         if ($node->type === 'citation') {
@@ -1612,13 +1737,33 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @return array<string, mixed>
      */
+    private function itemWithCitationNumber(array $item, string $number): array
+    {
+        return [
+            ...$item,
+            'citationNumber' => $number,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
     private function itemWithCitationContext(array $item, ?AstNode $citation): array
     {
-        if (!$citation instanceof AstNode || !array_key_exists('cslYearSuffix', $citation->attrs)) {
+        if (!$citation instanceof AstNode) {
             return $item;
         }
 
-        return $this->itemWithYearSuffix($item, (string) $citation->attr('cslYearSuffix', ''));
+        if (array_key_exists('cslYearSuffix', $citation->attrs)) {
+            $item = $this->itemWithYearSuffix($item, (string) $citation->attr('cslYearSuffix', ''));
+        }
+
+        if (array_key_exists('cslCitationNumber', $citation->attrs)) {
+            $item = $this->itemWithCitationNumber($item, (string) $citation->attr('cslCitationNumber', ''));
+        }
+
+        return $item;
     }
 
     /**
@@ -1726,7 +1871,7 @@ final class CitationCslProcessor
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
             'type' => $this->normalizeSortText((string) $item['type']),
-            'citation-number' => '',
+            'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
             'id' => $this->normalizeSortText((string) $item['id']),
             default => $this->normalizeSortText($fallback),
         };
@@ -3728,6 +3873,7 @@ final class CitationCslProcessor
 
         return match ($normalized) {
             'locator' => $this->citationLocatorParts($citation)['value'],
+            'citation-number' => $this->citationNumberValue($item, $citation),
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'citation-aliases', 'citation-alias' => implode(', ', is_array($item['citationAliases'] ?? null) ? $item['citationAliases'] : []),
@@ -3805,6 +3951,26 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
+    private function citationNumberValue(array $item, ?AstNode $citation): string
+    {
+        if ($citation instanceof AstNode) {
+            $number = trim((string) $citation->attr('cslCitationNumber', ''));
+            if ($number !== '') {
+                return $number;
+            }
+        }
+
+        $number = trim((string) ($item['citationNumber'] ?? ''));
+        if ($number !== '') {
+            return $number;
+        }
+
+        return $this->citationNumberForId((string) ($item['id'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
     private function renderingVariableIsPresent(array $item, string $variable, string $scope, ?AstNode $citation = null): bool
     {
         $normalized = strtolower(trim($variable));
@@ -3814,6 +3980,10 @@ final class CitationCslProcessor
 
         if ($normalized === 'locator') {
             return $this->citationLocatorParts($citation)['value'] !== '';
+        }
+
+        if ($normalized === 'citation-number') {
+            return $this->citationNumberValue($item, $citation) !== '';
         }
 
         if ($normalized === 'year-suffix') {

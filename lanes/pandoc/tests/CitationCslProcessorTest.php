@@ -3748,6 +3748,89 @@ XML
 XML
         ));
     },
+    'assigns bounded csl citation-number variables from sorted bibliography order' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'zeta',
+                'type' => 'report',
+                'title' => 'Zeta Packet',
+                'author' => [
+                    ['family' => 'Zeta', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'alpha',
+                'type' => 'report',
+                'title' => 'Alpha Packet',
+                'author' => [
+                    ['family' => 'Alpha', 'given' => 'Ava'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'middle',
+                'type' => 'report',
+                'title' => 'Middle Packet',
+                'author' => [
+                    ['family' => 'Middle', 'given' => 'Mia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Number Review Style</title>
+    <id>https://example.test/styles/bounded-citation-number-review</id>
+    <updated>2026-06-05T09:29:29+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter=", ">
+      <number variable="citation-number"/>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout delimiter=" ">
+      <number variable="citation-number" display="left-margin" prefix="[" suffix="]"/>
+      <group display="right-inline" delimiter=". " suffix=".">
+        <names variable="author">
+          <name initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('citation-number', $summary['citationRendering'][0]['variable'] ?? null);
+        $t->same('citation-number', $summary['bibliographyRendering'][0]['variable'] ?? null);
+        $t->same('author', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('[3] Zeta, Z. Zeta Packet. 2026.', $processor->renderBibliographyEntry('zeta'));
+
+        $document = (new MarkdownReader())->read('Review cites [@zeta; @alpha, p. 9; @middle] for source numbering.');
+        $processed = $processor->appendBibliography($document, 'Numbered Sources');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites [3, 1, p. 9, 2] for source numbering.</p>', $blocks);
+        $t->contains('<dt>Alpha 2024</dt><dd><div class="csl-entry"><div class="csl-left-margin">[1]</div><div class="csl-right-inline">Alpha, A. Alpha Packet. 2024.</div></div></dd>', $blocks);
+        $t->contains('<dt>Middle 2025</dt><dd><div class="csl-entry"><div class="csl-left-margin">[2]</div><div class="csl-right-inline">Middle, M. Middle Packet. 2025.</div></div></dd>', $blocks);
+        $t->contains('<dt>Zeta 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[3]</div><div class="csl-right-inline">Zeta, Z. Zeta Packet. 2026.</div></div></dd>', $blocks);
+
+        $numbered = $processor->apply($document);
+        $group = $numbered->children[0]->children[1] ?? null;
+        $t->same('citation_group', $group instanceof AstNode ? $group->type : null);
+        $t->same('3', $group instanceof AstNode ? ($group->children[0]->attr('cslItem')['citationNumber'] ?? null) : null);
+        $t->same('1', $group instanceof AstNode ? ($group->children[1]->attr('cslItem')['citationNumber'] ?? null) : null);
+        $t->same('2', $group instanceof AstNode ? ($group->children[2]->attr('cslItem')['citationNumber'] ?? null) : null);
+    },
     'applies bounded csl citation position conditionals for repeated cites' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
