@@ -416,6 +416,17 @@ final class Html5DomFragment
             self::childForeignContext($node, $rawName, $elementForeignContext),
             $baseUrl
         );
+
+        if ($mode === 'html' && self::isEmptyHtmlPictureSourceElement($node, $name, $attrs)) {
+            $diagnostics[] = [
+                'code' => 'empty-source',
+                'tag' => $name,
+                'reason' => 'missing-src-or-srcset',
+            ];
+
+            return $children === [] ? null : $children;
+        }
+
         $element = [
             'type' => 'element',
             'name' => $name,
@@ -501,6 +512,31 @@ final class Html5DomFragment
     private static function isHtmlTableModelContext(string $name): bool
     {
         return isset(self::HTML5_TABLE_ALLOWED_CHILDREN[strtolower($name)]);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private static function isEmptyHtmlPictureSourceElement(\DOMElement $element, string $name, array $attrs): bool
+    {
+        return self::hasHtmlAncestor($element, 'picture')
+            && strtolower($name) === 'source'
+            && !array_key_exists('src', $attrs)
+            && !array_key_exists('srcset', $attrs);
+    }
+
+    private static function hasHtmlAncestor(\DOMElement $element, string $name): bool
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (strtolower($parent->tagName) === strtolower($name)) {
+                return true;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return false;
     }
 
     /**

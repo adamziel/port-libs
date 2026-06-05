@@ -779,6 +779,50 @@ return [
         $t->true(!str_contains($html, 'mailto:cover@example.test'), 'Expected mailto lowsrc fetch URL to be stripped');
         $t->true(!str_contains($html, 'https://source.example.test/import/posts/post.html#review-map'), 'Expected local usemap references to avoid base URL expansion');
     },
+    'prunes empty picture sources after unsafe candidate filtering before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<picture data-review="responsive">'
+            . '<source srcset="./hero.avif 1x, javascript:alert(1) 2x" media="(min-width: 48em)" type="image/avif" sizes="(min-width: 48em) 50vw, 100vw">'
+            . '<source srcset="mailto:bad@example.test 1x" media="(max-width: 47em)" type="image/jpeg">'
+            . '<img src="./hero.jpg" srcset="./hero.jpg 1x, ../media/hero@2x.jpg 2x" alt="Hero">'
+            . '</picture>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/responsive-picture-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<picture data-review="responsive">'
+            . '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif" sizes="(min-width: 48em) 50vw, 100vw">'
+            . '<img src="https://source.example.test/import/posts/hero.jpg" srcset="https://source.example.test/import/posts/hero.jpg 1x, https://source.example.test/import/media/hero@2x.jpg 2x" alt="Hero">'
+            . '</picture>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['img', 'picture', 'source'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['srcset'], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same(['unsafe-url', 'unsafe-url', 'empty-source'], $policyDiagnostics);
+        $t->same('picture', $nodes[0]['name']);
+        $t->same(2, count($nodes[0]['children']));
+        $t->same('source', $nodes[0]['children'][0]['name']);
+        $t->same('https://source.example.test/import/posts/hero.avif 1x', $nodes[0]['children'][0]['attrs']['srcset']);
+        $t->same('img', $nodes[0]['children'][1]['name']);
+        $t->same('https://source.example.test/import/posts/hero.jpg', $nodes[0]['children'][1]['attrs']['src']);
+        $t->same('/migration/responsive-picture-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe picture source candidate to be stripped');
+        $t->true(!str_contains($html, 'mailto:bad@example.test'), 'Expected non-fetch picture source candidate to be stripped');
+        $t->true(!str_contains($html, '(max-width: 47em)'), 'Expected empty unsafe source branch to be pruned');
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

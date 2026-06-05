@@ -15,6 +15,7 @@ $source = <<<'HTML'
   <!--review--->
   <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;">source note</a>.</p>
   <figure><img src=" cover.png&#13;" srcset=" cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" alt="Cover"><figcaption>Cover image</figcaption></figure>
+  <picture><source srcset="hero.avif 1x, javascript:alert(1) 2x" media="(min-width: 48em)" type="image/avif"><source srcset="mailto:bad@example.test 1x" media="(max-width: 47em)"><img src="fallback.jpg" alt="Responsive cover"></picture>
 </article>
 HTML;
 
@@ -36,6 +37,8 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
         '<img src="https://source.example.test/import/posts/cover.png" srcset="https://source.example.test/import/posts/cover.png 1x, https://source.example.test/import/media/cover@2x.png 2x" alt="Cover">',
+        '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif">',
+        '<img src="https://source.example.test/import/posts/fallback.jpg" alt="Responsive cover">',
         '<!--review- -->',
         '<!-- wp:html -->',
     ] as $expected) {
@@ -43,7 +46,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', 'javascript:', '--->'] as $blocked) {
+    foreach (['<base', 'javascript:', 'mailto:bad@example.test', '(max-width: 47em)', '--->'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
@@ -54,6 +57,9 @@ if (($argv[1] ?? '') === '--self-test') {
     ));
     if (count($normalizedUrlDiagnostics) !== 2) {
         throw new RuntimeException('HTML5 DOM fragment self-test expected two normalized URL diagnostics');
+    }
+    if (!in_array('empty-source', $fragment->diagnosticCodes(), true)) {
+        throw new RuntimeException('HTML5 DOM fragment self-test expected empty picture source diagnostic');
     }
 
     echo "html5 dom fragment handoff self-test ok\n";
