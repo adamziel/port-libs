@@ -82,7 +82,8 @@ XML],
   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
   xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
-  xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+  xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+  xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
   <w:body>
     <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX source packet</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ReviewSubhead"/></w:pPr><w:r><w:t>Reviewer checklist</w:t></w:r></w:p>
@@ -301,6 +302,23 @@ XML],
             </w:pict>
           </mc:Fallback>
         </mc:AlternateContent>
+      </w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:wsp>
+                  <wps:txbx>
+                    <w:txbxContent>
+                      <w:p><w:r><w:t>Source DrawingML textbox note.</w:t></w:r></w:p>
+                    </w:txbxContent>
+                  </wps:txbx>
+                </wps:wsp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
       </w:r>
       <w:r><w:t xml:space="preserve"> textbox tail.</w:t></w:r>
     </w:p>
@@ -872,6 +890,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Textbox lead </p>',
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',
+        '<p>Source DrawingML textbox note.</p>',
         '<p> textbox tail.</p>',
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">starts here</span></p>',
         '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">continues here</span> for import review',

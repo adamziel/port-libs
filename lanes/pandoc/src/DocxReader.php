@@ -14,6 +14,7 @@ final class DocxReader
     public const DRAWINGML_CHART_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
     public const DRAWINGML_DIAGRAM_NS = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     public const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+    public const WORDPROCESSING_SHAPE_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
     public const OFFICE_RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     public const OFFICE_MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     public const MARKUP_COMPATIBILITY_NS = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
@@ -1520,7 +1521,40 @@ final class DocxReader
             }
         }
 
+        foreach ($searchRoot->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'drawing') as $drawing) {
+            if (!$drawing instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach ($drawing->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'txbxContent') as $content) {
+                if (
+                    $content instanceof \DOMElement
+                    && $this->hasAncestorElement($content, self::WORDPROCESSING_SHAPE_NS, 'txbx', $drawing)
+                ) {
+                    $contents[] = $content;
+                }
+            }
+        }
+
         return $contents;
+    }
+
+    private function hasAncestorElement(\DOMElement $element, string $namespace, string $localName, \DOMElement $stopAt): bool
+    {
+        $node = $element->parentNode;
+        while ($node instanceof \DOMElement) {
+            if ($node->namespaceURI === $namespace && $node->localName === $localName) {
+                return true;
+            }
+
+            if ($node === $stopAt) {
+                break;
+            }
+
+            $node = $node->parentNode;
+        }
+
+        return false;
     }
 
     private function runAlternateContentFallback(\DOMElement $run): ?\DOMElement
@@ -1581,6 +1615,7 @@ final class DocxReader
             self::DRAWINGML_MAIN_NS,
             self::DRAWINGML_PICTURE_NS,
             self::WORDPROCESSING_DRAWING_NS,
+            self::WORDPROCESSING_SHAPE_NS,
             self::OFFICE_RELATIONSHIPS_NS,
             self::OFFICE_MATH_NS,
             self::VML_NS,

@@ -1257,6 +1257,43 @@ $textboxDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$drawingTextBoxDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Before DrawingML textbox </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:wsp>
+                  <wps:txbx>
+                    <w:txbxContent>
+                      <w:p><w:r><w:t>DrawingML textbox heading</w:t></w:r></w:p>
+                      <w:tbl>
+                        <w:tr>
+                          <w:tc><w:p><w:r><w:t>Reviewer field</w:t></w:r></w:p></w:tc>
+                          <w:tc><w:p><w:r><w:t>DrawingML note</w:t></w:r></w:p></w:tc>
+                        </w:tr>
+                      </w:tbl>
+                    </w:txbxContent>
+                  </wps:txbx>
+                </wps:wsp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> after DrawingML textbox.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $alternateContentDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -2028,6 +2065,14 @@ $buildTextboxPackage = static function () use ($contentTypesXml, $packageRelatio
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $textboxDocumentXml],
+    ]);
+};
+
+$buildDrawingTextBoxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $drawingTextBoxDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $drawingTextBoxDocumentXml],
     ]);
 };
 
@@ -3694,6 +3739,30 @@ return [
         $t->contains('<p> after textbox.</p>', $blocks);
         $t->contains('<p>Fallback textbox note</p>', $blocks);
         $t->contains('<p> final text.</p>', $blocks);
+    },
+    'unwraps DOCX DrawingML textbox content into body blocks in paragraph order' => static function (TestRunner $t) use ($buildDrawingTextBoxPackage): void {
+        $document = (new DocxReader())->readDocument($buildDrawingTextBoxPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('Before DrawingML textbox ', $document->children[0]->children[0]->attr('text'));
+        $t->same('DrawingML textbox heading', $document->children[1]->children[0]->attr('text'));
+
+        $table = $document->children[2];
+        $t->same('table', $table->type);
+        $t->same('Reviewer field', $table->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('DrawingML note', $table->children[0]->children[0]->children[1]->attr('text'));
+        $t->same(2, $table->attr('tableGeometry')['summary']['cellCount'] ?? null);
+
+        $t->same(' after DrawingML textbox.', $document->children[3]->children[0]->attr('text'));
+
+        $t->contains("Before DrawingML textbox \n\nDrawingML textbox heading", $markdown);
+        $t->contains('| Reviewer field | DrawingML note |', $markdown);
+        $t->contains('<p>Before DrawingML textbox </p>', $blocks);
+        $t->contains('<p>DrawingML textbox heading</p>', $blocks);
+        $t->contains('<table><tbody><tr><td><p>Reviewer field</p></td><td><p>DrawingML note</p></td></tr></tbody></table>', $blocks);
+        $t->contains('<p> after DrawingML textbox.</p>', $blocks);
     },
     'selects DOCX markup compatibility alternate content in body and run contexts' => static function (TestRunner $t) use ($buildAlternateContentPackage): void {
         $document = (new DocxReader())->readDocument($buildAlternateContentPackage());
