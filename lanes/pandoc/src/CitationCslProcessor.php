@@ -497,11 +497,19 @@ final class CitationCslProcessor
             'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
             'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
             'originalAuthors' => self::names($item['original-author'] ?? [], $id, 'original-author'),
+            'compilers' => self::names($item['compiler'] ?? [], $id, 'compiler'),
+            'curators' => self::names($item['curator'] ?? [], $id, 'curator'),
+            'directors' => self::names($item['director'] ?? [], $id, 'director'),
+            'editorialDirectors' => self::names($item['editorial-director'] ?? [], $id, 'editorial-director'),
+            'illustrators' => self::names($item['illustrator'] ?? [], $id, 'illustrator'),
+            'interviewers' => self::names($item['interviewer'] ?? [], $id, 'interviewer'),
+            'reviewedAuthors' => self::names($item['reviewed-author'] ?? [], $id, 'reviewed-author'),
             'commentators' => self::names($item['commentator'] ?? [], $id, 'commentator'),
             'annotators' => self::names($item['annotator'] ?? [], $id, 'annotator'),
             'introductionAuthors' => self::names($item['introduction'] ?? [], $id, 'introduction'),
             'forewordAuthors' => self::names($item['foreword'] ?? [], $id, 'foreword'),
             'afterwordAuthors' => self::names($item['afterword'] ?? [], $id, 'afterword'),
+            'editorialRoles' => self::editorialRoles($item['editorial-roles'] ?? [], $id),
             'raw' => $item,
         ];
     }
@@ -813,6 +821,53 @@ final class CitationCslProcessor
         }
 
         return $names;
+    }
+
+    /**
+     * @return list<array{field:string, type:string, label:string, names:list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}>
+     */
+    private static function editorialRoles(mixed $value, string $id): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException('CSL item ' . $id . ' editorial-roles must be a list');
+        }
+
+        $roles = [];
+        foreach ($value as $index => $role) {
+            if (!is_array($role)) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' editorial-roles[' . $index . '] must be an object');
+            }
+
+            $names = self::names($role['names'] ?? [], $id, 'editorial-roles[' . $index . '].names');
+            if ($names === []) {
+                continue;
+            }
+
+            $type = self::nameString($role['type'] ?? '');
+            $label = self::nameString($role['label'] ?? '');
+            $roles[] = [
+                'field' => self::nameString($role['field'] ?? ''),
+                'type' => $type === '' ? 'editor' : $type,
+                'label' => $label === '' ? self::editorialRoleDefaultLabel($type) : $label,
+                'names' => $names,
+            ];
+        }
+
+        return $roles;
+    }
+
+    private static function editorialRoleDefaultLabel(string $type): string
+    {
+        $type = str_replace(['_', '-'], ' ', strtolower(trim($type)));
+        if ($type === '') {
+            return 'Editor';
+        }
+
+        return ucfirst($type);
     }
 
     private static function nameString(mixed $value): string
@@ -1635,7 +1690,36 @@ final class CitationCslProcessor
      */
     private function bibliographyRoleNameParts(array $item): array
     {
+        $parts = [];
+        $renderedRoleVariables = [];
+        $editorialRoles = $item['editorialRoles'] ?? [];
+        if (is_array($editorialRoles)) {
+            foreach ($editorialRoles as $role) {
+                if (!is_array($role) || !is_array($role['names'] ?? null) || $role['names'] === []) {
+                    continue;
+                }
+
+                $parts[] = $this->editorialRoleBibliographyPart(
+                    (string) ($role['type'] ?? ''),
+                    (string) ($role['label'] ?? ''),
+                    $role['names']
+                );
+
+                $variable = $this->editorialRoleNameVariable((string) ($role['type'] ?? ''));
+                if ($variable !== null) {
+                    $renderedRoleVariables[$variable] = true;
+                }
+            }
+        }
+
         $roles = [
+            ['compilers', 'Compiled by', 'compiler'],
+            ['curators', 'Curated by', 'curator'],
+            ['directors', 'Directed by', 'director'],
+            ['editorialDirectors', 'Editorial direction by', 'editorial-director'],
+            ['illustrators', 'Illustrated by', 'illustrator'],
+            ['interviewers', 'Interview by', 'interviewer'],
+            ['reviewedAuthors', 'Reviewed author:', 'reviewed-author'],
             ['commentators', 'Commentary by'],
             ['annotators', 'Annotated by'],
             ['introductionAuthors', 'Introduction by'],
@@ -1644,8 +1728,13 @@ final class CitationCslProcessor
             ['originalAuthors', 'Original author:'],
         ];
 
-        $parts = [];
-        foreach ($roles as [$key, $label]) {
+        foreach ($roles as $role) {
+            [$key, $label] = $role;
+            $variable = $role[2] ?? null;
+            if (is_string($variable) && isset($renderedRoleVariables[$variable])) {
+                continue;
+            }
+
             $names = $item[$key] ?? [];
             if (!is_array($names) || $names === []) {
                 continue;
@@ -1655,6 +1744,57 @@ final class CitationCslProcessor
         }
 
         return $parts;
+    }
+
+    /**
+     * @param list<array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}> $names
+     */
+    private function editorialRoleBibliographyPart(string $type, string $label, array $names): string
+    {
+        $prefix = match ($this->normalizedEditorialRoleType($type)) {
+            'editor' => 'Edited by',
+            'compiler' => 'Compiled by',
+            'curator' => 'Curated by',
+            'director' => 'Directed by',
+            'editorial-director' => 'Editorial direction by',
+            'illustrator' => 'Illustrated by',
+            'interviewer' => 'Interview by',
+            'reviewed-author' => 'Reviewed author:',
+            default => rtrim($label !== '' ? $label : self::editorialRoleDefaultLabel($type), ':') . ':',
+        };
+
+        return $prefix . ' ' . rtrim($this->renderNameList($names, $this->style->bibliographyNameRendering(), true), '.') . '.';
+    }
+
+    private function editorialRoleNameVariable(string $type): ?string
+    {
+        return match ($this->normalizedEditorialRoleType($type)) {
+            'editor',
+            'compiler',
+            'curator',
+            'director',
+            'editorial-director',
+            'illustrator',
+            'interviewer',
+            'reviewed-author' => $this->normalizedEditorialRoleType($type),
+            default => null,
+        };
+    }
+
+    private function normalizedEditorialRoleType(string $type): string
+    {
+        $type = strtolower(trim($type));
+        if ($type === '') {
+            return 'editor';
+        }
+
+        $type = str_replace(['_', ' '], '-', $type);
+
+        return match ($type) {
+            'editorialdirector', 'editorial-director' => 'editorial-director',
+            'reviewedauthor', 'reviewed-author' => 'reviewed-author',
+            default => $type,
+        };
     }
 
     /**
@@ -2663,11 +2803,19 @@ final class CitationCslProcessor
             'holder' => $this->renderNamesElement(['variable' => 'holder'], $item, $scope),
             'translator' => $this->renderNamesElement(['variable' => 'translator'], $item, $scope),
             'original-author' => $this->renderNamesElement(['variable' => 'original-author'], $item, $scope),
+            'compiler' => $this->renderNamesElement(['variable' => 'compiler'], $item, $scope),
+            'curator' => $this->renderNamesElement(['variable' => 'curator'], $item, $scope),
+            'director' => $this->renderNamesElement(['variable' => 'director'], $item, $scope),
+            'editorial-director' => $this->renderNamesElement(['variable' => 'editorial-director'], $item, $scope),
+            'illustrator' => $this->renderNamesElement(['variable' => 'illustrator'], $item, $scope),
+            'interviewer' => $this->renderNamesElement(['variable' => 'interviewer'], $item, $scope),
+            'reviewed-author' => $this->renderNamesElement(['variable' => 'reviewed-author'], $item, $scope),
             'commentator' => $this->renderNamesElement(['variable' => 'commentator'], $item, $scope),
             'annotator' => $this->renderNamesElement(['variable' => 'annotator'], $item, $scope),
             'introduction' => $this->renderNamesElement(['variable' => 'introduction'], $item, $scope),
             'foreword' => $this->renderNamesElement(['variable' => 'foreword'], $item, $scope),
             'afterword' => $this->renderNamesElement(['variable' => 'afterword'], $item, $scope),
+            'editorial-role-summary' => implode(' ', $this->bibliographyRoleNameParts($item)),
             default => $this->rawVariableValue($item, $variable),
         };
     }
@@ -2686,7 +2834,7 @@ final class CitationCslProcessor
             return $this->citationLocatorParts($citation)['value'] !== '';
         }
 
-        if (in_array($normalized, ['author', 'editor', 'holder', 'translator', 'original-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
+        if (in_array($normalized, ['author', 'editor', 'holder', 'translator', 'original-author', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -2742,6 +2890,13 @@ final class CitationCslProcessor
                 'holder' => $item['holders'] ?? [],
                 'translator' => $item['translators'] ?? [],
                 'original-author' => $item['originalAuthors'] ?? [],
+                'compiler' => $item['compilers'] ?? [],
+                'curator' => $item['curators'] ?? [],
+                'director' => $item['directors'] ?? [],
+                'editorial-director' => $item['editorialDirectors'] ?? [],
+                'illustrator' => $item['illustrators'] ?? [],
+                'interviewer' => $item['interviewers'] ?? [],
+                'reviewed-author' => $item['reviewedAuthors'] ?? [],
                 'commentator' => $item['commentators'] ?? [],
                 'annotator' => $item['annotators'] ?? [],
                 'introduction' => $item['introductionAuthors'] ?? [],

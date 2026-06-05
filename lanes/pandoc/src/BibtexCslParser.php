@@ -671,6 +671,23 @@ final class BibtexCslParser
             $item['afterword'] = $afterword;
         }
 
+        $editorialRoles = self::editorialRolesFromFields($fields);
+        foreach ($editorialRoles as $role) {
+            $cslVariable = self::editorialRoleCslNameVariable($role['type']);
+            if ($cslVariable === null) {
+                continue;
+            }
+
+            $existing = $item[$cslVariable] ?? [];
+            $item[$cslVariable] = [
+                ...(is_array($existing) ? $existing : []),
+                ...$role['names'],
+            ];
+        }
+        if ($editorialRoles !== []) {
+            $item['editorial-roles'] = $editorialRoles;
+        }
+
         $issued = self::dateFromFields($fields, ['date'], ['year', 'month', 'day']);
         if ($issued !== null) {
             $item['issued'] = $issued;
@@ -888,6 +905,83 @@ final class BibtexCslParser
             array_map(static fn (string $keyword): string => trim($keyword), $keywords),
             static fn (string $keyword): bool => $keyword !== ''
         ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array{field:string, type:string, label:string, names:list<array<string, mixed>>}>
+     */
+    private static function editorialRolesFromFields(array $fields): array
+    {
+        $roles = [];
+        foreach ([
+            ['editora', 'editoratype'],
+            ['editorb', 'editorbtype'],
+            ['editorc', 'editorctype'],
+        ] as [$nameField, $typeField]) {
+            $names = self::namesFromBibtex($fields[$nameField] ?? '');
+            if ($names === []) {
+                continue;
+            }
+
+            $type = self::normalizedEditorialRoleType(self::cleanBibtexText($fields[$typeField] ?? 'editor'));
+            $roles[] = [
+                'field' => $nameField,
+                'type' => $type,
+                'label' => self::editorialRoleLabel($type),
+                'names' => $names,
+            ];
+        }
+
+        return $roles;
+    }
+
+    private static function normalizedEditorialRoleType(string $type): string
+    {
+        $type = strtolower(trim($type));
+        if ($type === '') {
+            return 'editor';
+        }
+
+        $type = str_replace(['_', ' '], '-', $type);
+
+        return match ($type) {
+            'editorialdirector', 'editorial-director' => 'editorial-director',
+            'reviewedauthor', 'reviewed-author' => 'reviewed-author',
+            default => $type,
+        };
+    }
+
+    private static function editorialRoleCslNameVariable(string $type): ?string
+    {
+        return match (self::normalizedEditorialRoleType($type)) {
+            'editor',
+            'compiler',
+            'curator',
+            'director',
+            'editorial-director',
+            'illustrator',
+            'interviewer',
+            'reviewed-author' => self::normalizedEditorialRoleType($type),
+            default => null,
+        };
+    }
+
+    private static function editorialRoleLabel(string $type): string
+    {
+        $type = self::normalizedEditorialRoleType($type);
+
+        return match ($type) {
+            'editor' => 'Editor',
+            'compiler' => 'Compiler',
+            'curator' => 'Curator',
+            'director' => 'Director',
+            'editorial-director' => 'Editorial director',
+            'illustrator' => 'Illustrator',
+            'interviewer' => 'Interviewer',
+            'reviewed-author' => 'Reviewed author',
+            default => ucfirst(strtolower(str_replace('-', ' ', $type))),
+        };
     }
 
     /**

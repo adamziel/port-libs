@@ -1100,6 +1100,83 @@ XML);
         ]])->item('manual-role');
         $t->same('Roe', $manual['commentators'][0]['family'] ?? null);
     },
+    'maps bounded biblatex secondary editor roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{secondary-editor-review,
+  editor      = {Smith, Ada},
+  editora     = {Roe, Pat and {{Migration Desk}}},
+  editoratype = {compiler},
+  editorb     = {Ng, Nia},
+  editorbtype = {editorialdirector},
+  editorc     = {de la Cruz, Ana Maria},
+  editorctype = {reviewer},
+  title       = {Migration Source Dossier},
+  date        = {2026},
+  publisher   = {Review Press}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('secondary-editor-review', $items[0]['id']);
+        $t->same([['family' => 'Roe', 'given' => 'Pat'], ['literal' => 'Migration Desk']], $items[0]['compiler']);
+        $t->same([['family' => 'Ng', 'given' => 'Nia']], $items[0]['editorial-director']);
+        $t->same('editora', $items[0]['editorial-roles'][0]['field'] ?? null);
+        $t->same('compiler', $items[0]['editorial-roles'][0]['type'] ?? null);
+        $t->same('Compiler', $items[0]['editorial-roles'][0]['label'] ?? null);
+        $t->same([['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la']], $items[0]['editorial-roles'][2]['names'] ?? null);
+        $t->same('Reviewer', $items[0]['editorial-roles'][2]['label'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('secondary-editor-review');
+        $t->same('Roe', $item['compilers'][0]['family'] ?? null);
+        $t->same('Migration Desk', $item['compilers'][1]['literal'] ?? null);
+        $t->same('Ng', $item['editorialDirectors'][0]['family'] ?? null);
+        $t->same('reviewer', $item['editorialRoles'][2]['type'] ?? null);
+        $t->same('de la', $item['editorialRoles'][2]['names'][0]['nonDroppingParticle'] ?? null);
+        $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('secondary-editor-review', '[@secondary-editor-review]')]));
+        $t->same(
+            'Smith, Ada. Migration Source Dossier. Review Press, 2026. Compiled by Roe, Pat; Migration Desk. Editorial direction by Ng, Nia. Reviewer: de la Cruz, Ana Maria.',
+            $processor->renderBibliographyEntry('secondary-editor-review')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text value="secondary"/>
+        <names variable="compiler"/>
+        <names variable="editorial-director"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[secondary | Roe and Migration Desk | Ng]', $styled->renderCitationCluster([$citation('secondary-editor-review', '[@secondary-editor-review]')]));
+        $t->same('Migration Source Dossier :: Compiled by Roe, Pat; Migration Desk. Editorial direction by Ng, Nia. Reviewer: de la Cruz, Ana Maria.', $styled->renderBibliographyEntry('secondary-editor-review'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-secondary',
+            'title' => 'Manual Secondary Editor Source',
+            'compiler' => [
+                ['family' => 'Roe', 'given' => 'Pat'],
+            ],
+        ]])->item('manual-secondary');
+        $t->same('Roe', $manual['compilers'][0]['family'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-secondary-role',
+            'title' => 'Bad Secondary Role',
+            'editorial-roles' => 'compiler',
+        ]]));
+    },
     'parses pandoc bracketed citation clusters with prefixes locators suppression and url keys' => static function (TestRunner $t) use ($cslJson): void {
         $processor = CitationCslProcessor::fromJson($cslJson());
         $document = (new MarkdownReader())->read(
