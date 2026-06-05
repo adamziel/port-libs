@@ -180,6 +180,7 @@ final class OdfReader
                     'bookmarkReferenceCount' => $contentStats['bookmarkReferenceCount'],
                     'referenceMarkCount' => $contentStats['referenceMarkCount'],
                     'referenceReferenceCount' => $contentStats['referenceReferenceCount'],
+                    'indexMarkCount' => $contentStats['indexMarkCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'fieldCount' => $contentStats['fieldCount'],
                     'rubyCount' => $contentStats['rubyCount'],
@@ -2185,6 +2186,29 @@ final class OdfReader
                 $nodes[] = $this->softPageBreakNode();
                 continue;
             }
+            if ($this->isIndexMarkStartElement($child)) {
+                $markId = self::attr($child, self::TEXT_NS, 'id');
+                $range = $markId === '' ? null : $this->indexMarkRange($children, $index, $markId, $this->indexMarkEndElementName($child->localName));
+                if ($range !== null) {
+                    $inner = $this->coalesceTextNodes($this->inlineNodesFromNodeList($range['nodes'], $catalog, $package));
+                    $node = $this->indexMarkNode($child, $catalog, $package, $inner);
+                    if ($node instanceof AstNode) {
+                        $nodes[] = $node;
+                    }
+                    $index = $range['endIndex'];
+                    continue;
+                }
+            }
+            if ($this->isIndexMarkElement($child)) {
+                $indexMark = $this->indexMarkNode($child, $catalog, $package);
+                if ($indexMark instanceof AstNode) {
+                    $nodes[] = $indexMark;
+                }
+                continue;
+            }
+            if ($this->isIndexMarkEndElement($child)) {
+                continue;
+            }
             if ($this->isTextFieldElement($child)) {
                 $field = $this->fieldNode($child, $catalog, $package);
                 if ($field instanceof AstNode) {
@@ -2411,6 +2435,141 @@ final class OdfReader
                 'data-odf-soft-page-break' => 'true',
             ],
         ]);
+    }
+
+    private function isIndexMarkElement(\DOMElement $element): bool
+    {
+        if ($element->namespaceURI !== self::TEXT_NS) {
+            return false;
+        }
+
+        return in_array($element->localName, [
+            'toc-mark',
+            'toc-mark-start',
+            'alphabetical-index-mark',
+            'alphabetical-index-mark-start',
+            'user-index-mark',
+            'user-index-mark-start',
+        ], true);
+    }
+
+    private function isIndexMarkStartElement(\DOMElement $element): bool
+    {
+        if ($element->namespaceURI !== self::TEXT_NS) {
+            return false;
+        }
+
+        return in_array($element->localName, [
+            'toc-mark-start',
+            'alphabetical-index-mark-start',
+            'user-index-mark-start',
+        ], true);
+    }
+
+    private function isIndexMarkEndElement(\DOMElement $element): bool
+    {
+        if ($element->namespaceURI !== self::TEXT_NS) {
+            return false;
+        }
+
+        return in_array($element->localName, [
+            'toc-mark-end',
+            'alphabetical-index-mark-end',
+            'user-index-mark-end',
+        ], true);
+    }
+
+    private function indexMarkEndElementName(string $startElement): string
+    {
+        return substr($startElement, 0, -strlen('-start')) . '-end';
+    }
+
+    /**
+     * @param list<\DOMNode> $children
+     * @return ?array{nodes:list<\DOMNode>, endIndex:int}
+     */
+    private function indexMarkRange(array $children, int $startIndex, string $id, string $endElement): ?array
+    {
+        $range = [];
+        for ($index = $startIndex + 1, $count = count($children); $index < $count; $index++) {
+            $child = $children[$index];
+            if ($child instanceof \DOMElement && $this->isElement($child, self::TEXT_NS, $endElement)) {
+                $endId = self::attr($child, self::TEXT_NS, 'id');
+                if ($endId === $id) {
+                    return [
+                        'nodes' => $range,
+                        'endIndex' => $index,
+                    ];
+                }
+            }
+
+            $range[] = $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param list<AstNode>|null $children
+     */
+    private function indexMarkNode(\DOMElement $mark, array $catalog, ?ZipPackage $package, ?array $children = null): ?AstNode
+    {
+        $children ??= $this->coalesceTextNodes($this->inlineNodes($mark, $catalog, $package));
+        if ($children === []) {
+            $text = (string) ($this->indexMarkMetadata($mark)['stringValue'] ?? '');
+            if ($text === '') {
+                $text = self::normalizedText($mark);
+            }
+            if ($text === '') {
+                return null;
+            }
+            $children = [new AstNode('text', ['text' => $text])];
+        }
+
+        $type = $this->indexMarkType($mark->localName);
+        $metadata = $this->indexMarkMetadata($mark);
+        $attributes = [
+            'data-odf-index-mark-type' => $type,
+            'data-odf-index-mark-element' => $mark->localName,
+        ];
+        foreach ($metadata as $name => $value) {
+            if ($value === null || $value === '' || is_array($value)) {
+                continue;
+            }
+            $attributes['data-odf-index-mark-' . self::kebabCase((string) $name)] = is_bool($value)
+                ? ($value ? 'true' : 'false')
+                : (string) $value;
+        }
+
+        return new AstNode('span', [
+            'sourceFormat' => 'odt',
+            'indexMarkType' => $type,
+            'indexMarkElement' => $mark->localName,
+            'indexMarkMetadata' => $metadata,
+            'classes' => ['odf-index-mark', 'odf-index-mark-' . $type],
+            'attributes' => $attributes,
+        ], $children);
+    }
+
+    private function indexMarkType(string $element): string
+    {
+        if (str_starts_with($element, 'toc-mark')) {
+            return 'toc';
+        }
+        if (str_starts_with($element, 'user-index-mark')) {
+            return 'user';
+        }
+
+        return 'alphabetical';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexMarkMetadata(\DOMElement $mark): array
+    {
+        return $this->odfElementMetadataAttributes($mark, [self::TEXT_NS]);
     }
 
     private function isTextFieldElement(\DOMElement $element): bool
@@ -4131,7 +4290,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -4142,6 +4301,7 @@ final class OdfReader
             'bookmarkReferenceCount' => 0,
             'referenceMarkCount' => 0,
             'referenceReferenceCount' => 0,
+            'indexMarkCount' => 0,
             'sequenceCount' => 0,
             'fieldCount' => 0,
             'rubyCount' => 0,
@@ -4199,6 +4359,9 @@ final class OdfReader
             }
             if ($node->type === 'link' && $this->nodeHasClass($node, 'odf-reference-ref')) {
                 $stats['referenceReferenceCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-index-mark')) {
+                $stats['indexMarkCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-sequence')) {
                 $stats['sequenceCount']++;

@@ -1873,6 +1873,60 @@ XML;
         $t->contains('<a href="#source-hero-seq">Figure 1</a>', $blocksHtml);
         $t->contains('<div id="glossary-terms" class="odf-generated-index odf-alphabetical-index" data-odf-index-type="alphabetical"', $blocksHtml);
     },
+    'maps ODT inline index marks into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithInlineIndexMarks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Navigation <text:toc-mark text:string-value="ODT source packet" text:outline-level="1"/> term <text:alphabetical-index-mark-start text:id="idx-claim" text:string-value="source claim" text:key1="Migration" text:key2="ODT" text:main-entry="true"/>source claim<text:alphabetical-index-mark-end text:id="idx-claim"/> and <text:user-index-mark text:index-name="Reviewer Terms" text:string-value="Data Liberation"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithInlineIndexMarks));
+        $paragraph = $result['document']->children[0];
+        $tocMark = $paragraph->children[1];
+        $alphabeticalMark = $paragraph->children[3];
+        $userMark = $paragraph->children[5];
+
+        $t->same('Navigation ODT source packet term source claim and Data Liberation.', $paragraph->attr('text'));
+        $t->same('span', $tocMark->type);
+        $t->same(['odf-index-mark', 'odf-index-mark-toc'], $tocMark->attr('classes'));
+        $t->same('toc', $tocMark->attr('indexMarkType'));
+        $t->same('toc-mark', $tocMark->attr('indexMarkElement'));
+        $t->same('ODT source packet', $tocMark->children[0]->attr('text'));
+        $t->same('ODT source packet', $tocMark->attr('indexMarkMetadata')['stringValue']);
+        $t->same(1, $tocMark->attr('indexMarkMetadata')['outlineLevel']);
+
+        $t->same('span', $alphabeticalMark->type);
+        $t->same(['odf-index-mark', 'odf-index-mark-alphabetical'], $alphabeticalMark->attr('classes'));
+        $t->same('alphabetical', $alphabeticalMark->attr('indexMarkType'));
+        $t->same('alphabetical-index-mark-start', $alphabeticalMark->attr('indexMarkElement'));
+        $t->same('source claim', $alphabeticalMark->children[0]->attr('text'));
+        $t->same('idx-claim', $alphabeticalMark->attr('indexMarkMetadata')['id']);
+        $t->same('Migration', $alphabeticalMark->attr('indexMarkMetadata')['key1']);
+        $t->same('ODT', $alphabeticalMark->attr('indexMarkMetadata')['key2']);
+        $t->same(true, $alphabeticalMark->attr('indexMarkMetadata')['mainEntry']);
+
+        $t->same('span', $userMark->type);
+        $t->same(['odf-index-mark', 'odf-index-mark-user'], $userMark->attr('classes'));
+        $t->same('user', $userMark->attr('indexMarkType'));
+        $t->same('Reviewer Terms', $userMark->attr('indexMarkMetadata')['indexName']);
+        $t->same('Data Liberation', $userMark->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['indexMarkCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[ODT source packet]{.odf-index-mark .odf-index-mark-toc data-odf-index-mark-type="toc"', $markdown);
+        $t->contains('[source claim]{.odf-index-mark .odf-index-mark-alphabetical data-odf-index-mark-type="alphabetical"', $markdown);
+        $t->contains('data-odf-index-mark-main-entry="true"', $markdown);
+        $t->contains('<span class="odf-index-mark odf-index-mark-toc" data-odf-index-mark-type="toc" data-odf-index-mark-element="toc-mark" data-odf-index-mark-string-value="ODT source packet" data-odf-index-mark-outline-level="1">ODT source packet</span>', $blocksHtml);
+        $t->contains('<span class="odf-index-mark odf-index-mark-alphabetical" data-odf-index-mark-type="alphabetical" data-odf-index-mark-element="alphabetical-index-mark-start" data-odf-index-mark-id="idx-claim" data-odf-index-mark-string-value="source claim" data-odf-index-mark-key1="Migration" data-odf-index-mark-key2="ODT" data-odf-index-mark-main-entry="true">source claim</span>', $blocksHtml);
+        $t->contains('<span class="odf-index-mark odf-index-mark-user" data-odf-index-mark-type="user" data-odf-index-mark-element="user-index-mark" data-odf-index-mark-index-name="Reviewer Terms" data-odf-index-mark-string-value="Data Liberation">Data Liberation</span>', $blocksHtml);
+    },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedSections = <<<'XML'
 <office:document-content
