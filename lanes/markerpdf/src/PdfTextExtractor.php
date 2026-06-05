@@ -18781,10 +18781,20 @@ final class PdfTextExtractor
 
     private function inlineImageDictionaryHasImageKeys(string $dictionary): bool
     {
-        return preg_match(
-            '/\/(?:Width|Height|ColorSpace|BitsPerComponent|ImageMask|Filter|Decode|DecodeParms|Interpolate)(?=[\s\[\]()<>{}\/%]|$)/s',
-            $dictionary
-        ) === 1;
+        foreach ([
+            'Width',
+            'Height',
+            'ColorSpace',
+            'BitsPerComponent',
+            'ImageMask',
+            'Filter',
+        ] as $name) {
+            if ($this->topLevelNameValueOffset($dictionary, $name) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function inlineImageDataCandidate(string $stream, int $dataStart, int $markerOffset): string

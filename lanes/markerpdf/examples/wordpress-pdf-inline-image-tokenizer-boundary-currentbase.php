@@ -34,6 +34,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "abc EI BT /F1 12 Tf 72 650 Td (Compact Delimiter Inline Payload Noise) Tj ET rawtail\n"
     . "EI\n"
     . "BT /F1 12 Tf 72 652 Td (After Compact Delimiter Boundary) Tj ET\n"
+    . "BI /DP << /Width 1 /Filter /FlateDecode /BitsPerComponent 8 >> ID\n"
+    . "BT /F1 12 Tf 72 650 Td (Nested Dictionary Decoy Text Survives) Tj ET\n"
+    . "EI\n"
+    . "BT /F1 12 Tf 72 648 Td (After Nested Dictionary Decoy) Tj ET\n"
     . "BI /W 1 /H 1 /CS /RGB /BPC 8 /F [/RL /JPXDecode] ID\n"
     . $wrappedJpxPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 640 Td (After Wrapped Preview Filter) Tj ET\n"
@@ -96,7 +100,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles and slash-delimited BI dictionaries while still excluding real BI ID EI inline image payloads before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, ignores nested modifier-dictionary decoys, and preserves slash-delimited BI image payload boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -106,6 +110,10 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
     'compact_slash_delimited_inline_image_excluded' => !str_contains($plainText, 'Compact Delimiter Inline Payload Noise')
         && !str_contains($plainText, 'BI/W')
         && str_contains($plainText, 'After Compact Delimiter Boundary'),
+    'malformed_bi_nested_dictionary_decoy_preserved_as_text_boundary' => str_contains($plainText, 'Nested Dictionary Decoy Text Survives')
+        && str_contains($plainText, 'After Nested Dictionary Decoy')
+        && !str_contains($plainText, 'FlateDecode')
+        && !str_contains($plainText, 'BitsPerComponent'),
     'preview_only_jbig2_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'JBIG2 Inline Payload Noise')
         && !str_contains($plainText, 'rawtail')
         && str_contains($plainText, 'After JBIG2 Boundary'),
