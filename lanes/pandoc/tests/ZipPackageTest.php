@@ -1504,6 +1504,65 @@ return [
         $t->same('review packet provenance', $roundTrip->read('word/media/reviewer-note.txt'));
     },
 
+    'preflights duplicate zip extra field ids before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $centralExtra = pack('vva*', 0xcafe, strlen('central-one'), 'central-one')
+            . pack('vva*', 0xcafe, strlen('central-two'), 'central-two')
+            . pack('vva*', 0x5455, 5, "\x01" . pack('V', 1780479017));
+        $localExtra = pack('vva*', 0xbeef, strlen('local-one'), 'local-one')
+            . pack('vva*', 0xbeef, strlen('local-two'), 'local-two')
+            . pack('vva*', 0x5455, 5, "\x01" . pack('V', 1780479017));
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'reviewer media provenance with duplicate extra fields',
+                'method' => 0,
+                'centralExtra' => $centralExtra,
+                'localExtra' => $localExtra,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>duplicate extra field audit</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]));
+        $summary = $package->extraFieldPreflight();
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(1, $summary['extraFieldEntryCount']);
+        $t->same(1, $summary['duplicateExtraFieldEntryCount']);
+        $t->same(1, $summary['duplicateCentralExtraFieldEntryCount']);
+        $t->same(1, $summary['duplicateLocalExtraFieldEntryCount']);
+        $t->same('word/media/reviewer-note.txt', $summary['duplicateEntries'][0]['name']);
+        $t->same([0xcafe, 0xcafe, 0x5455], $summary['entries'][0]['centralExtraFieldIds']);
+        $t->same([0xbeef, 0xbeef, 0x5455], $summary['entries'][0]['localExtraFieldIds']);
+        $t->same([0xcafe], $summary['entries'][0]['duplicateCentralExtraFieldIds']);
+        $t->same([0xbeef], $summary['entries'][0]['duplicateLocalExtraFieldIds']);
+        $t->same(true, $summary['entries'][0]['hasDuplicateExtraFieldIds']);
+        $t->same([], $summary['entries'][1]['duplicateCentralExtraFieldIds']);
+        $t->same([], $summary['entries'][1]['duplicateLocalExtraFieldIds']);
+        $t->same('central-one', $package->entry('word/media/reviewer-note.txt')->centralExtraField(0xcafe));
+        $t->same('local-one', $package->localExtraField('/word/media/reviewer-note.txt', 0xbeef));
+        $t->same('reviewer media provenance with duplicate extra fields', $package->read('/word/media/reviewer-note.txt'));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoDuplicateExtraFieldIds());
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe extra fields</w:p></w:document>',
+                'modifiedAt' => 1780479017,
+                'extraFieldData' => pack('vva*', 0xcafe, strlen('wp-review:v1'), 'wp-review:v1'),
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoDuplicateExtraFieldIds();
+
+        $t->same(1, $safeSummary['entryCount']);
+        $t->same(1, $safeSummary['extraFieldEntryCount']);
+        $t->same(0, $safeSummary['duplicateExtraFieldEntryCount']);
+        $t->same([], $safeSummary['duplicateEntries']);
+        $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['centralExtraFieldIds']);
+        $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['localExtraFieldIds']);
+    },
+
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $modifiedAt = 1780479017;
         $accessedAt = 1780479018;

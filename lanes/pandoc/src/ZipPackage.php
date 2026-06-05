@@ -553,6 +553,117 @@ final class ZipPackage
         ];
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     extraFieldEntryCount:int,
+     *     duplicateExtraFieldEntryCount:int,
+     *     duplicateCentralExtraFieldEntryCount:int,
+     *     duplicateLocalExtraFieldEntryCount:int,
+     *     duplicateEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool}>,
+     *     entries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool}>
+     * }
+     */
+    public function extraFieldPreflight(): array
+    {
+        $extraFieldEntryCount = 0;
+        $duplicateCentralExtraFieldEntryCount = 0;
+        $duplicateLocalExtraFieldEntryCount = 0;
+        $duplicateEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $centralExtraFieldIds = array_map(
+                static fn (array $field): int => $field['id'],
+                $entry->centralExtraFields()
+            );
+            $localExtraFieldIds = array_map(
+                static fn (array $field): int => $field['id'],
+                $this->localExtraFields($entry->name)
+            );
+            $duplicateCentralExtraFieldIds = self::duplicateIntegerValues($centralExtraFieldIds);
+            $duplicateLocalExtraFieldIds = self::duplicateIntegerValues($localExtraFieldIds);
+            $hasDuplicateExtraFieldIds = $duplicateCentralExtraFieldIds !== []
+                || $duplicateLocalExtraFieldIds !== [];
+
+            if ($centralExtraFieldIds !== [] || $localExtraFieldIds !== []) {
+                $extraFieldEntryCount++;
+            }
+
+            if ($duplicateCentralExtraFieldIds !== []) {
+                $duplicateCentralExtraFieldEntryCount++;
+            }
+
+            if ($duplicateLocalExtraFieldIds !== []) {
+                $duplicateLocalExtraFieldEntryCount++;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'centralExtraFieldIds' => $centralExtraFieldIds,
+                'localExtraFieldIds' => $localExtraFieldIds,
+                'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+                'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+                'hasDuplicateExtraFieldIds' => $hasDuplicateExtraFieldIds,
+            ];
+            $entries[] = $summary;
+            if ($hasDuplicateExtraFieldIds) {
+                $duplicateEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'extraFieldEntryCount' => $extraFieldEntryCount,
+            'duplicateExtraFieldEntryCount' => count($duplicateEntries),
+            'duplicateCentralExtraFieldEntryCount' => $duplicateCentralExtraFieldEntryCount,
+            'duplicateLocalExtraFieldEntryCount' => $duplicateLocalExtraFieldEntryCount,
+            'duplicateEntries' => $duplicateEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     extraFieldEntryCount:int,
+     *     duplicateExtraFieldEntryCount:int,
+     *     duplicateCentralExtraFieldEntryCount:int,
+     *     duplicateLocalExtraFieldEntryCount:int,
+     *     duplicateEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool}>,
+     *     entries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool}>
+     * }
+     */
+    public function assertNoDuplicateExtraFieldIds(): array
+    {
+        $summary = $this->extraFieldPreflight();
+        if ($summary['duplicateExtraFieldEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static function (array $entry): string {
+                        $parts = [];
+                        if ($entry['duplicateCentralExtraFieldIds'] !== []) {
+                            $parts[] = 'central ids ' . implode('/', $entry['duplicateCentralExtraFieldIds']);
+                        }
+                        if ($entry['duplicateLocalExtraFieldIds'] !== []) {
+                            $parts[] = 'local ids ' . implode('/', $entry['duplicateLocalExtraFieldIds']);
+                        }
+
+                        return $entry['name'] . ' (' . implode('; ', $parts) . ')';
+                    },
+                    $summary['duplicateEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains duplicate extra field ids that require explicit import review: ' . $entries
+            );
+        }
+
+        return $summary;
+    }
+
     public function has(string $partName): bool
     {
         return isset($this->entriesByName[$this->normalizeLookupPartName($partName)]);
@@ -1666,6 +1777,25 @@ final class ZipPackage
     private static function isKnownCreatorHostSystem(int $hostSystem): bool
     {
         return isset(self::CREATOR_HOST_SYSTEM_NAMES[$hostSystem]);
+    }
+
+    /**
+     * @param list<int> $values
+     *
+     * @return list<int>
+     */
+    private static function duplicateIntegerValues(array $values): array
+    {
+        $counts = [];
+        $duplicates = [];
+        foreach ($values as $value) {
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
+            if ($counts[$value] === 2) {
+                $duplicates[] = $value;
+            }
+        }
+
+        return $duplicates;
     }
 
     private function normalizeLookupPartName(string $partName): string

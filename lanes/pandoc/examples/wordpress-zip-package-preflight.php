@@ -1312,6 +1312,7 @@ $packageCompressionPreflight = $package->compressionMethodPreflight();
 $packagePermissionPreflight = $package->permissionPreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
+$packageExtraFieldPreflight = $package->extraFieldPreflight();
 $packageSizeRejected = false;
 try {
     $package->assertSizePreflight($packageSizePreflight['uncompressedBytes'] - 1, null);
@@ -1339,6 +1340,22 @@ try {
     $unknownCreatorHostPackage->assertKnownCreatorHostSystems();
 } catch (RuntimeException $exception) {
     $unknownCreatorHostRejected = str_contains($exception->getMessage(), 'unknown creator host-system entries');
+}
+$duplicateExtraFieldPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/media/duplicate-extra-review.bin',
+        'data' => "Duplicate ZIP extra field metadata should stay blocked for strict media import\n",
+        'compressionMethod' => 0,
+        'extraFieldData' => pack('vva*', 0xcafe, strlen('first-review'), 'first-review')
+            . pack('vva*', 0xcafe, strlen('second-review'), 'second-review'),
+    ],
+]);
+$duplicateExtraFieldPreflight = $duplicateExtraFieldPackage->extraFieldPreflight();
+$duplicateExtraFieldRejected = false;
+try {
+    $duplicateExtraFieldPackage->assertNoDuplicateExtraFieldIds();
+} catch (RuntimeException $exception) {
+    $duplicateExtraFieldRejected = str_contains($exception->getMessage(), 'duplicate extra field ids');
 }
 $deflateOptionFlagsRejected = false;
 try {
@@ -2030,6 +2047,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected known ZIP creator host systems to return the accepted summary');
     }
 
+    if ($package->assertNoDuplicateExtraFieldIds() !== $packageExtraFieldPreflight) {
+        throw new RuntimeException('Expected generated ZIP package extra fields to return the accepted summary');
+    }
+
+    if (($packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected generated ZIP package to avoid duplicate extra field ids');
+    }
+
     if (
         !$unknownCreatorHostRejected
         || ($unknownCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 1
@@ -2037,6 +2062,22 @@ if (in_array('--self-test', $argv, true)) {
         || ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? null) !== 'word/media/unknown-host-review.bin'
     ) {
         throw new RuntimeException('Expected unknown ZIP creator host systems to stay blocked for reviewer import');
+    }
+
+    if (($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? null) !== 'word/media/duplicate-extra-review.bin') {
+        throw new RuntimeException('Expected ZIP duplicate extra-field preflight to expose the conflicting media entry');
+    }
+
+    if (($duplicateExtraFieldPreflight['duplicateEntries'][0]['duplicateCentralExtraFieldIds'][0] ?? null) !== 0xcafe) {
+        throw new RuntimeException('Expected ZIP duplicate extra-field preflight to expose duplicate central field id 0xcafe');
+    }
+
+    if (($duplicateExtraFieldPreflight['duplicateEntries'][0]['duplicateLocalExtraFieldIds'][0] ?? null) !== 0xcafe) {
+        throw new RuntimeException('Expected ZIP duplicate extra-field preflight to expose duplicate local field id 0xcafe');
+    }
+
+    if (!$duplicateExtraFieldRejected) {
+        throw new RuntimeException('Expected duplicate ZIP extra field ids to stay blocked for strict media import');
     }
 
     if (!$packageSizeRejected) {
@@ -2653,6 +2694,7 @@ echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['uni
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
+echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";
 echo 'packageArchive.centralDirectorySize=' . $packageArchivePreflight['centralDirectorySize'] . "\n";
@@ -2691,6 +2733,8 @@ echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRe
 echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipUnknownCreatorHostPolicy=' . ($unknownCreatorHostRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnknownCreatorHostEntry=' . ($unknownCreatorHostPreflight['unknownEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipVersionNeededMismatchPolicy=' . ($versionNeededMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
