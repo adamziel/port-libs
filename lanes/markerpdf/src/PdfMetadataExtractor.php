@@ -7249,7 +7249,7 @@ final class PdfMetadataExtractor
             }
 
             $first ??= $value;
-            if ($item->getAttributeNS(self::NS_XML, 'lang') === 'x-default') {
+            if (strcasecmp(trim($item->getAttributeNS(self::NS_XML, 'lang')), 'x-default') === 0) {
                 return $value;
             }
         }
