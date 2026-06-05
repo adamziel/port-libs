@@ -13,6 +13,7 @@ final class MathTexConverter
         'gamma' => 'γ',
         'delta' => 'δ',
         'epsilon' => 'ϵ',
+        'infty' => '∞',
         'theta' => 'θ',
         'lambda' => 'λ',
         'mu' => 'μ',
@@ -471,6 +472,38 @@ final class MathTexConverter
             return '<mi>' . $this->esc($operatorName) . '</mi>';
         }
 
+        if ($command === 'overset') {
+            $above = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset above');
+            $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset base');
+
+            return '<mover>' . $base . $above . '</mover>';
+        }
+
+        if ($command === 'underset') {
+            $below = $this->parseRequiredNonEmptyGroup($source, $offset, 'underset below');
+            $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'underset base');
+
+            return '<munder>' . $base . $below . '</munder>';
+        }
+
+        if ($command === 'overbrace') {
+            return '<mover>'
+                . $this->parseRequiredNonEmptyGroup($source, $offset, 'overbrace base')
+                . '<mo>⏞</mo>'
+                . '</mover>';
+        }
+
+        if ($command === 'underbrace') {
+            return '<munder>'
+                . $this->parseRequiredNonEmptyGroup($source, $offset, 'underbrace base')
+                . '<mo>⏟</mo>'
+                . '</munder>';
+        }
+
+        if (in_array($command, ['displaystyle', 'textstyle', 'scriptstyle', 'scriptscriptstyle'], true)) {
+            return $this->parseStyleCommand($source, $offset, $command);
+        }
+
         if ($command === 'begin') {
             return $this->parseEnvironment($source, $offset);
         }
@@ -769,6 +802,30 @@ final class MathTexConverter
         return '<mo fence="true" stretchy="true">' . $this->esc($delimiter) . '</mo>';
     }
 
+    private function parseStyleCommand(string $source, int &$offset, string $command): string
+    {
+        $base = $this->parseStyleArgument($source, $offset, $command);
+        $attributes = match ($command) {
+            'displaystyle' => ' displaystyle="true"',
+            'textstyle' => ' displaystyle="false"',
+            'scriptstyle' => ' scriptlevel="1"',
+            'scriptscriptstyle' => ' scriptlevel="2"',
+        };
+
+        return '<mstyle' . $attributes . '>' . $base . '</mstyle>';
+    }
+
+    private function parseStyleArgument(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX style argument for \\' . $command . ' at offset ' . $offset);
+        }
+
+        return $this->applyScripts($source, $offset, $this->parseAtom($source, $offset));
+    }
+
     private function applyScripts(string $source, int &$offset, string $base): string
     {
         $subscript = null;
@@ -839,6 +896,25 @@ final class MathTexConverter
 
         $offset++;
         $children = $this->parseExpression($source, $offset, '}');
+        $this->expectGroupEnd($source, $offset);
+
+        return $this->row($children);
+    }
+
+    private function parseRequiredNonEmptyGroup(string $source, int &$offset, string $label): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        if (($source[$offset] ?? '') !== '{') {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' group at offset ' . $offset);
+        }
+
+        $offset++;
+        $children = $this->parseExpression($source, $offset, '}');
+        if ($children === []) {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' content at offset ' . $start);
+        }
+
         $this->expectGroupEnd($source, $offset);
 
         return $this->row($children);

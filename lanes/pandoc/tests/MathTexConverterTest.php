@@ -163,6 +163,30 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{rl}x_i &amp;= p_i \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{array}</annotation>', $arrayMathml);
         $t->contains('<mtable columnalign="left center right"><mtr><mtd><mi>α</mi></mtd><mtd><mi>β</mi></mtd><mtd><mi>ω</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $ruledArrayMathml);
     },
+    'converts bounded tex above below and style wrappers to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $aboveBelowMathml = $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n', true);
+        $braceMathml = $converter->texToMathMl('\\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}}');
+        $styleMathml = $converter->texToMathMl('\\displaystyle \\frac{a}{b} + \\textstyle c + \\scriptstyle d_i + \\scriptscriptstyle e');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $aboveBelowMathml);
+        $t->contains('<mover><msub><mi>p</mi><mi>i</mi></msub><mtext>new</mtext></mover>', $aboveBelowMathml);
+        $t->contains('<msub><munder><mo>lim</mo><mn>0</mn></munder><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow></msub><msub><mi>a</mi><mi>n</mi></msub>', $aboveBelowMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n</annotation>', $aboveBelowMathml);
+        $t->contains('<msup><mover><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo>⏞</mo></mover><mtext>sum</mtext></msup>', $braceMathml);
+        $t->contains('<msub><munder><msub><mi>m</mi><mi>i</mi></msub><mo>⏟</mo></munder><mtext>media</mtext></msub>', $braceMathml);
+        $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle><mo>+</mo><mstyle displaystyle="false"><mi>c</mi></mstyle>', $styleMathml);
+        $t->contains('<mstyle scriptlevel="1"><msub><mi>d</mi><mi>i</mi></msub></mstyle><mo>+</mo><mstyle scriptlevel="2"><mi>e</mi></mstyle>', $styleMathml);
+    },
+    'rejects malformed bounded tex above below commands without invoking a tex engine' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overset{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underset{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbrace'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underbrace_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\displaystyle'));
+    },
     'rejects malformed bounded tex matrix environments without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
