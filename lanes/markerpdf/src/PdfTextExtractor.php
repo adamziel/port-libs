@@ -20996,19 +20996,20 @@ final class PdfTextExtractor
                 continue;
             }
 
+            $entryGeneration = (int) ($entry['generation'] ?? 0);
             $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $offset);
             if (
-                $offsetOwner === null
-                || $offsetOwner['offset'] >= $xrefOffset
-                || $offsetOwner['objectNumber'] !== (int) $objectNumber
-                || $offsetOwner['generation'] === (int) ($entry['generation'] ?? 0)
+                $offsetOwner !== null
+                && $offsetOwner['offset'] < $xrefOffset
+                && $offsetOwner['objectNumber'] === (int) $objectNumber
+                && $offsetOwner['generation'] === $entryGeneration
             ) {
                 continue;
             }
 
             $definition = $this->directObjectDefinitionForGenerationBeforeOffset(
                 $definitions[$objectNumber] ?? [],
-                (int) ($entry['generation'] ?? 0),
+                $entryGeneration,
                 $xrefOffset
             );
             if ($definition === null) {
