@@ -1528,6 +1528,7 @@ final class TableRecognizer
         }
 
         $cropBbox = $needsTranslation ? $this->tableCropBbox($table, $imageSize) : null;
+        $cropBboxSource = $cropBbox === null ? null : $this->tableCropBboxSource($table, $imageSize);
         if ($needsTranslation && $cropBbox === null) {
             return [
                 'table' => $table,
@@ -1670,6 +1671,9 @@ final class TableRecognizer
         ];
         if ($cropBbox !== null) {
             $review['table_bbox'] = $cropBbox;
+            if ($cropBboxSource !== null) {
+                $review['table_bbox_source'] = $cropBboxSource;
+            }
             $review['translation'] = ['x' => $dx, 'y' => $dy];
         }
         if (isset($imageSize['image_size_source']) && is_scalar($imageSize['image_size_source'])) {
@@ -1966,14 +1970,36 @@ final class TableRecognizer
                 return $bbox;
             }
         }
-        if (isset($table['polygon'])) {
-            $bbox = $this->polygonBbox($table['polygon']);
-            if ($bbox !== null) {
-                return $bbox;
-            }
+        $polygonBbox = $this->polygonBboxFromRecord($table);
+        if ($polygonBbox !== null) {
+            return $polygonBbox;
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     */
+    private function tableCropBboxSource(array $table, array $imageSize): ?string
+    {
+        foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
+            if (isset($table[$key]) && $this->bboxFromGeometryValue($table[$key]) !== null) {
+                return $key;
+            }
+            if (isset($imageSize[$key]) && $this->bboxFromGeometryValue($imageSize[$key]) !== null) {
+                return $key;
+            }
+        }
+
+        if (isset($table['bbox']) && $this->bboxFromGeometryValue($table['bbox']) !== null) {
+            return is_array($table['bbox'])
+                ? ($this->bboxNamedFieldSource($table['bbox']) ?? 'bbox_array')
+                : 'bbox_array';
+        }
+
+        return $this->polygonCoordinateSourceFromRecord($table);
     }
 
     /**
@@ -1986,7 +2012,7 @@ final class TableRecognizer
         }
 
         return $this->bboxFromValue($value)
-            ?? $this->polygonBbox($value['polygon'] ?? null)
+            ?? $this->polygonBboxFromRecord($value)
             ?? $this->polygonBbox($value);
     }
 
@@ -2118,19 +2144,17 @@ final class TableRecognizer
                 continue;
             }
 
-            if (isset($conflict['bbox'])) {
-                $bbox = $this->bboxFromValue($conflict['bbox']);
-                if ($bbox !== null) {
-                    $conflict['source_bbox'] = $bbox;
-                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
-                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
-                    $conflict['bbox'] = $this->translatedBbox($bbox, $dx, $dy);
-                }
+            $bbox = $this->nullableBboxFromRecord($conflict);
+            if ($bbox !== null) {
+                $conflict['source_bbox'] = $bbox;
+                $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
+                $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                $conflict['bbox'] = $this->translatedBbox($bbox, $dx, $dy);
             }
             if (isset($conflict['candidate_cell_bboxes']) && is_array($conflict['candidate_cell_bboxes'])) {
                 $candidateBboxes = [];
                 foreach ($conflict['candidate_cell_bboxes'] as $bbox) {
-                    $normalized = $this->bboxFromValue($bbox);
+                    $normalized = $this->bboxFromGeometryValue($bbox);
                     if ($normalized !== null) {
                         $candidateBboxes[] = $this->translatedBbox($normalized, $dx, $dy);
                     }
@@ -2175,22 +2199,20 @@ final class TableRecognizer
                 continue;
             }
 
-            if (isset($conflict['bbox'])) {
-                $bbox = $this->bboxFromValue($conflict['bbox']);
-                if ($bbox !== null) {
-                    $pageImageBbox = $this->unnormalizedTableBbox($bbox, $pageImageSize);
-                    $conflict['source_bbox'] = $bbox;
-                    $conflict['source_page_image_bbox'] = $pageImageBbox;
-                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
-                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
-                    $conflict['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
-                }
+            $bbox = $this->nullableBboxFromRecord($conflict);
+            if ($bbox !== null) {
+                $pageImageBbox = $this->unnormalizedTableBbox($bbox, $pageImageSize);
+                $conflict['source_bbox'] = $bbox;
+                $conflict['source_page_image_bbox'] = $pageImageBbox;
+                $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
+                $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                $conflict['bbox'] = $this->translatedBbox($pageImageBbox, $dx, $dy);
             }
             if (isset($conflict['candidate_cell_bboxes']) && is_array($conflict['candidate_cell_bboxes'])) {
                 $candidateBboxes = [];
                 $candidatePageImageBboxes = [];
                 foreach ($conflict['candidate_cell_bboxes'] as $bbox) {
-                    $normalizedBbox = $this->bboxFromValue($bbox);
+                    $normalizedBbox = $this->bboxFromGeometryValue($bbox);
                     if ($normalizedBbox !== null) {
                         $pageImageBbox = $this->unnormalizedTableBbox($normalizedBbox, $pageImageSize);
                         $candidatePageImageBboxes[] = $pageImageBbox;
@@ -2233,19 +2255,17 @@ final class TableRecognizer
                 continue;
             }
 
-            if (isset($conflict['bbox'])) {
-                $bbox = $this->bboxFromValue($conflict['bbox']);
-                if ($bbox !== null) {
-                    $conflict['source_bbox'] = $bbox;
-                    $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
-                    $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
-                    $conflict['bbox'] = $this->unnormalizedTableBbox($bbox, $imageSize);
-                }
+            $bbox = $this->nullableBboxFromRecord($conflict);
+            if ($bbox !== null) {
+                $conflict['source_bbox'] = $bbox;
+                $conflict['source_coordinate_source'] = $this->bboxCoordinateSourceFromRecord($conflict);
+                $conflict['source_endpoint_order_normalized'] = $this->bboxEndpointOrderNormalizedFromRecord($conflict);
+                $conflict['bbox'] = $this->unnormalizedTableBbox($bbox, $imageSize);
             }
             if (isset($conflict['candidate_cell_bboxes']) && is_array($conflict['candidate_cell_bboxes'])) {
                 $candidateBboxes = [];
                 foreach ($conflict['candidate_cell_bboxes'] as $bbox) {
-                    $normalizedBbox = $this->bboxFromValue($bbox);
+                    $normalizedBbox = $this->bboxFromGeometryValue($bbox);
                     if ($normalizedBbox !== null) {
                         $candidateBboxes[] = $this->unnormalizedTableBbox($normalizedBbox, $imageSize);
                     }
@@ -3069,6 +3089,62 @@ final class TableRecognizer
             min($ys),
             max($xs),
             max($ys),
+        ];
+    }
+
+    /**
+     * Supplied sidecar adapters sometimes serialize the same four-corner
+     * geometry under generic point-list keys. Treat those keys as polygon
+     * aliases while keeping an explicit bbox authoritative when present.
+     *
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function polygonBboxFromRecord(array $record): ?array
+    {
+        foreach ($this->polygonGeometryKeys() as $key) {
+            if (!array_key_exists($key, $record)) {
+                continue;
+            }
+
+            $bbox = $this->polygonBbox($record[$key]);
+            if ($bbox !== null) {
+                return $bbox;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function polygonCoordinateSourceFromRecord(array $record): ?string
+    {
+        foreach ($this->polygonGeometryKeys() as $key) {
+            if (!array_key_exists($key, $record)) {
+                continue;
+            }
+            if ($this->polygonBbox($record[$key]) !== null) {
+                return $key === 'polygon' ? 'polygon' : 'polygon_' . $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function polygonGeometryKeys(): array
+    {
+        return [
+            'polygon',
+            'points',
+            'vertices',
+            'quad',
+            'quadrilateral',
+            'quadrilateral_points',
         ];
     }
 
@@ -5783,14 +5859,23 @@ final class TableRecognizer
      */
     private function bboxFromRecord(array $record): array
     {
-        $bbox = $this->bboxFromValue($record['bbox'] ?? null)
-            ?? $this->bboxFromNamedFields($record)
-            ?? $this->polygonBbox($record['polygon'] ?? null);
+        $bbox = $this->nullableBboxFromRecord($record);
         if ($bbox === null) {
-            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox, named bbox fields, or four-corner polygon.');
+            throw new InvalidArgumentException('Table geometry entries must include a four-value bbox, named bbox fields, or four-corner polygon alias.');
         }
 
         return $bbox;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function nullableBboxFromRecord(array $record): ?array
+    {
+        return $this->bboxFromValue($record['bbox'] ?? null)
+            ?? $this->bboxFromNamedFields($record)
+            ?? $this->polygonBboxFromRecord($record);
     }
 
     /**
@@ -5872,7 +5957,8 @@ final class TableRecognizer
         }
 
         return $this->bboxNamedFieldSource($record)
-            ?? (is_array($record['polygon'] ?? null) ? 'polygon' : 'bbox_array');
+            ?? $this->polygonCoordinateSourceFromRecord($record)
+            ?? 'bbox_array';
     }
 
     /**
