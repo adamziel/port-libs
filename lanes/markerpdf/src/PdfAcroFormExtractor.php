@@ -158,6 +158,7 @@ final class PdfAcroFormExtractor
             }
         }
 
+        $fields = $this->uniqueFieldsByObject($fields);
         $fields = $this->annotateSubmitResetActionValueReviews($fields);
         $fields = $this->markCertifyingSignatureFields($fields, $permissions);
         $fields = $this->annotateCalculationAndSignatureState($fields, $calculationOrder, $calculationOrderReview, $signatureFlags);
@@ -188,6 +189,30 @@ final class PdfAcroFormExtractor
     public function extractFields(string $pdfBytes): array
     {
         return $this->extractForm($pdfBytes)['fields'];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueFieldsByObject(array $fields): array
+    {
+        $unique = [];
+        $seenObjects = [];
+        foreach ($fields as $field) {
+            $objectNumber = $field['object'] ?? null;
+            if (is_int($objectNumber)) {
+                if (isset($seenObjects[$objectNumber])) {
+                    continue;
+                }
+
+                $seenObjects[$objectNumber] = true;
+            }
+
+            $unique[] = $field;
+        }
+
+        return $unique;
     }
 
     /**
