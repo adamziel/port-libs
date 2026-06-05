@@ -96,7 +96,7 @@ final class PdfTextBlockConverter
         $pageWidth = abs($sourceBbox[2] - $sourceBbox[0]);
         $pageHeight = abs($sourceBbox[3] - $sourceBbox[1]);
         $sourcePage = $this->integerMetadata($page['page'], 'page');
-        $rotation = (int) $page['rotation'];
+        $rotation = $this->pageRotation($page['rotation']);
         if ($rotation === 90 || $rotation === 270) {
             [$pageWidth, $pageHeight] = [$pageHeight, $pageWidth];
         }
@@ -163,7 +163,7 @@ final class PdfTextBlockConverter
     private function assertPdftextPage(array $page): void
     {
         $this->bbox($page['bbox'] ?? null, 'bbox');
-        $this->assertNumeric($page['rotation'] ?? null, 'rotation');
+        $this->pageRotation($page['rotation'] ?? null);
         $this->integerMetadata($page['page'] ?? null, 'page');
 
         if (!isset($page['blocks']) || !is_array($page['blocks']) || !array_is_list($page['blocks'])) {
@@ -351,6 +351,16 @@ final class PdfTextBlockConverter
         }
 
         return (int) $value;
+    }
+
+    private function pageRotation(mixed $value): int
+    {
+        $rotation = $this->integerMetadata($value, 'rotation');
+        if (!in_array($rotation, [0, 90, 180, 270], true)) {
+            throw new InvalidArgumentException('pdftext rotation must be one of 0, 90, 180, or 270 degrees.');
+        }
+
+        return $rotation;
     }
 
     /**

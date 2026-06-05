@@ -542,4 +542,33 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$infiniteFontSize], maxPages: 1));
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$nanReferenceCoordinate], maxPages: 1));
     },
+    'preserves pdftext character angles while rejecting malformed page rotations' => static function (TestRunner $t) use ($pdftextCharsPage, $pdftextLinkedPage): void {
+        $characterAnglePage = $pdftextCharsPage();
+        $characterAnglePage['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['rotation'] = 12.5;
+        $characterAnglePage['blocks'][0]['lines'][0]['spans'][0]['chars'][1]['rotation'] = 270.0;
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$characterAnglePage], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+
+        $t->same(12.5, $span['chars'][0]['rotation']);
+        $t->same(270, $span['chars'][1]['rotation']);
+        $t->same(12.5, $charSpan['chars'][0]['rotation']);
+        $t->same(270, $charSpan['chars'][1]['rotation']);
+
+        $fractionalPageRotation = $pdftextLinkedPage();
+        $fractionalPageRotation['rotation'] = 90.5;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$fractionalPageRotation], maxPages: 1));
+
+        $unsupportedPageRotation = $pdftextLinkedPage();
+        $unsupportedPageRotation['rotation'] = 45;
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$unsupportedPageRotation], maxPages: 1));
+
+        $integralFloatPageRotation = $pdftextLinkedPage();
+        $integralFloatPageRotation['bbox'] = [0.0, 0.0, 200.0, 300.0];
+        $integralFloatPageRotation['rotation'] = 90.0;
+        $accepted = (new PdfTextDocumentExtractor())->getTextBlocks([$integralFloatPageRotation], maxPages: 1);
+        $t->same(90, $accepted['pages'][0]['rotation']);
+        $t->same([0.0, 0.0, 300.0, 200.0], $accepted['pages'][0]['bbox']);
+    },
 ];

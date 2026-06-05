@@ -380,7 +380,7 @@ final class PdfTextDocumentExtractor
      * @param array<string, mixed> $char
      * @param array{width: float, height: float}|null $bboxScale
      * @param array<string, mixed> $span
-     * @return array{char: string, bbox: list<float>, rotation: int, font: array<string, mixed>, char_idx: int}
+     * @return array{char: string, bbox: list<float>, rotation: int|float, font: array<string, mixed>, char_idx: int}
      */
     private function validatedDictionaryOutputChar(array $char, int $index, ?array $bboxScale, array $span = []): array
     {
@@ -401,7 +401,7 @@ final class PdfTextDocumentExtractor
             $char['rotation'] = $span['rotation'] ?? 0;
         }
         $this->assertNumeric($char['rotation'], "char {$index}.rotation");
-        $char['rotation'] = (int) $char['rotation'];
+        $char['rotation'] = $this->dictionaryOutputNumberMetadata($char['rotation']);
 
         if (!array_key_exists('font', $char)) {
             $char['font'] = $span['font'] ?? null;
@@ -421,6 +421,16 @@ final class PdfTextDocumentExtractor
         $char['char_idx'] = $this->dictionaryOutputIntegerMetadata($char['char_idx'], "char {$index}.char_idx");
 
         return $char;
+    }
+
+    private function dictionaryOutputNumberMetadata(mixed $value): int|float
+    {
+        $floatValue = (float) $value;
+        if (floor($floatValue) === $floatValue) {
+            return (int) $value;
+        }
+
+        return $floatValue;
     }
 
     private function dictionaryOutputIntegerMetadata(mixed $value, string $field): int
