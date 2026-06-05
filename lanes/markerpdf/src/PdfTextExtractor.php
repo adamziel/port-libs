@@ -1564,12 +1564,13 @@ final class PdfTextExtractor
      */
     private function documentInfoFromPdf(string $pdfBytes, array $objects): array
     {
-        if (preg_match('/\/Info\s+(\d+)\s+\d+\s+R\b/s', $pdfBytes, $match) !== 1) {
-            return [];
+        $infoReference = $this->currentTrailerInfoReference($pdfBytes);
+        $infoObjectNumber = $infoReference['objectNumber'] ?? null;
+        if ($infoObjectNumber === null && preg_match('/\/Info\s+(\d+)\s+\d+\s+R\b/s', $pdfBytes, $match) === 1) {
+            $infoObjectNumber = (int) $match[1];
         }
 
-        $infoObjectNumber = (int) $match[1];
-        if (!isset($objects[$infoObjectNumber])) {
+        if ($infoObjectNumber === null || !isset($objects[$infoObjectNumber])) {
             return [];
         }
 
@@ -1594,6 +1595,120 @@ final class PdfTextExtractor
         }
 
         return $info;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function currentTrailerInfoReference(string $pdfBytes): ?array
+    {
+        $definitions = $this->directObjectDefinitions($pdfBytes);
+        if ($definitions !== []) {
+            $reference = $this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $definitions)
+                ?? $this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
+            if ($reference !== null) {
+                return $reference;
+            }
+        }
+
+        $trailers = $this->trailerDictionaryBodies($pdfBytes);
+        for ($index = count($trailers) - 1; $index >= 0; $index--) {
+            $reference = $this->objectReferenceAfterName($trailers[$index], 'Info');
+            if ($reference !== null) {
+                return $reference;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerInfoReferenceFromStartxrefChain(string $pdfBytes, array $definitions): ?array
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerInfoReferenceFromLatestClassicXrefTable(string $pdfBytes, array $definitions): ?array
+    {
+        $startxrefEntry = $this->latestStartxrefEntry($pdfBytes, $definitions);
+        $offset = $this->latestClassicXrefTableOffset(
+            $pdfBytes,
+            $definitions,
+            $startxrefEntry['tokenOffset'] ?? null
+        );
+        if ($offset === null) {
+            return null;
+        }
+
+        return $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function trailerInfoReferenceFromOffsetChain(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): ?array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return null;
+        }
+        $seenOffsets[$offset] = true;
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
+        if ($tableSection !== null) {
+            $info = $this->objectReferenceAfterName($tableSection['trailer'], 'Info');
+            if ($info !== null) {
+                return $info;
+            }
+
+            $hybridStreamOffset = $this->pdfIntegerValueAfterName($tableSection['trailer'], 'XRefStm');
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $streamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions);
+                if ($streamSection !== null) {
+                    $info = $this->objectReferenceAfterName($streamSection['body'], 'Info');
+                    if ($info !== null) {
+                        return $info;
+                    }
+                }
+            }
+
+            $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $tableSection['trailer']);
+            return $previousOffset === null
+                ? null
+                : $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return null;
+        }
+
+        $info = $this->objectReferenceAfterName($streamSection['body'], 'Info');
+        if ($info !== null) {
+            return $info;
+        }
+
+        $previousOffset = $this->previousXrefOffsetFromSectionBody($pdfBytes, $streamSection['body']);
+        return $previousOffset === null
+            ? null
+            : $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
     }
 
     /**
