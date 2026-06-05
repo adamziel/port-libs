@@ -51,6 +51,23 @@ return [
         $t->same($fragment->serialize(), $ast->attr('html'));
         $t->same(6, count($ast->attr('diagnostics')));
     },
+    'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<p>'
+            . '<img src="https://cdn.example.test/cover.png" srcset="https://cdn.example.test/cover.png 1x, /media/cover@2x.png 2x, ./cover-wide.webp 640w" alt="Safe">'
+            . '<img src="https://cdn.example.test/mixed.png" srcset="https://cdn.example.test/mixed.png 1x, javascript:alert(1) 2x" alt="Mixed">'
+            . '<img src="/media/fallback.png" srcset="/media/hero.webp 1x, mailto:review@example.test 2x" alt="Fallback">'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $html = $fragment->serialize();
+
+        $t->contains('<img src="https://cdn.example.test/cover.png" srcset="https://cdn.example.test/cover.png 1x, /media/cover@2x.png 2x, ./cover-wide.webp 640w" alt="Safe">', $html);
+        $t->contains('<img src="https://cdn.example.test/mixed.png" alt="Mixed">', $html);
+        $t->contains('<img src="/media/fallback.png" alt="Fallback">', $html);
+        $t->same(['srcset'], $summary['filteredAttributes']);
+        $t->same(['unsafe-url', 'unsafe-url'], $fragment->diagnosticCodes());
+    },
     'parses XML fragments strictly and rejects DTD entity expansion inputs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromXml('<root xml:lang="en"><br/><custom data-id="42">A &amp; B</custom></root><note/>');
         $summary = $fragment->summary();

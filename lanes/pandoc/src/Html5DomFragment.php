@@ -405,7 +405,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            if (self::isUrlAttribute($name) && !self::isSafeUrl($value)) {
+            if (self::isUrlAttribute($name) && !self::isSafeUrlAttribute($name, $value)) {
                 $diagnostics[] = [
                     'code' => 'unsafe-url',
                     'tag' => $tagName,
@@ -450,6 +450,15 @@ final class Html5DomFragment
         return in_array(strtolower($name), ['href', 'src', 'cite', 'poster', 'xlink:href', 'srcset'], true);
     }
 
+    private static function isSafeUrlAttribute(string $name, string $value): bool
+    {
+        if (strtolower($name) === 'srcset') {
+            return self::isSafeSrcset($value);
+        }
+
+        return self::isSafeUrl($value);
+    }
+
     private static function isSafeUrl(string $value): bool
     {
         $trimmed = trim(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
@@ -466,6 +475,47 @@ final class Html5DomFragment
         $scheme = strtolower(strstr($trimmed, ':', true) ?: '');
 
         return in_array($scheme, ['http', 'https', 'mailto', 'tel'], true);
+    }
+
+    private static function isSafeSrcset(string $value): bool
+    {
+        foreach (explode(',', $value) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                return false;
+            }
+
+            $candidateWithoutControls = preg_replace('/[\x00-\x20]+/', '', $candidate) ?? $candidate;
+            if (!self::isSafeImageCandidateUrl($candidateWithoutControls)) {
+                return false;
+            }
+
+            $parts = preg_split('/\s+/', $candidate, 2);
+            $url = is_array($parts) ? (string) ($parts[0] ?? '') : $candidate;
+            if ($url === '' || !self::isSafeImageCandidateUrl($url)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function isSafeImageCandidateUrl(string $value): bool
+    {
+        $trimmed = trim(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+        if ($trimmed === '' || str_starts_with($trimmed, '#') || str_starts_with($trimmed, '/')) {
+            return true;
+        }
+        if (str_starts_with($trimmed, './') || str_starts_with($trimmed, '../') || str_starts_with($trimmed, '?')) {
+            return true;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $trimmed) !== 1) {
+            return true;
+        }
+
+        $scheme = strtolower(strstr($trimmed, ':', true) ?: '');
+
+        return in_array($scheme, ['http', 'https'], true);
     }
 
     /**
