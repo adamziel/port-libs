@@ -237,6 +237,9 @@ final class PdfPageArtifactSelector
                 continue;
             }
             foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+                if (!$includePdftextPayload && $this->isCopiedPdftextPayload($wrapperValue)) {
+                    continue;
+                }
                 $this->collectPageMarkerSources($wrapperValue, $sources, $depth + 1, $includePdftextPayload);
             }
         }
@@ -260,6 +263,24 @@ final class PdfPageArtifactSelector
         }
 
         return $dictionaries;
+    }
+
+    /**
+     * Adapter metadata may include a copied pdftext page dictionary under
+     * generic wrappers such as "source". Treat those page payload markers as
+     * fallback-only so they cannot override trusted adapter metadata.
+     *
+     * @param array<string, mixed> $value
+     */
+    private function isCopiedPdftextPayload(array $value): bool
+    {
+        foreach (['blocks', 'lines', 'text_lines', 'chars'] as $key) {
+            if (array_key_exists($key, $value) && is_array($value[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

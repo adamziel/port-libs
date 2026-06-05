@@ -187,6 +187,9 @@ final class LayoutAnnotator
                 continue;
             }
             foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+                if (!$includePdftextPayload && $this->isCopiedPdftextPayload($wrapperValue)) {
+                    continue;
+                }
                 $this->collectLayoutResultPageMarkerSources($wrapperValue, $sources, $depth + 1, $includePdftextPayload);
             }
         }
@@ -210,6 +213,20 @@ final class LayoutAnnotator
         }
 
         return $dictionaries;
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function isCopiedPdftextPayload(array $value): bool
+    {
+        foreach (['blocks', 'lines', 'text_lines', 'chars'] as $key) {
+            if (array_key_exists($key, $value) && is_array($value[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
