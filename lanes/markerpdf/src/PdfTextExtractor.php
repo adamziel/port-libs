@@ -13029,13 +13029,43 @@ final class PdfTextExtractor
         }
 
         $name = $this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1));
-        return $this->streamFilterNameLooksLikeDecoder($name)
-            ? [
+        if ($this->streamFilterNameLooksLikeDecoder($name)) {
+            return [
                 'type' => 'name',
                 'preview' => substr($dict, $next, $nextEnd - $next),
                 'name' => $name,
-            ]
-            : null;
+            ];
+        }
+
+        if ($this->directScalarFilterUnknownNamePrecedesLength($dict, $nextEnd)) {
+            return [
+                'type' => 'name',
+                'preview' => substr($dict, $next, $nextEnd - $next),
+                'name' => $name,
+            ];
+        }
+
+        return null;
+    }
+
+    private function directScalarFilterUnknownNamePrecedesLength(string $dict, int $offset): bool
+    {
+        $next = $this->skipPdfWhitespace($dict, $offset);
+        if ($next >= strlen($dict) || ($dict[$next] ?? '') !== '/') {
+            return false;
+        }
+
+        $nextEnd = $this->pdfNameTokenEndOffset($dict, $next);
+        if ($nextEnd <= $next + 1) {
+            return false;
+        }
+
+        if ($this->decodePdfName(substr($dict, $next + 1, $nextEnd - $next - 1)) !== 'Length') {
+            return false;
+        }
+
+        $lengthOffset = $this->skipPdfWhitespace($dict, $nextEnd);
+        return $this->pdfValueAtOffset($dict, $lengthOffset) !== null;
     }
 
     private function streamFilterNameLooksLikeDecoder(string $name): bool
