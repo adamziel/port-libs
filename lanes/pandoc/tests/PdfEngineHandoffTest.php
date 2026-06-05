@@ -1133,6 +1133,95 @@ MARKDOWN);
         $t->same($result['pdfViewerPreferences'], $sequence['finalPdfViewerPreferences']);
     },
 
+    'fake runner extracts bounded pdf named destination name trees from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/named-dests.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Names 8 0 R /Dests 12 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Dests 9 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Names [(intro) [3 0 R /FitH 720] <FEFF0049006D0070006F0072007400200063006800650063006B006C006900730074> 10 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '[4 0 R /XYZ 0 792 0]',
+            'endobj',
+            '11 0 obj',
+            '<< /D [4 0 R /FitV 0] >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Review 11 0 R /legacy [3 0 R /Fit] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/named-dests.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/named-dests.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'name' => 'Import checklist',
+                'source' => 'catalog.Names.Dests',
+                'target' => null,
+                'pageObject' => '4 0 R',
+                'fit' => 'XYZ',
+            ],
+            [
+                'name' => 'Review',
+                'source' => 'catalog.Dests',
+                'target' => null,
+                'pageObject' => '4 0 R',
+                'fit' => 'FitV',
+            ],
+            [
+                'name' => 'intro',
+                'source' => 'catalog.Names.Dests',
+                'target' => null,
+                'pageObject' => '3 0 R',
+                'fit' => 'FitH',
+            ],
+            [
+                'name' => 'legacy',
+                'source' => 'catalog.Dests',
+                'target' => null,
+                'pageObject' => '3 0 R',
+                'fit' => 'Fit',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfNamedDestinations']);
+        $t->contains('pdf-byte-named-destinations:4', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfNamedDestinations']);
+    },
+
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
