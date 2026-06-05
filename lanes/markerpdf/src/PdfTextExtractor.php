@@ -7962,12 +7962,20 @@ final class PdfTextExtractor
             'damaged_rows_before_error',
         ]);
 
-        $effectiveWidth = $dictionaryWidth ?? $effective['columns'];
-        $effectiveHeight = $dictionaryHeight ?? ($effective['rows'] > 0 ? $effective['rows'] : null);
+        $dictionaryWidthIsValid = $dictionaryWidth !== null && $dictionaryWidth >= 1;
+        $dictionaryHeightIsValid = $dictionaryHeight !== null && $dictionaryHeight >= 0;
+        $effectiveWidth = $dictionaryWidthIsValid ? $dictionaryWidth : $effective['columns'];
+        $effectiveHeight = $dictionaryHeightIsValid ? $dictionaryHeight : ($effective['rows'] > 0 ? $effective['rows'] : null);
         $columnsMatchWidth = $dictionaryWidth === null ? null : $dictionaryWidth === $effective['columns'];
         $rowsMatchHeight = $dictionaryHeight === null || $effective['rows'] === 0
             ? null
             : $dictionaryHeight === $effective['rows'];
+        $widthSource = $dictionaryWidthIsValid
+            ? 'image_dictionary'
+            : ($decodeParms !== null && !isset($invalidLookup['columns']) && is_int($decodeParms['columns'] ?? null) ? 'decodeparms_columns' : 'decodeparms_columns_default');
+        $heightSource = $dictionaryHeightIsValid
+            ? 'image_dictionary'
+            : ($effective['rows'] > 0 ? 'decodeparms_rows' : 'unbounded_rows');
 
         return [
             'filter' => (string) $detail['filter'],
@@ -7982,12 +7990,8 @@ final class PdfTextExtractor
             'dictionary_height' => $dictionaryHeight,
             'effective_width' => $effectiveWidth,
             'effective_height' => $effectiveHeight,
-            'width_source' => $dictionaryWidth === null
-                ? ($decodeParms !== null && !isset($invalidLookup['columns']) && is_int($decodeParms['columns'] ?? null) ? 'decodeparms_columns' : 'decodeparms_columns_default')
-                : 'image_dictionary',
-            'height_source' => $dictionaryHeight === null
-                ? ($effective['rows'] > 0 ? 'decodeparms_rows' : 'unbounded_rows')
-                : 'image_dictionary',
+            'width_source' => $widthSource,
+            'height_source' => $heightSource,
             'columns_match_width' => $columnsMatchWidth,
             'rows_match_height' => $rowsMatchHeight,
             'dimension_mismatch' => $columnsMatchWidth === false || $rowsMatchHeight === false,

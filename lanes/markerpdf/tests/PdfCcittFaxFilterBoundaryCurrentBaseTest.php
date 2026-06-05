@@ -2409,4 +2409,74 @@ return [
         $t->true(!str_contains($encodedReview, 'RL CCITT leak'));
         $t->true(!str_contains($encodedReview, $runLengthPayload));
     },
+    'falls back to CCITT DecodeParms geometry when image dictionary dimensions are invalid' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $inlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline invalid-dimension CCITT payload noise) Tj ET final";
+        $inlinePlan = $renderer->inlineImageReviewPlan(
+            '/W 0 /H -1 /IM true /F /CCF /DP << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock true >>',
+            $inlinePayload
+        );
+        $inlineBoundary = $inlinePlan['ccitt_fax_decode_boundary'] ?? [];
+
+        $t->same(0, $inlineBoundary['dictionary_width'] ?? null);
+        $t->same(-1, $inlineBoundary['dictionary_height'] ?? null);
+        $t->same(16, $inlineBoundary['effective_width'] ?? null);
+        $t->same(2, $inlineBoundary['effective_height'] ?? null);
+        $t->same('decodeparms_columns', $inlineBoundary['width_source'] ?? null);
+        $t->same('decodeparms_rows', $inlineBoundary['height_source'] ?? null);
+        $t->same(false, $inlineBoundary['columns_match_width'] ?? null);
+        $t->same(false, $inlineBoundary['rows_match_height'] ?? null);
+        $t->same(true, $inlineBoundary['dimension_mismatch'] ?? null);
+        $t->same(16, $inlineBoundary['effective_decode_parms']['columns'] ?? null);
+        $t->same(2, $inlineBoundary['effective_decode_parms']['rows'] ?? null);
+
+        $directPlan = $renderer->imageColorSpaceSoftMaskPlan(
+            '<< /Type /XObject /Subtype /Image /Width 0 /Height -1 /ImageMask true /BitsPerComponent 1 '
+            . '/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock true >> >>'
+        );
+        $directBoundary = $directPlan['ccitt_fax_decode_boundary'] ?? [];
+
+        $t->same(0, $directBoundary['dictionary_width'] ?? null);
+        $t->same(-1, $directBoundary['dictionary_height'] ?? null);
+        $t->same(16, $directBoundary['effective_width'] ?? null);
+        $t->same(2, $directBoundary['effective_height'] ?? null);
+        $t->same('decodeparms_columns', $directBoundary['width_source'] ?? null);
+        $t->same('decodeparms_rows', $directBoundary['height_source'] ?? null);
+        $t->same(true, $directBoundary['dimension_mismatch'] ?? null);
+
+        $before = 'BT /F1 12 Tf 72 720 Td (Before invalid CCITT geometry) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After invalid CCITT geometry) Tj ET';
+        $faxPayload = 'BT /F1 12 Tf 72 700 Td (Invalid-dimension fax payload noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxInvalidGeometry 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 0 /Height -1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock true >> /Length " . strlen($faxPayload) . " >>\nstream\n{$faxPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $boundary = $entry['ccitt_fax_decode_boundary'] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(0, $entry['width'] ?? null);
+        $t->same(null, $entry['height'] ?? null);
+        $t->same(0, $boundary['dictionary_width'] ?? null);
+        $t->same(null, $boundary['dictionary_height'] ?? null);
+        $t->same(16, $boundary['effective_width'] ?? null);
+        $t->same(2, $boundary['effective_height'] ?? null);
+        $t->same('decodeparms_columns', $boundary['width_source'] ?? null);
+        $t->same('decodeparms_rows', $boundary['height_source'] ?? null);
+        $t->same(false, $boundary['columns_match_width'] ?? null);
+        $t->same(null, $boundary['rows_match_height'] ?? null);
+        $t->same(true, $boundary['dimension_mismatch'] ?? null);
+        $t->same(16, $boundary['effective_decode_parms']['columns'] ?? null);
+        $t->same(2, $boundary['effective_decode_parms']['rows'] ?? null);
+        $t->same(['Before invalid CCITT geometry', 'After invalid CCITT geometry'], $extractor->extractTextLines($pdf));
+        $t->same("Before invalid CCITT geometry\nAfter invalid CCITT geometry", $plainText);
+        $t->true(!str_contains($plainText, 'Invalid-dimension fax payload noise'));
+    },
 ];
