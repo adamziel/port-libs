@@ -3490,9 +3490,31 @@ final class CitationCslProcessor
             'and' => is_string($options['and'] ?? null) ? $options['and'] : $defaults['and'],
             'etAlMin' => is_int($options['etAlMin'] ?? null) ? $options['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($options['etAlUseFirst'] ?? null) ? $options['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'delimiterPrecedesEtAl' => is_string($options['delimiterPrecedesEtAl'] ?? null) ? $options['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
+            'etAl' => $this->normalizedEtAlRenderingOptions(
+                is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
+                is_array($options['etAl'] ?? null) ? $options['etAl'] : []
+            ),
             'initializeWith' => is_string($options['initializeWith'] ?? null) ? $options['initializeWith'] : $defaults['initializeWith'],
             'nameAsSortOrder' => is_string($options['nameAsSortOrder'] ?? null) ? $options['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $defaults
+     * @param array<string, mixed> $overrides
+     * @return array{term:string, prefix:string, suffix:string, textCase:string, stripPeriods:bool, quotes:bool}
+     */
+    private function normalizedEtAlRenderingOptions(array $defaults, array $overrides): array
+    {
+        return [
+            'term' => is_string($overrides['term'] ?? null) ? $overrides['term'] : (is_string($defaults['term'] ?? null) ? $defaults['term'] : 'et-al'),
+            'prefix' => is_string($overrides['prefix'] ?? null) ? $overrides['prefix'] : (is_string($defaults['prefix'] ?? null) ? $defaults['prefix'] : ''),
+            'suffix' => is_string($overrides['suffix'] ?? null) ? $overrides['suffix'] : (is_string($defaults['suffix'] ?? null) ? $defaults['suffix'] : ''),
+            'textCase' => is_string($overrides['textCase'] ?? null) ? $overrides['textCase'] : (is_string($defaults['textCase'] ?? null) ? $defaults['textCase'] : ''),
+            'stripPeriods' => is_bool($overrides['stripPeriods'] ?? null) ? $overrides['stripPeriods'] : (is_bool($defaults['stripPeriods'] ?? null) ? $defaults['stripPeriods'] : false),
+            'quotes' => is_bool($overrides['quotes'] ?? null) ? $overrides['quotes'] : (is_bool($defaults['quotes'] ?? null) ? $defaults['quotes'] : false),
         ];
     }
 
@@ -4152,21 +4174,86 @@ final class CitationCslProcessor
         }
 
         if ($useEtAl) {
-            $term = $this->style->term('et-al');
+            $term = $this->renderEtAlTerm($options);
             if ($rendered === []) {
                 return $term;
             }
 
-            if (count($rendered) === 1) {
-                return $rendered[0] . ' ' . $term;
-            }
-
-            return implode($options['delimiter'], $rendered) . $options['delimiter'] . $term;
+            return $this->joinNamesWithEtAl($rendered, $term, $options, $bibliography, $visibleCount - 1);
         }
 
         return $bibliography
             ? implode($options['delimiter'], $rendered)
             : $this->joinCitationNames($rendered, $options);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function renderEtAlTerm(array $options): string
+    {
+        $etAl = is_array($options['etAl'] ?? null) ? $options['etAl'] : [];
+        $termName = (string) ($etAl['term'] ?? 'et-al');
+        if (!in_array($termName, ['et-al', 'and others'], true)) {
+            $termName = 'et-al';
+        }
+
+        $term = $this->style->term($termName);
+        if (($etAl['stripPeriods'] ?? false) === true) {
+            $term = str_replace('.', '', $term);
+        }
+
+        $term = $this->applyNamePartTextCase($term, $etAl);
+        if (($etAl['quotes'] ?? false) === true) {
+            $term = $this->style->term('open-quote') . $term . $this->style->term('close-quote');
+        }
+
+        return (string) ($etAl['prefix'] ?? '') . $term . (string) ($etAl['suffix'] ?? '');
+    }
+
+    /**
+     * @param list<string> $rendered
+     * @param array<string, mixed> $options
+     */
+    private function joinNamesWithEtAl(array $rendered, string $term, array $options, bool $bibliography, int $lastVisibleIndex): string
+    {
+        $names = implode((string) $options['delimiter'], $rendered);
+        $separator = $this->delimiterBeforeEtAl($rendered, $options, $bibliography, $lastVisibleIndex)
+            ? (string) $options['delimiter']
+            : ' ';
+
+        if ($separator === '') {
+            $separator = ' ';
+        }
+
+        return $names . $separator . $term;
+    }
+
+    /**
+     * @param list<string> $rendered
+     * @param array<string, mixed> $options
+     */
+    private function delimiterBeforeEtAl(array $rendered, array $options, bool $bibliography, int $lastVisibleIndex): bool
+    {
+        return match ((string) ($options['delimiterPrecedesEtAl'] ?? 'contextual')) {
+            'always' => true,
+            'never' => false,
+            'after-inverted-name' => $bibliography && $this->visibleNameWasInvertedForEtAl($options, $lastVisibleIndex),
+            default => count($rendered) > 1,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function visibleNameWasInvertedForEtAl(array $options, int $lastVisibleIndex): bool
+    {
+        $nameAsSortOrder = (string) ($options['nameAsSortOrder'] ?? '');
+        if ($nameAsSortOrder === 'all') {
+            return true;
+        }
+
+        return $nameAsSortOrder === 'first' && $lastVisibleIndex === 0;
     }
 
     /**

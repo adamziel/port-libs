@@ -13,6 +13,7 @@ final class CslStyle
     private const DEFAULT_TERMS = [
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
         'et-al|long' => ['single' => 'et al.', 'multiple' => 'et al.'],
+        'and others|long' => ['single' => 'and others', 'multiple' => 'and others'],
         'no date|long' => ['single' => 'n.d.', 'multiple' => 'n.d.'],
         'accessed|long' => ['single' => 'Accessed', 'multiple' => 'Accessed'],
         'open-quote|long' => ['single' => "\u{201C}", 'multiple' => "\u{201C}"],
@@ -82,6 +83,15 @@ final class CslStyle
             'and' => 'text',
             'etAlMin' => 3,
             'etAlUseFirst' => 1,
+            'delimiterPrecedesEtAl' => 'contextual',
+            'etAl' => [
+                'term' => 'et-al',
+                'prefix' => '',
+                'suffix' => '',
+                'textCase' => '',
+                'stripPeriods' => false,
+                'quotes' => false,
+            ],
             'initializeWith' => null,
             'nameAsSortOrder' => 'first',
             'nameParts' => [],
@@ -91,6 +101,15 @@ final class CslStyle
             'and' => 'text',
             'etAlMin' => null,
             'etAlUseFirst' => 1,
+            'delimiterPrecedesEtAl' => 'contextual',
+            'etAl' => [
+                'term' => 'et-al',
+                'prefix' => '',
+                'suffix' => '',
+                'textCase' => '',
+                'stripPeriods' => false,
+                'quotes' => false,
+            ],
             'initializeWith' => null,
             'nameAsSortOrder' => 'all',
             'nameParts' => [],
@@ -672,9 +691,31 @@ final class CslStyle
             'and' => is_string($overrides['and'] ?? null) ? $overrides['and'] : $defaults['and'],
             'etAlMin' => is_int($overrides['etAlMin'] ?? null) ? $overrides['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($overrides['etAlUseFirst'] ?? null) ? $overrides['etAlUseFirst'] : $defaults['etAlUseFirst'],
+            'delimiterPrecedesEtAl' => is_string($overrides['delimiterPrecedesEtAl'] ?? null) ? $overrides['delimiterPrecedesEtAl'] : $defaults['delimiterPrecedesEtAl'],
+            'etAl' => self::mergeEtAlRenderingOptions(
+                is_array($defaults['etAl'] ?? null) ? $defaults['etAl'] : [],
+                is_array($overrides['etAl'] ?? null) ? $overrides['etAl'] : []
+            ),
             'initializeWith' => is_string($overrides['initializeWith'] ?? null) ? $overrides['initializeWith'] : $defaults['initializeWith'],
             'nameAsSortOrder' => is_string($overrides['nameAsSortOrder'] ?? null) ? $overrides['nameAsSortOrder'] : $defaults['nameAsSortOrder'],
             'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $defaults
+     * @param array<string, mixed> $overrides
+     * @return array{term:string, prefix:string, suffix:string, textCase:string, stripPeriods:bool, quotes:bool}
+     */
+    private static function mergeEtAlRenderingOptions(array $defaults, array $overrides): array
+    {
+        return [
+            'term' => is_string($overrides['term'] ?? null) ? $overrides['term'] : (is_string($defaults['term'] ?? null) ? $defaults['term'] : 'et-al'),
+            'prefix' => is_string($overrides['prefix'] ?? null) ? $overrides['prefix'] : (is_string($defaults['prefix'] ?? null) ? $defaults['prefix'] : ''),
+            'suffix' => is_string($overrides['suffix'] ?? null) ? $overrides['suffix'] : (is_string($defaults['suffix'] ?? null) ? $defaults['suffix'] : ''),
+            'textCase' => is_string($overrides['textCase'] ?? null) ? $overrides['textCase'] : (is_string($defaults['textCase'] ?? null) ? $defaults['textCase'] : ''),
+            'stripPeriods' => is_bool($overrides['stripPeriods'] ?? null) ? $overrides['stripPeriods'] : (is_bool($defaults['stripPeriods'] ?? null) ? $defaults['stripPeriods'] : false),
+            'quotes' => is_bool($overrides['quotes'] ?? null) ? $overrides['quotes'] : (is_bool($defaults['quotes'] ?? null) ? $defaults['quotes'] : false),
         ];
     }
 
@@ -715,6 +756,21 @@ final class CslStyle
         if ($etAlUseFirst !== null) {
             $overrides['etAlUseFirst'] = $etAlUseFirst;
         }
+
+        $delimiterPrecedesEtAl = self::optionalNameAttribute($name, $names, 'delimiter-precedes-et-al');
+        if ($delimiterPrecedesEtAl !== null) {
+            if (!in_array($delimiterPrecedesEtAl, ['contextual', 'after-inverted-name', 'always', 'never'], true)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' delimiter-precedes-et-al must be contextual, after-inverted-name, always, or never');
+            }
+
+            $overrides['delimiterPrecedesEtAl'] = $delimiterPrecedesEtAl;
+        }
+
+        $etAl = self::etAlRenderingOptions($names, $scope);
+        if ($etAl !== []) {
+            $overrides['etAl'] = $etAl;
+        }
+
         if ($name instanceof \DOMElement && $name->hasAttribute('initialize-with')) {
             $overrides['initializeWith'] = $name->getAttribute('initialize-with');
         }
@@ -726,6 +782,39 @@ final class CslStyle
         }
 
         return $overrides;
+    }
+
+    /**
+     * @return array{term:string, prefix:string, suffix:string, textCase:string, stripPeriods:bool, quotes:bool}|array{}
+     */
+    private static function etAlRenderingOptions(\DOMElement $names, string $scope): array
+    {
+        $etAlElements = self::directChildren($names, 'et-al');
+        if ($etAlElements === []) {
+            return [];
+        }
+
+        if (count($etAlElements) > 1) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' names element may contain at most one et-al element');
+        }
+
+        $etAl = $etAlElements[0];
+        $term = trim($etAl->getAttribute('term'));
+        if ($term === '') {
+            $term = 'et-al';
+        }
+        if (!in_array($term, ['et-al', 'and others'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' et-al term must be et-al or and others');
+        }
+
+        return [
+            'term' => $term,
+            'prefix' => self::optionalAttribute($etAl, 'prefix'),
+            'suffix' => self::optionalAttribute($etAl, 'suffix'),
+            'textCase' => self::textCaseAttribute($etAl, $scope),
+            'stripPeriods' => self::booleanRenderingAttribute($etAl, 'strip-periods', false, $scope),
+            'quotes' => self::booleanRenderingAttribute($etAl, 'quotes', false, $scope),
+        ];
     }
 
     /**

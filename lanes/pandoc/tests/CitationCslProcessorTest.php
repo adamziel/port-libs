@@ -2697,6 +2697,141 @@ XML
 XML
         ));
     },
+    'applies bounded csl et al element term formatting and delimiter policy' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-packet',
+                'type' => 'report',
+                'title' => 'Et Al Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Okafor', 'given' => 'Ola'],
+                    ['family' => 'Smith', 'given' => 'Sam'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'editor-packet',
+                'type' => 'book',
+                'title' => 'Editor Et Al Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli', 'suffix' => 'III', 'comma-suffix' => true],
+                    ['family' => 'Reviewer', 'given' => 'Rae'],
+                    ['literal' => 'Migration Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Et Al Review Style</title>
+    <id>https://example.test/styles/bounded-et-al-review</id>
+    <updated>2026-06-05T09:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author editor" delimiter=", " et-al-min="3" et-al-use-first="1" delimiter-precedes-et-al="always">
+          <name/>
+          <et-al term="and others" prefix="[" suffix="]" text-case="uppercase"/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author editor" delimiter="; " et-al-min="3" et-al-use-first="2">
+        <name initialize-with=". " name-as-sort-order="first" delimiter-precedes-et-al="after-inverted-name"/>
+        <et-al term="and others" prefix="more: " strip-periods="true" text-case="capitalize-first"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0]['nameRendering'] ?? [];
+        $bibliographyNames = $summary['bibliographyRendering'][0]['nameRendering'] ?? [];
+        $t->same('Bounded Et Al Review Style', $summary['title'] ?? null);
+        $t->same('always', $citationNames['delimiterPrecedesEtAl'] ?? null);
+        $t->same('and others', $citationNames['etAl']['term'] ?? null);
+        $t->same('[', $citationNames['etAl']['prefix'] ?? null);
+        $t->same(']', $citationNames['etAl']['suffix'] ?? null);
+        $t->same('uppercase', $citationNames['etAl']['textCase'] ?? null);
+        $t->same('after-inverted-name', $bibliographyNames['delimiterPrecedesEtAl'] ?? null);
+        $t->same('more: ', $bibliographyNames['etAl']['prefix'] ?? null);
+        $t->same(true, $bibliographyNames['etAl']['stripPeriods'] ?? null);
+
+        $t->same('(de la Cruz, [AND OTHERS] 2026; Curator, [AND OTHERS] 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-packet', 'text' => '[@source-packet]']),
+            new AstNode('citation', ['id' => 'editor-packet', 'text' => '[@editor-packet]']),
+        ]));
+        $t->same('de la Cruz, A. M.; N. Ng more: And others. Et Al Source Packet.', $processor->renderBibliographyEntry('source-packet'));
+        $t->same('Curator, E., III; R. Reviewer more: And others. Editor Et Al Packet.', $processor->renderBibliographyEntry('editor-packet'));
+
+        $afterInverted = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <names variable="author editor" et-al-min="3" et-al-use-first="1">
+        <name/>
+      </names>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author editor" delimiter="; " et-al-min="3" et-al-use-first="1">
+        <name initialize-with=". " name-as-sort-order="first" delimiter-precedes-et-al="after-inverted-name"/>
+        <et-al/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('de la Cruz, A. M.; et al. Et Al Source Packet.', $afterInverted->renderBibliographyEntry('source-packet'));
+
+        $document = (new MarkdownReader())->read('Review cites @source-packet and [@editor-packet] for et-al handoff.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites de la Cruz, [AND OTHERS] (2026) and (Curator, [AND OTHERS] 2025) for et-al handoff.</p>', $blocks);
+        $t->contains('<dt>de la Cruz, [AND OTHERS] 2026</dt><dd>de la Cruz, A. M.; N. Ng more: And others. Et Al Source Packet.</dd>', $blocks);
+        $t->contains('<dt>Curator, [AND OTHERS] 2025</dt><dd>Curator, E., III; R. Reviewer more: And others. Editor Et Al Packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><name delimiter-precedes-et-al="sometimes"/></names></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><et-al term="everyone"/></names></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><et-al/><et-al/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
