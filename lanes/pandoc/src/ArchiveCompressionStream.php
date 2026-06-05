@@ -16,6 +16,8 @@ final class ArchiveCompressionStream
     public const FORMAT_ZLIB_ZIP = 'zlib-zip';
     public const FORMAT_RAW_DEFLATE_ZIP = 'raw-deflate-zip';
     public const FORMAT_LZ4_ZIP = 'lz4-zip';
+    public const PACKAGE_KIND_TAR = 'tar';
+    public const PACKAGE_KIND_ZIP = 'zip';
 
     /**
      * @return list<string>
@@ -107,6 +109,47 @@ final class ArchiveCompressionStream
         ?int $maxUncompressedBytes = null
     ): string {
         return self::detectZipCandidate($bytes, $maxUncompressedBytes)['zipBytes'];
+    }
+
+    public static function detectPackageKindAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): string {
+        return self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes)['kind'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function inspectPackageStreamAuto(
+        string $bytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        $candidate = self::detectPackageCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+
+        if ($candidate['kind'] === self::PACKAGE_KIND_TAR) {
+            return [
+                'kind' => self::PACKAGE_KIND_TAR,
+            ] + self::tarStreamInspection(
+                $bytes,
+                $candidate['format'],
+                $candidate['tarBytes'],
+                $candidate['archive'],
+                $maxUncompressedBytes
+            );
+        }
+
+        return [
+            'kind' => self::PACKAGE_KIND_ZIP,
+        ] + self::zipStreamInspection(
+            $bytes,
+            $candidate['format'],
+            $candidate['zipBytes'],
+            $candidate['package'],
+            $maxUncompressedBytes
+        );
     }
 
     /**
@@ -341,6 +384,52 @@ final class ArchiveCompressionStream
 
         $details = self::formatDetectionDetails($errors);
         throw new \RuntimeException('Unable to detect archive compression stream format as ZIP' . ($details === '' ? '' : ": {$details}"));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function detectPackageCandidate(
+        string $bytes,
+        ?int $maxUncompressedBytes,
+        ?int $maxUnpackedBytes
+    ): array {
+        $matches = [];
+        $errors = [];
+
+        try {
+            $tar = self::detectTarCandidate($bytes, $maxUncompressedBytes, $maxUnpackedBytes);
+            $matches[] = [
+                'kind' => self::PACKAGE_KIND_TAR,
+            ] + $tar;
+        } catch (\RuntimeException $exception) {
+            $errors[self::PACKAGE_KIND_TAR] = $exception->getMessage();
+        }
+
+        try {
+            $zip = self::detectZipCandidate($bytes, $maxUncompressedBytes);
+            $matches[] = [
+                'kind' => self::PACKAGE_KIND_ZIP,
+            ] + $zip;
+        } catch (\RuntimeException $exception) {
+            $errors[self::PACKAGE_KIND_ZIP] = $exception->getMessage();
+        }
+
+        if (count($matches) === 1) {
+            return $matches[0];
+        }
+
+        if (count($matches) > 1) {
+            $descriptions = implode(', ', array_map(
+                static fn (array $match): string => $match['kind'] . '/' . $match['format'],
+                $matches
+            ));
+
+            throw new \RuntimeException("Ambiguous archive package stream; matched candidates: {$descriptions}");
+        }
+
+        $details = self::formatDetectionDetails($errors);
+        throw new \RuntimeException('Unable to detect archive package stream as TAR or ZIP' . ($details === '' ? '' : ": {$details}"));
     }
 
     /**

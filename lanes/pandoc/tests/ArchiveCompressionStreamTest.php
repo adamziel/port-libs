@@ -1234,6 +1234,62 @@ return [
         $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::decodeZipBytesAuto($zipBytes, -1));
     },
 
+    'auto-detects tar and zip package kinds from opaque compressed streams' => static function (TestRunner $t): void {
+        $tarPacket = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"generic-archive-kind","format":"tar"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Generic TAR packet\n\nReady for archive review.\n",
+            ],
+        ]);
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Generic ZIP package stream</w:p></w:body></w:document>',
+            ],
+        ]);
+
+        $tarUpload = GzipStream::build($tarPacket->bytes(), [
+            'filename' => 'review-packet.tar',
+            'comment' => 'opaque gzip tar upload',
+        ]);
+        $zipUpload = Lz4Frame::skippableFrame('opaque upload metadata', 10)
+            . Lz4Frame::build($zipPackage->bytes(), [
+                'contentSize' => true,
+                'contentChecksum' => true,
+            ]);
+        $tarInspection = ArchiveCompressionStream::inspectPackageStreamAuto($tarUpload, strlen($tarPacket->bytes()));
+        $zipInspection = ArchiveCompressionStream::inspectPackageStreamAuto($zipUpload, strlen($zipPackage->bytes()));
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, ArchiveCompressionStream::detectPackageKindAuto($tarUpload, strlen($tarPacket->bytes())));
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $tarInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $tarInspection['format']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $tarInspection['entryNames']);
+        $t->same('gzip', $tarInspection['stream']['type']);
+        $t->same('review-packet.tar', $tarInspection['stream']['members'][0]['filename']);
+        $t->same("# Generic TAR packet\n\nReady for archive review.\n", $tarInspection['archive']->read('/packet/content.md'));
+
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, ArchiveCompressionStream::detectPackageKindAuto($zipUpload, strlen($zipPackage->bytes())));
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zipInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_ZIP, $zipInspection['format']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $zipInspection['entryNames']);
+        $t->same('lz4', $zipInspection['stream']['type']);
+        $t->same(2, $zipInspection['stream']['frameCount']);
+        $t->same('opaque upload metadata', $zipInspection['stream']['frames'][0]['data']);
+        $t->same('<w:document><w:body><w:p>Generic ZIP package stream</w:p></w:body></w:document>', $zipInspection['package']->read('/word/document.xml'));
+
+        $t->throws(\RuntimeException::class, static fn (): string => ArchiveCompressionStream::detectPackageKindAuto('not an archive package'));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamAuto($zipUpload, strlen($zipPackage->bytes()) - 1));
+    },
+
     'builds and reads bounded raw and zlib deflate package fixture streams' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

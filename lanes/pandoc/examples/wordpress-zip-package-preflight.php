@@ -1498,6 +1498,14 @@ $compressedPackageDetectedFormat = ArchiveCompressionStream::detectZipFormat(
     $compressedPackage,
     strlen($package->bytes())
 );
+$compressedPackageDetectedKind = ArchiveCompressionStream::detectPackageKindAuto(
+    $compressedPackage,
+    strlen($package->bytes())
+);
+$compressedPackageGenericInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+    $compressedPackage,
+    strlen($package->bytes())
+);
 $compressedPackageRoundTrip = ArchiveCompressionStream::openZipAuto(
     $compressedPackage,
     strlen($package->bytes())
@@ -1560,6 +1568,16 @@ $reproducibleGzipTarInspection = ArchiveCompressionStream::inspectTarStream(
 );
 $tarPacketRoundTrip = TarArchive::fromString(GzipStream::decode($compressedTarPacket));
 $streamDetectedTarFormat = ArchiveCompressionStream::detectTarFormat(
+    $compressedTarPacket,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
+$streamDetectedTarKind = ArchiveCompressionStream::detectPackageKindAuto(
+    $compressedTarPacket,
+    strlen($tarPacketBytes),
+    $tarPacketUnpackedBytes
+);
+$streamGenericTarInspection = ArchiveCompressionStream::inspectPackageStreamAuto(
     $compressedTarPacket,
     strlen($tarPacketBytes),
     $tarPacketUnpackedBytes
@@ -2329,6 +2347,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected archive stream detection to classify the gzip-wrapped ZIP package');
     }
 
+    if ($compressedPackageDetectedKind !== ArchiveCompressionStream::PACKAGE_KIND_ZIP) {
+        throw new RuntimeException('Expected generic archive stream detection to classify the gzip-wrapped ZIP package kind');
+    }
+
+    if (($compressedPackageGenericInspection['kind'] ?? null) !== ArchiveCompressionStream::PACKAGE_KIND_ZIP) {
+        throw new RuntimeException('Expected generic archive stream inspection to expose the ZIP package kind');
+    }
+
+    if (($compressedPackageGenericInspection['entryNames'] ?? []) !== $package->names()) {
+        throw new RuntimeException('Expected generic archive stream inspection to preserve ZIP package entry names');
+    }
+
     if (($compressedPackageInspection['entryNames'] ?? []) !== $package->names()) {
         throw new RuntimeException('Expected gzip-wrapped ZIP package inspection to preserve entry names');
     }
@@ -2420,6 +2450,18 @@ if (in_array('--self-test', $argv, true)) {
 
     if ($streamDetectedTarFormat !== ArchiveCompressionStream::FORMAT_GZIP_TAR) {
         throw new RuntimeException('Expected archive stream auto-detection to classify the gzip-wrapped tar packet');
+    }
+
+    if ($streamDetectedTarKind !== ArchiveCompressionStream::PACKAGE_KIND_TAR) {
+        throw new RuntimeException('Expected generic archive stream detection to classify the gzip-wrapped tar packet kind');
+    }
+
+    if (($streamGenericTarInspection['kind'] ?? null) !== ArchiveCompressionStream::PACKAGE_KIND_TAR) {
+        throw new RuntimeException('Expected generic archive stream inspection to expose the TAR packet kind');
+    }
+
+    if ($streamGenericTarInspection['archive']->read('/packet/manifest.json') !== '{"source":"wordpress-import","container":"tar"}') {
+        throw new RuntimeException('Expected generic archive stream inspection to preserve TAR packet bytes');
     }
 
     if ($streamDecodedTarBytes !== $tarPacket->bytes()) {
@@ -2890,6 +2932,8 @@ echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'gzip.filename=' . $compressedPackageMembers[0]['filename'] . "\n";
 echo 'gzip.comment=' . $compressedPackageMembers[0]['comment'] . "\n";
 echo 'gzip.zipDetectedFormat=' . $compressedPackageDetectedFormat . "\n";
+echo 'gzip.zipDetectedKind=' . $compressedPackageDetectedKind . "\n";
+echo 'gzip.zipGenericEntries=' . implode(',', $compressedPackageGenericInspection['entryNames']) . "\n";
 echo 'gzip.zipEntries=' . implode(',', $compressedPackageInspection['entryNames']) . "\n";
 echo 'gzip.zipDocument.xml=' . $compressedPackageRoundTrip->read('/word/document.xml') . "\n";
 echo 'gzip.latin1FilenameText=' . $latin1GzipTarMembers[0]['filenameText'] . "\n";
@@ -2900,6 +2944,8 @@ echo 'tar.entries=' . implode(',', $tarPacketRoundTrip->names()) . "\n";
 echo 'tar.document.xml=' . $tarPacketRoundTrip->read('/packet/word/document.xml') . "\n";
 echo 'tar.globalPaxComment=' . ($tarPacketRoundTrip->globalPaxHeaders()['comment'] ?? 'none') . "\n";
 echo 'tar.detectedFormat=' . $streamDetectedTarFormat . "\n";
+echo 'tar.detectedKind=' . $streamDetectedTarKind . "\n";
+echo 'tar.genericEntries=' . implode(',', $streamGenericTarInspection['entryNames']) . "\n";
 echo 'tar.splitGzipMembers=' . $splitGzipTarInspection['stream']['memberCount'] . "\n";
 echo 'tar.splitGzipMemberFiles=' . implode(',', array_map(static fn (array $member): ?string => $member['filename'], $splitGzipTarInspection['stream']['members'])) . "\n";
 echo 'tar.splitGzipMemberXfl=' . implode(',', array_map(static fn (array $member): int => $member['extraFlags'], $splitGzipTarInspection['stream']['members'])) . "\n";
