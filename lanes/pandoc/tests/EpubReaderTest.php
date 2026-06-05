@@ -523,6 +523,50 @@ return [
         $t->same(2, count($result['document']->children));
         $t->contains('Review appendix', $result['document']->children[1]->attr('html'));
     },
+    'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            null,
+            [
+                ['name' => 'OEBPS/images/unmanifested.png', 'data' => 'UNLISTED-PNG', 'compressionMethod' => 0],
+            ]
+        ));
+
+        $assets = $result['importReport']['assets'];
+        $assetById = [];
+        foreach ($assets['items'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $t->same(count($result['assets']), $assets['count']);
+        $t->same('cover-image', $assets['coverImage']['id']);
+        $t->same('/OEBPS/images/cover.png', $assets['coverImage']['part']);
+        $t->same('image/png', $assets['coverImage']['mediaType']);
+        $t->same(true, $assets['coverImage']['isCoverImage']);
+        $t->same(['manifest-property-cover-image', 'meta-name-cover'], $assets['coverImage']['coverImageSources']);
+        $t->same(true, $assets['coverImage']['attachmentCandidate']);
+        $t->same('cover-image', $assets['coverImage']['attachmentRole']);
+        $t->same(hash('sha256', 'PNGDATA'), $assets['coverImage']['byteSha256']);
+        $t->same($assetById['cover-image'], $assets['coverImage']);
+
+        $t->same(1, $assets['attachmentCandidateCount']);
+        $t->same('cover-image', $assets['attachmentCandidates'][0]['id']);
+        $t->same(false, $assetById['style']['attachmentCandidate']);
+        $t->same(true, $assetById['style']['exportCandidate']);
+        $t->same(hash('sha256', 'body { color: #222; }'), $assetById['style']['byteSha256']);
+        $t->same(false, $assetById['toc']['exportCandidate']);
+        $t->same(null, $assetById['toc']['byteSha256']);
+
+        $t->same(1, $assets['unmanifestedCount']);
+        $t->same('/OEBPS/images/unmanifested.png', $assets['unmanifestedItems'][0]['part']);
+        $t->same('image/png', $assets['unmanifestedItems'][0]['mediaType']);
+        $t->same(12, $assets['unmanifestedItems'][0]['byteLength']);
+        $t->same(hash('sha256', 'UNLISTED-PNG'), $assets['unmanifestedItems'][0]['byteSha256']);
+        $t->same(true, $assets['unmanifestedItems'][0]['attachmentCandidate']);
+        $t->same('unmanifested-package-resource', $assets['unmanifestedItems'][0]['diagnostics'][0]['type']);
+        $t->same($assets['unmanifestedItems'], $assets['diagnostics'][0]['items']);
+        $t->same('unmanifested-package-assets', $assets['diagnostics'][0]['type']);
+    },
     'reports OCF encryption and obfuscated font resources without dropping XHTML handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $encryptionXml): void {
         $opfWithFont = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',

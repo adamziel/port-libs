@@ -39,6 +39,7 @@ final class EpubReader
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     assets:list<array<string, mixed>>,
+     *     assetReport:array<string, mixed>,
      *     importReport:array<string, mixed>
      * }
      */
@@ -77,6 +78,7 @@ final class EpubReader
             'mediaOverlays' => $opf['mediaOverlays'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'assets' => $opf['assets'],
+            'assetReport' => $opf['assetReport'],
             'importReport' => [
                 'container' => $container,
                 'metadata' => $opf['metadata'],
@@ -100,10 +102,7 @@ final class EpubReader
                 'renditions' => $renditions,
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
-                'assets' => [
-                    'count' => count($opf['assets']),
-                    'items' => $opf['assets'],
-                ],
+                'assets' => $opf['assetReport'],
             ],
         ];
     }
@@ -226,7 +225,8 @@ final class EpubReader
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
-     *     assets:list<array<string, mixed>>
+     *     assets:list<array<string, mixed>>,
+     *     assetReport:array<string, mixed>
      * }
      */
     private function readOpf(ZipPackage $package, string $opfPart): array
@@ -262,6 +262,7 @@ final class EpubReader
         $manifest = array_values($manifestById);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
+        $assetReport = $this->assetReport($package, $opfPart, $manifest, $metadata);
 
         return [
             'metadata' => $metadata,
@@ -281,7 +282,8 @@ final class EpubReader
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
-            'assets' => $this->assetReport($manifest),
+            'assets' => $assetReport['items'],
+            'assetReport' => $assetReport,
         ];
     }
 
@@ -1818,16 +1820,37 @@ final class EpubReader
      *
      * @return list<array<string, mixed>>
      */
-    private function assetReport(array $manifest): array
+    private function assetReport(ZipPackage $package, string $opfPart, array $manifest, array $metadata): array
     {
         $assets = [];
+        $manifestParts = [];
         foreach ($manifest as $item) {
+            $manifestParts[(string) $item['part']] = true;
             if ($item['mediaType'] === self::XHTML_MEDIA_TYPE) {
                 continue;
             }
 
+            $isCoverImage = self::isCoverImageAsset($item, $metadata);
+            $role = self::assetRole($item, $isCoverImage);
+            $canExposeBytes = (bool) ($item['canExposeBytes'] ?? true);
+            $exportCandidate = self::isExportCandidate($item, $role);
+            $byteSha256 = null;
+            $diagnostics = [];
+            if (($item['exists'] ?? false) === true && $canExposeBytes && $exportCandidate) {
+                try {
+                    $byteSha256 = hash('sha256', $package->read((string) $item['part']));
+                } catch (\Throwable $exception) {
+                    $diagnostics[] = [
+                        'type' => 'asset-bytes-unavailable',
+                        'part' => (string) $item['part'],
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            }
+
             $assets[] = [
                 'id' => $item['id'],
+                'href' => $item['href'],
                 'target' => $item['target'],
                 'part' => $item['part'],
                 'mediaType' => $item['mediaType'],
@@ -1835,13 +1858,251 @@ final class EpubReader
                 'exists' => $item['exists'],
                 'byteLength' => $item['byteLength'],
                 'crc32' => $item['crc32'],
+                'byteSha256' => $byteSha256,
                 'encrypted' => self::isEncryptedManifestItem($item),
-                'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? true),
+                'canExposeBytes' => $canExposeBytes,
                 'encryption' => $item['encryption'] ?? null,
+                'role' => $role,
+                'isCoverImage' => $isCoverImage,
+                'coverImageSources' => self::coverImageSources($item, $metadata),
+                'exportCandidate' => $exportCandidate,
+                'attachmentCandidate' => self::isAttachmentCandidate((string) $item['mediaType'], (string) $item['part'], $isCoverImage)
+                    && ($item['exists'] ?? false) === true
+                    && $canExposeBytes,
+                'attachmentRole' => self::attachmentRole((string) $item['mediaType'], (string) $item['part'], $isCoverImage),
+                'diagnostics' => $diagnostics,
             ];
         }
 
-        return $assets;
+        $coverImage = null;
+        foreach ($assets as $asset) {
+            if (($asset['isCoverImage'] ?? false) === true) {
+                $coverImage = $asset;
+                break;
+            }
+        }
+
+        $attachmentCandidates = array_values(array_filter(
+            $assets,
+            static fn (array $asset): bool => ($asset['attachmentCandidate'] ?? false) === true,
+        ));
+        $unmanifestedItems = $this->unmanifestedPackageAssets($package, $manifestParts, $opfPart);
+        $diagnostics = [];
+        if ($unmanifestedItems !== []) {
+            $diagnostics[] = [
+                'type' => 'unmanifested-package-assets',
+                'message' => 'EPUB package contains non-structural resources that are not listed in the OPF manifest',
+                'items' => $unmanifestedItems,
+            ];
+        }
+
+        return [
+            'count' => count($assets),
+            'items' => $assets,
+            'coverImage' => $coverImage,
+            'attachmentCandidateCount' => count($attachmentCandidates),
+            'attachmentCandidates' => $attachmentCandidates,
+            'unmanifestedCount' => count($unmanifestedItems),
+            'unmanifestedItems' => $unmanifestedItems,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $manifestParts
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function unmanifestedPackageAssets(ZipPackage $package, array $manifestParts, string $opfPart): array
+    {
+        $items = [];
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory()) {
+                continue;
+            }
+
+            $part = OpcPackagePath::canonicalPartName($entry->name);
+            if (isset($manifestParts[$part]) || self::isEpubStructuralPart($part, $opfPart)) {
+                continue;
+            }
+
+            $mediaType = self::mediaTypeFromPart($part);
+            $attachmentCandidate = self::isAttachmentCandidate($mediaType, $part, false);
+            $diagnostics = [[
+                'type' => 'unmanifested-package-resource',
+                'part' => $part,
+                'message' => 'EPUB package resource is present in ZIP but absent from the OPF manifest',
+            ]];
+            $byteSha256 = null;
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'unmanifested-package-resource-bytes-unavailable',
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+
+            $items[] = [
+                'part' => $part,
+                'mediaType' => $mediaType,
+                'exists' => true,
+                'byteLength' => $entry->uncompressedSize,
+                'crc32' => $entry->crc32Hex(),
+                'byteSha256' => $byteSha256,
+                'attachmentCandidate' => $attachmentCandidate,
+                'attachmentRole' => self::attachmentRole($mediaType, $part, false),
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, mixed> $metadata
+     */
+    private static function isCoverImageAsset(array $item, array $metadata): bool
+    {
+        return in_array('cover-image', $item['properties'] ?? [], true)
+            || ((string) ($metadata['coverItemId'] ?? '') !== '' && (string) $item['id'] === (string) $metadata['coverItemId']);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, mixed> $metadata
+     *
+     * @return list<string>
+     */
+    private static function coverImageSources(array $item, array $metadata): array
+    {
+        $sources = [];
+        if (in_array('cover-image', $item['properties'] ?? [], true)) {
+            $sources[] = 'manifest-property-cover-image';
+        }
+        if ((string) ($metadata['coverItemId'] ?? '') !== '' && (string) $item['id'] === (string) $metadata['coverItemId']) {
+            $sources[] = 'meta-name-cover';
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function assetRole(array $item, bool $isCoverImage): string
+    {
+        if ($isCoverImage) {
+            return 'cover-image';
+        }
+
+        $mediaType = strtolower((string) ($item['mediaType'] ?? ''));
+        if ($mediaType === self::NCX_MEDIA_TYPE) {
+            return 'navigation';
+        }
+        if ($mediaType === self::SMIL_MEDIA_TYPE) {
+            return 'media-overlay';
+        }
+        if ($mediaType === 'text/css') {
+            return 'stylesheet';
+        }
+        if (str_starts_with($mediaType, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($mediaType, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($mediaType, 'video/')) {
+            return 'video';
+        }
+        if (self::isFontResource($mediaType, (string) ($item['part'] ?? ''))) {
+            return 'font';
+        }
+
+        return 'asset';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function isExportCandidate(array $item, string $role): bool
+    {
+        if (($item['exists'] ?? false) !== true || self::isEncryptedManifestItem($item)) {
+            return false;
+        }
+
+        return !in_array($role, ['navigation', 'media-overlay'], true);
+    }
+
+    private static function isAttachmentCandidate(?string $mediaType, string $part, bool $isCoverImage): bool
+    {
+        if ($isCoverImage) {
+            return true;
+        }
+
+        $mediaType = strtolower((string) $mediaType);
+
+        return str_starts_with($mediaType, 'image/')
+            || str_starts_with($mediaType, 'audio/')
+            || str_starts_with($mediaType, 'video/')
+            || self::isFontResource($mediaType, $part);
+    }
+
+    private static function attachmentRole(?string $mediaType, string $part, bool $isCoverImage): ?string
+    {
+        if ($isCoverImage) {
+            return 'cover-image';
+        }
+
+        $mediaType = strtolower((string) $mediaType);
+        if (str_starts_with($mediaType, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($mediaType, 'audio/')) {
+            return 'audio';
+        }
+        if (str_starts_with($mediaType, 'video/')) {
+            return 'video';
+        }
+        if (self::isFontResource($mediaType, $part)) {
+            return 'font';
+        }
+
+        return null;
+    }
+
+    private static function isEpubStructuralPart(string $part, string $opfPart): bool
+    {
+        return $part === '/mimetype'
+            || $part === $opfPart
+            || str_starts_with($part, '/META-INF/')
+            || str_ends_with(strtolower($part), '.opf');
+    }
+
+    private static function mediaTypeFromPart(string $part): ?string
+    {
+        return match (strtolower(pathinfo($part, PATHINFO_EXTENSION))) {
+            'apng' => 'image/apng',
+            'avif' => 'image/avif',
+            'css' => 'text/css',
+            'gif' => 'image/gif',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'mp3' => 'audio/mpeg',
+            'mp4' => 'video/mp4',
+            'ncx' => self::NCX_MEDIA_TYPE,
+            'otf' => 'font/otf',
+            'png' => 'image/png',
+            'smil' => self::SMIL_MEDIA_TYPE,
+            'svg' => 'image/svg+xml',
+            'ttf' => 'font/ttf',
+            'webp' => 'image/webp',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            'xhtml', 'html', 'htm' => self::XHTML_MEDIA_TYPE,
+            default => null,
+        };
     }
 
     /**

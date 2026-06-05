@@ -185,6 +185,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
     ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
     ['name' => 'EPUB/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+    ['name' => 'EPUB/images/unmanifested-review.png', 'data' => 'UNMANIFESTED-PNG', 'compressionMethod' => 0],
     ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
 ]);
 
@@ -283,6 +284,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!$foundEncryptedFont) {
         throw new RuntimeException('Expected obfuscated font asset in EPUB import report');
     }
+    if (($result['importReport']['assets']['coverImage']['id'] ?? null) !== 'cover-image') {
+        throw new RuntimeException('Expected EPUB asset report to identify the cover image');
+    }
+    if (($result['importReport']['assets']['coverImage']['attachmentCandidate'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB cover image to be an attachment candidate');
+    }
+    if (($result['importReport']['assets']['coverImage']['byteSha256'] ?? null) !== hash('sha256', 'PNGDATA')) {
+        throw new RuntimeException('Expected EPUB cover image hash for import deduplication');
+    }
+    if (($result['importReport']['assets']['unmanifestedItems'][0]['part'] ?? null) !== '/EPUB/images/unmanifested-review.png') {
+        throw new RuntimeException('Expected unmanifested EPUB package image to stay visible for review');
+    }
+    if (($result['importReport']['assets']['unmanifestedItems'][0]['attachmentCandidate'] ?? null) !== true) {
+        throw new RuntimeException('Expected unmanifested EPUB image to be marked as a review attachment candidate');
+    }
     if (!str_contains($blocks, '<!-- wp:html -->') || !str_contains($blocks, 'EPUB XHTML content is preserved')) {
         throw new RuntimeException('Expected EPUB XHTML spine item to hand off as a WordPress HTML block');
     }
@@ -313,4 +329,8 @@ echo 'mediaOverlayItems=' . count($result['mediaOverlays']['mo-chapter']['items'
 echo 'mediaOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][0]['audioTarget'] ?? '') . "\n";
 echo 'remoteOverlayAudio=' . ($result['mediaOverlays']['mo-chapter']['items'][2]['audioTarget'] ?? '') . "\n";
 echo 'assets=' . count($result['assets']) . "\n";
+echo 'coverAttachment=' . ($result['importReport']['assets']['coverImage']['part'] ?? '') . "\n";
+echo 'coverSha256=' . ($result['importReport']['assets']['coverImage']['byteSha256'] ?? '') . "\n";
+echo 'attachmentCandidates=' . ($result['importReport']['assets']['attachmentCandidateCount'] ?? 0) . "\n";
+echo 'unmanifestedAssets=' . ($result['importReport']['assets']['unmanifestedCount'] ?? 0) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";
