@@ -10269,6 +10269,10 @@ final class PdfMetadataExtractor
             }
 
             if (preg_match('/^(\d+)\s+(\d+)(?:\s*(?:%.*)?)$/', $line, $header) !== 1) {
+                if (!$foundSection) {
+                    return null;
+                }
+
                 continue;
             }
 

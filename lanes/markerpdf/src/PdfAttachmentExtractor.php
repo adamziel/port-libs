@@ -4336,6 +4336,10 @@ final class PdfAttachmentExtractor
             }
 
             if (preg_match('/^(\d+)\s+(\d+)(?:\s*(?:%.*)?)$/', $line, $section) !== 1) {
+                if (!$foundSection) {
+                    return null;
+                }
+
                 continue;
             }
 
