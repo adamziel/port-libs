@@ -8645,7 +8645,8 @@ final class PdfTextExtractor
                 $filters,
                 $firstFilterIndex,
                 $dict,
-                $objects
+                $objects,
+                $minimumTerminatorOffset
             );
         }
 
@@ -8702,7 +8703,8 @@ final class PdfTextExtractor
         array $filters,
         int $firstFilterIndex,
         string $dict,
-        array $objects
+        array $objects,
+        ?int $minimumTerminatorOffset = null
     ): ?int {
         $dctFilterIndex = null;
         for ($index = $firstFilterIndex + 1; $index < count($filters); $index++) {
@@ -8723,10 +8725,15 @@ final class PdfTextExtractor
             'RunLengthDecode', 'RL' => chr(128),
             default => null,
         };
+        $applyMinimumTerminatorOffset = $this->dctPrefixFilterCanUseRawJpegBoundaryFallback($firstFilter);
 
         $fallbackTerminator = null;
         if ($payloadMarker !== null) {
             foreach ($this->firstFilterEndstreamTerminatorOffsets($value, $streamStart, $payloadMarker) as $terminator) {
+                if ($applyMinimumTerminatorOffset && $minimumTerminatorOffset !== null && $terminator < $minimumTerminatorOffset) {
+                    continue;
+                }
+
                 $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $terminator - $streamStart));
                 $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex, true);
                 if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
@@ -8744,6 +8751,10 @@ final class PdfTextExtractor
                 continue;
             }
 
+            if ($applyMinimumTerminatorOffset && $minimumTerminatorOffset !== null && $candidate < $minimumTerminatorOffset) {
+                continue;
+            }
+
             $payload = $this->stripStreamTerminatingLineEnding(substr($value, $streamStart, $candidate - $streamStart));
             $jpegBytes = $this->decodeStreamBeforeFilter($dict, $payload, $objects, $filters, $dctFilterIndex, true);
             if ($jpegBytes !== null && $this->dctPreviewBytesAreCompleteJpeg($jpegBytes)) {
@@ -8756,7 +8767,7 @@ final class PdfTextExtractor
         }
 
         if ($this->dctPrefixFilterCanUseRawJpegBoundaryFallback($firstFilter)) {
-            return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart);
+            return $this->rawDctPreviewEndstreamTerminatorOffset($value, $streamStart, $minimumTerminatorOffset);
         }
 
         return null;
