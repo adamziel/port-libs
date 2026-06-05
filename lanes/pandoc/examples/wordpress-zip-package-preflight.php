@@ -1849,6 +1849,47 @@ try {
     $tarPaxOwnerUtf8Rejected = str_contains($exception->getMessage(), 'PAX gname metadata');
 }
 $tarOwnerUtf8Rejected = $tarUstarOwnerUtf8Rejected && $tarPaxOwnerUtf8Rejected;
+$tarPaxReviewMetadataUtf8Rejected = false;
+$tarPaxReviewMetadataGlobalUtf8Rejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('GlobalHead/invalid-review-comment', 'g', $buildPaxPayload([
+            'comment' => "bad-\xC3\x28",
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('packet/invalid-review-comment.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarPaxReviewMetadataGlobalUtf8Rejected = str_contains($exception->getMessage(), 'PAX comment metadata');
+}
+$tarPaxReviewMetadataLocalUtf8Rejected = false;
+try {
+    TarArchive::fromString(
+        $buildRawTarRecord('PaxHeaders/invalid-review-key', 'x', $buildPaxPayload([
+            'path' => 'packet/invalid-review-key.xml',
+            "review-\xC3\x28" => 'bad-key',
+        ]), $documentModifiedAt)
+        . $buildRawTarRecord('placeholder.xml', '0', '<w:document/>', $documentModifiedAt)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException $exception) {
+    $tarPaxReviewMetadataLocalUtf8Rejected = str_contains($exception->getMessage(), 'PAX header key metadata');
+}
+$tarPaxReviewMetadataGeneratedUtf8Rejected = false;
+try {
+    TarArchive::fromEntries([
+        ['name' => 'packet/generated-invalid-review.xml', 'data' => '<w:document/>'],
+    ], [
+        'globalPaxHeaders' => [
+            'comment' => "bad-\xC3\x28",
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $tarPaxReviewMetadataGeneratedUtf8Rejected = str_contains($exception->getMessage(), 'PAX headers comment metadata');
+}
+$tarPaxReviewMetadataUtf8Rejected = $tarPaxReviewMetadataGlobalUtf8Rejected
+    && $tarPaxReviewMetadataLocalUtf8Rejected
+    && $tarPaxReviewMetadataGeneratedUtf8Rejected;
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -2479,6 +2520,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected TAR owner metadata with invalid UTF-8 to be rejected before import');
     }
 
+    if (!$tarPaxReviewMetadataUtf8Rejected) {
+        throw new RuntimeException('Expected TAR PAX review metadata with invalid UTF-8 to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -2584,6 +2629,7 @@ echo 'tarPaxUtf8PathPolicy=' . ($tarPaxUtf8PathRejected ? 'rejected' : 'not-reje
 echo 'tarUstarPathUtf8Policy=' . ($tarUstarPathUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarGnuLongNameUtf8Policy=' . ($tarGnuLongNameUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarOwnerUtf8Policy=' . ($tarOwnerUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarPaxReviewMetadataUtf8Policy=' . ($tarPaxReviewMetadataUtf8Rejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";

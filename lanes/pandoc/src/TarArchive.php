@@ -634,6 +634,8 @@ final class TarArchive
             if (str_contains($key, "\0") || str_contains($value, "\0")) {
                 throw new \RuntimeException('TAR PAX header records must not contain NUL bytes');
             }
+            self::assertUtf8($key, 'TAR PAX header key metadata');
+            self::assertUtf8($value, "TAR PAX {$key} metadata");
 
             $headers[$key] = $value;
             $cursor += $recordLength;
@@ -737,10 +739,12 @@ final class TarArchive
             if (!is_string($key) || $key === '' || str_contains($key, "\0") || str_contains($key, '=')) {
                 throw new \RuntimeException("{$label} keys must be non-empty strings without NUL bytes or equals signs");
             }
+            self::assertUtf8($key, "{$label} key metadata");
 
             if (!is_string($value) || str_contains($value, "\0")) {
                 throw new \RuntimeException("{$label} values must be strings without NUL bytes");
             }
+            self::assertUtf8($value, "{$label} {$key} metadata");
 
             $normalized[$key] = $value;
         }

@@ -245,6 +245,48 @@ return [
         ]));
     },
 
+    'rejects invalid utf8 pax review metadata before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $validReviewMetadata = $rawTarHeader('PaxHeaders/valid-review', 'x', $paxPayload([
+            'path' => 'packet/review-metadata.xml',
+            'comment' => "caf\u{00E9} tar review metadata",
+            'org.wordpress.import.review' => 'ready',
+        ]), 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $invalidGlobalComment = $rawTarHeader('GlobalHead/invalid-comment', 'g', $paxPayload([
+            'comment' => "bad-\xC3\x28",
+        ]), 0, false)
+            . $rawTarHeader('packet/document.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $invalidLocalComment = $rawTarHeader('PaxHeaders/invalid-comment', 'x', $paxPayload([
+            'path' => 'packet/invalid-comment.xml',
+            'comment' => "bad-\xC3\x28",
+        ]), 0, false)
+            . $rawTarHeader('placeholder-comment.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $invalidLocalKey = $rawTarHeader('PaxHeaders/invalid-key', 'x', $paxPayload([
+            'path' => 'packet/invalid-key.xml',
+            "review-\xC3\x28" => 'bad-key',
+        ]), 0, false)
+            . $rawTarHeader('placeholder-key.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+
+        $entry = TarArchive::fromString($validReviewMetadata)->entry('/packet/review-metadata.xml');
+
+        $t->same("caf\u{00E9} tar review metadata", $entry->paxHeaders['comment'] ?? null);
+        $t->same('ready', $entry->paxHeaders['org.wordpress.import.review'] ?? null);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidGlobalComment));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidLocalComment));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($invalidLocalKey));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromEntries([
+            ['name' => 'packet/generated-invalid-pax.xml', 'data' => '<w:document/>'],
+        ], [
+            'globalPaxHeaders' => [
+                'comment' => "bad-\xC3\x28",
+            ],
+        ]));
+    },
+
     'builds and reads global pax metadata for tar review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [
