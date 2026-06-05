@@ -12,6 +12,10 @@ final class PdfPageArtifactSelector
         'page_metadata',
         'page_meta',
         'page_info',
+        'page_data',
+        'page_result',
+        'result_metadata',
+        'artifact_metadata',
         'source',
         'pdftext',
     ];
@@ -167,16 +171,33 @@ final class PdfPageArtifactSelector
      */
     private function pageMarkerSources(array $artifact): array
     {
-        $sources = [$artifact];
+        $sources = [];
+        $this->collectPageMarkerSources($artifact, $sources);
+
+        return $sources;
+    }
+
+    /**
+     * Adapter output can wrap page identity in one shallow envelope around
+     * another metadata envelope while keeping the model payload at top level.
+     *
+     * @param array<string, mixed> $artifact
+     * @param list<array<string, mixed>> $sources
+     */
+    private function collectPageMarkerSources(array $artifact, array &$sources, int $depth = 0): void
+    {
+        $sources[] = $artifact;
+        if ($depth >= 2) {
+            return;
+        }
+
         foreach (self::PAGE_MARKER_WRAPPERS as $key) {
             $value = $artifact[$key] ?? null;
             if (!is_array($value) || array_is_list($value)) {
                 continue;
             }
-            $sources[] = $value;
+            $this->collectPageMarkerSources($value, $sources, $depth + 1);
         }
-
-        return $sources;
     }
 
     /**

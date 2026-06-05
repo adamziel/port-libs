@@ -464,6 +464,97 @@ return [
             unlink($path);
         }
     },
+    'aligns nested adapter layout and order artifacts to selected pdftext page numbers' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-nested-adapter-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% supplied nested adapter layout order boundary\n%%EOF");
+        try {
+            $coverPage = $pdftextPage(150, [
+                ['text' => 'Nested adapter cover page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+            $selectedPage = $pdftextPage(151, [
+                ['text' => 'Second nested adapter column carries review notes.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First nested adapter column starts the import.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]);
+            $appendixPage = $pdftextPage(152, [
+                ['text' => 'Nested adapter appendix page artifact.', 'bbox' => [72.0, 80.0, 300.0, 94.0]],
+            ]);
+
+            $layoutResults = [
+                [
+                    'page_data' => ['metadata' => ['page' => 150]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Picture', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+                [
+                    'page_result' => ['page_info' => ['page' => 151]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+            $orderResults = [
+                [
+                    'page_data' => ['metadata' => ['page' => 150]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                        ['position' => 2, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                    ],
+                ],
+                [
+                    'page_result' => ['page_info' => ['page' => 151]],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                        ['position' => 2, 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                    ],
+                ],
+            ];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$coverPage, $selectedPage, $appendixPage],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page_data' => ['metadata' => ['page' => 150]], 'image' => 'nested-cover-layout-render'],
+                        ['page_result' => ['page_info' => ['page' => 151]], 'image' => 'nested-selected-layout-render'],
+                    ],
+                    'layout_results' => $layoutResults,
+                    'order_images' => [
+                        ['page_data' => ['metadata' => ['page' => 150]], 'image' => 'nested-cover-order-render'],
+                        ['page_result' => ['page_info' => ['page' => 151]], 'image' => 'nested-selected-order-render'],
+                    ],
+                    'order_results' => $orderResults,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $text = $result['text'];
+            $t->same([1], $result['metadata']['page_range']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['layout_plan']['image_count']);
+            $t->same(1, $result['metadata']['layout_plan']['layout_result_count']);
+            $t->same(1, $result['metadata']['layout_plan']['assigned_pages']);
+            $t->same(1, $result['metadata']['order_plan']['image_count']);
+            $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+            $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+            $t->contains('First nested adapter column starts the import.', $text);
+            $t->contains('Second nested adapter column carries review notes.', $text);
+            $t->true(strpos($text, 'First nested adapter column starts the import.') < strpos($text, 'Second nested adapter column carries review notes.'));
+            $t->true(!str_contains($text, 'Nested adapter cover page artifact.'));
+            $t->true(!str_contains($text, 'Nested adapter appendix page artifact.'));
+        } finally {
+            unlink($path);
+        }
+    },
     'ignores selected-count keyed layout and order artifacts for unselected pdftext pages' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-supplied-layout-order-keyed-mismatch-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% supplied keyed layout order mismatch boundary\n%%EOF");
