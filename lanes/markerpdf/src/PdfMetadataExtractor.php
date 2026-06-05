@@ -6133,13 +6133,39 @@ final class PdfMetadataExtractor
         }
 
         foreach ($this->xmpChildElements($element, $namespace, $localName) as $child) {
-            $value = $this->cleanText($child->textContent);
+            $value = $this->xmpQualifiedTextValue($child);
             if ($value !== null) {
                 return $value;
             }
         }
 
         return null;
+    }
+
+    private function xmpQualifiedTextValue(DOMElement $element): ?string
+    {
+        if ($element->hasAttributeNS(self::NS_RDF, 'value')) {
+            $value = $this->cleanText($element->getAttributeNS(self::NS_RDF, 'value'));
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        foreach ($this->xmpChildElements($element, self::NS_RDF, 'value') as $valueElement) {
+            $value = $this->cleanText($valueElement->textContent);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        foreach ($this->xmpChildElements($element, self::NS_RDF, 'Description') as $description) {
+            $value = $this->xmpQualifiedTextValue($description);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return $this->cleanText($element->textContent);
     }
 
     /**
@@ -6185,6 +6211,47 @@ final class PdfMetadataExtractor
         }
 
         return [];
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpTopLevelDescriptions(DOMDocument $document): array
+    {
+        $descriptions = [];
+        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'Description') as $description) {
+            if (!$description instanceof DOMElement) {
+                continue;
+            }
+
+            $parent = $description->parentNode;
+            if (
+                !$parent instanceof DOMElement
+                || $parent->namespaceURI !== self::NS_RDF
+                || $parent->localName !== 'RDF'
+            ) {
+                continue;
+            }
+
+            $descriptions[] = $description;
+        }
+
+        return $descriptions;
+    }
+
+    /**
+     * @return list<DOMElement>
+     */
+    private function xmpTopLevelPropertyElements(DOMDocument $document, string $namespace, string $localName): array
+    {
+        $properties = [];
+        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
+            foreach ($this->xmpChildElements($description, $namespace, $localName) as $child) {
+                $properties[] = $child;
+            }
+        }
+
+        return $properties;
     }
 
     private function looksLikeXmlPacket(string $xml): bool
@@ -6696,18 +6763,14 @@ final class PdfMetadataExtractor
 
     private function xmpSingleValue(DOMDocument $document, string $namespace, string $localName, bool $preferAlt): ?string
     {
-        $elements = $document->getElementsByTagNameNS($namespace, $localName);
-        if ($elements->length > 0) {
-            $element = $elements->item(0);
-            if ($element instanceof DOMElement) {
-                $value = $preferAlt ? $this->preferredAltText($element) : $this->cleanText($element->textContent);
-                if ($value !== null) {
-                    return $value;
-                }
+        foreach ($this->xmpTopLevelPropertyElements($document, $namespace, $localName) as $element) {
+            $value = $preferAlt ? $this->preferredAltText($element) : $this->xmpQualifiedTextValue($element);
+            if ($value !== null) {
+                return $value;
             }
         }
 
-        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'Description') as $description) {
+        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
             if (!$description instanceof DOMElement || !$description->hasAttributeNS($namespace, $localName)) {
                 continue;
             }
@@ -6726,28 +6789,28 @@ final class PdfMetadataExtractor
      */
     private function xmpListValues(DOMDocument $document, string $namespace, string $localName): array
     {
-        $elements = $document->getElementsByTagNameNS($namespace, $localName);
-        if ($elements->length > 0) {
-            $element = $elements->item(0);
-            if ($element instanceof DOMElement) {
-                $values = [];
-                foreach ($element->getElementsByTagNameNS(self::NS_RDF, 'li') as $item) {
-                    $value = $this->cleanText($item->textContent);
-                    if ($value !== null) {
-                        $values[] = $value;
-                    }
+        foreach ($this->xmpTopLevelPropertyElements($document, $namespace, $localName) as $element) {
+            $values = [];
+            foreach ($element->getElementsByTagNameNS(self::NS_RDF, 'li') as $item) {
+                if (!$item instanceof DOMElement) {
+                    continue;
                 }
 
-                if ($values !== []) {
-                    return $this->cleanList($values);
+                $value = $this->xmpQualifiedTextValue($item);
+                if ($value !== null) {
+                    $values[] = $value;
                 }
-
-                $value = $this->cleanText($element->textContent);
-                return $value === null ? [] : [$value];
             }
+
+            if ($values !== []) {
+                return $this->cleanList($values);
+            }
+
+            $value = $this->xmpQualifiedTextValue($element);
+            return $value === null ? [] : [$value];
         }
 
-        foreach ($document->getElementsByTagNameNS(self::NS_RDF, 'Description') as $description) {
+        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
             if (!$description instanceof DOMElement || !$description->hasAttributeNS($namespace, $localName)) {
                 continue;
             }
@@ -6836,7 +6899,7 @@ final class PdfMetadataExtractor
                 continue;
             }
 
-            $value = $this->cleanText($item->textContent);
+            $value = $this->xmpQualifiedTextValue($item);
             if ($value === null) {
                 continue;
             }
@@ -6847,7 +6910,7 @@ final class PdfMetadataExtractor
             }
         }
 
-        return $first ?? $this->cleanText($element->textContent);
+        return $first ?? $this->xmpQualifiedTextValue($element);
     }
 
     /**
