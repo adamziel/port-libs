@@ -50,6 +50,7 @@ final class TarArchive
         $globalPaxHeaders = [];
         $pendingGnuLongName = null;
         $totalUnpackedBytes = 0;
+        $sawEndMarker = false;
 
         while ($cursor < $length) {
             $header = substr($bytes, $cursor, self::BLOCK_SIZE);
@@ -58,6 +59,7 @@ final class TarArchive
                     throw new \RuntimeException('TAR GNU long-name metadata is not followed by an archive entry');
                 }
                 self::assertTrailingZeroBlocks($bytes, $cursor);
+                $sawEndMarker = true;
                 break;
             }
 
@@ -153,6 +155,10 @@ final class TarArchive
             $pendingPaxHeaders = [];
             $pendingGnuLongName = null;
             $cursor = $nextCursor;
+        }
+
+        if (!$sawEndMarker) {
+            throw new \RuntimeException('TAR archive is missing the required two-block end marker');
         }
 
         return new self($bytes, $entriesByName, $entries);
@@ -609,6 +615,10 @@ final class TarArchive
     private static function assertTrailingZeroBlocks(string $bytes, int $offset): void
     {
         $remaining = substr($bytes, $offset);
+        if (strlen($remaining) < self::BLOCK_SIZE * 2) {
+            throw new \RuntimeException('TAR archive end marker must contain two zero blocks');
+        }
+
         if (trim($remaining, "\0") !== '') {
             throw new \RuntimeException('TAR archive contains non-zero bytes after the end marker');
         }

@@ -679,6 +679,12 @@ try {
 } catch (RuntimeException $exception) {
     $centralDirectoryEncryptionRejected = str_contains($exception->getMessage(), 'central-directory encryption metadata');
 }
+$missingTarEndMarkerRejected = false;
+try {
+    TarArchive::fromString($buildRawTarRecord('packet/missing-end-marker.xml', '0', '<w:document/>', $documentModifiedAt));
+} catch (RuntimeException $exception) {
+    $missingTarEndMarkerRejected = str_contains($exception->getMessage(), 'end marker');
+}
 
 if (in_array('--self-test', $argv, true)) {
     if (!$package->has('/word/document.xml')) {
@@ -889,6 +895,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP central-directory encryption metadata to be rejected before media import');
     }
 
+    if (!$missingTarEndMarkerRejected) {
+        throw new RuntimeException('Expected TAR packets without two zero end blocks to be rejected before import');
+    }
+
     $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
     if ($unicodePathEntry->rawName !== $unicodePathRawName) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to preserve raw legacy path bytes');
@@ -940,6 +950,7 @@ echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-reject
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";
 $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
