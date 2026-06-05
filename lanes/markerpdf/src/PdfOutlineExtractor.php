@@ -1902,6 +1902,7 @@ final class PdfOutlineExtractor
     private function parsedObjectValues(string $pdfBytes): array
     {
         $values = [];
+        $selectedBodies = [];
         $this->objectGenerations = [];
         $pdfBytes = $this->bytesThroughCurrentEof($pdfBytes);
         if (!preg_match_all('/(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
@@ -1951,8 +1952,11 @@ final class PdfOutlineExtractor
 
             $index = 0;
             $values[$objectNumber] = $this->parseValue($tokens, $index);
+            $selectedBodies[$objectNumber] = trim($candidate['body']);
             $this->objectGenerations[$objectNumber] = $candidate['generation'];
         }
+
+        $values = $this->withObjectStreamParsedValues($values, $selectedBodies);
 
         $rootReference = $this->currentTrailerRootReference($pdfBytes);
         if (
@@ -1966,6 +1970,260 @@ final class PdfOutlineExtractor
         }
 
         return $values;
+    }
+
+    /**
+     * PDF 1.5 object streams may carry outline roots, items, and actions.
+     * Expand non-stream members so TOC/navigation metadata follows the same
+     * compressed-object boundary as the metadata and text import paths.
+     *
+     * @param array<int, mixed> $values
+     * @param array<int, string> $objectBodies
+     * @return array<int, mixed>
+     */
+    private function withObjectStreamParsedValues(array $values, array $objectBodies): array
+    {
+        $expanded = $values;
+        foreach ($objectBodies as $body) {
+            $memberTable = $this->decodedObjectStreamMemberTable($body, $expanded);
+            if ($memberTable === null) {
+                continue;
+            }
+
+            $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+            foreach ($memberTable['members'] as $member) {
+                $objectNumber = $member['objectNumber'];
+                if (isset($expanded[$objectNumber])) {
+                    continue;
+                }
+
+                $nextOffset = $this->objectStreamMemberEndOffset(
+                    $memberTable['members'],
+                    $member['offset'],
+                    $objectDataLength
+                );
+                if ($nextOffset === null || !$this->objectStreamMemberOffsetHasTokenBoundary($memberTable, $member)) {
+                    continue;
+                }
+
+                $memberBody = trim(substr(
+                    $memberTable['decoded'],
+                    $memberTable['first'] + $member['offset'],
+                    $nextOffset - $member['offset']
+                ));
+                if ($memberBody === '' || $this->objectStreamMemberIsTopLevelStreamObject($memberBody)) {
+                    continue;
+                }
+
+                $tokens = $this->tokens($memberBody);
+                if ($tokens === []) {
+                    continue;
+                }
+
+                $index = 0;
+                $expanded[$objectNumber] = $this->parseValue($tokens, $index);
+                $this->objectGenerations[$objectNumber] = 0;
+            }
+        }
+
+        ksort($expanded, SORT_NUMERIC);
+        return $expanded;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
+     */
+    private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
+    {
+        $dictionary = $this->objectBodyDictionary($body);
+        if ($dictionary === null || $this->nameValue($dictionary['Type'] ?? null) !== 'ObjStm') {
+            return null;
+        }
+
+        $count = $this->integerOrNullValue($this->resolveValue($dictionary['N'] ?? null, $objects));
+        $first = $this->integerOrNullValue($this->resolveValue($dictionary['First'] ?? null, $objects));
+        if ($count === null || $first === null || $count < 1 || $first < 0) {
+            return null;
+        }
+
+        $length = $this->integerOrNullValue($this->resolveValue($dictionary['Length'] ?? null, $objects));
+        $payload = $this->streamPayloadFromObjectBody($body, $length);
+        if ($payload === null) {
+            return null;
+        }
+
+        $decoded = $this->decodeObjectStreamPayload($payload, $dictionary, $objects);
+        if ($decoded === null || $first > strlen($decoded)) {
+            return null;
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $first), $count);
+        if (count($members) !== $count) {
+            return null;
+        }
+
+        return [
+            'decoded' => $decoded,
+            'first' => $first,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function objectBodyDictionary(string $body): ?array
+    {
+        $dictionarySource = $body;
+        if (preg_match('/\bstream(?:\r\n|\n|\r)/s', $body, $match, PREG_OFFSET_CAPTURE) === 1) {
+            $dictionarySource = substr($body, 0, $match[0][1]);
+        }
+
+        $tokens = $this->tokens(trim($dictionarySource));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $index = 0;
+        return $this->dictionaryItems($this->parseValue($tokens, $index));
+    }
+
+    private function streamPayloadFromObjectBody(string $body, ?int $declaredLength): ?string
+    {
+        if (preg_match('/\bstream(?:\r\n|\n|\r)/s', $body, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        $streamStart = $match[0][1] + strlen($match[0][0]);
+        if ($declaredLength !== null && $declaredLength >= 0 && $streamStart + $declaredLength <= strlen($body)) {
+            return substr($body, $streamStart, $declaredLength);
+        }
+
+        $streamEnd = strpos($body, 'endstream', $streamStart);
+        return $streamEnd === false ? null : substr($body, $streamStart, $streamEnd - $streamStart);
+    }
+
+    /**
+     * @param array<string, mixed> $dictionary
+     * @param array<int, mixed> $objects
+     */
+    private function decodeObjectStreamPayload(string $payload, array $dictionary, array $objects): ?string
+    {
+        $decoded = $payload;
+        foreach ($this->objectStreamFilterNames($dictionary['Filter'] ?? null, $objects) as $filter) {
+            if ($filter === 'FlateDecode' || $filter === 'Fl') {
+                $inflated = @gzuncompress($decoded);
+                if (!is_string($inflated)) {
+                    return null;
+                }
+                $decoded = $inflated;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<int, mixed> $objects
+     * @return list<string>
+     */
+    private function objectStreamFilterNames(mixed $value, array $objects): array
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        $name = $this->nameValue($resolved);
+        if ($name !== null) {
+            return [$name];
+        }
+
+        $array = $this->arrayItems($resolved);
+        if ($array === null) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($array as $item) {
+            $name = $this->nameValue($this->resolveValue($item, $objects));
+            if ($name !== null) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<array{objectNumber: int, offset: int, index: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $count): array
+    {
+        if (preg_match_all('/(\d+)\s+(\d+)/', $header, $matches, PREG_SET_ORDER) < 1) {
+            return [];
+        }
+
+        $members = [];
+        foreach ($matches as $index => $match) {
+            if ($index >= $count) {
+                break;
+            }
+
+            $members[] = [
+                'objectNumber' => (int) $match[1],
+                'offset' => (int) $match[2],
+                'index' => $index,
+            ];
+        }
+
+        return $members;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     */
+    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    {
+        if ($memberOffset < 0 || $memberOffset >= $objectDataLength) {
+            return null;
+        }
+
+        $endOffset = $objectDataLength;
+        foreach ($members as $member) {
+            if ($member['offset'] > $memberOffset) {
+                $endOffset = min($endOffset, $member['offset']);
+            }
+        }
+
+        return $endOffset > $memberOffset ? $endOffset : null;
+    }
+
+    /**
+     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{objectNumber: int, offset: int, index: int} $member
+     */
+    private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
+    {
+        $absoluteOffset = $memberTable['first'] + $member['offset'];
+        if ($absoluteOffset < $memberTable['first'] || $absoluteOffset >= strlen($memberTable['decoded'])) {
+            return false;
+        }
+
+        if ($member['offset'] === 0) {
+            return true;
+        }
+
+        $previous = $memberTable['decoded'][$absoluteOffset - 1];
+        $current = $memberTable['decoded'][$absoluteOffset];
+
+        return (ctype_space($previous) || str_contains('[]()<>{}/%', $previous))
+            && !ctype_space($current);
+    }
+
+    private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
+    {
+        return preg_match('/^<<.*>>\s*stream\b/s', ltrim($memberBody)) === 1;
     }
 
     /**
