@@ -57,13 +57,18 @@ final class PdfAttachmentExtractor
         $encryptionPolicy = $this->attachmentEncryptionPolicy($pdfBytes, $objects);
         $attachments = [];
         foreach ($this->embeddedFilesNameTreeEntries($objects, $catalogObjectIds) as $entry) {
+            $context = [
+                'name_key' => $entry['name'],
+            ];
+            if (($entry['portfolio'] ?? []) !== []) {
+                $context['portfolio'] = $entry['portfolio'];
+            }
+
             $attachment = $this->attachmentFromFileSpecValue(
                 $entry['fileSpec'],
                 $objects,
                 'embedded-files-name-tree',
-                [
-                    'name_key' => $entry['name'],
-                ],
+                $context,
                 $encryptionPolicy
             );
             if ($attachment !== null) {
@@ -80,7 +85,7 @@ final class PdfAttachmentExtractor
                     'associated_file' => true,
                     'associated_file_index' => $entry['associatedFileIndex'],
                     'catalog_object_id' => $entry['catalogObjectId'],
-                ],
+                ] + (($entry['portfolio'] ?? []) !== [] ? ['portfolio' => $entry['portfolio']] : []),
                 $encryptionPolicy
             );
             if ($attachment === null) {
@@ -386,6 +391,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
+            $portfolio = $this->collectionMetadata($dict['Collection'] ?? null, $objects);
             $names = $this->dict($this->resolveValue($dict['Names'] ?? null, $objects));
             if ($names === null || !array_key_exists('EmbeddedFiles', $names)) {
                 continue;
@@ -398,6 +404,9 @@ final class PdfAttachmentExtractor
                 }
 
                 $seenNames[$entry['name']] = true;
+                if ($portfolio !== []) {
+                    $entry['portfolio'] = $portfolio;
+                }
                 $entries[] = $entry;
             }
         }
@@ -423,6 +432,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
+            $portfolio = $this->collectionMetadata($dict['Collection'] ?? null, $objects);
             $associatedFiles = $this->arrayValue($this->resolveValue($dict['AF'] ?? null, $objects));
             if ($associatedFiles === null) {
                 continue;
@@ -433,6 +443,7 @@ final class PdfAttachmentExtractor
                     'catalogObjectId' => $objectId,
                     'associatedFileIndex' => $index,
                     'fileSpec' => $fileSpec,
+                    'portfolio' => $portfolio,
                 ];
             }
         }
@@ -940,6 +951,9 @@ final class PdfAttachmentExtractor
         if ($filters !== []) {
             $attachment['filters'] = $filters;
         }
+        if ($filenameSource === 'UF' && $filename !== '') {
+            $attachment['unicode_filename'] = $filename;
+        }
         if ($declaredSize !== null && $bytes !== null) {
             $attachment['declared_size_matches'] = $declaredSize === strlen($bytes);
         }
@@ -971,6 +985,16 @@ final class PdfAttachmentExtractor
         if ($portfolioItem !== []) {
             $attachment['portfolio_item'] = $portfolioItem;
             $attachment['portfolio_item_count'] = count($portfolioItem);
+        }
+        $portfolio = is_array($attachment['portfolio'] ?? null) ? $attachment['portfolio'] : [];
+        $portfolioFieldValues = $this->collectionFieldValueReview(
+            $portfolio,
+            $fileSpec['CI'] ?? null,
+            $objects,
+            $attachment
+        );
+        if ($portfolioFieldValues !== []) {
+            $attachment['portfolio_field_values'] = $portfolioFieldValues;
         }
 
         $relatedFiles = $this->relatedFileRows($fileSpec['RF'] ?? null, $objects, $encryptionPolicy);
@@ -1096,6 +1120,7 @@ final class PdfAttachmentExtractor
             foreach ([
                 'name_key',
                 'filename',
+                'unicode_filename',
                 'filename_source',
                 'filename_leaf',
                 'filename_storage_name',
@@ -1106,6 +1131,8 @@ final class PdfAttachmentExtractor
                 'filename_url_scheme',
                 'description',
                 'annotation_contents',
+                'portfolio',
+                'portfolio_field_values',
                 'file_identifier',
                 'portfolio_item',
                 'portfolio_item_count',
@@ -1431,6 +1458,140 @@ final class PdfAttachmentExtractor
     }
 
     /**
+     * Catalog /Collection dictionaries define PDF Portfolio review context for
+     * EmbeddedFiles entries. Keep schema and ordering metadata, but never
+     * promote embedded payloads or arbitrary private streams into summaries.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionMetadata(mixed $collectionValue, array $objects): array
+    {
+        $collection = $this->dict($this->resolveValue($collectionValue, $objects));
+        if ($collection === null) {
+            return [];
+        }
+
+        $metadata = ['source' => 'catalog_collection'];
+        foreach ([
+            'type' => $this->nameOrStringValue($collection['Type'] ?? null, $objects),
+            'view' => $this->nameOrStringValue($collection['View'] ?? null, $objects),
+            'default_document' => $this->collectionReviewScalar($collection['D'] ?? null, $objects),
+        ] as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $metadata[$key] = $value;
+            }
+        }
+
+        $schema = $this->collectionSchemaReview($collection['Schema'] ?? null, $objects);
+        if ($schema !== []) {
+            $metadata['schema'] = $schema;
+        }
+
+        $sort = $this->collectionSortReview($collection['Sort'] ?? null, $objects);
+        if ($sort !== []) {
+            $metadata['sort'] = $sort;
+        }
+
+        if (array_key_exists('Folders', $collection)) {
+            $metadata['has_folders'] = true;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, array<string, mixed>>
+     */
+    private function collectionSchemaReview(mixed $schemaValue, array $objects): array
+    {
+        $schema = $this->dict($this->resolveValue($schemaValue, $objects));
+        if ($schema === null) {
+            return [];
+        }
+
+        $fields = [];
+        foreach ($schema as $fieldName => $fieldValue) {
+            if (!is_string($fieldName)) {
+                continue;
+            }
+
+            $fieldDictionary = $this->dict($this->resolveValue($fieldValue, $objects));
+            if ($fieldDictionary === null) {
+                continue;
+            }
+
+            $field = [];
+            foreach ([
+                'subtype' => $this->nameOrStringValue($fieldDictionary['Subtype'] ?? null, $objects),
+                'label' => $this->stringValue($this->resolveValue($fieldDictionary['N'] ?? null, $objects)),
+                'order' => $this->intValue($this->resolveValue($fieldDictionary['O'] ?? null, $objects)),
+                'visible' => $this->boolValue($this->resolveValue($fieldDictionary['V'] ?? null, $objects)),
+                'editable' => $this->boolValue($this->resolveValue($fieldDictionary['E'] ?? null, $objects)),
+            ] as $key => $value) {
+                if ($value !== null && $value !== '') {
+                    $field[$key] = $value;
+                }
+            }
+
+            if ($field !== []) {
+                $fields[$fieldName] = $field;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>
+     */
+    private function collectionSortReview(mixed $sortValue, array $objects): array
+    {
+        $sort = $this->dict($this->resolveValue($sortValue, $objects));
+        if ($sort === null) {
+            return [];
+        }
+
+        $metadata = [];
+        $keys = $this->collectionReviewList($sort['S'] ?? null, $objects);
+        if ($keys !== []) {
+            $metadata['keys'] = $keys;
+        }
+
+        $ascending = $this->collectionReviewList($sort['A'] ?? null, $objects);
+        if ($ascending !== []) {
+            $metadata['ascending'] = $ascending;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return list<mixed>
+     */
+    private function collectionReviewList(mixed $value, array $objects): array
+    {
+        $resolved = $this->resolveValue($value, $objects);
+        $items = $this->arrayValue($resolved);
+        if ($items === null) {
+            $items = $resolved === null ? [] : [$resolved];
+        }
+
+        $values = [];
+        foreach ($items as $item) {
+            $scalar = $this->collectionReviewScalar($item, $objects);
+            if ($scalar !== null && $scalar !== '') {
+                $values[] = $scalar;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
      * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
      * @return array<string, mixed>|null
      */
@@ -1506,6 +1667,166 @@ final class PdfAttachmentExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $portfolioMetadata
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<string, mixed> $attachment
+     * @return array<string, array<string, mixed>>
+     */
+    private function collectionFieldValueReview(
+        array $portfolioMetadata,
+        mixed $collectionItemValue,
+        array $objects,
+        array $attachment
+    ): array {
+        $schema = $portfolioMetadata['schema'] ?? null;
+        if (!is_array($schema) || $schema === []) {
+            return [];
+        }
+
+        $collectionItem = $this->dict($this->resolveValue($collectionItemValue, $objects));
+        $collectionItemEntries = $collectionItem ?? [];
+        $metadata = [];
+        foreach ($schema as $fieldName => $fieldSchema) {
+            if (!is_string($fieldName) || !is_array($fieldSchema)) {
+                continue;
+            }
+
+            $subtype = $fieldSchema['subtype'] ?? null;
+            $value = null;
+            if (array_key_exists($fieldName, $collectionItemEntries)) {
+                $value = $this->collectionItemFieldValueReview($collectionItemEntries[$fieldName], $objects);
+            } elseif (is_string($subtype)) {
+                $value = $this->collectionFileRelatedFieldValueReview($subtype, $attachment);
+            }
+            if ($value === null) {
+                continue;
+            }
+
+            $field = [];
+            foreach (['subtype', 'label', 'order', 'visible', 'editable'] as $schemaKey) {
+                if (array_key_exists($schemaKey, $fieldSchema)) {
+                    $field[$schemaKey] = $fieldSchema[$schemaKey];
+                }
+            }
+
+            $valueType = is_string($subtype) ? $this->collectionFieldValueType($subtype) : null;
+            if ($valueType !== null) {
+                $field['value_type'] = $valueType;
+            }
+
+            foreach ($value as $key => $entryValue) {
+                $field[$key] = $entryValue;
+            }
+
+            $metadata[$fieldName] = $field;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<string, mixed>|null
+     */
+    private function collectionItemFieldValueReview(mixed $value, array $objects): ?array
+    {
+        $subitem = $this->dict($this->resolveValue($value, $objects));
+        if ($subitem !== null && (array_key_exists('D', $subitem) || array_key_exists('P', $subitem))) {
+            $metadata = ['source' => 'collection_subitem'];
+
+            $type = $this->nameOrStringValue($subitem['Type'] ?? null, $objects);
+            if ($type !== null && $type !== '') {
+                $metadata['subitem_type'] = $type;
+            }
+
+            $data = $this->collectionReviewScalar($subitem['D'] ?? null, $objects);
+            if ($data !== null && $data !== '') {
+                $metadata['value'] = $data;
+            }
+
+            $prefix = $this->collectionReviewScalar($subitem['P'] ?? null, $objects);
+            if ($prefix !== null && $prefix !== '') {
+                $metadata['prefix'] = $prefix;
+            }
+
+            $displayValue = $this->collectionDisplayValue($metadata['value'] ?? null, $metadata['prefix'] ?? null);
+            if ($displayValue !== null && $displayValue !== '') {
+                $metadata['display_value'] = $displayValue;
+            }
+
+            return array_key_exists('value', $metadata) || array_key_exists('prefix', $metadata)
+                ? $metadata
+                : null;
+        }
+
+        $scalar = $this->collectionReviewScalar($value, $objects);
+        if ($scalar === null || $scalar === '') {
+            return null;
+        }
+
+        $metadata = [
+            'source' => 'collection_item',
+            'value' => $scalar,
+        ];
+
+        $displayValue = $this->collectionDisplayValue($scalar);
+        if ($displayValue !== null && $displayValue !== '') {
+            $metadata['display_value'] = $displayValue;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     * @return array<string, mixed>|null
+     */
+    private function collectionFileRelatedFieldValueReview(string $subtype, array $attachment): ?array
+    {
+        $source = null;
+        $value = match ($subtype) {
+            'F' => $attachment['unicode_filename'] ?? $attachment['filename'] ?? null,
+            'Desc' => $attachment['description'] ?? null,
+            'ModDate' => $attachment['modified_at'] ?? null,
+            'CreationDate' => $attachment['created_at'] ?? null,
+            'Size' => $attachment['declared_size'] ?? null,
+            default => null,
+        };
+
+        if ($subtype === 'F' || $subtype === 'Desc') {
+            $source = 'file_spec';
+        } elseif ($subtype === 'ModDate' || $subtype === 'CreationDate' || $subtype === 'Size') {
+            $source = 'embedded_file_params';
+        }
+
+        if ($source === null || $value === null || $value === '') {
+            return null;
+        }
+
+        $metadata = [
+            'source' => $source,
+            'value' => $value,
+        ];
+
+        $displayValue = $this->collectionDisplayValue($value);
+        if ($displayValue !== null && $displayValue !== '') {
+            $metadata['display_value'] = $displayValue;
+        }
+
+        return $metadata;
+    }
+
+    private function collectionFieldValueType(string $subtype): ?string
+    {
+        return match ($subtype) {
+            'S', 'F', 'Desc' => 'text',
+            'D', 'ModDate', 'CreationDate' => 'date',
+            'N', 'Size' => 'number',
+            default => null,
+        };
     }
 
     /**
