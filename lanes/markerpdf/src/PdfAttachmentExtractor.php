@@ -5281,11 +5281,7 @@ final class PdfAttachmentExtractor
             }
 
             if ($rowIndex < $rowCount) {
-                if ($entriesBeforeSection !== []) {
-                    return $entriesBeforeSection;
-                }
-
-                return null;
+                return $entries === [] ? null : $entries;
             }
         }
 

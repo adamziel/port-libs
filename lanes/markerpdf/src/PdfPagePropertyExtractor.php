@@ -2879,7 +2879,7 @@ final class PdfPagePropertyExtractor
             }
 
             if ($rowIndex < $rowCount) {
-                return null;
+                return $entries === [] ? null : $entries;
             }
         }
 

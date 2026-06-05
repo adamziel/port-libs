@@ -3271,7 +3271,7 @@ final class PdfEmbeddedFileExtractor
             $entriesBeforeSection = $entries;
             for ($entryIndex = 0; $entryIndex < $count;) {
                 if (++$lineIndex >= $lineCount) {
-                    return $entriesBeforeSection === [] ? null : $entriesBeforeSection;
+                    return $entries === [] ? null : $entries;
                 }
 
                 $row = trim($lines[$lineIndex]);

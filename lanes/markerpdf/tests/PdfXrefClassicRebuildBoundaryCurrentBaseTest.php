@@ -1976,6 +1976,88 @@ $xrefClassicRebuildDamagedRootRowCurrentBasePdf = static function (): array {
     return [$pdf, $currentPayload, strtolower($currentChecksum), $previousXrefOffset, $currentXrefOffset, $offsets[20]];
 };
 
+$xrefClassicRebuildOverdeclaredCountBoundaryCurrentBasePdf = static function (): array {
+    $staleXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Stale Overdeclared XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Overdeclared XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale overdeclared-count xref page) Tj T* (Overdeclared count root leak) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current overdeclared-count xref page) Tj T* (Short subsection preserved) Tj ET';
+    $stalePayload = '<wp-export><post id="stale-overdeclared-count-xref"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-overdeclared-count-xref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $streamObject = static fn (string $content): string => "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+    $addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(24, $streamObject($staleContent));
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($staleXmp) . " >>\nstream\n{$staleXmp}\nendstream");
+    $addObject(27, '<< /Title (Stale Overdeclared XRef Info) /Author (Stale Count Importer) >>');
+    $addObject(28, '<< /Names [(stale-overdeclared-count-xref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (stale-overdeclared-count-xref.xml) /Desc (Stale overdeclared-count xref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "20 12\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . $xrefRow($offsets[22])
+        . $xrefRow($offsets[23])
+        . $xrefRow($offsets[24])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[26])
+        . $xrefRow($offsets[27])
+        . $xrefRow($offsets[28])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[30])
+        . $xrefRow($offsets[31])
+        . "trailer\n<< /Size 64 /Root 20 0 R /Info 27 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, $streamObject($currentContent));
+    $addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(7, '<< /Title (Current Overdeclared XRef Info) /Author (Current Count Importer) >>');
+    $addObject(8, '<< /Names [(current-overdeclared-count-xref.xml) 9 0 R] >>');
+    $addObject(9, '<< /Type /Filespec /F (current-overdeclared-count-xref.xml) /Desc (Current overdeclared-count xref attachment) /AFRelationship /Source /EF << /F 10 0 R >> >>');
+    $addObject(10, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 13\n"
+        . $xrefRow(0, 65535, 'f');
+    for ($objectNumber = 1; $objectNumber <= 10; $objectNumber++) {
+        $pdf .= $xrefRow($offsets[$objectNumber]);
+    }
+    $pdf .= "trailer\n<< /Size 64 /Root 1 0 R /Info 7 0 R /Prev {$previousXrefOffset} >>\n"
+        . "startxref\n999999\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $previousXrefOffset, $currentXrefOffset];
+};
+
 $xrefClassicRebuildHeaderGarbageBoundaryCurrentBasePdf = static function (): array {
     $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
         . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
@@ -2977,6 +3059,49 @@ return [
         $t->true(!str_contains($encodedMetadata, 'Header Garbage Decoy'));
         $t->true(!str_contains($encodedFiles, 'decoy-header-garbage-xref'));
         $t->true(!str_contains($encodedAttachmentSummary, 'decoy-header-garbage-xref'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'preserves overdeclared classic xref subsections that end at trailer before WordPress imports' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildOverdeclaredCountBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $previousXrefOffset, $currentXrefOffset] = $xrefClassicRebuildOverdeclaredCountBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($previousXrefOffset > 0);
+        $t->true($currentXrefOffset > $previousXrefOffset);
+        $t->same(['Current overdeclared-count xref page', 'Short subsection preserved'], $extractor->extractTextLines($pdf));
+        $t->same(['Current overdeclared-count xref page', 'Short subsection preserved'], $extractor->extractTextRuns($pdf));
+        $t->same("Current overdeclared-count xref page\nShort subsection preserved", $text);
+        $t->same("Current overdeclared-count xref page\nShort subsection preserved\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Overdeclared XRef Title', $metadata['title']);
+        $t->same('Current Overdeclared XRef Info', $metadata['info']['Title']);
+        $t->same('Current Count Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-overdeclared-count-xref.xml', $files[0]['name']);
+        $t->same('current-overdeclared-count-xref.xml', $files[0]['filename']);
+        $t->same('Current overdeclared-count xref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(['current-overdeclared-count-xref.xml'], $attachmentSummary['filenames']);
+        $t->same(strlen($currentPayload), $attachmentSummary['total_bytes']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
+        $t->true(!str_contains($text, 'Stale overdeclared-count xref page'));
+        $t->true(!str_contains($text, 'Overdeclared count root leak'));
+        $t->true(!str_contains($encodedMetadata, 'Stale Overdeclared'));
+        $t->true(!str_contains($encodedFiles, 'stale-overdeclared-count-xref'));
+        $t->true(!str_contains($encodedAttachmentSummary, 'stale-overdeclared-count-xref'));
         $t->true(!str_contains($text, "\0"));
     },
     'repairs forward classic Prev pointers to the prior xref section before WordPress imports' => static function (
