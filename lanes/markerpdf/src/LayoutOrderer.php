@@ -8,6 +8,7 @@ use InvalidArgumentException;
 
 final class LayoutOrderer
 {
+    private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
     private const ORDER_RESULT_PAGE_MARKER_KEYS = [
         'page_index',
         'doc_page_index',
@@ -313,7 +314,14 @@ final class LayoutOrderer
             if (!is_array($value)) {
                 continue;
             }
-            foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+
+            $wrapperValues = $this->dictionaryWrapperValues($value);
+            if (array_is_list($value) && count($wrapperValues) > 1) {
+                $sources[] = [self::AMBIGUOUS_PAGE_MARKER_WRAPPER => true];
+                continue;
+            }
+
+            foreach ($wrapperValues as $wrapperValue) {
                 $this->collectOrderResultPageMarkerSources($wrapperValue, $sources, $depth + 1, $wrapperKeys);
             }
         }
@@ -350,6 +358,10 @@ final class LayoutOrderer
     private function orderResultPageMarkerSourcesHaveMarkers(array $sources): bool
     {
         foreach ($sources as $source) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true) {
+                return true;
+            }
+
             foreach (self::ORDER_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
                 if ($this->integerFields($source, $fields) !== []) {
                     return true;

@@ -6,6 +6,7 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfPageArtifactSelector
 {
+    private const AMBIGUOUS_PAGE_MARKER_WRAPPER = '__markerpdf_ambiguous_page_marker_wrapper';
     private const MISSING_PAGE_ARTIFACT = '__markerpdf_missing_page_artifact';
     private const PAGE_MARKER_METADATA_WRAPPERS = [
         'metadata',
@@ -173,12 +174,13 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>}
+     * @return array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>}
      */
     private function pageMarkers(array $artifact): array
     {
         $markers = [];
         $sources = $this->pageMarkerSources($artifact);
+        $hasAmbiguousWrapperList = $this->pageMarkerSourcesHaveAmbiguousWrapperList($sources);
 
         $sourceIndexes = $this->integerFieldsFromSources($sources, ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index', 'page_range', 'source_page_range', 'document_page_range', 'page_indices', 'source_page_indices', 'document_page_indices']);
         if ($sourceIndexes !== []) {
@@ -203,6 +205,10 @@ final class PdfPageArtifactSelector
         $selectedPageNumbers = $this->integerFieldsFromSources($sources, ['selected_page_number', 'trimmed_page_number', 'relative_page_number']);
         if ($selectedPageNumbers !== []) {
             $markers['selected_page_numbers'] = $selectedPageNumbers;
+        }
+
+        if ($markers === [] && $hasAmbiguousWrapperList) {
+            $markers['ambiguous_wrapper_lists'] = [1];
         }
 
         return $markers;
@@ -250,7 +256,14 @@ final class PdfPageArtifactSelector
             if (!is_array($value)) {
                 continue;
             }
-            foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
+
+            $wrapperValues = $this->dictionaryWrapperValues($value);
+            if (array_is_list($value) && count($wrapperValues) > 1) {
+                $sources[] = [self::AMBIGUOUS_PAGE_MARKER_WRAPPER => true];
+                continue;
+            }
+
+            foreach ($wrapperValues as $wrapperValue) {
                 $this->collectPageMarkerSources($wrapperValue, $sources, $depth + 1, $wrapperKeys);
             }
         }
@@ -287,6 +300,10 @@ final class PdfPageArtifactSelector
     private function pageMarkerSourcesHaveMarkers(array $sources): bool
     {
         foreach ($sources as $source) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true) {
+                return true;
+            }
+
             foreach (self::PAGE_MARKER_FIELD_GROUPS as $fields) {
                 if ($this->integerFields($source, $fields) !== []) {
                     return true;
@@ -298,10 +315,28 @@ final class PdfPageArtifactSelector
     }
 
     /**
-     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>} $markers
+     * @param list<array<string, mixed>> $sources
+     */
+    private function pageMarkerSourcesHaveAmbiguousWrapperList(array $sources): bool
+    {
+        foreach ($sources as $source) {
+            if (($source[self::AMBIGUOUS_PAGE_MARKER_WRAPPER] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{source_indexes?: list<int>, selected_indexes?: list<int>, pages?: list<int>, page_numbers?: list<int>, selected_page_numbers?: list<int>, ambiguous_wrapper_lists?: list<int>} $markers
      */
     private function pageMarkerMatchScore(array $markers, int $sourceIndex, ?int $pageNumber, int $selectedIndex): ?int
     {
+        if (($markers['ambiguous_wrapper_lists'] ?? []) !== []) {
+            return null;
+        }
+
         $score = 0;
 
         foreach ($markers['source_indexes'] ?? [] as $marker) {

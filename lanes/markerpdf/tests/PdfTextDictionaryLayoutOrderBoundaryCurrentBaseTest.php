@@ -915,4 +915,57 @@ return [
         $t->true(!str_contains($encoded, 'stale typed page-range layout payload'));
         $t->true(!str_contains($encoded, 'stale typed page-range order payload'));
     },
+    'rejects mixed wrapper-list payload dictionaries before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(2400, [
+                    ['text' => 'Mixed wrapper-list cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(2401, [
+                    ['text' => 'Second mixed wrapper-list column remains source ordered', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First mixed wrapper-list column has no trusted order', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => [
+                        ['page' => 2401],
+                        ['raw_payload' => 'mixed wrapper-list payload dictionary must not select order'],
+                    ],
+                    'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                [
+                    'metadata' => [
+                        ['page' => 2401],
+                        ['raw_payload' => 'mixed wrapper-list image payload dictionary must not select order image'],
+                    ],
+                    'image' => 'mixed-wrapper-list-order-render',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([1], $result['page_range']);
+        $t->same(2401, $result['pages'][0]['pnum']);
+        $t->same(['Second mixed wrapper-list column remains source ordered', 'First mixed wrapper-list column has no trusted order'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('Second mixed wrapper-list column remains source ordered First mixed wrapper-list column has no trusted order', $blocks[0]['text']);
+        $t->same(null, $result['pages'][0]['order'] ?? null);
+        $t->true(!str_contains($encoded, 'mixed wrapper-list payload dictionary'));
+        $t->same(0, $result['metadata']['order_plan']['image_count']);
+        $t->same(0, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(0, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
