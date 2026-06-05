@@ -294,6 +294,70 @@ return [
         $t->true(!str_contains($plainText, 'Hidden Marked Image Noise'));
         $t->true(!str_contains($plainText, 'Hidden Object Image Noise'));
     },
+    'skips hidden optional-content page streams before counting image XObject invocations' => static function (TestRunner $t): void {
+        $hiddenContent = "BT /F1 12 Tf 72 720 Td (Hidden content stream text) Tj ET\n"
+            . 'q 16 0 0 8 72 690 cm /Hidden#20Stream Do Q';
+        $visibleContent = "BT /F1 12 Tf 72 700 Td (Visible content stream text) Tj ET\n"
+            . 'q 16 0 0 8 96 690 cm /Visible#20Stream Do Q';
+        $hiddenPayload = 'BT /F1 12 Tf 72 720 Td (Hidden Content Stream Image Noise) Tj ET';
+        $visiblePayload = 'BT /F1 12 Tf 72 720 Td (Visible Content Stream Image Noise) Tj ET';
+        $hiddenCompressed = gzcompress($hiddenPayload);
+        $visibleCompressed = gzcompress($visiblePayload);
+        if (!is_string($hiddenCompressed) || !is_string($visibleCompressed)) {
+            throw new RuntimeException('Unable to compress content-stream optional-content fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.5\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [20 0 R 21 0 R] /D << /BaseState /OFF /ON [20 0 R] /Order [20 0 R 21 0 R] >> >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 10 0 R >> /XObject << /Hidden#20Stream 6 0 R /Visible#20Stream 7 0 R >> >> /Contents [4 0 R 5 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /OC 21 0 R /Length " . strlen($hiddenContent) . " >>\nstream\n{$hiddenContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /OC 20 0 R /Length " . strlen($visibleContent) . " >>\nstream\n{$visibleContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($hiddenCompressed) . " >>\nstream\n{$hiddenCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($visibleCompressed) . " >>\nstream\n{$visibleCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "20 0 obj\n<< /Type /OCG /Name (Visible Content Stream Layer) >>\nendobj\n"
+            . "21 0 obj\n<< /Type /OCG /Name (Hidden Content Stream Layer) >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(1, $review['uninvoked_image_xobject_count']);
+        $t->same(['Visible content stream text'], $extractor->extractTextLines($pdf));
+        $t->same('Visible content stream text', $plainText);
+
+        $hidden = $entriesByName['Hidden Stream'];
+        $t->same(true, $hidden['optional_content_visible']);
+        $t->same(false, $hidden['invoked']);
+        $t->same(0, $hidden['invocation_count']);
+        $t->same([], $hidden['invocation_matrices']);
+        $t->same(true, $hidden['decoded_with_current_filters']);
+        $t->same(hash('sha256', $hiddenPayload), $hidden['decoded_sha256']);
+
+        $visible = $entriesByName['Visible Stream'];
+        $t->same(true, $visible['optional_content_visible']);
+        $t->same(true, $visible['invoked']);
+        $t->same(1, $visible['invocation_count']);
+        $t->same([[16.0, 0.0, 0.0, 8.0, 96.0, 690.0]], $visible['invocation_matrices']);
+        $t->same([96.0, 690.0, 112.0, 698.0], $visible['image_unit_bbox']);
+        $t->same(true, $visible['decoded_with_current_filters']);
+        $t->same(hash('sha256', $visiblePayload), $visible['decoded_sha256']);
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $hiddenPayload));
+        $t->true(!str_contains($encoded, $visiblePayload));
+        $t->true(!str_contains($plainText, 'Hidden content stream text'));
+        $t->true(!str_contains($plainText, 'Hidden Content Stream Image Noise'));
+        $t->true(!str_contains($plainText, 'Visible Content Stream Image Noise'));
+    },
     'honors inline OCMD dictionaries before counting image XObject invocations' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before inline OCMD images) Tj ET\n"
             . "/OC << /Type /OCMD /OCGs [20 0 R 21 0 R] /P /AllOn >> BDC q 16 0 0 8 72 690 cm /Inline#20Hidden Do Q EMC\n"

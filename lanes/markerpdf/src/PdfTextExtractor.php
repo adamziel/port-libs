@@ -310,7 +310,7 @@ final class PdfTextExtractor
                 $pageObjectNumber,
                 $resourceDictionary,
                 $objects,
-                $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects),
+                $this->pageDecodedContentStreams($objects[$pageObjectNumber], $objects, $optionalContentStates),
                 $optionalContentStates,
                 [],
                 [],
@@ -4328,12 +4328,16 @@ final class PdfTextExtractor
     /**
      * @return list<string>
      * @param array<int, string> $objects
+     * @param array<int|string, bool> $optionalContentStates
      */
-    private function pageDecodedContentStreams(string $pageBody, array $objects): array
+    private function pageDecodedContentStreams(string $pageBody, array $objects, array $optionalContentStates = []): array
     {
         $streams = [];
         foreach ($this->pageContentObjectNumbers($pageBody, $objects) as $contentObjectNumber) {
             if (!isset($objects[$contentObjectNumber])) {
+                continue;
+            }
+            if (!$this->optionalContentObjectVisible($objects[$contentObjectNumber], $objects, $optionalContentStates)) {
                 continue;
             }
 
