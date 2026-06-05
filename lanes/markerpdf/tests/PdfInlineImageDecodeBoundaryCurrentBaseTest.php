@@ -330,6 +330,52 @@ return [
         $t->same(['1'], $extractor->extractPageLabels($pdf));
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
     },
+    'reports decoded inline image surplus bytes as review-only sample boundary metadata' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $payloadText = "X EI BT /F1 12 Tf 72 690 Td (Inline Surplus Preview Noise) Tj ET";
+        $compressedImage = gzcompress($payloadText, 0);
+        if (!is_string($compressedImage) || !str_contains($compressedImage, ' EI ')) {
+            throw new RuntimeException('Unable to build surplus filtered inline image fixture.');
+        }
+
+        $content = "BT /F1 12 Tf 72 720 Td (Before Surplus Inline Preview) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1] ID "
+            . $compressedImage . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Surplus Inline Preview) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+            '/W 1 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]',
+            $compressedImage,
+            [],
+            1
+        );
+        $boundary = $preview['image_sample_boundary'];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same([
+            'Before Surplus Inline Preview',
+            'After Surplus Inline Preview',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Surplus Inline Preview\nAfter Surplus Inline Preview", $plainText);
+        $t->true(!str_contains($plainText, 'Inline Surplus Preview Noise'));
+        $t->same(true, $preview['native_raster_decode']);
+        $t->same(true, $preview['complete_image_sample_data']);
+        $t->same(1, $preview['preview_pixel_count']);
+        $t->same([88.0], $preview['pixels'][0]['raw_sample']);
+        $t->same(88 / 255, $preview['pixels'][0]['decoded_gray']);
+        $t->same(1, $boundary['expected_pixel_count']);
+        $t->same(strlen($payloadText), $boundary['available_pixel_count']);
+        $t->same(1, $boundary['expected_sample_count']);
+        $t->same(strlen($payloadText), $boundary['available_sample_count']);
+        $t->same(strlen($payloadText) - 1, $boundary['surplus_sample_count']);
+        $t->same(1, $boundary['expected_byte_count']);
+        $t->same(strlen($payloadText), $boundary['decoded_byte_count']);
+        $t->same(strlen($payloadText) - 1, $boundary['surplus_byte_count']);
+        $t->same(true, $boundary['truncated_to_declared_samples']);
+        $t->contains('inline_image_decoded_surplus_samples_review_only', implode(',', $preview['stream_notes']));
+        $t->contains('inline_image_decoded_surplus_samples_review_only', implode(',', $preview['notes']));
+    },
     'keeps terminal whitespace samples inside unfiltered inline images before text extraction' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $content = "BT /F1 12 Tf 72 720 Td (Before Space Sample Inline Image) Tj ET\n"

@@ -253,6 +253,13 @@ $nullFilterPredictorReview = $renderer->inlineImageColorSpaceMaskOutputPreviewRo
     [],
     3
 );
+$oversizedInlinePreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    '/W 1 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]',
+    $oversizedCompressedImage,
+    [],
+    1
+);
+$oversizedInlineBoundary = $oversizedInlinePreview['image_sample_boundary'] ?? [];
 $runLengthIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
     '/W 3 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 2 /F /RL /D [0 3]',
     $runLengthLiteralEncode("\x1c", true),
@@ -378,6 +385,12 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'complete_ascii85_review_preview_pixels' => $completeInlineReview['preview_pixel_count'] ?? null,
     'incomplete_ascii85_review_decode_failed' => $incompleteAscii85ReviewDecodeFailed,
     'requires_ascii85_review_end_marker_before_rgb_preview' => true,
+    'oversized_inline_preview_declared_byte_floor' => $oversizedInlineBoundary['expected_byte_count'] ?? null,
+    'oversized_inline_preview_decoded_byte_count' => $oversizedInlineBoundary['decoded_byte_count'] ?? null,
+    'oversized_inline_preview_surplus_byte_count' => $oversizedInlineBoundary['surplus_byte_count'] ?? null,
+    'oversized_inline_preview_truncated_to_declared_samples' => $oversizedInlineBoundary['truncated_to_declared_samples'] ?? null,
+    'oversized_inline_preview_first_raw_sample' => $oversizedInlinePreview['pixels'][0]['raw_sample'] ?? null,
+    'oversized_inline_surplus_review_note' => in_array('inline_image_decoded_surplus_samples_review_only', $oversizedInlinePreview['notes'] ?? [], true),
     'resolves_current_indirect_inline_preview_operands' => ($indirectIndexedReview['width'] ?? null) === 3
         && ($indirectIndexedReview['height'] ?? null) === 1
         && ($indirectIndexedReview['bits_per_component'] ?? null) === 2

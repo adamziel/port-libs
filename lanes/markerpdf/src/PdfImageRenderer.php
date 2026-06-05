@@ -1002,6 +1002,16 @@ final class PdfImageRenderer
         }
 
         $samples = $this->packedImagePixelSamples($decoded, 1, $bitsPerComponent, $expectedPixelCount);
+        $imageSampleBoundary = $this->imageSampleBoundaryMetadata(
+            $samples,
+            $expectedPixelCount,
+            1,
+            $bitsPerComponent,
+            $decoded
+        );
+        if (($imageSampleBoundary['surplus_byte_count'] ?? 0) > 0) {
+            $streamNotes[] = 'inline_image_decoded_surplus_samples_review_only';
+        }
         if (!$samples['complete']) {
             $streamNotes[] = 'inline_image_mask_sample_data_incomplete';
         }
@@ -1029,6 +1039,7 @@ final class PdfImageRenderer
             'preview_pixel_count' => count($pixels),
             'review_only_image_stream' => false,
             'complete_image_sample_data' => $samples['complete'],
+            'image_sample_boundary' => $imageSampleBoundary,
             'image_stream' => $imageStream,
             'image_mask' => $imageMask,
             'inline_image' => $plan['inline_image'],
@@ -1164,6 +1175,16 @@ final class PdfImageRenderer
         if (!$imageSamples['complete']) {
             throw new InvalidArgumentException('Inline Indexed image stream does not contain complete image sample data.');
         }
+        $imageSampleBoundary = $this->imageSampleBoundaryMetadata(
+            $imageSamples,
+            $expectedPixelCount,
+            1,
+            $bitsPerComponent,
+            $imageStream['decoded_bytes']
+        );
+        if (($imageSampleBoundary['surplus_byte_count'] ?? 0) > 0) {
+            $streamNotes[] = 'inline_image_decoded_surplus_samples_review_only';
+        }
         if ($softMaskPresent && $softMaskSamples === null) {
             throw new InvalidArgumentException('Inline Indexed image soft-mask stream filters must be natively decoded before RGB preview.');
         }
@@ -1222,6 +1243,7 @@ final class PdfImageRenderer
             'preview_pixel_count' => count($pixels),
             'review_only_image_stream' => false,
             'complete_image_sample_data' => $imageSamples['complete'],
+            'image_sample_boundary' => $imageSampleBoundary,
             'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
             'image_stream' => $imageStreamMeta,
             'soft_mask_stream' => $softMaskStreamMeta,
@@ -1791,6 +1813,13 @@ final class PdfImageRenderer
 
         if ($usesSuppliedSamples) {
             $imageSamples = $this->normalizeSuppliedImageSampleRows($suppliedSamples, $components, $expectedPixelCount);
+            $imageSampleBoundary = $this->imageSampleBoundaryMetadata(
+                $imageSamples,
+                $expectedPixelCount,
+                $components,
+                $bitsPerComponent,
+                null
+            );
         } else {
             $imageSamples = $this->packedImagePixelSamples(
                 (string) $imageStream['decoded_bytes'],
@@ -1801,6 +1830,18 @@ final class PdfImageRenderer
             if (!$imageSamples['complete']) {
                 throw new InvalidArgumentException('Inline image stream does not contain complete image sample data.');
             }
+            $imageSampleBoundary = $this->imageSampleBoundaryMetadata(
+                $imageSamples,
+                $expectedPixelCount,
+                $components,
+                $bitsPerComponent,
+                (string) $imageStream['decoded_bytes']
+            );
+        }
+        if (($imageSampleBoundary['surplus_byte_count'] ?? 0) > 0) {
+            $streamNotes[] = $usesSuppliedSamples
+                ? 'inline_image_supplied_surplus_samples_review_only'
+                : 'inline_image_decoded_surplus_samples_review_only';
         }
 
         $limit = min($maxPixels, count($imageSamples['pixels']));
@@ -1832,6 +1873,7 @@ final class PdfImageRenderer
             'native_raster_decode' => $imageStreamDecoded && !$imageStreamReviewOnly,
             'uses_supplied_samples' => $usesSuppliedSamples,
             'complete_image_sample_data' => $imageSamples['complete'],
+            'image_sample_boundary' => $imageSampleBoundary,
             'complete_soft_mask_sample_data' => $softMaskSamples === null ? null : $softMaskSamples['complete'],
             'image_filter_boundary' => $plan['image_filter_boundary'],
             'image_stream' => $imageStreamMeta,
@@ -1857,7 +1899,7 @@ final class PdfImageRenderer
 
     /**
      * @param list<list<int|float>> $suppliedSamples
-     * @return array{pixels: list<list<float>>, available_pixel_count: int, complete: bool}
+     * @return array{pixels: list<list<float>>, available_pixel_count: int, available_sample_count: int, complete: bool}
      */
     private function normalizeSuppliedImageSampleRows(array $suppliedSamples, int $components, int $expectedPixelCount): array
     {
@@ -1886,6 +1928,7 @@ final class PdfImageRenderer
         return [
             'pixels' => array_slice($rows, 0, $expectedPixelCount),
             'available_pixel_count' => count($rows),
+            'available_sample_count' => count($rows) * $components,
             'complete' => count($rows) >= $expectedPixelCount,
         ];
     }
@@ -5794,7 +5837,7 @@ final class PdfImageRenderer
     }
 
     /**
-     * @return array{pixels: list<list<float>>, available_pixel_count: int, complete: bool}
+     * @return array{pixels: list<list<float>>, available_pixel_count: int, available_sample_count: int, complete: bool}
      */
     private function packedImagePixelSamples(string $bytes, int $components, int $bitsPerComponent, int $pixelCount): array
     {
@@ -5821,7 +5864,41 @@ final class PdfImageRenderer
         return [
             'pixels' => $pixels,
             'available_pixel_count' => $availablePixels,
+            'available_sample_count' => $availableSamples,
             'complete' => $availableSamples >= $requiredSamples,
+        ];
+    }
+
+    /**
+     * @param array{available_pixel_count: int, available_sample_count: int, complete: bool} $samples
+     * @return array{expected_pixel_count: int, available_pixel_count: int, expected_sample_count: int, available_sample_count: int, surplus_sample_count: int, bits_per_component: int, expected_byte_count: int, decoded_byte_count: int|null, surplus_byte_count: int|null, complete: bool, truncated_to_declared_samples: bool}
+     */
+    private function imageSampleBoundaryMetadata(
+        array $samples,
+        int $expectedPixelCount,
+        int $components,
+        int $bitsPerComponent,
+        ?string $decodedBytes
+    ): array {
+        $expectedSampleCount = $expectedPixelCount * $components;
+        $availableSampleCount = $samples['available_sample_count'];
+        $expectedByteCount = intdiv(($expectedSampleCount * $bitsPerComponent) + 7, 8);
+        $decodedByteCount = $decodedBytes === null ? null : strlen($decodedBytes);
+        $surplusSampleCount = max(0, $availableSampleCount - $expectedSampleCount);
+        $surplusByteCount = $decodedByteCount === null ? null : max(0, $decodedByteCount - $expectedByteCount);
+
+        return [
+            'expected_pixel_count' => $expectedPixelCount,
+            'available_pixel_count' => $samples['available_pixel_count'],
+            'expected_sample_count' => $expectedSampleCount,
+            'available_sample_count' => $availableSampleCount,
+            'surplus_sample_count' => $surplusSampleCount,
+            'bits_per_component' => $bitsPerComponent,
+            'expected_byte_count' => $expectedByteCount,
+            'decoded_byte_count' => $decodedByteCount,
+            'surplus_byte_count' => $surplusByteCount,
+            'complete' => $samples['complete'],
+            'truncated_to_declared_samples' => ($surplusByteCount ?? 0) > 0,
         ];
     }
 
