@@ -18,6 +18,19 @@ $page = [
             'url' => '#page-3-xy',
             'page' => 3,
             'dest_pos' => [72.0, 96.0],
+            'raw_private_payload' => 'hidden ref payload should not cross dictionary_output',
+            'debug_payload' => ['stream' => 'hidden ref debug data'],
+        ],
+        [
+            'url' => '#page-8-4',
+            'page' => 8,
+            'idx' => 4,
+            'ref' => 'page-8-4',
+            'coord' => [12.5, 64.0],
+            'raw_pdf_bytes' => 'hidden destination bytes',
+        ],
+        [
+            'raw_payload' => 'payload-only ref row should be dropped',
         ],
     ],
     'blocks' => [[
@@ -54,14 +67,21 @@ $processor = new MarkdownPostProcessor();
 $blocks = $processor->mergeBlocks($processor->mergeSpans($document['pages']));
 $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'] ?? [];
 $charSpans = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'] ?? [];
+$refs = $document['pages'][0]['pdftext_source']['refs'] ?? [];
+$encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
 $text = $blocks[0]['text'] ?? '';
 
 if (!str_contains($text, '[plugin docs](https://example.com/import\\)docs)')
     || str_contains($text, 'javascript:')
-    || ($document['pages'][0]['pdftext_source']['refs'][0]['url'] ?? null) !== '#page-3-xy'
+    || ($refs[0]['url'] ?? null) !== '#page-3-xy'
+    || ($refs[1]['ref'] ?? null) !== 'page-8-4'
+    || count($refs) !== 2
     || array_key_exists('chars', $charSpans[1] ?? [])
+    || str_contains($encoded, 'hidden ref payload')
+    || str_contains($encoded, 'hidden destination bytes')
+    || str_contains($encoded, 'payload-only ref row should be dropped')
 ) {
-    throw new RuntimeException('Expected pdftext dictionary link/ref metadata to preserve safe links, omit unsafe clickable links, and remove raw char payloads.');
+    throw new RuntimeException('Expected pdftext dictionary link/ref metadata to preserve safe links, omit unsafe clickable links, and remove raw ref/char payloads.');
 }
 
 echo '<!-- markerpdf-pdftext-dictionary-link-ref-currentbase ' . htmlspecialchars(json_encode([
@@ -70,7 +90,11 @@ echo '<!-- markerpdf-pdftext-dictionary-link-ref-currentbase ' . htmlspecialchar
     'support_component' => 'pdf-text-dictionary-core',
     'safe_pdftext_url_promoted' => ($spans[1]['url'] ?? null) === 'https://example.com/import)docs',
     'unsafe_pdftext_url_review_only' => ($spans[2]['pdftext_url'] ?? null) === 'javascript:alert(1)' && !array_key_exists('url', $spans[2] ?? []),
-    'pdftext_refs_preserved' => ($document['pages'][0]['pdftext_source']['refs'][0]['url'] ?? null) === '#page-3-xy',
+    'pdftext_refs_preserved' => ($refs[0]['url'] ?? null) === '#page-3-xy',
+    'pdftext_reference_shape_preserved' => ($refs[1]['ref'] ?? null) === 'page-8-4' && ($refs[1]['coord'] ?? null) === [12.5, 64.0],
+    'pdftext_ref_payload_excluded' => !str_contains($encoded, 'hidden ref payload')
+        && !str_contains($encoded, 'hidden destination bytes')
+        && !str_contains($encoded, 'payload-only ref row should be dropped'),
     'raw_chars_excluded' => !array_key_exists('chars', $charSpans[1] ?? []),
     'visible_wordpress_text' => $text,
     'executes_python_pdftext' => false,

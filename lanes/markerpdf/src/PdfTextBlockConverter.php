@@ -236,11 +236,98 @@ final class PdfTextBlockConverter
             $source[$field] = (float) $page[$field];
         }
 
-        if (isset($page['refs']) && is_array($page['refs'])) {
-            $source['refs'] = array_values($page['refs']);
+        if (array_key_exists('refs', $page) && $page['refs'] !== null) {
+            $source['refs'] = $this->pdftextRefs($page['refs']);
         }
 
         return $source;
+    }
+
+    /**
+     * @param mixed $refs
+     * @return list<array<string, mixed>>
+     */
+    private function pdftextRefs(mixed $refs): array
+    {
+        if (!is_array($refs) || !array_is_list($refs)) {
+            throw new InvalidArgumentException('pdftext refs must be a list.');
+        }
+
+        $sanitized = [];
+        foreach ($refs as $index => $ref) {
+            if (!is_array($ref)) {
+                throw new InvalidArgumentException("pdftext refs[{$index}] must be a dictionary.");
+            }
+
+            $row = [];
+            if (array_key_exists('url', $ref)) {
+                if (!is_string($ref['url'])) {
+                    throw new InvalidArgumentException("pdftext refs[{$index}].url must be a string when supplied.");
+                }
+                if ($this->isSafeUri($ref['url'])) {
+                    $row['url'] = $ref['url'];
+                }
+            }
+            if (array_key_exists('page', $ref)) {
+                $row['page'] = $this->integerMetadata($ref['page'], "refs[{$index}].page");
+            }
+            if (array_key_exists('dest_pos', $ref)) {
+                $row['dest_pos'] = $this->pointMetadata($ref['dest_pos'], "refs[{$index}].dest_pos");
+            }
+            if (array_key_exists('dest_page', $ref)) {
+                $row['dest_page'] = $this->integerMetadata($ref['dest_page'], "refs[{$index}].dest_page");
+            }
+            if (array_key_exists('bbox', $ref)) {
+                $row['bbox'] = $this->bbox($ref['bbox'], "refs[{$index}].bbox");
+            }
+            if (array_key_exists('idx', $ref)) {
+                $row['idx'] = $this->integerMetadata($ref['idx'], "refs[{$index}].idx");
+            }
+            if (array_key_exists('ref', $ref)) {
+                if (!is_string($ref['ref'])) {
+                    throw new InvalidArgumentException("pdftext refs[{$index}].ref must be a string when supplied.");
+                }
+                if (trim($ref['ref']) !== '') {
+                    $row['ref'] = $ref['ref'];
+                }
+            }
+            if (array_key_exists('coord', $ref)) {
+                $row['coord'] = $this->pointMetadata($ref['coord'], "refs[{$index}].coord");
+            }
+
+            if ($row !== []) {
+                $sanitized[] = $row;
+            }
+        }
+
+        return $sanitized;
+    }
+
+    private function integerMetadata(mixed $value, string $field): int
+    {
+        $this->assertNumeric($value, $field);
+
+        return (int) $value;
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function pointMetadata(mixed $value, string $field): array
+    {
+        if (!is_array($value) || count($value) !== 2) {
+            throw new InvalidArgumentException("pdftext {$field} must be a two-number coordinate.");
+        }
+
+        $point = [];
+        foreach (array_values($value) as $part) {
+            if (!is_int($part) && !is_float($part)) {
+                throw new InvalidArgumentException("pdftext {$field} must be a two-number coordinate.");
+            }
+            $point[] = (float) $part;
+        }
+
+        return $point;
     }
 
     private function isSafeUri(string $uri): bool

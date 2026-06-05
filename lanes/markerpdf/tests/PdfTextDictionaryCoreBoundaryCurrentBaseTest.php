@@ -123,6 +123,45 @@ return [
         $t->same('Read [plugin docs](https://example.com/import\\)docs) but review script action', $blocks[0]['text']);
         $t->true(!str_contains($blocks[0]['text'], 'javascript:'), 'Unsafe pdftext URI metadata must not leak into visible Gutenberg Markdown.');
     },
+    'sanitizes pdftext page refs at the source metadata boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['refs'][0]['raw_private_payload'] = 'hidden ref payload should not cross dictionary_output';
+        $page['refs'][0]['debug_payload'] = ['stream' => 'hidden ref debug data'];
+        $page['refs'][] = [
+            'url' => '#page-8-4',
+            'page' => 8,
+            'idx' => 4,
+            'ref' => 'page-8-4',
+            'coord' => [12.5, 64.0],
+            'raw_pdf_bytes' => 'hidden destination bytes',
+        ];
+        $page['refs'][] = [
+            'raw_payload' => 'payload-only ref row should be dropped',
+        ];
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1);
+        $refs = $document['pages'][0]['pdftext_source']['refs'];
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same([
+            [
+                'url' => '#page-3-xy',
+                'page' => 3,
+                'dest_pos' => [72.0, 96.0],
+            ],
+            [
+                'url' => '#page-8-4',
+                'page' => 8,
+                'idx' => 4,
+                'ref' => 'page-8-4',
+                'coord' => [12.5, 64.0],
+            ],
+        ], $refs);
+        $t->true(!str_contains($encoded, 'hidden ref payload should not cross dictionary_output'));
+        $t->true(!str_contains($encoded, 'hidden ref debug data'));
+        $t->true(!str_contains($encoded, 'hidden destination bytes'));
+        $t->true(!str_contains($encoded, 'payload-only ref row should be dropped'));
+    },
     'rejects non string pdftext span urls before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $page = $pdftextLinkedPage();
         $page['blocks'][0]['lines'][0]['spans'][1]['url'] = ['https://example.com/not-a-string'];
