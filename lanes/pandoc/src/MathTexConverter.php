@@ -110,6 +110,20 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const MATH_VARIANT_COMMANDS = [
+        'boldsymbol' => 'bold',
+        'mathbf' => 'bold',
+        'mathbb' => 'double-struck',
+        'mathcal' => 'script',
+        'mathfrak' => 'fraktur',
+        'mathit' => 'italic',
+        'mathscr' => 'script',
+        'mathsf' => 'sans-serif',
+        'mathtt' => 'monospace',
+        'mathrm' => 'normal',
+    ];
+
+    /** @var array<string, string> */
     private const DELIMITER_COMMANDS = [
         '{' => '{',
         '}' => '}',
@@ -573,6 +587,10 @@ final class MathTexConverter
             return $this->parseCancelCommand($source, $offset, $command);
         }
 
+        if (isset(self::MATH_VARIANT_COMMANDS[$command])) {
+            return $this->parseMathVariantCommand($source, $offset, $command);
+        }
+
         if ($command === 'begin') {
             return $this->parseEnvironment($source, $offset);
         }
@@ -862,6 +880,28 @@ final class MathTexConverter
             . '<menclose notation="updiagonalstrike">' . $content . '</menclose>'
             . $target
             . '</mover>';
+    }
+
+    private function parseMathVariantCommand(string $source, int &$offset, string $command): string
+    {
+        return '<mstyle mathvariant="' . self::MATH_VARIANT_COMMANDS[$command] . '">'
+            . $this->parseMathVariantArgument($source, $offset, $command)
+            . '</mstyle>';
+    }
+
+    private function parseMathVariantArgument(string $source, int &$offset, string $command): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '_' || $char === '^') {
+            throw new \InvalidArgumentException('Expected TeX math variant argument for \\' . $command . ' at offset ' . $offset);
+        }
+
+        if ($char === '{') {
+            return $this->parseRequiredNonEmptyGroup($source, $offset, 'math variant');
+        }
+
+        return $this->parseAtom($source, $offset);
     }
 
     private function arrayColumnAlign(string $columnSpec): string

@@ -255,7 +255,24 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\cancelto{0}{x_i} + \\cancelto{\\text{draft}}{\\frac{a}{b}}</annotation>', $cancelToMathml);
         $t->contains('<msub><mover><menclose notation="updiagonalstrike"><msub><mi>media</mi><mi>i</mi></msub></menclose><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mover><mi>j</mi></msub>', $scriptedMathml);
     },
-    'rejects malformed bounded tex color phantom and cancel commands without invoking a tex engine' => static function (TestRunner $t): void {
+    'converts bounded tex math alphabet variants to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $variantMathml = $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code}', true);
+        $scriptVariantMathml = $converter->texToMathMl('\\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i');
+        $singleTokenMathml = $converter->texToMathMl('\\mathbf x + \\mathbb R');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $variantMathml);
+        $t->contains('<mstyle mathvariant="normal"><mi>d</mi></mstyle><mi>x</mi>', $variantMathml);
+        $t->contains('<mstyle mathvariant="bold"><msub><mi>v</mi><mi>i</mi></msub></mstyle>', $variantMathml);
+        $t->contains('<mstyle mathvariant="italic"><mi>n</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mi>S</mi></mstyle>', $variantMathml);
+        $t->contains('<mstyle mathvariant="monospace"><mrow><mi>c</mi><mi>o</mi><mi>d</mi><mi>e</mi></mrow></mstyle>', $variantMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code}</annotation>', $variantMathml);
+        $t->contains('<msub><mstyle mathvariant="script"><mi>F</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>R</mi></mstyle>', $scriptVariantMathml);
+        $t->contains('<mstyle mathvariant="fraktur"><mi>g</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>L</mi></mstyle>', $scriptVariantMathml);
+        $t->contains('<msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub>', $scriptVariantMathml);
+        $t->contains('<mstyle mathvariant="bold"><mi>x</mi></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mi>R</mi></mstyle>', $singleTokenMathml);
+    },
+    'rejects malformed bounded tex color phantom cancel and variant commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\color{}{x}'));
@@ -270,6 +287,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto{}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\cancelto{0}{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathbf'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\mathbb{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\boldsymbol_1'));
     },
     'rejects malformed bounded tex above below commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
