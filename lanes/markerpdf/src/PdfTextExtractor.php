@@ -4317,6 +4317,9 @@ final class PdfTextExtractor
             'mask_object' => is_array($maskReview) && isset($maskReview['object_number']) && is_int($maskReview['object_number'])
                 ? $maskReview['object_number']
                 : null,
+            'mask_generation' => is_array($maskReview) && isset($maskReview['object_generation']) && is_int($maskReview['object_generation'])
+                ? $maskReview['object_generation']
+                : null,
             'mask_review' => $maskReview,
             'mask_payload_in_visible_text' => false,
             'mask_review_only' => $maskReview !== null,
@@ -4486,7 +4489,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->imageXObjectMaskStreamReview($reference['objectNumber'], $objectBody, $objects);
+        return $this->imageXObjectMaskStreamReview($reference['objectNumber'], $reference['generation'], $objectBody, $objects);
     }
 
     /**
@@ -4523,7 +4526,12 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>|null
      */
-    private function imageXObjectMaskStreamReview(int $objectNumber, string $objectBody, array $objects): ?array
+    private function imageXObjectMaskStreamReview(
+        int $objectNumber,
+        int $objectGeneration,
+        string $objectBody,
+        array $objects
+    ): ?array
     {
         $stream = $this->streamDictionaryAndPayload($objectBody, $objects);
         if ($stream === null || !$this->isImageStreamDictionary($stream['dict'], $objects)) {
@@ -4556,6 +4564,7 @@ final class PdfTextExtractor
         return [
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
             'object_number' => $objectNumber,
+            'object_generation' => $objectGeneration,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
             'height' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects),
@@ -4707,6 +4716,7 @@ final class PdfTextExtractor
 
             $review = $this->imageXObjectAlternateStreamReview(
                 $reference['objectNumber'],
+                $reference['generation'],
                 $defaultForPrinting,
                 $objectBody,
                 $objects
@@ -4725,6 +4735,7 @@ final class PdfTextExtractor
      */
     private function imageXObjectAlternateStreamReview(
         int $objectNumber,
+        int $objectGeneration,
         ?bool $defaultForPrinting,
         string $objectBody,
         array $objects
@@ -4757,6 +4768,7 @@ final class PdfTextExtractor
 
         return [
             'object_number' => $objectNumber,
+            'object_generation' => $objectGeneration,
             'default_for_printing' => $defaultForPrinting,
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects) ?? 'Image',
             'width' => $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
@@ -4821,6 +4833,7 @@ final class PdfTextExtractor
 
         return [
             'object_number' => $reference['objectNumber'],
+            'object_generation' => $reference['generation'],
             'subtype' => $this->pdfNameValueAfterNameResolvingObjects($stream['dict'], 'Subtype', $objects),
             'filters' => $resolvedFilters,
             'preview_only_filters' => $this->previewOnlyImageXObjectFilters($resolvedFilters),

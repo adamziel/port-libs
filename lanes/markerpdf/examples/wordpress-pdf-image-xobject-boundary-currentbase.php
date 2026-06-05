@@ -109,15 +109,20 @@ if (
     || ($review['entries'][0]['soft_mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $softMaskPayload)
     || ($review['entries'][0]['soft_mask_review']['decode']['inverted_components'] ?? null) !== [0]
     || ($review['entries'][0]['mask_object'] ?? null) !== 15
+    || ($review['entries'][0]['mask_generation'] ?? null) !== 0
     || ($review['entries'][0]['mask_review']['type'] ?? null) !== 'image_mask_stream'
+    || ($review['entries'][0]['mask_review']['object_generation'] ?? null) !== 0
     || ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $maskPayload)
     || ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) === hash('sha256', $staleMaskPayload)
     || ($review['entries'][0]['metadata_stream']['decoded_sha256'] ?? null) !== hash('sha256', $metadataPayload)
+    || ($review['entries'][0]['metadata_stream']['object_generation'] ?? null) !== 0
     || ($review['entries'][0]['metadata_stream']['decoded_sha256'] ?? null) === hash('sha256', $staleMetadataPayload)
     || ($review['entries'][0]['alternate_image_count'] ?? 0) !== 2
     || ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) !== hash('sha256', $printAlternatePayload)
+    || ($review['entries'][0]['alternate_images'][0]['object_generation'] ?? null) !== 0
     || ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) === hash('sha256', $stalePrintAlternatePayload)
     || ($review['entries'][0]['alternate_images'][1]['preview_only_filters'] ?? null) !== ['JPXDecode']
+    || ($review['entries'][0]['alternate_images'][1]['object_generation'] ?? null) !== 0
     || str_contains($plainText, 'WordPress Image XObject Payload Noise')
     || str_contains($plainText, 'WordPress Image Mask Payload Noise')
     || str_contains($plainText, 'WordPress Stale Mask Generation Noise')
@@ -180,11 +185,14 @@ $metadata = [
     'first_soft_mask_review_only' => $review['entries'][0]['soft_mask_review_only'] ?? false,
     'stale_soft_mask_generation_rejected' => ($review['entries'][0]['soft_mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $staleSoftMaskPayload),
     'first_mask_object' => $review['entries'][0]['mask_object'] ?? null,
+    'first_mask_generation' => $review['entries'][0]['mask_generation'] ?? null,
     'first_mask_type' => $review['entries'][0]['mask_review']['type'] ?? null,
+    'first_mask_review_generation' => $review['entries'][0]['mask_review']['object_generation'] ?? null,
     'first_mask_decoded_with_current_filters' => $review['entries'][0]['mask_review']['decoded_with_current_filters'] ?? false,
     'first_mask_decode_inverted' => ($review['entries'][0]['mask_review']['decode']['inverted_components'] ?? []) === [0],
     'stale_mask_generation_rejected' => ($review['entries'][0]['mask_review']['decoded_sha256'] ?? null) !== hash('sha256', $staleMaskPayload),
     'first_metadata_object' => $review['entries'][0]['metadata_stream']['object_number'] ?? null,
+    'first_metadata_generation' => $review['entries'][0]['metadata_stream']['object_generation'] ?? null,
     'first_metadata_subtype' => $review['entries'][0]['metadata_stream']['subtype'] ?? null,
     'first_metadata_filters' => $review['entries'][0]['metadata_stream']['filters'] ?? [],
     'first_metadata_decoded_with_current_filters' => $review['entries'][0]['metadata_stream']['decoded_with_current_filters'] ?? false,
@@ -193,10 +201,12 @@ $metadata = [
     'first_alternate_image_count' => $review['entries'][0]['alternate_image_count'] ?? null,
     'first_alternate_images_review_only' => $review['entries'][0]['alternates_review_only'] ?? false,
     'first_print_alternate_object' => $review['entries'][0]['alternate_images'][0]['object_number'] ?? null,
+    'first_print_alternate_generation' => $review['entries'][0]['alternate_images'][0]['object_generation'] ?? null,
     'first_print_alternate_default_for_printing' => $review['entries'][0]['alternate_images'][0]['default_for_printing'] ?? null,
     'first_print_alternate_decoded_with_current_filters' => $review['entries'][0]['alternate_images'][0]['decoded_with_current_filters'] ?? false,
     'stale_print_alternate_generation_rejected' => ($review['entries'][0]['alternate_images'][0]['decoded_sha256'] ?? null) !== hash('sha256', $stalePrintAlternatePayload),
     'first_screen_alternate_object' => $review['entries'][0]['alternate_images'][1]['object_number'] ?? null,
+    'first_screen_alternate_generation' => $review['entries'][0]['alternate_images'][1]['object_generation'] ?? null,
     'first_screen_alternate_preview_only_filters' => $review['entries'][0]['alternate_images'][1]['preview_only_filters'] ?? [],
     'first_image_filters' => $review['entries'][0]['filters'] ?? [],
     'first_image_decoded_with_current_filters' => $review['entries'][0]['decoded_with_current_filters'] ?? false,
