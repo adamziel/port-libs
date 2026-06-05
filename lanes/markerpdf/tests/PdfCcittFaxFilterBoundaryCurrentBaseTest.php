@@ -746,4 +746,98 @@ return [
         $t->same(['Before CCITT geometry', 'After CCITT geometry'], $extractor->extractTextLines($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'Geometry fallback fax payload noise'));
     },
+    'records nested CCITT Fax soft mask explicit mask and alternate image boundaries before WordPress review' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before nested CCITT masks) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After nested CCITT masks) Tj ET';
+        $basePayload = "\x00\x01\x02";
+        $softPayload = 'BT /F1 12 Tf 72 700 Td (Nested SMask CCITT Payload Noise) Tj ET';
+        $maskPayload = 'BT /F1 12 Tf 72 700 Td (Nested Mask CCITT Payload Noise) Tj ET';
+        $alternatePayload = 'BT /F1 12 Tf 72 700 Td (Nested Alternate CCITT Payload Noise) Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /BaseImage 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($before) . " >>\nstream\n{$before}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 3 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask 7 0 R /Mask 8 0 R /Alternates [<< /Image 9 0 R /DefaultForPrinting true >>] /Length " . strlen($basePayload) . " >>\nstream\n{$basePayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Length " . strlen($after) . " >>\nstream\n{$after}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock true >> /Length " . strlen($softPayload) . " >>\nstream\n{$softPayload}\nendstream\nendobj\n"
+            . "8 0 obj\n<< /Type /XObject /Subtype /Image /Width 8 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 8 /Rows 1 /EndOfBlock true >> /Decode [1 0] /Length " . strlen($maskPayload) . " >>\nstream\n{$maskPayload}\nendstream\nendobj\n"
+            . "9 0 obj\n<< /Type /XObject /Subtype /Image /Width 12 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCF /DecodeParms << /K 0 /Columns 12 /Rows 1 /EncodedByteAlign true /EndOfBlock true >> /Length " . strlen($alternatePayload) . " >>\nstream\n{$alternatePayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+        $softMask = $entry['soft_mask_review'] ?? [];
+        $explicitMask = $entry['mask_review'] ?? [];
+        $alternate = $entry['alternate_images'][0] ?? [];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(['Before nested CCITT masks', 'After nested CCITT masks'], $extractor->extractTextLines($pdf));
+        $t->same("Before nested CCITT masks\nAfter nested CCITT masks", $plainText);
+        $t->same(false, str_contains($plainText, 'Nested SMask CCITT Payload Noise'));
+        $t->same(false, str_contains($plainText, 'Nested Mask CCITT Payload Noise'));
+        $t->same(false, str_contains($plainText, 'Nested Alternate CCITT Payload Noise'));
+        $t->same(['CCF'], $softMask['preview_only_filters'] ?? null);
+        $t->same([
+            [
+                'filter' => 'CCF',
+                'preview_only' => true,
+                'decode_parms' => [
+                    'type' => 'CCITTFaxDecode',
+                    'k' => -1,
+                    'columns' => 16,
+                    'rows' => 2,
+                    'black_is_1' => true,
+                    'encoded_byte_align' => null,
+                    'end_of_line' => null,
+                    'end_of_block' => true,
+                    'damaged_rows_before_error' => null,
+                ],
+            ],
+        ], $softMask['filter_details'] ?? null);
+        $t->same([
+            'filter' => 'CCF',
+            'review_only' => true,
+            'native_raster_decode' => false,
+            'decode_parms_present' => true,
+            'invalid_decode_parms' => false,
+            'invalid_decode_parms_fields' => [],
+            'effective_decode_parms' => [
+                'k' => -1,
+                'columns' => 16,
+                'rows' => 2,
+                'black_is_1' => true,
+                'encoded_byte_align' => false,
+                'end_of_line' => false,
+                'end_of_block' => true,
+                'damaged_rows_before_error' => 0,
+            ],
+            'defaults_applied' => [
+                'encoded_byte_align',
+                'end_of_line',
+                'damaged_rows_before_error',
+            ],
+            'dictionary_width' => 16,
+            'dictionary_height' => 2,
+            'effective_width' => 16,
+            'effective_height' => 2,
+            'width_source' => 'image_dictionary',
+            'height_source' => 'image_dictionary',
+            'columns_match_width' => true,
+            'rows_match_height' => true,
+            'dimension_mismatch' => false,
+        ], $softMask['ccitt_fax_decode_boundary'] ?? null);
+        $t->same(['CCITTFaxDecode'], $explicitMask['preview_only_filters'] ?? null);
+        $t->same(0, $explicitMask['ccitt_fax_decode_boundary']['effective_decode_parms']['k'] ?? null);
+        $t->same(8, $explicitMask['ccitt_fax_decode_boundary']['effective_width'] ?? null);
+        $t->same(['CCF'], $alternate['preview_only_filters'] ?? null);
+        $t->same(true, $alternate['default_for_printing'] ?? null);
+        $t->same(true, $alternate['ccitt_fax_decode_boundary']['effective_decode_parms']['encoded_byte_align'] ?? null);
+        $t->same(12, $alternate['ccitt_fax_decode_boundary']['effective_width'] ?? null);
+        $encodedReview = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->same(false, str_contains($encodedReview, $softPayload));
+        $t->same(false, str_contains($encodedReview, $maskPayload));
+        $t->same(false, str_contains($encodedReview, $alternatePayload));
+    },
 ];

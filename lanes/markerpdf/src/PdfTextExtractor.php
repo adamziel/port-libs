@@ -4383,6 +4383,13 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
+            $filters,
+            $stream['dict'],
+            $objects,
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects)
+        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
@@ -4416,6 +4423,7 @@ final class PdfTextExtractor
             'opacity_for_max' => $decode !== null ? $this->imageXObjectDecodedSampleValue($maxSample, $decode, $effectiveBits ?? 1) : null,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...$ccittFilterReview,
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -4509,6 +4517,13 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
+            $filters,
+            $stream['dict'],
+            $objects,
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects)
+        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
@@ -4534,6 +4549,7 @@ final class PdfTextExtractor
             'opacity_for_one' => $imageMask && $decode !== null ? $this->imageXObjectDecodedSampleValue((2 ** min($effectiveBits ?? 1, 30)) - 1, $decode, $effectiveBits ?? 1) : null,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...$ccittFilterReview,
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -4706,6 +4722,13 @@ final class PdfTextExtractor
             ? []
             : array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
         $previewOnlyFilters = $this->previewOnlyImageXObjectFilters($resolvedFilters);
+        $ccittFilterReview = $this->nestedImageXObjectCcittFilterReview(
+            $filters,
+            $stream['dict'],
+            $objects,
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Width', $objects),
+            $this->pdfIntegerValueAfterNameResolvingObjects($stream['dict'], 'Height', $objects)
+        );
         $decoded = $filters === null ? null : $this->decodeStream($stream['dict'], $stream['stream'], $objects);
         $bitsPerComponent = $this->pdfIntegerValueAfterNameResolvingObjects(
             $stream['dict'],
@@ -4725,6 +4748,7 @@ final class PdfTextExtractor
             'image_mask' => $imageMask,
             'filters' => $resolvedFilters,
             'preview_only_filters' => $previewOnlyFilters,
+            ...$ccittFilterReview,
             'native_raster_decode' => $previewOnlyFilters === [],
             'raw_length' => strlen($stream['stream']),
             'decoded_with_current_filters' => $decoded !== null,
@@ -4805,6 +4829,35 @@ final class PdfTextExtractor
                 true
             )
         ));
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @param array<int, string> $objects
+     * @return array{filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>, ccitt_fax_decode_boundary: array<string, mixed>}|array{}
+     */
+    private function nestedImageXObjectCcittFilterReview(
+        ?array $filters,
+        string $dictionary,
+        array $objects,
+        ?int $width,
+        ?int $height
+    ): array {
+        if ($filters === null || $filters === []) {
+            return [];
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, $objects);
+        $filterDetails = $this->imageXObjectFilterDetails($filters, $decodeParms, $objects);
+        $boundary = $this->ccittFaxDecodeBoundaryReview($filterDetails, $width, $height);
+        if ($boundary === null) {
+            return [];
+        }
+
+        return [
+            'filter_details' => $filterDetails,
+            'ccitt_fax_decode_boundary' => $boundary,
+        ];
     }
 
     /**
