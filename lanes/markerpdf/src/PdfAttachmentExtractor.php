@@ -422,24 +422,16 @@ final class PdfAttachmentExtractor
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         $definitions = $this->directObjectDefinitions($pdfBytes);
-        $trailer = $this->selectedTrailerDictionary($pdfBytes, $definitions);
-        if ($trailer === null) {
-            return null;
-        }
 
-        return $this->refObjectReference($trailer['Root'] ?? null);
+        return $this->latestTrailerRootResolution($pdfBytes, $definitions)['reference'];
     }
 
     private function latestTrailerHasRootCatalogEntry(string $pdfBytes): bool
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         $definitions = $this->directObjectDefinitions($pdfBytes);
-        $trailer = $this->selectedTrailerDictionary($pdfBytes, $definitions);
-        if ($trailer === null) {
-            return false;
-        }
 
-        return array_key_exists('Root', $trailer);
+        return $this->latestTrailerRootResolution($pdfBytes, $definitions)['present'];
     }
 
     /**
@@ -3455,17 +3447,102 @@ final class PdfAttachmentExtractor
             return null;
         }
 
+        return $this->trailerRootResolutionAtOffset($pdfBytes, $offset, $definitions)['reference'];
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{present: bool, reference: array{objectNumber: int, generation: int}|null}
+     */
+    private function latestTrailerRootResolution(string $pdfBytes, array $definitions): array
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return [
+                'present' => false,
+                'reference' => null,
+            ];
+        }
+
+        return $this->trailerRootResolutionAtOffset($pdfBytes, $offset, $definitions);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     * @return array{present: bool, reference: array{objectNumber: int, generation: int}|null}
+     */
+    private function trailerRootResolutionAtOffset(
+        string $pdfBytes,
+        int $offset,
+        array $definitions,
+        array $seenOffsets = []
+    ): array {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return [
+                'present' => false,
+                'reference' => null,
+            ];
+        }
+        $seenOffsets[$offset] = true;
+
         $table = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions);
         if ($table !== null) {
-            return $this->refObjectReference($table['trailer']['Root'] ?? null);
+            if (array_key_exists('Root', $table['trailer'])) {
+                return [
+                    'present' => true,
+                    'reference' => $this->refObjectReference($table['trailer']['Root']),
+                ];
+            }
+
+            $hybridStreamOffset = $this->intValue($table['trailer']['XRefStm'] ?? null);
+            if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $stream = $this->xrefStreamSectionAt($hybridStreamOffset, $definitions);
+                if ($stream !== null && array_key_exists('Root', $stream['dictionary'])) {
+                    return [
+                        'present' => true,
+                        'reference' => $this->refObjectReference($stream['dictionary']['Root']),
+                    ];
+                }
+            }
+
+            $previousOffset = $this->previousXrefOffsetForSection(
+                $pdfBytes,
+                $this->previousXrefOffsetFromTableTrailer($table['trailer'], $definitions, $offset),
+                $offset,
+                $definitions
+            );
+
+            return $previousOffset === null
+                ? ['present' => false, 'reference' => null]
+                : $this->trailerRootResolutionAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets);
         }
 
         $stream = $this->xrefStreamSectionAt($offset, $definitions);
-        if ($stream !== null) {
-            return $this->refObjectReference($stream['dictionary']['Root'] ?? null);
+        if ($stream === null) {
+            return [
+                'present' => false,
+                'reference' => null,
+            ];
         }
 
-        return null;
+        if (array_key_exists('Root', $stream['dictionary'])) {
+            return [
+                'present' => true,
+                'reference' => $this->refObjectReference($stream['dictionary']['Root']),
+            ];
+        }
+
+        $previousOffset = $this->previousXrefOffsetForSection(
+            $pdfBytes,
+            $this->intValue($this->xrefStreamDictionaryValue($stream, 'Prev', $definitions)),
+            $offset,
+            $definitions
+        );
+
+        return $previousOffset === null
+            ? ['present' => false, 'reference' => null]
+            : $this->trailerRootResolutionAtOffset($pdfBytes, $previousOffset, $definitions, $seenOffsets);
     }
 
     /**
