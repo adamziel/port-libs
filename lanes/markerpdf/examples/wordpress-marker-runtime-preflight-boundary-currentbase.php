@@ -310,6 +310,20 @@ try {
     } finally {
         chdir($previousCwd);
     }
+    $emptyMetadataArgPlan = $batch->runtimeMainArgumentPreflightPlan([
+        '--metadata_file=',
+        $input,
+        $output,
+    ]);
+    $emptyMetadataRuntimePlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataByFilename: [
+            'ready-for-marker.pdf' => ['title' => 'Empty metadata_file fallback'],
+        ],
+        metadataFile: '',
+        workers: 8
+    );
     $plans = [];
     foreach (['already-imported.pdf', 'extension-spoof.pdf', 'short-text.pdf', 'ready-for-marker.pdf'] as $filename) {
         $plans[$filename] = $batch->processFilePreflightPlan(
@@ -600,6 +614,24 @@ try {
     ) {
         throw new RuntimeException('Expected relative metadata_file paths to resolve against process cwd after chunking, not input/output folders.');
     }
+    if (
+        $emptyMetadataArgPlan['arguments']['options']['metadata_file'] !== ''
+        || $emptyMetadataArgPlan['semantic_boundaries']['metadata_file_read_deferred_until_after_chunk_files'] !== false
+        || $emptyMetadataArgPlan['semantic_boundaries']['metadata_file_truthy_for_json_load'] !== false
+        || $emptyMetadataArgPlan['semantic_boundaries']['empty_metadata_file_skips_json_load'] !== true
+    ) {
+        throw new RuntimeException('Expected empty --metadata_file= to remain an argparse value but skip runtime json.load like upstream Python truthiness.');
+    }
+    if (
+        $emptyMetadataRuntimePlan['metadata']['source'] !== 'metadataByFilename argument'
+        || $emptyMetadataRuntimePlan['metadata']['metadata_file'] !== null
+        || $emptyMetadataRuntimePlan['metadata']['metadata_file_input'] !== null
+        || $emptyMetadataRuntimePlan['metadata']['metadata_filenames'] !== ['ready-for-marker.pdf']
+        || $emptyMetadataRuntimePlan['metadata']['selected_metadata_filenames'] !== ['ready-for-marker.pdf']
+        || !in_array('upload-notes.txt', $emptyMetadataRuntimePlan['metadata']['missing_metadata_filenames'], true)
+    ) {
+        throw new RuntimeException('Expected empty metadata_file runtime preflight to use explicit metadata arguments and ignore metadata-file decoys.');
+    }
     $relativeTaskArgsByName = [];
     foreach ($relativeMetadataPlan['worker_pool']['task_args'] as $taskArg) {
         $relativeTaskArgsByName[basename($taskArg['filepath'])] = $taskArg;
@@ -885,6 +917,15 @@ try {
         'relative_metadata_missing_metadata_filenames' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'],
         'relative_metadata_loaded_from_process_cwd' => $relativeMetadataPlan['metadata']['metadata_filenames'] === ['alpha.pdf'],
         'relative_metadata_ignored_input_output_decoys' => $relativeMetadataPlan['metadata']['missing_metadata_filenames'] === $relativeMissingMetadataFilenames,
+        'empty_metadata_file_arg_value' => $emptyMetadataArgPlan['arguments']['options']['metadata_file'],
+        'empty_metadata_file_truthy_for_json_load' => $emptyMetadataArgPlan['semantic_boundaries']['metadata_file_truthy_for_json_load'],
+        'empty_metadata_file_skips_json_load' => $emptyMetadataArgPlan['semantic_boundaries']['empty_metadata_file_skips_json_load'],
+        'empty_metadata_file_runtime_source' => $emptyMetadataRuntimePlan['metadata']['source'],
+        'empty_metadata_file_runtime_metadata_file' => $emptyMetadataRuntimePlan['metadata']['metadata_file'],
+        'empty_metadata_file_metadata_filenames' => $emptyMetadataRuntimePlan['metadata']['metadata_filenames'],
+        'empty_metadata_file_selected_metadata_filenames' => $emptyMetadataRuntimePlan['metadata']['selected_metadata_filenames'],
+        'empty_metadata_file_ignored_file_decoys' => $emptyMetadataRuntimePlan['metadata']['metadata_file'] === null
+            && $emptyMetadataRuntimePlan['metadata']['metadata_file_input'] === null,
         'runtime_max_files_limit_active' => $runtimePlan['chunking']['max_files_limit_active'],
         'runtime_zero_max_selected_count' => $runtimePlan['chunking']['selected_count'],
         'negative_max_selected_filenames' => $negativeMaxPlan['chunking']['selected_filenames'],

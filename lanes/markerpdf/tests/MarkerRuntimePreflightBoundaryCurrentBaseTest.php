@@ -1532,6 +1532,74 @@ return [
             $removeTree($root);
         }
     },
+    'treats empty metadata_file argv as falsy before runtime json load' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['alpha.pdf', 'beta.pdf'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            file_put_contents($output . DIRECTORY_SEPARATOR . 'metadata.json', '{"beta.pdf": {"title": "Output decoy",}');
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $selectedMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename === 'alpha.pdf'
+            ));
+            $missingMetadataFilenames = array_values(array_filter(
+                $fileOrder,
+                static fn (string $filename): bool => $filename !== 'alpha.pdf'
+            ));
+
+            $batch = new BatchConverter();
+            $argumentPlan = $batch->runtimeMainArgumentPreflightPlan([
+                '--metadata_file=',
+                $input,
+                $output,
+            ]);
+            $runtimePlan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataByFilename: [
+                    'alpha.pdf' => ['title' => 'Fallback metadata argument'],
+                ],
+                metadataFile: '',
+                workers: 4
+            );
+
+            $t->same('', $argumentPlan['arguments']['options']['metadata_file']);
+            $t->same(false, $argumentPlan['arguments']['defaults_applied']['metadata_file']);
+            $t->same(false, $argumentPlan['semantic_boundaries']['metadata_file_read_deferred_until_after_chunk_files']);
+            $t->same(false, $argumentPlan['semantic_boundaries']['metadata_file_truthy_for_json_load']);
+            $t->same(true, $argumentPlan['semantic_boundaries']['empty_metadata_file_skips_json_load']);
+
+            $metadata = $runtimePlan['metadata'];
+            $t->same('metadataByFilename argument', $metadata['source']);
+            $t->same(null, $metadata['metadata_file']);
+            $t->same(null, $metadata['metadata_file_input']);
+            $t->same(null, $metadata['metadata_file_abspath_call']);
+            $t->same(false, $metadata['metadata_file_relative_to_process_cwd']);
+            $t->same(true, $metadata['metadata_load_success']);
+            $t->same(['alpha.pdf'], $metadata['metadata_filenames']);
+            $t->same($selectedMetadataFilenames, $metadata['selected_metadata_filenames']);
+            $t->same($missingMetadataFilenames, $metadata['missing_metadata_filenames']);
+
+            $taskArgsByName = [];
+            foreach ($runtimePlan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['title' => 'Fallback metadata argument'], $taskArgsByName['alpha.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['beta.pdf']['metadata']);
+            $t->same(2, $runtimePlan['worker_pool']['task_args_count']);
+            $t->same(2, $runtimePlan['worker_pool']['total_processes']);
+            $t->same(true, $runtimePlan['worker_pool']['pool_launchable']);
+            $t->same(false, $runtimePlan['executes_python_or_models']);
+            $t->same(false, $runtimePlan['executes_multiprocessing']);
+            $t->same(false, $runtimePlan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

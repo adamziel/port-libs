@@ -382,6 +382,8 @@ final class BatchConverter
             );
         }
 
+        $metadataFileTruthy = is_string($options['metadata_file']) && $options['metadata_file'] !== '';
+
         return [
             'schema' => 'markerpdf.convert_main_argparse_preflight.v1',
             'source' => 'sddai/markerPDF convert.py::main argparse.ArgumentParser.parse_args',
@@ -433,7 +435,9 @@ final class BatchConverter
                 'negative_max_allowed_by_argparse' => $options['max'] !== null && $options['max'] < 0,
                 'workers_less_than_one_deferred_to_pool_creation' => $options['workers'] < 1,
                 'negative_min_length_allowed_by_argparse' => $options['min_length'] !== null && $options['min_length'] < 0,
-                'metadata_file_read_deferred_until_after_chunk_files' => $options['metadata_file'] !== null,
+                'metadata_file_read_deferred_until_after_chunk_files' => $metadataFileTruthy,
+                'metadata_file_truthy_for_json_load' => $metadataFileTruthy,
+                'empty_metadata_file_skips_json_load' => $options['metadata_file'] === '',
             ],
             'blocked_by' => null,
             'blocked_stages' => [],
