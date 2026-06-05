@@ -893,6 +893,18 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param array{valid_for_components?: bool}|null $decode
+     */
+    private function assertInlineImageDecodeValidForPreview(mixed $decode, string $context): void
+    {
+        if (!is_array($decode) || ($decode['valid_for_components'] ?? false) === true) {
+            return;
+        }
+
+        throw new InvalidArgumentException($context . ' Decode array must match the image component count before RGB preview.');
+    }
+
+    /**
      * Decodes bounded inline `/ImageMask` samples into opacity preview rows.
      *
      * Inline image masks have no indirect stream object, but they still follow
@@ -914,6 +926,7 @@ final class PdfImageRenderer
         if (!is_array($imageMask) || ($imageMask['present'] ?? false) !== true) {
             throw new InvalidArgumentException('Inline ImageMask preview requires /ImageMask true.');
         }
+        $this->assertInlineImageDecodeValidForPreview($imageMask['decode'] ?? null, 'Inline ImageMask');
 
         $width = $imageMask['width'] ?? null;
         $height = $imageMask['height'] ?? null;
@@ -1139,6 +1152,8 @@ final class PdfImageRenderer
                 'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
             ];
         }
+
+        $this->assertInlineImageDecodeValidForPreview($plan['image_decode'] ?? null, 'Inline Indexed image');
 
         $imageSamples = $this->packedImagePixelSamples(
             $imageStream['decoded_bytes'],
@@ -1559,6 +1574,7 @@ final class PdfImageRenderer
         $expectedPixelCount = $width * $height;
         $imageStream = $this->decodedInlineImageStreamPreviewBoundary($canonical, $payload, $objects, true);
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
+        $this->assertInlineImageDecodeValidForPreview($plan['image_decode'] ?? null, 'Inline JPX ColorKey image');
         $complete = count($suppliedSamples) >= $expectedPixelCount;
         $limit = min($maxPixels, $expectedPixelCount, count($suppliedSamples));
         $pixels = [];
@@ -1770,6 +1786,8 @@ final class PdfImageRenderer
                 'alpha_output_mode' => (string) ($plan['alpha_output_mode'] ?? 'opaque_rgb_preview'),
             ];
         }
+
+        $this->assertInlineImageDecodeValidForPreview($plan['image_decode'] ?? null, 'Inline image');
 
         if ($usesSuppliedSamples) {
             $imageSamples = $this->normalizeSuppliedImageSampleRows($suppliedSamples, $components, $expectedPixelCount);

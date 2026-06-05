@@ -641,4 +641,79 @@ return [
         $t->same([0.0, 1.0, 0.0, 1.0], array_column($preview['pixels'], 'opacity'));
         $t->contains('image_mask_decode_inverts_stencil', implode(',', $preview['notes']));
     },
+    'fails closed on malformed inline image Decode operands before RGB preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $objects = [
+            91 => '<000000FF000000FF000000FF>',
+        ];
+        $payload = "\x00BT /F1 12 Tf 72 690 Td (Malformed Inline Decode Payload Noise) Tj ET";
+        $content = "BT /F1 12 Tf 72 720 Td (Before Malformed Inline Decode) Tj ET\n"
+            . "BI /W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 1 0 1] ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Malformed Inline Decode) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 1 0 1]',
+            "\x00",
+            $objects
+        );
+        $unresolvedReview = $renderer->inlineImageReviewPlan(
+            '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D 99 0 R',
+            "\x00",
+            $objects
+        );
+
+        $t->same("Before Malformed Inline Decode\nAfter Malformed Inline Decode", $plainText);
+        $t->true(!str_contains($plainText, 'Malformed Inline Decode Payload Noise'));
+        $t->same(true, $review['image_decode_component_mismatch']);
+        $t->same('explicit', $review['image_decode']['source']);
+        $t->same(2, $review['image_decode']['component_count']);
+        $t->same(1, $review['image_decode']['expected_components']);
+        $t->same(false, $review['image_decode']['valid_for_components']);
+        $t->contains('image_decode_component_mismatch', implode(',', $review['notes']));
+        $t->same(true, $unresolvedReview['image_decode_component_mismatch']);
+        $t->same('invalid', $unresolvedReview['image_decode']['source']);
+        $t->same(0, $unresolvedReview['image_decode']['component_count']);
+        $t->same(1, $unresolvedReview['image_decode']['expected_components']);
+        $t->same(false, $unresolvedReview['image_decode']['valid_for_components']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows(
+                '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 1 0 1]',
+                "\x00",
+                $objects,
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D 99 0 R',
+                "\x00",
+                $objects,
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageMaskPreviewRows(
+                '/W 1 /H 1 /IM true /D [0 1 0 1]',
+                "\x80",
+                [],
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineJpxColorKeyOutputPreviewRows(
+                '/W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode /D [0 1] /Mask [0 0 0 0 0 0]',
+                "\xff\x4f\xff\xd9",
+                [[0, 128, 255]],
+                [],
+                1
+            )
+        );
+    },
 ];

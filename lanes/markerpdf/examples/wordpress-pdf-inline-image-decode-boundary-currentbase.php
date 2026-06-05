@@ -293,6 +293,56 @@ try {
 } catch (InvalidArgumentException) {
     $invalidLzwEarlyChangeDecodeFailed = true;
 }
+$malformedInlineDecodeReview = $renderer->inlineImageReviewPlan(
+    '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 1 0 1]',
+    "\x00",
+    $inlineReviewObjects
+);
+$malformedInlineDecodeRejected = false;
+try {
+    $renderer->inlineIndexedImageStreamPreviewRows(
+        '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 1 0 1]',
+        "\x00",
+        $inlineReviewObjects,
+        1
+    );
+} catch (InvalidArgumentException) {
+    $malformedInlineDecodeRejected = true;
+}
+$unresolvedInlineDecodeRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D 99 0 R',
+        "\x00",
+        $inlineReviewObjects,
+        1
+    );
+} catch (InvalidArgumentException) {
+    $unresolvedInlineDecodeRejected = true;
+}
+$malformedInlineMaskDecodeRejected = false;
+try {
+    $renderer->inlineImageMaskPreviewRows(
+        '/W 1 /H 1 /IM true /D [0 1 0 1]',
+        "\x80",
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $malformedInlineMaskDecodeRejected = true;
+}
+$malformedInlineJpxDecodeRejected = false;
+try {
+    $renderer->inlineJpxColorKeyOutputPreviewRows(
+        '/W 1 /H 1 /CS /RGB /BPC 8 /F /JPXDecode /D [0 1] /Mask [0 0 0 0 0 0]',
+        "\xff\x4f\xff\xd9",
+        [[0, 128, 255]],
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $malformedInlineJpxDecodeRejected = true;
+}
 
 echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
@@ -351,6 +401,12 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'unresolved_inline_filter_operand_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Unresolved Filter Inline Noise')
         && !str_contains($plainText, 'rawtail'),
     'invalid_lzw_earlychange_decode_failed' => $invalidLzwEarlyChangeDecodeFailed,
+    'malformed_inline_decode_source' => $malformedInlineDecodeReview['image_decode']['source'] ?? null,
+    'malformed_inline_decode_component_mismatch' => $malformedInlineDecodeReview['image_decode_component_mismatch'] ?? null,
+    'malformed_inline_decode_preview_rejected' => $malformedInlineDecodeRejected,
+    'unresolved_inline_decode_preview_rejected' => $unresolvedInlineDecodeRejected,
+    'malformed_inline_imagemask_decode_preview_rejected' => $malformedInlineMaskDecodeRejected,
+    'malformed_inline_jpx_colorkey_decode_preview_rejected' => $malformedInlineJpxDecodeRejected,
     'resolves_current_indirect_inline_imagemask_geometry' => ($indirectMaskReview['width'] ?? null) === 4
         && ($indirectMaskReview['height'] ?? null) === 1
         && ($indirectMaskReview['preview_pixel_count'] ?? null) === 4,
