@@ -24304,7 +24304,7 @@ final class PdfTextExtractor
                     $pendingStyledSpanGap = $this->styledTextMoveGapWidth(
                         $operands,
                         $currentTextX,
-                        $currentTextEndX,
+                        $this->horizontalTextGapReferenceEnd($currentTextEndX, $currentTextDrawnEndX),
                         $currentTextMatrixHorizontalScale
                     ) ?? $pendingStyledSpanGap;
                 }
@@ -24497,6 +24497,17 @@ final class PdfTextExtractor
         }
 
         return (float) $previousBbox[2] + $pendingGap;
+    }
+
+    private function horizontalTextGapReferenceEnd(?float $currentTextEndX, ?float $currentTextDrawnEndX): ?float
+    {
+        $finiteEndX = $currentTextEndX !== null && is_finite($currentTextEndX) ? $currentTextEndX : null;
+        $finiteDrawnEndX = $currentTextDrawnEndX !== null && is_finite($currentTextDrawnEndX) ? $currentTextDrawnEndX : null;
+        if ($finiteEndX !== null && $finiteDrawnEndX !== null) {
+            return max($finiteEndX, $finiteDrawnEndX);
+        }
+
+        return $finiteDrawnEndX ?? $finiteEndX;
     }
 
     /**
@@ -25291,7 +25302,12 @@ final class PdfTextExtractor
                     if ($this->textMoveBreaksLine($operands)) {
                         $this->pushLine($lines, $currentLine);
                         $pendingPositionWordGap = false;
-                    } elseif ($this->textMoveCreatesWordGap($operands, $currentTextX, $currentTextEndX, $currentTextMatrixHorizontalScale)) {
+                    } elseif ($this->textMoveCreatesWordGap(
+                        $operands,
+                        $currentTextX,
+                        $this->horizontalTextGapReferenceEnd($currentTextEndX, $currentTextDrawnEndX),
+                        $currentTextMatrixHorizontalScale
+                    )) {
                         $pendingPositionWordGap = $currentLine !== '';
                     }
                 }

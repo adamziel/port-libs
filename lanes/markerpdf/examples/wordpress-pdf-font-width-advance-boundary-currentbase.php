@@ -116,6 +116,15 @@ $negativeTcBacktrackPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($negativeTcBacktrackContent) . " >>\nstream\n{$negativeTcBacktrackContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B] >>\nendobj\n%%EOF";
 
+$negativeHorizontalScaleTdContent = 'BT /Ftz 12 Tf -100 Tz '
+    . '1 0 0 1 72 720 Tm <4142> Tj 0 0 Td <4344> Tj '
+    . 'T* 100 Tz 1 0 0 1 72 704 Tm <4142> Tj 24 0 Td <4344> Tj ET';
+$negativeHorizontalScaleTdPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftz 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+NegativeTzAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($negativeHorizontalScaleTdContent) . " >>\nstream\n{$negativeHorizontalScaleTdContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $sparseWidthContent = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 $sparseWidthPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsparse 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -453,6 +462,20 @@ $negativeTcBacktrackSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $negativeTcBacktrackLine['spans'] ?? []
 );
+$negativeHorizontalScaleTdLines = $extractor->extractTextLines($negativeHorizontalScaleTdPdf);
+$negativeHorizontalScaleTdPlainText = implode("\n", $negativeHorizontalScaleTdLines);
+$negativeHorizontalScaleTdPages = $extractor->extractStyledTextPages($negativeHorizontalScaleTdPdf);
+$negativeHorizontalScaleTdStyledLines = [];
+foreach (($negativeHorizontalScaleTdPages[0]['blocks'] ?? []) as $block) {
+    foreach (($block['lines'] ?? []) as $line) {
+        $negativeHorizontalScaleTdStyledLines[] = $line;
+    }
+}
+$negativeHorizontalScaleTdFirstLine = $negativeHorizontalScaleTdStyledLines[0] ?? [];
+$negativeHorizontalScaleTdSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $negativeHorizontalScaleTdFirstLine['spans'] ?? []
+);
 $sparseWidthLines = $extractor->extractTextLines($sparseWidthPdf);
 $sparseWidthPlainText = implode("\n", $sparseWidthLines);
 $sparseWidthPages = $extractor->extractStyledTextPages($sparseWidthPdf);
@@ -629,6 +652,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'negative_tc_backtrack_span_bbox_preserved' => $negativeTcBacktrackSpanBboxes === [[0.0, 0.0, 30.0, 12.0]],
     'negative_tc_backtrack_line_bbox_preserved' => ($negativeTcBacktrackLine['bbox'] ?? null) === [0.0, 0.0, 30.0, 12.0],
     'negative_tc_final_cursor_collapse_excluded' => $negativeTcBacktrackSpanBboxes !== [[0.0, 0.0, 6.0, 12.0]],
+    'negative_horizontal_scale_td_false_gap_excluded' => $negativeHorizontalScaleTdLines === ['ABCD', 'ABCD'],
+    'negative_horizontal_scale_td_plain_text_preserved' => $negativeHorizontalScaleTdPlainText === "ABCD\nABCD",
+    'negative_horizontal_scale_td_styled_bboxes_preserved' => $negativeHorizontalScaleTdSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'negative_horizontal_scale_td_stale_logical_end_gap_excluded' => $negativeHorizontalScaleTdSpanBboxes !== [[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]],
     'unresolved_width_slot_preserved' => $sparseWidthLines === ['CD'],
     'unresolved_width_false_gap_excluded' => !str_contains($sparseWidthPlainText, 'C D'),
     'unresolved_width_slot_bboxes_preserved' => $sparseWidthSpanBboxes === [[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]],
@@ -715,6 +742,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'negative_tc_backtrack_lines' => $negativeTcBacktrackLines,
     'negative_tc_backtrack_span_bboxes' => $negativeTcBacktrackSpanBboxes,
     'negative_tc_backtrack_line_bbox' => $negativeTcBacktrackLine['bbox'] ?? null,
+    'negative_horizontal_scale_td_lines' => $negativeHorizontalScaleTdLines,
+    'negative_horizontal_scale_td_span_bboxes' => $negativeHorizontalScaleTdSpanBboxes,
     'sparse_width_lines' => $sparseWidthLines,
     'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
     'exact_generation_width_lines' => $exactGenerationWidthLines,
@@ -746,7 +775,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $sparseWidthLines, $exactGenerationWidthLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $absoluteTmStyledGapLines, $negativeTcBacktrackLines, $negativeHorizontalScaleTdLines, $sparseWidthLines, $exactGenerationWidthLines, $lastCharLines, $malformedRangeLines, $nonFiniteWidthLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $negativeFirstCidLines, $negativeFirstW2Lines, $type3FontMatrixWidthsLines, $type3FontMatrixVectorLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

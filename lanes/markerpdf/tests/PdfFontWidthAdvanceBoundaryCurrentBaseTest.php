@@ -152,6 +152,18 @@ $fontWidthNegativeTcBacktrackBoundaryCurrentBasePdf = static function (): string
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B] >>\nendobj\n%%EOF";
 };
 
+$fontWidthNegativeHorizontalScaleTdBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Ftz 12 Tf -100 Tz '
+        . '1 0 0 1 72 720 Tm <4142> Tj 0 0 Td <4344> Tj '
+        . 'T* 100 Tz 1 0 0 1 72 704 Tm <4142> Tj 24 0 Td <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftz 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+NegativeTzAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 
@@ -846,6 +858,35 @@ return [
         $t->true(array_column($spans, 'bbox') !== [[0.0, 0.0, 6.0, 12.0]]);
         $t->true(!str_contains($plainText, 'NegativeTcBacktrack'));
         $t->true(!str_contains($plainText, 'FnegTc'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses negative horizontal scale drawn extent before relative Td gap decisions on current base' => static function (TestRunner $t) use ($fontWidthNegativeHorizontalScaleTdBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthNegativeHorizontalScaleTdBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['ABCD', 'ABCD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("ABCD\nABCD", $plainText);
+        $t->same("ABCD\nABCD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->true(!str_contains($plainText, 'AB CD'));
+        $t->true(array_column($firstSpans, 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'NegativeTzAdvance'));
+        $t->true(!str_contains($plainText, 'Ftz'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'preserves unresolved simple-font width slots before current advance gap decisions' => static function (TestRunner $t) use ($fontWidthUnresolvedSlotBoundaryCurrentBasePdf): void {
