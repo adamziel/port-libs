@@ -238,6 +238,29 @@ $invalidOwnerLines = $boundaryExtractor->extractTextLines($invalidOwnerPdf);
 $invalidOwnerReview = $boundaryExtractor->extractImageXObjectBoundaryReview($invalidOwnerPdf);
 $invalidOwnerEntry = $invalidOwnerReview['entries'][0] ?? [];
 $invalidOwnerParms = $invalidOwnerEntry['filter_details'][0]['decode_parms'] ?? [];
+$rowEolBefore = 'BT /F1 12 Tf 72 720 Td (Before row-EOL CCITT import) Tj ET';
+$rowEolAfter = 'BT /F1 12 Tf 72 680 Td (After row-EOL CCITT import) Tj ET';
+$rowEolFakeText = 'BT /F1 12 Tf 72 700 Td (WordPress row-EOL CCITT leak) Tj ET';
+$rowEolMarker = "\x00\x10\x01";
+$rowEolPayload = "\x01\x02\n"
+    . "endstream\nendobj\n"
+    . "9 0 obj\n<< /Length " . strlen($rowEolFakeText) . " >>\nstream\n{$rowEolFakeText}\nendstream\nendobj\n"
+    . "\x03{$rowEolMarker}";
+$rowEolStaleLength = strpos($rowEolPayload, "\nendstream\n");
+if ($rowEolStaleLength === false) {
+    throw new RuntimeException('Unable to build row-EOL CCITT stale-length fixture.');
+}
+$rowEolPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /FaxRowEol 5 0 R >> >> >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents [4 0 R 9 0 R 6 0 R] >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($rowEolBefore) . " >>\nstream\n{$rowEolBefore}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 16 /Height 1 /ImageMask true /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K 0 /Columns 16 /Rows 1 /EndOfLine true /EndOfBlock false >> /Length {$rowEolStaleLength} >>\nstream\n{$rowEolPayload}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($rowEolAfter) . " >>\nstream\n{$rowEolAfter}\nendstream\nendobj\n"
+    . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+$rowEolLines = $boundaryExtractor->extractTextLines($rowEolPdf);
+$rowEolReview = $boundaryExtractor->extractImageXObjectBoundaryReview($rowEolPdf);
+$rowEolEntry = $rowEolReview['entries'][0] ?? [];
 $inlineCodingBoundary = $inlineReview['ccitt_fax_coding_boundary'] ?? [];
 $inlinePolarityBoundary = $inlineReview['ccitt_fax_imagemask_polarity_boundary'] ?? [];
 $defaultInlineCodingBoundary = $defaultInlineReview['ccitt_fax_coding_boundary'] ?? [];
@@ -405,6 +428,17 @@ if (
 ) {
     throw new RuntimeException('Malformed CCITT owner-boundary smoke failed.');
 }
+if (
+    $rowEolLines !== ['Before row-EOL CCITT import', 'After row-EOL CCITT import']
+    || str_contains($boundaryExtractor->extractPlainText($rowEolPdf), 'WordPress row-EOL CCITT leak')
+    || (($rowEolEntry['raw_length'] ?? null) !== strlen($rowEolPayload))
+    || (($rowEolEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_line'] ?? null) !== true)
+    || (($rowEolEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null) !== false)
+    || (($rowEolEntry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null) !== null)
+    || str_contains(json_encode($rowEolReview, JSON_UNESCAPED_SLASHES) ?: '', $rowEolPayload)
+) {
+    throw new RuntimeException('CCITT row-EOL no-EndOfBlock ownership smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
@@ -511,6 +545,13 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'xobject_invalid_owner_raw_length' => $invalidOwnerEntry['raw_length'] ?? null,
     'xobject_invalid_owner_payload_excluded_from_review' => !str_contains(json_encode($invalidOwnerReview, JSON_UNESCAPED_SLASHES) ?: '', $invalidOwnerPayload),
     'xobject_invalid_owner_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($invalidOwnerPdf), 'WordPress invalid-owner CCITT leak'),
+    'xobject_row_eol_no_endblock_boundary_repaired' => ($rowEolEntry['raw_length'] ?? null) === strlen($rowEolPayload),
+    'xobject_row_eol_no_endblock_raw_length' => $rowEolEntry['raw_length'] ?? null,
+    'xobject_row_eol_no_endblock_end_of_line' => $rowEolEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_line'] ?? null,
+    'xobject_row_eol_no_endblock_end_of_block' => $rowEolEntry['ccitt_fax_decode_boundary']['effective_decode_parms']['end_of_block'] ?? null,
+    'xobject_row_eol_no_endblock_marker' => $rowEolEntry['ccitt_fax_coding_boundary']['end_of_block_marker'] ?? null,
+    'xobject_row_eol_no_endblock_payload_excluded_from_review' => !str_contains(json_encode($rowEolReview, JSON_UNESCAPED_SLASHES) ?: '', $rowEolPayload),
+    'xobject_row_eol_no_endblock_payload_excluded_from_text' => !str_contains($boundaryExtractor->extractPlainText($rowEolPdf), 'WordPress row-EOL CCITT leak'),
     'xobject_geometry_effective_width' => $geometryBoundary['effective_width'] ?? null,
     'xobject_geometry_effective_height' => $geometryBoundary['effective_height'] ?? null,
     'xobject_geometry_width_source' => $geometryBoundary['width_source'] ?? null,

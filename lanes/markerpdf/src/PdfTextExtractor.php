@@ -10447,7 +10447,7 @@ final class PdfTextExtractor
         if ($decodeParms !== null && $this->decodeParmsHasName($decodeParms, 'EndOfBlock')) {
             $endOfBlock = $this->decodeParmsBool($decodeParms, 'EndOfBlock', $objects);
             if ($endOfBlock === false) {
-                return [];
+                return $this->ccittFaxEndOfLineMarkersForOwnership($decodeParms, $objects);
             }
         }
 
@@ -10457,6 +10457,36 @@ final class PdfTextExtractor
 
         $eolPair = "\x00\x10\x01";
         return [$eolPair, $eolPair . $eolPair . $eolPair];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string>
+     */
+    private function ccittFaxEndOfLineMarkersForOwnership(?string $decodeParms, array $objects): array
+    {
+        if ($decodeParms === null || !$this->decodeParmsHasName($decodeParms, 'EndOfLine')) {
+            return [];
+        }
+
+        $endOfLine = $this->decodeParmsBool($decodeParms, 'EndOfLine', $objects);
+        if ($endOfLine !== true) {
+            return [];
+        }
+
+        $k = $this->decodeParmsInt($decodeParms, 'K', $objects) ?? 0;
+        if ($k < 0) {
+            return [];
+        }
+
+        if ($this->decodeParmsHasName($decodeParms, 'Rows')) {
+            $rows = $this->decodeParmsInt($decodeParms, 'Rows', $objects);
+            if ($rows === null || $rows <= 0) {
+                return [];
+            }
+        }
+
+        return ["\x00\x10\x01"];
     }
 
     private function firstFilterEndMarkerOffset(string $value, int $streamStart, string $marker): ?int
