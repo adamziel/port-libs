@@ -3424,7 +3424,7 @@ final class PdfAcroFormExtractor
             }
 
             $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
-            if (!$this->isFieldDictionaryCandidate($parentBody)) {
+            if (!$this->isFieldDictionaryCandidate($parentBody) || !$this->fieldParentOwnsChild($parentObject, $candidate, $objects)) {
                 break;
             }
 
@@ -9004,11 +9004,27 @@ final class PdfAcroFormExtractor
             if (!$this->isFieldDictionaryCandidate($parentBody)) {
                 return $candidate;
             }
+            if (!$this->fieldParentOwnsChild($parentObject, $candidate, $objects)) {
+                return $candidate;
+            }
 
             $candidate = $parentObject;
         }
 
         return $candidate;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fieldParentOwnsChild(int $parentObject, int $childObject, array $objects): bool
+    {
+        if (!isset($objects[$parentObject])) {
+            return false;
+        }
+
+        $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
+        return in_array($childObject, $this->kidReferences($parentBody, $objects), true);
     }
 
     /**
