@@ -1364,7 +1364,7 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      * @param array{0: int, 1: int}|null $inheritedLimits
      * @return list<array{page_index: int, prefix: string, style: string|null, start: int}>
      */
@@ -1419,7 +1419,8 @@ final class MarkerAppPreview
                     continue;
                 }
 
-                foreach ($this->pageLabelSections($kidBody, $objects, [...$seen, $objectId], $limits) as $section) {
+                $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
+                foreach ($this->pageLabelSections($kidBody, $objects, $kidSeen, $limits) as $section) {
                     $sections[] = $section;
                 }
             }
@@ -1430,7 +1431,7 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      * @param array{0: int, 1: int}|null $limits
      * @return list<array{page_index: int, prefix: string, style: string|null, start: int}>
      */
@@ -1467,7 +1468,7 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      */
     private function pageLabelIndexOperand(string $value, array $objects, array $seen): ?int
     {
@@ -1487,12 +1488,16 @@ final class MarkerAppPreview
             return null;
         }
 
-        return $this->pageLabelIndexOperand($body, $objects, [...$seen, $objectId]);
+        return $this->pageLabelIndexOperand(
+            $body,
+            $objects,
+            [...$seen, $this->objectReferenceKey($objectId, $generation)]
+        );
     }
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      * @return array{0: int, 1: int}|null
      */
     private function pageLabelLimits(string $dict, array $objects, array $seen): ?array
@@ -1518,7 +1523,7 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      */
     private function pageLabelLimitOperand(string $value, array $objects, array $seen): ?int
     {
@@ -1538,12 +1543,16 @@ final class MarkerAppPreview
             return null;
         }
 
-        return $this->pageLabelLimitOperand($body, $objects, [...$seen, $objectId]);
+        return $this->pageLabelLimitOperand(
+            $body,
+            $objects,
+            [...$seen, $this->objectReferenceKey($objectId, $generation)]
+        );
     }
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      * @return array{prefix: string, style: string|null, start: int}|null
      */
     private function parsePageLabelDictionary(string $value, array $objects, array $seen): ?array
@@ -1582,7 +1591,7 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      */
     private function resolvedPageLabelValueAfterName(string $dict, string $name, array $objects, array $seen): ?string
     {
@@ -1607,7 +1616,6 @@ final class MarkerAppPreview
         if (
             $objectId <= 0
             || $generation < 0
-            || in_array($objectId, $seen, true)
             || in_array($objectKey, $seen, true)
         ) {
             return $value;
@@ -1618,7 +1626,7 @@ final class MarkerAppPreview
             return $value;
         }
 
-        return $this->resolvePageLabelPdfValue($body, $objects, [...$seen, $objectId, $objectKey]);
+        return $this->resolvePageLabelPdfValue($body, $objects, [...$seen, $objectKey]);
     }
 
     private function formatPageLabel(string $prefix, ?string $style, int $number): string
@@ -1808,15 +1816,26 @@ final class MarkerAppPreview
 
     /**
      * @param array<int, array{generation: int, body: string}> $objects
-     * @param list<int> $seen
+     * @param list<int|string> $seen
      */
     private function objectBodyForReference(array $objects, int $objectId, int $generation, array $seen): ?string
     {
-        if ($objectId <= 0 || $generation < 0 || in_array($objectId, $seen, true)) {
+        $objectKey = $this->objectReferenceKey($objectId, $generation);
+        if (
+            $objectId <= 0
+            || $generation < 0
+            || in_array($objectId, $seen, true)
+            || in_array($objectKey, $seen, true)
+        ) {
             return null;
         }
 
         return $this->directObjectBodiesByGeneration[$objectId][$generation] ?? null;
+    }
+
+    private function objectReferenceKey(int $objectId, int $generation): string
+    {
+        return $objectId . ':' . $generation;
     }
 
     private function valueAfterName(string $body, string $name): ?string
