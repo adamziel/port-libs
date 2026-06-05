@@ -109,6 +109,7 @@ final class MathTexConverter
         'aligned' => ['columnalign' => 'right left'],
         'bmatrix' => ['open' => '[', 'close' => ']'],
         'Bmatrix' => ['open' => '{', 'close' => '}'],
+        'cases' => ['open' => '{', 'columnalign' => 'left left'],
         'matrix' => [],
         'pmatrix' => ['open' => '(', 'close' => ')'],
         'vmatrix' => ['open' => '|', 'close' => '|'],
@@ -540,12 +541,17 @@ final class MathTexConverter
         }
         $table .= '</mtable>';
 
-        if (isset($spec['open'], $spec['close'])) {
-            return '<mrow>'
-                . '<mo fence="true" stretchy="true">' . $this->esc($spec['open']) . '</mo>'
-                . $table
-                . '<mo fence="true" stretchy="true">' . $this->esc($spec['close']) . '</mo>'
-                . '</mrow>';
+        if (isset($spec['open']) || isset($spec['close'])) {
+            $wrapped = '<mrow>';
+            if (isset($spec['open'])) {
+                $wrapped .= '<mo fence="true" stretchy="true">' . $this->esc($spec['open']) . '</mo>';
+            }
+            $wrapped .= $table;
+            if (isset($spec['close'])) {
+                $wrapped .= '<mo fence="true" stretchy="true">' . $this->esc($spec['close']) . '</mo>';
+            }
+
+            return $wrapped . '</mrow>';
         }
 
         return $table;
