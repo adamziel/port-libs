@@ -22015,7 +22015,7 @@ final class PdfTextExtractor
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'beginbfchar', 'endbfchar') as $charBlock) {
-            $block = $charBlock['body'];
+            $block = $this->cMapOperatorBlockData($charBlock['body']);
             $declaredCount = $charBlock['declaredCount'];
             if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
                 if ($declaredCount !== null) {
@@ -22032,7 +22032,11 @@ final class PdfTextExtractor
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'beginbfrange', 'endbfrange') as $rangeBlock) {
-            $this->parseToUnicodeRanges($rangeBlock['body'], $map, $rangeBlock['declaredCount']);
+            $this->parseToUnicodeRanges(
+                $this->cMapOperatorBlockData($rangeBlock['body']),
+                $map,
+                $rangeBlock['declaredCount']
+            );
         }
 
         foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
@@ -22114,19 +22118,37 @@ final class PdfTextExtractor
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'beginnotdefchar', 'endnotdefchar') as $charBlock) {
-            $this->parseCidChars($charBlock['body'], $cidMap, $charBlock['declaredCount'], false);
+            $this->parseCidChars(
+                $this->cMapOperatorBlockData($charBlock['body']),
+                $cidMap,
+                $charBlock['declaredCount'],
+                false
+            );
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'beginnotdefrange', 'endnotdefrange') as $rangeBlock) {
-            $this->parseCidRanges($rangeBlock['body'], $cidMap, $rangeBlock['declaredCount'], false);
+            $this->parseCidRanges(
+                $this->cMapOperatorBlockData($rangeBlock['body']),
+                $cidMap,
+                $rangeBlock['declaredCount'],
+                false
+            );
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'begincidchar', 'endcidchar') as $charBlock) {
-            $this->parseCidChars($charBlock['body'], $cidMap, $charBlock['declaredCount']);
+            $this->parseCidChars(
+                $this->cMapOperatorBlockData($charBlock['body']),
+                $cidMap,
+                $charBlock['declaredCount']
+            );
         }
 
         foreach ($this->cMapOperatorBlocks($cmap, 'begincidrange', 'endcidrange') as $rangeBlock) {
-            $this->parseCidRanges($rangeBlock['body'], $cidMap, $rangeBlock['declaredCount']);
+            $this->parseCidRanges(
+                $this->cMapOperatorBlockData($rangeBlock['body']),
+                $cidMap,
+                $rangeBlock['declaredCount']
+            );
         }
 
         foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
@@ -22495,7 +22517,7 @@ final class PdfTextExtractor
         $cmap = $this->boundedCMapProgram($cmap);
         $ranges = [];
         foreach ($this->cMapOperatorBlocks($cmap, 'begincodespacerange', 'endcodespacerange') as $blockMatch) {
-            $block = $blockMatch['body'];
+            $block = $this->cMapOperatorBlockData($blockMatch['body']);
             if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
                 continue;
             }
@@ -22531,6 +22553,54 @@ final class PdfTextExtractor
         });
 
         return $ranges;
+    }
+
+    private function cMapOperatorBlockData(string $block): string
+    {
+        $clean = '';
+        $index = 0;
+        $length = strlen($block);
+
+        while ($index < $length) {
+            $char = $block[$index];
+            if ($char === '%') {
+                $start = $index;
+                $this->skipPdfComment($block, $index);
+                $clean .= str_repeat(' ', max(1, $index - $start));
+                continue;
+            }
+
+            if ($char === '(') {
+                $end = $this->skipPdfLiteralStringAt($block, $index);
+                if ($end === null) {
+                    $clean .= ' ';
+                    $index++;
+                    continue;
+                }
+
+                $clean .= str_repeat(' ', max(1, $end - $index + 1));
+                $index = $end + 1;
+                continue;
+            }
+
+            if ($char === '<' && ($block[$index + 1] ?? '') === '<') {
+                $end = $this->pdfDictionaryEndOffset($block, $index);
+                if ($end === null) {
+                    $clean .= ' ';
+                    $index++;
+                    continue;
+                }
+
+                $clean .= str_repeat(' ', max(1, $end - $index + 1));
+                $index = $end + 1;
+                continue;
+            }
+
+            $clean .= $char;
+            $index++;
+        }
+
+        return $clean;
     }
 
     private function normalizeHexKey(string $hex): string

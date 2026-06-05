@@ -646,6 +646,39 @@ $buildSecondProgramCMapPdf = static function () use ($utf16beHex): string {
         . "%%EOF";
 };
 
+$buildOverdeclaredLiteralCMapPdf = static function () use ($utf16beHex): string {
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPOverdeclaredLiteralBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "2 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Overdeclared Literal Safe Import') . ">\n"
+        . "(<0001> <" . $utf16beHex('Overdeclared Literal CMap Leak') . ">)\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress overdeclared literal CMap filter-boundary fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPOverdeclaredLiteralBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPOverdeclaredLiteralBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $buildLiteralNameUseCMapPdf = static function () use ($utf16beHex): string {
     $baseCMap = "(/CMapName /WPFakeBase-H def)\n"
         . "/CIDInit /ProcSet findresource begin\n"
@@ -802,6 +835,7 @@ $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
 $nestedArrayDictionaryPdf = $buildNestedArrayDictionaryCMapFilterPdf();
 $postEndPdf = $buildPostEndCMapOperatorPdf();
 $secondProgramPdf = $buildSecondProgramCMapPdf();
+$overdeclaredLiteralPdf = $buildOverdeclaredLiteralCMapPdf();
 $literalNamePdf = $buildLiteralNameUseCMapPdf();
 $unsupportedFilterPdf = $buildUnsupportedCMapFilterPdf();
 $cryptIdentityPdf = $buildCryptIdentityCMapFilterPdf();
@@ -822,6 +856,7 @@ $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
 $nestedArrayDictionaryLines = $extractor->extractTextLines($nestedArrayDictionaryPdf);
 $postEndLines = $extractor->extractTextLines($postEndPdf);
 $secondProgramLines = $extractor->extractTextLines($secondProgramPdf);
+$overdeclaredLiteralLines = $extractor->extractTextLines($overdeclaredLiteralPdf);
 $literalNameLines = $extractor->extractTextLines($literalNamePdf);
 $unsupportedFilterLines = $extractor->extractTextLines($unsupportedFilterPdf);
 $cryptIdentityLines = $extractor->extractTextLines($cryptIdentityPdf);
@@ -840,6 +875,7 @@ $staleReferencePlainText = implode("\n", $staleReferenceLines);
 $nestedArrayDictionaryPlainText = implode("\n", $nestedArrayDictionaryLines);
 $postEndPlainText = implode("\n", $postEndLines);
 $secondProgramPlainText = implode("\n", $secondProgramLines);
+$overdeclaredLiteralPlainText = implode("\n", $overdeclaredLiteralLines);
 $literalNamePlainText = implode("\n", $literalNameLines);
 $unsupportedFilterPlainText = implode("\n", $unsupportedFilterLines);
 $cryptIdentityPlainText = implode("\n", $cryptIdentityLines);
@@ -858,6 +894,7 @@ $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($st
 $nestedArrayDictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($nestedArrayDictionaryPdf);
 $postEndReview = $extractor->extractCMapStreamFilterLengthOwnerReview($postEndPdf);
 $secondProgramReview = $extractor->extractCMapStreamFilterLengthOwnerReview($secondProgramPdf);
+$overdeclaredLiteralReview = $extractor->extractCMapStreamFilterLengthOwnerReview($overdeclaredLiteralPdf);
 $literalNameReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalNamePdf);
 $unsupportedFilterReview = $extractor->extractCMapStreamFilterLengthOwnerReview($unsupportedFilterPdf);
 $cryptIdentityReview = $extractor->extractCMapStreamFilterLengthOwnerReview($cryptIdentityPdf);
@@ -876,6 +913,7 @@ $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
 $nestedArrayDictionaryEntry = $nestedArrayDictionaryReview['entries'][0] ?? [];
 $postEndEntry = $postEndReview['entries'][0] ?? [];
 $secondProgramEntry = $secondProgramReview['entries'][0] ?? [];
+$overdeclaredLiteralEntry = $overdeclaredLiteralReview['entries'][0] ?? [];
 $literalNameDerivedEntry = null;
 $literalNameBaseEntry = null;
 foreach ($literalNameReview['entries'] as $entry) {
@@ -945,6 +983,10 @@ if ($secondProgramLines !== ['SecondProgram Safe Import']) {
     throw new RuntimeException('Expected complete second CMap program to stay excluded from WordPress text.');
 }
 
+if ($overdeclaredLiteralLines !== ['Overdeclared Literal Safe Import']) {
+    throw new RuntimeException('Expected overdeclared literal-string CMap rows to stay excluded from WordPress text.');
+}
+
 if ($literalNameLines !== ['Literal Name Safe Import']) {
     throw new RuntimeException('Expected literal CMapName decoy to stay excluded before UseCMap inheritance.');
 }
@@ -993,6 +1035,9 @@ if (
     || str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H')
     || str_contains($secondProgramPlainText, 'Second Program CMap Leak')
     || str_contains($secondProgramPlainText, 'WPSecondProgramDecoy-H')
+    || str_contains($overdeclaredLiteralPlainText, 'Overdeclared Literal CMap Leak')
+    || str_contains($overdeclaredLiteralPlainText, '<0001>')
+    || str_contains($overdeclaredLiteralPlainText, 'WPOverdeclaredLiteralBoundary-H')
     || str_contains($literalNamePlainText, 'WPFakeBase-H')
     || str_contains($literalNamePlainText, 'CMapName')
     || str_contains($unsupportedFilterPlainText, 'Unsupported Filter CMap Leak')
@@ -1259,6 +1304,18 @@ if (($secondProgramEntry['parser_excluded_cmap_byte_count'] ?? 0) <= ($secondPro
     throw new RuntimeException('Expected parser-bounded CMap exclusion to exceed trailing post-endcmap cleanup bytes.');
 }
 
+if (($overdeclaredLiteralReview['decoded_cmap_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected overdeclared literal CMap stream to decode before literal-row filtering.');
+}
+
+if (($overdeclaredLiteralEntry['cmap_name'] ?? null) !== 'WPOverdeclaredLiteralBoundary-H') {
+    throw new RuntimeException('Expected overdeclared literal CMap review metadata.');
+}
+
+if (($overdeclaredLiteralEntry['filter_operand_policy'] ?? null) !== 'filters_resolved') {
+    throw new RuntimeException('Expected overdeclared literal CMap filters to stay resolved.');
+}
+
 if (!is_array($literalNameBaseEntry) || ($literalNameBaseEntry['cmap_name'] ?? null) !== 'WPRealBase-H') {
     throw new RuntimeException('Expected literal-string CMapName decoy to be skipped in base CMap review metadata.');
 }
@@ -1338,6 +1395,7 @@ $lines = array_merge(
     $nestedArrayDictionaryLines,
     $postEndLines,
     $secondProgramLines,
+    $overdeclaredLiteralLines,
     $literalNameLines,
     $cryptIdentityLines,
     $cryptPrivateLines,
@@ -1347,7 +1405,7 @@ $lines = array_merge(
 echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, all-null and mixed null-filter DecodeParms slots, post-endcmap decoded operators, and literal CMapName decoys stay bounded before WordPress text import',
+    'native_boundary' => 'malformed, unsupported, and identity Crypt ToUnicode CMap Filter operands, all-null and mixed null-filter DecodeParms slots, post-endcmap decoded operators, overdeclared literal-string mapping rows, and literal CMapName decoys stay bounded before WordPress text import',
     'fallback_text' => implode(' | ', $lines),
     'dictionary_decoded_cmap_count' => $dictionaryReview['decoded_cmap_count'] ?? null,
     'dictionary_invalid_filter_operand_count' => $dictionaryReview['invalid_filter_operand_count'] ?? null,
@@ -1465,6 +1523,12 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'second_program_parser_bytes_excluded' => ($secondProgramEntry['parser_bounded_cmap_bytes_excluded'] ?? null) === true,
     'second_program_payload_excluded' => !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
         && !str_contains($secondProgramPlainText, 'WPSecondProgramDecoy-H'),
+    'overdeclared_literal_decoded_cmap_count' => $overdeclaredLiteralReview['decoded_cmap_count'] ?? null,
+    'overdeclared_literal_cmap_name' => $overdeclaredLiteralEntry['cmap_name'] ?? null,
+    'overdeclared_literal_filter_operand_policy' => $overdeclaredLiteralEntry['filter_operand_policy'] ?? null,
+    'overdeclared_literal_decoy_excluded' => !str_contains($overdeclaredLiteralPlainText, 'Overdeclared Literal CMap Leak')
+        && !str_contains($overdeclaredLiteralPlainText, '<0001>')
+        && !str_contains($overdeclaredLiteralPlainText, 'WPOverdeclaredLiteralBoundary-H'),
     'literal_name_decoded_cmap_count' => $literalNameReview['decoded_cmap_count'] ?? null,
     'literal_name_derived_cmap_name' => $literalNameDerivedEntry['cmap_name'] ?? null,
     'literal_name_base_cmap_name' => $literalNameBaseEntry['cmap_name'] ?? null,
@@ -1519,6 +1583,7 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($nestedArrayDictionaryPlainText, 'nested dictionary is not a decoder')
         && !str_contains($postEndPlainText, 'PostEnd CMap Leak')
         && !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
+        && !str_contains($overdeclaredLiteralPlainText, 'Overdeclared Literal CMap Leak')
         && !str_contains($literalNamePlainText, 'WPFakeBase-H')
         && !str_contains($literalNamePlainText, 'CMapName')
         && !str_contains($cryptIdentityPlainText, 'WPCryptIdentityBoundary-H')

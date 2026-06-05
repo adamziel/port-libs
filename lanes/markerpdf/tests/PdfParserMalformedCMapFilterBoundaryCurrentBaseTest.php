@@ -895,6 +895,48 @@ $parserMalformedCMapLiteralOperatorBoundaryCurrentBasePdf = static function (): 
         . "%%EOF";
 };
 
+$parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf = static function (): string {
+    $utf16beHex = static function (string $ascii): string {
+        $hex = '';
+        for ($index = 0, $length = strlen($ascii); $index < $length; $index++) {
+            $hex .= sprintf('%04X', ord($ascii[$index]));
+        }
+
+        return $hex;
+    };
+
+    $cMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /OverdeclaredLiteralOperatorBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0001> <0001>\n"
+        . "endcodespacerange\n"
+        . "2 beginbfchar\n"
+        . "<0001> <" . $utf16beHex('Overdeclared Literal Safe Import') . ">\n"
+        . "(<0001> <" . $utf16beHex('Overdeclared Literal CMap Leak') . ">)\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($cMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress focused overdeclared literal-operator CMap fixture.');
+    }
+
+    $content = 'BT /Fcid 12 Tf 72 720 Td <0001> Tj ET';
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /OverdeclaredLiteralOperatorBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /OverdeclaredLiteralOperatorBoundary-H /Filter /FlateDecode /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserMalformedCMapLiteralNameUseCMapBoundaryCurrentBasePdf = static function (): string {
     $utf16beHex = static function (string $ascii): string {
         $hex = '';
@@ -2083,6 +2125,37 @@ return [
         $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
         $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
         $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
+    'ignores overdeclared CMap rows inside decoded literal strings before current-base text extraction' => static function (TestRunner $t) use ($parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserMalformedCMapOverdeclaredLiteralOperatorBoundaryCurrentBasePdf();
+        $text = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractCMapStreamFilterLengthOwnerReview($pdf);
+        $entry = $review['entries'][0] ?? [];
+
+        $t->same(['Overdeclared Literal Safe Import'], $extractor->extractTextLines($pdf));
+        $t->same(['Overdeclared Literal Safe Import'], $extractor->extractTextRuns($pdf));
+        $t->same('Overdeclared Literal Safe Import', $text);
+        $t->same("Overdeclared Literal Safe Import\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Overdeclared Literal CMap Leak'));
+        $t->true(!str_contains($text, 'beginbfchar'));
+        $t->true(!str_contains($text, '<0001>'));
+        $t->true(!str_contains($text, "\0"));
+        $t->same('pdf_cmap_stream_filter_length_owner_review', $review['source']);
+        $t->same(1, $review['decoded_cmap_count']);
+        $t->same(6, $entry['object_number'] ?? null);
+        $t->same('OverdeclaredLiteralOperatorBoundary-H', $entry['cmap_name'] ?? null);
+        $t->same(['FlateDecode'], $entry['filters'] ?? null);
+        $t->same(false, $entry['filter_resolution_failed'] ?? null);
+        $t->same('filters_resolved', $entry['filter_operand_policy'] ?? null);
+        $t->same('decodeparms_resolved', $entry['decodeparms_operand_policy'] ?? null);
+        $t->same(true, $entry['decoded_with_current_operands'] ?? null);
+        $t->true(($entry['decoded_cmap_length'] ?? 0) > 0);
+        $t->true(is_string($entry['decoded_cmap_sha256'] ?? null));
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },
