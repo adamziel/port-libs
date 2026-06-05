@@ -1504,4 +1504,82 @@ return [
         $t->same(false, array_key_exists('node', $packet['captions']['long']['blocks'][0] ?? []));
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports asciidoc nested table passthrough requirements for writer handoff' => static function (TestRunner $t): void {
+        $innerTable = new AstNode('table', [
+            'caption' => 'Nested source audit',
+            'alignments' => ['left', 'right'],
+            'widths' => [0.5, 0.5],
+        ], [
+            new AstNode('table_head'),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Inner posts'], [new AstNode('text', ['text' => 'Inner posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                ]),
+            ]),
+        ]);
+        $outerTable = new AstNode('table', [
+            'caption' => 'AsciiDoc nested table audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Packet', 'header' => true], [new AstNode('text', ['text' => 'Packet'])]),
+                    new AstNode('table_cell', ['text' => 'State', 'header' => true], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Nested review packet'], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Nested review packet'])]),
+                        $innerTable,
+                    ]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+        $plainTable = new AstNode('table', [
+            'caption' => 'Plain AsciiDoc table audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $diagnostics = TableGeometry::writerDowngradeDiagnostics($outerTable, 'asciidoctor');
+        $packet = TableGeometry::reviewPacket($outerTable, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc'],
+        ]);
+
+        $t->same(['asciidoc-nested-table-raw-html-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
+        $t->same('asciidoc', $diagnostics[0]['writer'] ?? null);
+        $t->same('body', $diagnostics[0]['section'] ?? null);
+        $t->same(0, $diagnostics[0]['row'] ?? null);
+        $t->same(0, $diagnostics[0]['column'] ?? null);
+        $t->same([0], $diagnostics[0]['columns'] ?? null);
+        $t->same('nested-table', $diagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-table-passthrough', $diagnostics[0]['requiredFeature'] ?? null);
+        $t->same(1, $diagnostics[0]['nestedTableCount'] ?? null);
+        $t->same(['Nested source audit'], $diagnostics[0]['nestedTableCaptions'] ?? null);
+        $t->same([], $diagnostics[0]['nestedTableDiagnosticCodes'] ?? null);
+        $t->same([1], $diagnostics[0]['nestedTables'][0]['path'] ?? null);
+        $t->same('Nested source audit', $diagnostics[0]['nestedTables'][0]['caption'] ?? null);
+        $t->same(2, $diagnostics[0]['nestedTables'][0]['cellCount'] ?? null);
+        $t->same(false, array_key_exists('node', $diagnostics[0]['nestedTables'][0] ?? []));
+
+        $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($outerTable, 'adoc'));
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'asciidoc'));
+        $t->same($diagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same(1, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same(['asciidoc-nested-table-raw-html-required'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(1, $packet['summary']['nestedTableCount'] ?? null);
+        json_encode($diagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];

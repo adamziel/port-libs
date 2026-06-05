@@ -1789,6 +1789,30 @@ final class TableGeometry
     {
         $writer = self::normalizeWriterName($writer);
         if ($writer !== 'markdown') {
+            if ($writer === 'asciidoc') {
+                $diagnostics = [];
+                foreach ($coverage as $record) {
+                    $node = $record['node'] ?? null;
+                    if (!$node instanceof AstNode) {
+                        continue;
+                    }
+
+                    $nestedTables = self::nestedTableSummaries($node);
+                    if ($nestedTables === []) {
+                        continue;
+                    }
+
+                    $diagnostics[] = self::writerNestedTableRequirementRecord(
+                        'asciidoc-nested-table-raw-html-required',
+                        $writer,
+                        $record,
+                        $nestedTables
+                    );
+                }
+
+                return $diagnostics;
+            }
+
             if ($writer !== 'rst') {
                 return [];
             }
@@ -1846,6 +1870,10 @@ final class TableGeometry
             return 'rst';
         }
 
+        if (in_array($writer, ['adoc', 'asciidoc', 'asciidoc-legacy', 'asciidoctor'], true)) {
+            return 'asciidoc';
+        }
+
         return in_array($writer, ['markdown', 'markdown-pipe-table', 'pipe-table'], true) ? 'markdown' : $writer;
     }
 
@@ -1892,6 +1920,51 @@ final class TableGeometry
         $writerRecord['reason'] = $reason;
         $writerRecord['requiredFeature'] = $requiredFeature;
         $writerRecord['requiredSlots'] = $requiredSlots;
+
+        return $writerRecord;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<array<string, mixed>> $nestedTables
+     * @return array<string, mixed>
+     */
+    private static function writerNestedTableRequirementRecord(
+        string $code,
+        string $writer,
+        array $record,
+        array $nestedTables
+    ): array {
+        $writerRecord = self::writerDowngradeRecord($code, $writer, $record, []);
+        unset($writerRecord['flattenedSlots']);
+        $writerRecord['reason'] = 'nested-table';
+        $writerRecord['requiredFeature'] = 'raw-html-table-passthrough';
+        $writerRecord['nestedTableCount'] = count($nestedTables);
+        $writerRecord['nestedTables'] = $nestedTables;
+
+        $captions = [];
+        $diagnosticCodes = [];
+        foreach ($nestedTables as $nestedTable) {
+            $caption = trim((string) ($nestedTable['caption'] ?? ''));
+            if ($caption !== '') {
+                $captions[] = $caption;
+            }
+
+            $nestedCodes = $nestedTable['diagnosticCodes'] ?? [];
+            if (!is_array($nestedCodes)) {
+                continue;
+            }
+
+            foreach ($nestedCodes as $diagnosticCode) {
+                $diagnosticCode = trim((string) $diagnosticCode);
+                if ($diagnosticCode !== '') {
+                    $diagnosticCodes[] = $diagnosticCode;
+                }
+            }
+        }
+
+        $writerRecord['nestedTableCaptions'] = array_values(array_unique($captions));
+        $writerRecord['nestedTableDiagnosticCodes'] = array_values(array_unique($diagnosticCodes));
 
         return $writerRecord;
     }

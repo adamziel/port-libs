@@ -783,6 +783,26 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing nested table cell-count rollup');
     }
     json_encode($nestedPacket, JSON_THROW_ON_ERROR);
+    $asciidocNestedRequirements = TableGeometry::writerDowngradeDiagnostics($document->children[8], 'asciidoctor');
+    if (
+        array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocNestedRequirements) !== ['asciidoc-nested-table-raw-html-required']
+        || ($asciidocNestedRequirements[0]['requiredFeature'] ?? null) !== 'raw-html-table-passthrough'
+        || ($asciidocNestedRequirements[0]['nestedTableCaptions'] ?? null) !== ['Nested queue audit']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing AsciiDoc nested-table writer requirement diagnostics');
+    }
+    $asciidocNestedPacket = TableGeometry::reviewPacket($document->children[8], [
+        'idPrefix' => 'Nested Packet',
+        'writers' => ['markdown', 'asciidoc'],
+    ]);
+    if (
+        ($asciidocNestedPacket['summary']['writerDowngradeCount'] ?? null) !== 1
+        || ($asciidocNestedPacket['summary']['writerDowngradeCodes'] ?? null) !== ['asciidoc-nested-table-raw-html-required']
+        || ($asciidocNestedPacket['summary']['writerDowngradeWriters'] ?? null) !== ['asciidoc']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing AsciiDoc nested-table review-packet summary');
+    }
+    json_encode($asciidocNestedPacket, JSON_THROW_ON_ERROR);
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Nested table packet review</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing nested table packet WordPress output');
     }
