@@ -4595,6 +4595,101 @@ XML
 XML
         ));
     },
+    'applies bounded csl subsequent author substitute in bibliography handoff' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-post',
+                'type' => 'report',
+                'title' => 'Post Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'URL' => 'https://example.test/post-import',
+            ],
+            [
+                'id' => 'smith-media',
+                'type' => 'report',
+                'title' => 'Media Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/media-import',
+            ],
+            [
+                'id' => 'ng-2026',
+                'type' => 'report',
+                'title' => 'Ng Import Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ng-import',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Subsequent Author Review</title>
+    <id>https://example.test/styles/bounded-subsequent-author-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography subsequent-author-substitute="---" subsequent-author-substitute-rule="complete-all">
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <date variable="issued"><date-part name="year"/></date>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('---', $summary['bibliographyOptions']['subsequentAuthorSubstitute'] ?? null);
+        $t->same('complete-all', $summary['bibliographyOptions']['subsequentAuthorSubstituteRule'] ?? null);
+        $t->same('(Smith 2024; Smith 2025; Ng 2026)', $processor->renderCitationCluster([
+            $citation('smith-post', '[@smith-post]'),
+            $citation('smith-media', '[@smith-media]'),
+            $citation('ng-2026', '[@ng-2026]'),
+        ]));
+        $t->same('Smith, A. 2025. Media Import Packet. https://example.test/media-import.', $processor->renderBibliographyEntry('smith-media'));
+
+        $bibliography = $processor->bibliographyDefinitionList(['smith-post', 'smith-media', 'ng-2026']);
+        $t->same('Smith 2024', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('Smith 2025', $bibliography->children[1]->children[0]->attr('text'));
+        $t->same('Ng 2026', $bibliography->children[2]->children[0]->attr('text'));
+        $t->same('Smith, A. 2024. Post Import Packet. https://example.test/post-import.', $bibliography->children[0]->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('---. 2025. Media Import Packet. https://example.test/media-import.', $bibliography->children[1]->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.', $bibliography->children[2]->children[1]->children[0]->children[0]->attr('text'));
+
+        $document = (new MarkdownReader())->read('Review cites @smith-post and @smith-media before @ng-2026.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites Smith (2024) and Smith (2025) before Ng (2026).</p>', $blocks);
+        $t->contains('<dt>Smith 2024</dt><dd>Smith, A. 2024. Post Import Packet. https://example.test/post-import.</dd>', $blocks);
+        $t->contains('<dt>Smith 2025</dt><dd>---. 2025. Media Import Packet. https://example.test/media-import.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><text variable="title"/></layout></citation>
+  <bibliography subsequent-author-substitute="---" subsequent-author-substitute-rule="sideways">
+    <layout><text variable="title"/></layout>
+  </bibliography>
+</style>
+XML));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

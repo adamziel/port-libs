@@ -119,7 +119,7 @@ final class CslStyle
     /**
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
-     * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
+     * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string} $bibliographyOptions
      * @param array{disambiguateAddYearSuffix:bool, collapse:string} $citationOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
@@ -151,7 +151,7 @@ final class CslStyle
         return new self(
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
-            ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => '', 'subsequentAuthorSubstitute' => '', 'subsequentAuthorSubstituteRule' => 'complete-all'],
             ['disambiguateAddYearSuffix' => false, 'collapse' => ''],
             [],
             [],
@@ -250,7 +250,7 @@ final class CslStyle
                 : ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             $bibliography instanceof \DOMElement
                 ? self::parseBibliographyOptions($bibliography)
-                : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+                : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => '', 'subsequentAuthorSubstitute' => '', 'subsequentAuthorSubstituteRule' => 'complete-all'],
             self::parseCitationOptions($citation),
             self::sortKeys($citation, 'citation'),
             $bibliography instanceof \DOMElement ? self::sortKeys($bibliography, 'bibliography') : [],
@@ -296,7 +296,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}
+     * @return array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}
      */
     public function bibliographyOptions(): array
     {
@@ -398,7 +398,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -519,15 +519,25 @@ final class CslStyle
     }
 
     /**
-     * @return array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}
+     * @return array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}
      */
     private static function parseBibliographyOptions(\DOMElement $bibliography): array
     {
+        $substituteRule = trim($bibliography->getAttribute('subsequent-author-substitute-rule'));
+        if ($substituteRule === '') {
+            $substituteRule = 'complete-all';
+        }
+        if (!in_array($substituteRule, ['complete-all', 'complete-each', 'partial-each', 'partial-first'], true)) {
+            throw new \InvalidArgumentException('CSL bibliography attribute subsequent-author-substitute-rule must be complete-all, complete-each, partial-each, or partial-first');
+        }
+
         return [
             'hangingIndent' => self::booleanAttribute($bibliography, 'hanging-indent', false),
             'entrySpacing' => self::integerAttribute($bibliography, 'entry-spacing'),
             'lineSpacing' => self::integerAttribute($bibliography, 'line-spacing'),
             'secondFieldAlign' => trim($bibliography->getAttribute('second-field-align')),
+            'subsequentAuthorSubstitute' => $bibliography->hasAttribute('subsequent-author-substitute') ? $bibliography->getAttribute('subsequent-author-substitute') : '',
+            'subsequentAuthorSubstituteRule' => $substituteRule,
         ];
     }
 

@@ -127,7 +127,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -346,15 +346,15 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function renderBibliographyEntryForItem(array $item): string
+    private function renderBibliographyEntryForItem(array $item, ?array &$bibliographyState = null): string
     {
-        $customEntry = $this->renderCustomBibliographyEntry($item);
+        $customEntry = $this->renderCustomBibliographyEntry($item, $bibliographyState);
         if ($customEntry !== null) {
             return $customEntry;
         }
 
         $parts = [];
-        $authors = $this->bibliographyAuthors($item);
+        $authors = $this->bibliographyAuthors($item, $bibliographyState);
         if ($authors !== '') {
             $parts[] = rtrim($authors, '.') . '.';
         }
@@ -480,6 +480,7 @@ final class CitationCslProcessor
 
         $citationNumbers = $this->citationNumbersForIds($ids);
         $items = [];
+        $bibliographyState = $this->emptyBibliographySubstitutionState();
         foreach ($ids as $id) {
             $item = $this->itemsById[$id] ?? null;
             if ($item === null) {
@@ -489,7 +490,8 @@ final class CitationCslProcessor
             $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? '');
             $item = $this->itemWithCitationNumber($item, $citationNumbers[$this->canonicalCitationId($id)] ?? '');
             $label = $this->citationLabel($item);
-            $entry = $this->renderBibliographyEntryForItem($item);
+            $this->resetBibliographySubstitutionEntry($bibliographyState);
+            $entry = $this->renderBibliographyEntryForItem($item, $bibliographyState);
             $attrs = ['term' => $label, 'cslId' => $id];
             $displayParts = $this->bibliographyDisplayParts($item);
             if ($displayParts !== []) {
@@ -526,6 +528,55 @@ final class CitationCslProcessor
         }
 
         return new AstNode('definition_list', $attrs, $items);
+    }
+
+    /**
+     * @return array{previousRenderedNames:string, entrySubstitutionChecked:bool}
+     */
+    private function emptyBibliographySubstitutionState(): array
+    {
+        return [
+            'previousRenderedNames' => '',
+            'entrySubstitutionChecked' => false,
+        ];
+    }
+
+    /**
+     * @param array{previousRenderedNames:string, entrySubstitutionChecked:bool} $state
+     */
+    private function resetBibliographySubstitutionEntry(array &$state): void
+    {
+        $state['entrySubstitutionChecked'] = false;
+    }
+
+    /**
+     * @param array{previousRenderedNames:string, entrySubstitutionChecked:bool} $state
+     */
+    private function applyBibliographySubsequentAuthorSubstitute(string $renderedNames, array &$state): string
+    {
+        if ($renderedNames === '' || ($state['entrySubstitutionChecked'] ?? false) === true) {
+            return $renderedNames;
+        }
+
+        $state['entrySubstitutionChecked'] = true;
+        $previous = (string) ($state['previousRenderedNames'] ?? '');
+        $state['previousRenderedNames'] = $renderedNames;
+
+        $options = $this->style->bibliographyOptions();
+        $substitute = (string) ($options['subsequentAuthorSubstitute'] ?? '');
+        $rule = (string) ($options['subsequentAuthorSubstituteRule'] ?? 'complete-all');
+        if ($substitute === '' || $previous === '' || $rule !== 'complete-all') {
+            return $renderedNames;
+        }
+
+        return $this->normalizedRenderedNameKey($renderedNames) === $this->normalizedRenderedNameKey($previous)
+            ? $substitute
+            : $renderedNames;
+    }
+
+    private function normalizedRenderedNameKey(string $value): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
     }
 
     /**
@@ -2324,7 +2375,7 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function renderCustomBibliographyEntry(array $item): ?string
+    private function renderCustomBibliographyEntry(array $item, ?array &$bibliographyState = null): ?string
     {
         $elements = $this->style->bibliographyRenderingElements();
         if (!$this->hasNonNameRenderingElement($elements)) {
@@ -2332,7 +2383,7 @@ final class CitationCslProcessor
         }
 
         return $this->style->formatBibliographyEntry(
-            $this->renderRenderingElements($elements, $item, 'bibliography', $this->style->bibliographyDelimiter())
+            $this->renderRenderingElements($elements, $item, 'bibliography', $this->style->bibliographyDelimiter(), null, $bibliographyState)
         );
     }
 
@@ -2559,7 +2610,7 @@ final class CitationCslProcessor
     /**
      * @param array<string, mixed> $item
      */
-    private function bibliographyAuthors(array $item): string
+    private function bibliographyAuthors(array $item, ?array &$bibliographyState = null): string
     {
         $names = $item['authors'];
         if ($names === []) {
@@ -2570,7 +2621,12 @@ final class CitationCslProcessor
             return '';
         }
 
-        return $this->renderNameList($names, $this->style->bibliographyNameRendering(), true);
+        $rendered = $this->renderNameList($names, $this->style->bibliographyNameRendering(), true);
+        if (is_array($bibliographyState)) {
+            return $this->applyBibliographySubsequentAuthorSubstitute($rendered, $bibliographyState);
+        }
+
+        return $rendered;
     }
 
     /**
@@ -3016,7 +3072,7 @@ final class CitationCslProcessor
      * @param list<array<string, mixed>> $elements
      * @param array<string, mixed> $item
      */
-    private function renderRenderingElements(array $elements, array $item, string $scope, string $delimiter, ?AstNode $citation = null): string
+    private function renderRenderingElements(array $elements, array $item, string $scope, string $delimiter, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         $rendered = [];
         foreach ($elements as $element) {
@@ -3024,7 +3080,7 @@ final class CitationCslProcessor
                 continue;
             }
 
-            $value = $this->renderRenderingElement($element, $item, $scope, [], $citation);
+            $value = $this->renderRenderingElement($element, $item, $scope, [], $citation, $bibliographyState);
             if ($value !== '') {
                 $rendered[] = $value;
             }
@@ -3067,17 +3123,17 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null): string
+    private function renderRenderingElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         $type = (string) ($element['type'] ?? '');
         $value = match ($type) {
-            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack, $citation),
-            'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation),
+            'group' => $this->renderGroupElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
+            'text' => $this->renderTextElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
             'date' => $this->renderDateElement($element, $item, $scope),
             'number' => $this->renderNumberElement($element, $item, $scope, $citation),
-            'names' => $this->renderNamesElement($element, $item, $scope),
+            'names' => $this->renderNamesElement($element, $item, $scope, $bibliographyState),
             'label' => $this->renderLabelElement($element, $item, $scope, $citation),
-            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation),
+            'choose' => $this->renderChooseElement($element, $item, $scope, $macroStack, $citation, $bibliographyState),
             default => '',
         };
 
@@ -3092,7 +3148,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null): string
+    private function renderGroupElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         $children = $element['children'] ?? [];
         if (!is_array($children)) {
@@ -3109,7 +3165,7 @@ final class CitationCslProcessor
 
             $isVariableChild = $this->isVariableRenderingElement($child);
             $hasVariableChild = $hasVariableChild || $isVariableChild;
-            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack, $citation);
+            $value = $this->renderRenderingElement($child, $item, $scope, $macroStack, $citation, $bibliographyState);
             if ($value === '') {
                 continue;
             }
@@ -3225,10 +3281,10 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null): string
+    private function renderTextElement(array $element, array $item, string $scope, array $macroStack = [], ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         if (array_key_exists('macro', $element)) {
-            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack, $citation);
+            return $this->renderMacroReference((string) $element['macro'], $item, $scope, $macroStack, $citation, $bibliographyState);
         }
 
         if (array_key_exists('variable', $element)) {
@@ -3250,7 +3306,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
      */
-    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack, ?AstNode $citation = null): string
+    private function renderMacroReference(string $name, array $item, string $scope, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         $elements = $this->style->macroRenderingElements($name);
         if ($elements === null) {
@@ -3261,7 +3317,7 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('CSL macro recursion detected: ' . implode(' -> ', [...$macroStack, $name]));
         }
 
-        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name], $citation);
+        return $this->renderRenderingElementsWithMacroStack($elements, $item, $scope, '', [...$macroStack, $name], $citation, $bibliographyState);
     }
 
     /**
@@ -3269,7 +3325,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
      */
-    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack, ?AstNode $citation = null): string
+    private function renderRenderingElementsWithMacroStack(array $elements, array $item, string $scope, string $delimiter, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         $rendered = [];
         foreach ($elements as $element) {
@@ -3277,7 +3333,7 @@ final class CitationCslProcessor
                 continue;
             }
 
-            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack, $citation);
+            $value = $this->renderRenderingElement($element, $item, $scope, $macroStack, $citation, $bibliographyState);
             if ($value !== '') {
                 $rendered[] = $value;
             }
@@ -3291,7 +3347,7 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @param list<string> $macroStack
      */
-    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack, ?AstNode $citation = null): string
+    private function renderChooseElement(array $element, array $item, string $scope, array $macroStack, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
         foreach (($element['branches'] ?? []) as $branch) {
             if (!is_array($branch) || !$this->chooseBranchMatches($branch, $item, $scope, $citation)) {
@@ -3301,14 +3357,14 @@ final class CitationCslProcessor
             $children = $branch['children'] ?? [];
 
             return is_array($children)
-                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack, $citation)
+                ? $this->renderRenderingElementsWithMacroStack($children, $item, $scope, '', $macroStack, $citation, $bibliographyState)
                 : '';
         }
 
         $else = $element['else'] ?? [];
 
         return is_array($else)
-            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack, $citation)
+            ? $this->renderRenderingElementsWithMacroStack($else, $item, $scope, '', $macroStack, $citation, $bibliographyState)
             : '';
     }
 
@@ -3415,16 +3471,16 @@ final class CitationCslProcessor
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderNamesElement(array $element, array $item, string $scope): string
+    private function renderNamesElement(array $element, array $item, string $scope, ?array &$bibliographyState = null): string
     {
-        return $this->renderNamesElementValue($element, $item, $scope, true);
+        return $this->renderNamesElementValue($element, $item, $scope, true, $bibliographyState);
     }
 
     /**
      * @param array<string, mixed> $element
      * @param array<string, mixed> $item
      */
-    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback): string
+    private function renderNamesElementValue(array $element, array $item, string $scope, bool $allowImplicitTitleFallback, ?array &$bibliographyState = null): string
     {
         $variable = (string) ($element['variable'] ?? 'author editor');
         $names = $this->namesForRenderingVariable($item, $variable);
@@ -3437,8 +3493,8 @@ final class CitationCslProcessor
                     }
 
                     $value = ((string) ($substituteElement['type'] ?? '')) === 'names'
-                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false)
-                        : $this->renderRenderingElement($substituteElement, $item, $scope);
+                        ? $this->renderNamesElementValue($substituteElement, $item, $scope, false, $bibliographyState)
+                        : $this->renderRenderingElement($substituteElement, $item, $scope, [], null, $bibliographyState);
                     if ($value !== '') {
                         return $value;
                     }
@@ -3459,11 +3515,17 @@ final class CitationCslProcessor
             ? $this->normalizedNameRenderingOptions($elementOptions, $scope)
             : ($scope === 'bibliography' ? $this->style->bibliographyNameRendering() : $this->style->citationNameRendering());
 
-        return $this->renderNameList(
+        $rendered = $this->renderNameList(
             $names,
             $options,
             $scope === 'bibliography'
         );
+
+        if ($scope === 'bibliography' && is_array($bibliographyState)) {
+            return $this->applyBibliographySubsequentAuthorSubstitute($rendered, $bibliographyState);
+        }
+
+        return $rendered;
     }
 
     private function namesVariableAllowsTitleFallback(string $variable): bool
