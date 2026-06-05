@@ -851,6 +851,10 @@ final class TableGeometry
             unset($record['node']);
             if ($node instanceof AstNode) {
                 $record['text'] = self::plainText($node);
+                $nestedTables = self::nestedTableSummaries($node);
+                if ($nestedTables !== []) {
+                    $record['nestedTables'] = $nestedTables;
+                }
             }
 
             $records[] = $record;
@@ -890,6 +894,8 @@ final class TableGeometry
 
         $headerCellCount = 0;
         $hasSpans = false;
+        $nestedTableCellCount = 0;
+        $nestedTableCount = 0;
         foreach ($coverage as $record) {
             if (($record['headerCell'] ?? false) === true) {
                 $headerCellCount++;
@@ -897,6 +903,12 @@ final class TableGeometry
 
             if ((int) ($record['rawColspan'] ?? 1) > 1 || (int) ($record['rawRowspan'] ?? 1) > 1) {
                 $hasSpans = true;
+            }
+
+            $nestedTables = $record['nestedTables'] ?? [];
+            if (is_array($nestedTables) && $nestedTables !== []) {
+                $nestedTableCellCount++;
+                $nestedTableCount += count($nestedTables);
             }
         }
 
@@ -918,7 +930,73 @@ final class TableGeometry
             'diagnosticCount' => count($diagnostics),
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
             'hasSpans' => $hasSpans,
+            'nestedTableCount' => $nestedTableCount,
+            'nestedTableCellCount' => $nestedTableCellCount,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function nestedTableSummaries(AstNode $node): array
+    {
+        $summaries = [];
+        foreach ($node->children as $index => $child) {
+            self::collectNestedTableSummaries($child, [(int) $index], $summaries);
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<int> $path
+     * @param list<array<string, mixed>> $summaries
+     */
+    private static function collectNestedTableSummaries(AstNode $node, array $path, array &$summaries): void
+    {
+        if ($node->type === 'table') {
+            $packet = $node->attr('tableGeometry', null);
+            if (!is_array($packet)) {
+                $packet = self::reviewPacket($node, ['accessibility' => false]);
+            }
+
+            $summary = $packet['summary'] ?? [];
+            if (!is_array($summary)) {
+                $summary = [];
+            }
+            $diagnosticCodes = $summary['diagnosticCodes'] ?? [];
+            if (!is_array($diagnosticCodes)) {
+                $diagnosticCodes = [];
+            }
+            $nestedTableCount = (int) ($summary['nestedTableCount'] ?? 0);
+
+            $summaries[] = [
+                'path' => array_values($path),
+                'caption' => (string) ($packet['caption'] ?? ''),
+                'columnCount' => (int) ($packet['columnCount'] ?? self::columnCount($node)),
+                'declaredColumnCount' => (int) ($packet['declaredColumnCount'] ?? self::declaredColumnCount($node)),
+                'sectionCount' => (int) ($summary['sectionCount'] ?? 0),
+                'rowCount' => (int) ($summary['rowCount'] ?? 0),
+                'cellCount' => (int) ($summary['cellCount'] ?? 0),
+                'headerCellCount' => (int) ($summary['headerCellCount'] ?? 0),
+                'coveredSlotCount' => (int) ($summary['coveredSlotCount'] ?? 0),
+                'missingSlotCount' => (int) ($summary['missingSlotCount'] ?? 0),
+                'diagnosticCount' => (int) ($summary['diagnosticCount'] ?? 0),
+                'diagnosticCodes' => array_values(array_map(
+                    static fn (mixed $code): string => (string) $code,
+                    $diagnosticCodes
+                )),
+                'hasSpans' => (bool) ($summary['hasSpans'] ?? false),
+                'nestedTableCount' => $nestedTableCount,
+                'hasNestedTables' => $nestedTableCount > 0,
+            ];
+        }
+
+        foreach ($node->children as $index => $child) {
+            $childPath = $path;
+            $childPath[] = (int) $index;
+            self::collectNestedTableSummaries($child, $childPath, $summaries);
+        }
     }
 
     private static function plainText(AstNode $node): string

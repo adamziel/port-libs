@@ -914,4 +914,85 @@ return [
         $t->same('missing', $overflowPacket['sections'][0]['rows'][0]['slots'][2]['kind']);
         $t->same(false, array_key_exists('node', $overflowPacket['sections'][1]['rows'][2]['slots'][0]));
     },
+    'rolls up nested table geometry in serializable coverage packets' => static function (TestRunner $t): void {
+        $deepTable = new AstNode('table', [
+            'caption' => 'Deep audit',
+            'alignments' => ['left', 'right'],
+            'widths' => [0.5, 0.5],
+        ], [
+            new AstNode('table_head'),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Inner posts'], [new AstNode('text', ['text' => 'Inner posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                ]),
+            ]),
+        ]);
+        $middleTable = new AstNode('table', [
+            'caption' => 'Nested queue audit',
+            'alignments' => ['left', 'right'],
+            'widths' => [0.5, 0.5],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Nested scope', 'header' => true], [new AstNode('text', ['text' => 'Nested scope'])]),
+                    new AstNode('table_cell', ['text' => 'Nested state', 'header' => true], [new AstNode('text', ['text' => 'Nested state'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Media'], [new AstNode('text', ['text' => 'Media'])]),
+                    new AstNode('table_cell', ['text' => 'Nested detail'], [$deepTable]),
+                ]),
+            ]),
+        ]);
+        $outerTable = new AstNode('table', [
+            'caption' => 'Nested importer audit',
+            'alignments' => ['left', 'right'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope', 'header' => true], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'State', 'header' => true], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Review packet'], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Review packet'])]),
+                        $middleTable,
+                    ]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $packet = TableGeometry::reviewPacket($outerTable, ['idPrefix' => 'Nested Import']);
+        $outerCell = $packet['coverage'][2];
+        $readyCell = $packet['coverage'][3];
+
+        $t->same(2, $packet['summary']['nestedTableCount']);
+        $t->same(1, $packet['summary']['nestedTableCellCount']);
+        $t->same('Review packetNested scopeNested stateMediaInner posts42', $outerCell['text']);
+        $t->same(true, isset($outerCell['nestedTables']));
+        $t->same(2, count($outerCell['nestedTables'] ?? []));
+        $t->same(false, array_key_exists('nestedTables', $readyCell));
+
+        $nested = $outerCell['nestedTables'][0] ?? [];
+        $deep = $outerCell['nestedTables'][1] ?? [];
+        $t->same([1], $nested['path'] ?? null);
+        $t->same('Nested queue audit', $nested['caption'] ?? null);
+        $t->same(2, $nested['columnCount'] ?? null);
+        $t->same(2, $nested['rowCount'] ?? null);
+        $t->same(4, $nested['cellCount'] ?? null);
+        $t->same(2, $nested['headerCellCount'] ?? null);
+        $t->same(1, $nested['nestedTableCount'] ?? null);
+        $t->same(true, $nested['hasNestedTables'] ?? null);
+        $t->same('Deep audit', $deep['caption'] ?? null);
+        $t->same(2, $deep['cellCount'] ?? null);
+        $t->same(0, $deep['nestedTableCount'] ?? null);
+        $t->same(false, $deep['hasNestedTables'] ?? null);
+        $t->same(false, array_key_exists('node', $outerCell));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];

@@ -264,6 +264,38 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Nested table packet review',
+        'alignments' => ['left', 'right'],
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Packet', 'header' => true], [new AstNode('text', ['text' => 'Packet'])]),
+                new AstNode('table_cell', ['text' => 'State', 'header' => true], [new AstNode('text', ['text' => 'State'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'Nested review packet'], [
+                    new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Nested review packet'])]),
+                    new AstNode('table', [
+                        'caption' => 'Nested queue audit',
+                        'alignments' => ['left', 'right'],
+                        'widths' => [0.5, 0.5],
+                    ], [
+                        new AstNode('table_head'),
+                        new AstNode('table_body', [], [
+                            new AstNode('table_row', [], [
+                                new AstNode('table_cell', ['text' => 'Inner posts'], [new AstNode('text', ['text' => 'Inner posts'])]),
+                                new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                            ]),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+            ]),
+        ]),
+    ]),
     ...$readerHandoffTables,
 ]);
 
@@ -441,6 +473,21 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>')) {
         throw new RuntimeException('Table geometry self-test missing source scoped second-row headers output');
+    }
+
+    $nestedPacket = TableGeometry::reviewPacket($document->children[8], ['idPrefix' => 'Nested Packet']);
+    if (($nestedPacket['summary']['nestedTableCount'] ?? null) !== 1 || ($nestedPacket['summary']['nestedTableCellCount'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing nested table summary counts');
+    }
+    if (($nestedPacket['coverage'][2]['nestedTables'][0]['caption'] ?? null) !== 'Nested queue audit') {
+        throw new RuntimeException('Table geometry self-test missing nested table caption rollup');
+    }
+    if (($nestedPacket['coverage'][2]['nestedTables'][0]['cellCount'] ?? null) !== 2) {
+        throw new RuntimeException('Table geometry self-test missing nested table cell-count rollup');
+    }
+    json_encode($nestedPacket, JSON_THROW_ON_ERROR);
+    if (!str_contains($blocks, '<figcaption class="wp-element-caption">Nested table packet review</figcaption>')) {
+        throw new RuntimeException('Table geometry self-test missing nested table packet WordPress output');
     }
 
     $readerTable = null;

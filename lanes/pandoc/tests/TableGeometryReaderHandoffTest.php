@@ -160,4 +160,52 @@ LATEX)->children);
         $t->same(13, $docbookGeometry['summary']['coveredSlotCount'] ?? null);
         $t->same([], $docbookGeometry['summary']['diagnosticCodes'] ?? null);
     },
+    'rolls nested html table reader geometry into parent coverage packets' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<!doctype html>
+<html>
+<body>
+<table>
+ <tr>
+  <td>
+    <table>
+      <tr>
+        <td>a1</td>
+        <td>
+          <table><tr><td>1</td><td>2</td></tr></table>
+        </td>
+      </tr>
+    </table>
+  </td>
+  <td>b</td>
+ </tr>
+ <tr>
+   <td>c</td><td>d</td>
+ </tr>
+</table>
+</body>
+</html>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(2, $packet['summary']['nestedTableCount'] ?? null);
+        $t->same(1, $packet['summary']['nestedTableCellCount'] ?? null);
+        $t->same('a112', $packet['coverage'][0]['text'] ?? null);
+        $t->same(2, count($packet['coverage'][0]['nestedTables'] ?? []));
+        $t->same('', $packet['coverage'][0]['nestedTables'][0]['caption'] ?? null);
+        $t->same(2, $packet['coverage'][0]['nestedTables'][0]['columnCount'] ?? null);
+        $t->same(2, $packet['coverage'][0]['nestedTables'][0]['cellCount'] ?? null);
+        $t->same(1, $packet['coverage'][0]['nestedTables'][0]['nestedTableCount'] ?? null);
+        $t->same(2, $packet['coverage'][0]['nestedTables'][1]['cellCount'] ?? null);
+        $t->same(0, $packet['coverage'][0]['nestedTables'][1]['nestedTableCount'] ?? null);
+        $t->contains('<td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>a1</td><td><table><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr><td>1</td><td>2</td></tr></tbody></table></td></tr></tbody></table></td><td>b</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];
