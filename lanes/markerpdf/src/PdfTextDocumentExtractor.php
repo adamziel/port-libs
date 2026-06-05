@@ -40,7 +40,8 @@ final class PdfTextDocumentExtractor
         array $toc = [],
         bool $flattenPdf = false,
         ?int $workers = null,
-        bool $sort = false
+        bool $sort = false,
+        bool $keepChars = false
     ): array {
         $totalPages = count($pdftextPages);
         $startPage ??= 0;
@@ -68,7 +69,7 @@ final class PdfTextDocumentExtractor
             if (!is_array($page)) {
                 throw new InvalidArgumentException('Supplied pdftext page entries must be arrays.');
             }
-            $page = $this->sanitizeDictionaryOutputPage($page);
+            $page = $this->sanitizeDictionaryOutputPage($page, $keepChars);
             if ($sort) {
                 $page['blocks'] = $this->sortDictionaryOutputBlocks($page['blocks'] ?? null);
             }
@@ -87,7 +88,7 @@ final class PdfTextDocumentExtractor
                 'max_pages' => $pageCount,
                 'pdftext_options' => array_filter([
                     'page_range' => $pageRange,
-                    'keep_chars' => false,
+                    'keep_chars' => $keepChars,
                     'flatten_pdf' => $flattenPdf,
                     'workers' => $workers,
                     'sort' => $sort ? true : null,
@@ -128,7 +129,8 @@ final class PdfTextDocumentExtractor
         ?int $workers = null,
         bool $sort = false,
         float $batchMultiplier = 1.0,
-        ?LayoutOrderer $orderer = null
+        ?LayoutOrderer $orderer = null,
+        bool $keepChars = false
     ): array {
         $document = $this->getTextBlocks(
             $pdftextPages,
@@ -137,7 +139,8 @@ final class PdfTextDocumentExtractor
             toc: $toc,
             flattenPdf: $flattenPdf,
             workers: $workers,
-            sort: $sort
+            sort: $sort,
+            keepChars: $keepChars
         );
         $orderer ??= new LayoutOrderer();
         $selectedPageNumbers = $this->artifactSelector->pageNumbersFromPages($document['pages']);
@@ -199,7 +202,7 @@ final class PdfTextDocumentExtractor
      * @param array<string, mixed> $page
      * @return array<string, mixed>
      */
-    private function sanitizeDictionaryOutputPage(array $page): array
+    private function sanitizeDictionaryOutputPage(array $page, bool $keepChars = false): array
     {
         $bboxScale = $this->dictionaryOutputBboxScale($page);
 
@@ -219,7 +222,7 @@ final class PdfTextDocumentExtractor
                 $sanitizedBlock['bbox'] = $this->unnormalizeDictionaryOutputBbox($block['bbox'], $bboxScale);
             }
             if (array_key_exists('lines', $block)) {
-                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines'], $bboxScale);
+                $sanitizedBlock['lines'] = $this->sanitizeDictionaryOutputLines($block['lines'], $bboxScale, $keepChars);
             }
             $blocks[] = $sanitizedBlock;
         }
@@ -232,7 +235,7 @@ final class PdfTextDocumentExtractor
      * @param mixed $lines
      * @return mixed
      */
-    private function sanitizeDictionaryOutputLines(mixed $lines, ?array $bboxScale = null): mixed
+    private function sanitizeDictionaryOutputLines(mixed $lines, ?array $bboxScale = null, bool $keepChars = false): mixed
     {
         if (!is_array($lines) || !array_is_list($lines)) {
             return $lines;
@@ -250,7 +253,7 @@ final class PdfTextDocumentExtractor
                 $sanitizedLine['bbox'] = $this->unnormalizeDictionaryOutputBbox($line['bbox'], $bboxScale);
             }
             if (array_key_exists('spans', $line)) {
-                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans'], $bboxScale);
+                $sanitizedLine['spans'] = $this->sanitizeDictionaryOutputSpans($line['spans'], $bboxScale, $keepChars);
             }
             $sanitizedLines[] = $sanitizedLine;
         }
@@ -262,7 +265,7 @@ final class PdfTextDocumentExtractor
      * @param mixed $spans
      * @return mixed
      */
-    private function sanitizeDictionaryOutputSpans(mixed $spans, ?array $bboxScale = null): mixed
+    private function sanitizeDictionaryOutputSpans(mixed $spans, ?array $bboxScale = null, bool $keepChars = false): mixed
     {
         if (!is_array($spans) || !array_is_list($spans)) {
             return $spans;
@@ -283,12 +286,49 @@ final class PdfTextDocumentExtractor
                 if (array_key_exists('text', $span) && is_string($span['text'])) {
                     $sanitizedSpan['text'] = $this->normalizeDictionaryOutputText($span['text']);
                 }
+                if ($keepChars && array_key_exists('chars', $span)) {
+                    $sanitizedSpan['chars'] = $this->sanitizeDictionaryOutputChars($span['chars'], $bboxScale);
+                }
                 $span = $sanitizedSpan;
             }
             $sanitizedSpans[] = $span;
         }
 
         return $sanitizedSpans;
+    }
+
+    /**
+     * @param mixed $chars
+     * @param array{width: float, height: float}|null $bboxScale
+     * @return list<array<string, mixed>>
+     */
+    private function sanitizeDictionaryOutputChars(mixed $chars, ?array $bboxScale = null): array
+    {
+        if (!is_array($chars) || !array_is_list($chars)) {
+            throw new InvalidArgumentException('pdftext span chars must be a list when keep_chars=true.');
+        }
+
+        $sanitizedChars = [];
+        foreach ($chars as $index => $char) {
+            if (!is_array($char)) {
+                throw new InvalidArgumentException("pdftext char {$index} must be a dictionary when keep_chars=true.");
+            }
+
+            $sanitizedChar = [];
+            foreach (['char', 'c', 'bbox', 'rotation', 'font', 'char_idx'] as $key) {
+                if (array_key_exists($key, $char)) {
+                    $sanitizedChar[$key] = $char[$key];
+                }
+            }
+
+            if (array_key_exists('bbox', $sanitizedChar)) {
+                $sanitizedChar['bbox'] = $this->unnormalizeDictionaryOutputBbox($sanitizedChar['bbox'], $bboxScale);
+            }
+
+            $sanitizedChars[] = $sanitizedChar;
+        }
+
+        return $sanitizedChars;
     }
 
     /**

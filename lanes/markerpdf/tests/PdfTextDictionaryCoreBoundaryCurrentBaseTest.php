@@ -49,6 +49,51 @@ $pdftextLinkedPage = static function (): array {
     ];
 };
 
+$pdftextCharsPage = static function (): array {
+    $font = ['name' => 'Helvetica', 'flags' => 0, 'weight' => 400, 'size' => 11.0];
+
+    return [
+        'page' => 19,
+        'bbox' => [0.0, 0.0, 600.0, 800.0],
+        'width' => 600.0,
+        'height' => 800.0,
+        'rotation' => 0,
+        'blocks' => [[
+            'bbox' => [0.10, 0.10, 0.30, 0.13],
+            'lines' => [[
+                'bbox' => [0.10, 0.10, 0.30, 0.13],
+                'spans' => [[
+                    'text' => "Kept\u{FB01} chars\n",
+                    'bbox' => [0.10, 0.10, 0.30, 0.13],
+                    'font' => $font,
+                    'rotation' => 0,
+                    'char_start_idx' => 7,
+                    'char_end_idx' => 8,
+                    'chars' => [
+                        [
+                            'char' => 'K',
+                            'bbox' => [0.10, 0.10, 0.11, 0.13],
+                            'rotation' => 0,
+                            'font' => $font,
+                            'char_idx' => 7,
+                            'raw_pdf_bytes' => 'should not cross dictionary_output',
+                        ],
+                        [
+                            'char' => 'e',
+                            'bbox' => [0.11, 0.10, 0.12, 0.13],
+                            'rotation' => 0,
+                            'font' => $font,
+                            'char_idx' => 8,
+                            'debug_payload' => ['stream' => 'hidden'],
+                        ],
+                    ],
+                    'raw_image_bytes' => 'not visible',
+                ]],
+            ]],
+        ]],
+    ];
+};
+
 return [
     'preserves pdftext dictionary links and refs at the core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
@@ -83,5 +128,24 @@ return [
         $page['blocks'][0]['lines'][0]['spans'][1]['url'] = ['https://example.com/not-a-string'];
 
         $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1));
+    },
+    'preserves sanitized pdftext character dictionaries when keep chars is requested' => static function (TestRunner $t) use ($pdftextCharsPage): void {
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextCharsPage()], maxPages: 1, keepChars: true);
+        $span = $document['pages'][0]['blocks'][0]['lines'][0]['spans'][0];
+        $charSpan = $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0];
+        $encoded = json_encode($document, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(true, $document['metadata']['pdftext_options']['keep_chars']);
+        $t->same('Keptfi chars', $span['text']);
+        $t->same("Keptfi chars\n", $charSpan['text']);
+        $t->same([60.0, 80.0, 180.0, 104.0], $span['bbox']);
+        $t->same([60.0, 80.0, 66.0, 104.0], $span['chars'][0]['bbox']);
+        $t->same([66.0, 80.0, 72.0, 104.0], $charSpan['chars'][1]['bbox']);
+        $t->same(['char', 'bbox', 'rotation', 'font', 'char_idx'], array_keys($span['chars'][0]));
+        $t->same('K', $charSpan['chars'][0]['char']);
+        $t->same(8, $charSpan['chars'][1]['char_idx']);
+        $t->true(!str_contains($encoded, 'raw_pdf_bytes'), 'pdftext keep_chars=true should still drop arbitrary character payload keys.');
+        $t->true(!str_contains($encoded, 'debug_payload'), 'pdftext keep_chars=true should still drop arbitrary character debug payloads.');
+        $t->true(!str_contains($encoded, 'raw_image_bytes'), 'Arbitrary span payload bytes must not cross the dictionary core boundary.');
     },
 ];
