@@ -29,13 +29,21 @@ final class OpcRelationshipGraph
 
     /**
      * @param array<string, OpcRelationships> $relationshipsBySource
+     * @param array<string, string> $packagePartNamesByEquivalenceKey
      */
     private function __construct(
         private readonly ZipPackage $package,
         private readonly OpcContentTypes $contentTypes,
         private readonly array $relationshipsBySource,
+        private readonly array $packagePartNamesByEquivalenceKey,
     ) {
+        foreach (array_keys($relationshipsBySource) as $sourcePartName) {
+            $this->relationshipSourceNamesByEquivalenceKey[self::partNameEquivalenceKey($sourcePartName)] = $sourcePartName;
+        }
     }
+
+    /** @var array<string, string> */
+    private array $relationshipSourceNamesByEquivalenceKey = [];
 
     public static function fromPackage(ZipPackage $package): self
     {
@@ -82,7 +90,12 @@ final class OpcRelationshipGraph
             );
         }
 
-        return new self($package, $contentTypes, $relationshipsBySource);
+        return new self(
+            $package,
+            $contentTypes,
+            $relationshipsBySource,
+            self::packagePartNamesByEquivalenceKey($package),
+        );
     }
 
     /**
@@ -141,6 +154,7 @@ final class OpcRelationshipGraph
         }
 
         $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        $packagePartNamesByEquivalenceKey = self::packagePartNamesByEquivalenceKey($package);
         $preflight = [];
         $sourceIndexes = [];
         foreach ($package->names() as $name) {
@@ -162,7 +176,8 @@ final class OpcRelationshipGraph
                 $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
                 $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
                     && self::isRelationshipPartName($relationshipSource);
-                $sourceExists = $relationshipSource === '/' || $package->has($relationshipSource);
+                $sourceExists = $relationshipSource === '/'
+                    || isset($packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($relationshipSource)]);
             } catch (\InvalidArgumentException $exception) {
                 $issues[] = 'invalid-relationship-part-name';
                 $parseError = $exception->getMessage();
@@ -254,17 +269,17 @@ final class OpcRelationshipGraph
 
     public function hasRelationshipsForSource(string $sourcePartName = '/'): bool
     {
-        return isset($this->relationshipsBySource[OpcPackagePath::canonicalPartName($sourcePartName, true)]);
+        return isset($this->relationshipsBySource[$this->relationshipSourceNameForEquivalent($sourcePartName)]);
     }
 
     public function relationshipsForSource(string $sourcePartName = '/'): ?OpcRelationships
     {
-        return $this->relationshipsBySource[OpcPackagePath::canonicalPartName($sourcePartName, true)] ?? null;
+        return $this->relationshipsBySource[$this->relationshipSourceNameForEquivalent($sourcePartName)] ?? null;
     }
 
     public function requireRelationshipsForSource(string $sourcePartName = '/'): OpcRelationships
     {
-        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
         $relationships = $this->relationshipsBySource[$sourcePartName] ?? null;
         if (!$relationships instanceof OpcRelationships) {
             throw new \RuntimeException('OPC relationship part not found: ' . OpcRelationships::relationshipPartNameForSource($sourcePartName));
@@ -296,7 +311,12 @@ final class OpcRelationshipGraph
             return null;
         }
 
-        return $relationships->resolveTarget($relationship);
+        $target = $relationships->resolveTarget($relationship);
+        if ($relationship->isExternal()) {
+            return $target;
+        }
+
+        return $this->packageEquivalentTarget($target);
     }
 
     /**
@@ -316,6 +336,9 @@ final class OpcRelationshipGraph
         $summary = [];
         foreach ($items as $relationship) {
             $target = $relationships->resolveTarget($relationship);
+            if (!$relationship->isExternal()) {
+                $target = $this->packageEquivalentTarget($target);
+            }
             $summary[] = [
                 'id' => $relationship->id,
                 'type' => $relationship->type,
@@ -333,7 +356,7 @@ final class OpcRelationshipGraph
      */
     public function preflightTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
-        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
         $relationships = $this->relationshipsForSource($sourcePartName);
         if (!$relationships instanceof OpcRelationships) {
             return [];
@@ -403,7 +426,9 @@ final class OpcRelationshipGraph
             }
 
             $targetPartName = OpcPackagePath::stripQueryAndFragment($target);
-            $exists = $this->package->has($targetPartName);
+            $target = $this->packageEquivalentTarget($target);
+            $targetPartName = OpcPackagePath::stripQueryAndFragment($target);
+            $exists = $this->packagePartNameForEquivalent($targetPartName) !== null;
             $contentType = $this->contentTypes->contentTypeForPart($targetPartName);
             $relationshipPartTarget = self::isRelationshipPartName($targetPartName);
             $issues = $typePreflight['issues'];
@@ -474,8 +499,9 @@ final class OpcRelationshipGraph
                 $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
                 $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
                     && OpcRelationships::isRelationshipPartName($relationshipSource);
-                $sourceExists = $relationshipSource === '/' || $this->package->has($relationshipSource);
-                $relationshipSourceLoaded = isset($this->relationshipsBySource[$relationshipSource]);
+                $sourceExists = $relationshipSource === '/'
+                    || $this->packagePartNameForEquivalent($relationshipSource) !== null;
+                $relationshipSourceLoaded = $this->hasRelationshipsForSource($relationshipSource);
 
                 if ($contentType !== null && $contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
                     $issues[] = 'invalid-relationship-content-type';
@@ -513,7 +539,7 @@ final class OpcRelationshipGraph
     {
         $preflight = [];
         foreach ($this->contentTypes->overrides() as $partName => $contentType) {
-            $exists = $this->package->has($partName);
+            $exists = $this->packagePartNameForEquivalent($partName) !== null;
             $relationshipPart = self::isRelationshipPartName($partName);
             $relationshipSource = null;
             $relationshipSourceIsRelationshipPart = null;
@@ -529,8 +555,9 @@ final class OpcRelationshipGraph
                 $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
                 $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
                     && OpcRelationships::isRelationshipPartName($relationshipSource);
-                $sourceExists = $relationshipSource === '/' || $this->package->has($relationshipSource);
-                $relationshipSourceLoaded = isset($this->relationshipsBySource[$relationshipSource]);
+                $sourceExists = $relationshipSource === '/'
+                    || $this->packagePartNameForEquivalent($relationshipSource) !== null;
+                $relationshipSourceLoaded = $this->hasRelationshipsForSource($relationshipSource);
 
                 if ($contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
                     $issues[] = 'invalid-relationship-content-type';
@@ -936,7 +963,7 @@ final class OpcRelationshipGraph
      */
     public function preflightRelationshipSelector(string $sourcePartName = '/', array $sourceIds = [], array $sourceTypes = []): array
     {
-        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
         $sourceIds = self::normalizeSelectorValues($sourceIds, 'OPC relationship selector SourceId');
         $sourceTypes = self::normalizeSelectorValues($sourceTypes, 'OPC relationship selector SourceType');
 
@@ -1037,7 +1064,7 @@ final class OpcRelationshipGraph
      */
     public function materializeRelationshipTransform(string $sourcePartName = '/', array $sourceIds = [], array $sourceTypes = []): array
     {
-        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+        $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
         $selector = $this->preflightRelationshipSelector($sourcePartName, $sourceIds, $sourceTypes);
         $relationships = $this->relationshipsBySource[$sourcePartName] ?? null;
 
@@ -1250,6 +1277,7 @@ final class OpcRelationshipGraph
 
         while ($queue !== []) {
             [$source, $filter, $depth] = array_shift($queue);
+            $source = $this->relationshipSourceNameForEquivalent($source);
             if (isset($visitedSources[$source])) {
                 continue;
             }
@@ -1594,6 +1622,52 @@ final class OpcRelationshipGraph
     private static function partNameEquivalenceKey(string $partName): string
     {
         return strtolower($partName);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function packagePartNamesByEquivalenceKey(ZipPackage $package): array
+    {
+        $partNamesByEquivalenceKey = [];
+        foreach ($package->names() as $name) {
+            if (str_ends_with($name, '/')) {
+                continue;
+            }
+
+            $partName = OpcPackagePath::canonicalPartName($name);
+            $partNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] = $partName;
+        }
+
+        return $partNamesByEquivalenceKey;
+    }
+
+    private function packagePartNameForEquivalent(string $partName): ?string
+    {
+        $partName = OpcPackagePath::canonicalPartName($partName);
+
+        return $this->packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] ?? null;
+    }
+
+    private function packageEquivalentTarget(string $target): string
+    {
+        $split = strcspn($target, '?#');
+        $partName = substr($target, 0, $split);
+        $suffix = substr($target, $split);
+        if ($partName === '') {
+            return $target;
+        }
+
+        $equivalentPartName = $this->packagePartNameForEquivalent($partName);
+
+        return ($equivalentPartName ?? $partName) . $suffix;
+    }
+
+    private function relationshipSourceNameForEquivalent(string $sourcePartName): string
+    {
+        $sourcePartName = OpcPackagePath::canonicalPartName($sourcePartName, true);
+
+        return $this->relationshipSourceNamesByEquivalenceKey[self::partNameEquivalenceKey($sourcePartName)] ?? $sourcePartName;
     }
 
     /**

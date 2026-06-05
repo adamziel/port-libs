@@ -624,6 +624,61 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
     },
+    'resolves case-equivalent OPC relationship targets to stored package parts' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/Word/Document.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/Word/Styles.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'Word/_rels/Document.XML.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'Word/Styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+
+        $t->same('/Word/Document.XML', $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE));
+        $t->true($graph->hasRelationshipsForSource('/word/document.xml'));
+        $t->true($graph->relationshipsForSource('/word/document.xml') instanceof OpcRelationships);
+        $t->same('/Word/_rels/Document.XML.rels', $graph->requireRelationshipsForSource('/word/document.xml')->relationshipPartName());
+
+        $root = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+        $t->same(true, $root['valid']);
+        $t->same('/Word/Document.XML', $root['relationships'][0]['targetPart']);
+        $t->same(true, $root['relationships'][0]['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $root['relationships'][0]['contentType']);
+        $t->same([], $root['relationships'][0]['issues']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['rIdDocument', 'rIdStyles'], array_keys($closureById));
+        $t->same('/Word/Document.XML', $closureById['rIdDocument']['targetPart']);
+        $t->same('/Word/Document.XML', $closureById['rIdStyles']['source']);
+        $t->same('/Word/Styles.XML', $closureById['rIdStyles']['targetPart']);
+        $t->same(true, $closureById['rIdStyles']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $closureById['rIdStyles']['contentType']);
+        $t->same(true, $closureById['rIdStyles']['valid']);
+    },
     'parses package level OPC relationships and resolves package root targets' => static function (TestRunner $t) use ($packageRelationshipsXml): void {
         $relationships = OpcRelationships::fromXml($packageRelationshipsXml);
 

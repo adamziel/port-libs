@@ -263,6 +263,56 @@ try {
     $caseEquivalentOverrideDuplicateRejected = true;
 }
 
+$caseEquivalentTargetContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/Word/Document.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/Word/Styles.XML" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+XML;
+
+$caseEquivalentTargetRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+$caseEquivalentTargetDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+XML;
+
+$caseEquivalentTargetGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $caseEquivalentTargetContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $caseEquivalentTargetRootRelationshipsXml],
+    ['name' => 'Word/Document.XML', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'Word/_rels/Document.XML.rels', 'data' => $caseEquivalentTargetDocumentRelationshipsXml],
+    ['name' => 'Word/Styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+]));
+$caseEquivalentTargetRoot = $caseEquivalentTargetGraph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
+$caseEquivalentTargetClosure = [];
+foreach ($caseEquivalentTargetGraph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+    $caseEquivalentTargetClosure[$target['id']] = [
+        'source' => $target['source'],
+        'targetPart' => $target['targetPart'],
+        'contentType' => $target['contentType'],
+        'exists' => $target['exists'],
+        'valid' => $target['valid'],
+        'issues' => $target['issues'],
+    ];
+}
+$caseEquivalentTargets = [
+    'officeDocumentPart' => $caseEquivalentTargetGraph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE),
+    'lowercaseSourceRelationshipsLoaded' => $caseEquivalentTargetGraph->hasRelationshipsForSource('/word/document.xml'),
+    'relationshipPartName' => $caseEquivalentTargetGraph->requireRelationshipsForSource('/word/document.xml')->relationshipPartName(),
+    'officeDocumentRootTargetPart' => $caseEquivalentTargetRoot['relationships'][0]['targetPart'] ?? null,
+    'officeDocumentRootExists' => $caseEquivalentTargetRoot['relationships'][0]['exists'] ?? null,
+    'officeDocumentRootValid' => $caseEquivalentTargetRoot['valid'],
+    'closure' => $caseEquivalentTargetClosure,
+];
+
 $relationshipSourceAliasGraphRejected = false;
 try {
     OpcRelationshipGraph::fromPackage($relationshipSourceAliasPackage);
@@ -678,6 +728,7 @@ $summary = [
         'partNameCaseCollisionGraphRejected' => $partNameCaseCollisionGraphRejected,
         'contentTypeOverrideCaseLookup' => $caseEquivalentTypes->contentTypeForPart('/word/document.xml'),
         'contentTypeOverrideDuplicateRejected' => $caseEquivalentOverrideDuplicateRejected,
+        'caseEquivalentTargets' => $caseEquivalentTargets,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
@@ -830,6 +881,18 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['partNameCaseCollisionGraphRejected'] ?? null) !== true
         || ($summary['integrity']['contentTypeOverrideCaseLookup'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['integrity']['contentTypeOverrideDuplicateRejected'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['officeDocumentPart'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentTargets']['lowercaseSourceRelationshipsLoaded'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['relationshipPartName'] ?? null) !== '/Word/_rels/Document.XML.rels'
+        || ($summary['integrity']['caseEquivalentTargets']['officeDocumentRootTargetPart'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentTargets']['officeDocumentRootExists'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['officeDocumentRootValid'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdDocument']['targetPart'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['source'] ?? null) !== '/Word/Document.XML'
+        || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['targetPart'] ?? null) !== '/Word/Styles.XML'
+        || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'
+        || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['exists'] ?? null) !== true
+        || ($summary['integrity']['caseEquivalentTargets']['closure']['rIdStyles']['valid'] ?? null) !== true
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
             '/word/_rels/review source.xml.rels',
