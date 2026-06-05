@@ -1436,7 +1436,7 @@ final class PdfPagePropertyExtractor
 
         $names = [];
         foreach ($this->dictionaryEntries($subdictionary['body']) as $name => $value) {
-            if ($this->resourceSubdictionaryEntryIsResolvable($value, $objects)) {
+            if ($this->resourceSubdictionaryEntryIsResolvable($value, $objects, $key)) {
                 $names[] = $name;
             }
         }
@@ -1467,7 +1467,7 @@ final class PdfPagePropertyExtractor
     /**
      * @param array<int, string> $objects
      */
-    private function resourceSubdictionaryEntryIsResolvable(string $value, array $objects): bool
+    private function resourceSubdictionaryEntryIsResolvable(string $value, array $objects, string $category): bool
     {
         $trimmed = trim($value);
         if ($trimmed === '' || $trimmed === 'null') {
@@ -1476,7 +1476,12 @@ final class PdfPagePropertyExtractor
 
         $reference = $this->objectReferenceFromValue($trimmed);
         if ($reference === null) {
-            return true;
+            if ($category === 'ColorSpace') {
+                return true;
+            }
+
+            return str_starts_with($trimmed, '<<')
+                && $this->readPdfDictionaryAt($trimmed, 0) !== null;
         }
 
         $resolved = $this->resolveRawValue($trimmed, $objects);

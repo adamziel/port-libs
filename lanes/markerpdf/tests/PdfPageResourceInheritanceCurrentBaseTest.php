@@ -275,6 +275,31 @@ $pageResourceFormPropertiesCurrentBasePdf = static function (): string {
         . "%%EOF";
 };
 
+$pageResourceDirectEntryBoundaryCurrentBasePdf = static function () use ($pageResourceInheritanceCurrentBaseCMap): string {
+    $content = 'BT /Fvalid 12 Tf 72 720 Td <41> Tj T* /Span /GoodActual BDC <42> Tj EMC ET q /ValidForm Do Q';
+    $formContent = 'BT /Fvalid 12 Tf 12 24 Td <43> Tj ET';
+    $cmap = $pageResourceInheritanceCurrentBaseCMap([
+        '41' => 'Valid inherited direct-entry font text',
+        '42' => 'Valid inherited direct-entry actual text glyph',
+        '43' => 'Valid inherited direct-entry form text',
+    ]);
+
+    return "%PDF-1.7\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources 10 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ValidInheritedEntryFont /Encoding /Identity-H /ToUnicode 8 0 R >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 220 80] /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+        . "7 0 obj\n<< /ActualText (Valid inherited direct-entry actual text) >>\nendobj\n"
+        . "8 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Font << /BadArray [99 0 R] /BadName /Helvetica /BadString (Font decoy review leak) /Fvalid 5 0 R >> "
+        . "/XObject << /BadArray [6 0 R] /BadName /Image /ValidForm 6 0 R >> "
+        . "/Properties << /BadArray [7 0 R] /BadName /Artifact /GoodActual 7 0 R >> "
+        . "/ColorSpace << /CS1 /DeviceRGB /CS2 [/Indexed /DeviceRGB 0 <00>] >> >>\nendobj\n"
+        . "%%EOF";
+};
+
 return [
     'uses inherited page resources for legacy Form XObjects that omit Resources without merging explicit form resources' => static function (TestRunner $t) use ($pageResourceInheritanceCurrentBasePdf): void {
         $pdf = $pageResourceInheritanceCurrentBasePdf();
@@ -507,5 +532,36 @@ return [
         $t->same(false, str_contains($plainText, 'Page glyph noise'));
         $t->same(false, str_contains($plainText, 'Form glyph noise'));
         $t->same(false, str_contains($plainText, 'Alt glyph noise'));
+    },
+    'excludes malformed direct inherited resource entries from page review metadata while preserving valid resources' => static function (TestRunner $t) use ($pageResourceDirectEntryBoundaryCurrentBasePdf): void {
+        $pdf = $pageResourceDirectEntryBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $plainText = $extractor->extractPlainText($pdf);
+        $boundary = (new PdfPagePropertyExtractor())->extractPageBoundaryMetadata($pdf);
+        $resourceMetadata = $boundary[0]['resources'] ?? [];
+        $expected = [
+            'Valid inherited direct-entry font text',
+            'Valid inherited direct-entry actual text',
+            'Valid inherited direct-entry form text',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(true, $resourceMetadata['inherited'] ?? null);
+        $t->same(2, $resourceMetadata['resource_owner_object'] ?? null);
+        $t->same(10, $resourceMetadata['resource_object'] ?? null);
+        $t->same(['Font', 'XObject', 'Properties', 'ColorSpace'], $resourceMetadata['categories'] ?? null);
+        $t->same(['Fvalid'], $resourceMetadata['font_names'] ?? null);
+        $t->same(['ValidForm'], $resourceMetadata['xobject_names'] ?? null);
+        $t->same(['GoodActual'], $resourceMetadata['properties_names'] ?? null);
+        $t->same(['CS1', 'CS2'], $resourceMetadata['color_space_names'] ?? null);
+        $t->same(false, in_array('BadArray', $resourceMetadata['font_names'] ?? [], true));
+        $t->same(false, in_array('BadName', $resourceMetadata['xobject_names'] ?? [], true));
+        $t->same(false, in_array('BadString', $resourceMetadata['font_names'] ?? [], true));
+        $t->same(false, str_contains($plainText, 'Font decoy review leak'));
+        $t->same(false, str_contains($plainText, 'BadArray'));
+        $t->same(false, str_contains($plainText, 'BadName'));
     },
 ];
