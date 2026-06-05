@@ -2253,7 +2253,10 @@ final class PdfEmbeddedFileExtractor
     {
         $entries = [];
         $body = $definition['body'];
-        $widthValue = $this->resolvedDictionaryRawValue($body, 'W', $objects);
+        $operandObjects = $definitions === null
+            ? $objects
+            : $this->objectsWithCompressedXrefPrevOperandHelpers($body, $objects, $definitions, (int) $definition['offset']);
+        $widthValue = $this->resolvedDictionaryRawValue($body, 'W', $operandObjects);
         $widthBody = $widthValue === null ? null : $this->arrayBody($widthValue);
         if ($widthBody === null) {
             return $entries;
@@ -2269,17 +2272,17 @@ final class PdfEmbeddedFileExtractor
             return $entries;
         }
 
-        $stream = $this->decodeStreamObject($body, $objects);
+        $stream = $this->decodeStreamObject($body, $operandObjects);
         if ($stream === null) {
             return $entries;
         }
 
         $decoded = $stream['content'];
         $decodedEntryCount = strlen($decoded) % $entryWidth === 0 ? intdiv(strlen($decoded), $entryWidth) : null;
-        $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev', $objects);
+        $previousOffset = $definitions === null ? null : $this->dictionaryIntegerValue($body, 'Prev', $operandObjects);
         $xrefOffset = (int) $definition['offset'];
         $offset = 0;
-        foreach ($this->xrefIndexRanges($body, $decodedEntryCount, $objects) as $range) {
+        foreach ($this->xrefIndexRanges($body, $decodedEntryCount, $operandObjects) as $range) {
             [$startObject, $count] = $range;
             for ($index = 0; $index < $count; $index++) {
                 if ($offset + $entryWidth > strlen($decoded)) {
@@ -2344,6 +2347,203 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * Resolve only safe compressed scalar helpers referenced by xref-stream
+     * /Prev before decoding current rows for metadata attachment selection.
+     *
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, string>
+     */
+    private function objectsWithCompressedXrefPrevOperandHelpers(
+        string $xrefBody,
+        array $objects,
+        array $definitions,
+        int $beforeOffset
+    ): array {
+        $reference = $this->objectReferenceFromValue($this->dictionaryRawValue($xrefBody, 'Prev'));
+        if ($reference === null || $reference['generation'] !== 0) {
+            return $objects;
+        }
+
+        $body = $this->compressedObjectStreamHelperBodyBeforeOffset(
+            $definitions,
+            $objects,
+            $reference['objectNumber'],
+            $beforeOffset
+        );
+        if ($body === null || !$this->safeXrefOperandHelperBody($body)) {
+            return $objects;
+        }
+
+        $objects[$reference['objectNumber']] = $body;
+        return $objects;
+    }
+
+    private function objectBodyHasTypeName(string $body, string $name): bool
+    {
+        $dictionary = $this->readPdfDictionaryAt($body, $this->skipWhitespace($body, 0));
+        if ($dictionary === null) {
+            return false;
+        }
+
+        return preg_match('/\/Type\s*\/' . preg_quote($name, '/') . '(?=$|[\s\[\]()<>{}\/%])/s', $dictionary['body']) === 1;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, string> $objects
+     */
+    private function compressedObjectStreamHelperBodyBeforeOffset(
+        array $definitions,
+        array $objects,
+        int $objectNumber,
+        int $beforeOffset
+    ): ?string {
+        if ($objectNumber <= 0) {
+            return null;
+        }
+
+        $selected = null;
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                if ($definition['offset'] >= $beforeOffset || !$this->objectBodyHasTypeName($definition['body'], 'ObjStm')) {
+                    continue;
+                }
+
+                $memberTable = $this->decodedObjectStreamMemberTable($definition['body'], $objects);
+                if ($memberTable === null) {
+                    continue;
+                }
+
+                $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+                foreach ($memberTable['members'] as $member) {
+                    if ($member['objectNumber'] !== $objectNumber) {
+                        continue;
+                    }
+
+                    $nextOffset = $this->objectStreamMemberEndOffset(
+                        $memberTable['members'],
+                        $member['offset'],
+                        $objectDataLength
+                    );
+                    if ($nextOffset === null) {
+                        continue;
+                    }
+
+                    if ($selected === null || $definition['offset'] > $selected['carrierOffset']) {
+                        $selected = [
+                            'body' => trim(substr(
+                                $memberTable['decoded'],
+                                $memberTable['first'] + $member['offset'],
+                                $nextOffset - $member['offset']
+                            )),
+                            'carrierOffset' => $definition['offset'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return is_array($selected) ? $selected['body'] : null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
+     */
+    private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
+    {
+        $stream = $this->decodeStreamObject($body, $objects);
+        if ($stream === null) {
+            return null;
+        }
+
+        $decoded = $stream['content'];
+        $count = $this->dictionaryIntegerValue($body, 'N', $objects);
+        $first = $this->dictionaryIntegerValue($body, 'First', $objects);
+        if ($count === null || $first === null || $count <= 0 || $first < 0 || $first >= strlen($decoded)) {
+            return null;
+        }
+
+        $members = $this->objectStreamHeaderMembers(substr($decoded, 0, $first), $count);
+        if ($members === []) {
+            return null;
+        }
+
+        return [
+            'decoded' => $decoded,
+            'first' => $first,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return list<array{objectNumber: int, offset: int, index: int}>
+     */
+    private function objectStreamHeaderMembers(string $header, int $count): array
+    {
+        $members = [];
+        $offset = 0;
+        for ($index = 0; $index < $count; $index++) {
+            $objectNumber = $this->readUnsignedIntegerToken($header, $offset);
+            $objectOffset = $this->readUnsignedIntegerToken($header, $offset);
+            if ($objectNumber === null || $objectOffset === null) {
+                return [];
+            }
+
+            if ($objectNumber > 0) {
+                $members[] = [
+                    'objectNumber' => $objectNumber,
+                    'offset' => $objectOffset,
+                    'index' => $index,
+                ];
+            }
+        }
+
+        return $members;
+    }
+
+    /**
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     */
+    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    {
+        if ($memberOffset < 0 || $memberOffset >= $objectDataLength) {
+            return null;
+        }
+
+        $endOffset = $objectDataLength;
+        foreach ($members as $member) {
+            if ($member['offset'] > $memberOffset && $member['offset'] < $endOffset) {
+                $endOffset = $member['offset'];
+            }
+        }
+
+        return $endOffset > $memberOffset ? $endOffset : null;
+    }
+
+    private function readUnsignedIntegerToken(string $value, int &$offset): ?int
+    {
+        $offset = $this->skipWhitespace($value, $offset);
+        if (preg_match('/\G(\d+)(?=$|[\s\[\]()<>{}\/%])/s', $value, $match, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $offset += strlen($match[1]);
+        return (int) $match[1];
+    }
+
+    private function safeXrefOperandHelperBody(string $body): bool
+    {
+        if ($body === '' || preg_match('/\b(?:obj|endobj|stream|endstream|xref|trailer|startxref)\b/s', $body) === 1) {
+            return false;
+        }
+
+        $offset = $this->skipWhitespace($body, 0);
+        return preg_match('/\G[+-]?\d+\s*\z/s', $body, $match, 0, $offset) === 1;
     }
 
     /**
