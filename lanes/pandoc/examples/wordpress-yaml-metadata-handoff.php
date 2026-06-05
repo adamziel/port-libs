@@ -56,6 +56,18 @@ multiline-flow-review: {
     "QA #2"
   ]
 }
+flow-quoted-review: {
+  note: "Line one
+    line two",
+  owner: 'Import
+    Desk',
+  labels: [
+    "WordPress, import",
+    'Data: Liberation'
+  ],
+  source-uri: "https://example.test/\
+    exports/packet#flow-quoted"
+}
 review-notes:
   - |-
     Preserve original front matter.
@@ -177,6 +189,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['multiline-flow-review']['owners'] ?? []) !== ['Import Desk', 'QA #2']) {
         throw new RuntimeException('YAML metadata self-test missing nested multiline flow sequence metadata');
+    }
+    if (($meta['flow-quoted-review']['note'] ?? '') !== 'Line one line two') {
+        throw new RuntimeException('YAML metadata self-test missing flow quoted multiline note folding');
+    }
+    if (($meta['flow-quoted-review']['owner'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test missing flow single-quoted multiline owner folding');
+    }
+    if (($meta['flow-quoted-review']['labels'] ?? []) !== ['WordPress, import', 'Data: Liberation']) {
+        throw new RuntimeException('YAML metadata self-test missing flow quoted comma/colon labels');
+    }
+    if (($meta['flow-quoted-review']['source-uri'] ?? '') !== 'https://example.test/exports/packet#flow-quoted') {
+        throw new RuntimeException('YAML metadata self-test missing flow quoted escaped continuation URI');
     }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');

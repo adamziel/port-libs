@@ -1038,6 +1038,55 @@ return [
         $t->same('multiline-flow-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="multiline-flow-yaml-body">Multiline flow YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml quoted multiline scalars inside flow collections' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Flow quoted **Packet**',
+            'keywords: [',
+            '  "Reviewer,',
+            '    One",',
+            "  'Editor: Two',",
+            '  "Escaped \u201cLabel\u201d"',
+            ']',
+            'review: {',
+            '  note: "Line one',
+            '    line two",',
+            "  single-note: 'Owner",
+            "    Desk',",
+            '  source-uri: "https://example.test/\\',
+            '    exports/packet#quoted-flow",',
+            '  labels: ["WordPress, import", "Data: Liberation"]',
+            '}',
+            'references:',
+            '  - id: flow-quoted-ref',
+            '    title: "Source,',
+            '      Review: Packet"',
+            '    author: [{family: "Reviewer, One", given: "A: B"}]',
+            '    issued: {date-parts: [[!!int "2026", !!int "06", !!int "05"]]}',
+            '...',
+            '',
+            '# Flow quoted YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow quoted **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(['Reviewer, One', 'Editor: Two', "Escaped \u{201C}Label\u{201D}"], $meta['keywords']);
+        $t->same('Line one line two', $meta['review']['note']);
+        $t->same('Owner Desk', $meta['review']['single-note']);
+        $t->same('https://example.test/exports/packet#quoted-flow', $meta['review']['source-uri']);
+        $t->same(['WordPress, import', 'Data: Liberation'], $meta['review']['labels']);
+        $t->same('flow-quoted-ref', $meta['references'][0]['id']);
+        $t->same('Source, Review: Packet', $meta['references'][0]['title']);
+        $t->same('Reviewer, One', $meta['references'][0]['author'][0]['family']);
+        $t->same('A: B', $meta['references'][0]['author'][0]['given']);
+        $t->same([[2026, 6, 5]], $meta['references'][0]['issued']['date-parts']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-quoted-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-quoted-yaml-body">Flow quoted YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml block sequences of maps and nested date parts' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

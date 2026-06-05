@@ -1345,10 +1345,10 @@ final class MarkdownReader
         $quote = $value[0];
         $inner = substr($value, 1, -1);
         if ($quote === "'") {
-            return str_replace("''", "'", $inner);
+            return str_replace("''", "'", $this->foldYamlSingleQuotedContinuationLines($inner));
         }
 
-        return $this->decodeYamlDoubleQuotedScalar($inner);
+        return $this->decodeYamlDoubleQuotedScalar($this->foldYamlDoubleQuotedContinuationLines($inner));
     }
 
     private function decodeYamlDoubleQuotedScalar(string $inner): string
