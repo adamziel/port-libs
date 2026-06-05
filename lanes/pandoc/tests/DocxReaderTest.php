@@ -335,6 +335,50 @@ $numberingXml = <<<'XML'
 </w:numbering>
 XML;
 
+$paragraphStyleMetadataStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="ReviewLayoutBase">
+    <w:name w:val="Review Layout Base"/>
+    <w:pPr>
+      <w:jc w:val="center"/>
+      <w:spacing w:before="240" w:after="120"/>
+      <w:keepNext/>
+    </w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="ReviewLayoutDerived">
+    <w:name w:val="Review Layout Derived"/>
+    <w:basedOn w:val="ReviewLayoutBase"/>
+    <w:pPr>
+      <w:ind w:left="480" w:hanging="120"/>
+      <w:pageBreakBefore/>
+    </w:pPr>
+  </w:style>
+</w:styles>
+XML;
+
+$paragraphStyleMetadataDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewLayoutBase"/></w:pPr>
+      <w:r><w:t>Base styled review note.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="ReviewLayoutDerived"/></w:pPr>
+      <w:r><w:t>Derived styled review note.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="ReviewLayoutBase"/>
+        <w:jc w:val="end"/>
+        <w:ind w:right="360"/>
+      </w:pPr>
+      <w:r><w:t>Direct override review note.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $stylesNumberingDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1229,6 +1273,22 @@ $buildNestedNumberingPackage = static function () use (
     ]);
 };
 
+$buildParagraphStyleMetadataPackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $paragraphStyleMetadataDocumentXml,
+    $paragraphStyleMetadataStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $paragraphStyleMetadataDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $paragraphStyleMetadataStylesXml],
+    ]);
+};
+
 $buildTableSpanPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableSpanDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -1832,6 +1892,61 @@ return [
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'preserves DOCX paragraph style inherited layout metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphStyleMetadataPackage): void {
+        $document = (new DocxReader())->readDocument($buildParagraphStyleMetadataPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $base = $document->children[0]->children[0];
+        $t->same('span', $base->type);
+        $t->same(['docx-paragraph-align', 'docx-align-center', 'docx-paragraph-spacing', 'docx-keep-next'], $base->attr('classes'));
+        $t->same('center', $base->attr('attributes')['data-docx-paragraph-align']);
+        $t->same('240', $base->attr('attributes')['data-docx-spacing-before-twips']);
+        $t->same('120', $base->attr('attributes')['data-docx-spacing-after-twips']);
+        $t->same('true', $base->attr('attributes')['data-docx-keep-next']);
+        $t->same('Base styled review note.', $base->children[0]->attr('text'));
+
+        $derived = $document->children[1]->children[0];
+        $t->same('span', $derived->type);
+        $t->same([
+            'docx-paragraph-align',
+            'docx-align-center',
+            'docx-paragraph-spacing',
+            'docx-keep-next',
+            'docx-paragraph-indent',
+            'docx-page-break-before',
+        ], $derived->attr('classes'));
+        $t->same('center', $derived->attr('attributes')['data-docx-paragraph-align']);
+        $t->same('480', $derived->attr('attributes')['data-docx-indent-left-twips']);
+        $t->same('120', $derived->attr('attributes')['data-docx-indent-hanging-twips']);
+        $t->same('true', $derived->attr('attributes')['data-docx-page-break-before']);
+        $t->same('Derived styled review note.', $derived->children[0]->attr('text'));
+
+        $direct = $document->children[2]->children[0];
+        $t->same('span', $direct->type);
+        $t->same([
+            'docx-paragraph-spacing',
+            'docx-keep-next',
+            'docx-paragraph-align',
+            'docx-align-end',
+            'docx-paragraph-indent',
+        ], $direct->attr('classes'));
+        $t->same('end', $direct->attr('attributes')['data-docx-paragraph-align']);
+        $t->same('240', $direct->attr('attributes')['data-docx-spacing-before-twips']);
+        $t->same('true', $direct->attr('attributes')['data-docx-keep-next']);
+        $t->same('360', $direct->attr('attributes')['data-docx-indent-right-twips']);
+        $t->same('Direct override review note.', $direct->children[0]->attr('text'));
+
+        $t->contains('[Base styled review note.]{.docx-paragraph-align .docx-align-center .docx-paragraph-spacing .docx-keep-next data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true"}', $markdown);
+        $t->contains('[Derived styled review note.]{.docx-paragraph-align .docx-align-center .docx-paragraph-spacing .docx-keep-next .docx-paragraph-indent .docx-page-break-before data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true" data-docx-indent-left-twips="480" data-docx-indent-hanging-twips="120" data-docx-page-break-before="true"}', $markdown);
+        $t->contains('[Direct override review note.]{.docx-paragraph-spacing .docx-keep-next .docx-paragraph-align .docx-align-end .docx-paragraph-indent data-docx-paragraph-align="end" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true" data-docx-indent-right-twips="360"}', $markdown);
+
+        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true">Base styled review note.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-keep-next docx-paragraph-indent docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true" data-docx-indent-left-twips="480" data-docx-indent-hanging-twips="120" data-docx-page-break-before="true">Derived styled review note.</span></p>', $blocks);
+        $t->contains('<p><span class="docx-paragraph-spacing docx-keep-next docx-paragraph-align docx-align-end docx-paragraph-indent" data-docx-paragraph-align="end" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-keep-next="true" data-docx-indent-right-twips="360">Direct override review note.</span></p>', $blocks);
     },
     'preserves nested DOCX numbering levels as child AST lists' => static function (TestRunner $t) use ($buildNestedNumberingPackage): void {
         $document = (new DocxReader())->readDocument($buildNestedNumberingPackage());

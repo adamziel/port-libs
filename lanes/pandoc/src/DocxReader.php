@@ -1397,7 +1397,7 @@ final class DocxReader
             return null;
         }
 
-        $children = $this->applyParagraphMetadata($paragraph, $children);
+        $children = $this->applyParagraphMetadata($paragraph, $children, $styles);
         $style = $this->paragraphStyleId($paragraph);
         $headingLevel = $this->paragraphHeadingLevel($paragraph, $styles);
         if ($headingLevel !== null) {
@@ -1414,15 +1414,16 @@ final class DocxReader
 
     /**
      * @param list<AstNode> $children
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}, paragraphMetadata?:array{classes:list<string>, attributes:array<string, string>}|null}> $styles
      * @return list<AstNode>
      */
-    private function applyParagraphMetadata(\DOMElement $paragraph, array $children): array
+    private function applyParagraphMetadata(\DOMElement $paragraph, array $children, array $styles): array
     {
         if ($children === []) {
             return [];
         }
 
-        $attrs = $this->paragraphMetadataAttrs($paragraph);
+        $attrs = $this->paragraphMetadataAttrs($paragraph, $styles);
         if ($attrs === null) {
             return $children;
         }
@@ -1431,15 +1432,31 @@ final class DocxReader
     }
 
     /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}, paragraphMetadata?:array{classes:list<string>, attributes:array<string, string>}|null}> $styles
      * @return array{classes:list<string>, attributes:array<string, string>}|null
      */
-    private function paragraphMetadataAttrs(\DOMElement $paragraph): ?array
+    private function paragraphMetadataAttrs(\DOMElement $paragraph, array $styles): ?array
     {
-        $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
-        if (!$properties instanceof \DOMElement) {
-            return null;
+        $attrs = null;
+        $style = $this->paragraphStyleId($paragraph);
+        if ($style !== null) {
+            $seen = [];
+            $attrs = $this->resolveStyleParagraphMetadataAttrs($style, $styles, $seen);
         }
 
+        $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
+        if (!$properties instanceof \DOMElement) {
+            return $attrs;
+        }
+
+        return $this->mergeMetadataAttrs($attrs, $this->paragraphPropertiesMetadataAttrs($properties));
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function paragraphPropertiesMetadataAttrs(\DOMElement $properties): ?array
+    {
         $classes = [];
         $attributes = [];
 
@@ -1485,6 +1502,97 @@ final class DocxReader
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}, paragraphMetadata?:array{classes:list<string>, attributes:array<string, string>}|null}> $styles
+     * @param array<string, bool> $seen
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function resolveStyleParagraphMetadataAttrs(?string $styleId, array $styles, array &$seen): ?array
+    {
+        if ($styleId === null || isset($seen[$styleId]) || !isset($styles[$styleId])) {
+            return null;
+        }
+
+        $seen[$styleId] = true;
+        $style = $styles[$styleId];
+        $attrs = $this->resolveStyleParagraphMetadataAttrs($style['basedOn'], $styles, $seen);
+        $styleAttrs = $style['paragraphMetadata'] ?? null;
+        if (is_array($styleAttrs)) {
+            $attrs = $this->mergeMetadataAttrs($attrs, $styleAttrs);
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $base
+     * @param array{classes:list<string>, attributes:array<string, string>}|null $override
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function mergeMetadataAttrs(?array $base, ?array $override): ?array
+    {
+        if ($base === null) {
+            return $override;
+        }
+        if ($override === null) {
+            return $base;
+        }
+
+        $baseClasses = $this->removeOverriddenParagraphMetadataClasses(
+            $base['classes'],
+            $override['attributes'],
+        );
+
+        return [
+            'classes' => array_values(array_unique([
+                ...$baseClasses,
+                ...$override['classes'],
+            ])),
+            'attributes' => array_replace($base['attributes'], $override['attributes']),
+        ];
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $overrideAttributes
+     * @return list<string>
+     */
+    private function removeOverriddenParagraphMetadataClasses(array $classes, array $overrideAttributes): array
+    {
+        $removeExact = [];
+        $removePrefixes = [];
+
+        if (isset($overrideAttributes['data-docx-paragraph-align'])) {
+            $removeExact[] = 'docx-paragraph-align';
+            $removePrefixes[] = 'docx-align-';
+        }
+        if (isset($overrideAttributes['data-docx-text-direction'])) {
+            $removeExact[] = 'docx-text-direction';
+            $removePrefixes[] = 'docx-text-direction-';
+        }
+
+        if ($removeExact === [] && $removePrefixes === []) {
+            return $classes;
+        }
+
+        return array_values(array_filter(
+            $classes,
+            static function (string $class) use ($removeExact, $removePrefixes): bool {
+                if (in_array($class, $removeExact, true)) {
+                    return false;
+                }
+
+                foreach ($removePrefixes as $prefix) {
+                    if (str_starts_with($class, $prefix)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            },
+        ));
     }
 
     /**
@@ -3948,7 +4056,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}>
+     * @return array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}, paragraphMetadata:?array{classes:list<string>, attributes:array<string, string>}}>
      */
     private function loadStyles(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
     {
@@ -3993,6 +4101,7 @@ final class DocxReader
                 'basedOn' => $basedOn,
                 'headingLevel' => $this->styleElementHeadingLevel($styleElement),
                 'numPr' => $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null,
+                'paragraphMetadata' => $properties instanceof \DOMElement ? $this->paragraphPropertiesMetadataAttrs($properties) : null,
             ];
         }
 

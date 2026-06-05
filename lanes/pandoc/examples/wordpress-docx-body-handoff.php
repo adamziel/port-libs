@@ -82,6 +82,7 @@ XML],
   <w:body>
     <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>DOCX source packet</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ReviewSubhead"/></w:pPr><w:r><w:t>Reviewer checklist</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="ReviewLayout"/></w:pPr><w:r><w:t>Styled source packet note remains labeled.</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Match media IDs</w:t></w:r></w:p>
     <w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="11"/></w:numPr></w:pPr><w:r><w:t>Map hero attachment</w:t></w:r></w:p>
     <w:p><w:pPr><w:pStyle w:val="ChecklistBullet"/></w:pPr><w:r><w:t>Preserve alt text</w:t></w:r></w:p>
@@ -399,6 +400,15 @@ XML],
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>
   <w:style w:type="paragraph" w:styleId="ReviewSubhead"><w:name w:val="Review Subhead"/><w:basedOn w:val="Heading2"/></w:style>
+  <w:style w:type="paragraph" w:styleId="ReviewLayout">
+    <w:name w:val="Review Layout"/>
+    <w:pPr>
+      <w:jc w:val="center"/>
+      <w:spacing w:before="240" w:after="120"/>
+      <w:ind w:left="720" w:firstLine="240"/>
+      <w:keepNext/>
+    </w:pPr>
+  </w:style>
   <w:style w:type="paragraph" w:styleId="ChecklistBullet"><w:name w:val="Checklist Bullet"/><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="11"/></w:numPr></w:pPr></w:style>
 </w:styles>
 XML],
@@ -576,6 +586,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<h1 id="docx-source-packet">DOCX source packet</h1>',
         '<h2 id="reviewer-checklist">Reviewer checklist</h2>',
+        '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-keep-next="true">Styled source packet note remains labeled.</span></p>',
         '<ul><li>Match media IDs<ul><li>Map hero attachment</li></ul></li><li>Preserve alt text</li></ul>',
         '<ol start="3" type="a"><li>Confirm source URL</li><li>Publish packet</li></ol>',
         '<a href="#source_packet_anchor">source packet anchor</a>',
