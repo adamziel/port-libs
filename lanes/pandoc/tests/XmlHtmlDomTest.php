@@ -116,6 +116,36 @@ return [
         $t->same('definitionURL', array_key_first($summary[1]['children'][0]['attributes']));
         $t->same('<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg><math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $html);
     },
+    'keeps html integration point descendants out of foreign-content casing' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<svg><foreignObject><div viewBox="html attr"><linearGradient data-review="html child">HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'
+                . '<math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math>',
+            'foreign content integration-point fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $foreignObject = $summary[0]['children'][0];
+        $foreignDiv = $foreignObject['children'][0];
+        $nestedSvg = $foreignDiv['children'][1];
+        $mathHtmlAnnotation = $summary[1]['children'][0];
+        $mathHtmlDiv = $mathHtmlAnnotation['children'][0];
+        $mathContentAnnotation = $summary[1]['children'][1];
+
+        $t->same('foreignObject', $foreignObject['name']);
+        $t->same('div', $foreignDiv['name']);
+        $t->same(['viewbox' => 'html attr'], $foreignDiv['attributes']);
+        $t->same('lineargradient', $foreignDiv['children'][0]['name']);
+        $t->same('svg', $nestedSvg['name']);
+        $t->same('linearGradient', $nestedSvg['children'][0]['name']);
+        $t->same('annotation-xml', $mathHtmlAnnotation['name']);
+        $t->same(['encoding' => 'text/html'], $mathHtmlAnnotation['attributes']);
+        $t->same('div', $mathHtmlDiv['name']);
+        $t->same(['viewbox' => 'math html'], $mathHtmlDiv['attributes']);
+        $t->same('textpath', $mathHtmlDiv['children'][0]['name']);
+        $t->same(['definitionURL' => '#x'], $mathContentAnnotation['children'][0]['attributes']);
+        $t->same('<svg><foreignObject><div viewbox="html attr"><lineargradient data-review="html child">HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math>', $html);
+    },
     'hands serialized HTML fragments to WordPress raw HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<aside data-review="source"><p>Imported<br>line &amp; reviewer notes</p></aside>',

@@ -183,6 +183,37 @@ return [
         $t->same('definitionURL', array_key_first($nodes[0]['children'][1]['children'][0]['attrs']));
         $t->same([], $summary['blockedTags']);
     },
+    'keeps html integration point descendants lowercase in sanitized fragments' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'
+                . '<math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $article = $nodes[0];
+        $foreignObject = $article['children'][0]['children'][0];
+        $foreignDiv = $foreignObject['children'][0];
+        $mathHtmlAnnotation = $article['children'][1]['children'][0];
+        $mathHtmlDiv = $mathHtmlAnnotation['children'][0];
+        $mathContentAnnotation = $article['children'][1]['children'][1];
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/foreign-content-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('foreignObject', $foreignObject['name']);
+        $t->same(['viewbox' => 'html attr'], $foreignDiv['attrs']);
+        $t->same('lineargradient', $foreignDiv['children'][0]['name']);
+        $t->same('linearGradient', $foreignDiv['children'][1]['children'][0]['name']);
+        $t->same(['viewbox' => 'math html'], $mathHtmlDiv['attrs']);
+        $t->same('textpath', $mathHtmlDiv['children'][0]['name']);
+        $t->same(['definitionURL' => '#x'], $mathContentAnnotation['children'][0]['attrs']);
+        $t->contains('<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>', $html);
+        $t->contains('<annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>', $blocks);
+        $t->same('/migration/foreign-content-review.html', $document->children[0]->attr('part'));
+        $t->same([], $summary['blockedTags']);
+    },
     'hands normalized HTML fragments to WordPress raw HTML blocks without browser or Pandoc execution' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml('<h1 id="review">Import</h1><p>Manual<br>break &amp; reviewer note</p>');
         $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [

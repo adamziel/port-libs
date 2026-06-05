@@ -462,8 +462,12 @@ final class XmlHtmlDom
     private static function isHtmlForeignElement(\DOMElement $element): bool
     {
         $node = $element;
+        $isSelf = true;
         while ($node instanceof \DOMElement) {
             $name = strtolower($node->localName);
+            if (!$isSelf && self::isHtmlIntegrationPoint($node)) {
+                return false;
+            }
             if ($name === 'svg' || $name === 'math') {
                 return true;
             }
@@ -473,9 +477,25 @@ final class XmlHtmlDom
 
             $parent = $node->parentNode;
             $node = $parent instanceof \DOMElement ? $parent : null;
+            $isSelf = false;
         }
 
         return false;
+    }
+
+    private static function isHtmlIntegrationPoint(\DOMElement $element): bool
+    {
+        $name = strtolower($element->localName);
+        if ($name === 'foreignobject') {
+            return true;
+        }
+        if ($name !== 'annotation-xml') {
+            return false;
+        }
+
+        $encoding = strtolower(trim($element->getAttribute('encoding')));
+
+        return $encoding === 'text/html' || $encoding === 'application/xhtml+xml';
     }
 
     /**

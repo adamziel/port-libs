@@ -16,6 +16,7 @@ $sourceHtml = <<<'HTML'
   <p><img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 02.00x, javascript:alert(1) 3x, /uploads/bad.png 0w" alt="Preview"></p>
   <p><a href="mailto:review@example.test">Mail reviewer</a><img src="mailto:review@example.test" alt="Unsafe media link"></p>
   <details open="open"><summary>Media review</summary><video controls="" muted playsinline loop poster="tel:+15550100"><source src="mailto:review@example.test" type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>
+  <figure class="foreign-content"><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math></figure>
   <script>alert("legacy embed")</script>
 </section>
 HTML;
@@ -34,6 +35,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<img src="https://example.test/preview.png" srcset="https://example.test/preview.png 1x, /uploads/preview@2x.png 2x" alt="Preview">',
         '<a href="mailto:review@example.test">Mail reviewer</a><img alt="Unsafe media link">',
         '<details open><summary>Media review</summary><video controls muted playsinline loop><source type="video/mp4"><source src="/uploads/preview.mp4" type="video/mp4"></video></details>',
+        '<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>',
+        '<annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>',
         '<!-- wp:html -->',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
@@ -41,7 +44,7 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'javascript:', 'src="mailto:', 'poster="tel:', '<script>', 'open="open"', 'controls=""'] as $blocked) {
+    foreach (['onclick=', 'javascript:', 'src="mailto:', 'poster="tel:', '<script>', 'open="open"', 'controls=""', 'viewBox="html attr"', '<textPath>HTML text</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }

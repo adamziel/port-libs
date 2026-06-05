@@ -75,6 +75,36 @@ return [
         $t->contains('<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg>', $serialized);
         $t->contains('<math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $serialized);
     },
+    'treats svg foreignObject and math annotation html descendants as html' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'
+                . '<math><annotation-xml encoding="application/xhtml+xml"><div viewBox="math html"><textPath>HTML text</textPath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math>'
+        );
+        $svg = Html5Dom::firstChildElement($body, 'svg');
+        $foreignObject = $svg instanceof DOMElement ? Html5Dom::firstChildElement($svg, 'foreignObject') : null;
+        $foreignDiv = $foreignObject instanceof DOMElement ? Html5Dom::firstChildElement($foreignObject, 'div') : null;
+        $htmlGradient = $foreignDiv instanceof DOMElement ? Html5Dom::firstChildElement($foreignDiv, 'lineargradient') : null;
+        $nestedSvg = $foreignDiv instanceof DOMElement ? Html5Dom::firstChildElement($foreignDiv, 'svg') : null;
+        $nestedGradient = $nestedSvg instanceof DOMElement ? Html5Dom::firstChildElement($nestedSvg, 'linearGradient') : null;
+        $math = Html5Dom::firstChildElement($body, 'math');
+        $annotations = $math instanceof DOMElement ? Html5Dom::childElements($math, 'annotation-xml') : [];
+        $mathHtmlDiv = isset($annotations[0]) ? Html5Dom::firstChildElement($annotations[0], 'div') : null;
+        $mathHtmlTextPath = $mathHtmlDiv instanceof DOMElement ? Html5Dom::firstChildElement($mathHtmlDiv, 'textpath') : null;
+        $mathCi = isset($annotations[1]) ? Html5Dom::firstChildElement($annotations[1], 'ci') : null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($foreignObject instanceof DOMElement, 'Expected SVG foreignObject to retain foreign-content casing');
+        $t->true($foreignDiv instanceof DOMElement, 'Expected HTML div child inside foreignObject');
+        $t->same(['viewbox' => 'html attr'], Html5Dom::attributes($foreignDiv));
+        $t->true($htmlGradient instanceof DOMElement, 'Expected HTML child name to stay lowercase inside foreignObject');
+        $t->true($nestedGradient instanceof DOMElement, 'Expected nested SVG child to re-enter foreign casing');
+        $t->true($mathHtmlDiv instanceof DOMElement, 'Expected MathML annotation HTML child');
+        $t->same(['viewbox' => 'math html'], Html5Dom::attributes($mathHtmlDiv));
+        $t->true($mathHtmlTextPath instanceof DOMElement, 'Expected HTML descendant in annotation-xml to stay lowercase');
+        $t->same(['definitionURL' => '#x'], $mathCi instanceof DOMElement ? Html5Dom::attributes($mathCi) : []);
+        $t->contains('<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>', $serialized);
+        $t->contains('<annotation-xml encoding="application/xhtml+xml"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>', $serialized);
+    },
     'parses XML fragments with namespaces and serializes multiple root children' => static function (TestRunner $t): void {
         $fragment = Html5Dom::parseXmlFragment(
             '<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math><w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>'

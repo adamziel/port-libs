@@ -324,7 +324,7 @@ final class Html5DomFragment
         }
 
         $attrs = self::normalizeAttributes($node, $name, $mode, $diagnostics, $elementForeignContext);
-        $children = self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($rawName, $elementForeignContext));
+        $children = self::normalizeChildren($node, $mode, $diagnostics, self::childForeignContext($node, $rawName, $elementForeignContext));
         $element = [
             'type' => 'element',
             'name' => $name,
@@ -367,10 +367,16 @@ final class Html5DomFragment
         return $parentForeignContext;
     }
 
-    private static function childForeignContext(string $rawName, ?string $elementForeignContext): ?string
+    private static function childForeignContext(\DOMElement $element, string $rawName, ?string $elementForeignContext): ?string
     {
         if ($elementForeignContext === 'svg' && $rawName === 'foreignobject') {
             return null;
+        }
+        if ($elementForeignContext === 'math' && $rawName === 'annotation-xml') {
+            $encoding = strtolower(trim($element->getAttribute('encoding')));
+            if ($encoding === 'text/html' || $encoding === 'application/xhtml+xml') {
+                return null;
+            }
         }
 
         return $elementForeignContext;
