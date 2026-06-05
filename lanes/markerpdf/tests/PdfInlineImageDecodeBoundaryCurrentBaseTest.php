@@ -368,6 +368,83 @@ return [
             )
         );
     },
+    'fails closed on malformed inline image filter operands before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Malformed Filter Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Malformed Filter Inline) Tj ET\n"
+            . "BI /W 8 /H 1 /CS /G /BPC 8 /F [ << /Bad true >> ] ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Malformed Filter Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Malformed Filter Inline',
+            'After Malformed Filter Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Malformed Filter Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'abc EI'));
+    },
+    'fails closed on unresolved inline image filter operands before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Unresolved Filter Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Unresolved Filter Inline) Tj ET\n"
+            . "BI /W 8 /H 1 /CS /G /BPC 8 /F 99 0 R ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Unresolved Filter Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Unresolved Filter Inline',
+            'After Unresolved Filter Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Unresolved Filter Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'abc EI'));
+    },
+    'closes malformed inline image filter fallbacks before the next inline image preamble' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $malformedPayload = 'abcdefgh EI BT /F1 12 Tf 72 660 Td (First Malformed Inline Noise) Tj ET rawtail';
+        $unresolvedPayload = 'ijklmnop EI BT /F1 12 Tf 72 628 Td (Second Unresolved Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Consecutive Inline Images) Tj ET\n"
+            . "BI /W 8 /H 1 /CS /G /BPC 8 /F [ << /Bad true >> ] ID\n"
+            . $malformedPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 688 Td (Between Consecutive Inline Images) Tj ET\n"
+            . "BI /W 8 /H 1 /CS /G /BPC 8 /F 99 0 R ID\n"
+            . $unresolvedPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 656 Td (After Consecutive Inline Images) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Consecutive Inline Images',
+            'Between Consecutive Inline Images',
+            'After Consecutive Inline Images',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'First Malformed Inline Noise'));
+        $t->true(!str_contains($plainText, 'Second Unresolved Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+    },
     'resolves current indirect inline image decode operands before Indexed RGB preview' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $imageBytes = "\x1c";

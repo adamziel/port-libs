@@ -19936,7 +19936,7 @@ final class PdfTextExtractor
     {
         $filters = $this->streamFilters($dictionary, []);
         if ($filters === null) {
-            return true;
+            return false;
         }
 
         $jpxState = $this->inlineImageUsesJpxDecode($filters)
@@ -20004,7 +20004,7 @@ final class PdfTextExtractor
     {
         $filters = $this->streamFilters($dictionary, []);
         if ($filters === null) {
-            return false;
+            return rtrim($candidate, "\x00\t\n\f\r ") !== '';
         }
 
         return (
@@ -20037,7 +20037,11 @@ final class PdfTextExtractor
         }
 
         $filters = $this->streamFilters($dictionary, []);
-        if ($filters === null || $filters === []) {
+        if ($filters === null) {
+            return strlen($candidate) >= $expectedLength;
+        }
+
+        if ($filters === []) {
             return false;
         }
 
