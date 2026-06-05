@@ -4336,11 +4336,24 @@ final class PdfEmbeddedFileExtractor
         $dictionary = $match[1];
         $stream = $match[2];
         $filters = $this->streamFilters($dictionary, $objects);
-        foreach ($filters as $filter) {
+        $decodeParms = $this->streamDecodeParms($dictionary, $objects);
+        if ($decodeParms === null) {
+            return null;
+        }
+        if (!$this->decodeParmsSupportedForFilters($filters, $decodeParms, $objects)) {
+            return null;
+        }
+
+        foreach ($filters as $filterIndex => $filter) {
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $filterIndex);
+            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, $objects)) {
+                return null;
+            }
+
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
-                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms, $objects),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 default => null,
             };
@@ -4372,6 +4385,252 @@ final class PdfEmbeddedFileExtractor
         preg_match_all('/\/([^\s\[\]()<>{}\/%]+)/', $resolved, $matches);
 
         return array_map(fn (string $name): string => $this->decodePdfName($name), $matches[1] ?? []);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string|null>|null
+     */
+    private function streamDecodeParms(string $dictionary, array $objects): ?array
+    {
+        $value = $this->dictionaryRawValue($dictionary, 'DecodeParms');
+        if ($value === null) {
+            return [];
+        }
+
+        return $this->decodeParmsValueList($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return list<string|null>|null
+     */
+    private function decodeParmsValueList(string $value, array $objects, array $seen = []): ?array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($trimmed);
+        if ($reference !== null) {
+            $objectKey = $reference['objectNumber'] . ':' . $reference['generation'];
+            if ($reference['objectNumber'] <= 0 || isset($seen[$objectKey]) || !isset($objects[$reference['objectNumber']])) {
+                return null;
+            }
+
+            $nextSeen = $seen;
+            $nextSeen[$objectKey] = true;
+            return $this->decodeParmsValueList($objects[$reference['objectNumber']], $objects, $nextSeen);
+        }
+
+        if ($trimmed === 'null') {
+            return [null];
+        }
+
+        if (str_starts_with($trimmed, '<<')) {
+            $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+            if ($dictionary === null || $this->skipWhitespace($trimmed, $dictionary['end']) !== strlen($trimmed)) {
+                return null;
+            }
+
+            return [$dictionary['body']];
+        }
+
+        if (!str_starts_with($trimmed, '[')) {
+            return null;
+        }
+
+        $array = $this->readPdfArrayAt($trimmed, 0);
+        if ($array === null || $this->skipWhitespace($trimmed, $array['end']) !== strlen($trimmed)) {
+            return null;
+        }
+
+        $items = [];
+        foreach ($this->arrayItemsFromValue($array['raw'], $objects) as $item) {
+            $resolved = $this->decodeParmsValueList($item, $objects, $seen);
+            if ($resolved === null || count($resolved) !== 1) {
+                return null;
+            }
+
+            $items[] = $resolved[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<string> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeParmsForFilterIndex(array $filters, array $decodeParms, int $filterIndex): ?string
+    {
+        $decodeParmsIndex = $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $filterIndex);
+        return $decodeParmsIndex === null ? null : ($decodeParms[$decodeParmsIndex] ?? null);
+    }
+
+    /**
+     * @param list<string> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeParmsIndexForFilterIndex(array $filters, array $decodeParms, int $filterIndex): ?int
+    {
+        if ($decodeParms === []) {
+            return null;
+        }
+
+        if (count($decodeParms) === count($filters) && array_key_exists($filterIndex, $decodeParms)) {
+            return $filterIndex;
+        }
+
+        if (count($decodeParms) === 1 && count($filters) === 1) {
+            $index = array_key_first($decodeParms);
+            return is_int($index) ? $index : null;
+        }
+
+        if (count($decodeParms) === count($filters)) {
+            $indexes = array_keys($decodeParms);
+            $index = $indexes[$filterIndex] ?? null;
+            return is_int($index) ? $index : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function canApplyDecodeParms(string $filter, ?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return true;
+        }
+
+        if (!$this->decodeParmsHaveSupportedKeys($decodeParms)) {
+            return false;
+        }
+
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
+            if (
+                $this->dictionaryRawValue($decodeParms, $name) !== null
+                && $this->decodeParmsInt($decodeParms, $name, $objects) === null
+            ) {
+                return false;
+            }
+        }
+
+        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor', $objects) ?? 1;
+        if (!in_array($filter, ['FlateDecode', 'Fl'], true)) {
+            return $predictor === 1
+                && ($this->decodeParmsInt($decodeParms, 'Columns', $objects) ?? 1) === 1
+                && ($this->decodeParmsInt($decodeParms, 'Colors', $objects) ?? 1) === 1
+                && ($this->decodeParmsInt($decodeParms, 'BitsPerComponent', $objects) ?? 8) === 8
+                && ($this->decodeParmsInt($decodeParms, 'EarlyChange', $objects) ?? 1) === 1;
+        }
+
+        if ($predictor !== 1 && $predictor !== 2 && ($predictor < 10 || $predictor > 15)) {
+            return false;
+        }
+
+        foreach (['Columns', 'Colors', 'BitsPerComponent'] as $name) {
+            $integer = $this->decodeParmsInt($decodeParms, $name, $objects);
+            if ($integer !== null && $integer < 1) {
+                return false;
+            }
+        }
+
+        $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
+        if ($earlyChange !== null && !in_array($earlyChange, [0, 1], true)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function decodeParmsHaveSupportedKeys(string $decodeParms): bool
+    {
+        foreach (array_keys($this->dictionaryEntries($decodeParms)) as $name) {
+            if (!in_array($name, ['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $filters
+     * @param list<string|null> $decodeParms
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsSupportedForFilters(array $filters, array $decodeParms, array $objects): bool
+    {
+        $appliedDecodeParmsIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            $decodeParmsIndex = $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $filterIndex);
+            if ($decodeParmsIndex === null || !array_key_exists($decodeParmsIndex, $decodeParms)) {
+                continue;
+            }
+
+            $appliedDecodeParmsIndexes[$decodeParmsIndex] = true;
+            if (!$this->canApplyDecodeParms($filter, $decodeParms[$decodeParmsIndex], $objects)) {
+                return false;
+            }
+        }
+
+        foreach ($decodeParms as $decodeParmsIndex => $value) {
+            if (isset($appliedDecodeParmsIndexes[$decodeParmsIndex]) || $value === null) {
+                continue;
+            }
+            if (!$this->decodeParmsValueIsDefault($value, $objects)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsValueIsDefault(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return true;
+        }
+        if (!$this->decodeParmsHaveSupportedKeys($decodeParms)) {
+            return false;
+        }
+
+        foreach ([
+            'Predictor' => 1,
+            'Columns' => 1,
+            'Colors' => 1,
+            'BitsPerComponent' => 8,
+            'EarlyChange' => 1,
+        ] as $name => $default) {
+            $value = $this->decodeParmsInt($decodeParms, $name, $objects);
+            if ($value !== null && $value !== $default) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsInt(string $decodeParms, string $name, array $objects): ?int
+    {
+        $value = $this->dictionaryRawValue($decodeParms, $name);
+        if ($value === null) {
+            return null;
+        }
+
+        $reviewValue = $this->reviewValueFromRaw($value, $objects);
+        return is_int($reviewValue) ? $reviewValue : null;
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
@@ -4467,7 +4726,10 @@ final class PdfEmbeddedFileExtractor
         return substr($bytes, 0, $bytesToReturn);
     }
 
-    private function decodeFlateStream(string $stream): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeFlateStream(string $stream, ?string $decodeParms = null, array $objects = []): ?string
     {
         $inflated = @gzuncompress($stream);
         if ($inflated === false) {
@@ -4477,7 +4739,115 @@ final class PdfEmbeddedFileExtractor
             $inflated = @gzdecode($stream);
         }
 
-        return $inflated === false ? null : $inflated;
+        if ($inflated === false) {
+            return null;
+        }
+
+        return $this->applyDecodeParmsPredictor($inflated, $decodeParms, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function applyDecodeParmsPredictor(string $bytes, ?string $decodeParms, array $objects): ?string
+    {
+        $predictor = $this->decodeParmsInt($decodeParms ?? '', 'Predictor', $objects) ?? 1;
+        if ($predictor === 1) {
+            return $bytes;
+        }
+
+        $colors = max(1, $this->decodeParmsInt($decodeParms ?? '', 'Colors', $objects) ?? 1);
+        $bitsPerComponent = max(1, $this->decodeParmsInt($decodeParms ?? '', 'BitsPerComponent', $objects) ?? 8);
+        $columns = max(1, $this->decodeParmsInt($decodeParms ?? '', 'Columns', $objects) ?? 1);
+        $rowLength = intdiv(($colors * $columns * $bitsPerComponent) + 7, 8);
+        $bytesPerPixel = max(1, intdiv(($colors * $bitsPerComponent) + 7, 8));
+
+        if ($predictor === 2) {
+            return $this->applyTiffPredictor($bytes, $rowLength, $bytesPerPixel);
+        }
+
+        if ($predictor < 10 || $predictor > 15) {
+            return null;
+        }
+
+        return $this->applyPngPredictor($bytes, $rowLength, $bytesPerPixel);
+    }
+
+    private function applyTiffPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    {
+        if ($rowLength < 1 || strlen($bytes) % $rowLength !== 0) {
+            return null;
+        }
+
+        $out = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $rowLength) {
+            $row = substr($bytes, $offset, $rowLength);
+            for ($index = $bytesPerPixel; $index < $rowLength; $index++) {
+                $row[$index] = chr((ord($row[$index]) + ord($row[$index - $bytesPerPixel])) & 0xff);
+            }
+            $out .= $row;
+        }
+
+        return $out;
+    }
+
+    private function applyPngPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    {
+        $stride = $rowLength + 1;
+        if ($rowLength < 1 || strlen($bytes) % $stride !== 0) {
+            return null;
+        }
+
+        $out = '';
+        $previous = str_repeat("\0", $rowLength);
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $stride) {
+            $filter = ord($bytes[$offset]);
+            $row = substr($bytes, $offset + 1, $rowLength);
+            if ($filter > 4) {
+                return null;
+            }
+
+            for ($index = 0; $index < $rowLength; $index++) {
+                $left = $index >= $bytesPerPixel ? ord($row[$index - $bytesPerPixel]) : 0;
+                $up = ord($previous[$index]);
+                $upperLeft = $index >= $bytesPerPixel ? ord($previous[$index - $bytesPerPixel]) : 0;
+                $encoded = ord($row[$index]);
+                $row[$index] = chr(($encoded + $this->pngPredictorValue($filter, $left, $up, $upperLeft)) & 0xff);
+            }
+
+            $out .= $row;
+            $previous = $row;
+        }
+
+        return $out;
+    }
+
+    private function pngPredictorValue(int $filter, int $left, int $up, int $upperLeft): int
+    {
+        return match ($filter) {
+            0 => 0,
+            1 => $left,
+            2 => $up,
+            3 => intdiv($left + $up, 2),
+            4 => $this->paethPredictor($left, $up, $upperLeft),
+        };
+    }
+
+    private function paethPredictor(int $left, int $up, int $upperLeft): int
+    {
+        $estimate = $left + $up - $upperLeft;
+        $leftDistance = abs($estimate - $left);
+        $upDistance = abs($estimate - $up);
+        $upperLeftDistance = abs($estimate - $upperLeft);
+
+        if ($leftDistance <= $upDistance && $leftDistance <= $upperLeftDistance) {
+            return $left;
+        }
+        if ($upDistance <= $upperLeftDistance) {
+            return $up;
+        }
+
+        return $upperLeft;
     }
 
     private function decodeRunLengthStream(string $stream): ?string

@@ -192,7 +192,7 @@ return [
             . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 1 >> ] /Params << /Size " . strlen($safePayload) . " /CheckSum <{$safeChecksum}> >> /Length " . strlen($safeHex) . " >>\n"
             . "stream\n{$safeHex}\nendstream\nendobj\n"
             . "6 0 obj\n<< /Type /Filespec /F (unsafe-predictor.bin) /Desc (Unsupported DecodeParms attachment) /AFRelationship /Data /EF << /F 7 0 R >> >>\nendobj\n"
-            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 12 /Columns 8 >> ] /Params << /Size " . strlen($unsafePayload) . " /CheckSum <{$unsafeChecksum}> >> /Length " . strlen($unsafeHex) . " >>\n"
+            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /application#2Foctet-stream /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null << /Predictor 99 /Columns 8 >> ] /Params << /Size " . strlen($unsafePayload) . " /CheckSum <{$unsafeChecksum}> >> /Length " . strlen($unsafeHex) . " >>\n"
             . "stream\n{$unsafeHex}\nendstream\nendobj\n"
             . "%%EOF\n";
 
