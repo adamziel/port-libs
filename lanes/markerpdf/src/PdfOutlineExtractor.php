@@ -86,7 +86,7 @@ final class PdfOutlineExtractor
         }
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null) {
+        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
             return [];
         }
 
@@ -117,7 +117,7 @@ final class PdfOutlineExtractor
         }
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null) {
+        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
             return [];
         }
 
@@ -226,7 +226,7 @@ final class PdfOutlineExtractor
         }
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null) {
+        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
             return [];
         }
 
@@ -268,7 +268,7 @@ final class PdfOutlineExtractor
         }
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot === null) {
+        if ($outlineRoot === null || !$this->isOutlineRootDictionary($outlineRoot, $objects)) {
             return [];
         }
 
@@ -481,7 +481,7 @@ final class PdfOutlineExtractor
         $pageReviewsByPage = $this->pageReviewsByPageIndex($pageReviews);
 
         $outlineRoot = $this->resolveDictionary($catalog['Outlines'] ?? null, $objects);
-        if ($outlineRoot !== null) {
+        if ($outlineRoot !== null && $this->isOutlineRootDictionary($outlineRoot, $objects)) {
             foreach ($this->outlineStructureDestinationPageContextItems(
                 $outlineRoot['First'] ?? null,
                 $objects,
@@ -1311,8 +1311,17 @@ final class PdfOutlineExtractor
             return false;
         }
 
-        if ($this->nameValue($dict['Type'] ?? null) === 'Outlines') {
-            return true;
+        return $this->isOutlineRootDictionary($dict, $objects);
+    }
+
+    /**
+     * @param array<string, mixed> $dict
+     * @param array<int, mixed> $objects
+     */
+    private function isOutlineRootDictionary(array $dict, array $objects): bool
+    {
+        if (array_key_exists('Type', $dict)) {
+            return $this->nameValue($this->resolveValue($dict['Type'], $objects)) === 'Outlines';
         }
 
         return !array_key_exists('Title', $dict)
