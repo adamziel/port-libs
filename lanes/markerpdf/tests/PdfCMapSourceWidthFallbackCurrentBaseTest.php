@@ -1042,6 +1042,49 @@ $cMapCidRangeCodespaceSequenceSourceWidthCurrentBasePdf = static function (): st
         . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
 };
 
+$cMapToUnicodeCodespaceSequenceBfrangeSourceWidthCurrentBasePdf = static function (): string {
+    $encodingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /ToUnicodeCodespaceSequenceBfrange-H def\n"
+        . "1 begincodespacerange\n"
+        . "<3030> <3232>\n"
+        . "endcodespacerange\n"
+        . "1 begincidrange\n"
+        . "<3030> <3232> 100\n"
+        . "endcidrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $toUnicode = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "1 begincodespacerange\n"
+        . "<3030> <3232>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfrange\n"
+        . "<3030> <3232> <0041>\n"
+        . "endbfrange\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+
+    $content = 'BT /Fcid 12 Tf '
+        . '1 0 0 1 72 720 Tm <303030313032> Tj '
+        . '1 0 0 1 120 720 Tm <323032313232> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /ToUnicodeCodespaceSequenceBfrange /Encoding 3 0 R /DescendantFonts [4 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+        . "3 0 obj\n<< /Length " . strlen($encodingCMap) . " >>\nstream\n{$encodingCMap}\nendstream\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ToUnicodeCodespaceSequenceBfrange /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /W [100 102 1000 106 108 250] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($toUnicode) . " >>\nstream\n{$toUnicode}\nendstream\nendobj\n%%EOF";
+};
+
 $cMapToUnicodeLateBfcharSourceWidthCurrentBasePdf = static function (): string {
     $toUnicode = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -1676,6 +1719,27 @@ return [
         $t->same([0.0, 0.0, 36.0, 12.0], $spans[0]['bbox'] ?? null);
         $t->same([36.0, 0.0, 45.0, 12.0], $spans[1]['bbox'] ?? null);
         $t->same([0.0, 0.0, 45.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'ABCGHI'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses code-space sequence order for ToUnicode bfrange text before source-width fallback on current base' => static function (TestRunner $t) use ($cMapToUnicodeCodespaceSequenceBfrangeSourceWidthCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $cMapToUnicodeCodespaceSequenceBfrangeSourceWidthCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $runs = $extractor->extractTextRuns($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $line = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $spans = $line['spans'] ?? [];
+
+        $t->same(['ABC GHI'], $extractor->extractTextLines($pdf));
+        $t->same(['ABC', 'GHI'], $runs);
+        $t->same('ABC GHI', $plainText);
+        $t->same("ABC GHI\n", $extractor->naiveGetText($pdf));
+        $t->same(['ABC', 'GHI'], array_column($spans, 'text'));
+        $t->same([0.0, 0.0, 36.0, 12.0], $spans[0]['bbox'] ?? null);
+        $t->same([36.0, 0.0, 45.0, 12.0], $spans[1]['bbox'] ?? null);
+        $t->same([0.0, 0.0, 45.0, 12.0], $line['bbox'] ?? null);
+        $t->true(!str_contains($plainText, "ABC\u{0241}\u{0242}\u{0243}"));
         $t->true(!str_contains($plainText, 'ABCGHI'));
         $t->true(!str_contains($plainText, "\0"));
     },

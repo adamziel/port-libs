@@ -24523,7 +24523,8 @@ final class PdfTextExtractor
         $named = [];
         foreach ($objects as $body) {
             $cmap = $this->decodedCMapBodyForParsing($body, $objects);
-            $name = is_string($cmap) ? $this->cMapName($cmap) : null;
+            $nameSource = $this->decodedCMapBody($body, $objects) ?? $cmap;
+            $name = is_string($nameSource) ? $this->cMapName($nameSource) : null;
             if ($cmap === null || $name === null) {
                 continue;
             }
@@ -25006,7 +25007,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, unicodeRanges?: list<array{start: int, end: int, width: int, target: string}>}
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, unicodeRanges?: list<array{start: int, end: int, width: int, target: string, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>}
      * @param array<string, string> $namedCMapBodies
      * @param list<string> $seenCMaps
      */
@@ -25074,7 +25075,8 @@ final class PdfTextExtractor
                 $this->cMapOperatorBlockData($mappingBlock['body']),
                 $map,
                 $mappingBlock['declaredCount'],
-                $unicodeRanges
+                $unicodeRanges,
+                $cidRangeCodeSpaceRanges
             );
         }
 
@@ -25537,13 +25539,15 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, string> $map
-     * @param list<array{start: int, end: int, width: int, target: string}>|null $unicodeRanges
+     * @param list<array{start: int, end: int, width: int, target: string, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>|null $unicodeRanges
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
      */
     private function parseToUnicodeRanges(
         string $block,
         array &$map,
         ?int $declaredCount = null,
-        ?array &$unicodeRanges = null
+        ?array &$unicodeRanges = null,
+        array $codeSpaceRanges = []
     ): void
     {
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*(?:\[(.*?)\]|<([\da-fA-F\s]+)>)/s', $block, $ranges, PREG_SET_ORDER)) {
@@ -25567,19 +25571,34 @@ final class PdfTextExtractor
             if ($last < $source) {
                 continue;
             }
+            $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);
 
             $arrayTargets = $range[3] ?? '';
             if ($arrayTargets !== '') {
                 $targets = $this->cMapTopLevelHexTokens($arrayTargets);
-                $this->removeToUnicodeMappingsInSourceRange($map, $source, min($last, $source + count($targets) - 1), $sourceWidth);
-                foreach ($targets as $target) {
-                    if ($source > $last) {
-                        break;
+                $this->removeToUnicodeMappingsInSourceRange($map, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
+
+                $targetIndex = 0;
+                $scannedCount = 0;
+                $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
+                while (
+                    $source <= $last
+                    && $targetIndex < count($targets)
+                    && $targetIndex < self::MAX_CMAP_RANGE_ENTRIES
+                    && $scannedCount < $maxScan
+                ) {
+                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                    $source++;
+                    $scannedCount++;
+                    if (
+                        $sameWidthCodeSpaceRanges !== []
+                        && !$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $sameWidthCodeSpaceRanges)
+                    ) {
+                        continue;
                     }
 
-                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
-                    $map[$sourceKey] = $this->decodeCMapUnicodeHex($target);
-                    $source++;
+                    $map[$sourceKey] = $this->decodeCMapUnicodeHex($targets[$targetIndex]);
+                    $targetIndex++;
                 }
                 continue;
             }
@@ -25589,22 +25608,36 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $this->removeToUnicodeMappingsInSourceRange($map, $source, $last, $sourceWidth);
+            $this->removeToUnicodeMappingsInSourceRange($map, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
             if ($unicodeRanges !== null) {
-                $unicodeRanges[] = [
+                $unicodeRange = [
                     'start' => $source,
                     'end' => $last,
                     'width' => $sourceWidth,
                     'target' => $target,
                 ];
+                if ($sameWidthCodeSpaceRanges !== []) {
+                    $unicodeRange['codeSpaceRanges'] = $sameWidthCodeSpaceRanges;
+                }
+                $unicodeRanges[] = $unicodeRange;
             }
 
             $count = 0;
+            $scannedCount = 0;
+            $maxScan = self::MAX_CMAP_RANGE_ENTRIES * 256;
             $targetHex = $target;
-            while ($source <= $last && $count < self::MAX_CMAP_RANGE_ENTRIES) {
+            while ($source <= $last && $count < self::MAX_CMAP_RANGE_ENTRIES && $scannedCount < $maxScan) {
                 $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
-                $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
                 $source++;
+                $scannedCount++;
+                if (
+                    $sameWidthCodeSpaceRanges !== []
+                    && !$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $sameWidthCodeSpaceRanges)
+                ) {
+                    continue;
+                }
+
+                $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
                 $count++;
                 $targetHex = $this->incrementFixedWidthHex($targetHex);
             }
@@ -25613,20 +25646,31 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, string> $map
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
      */
-    private function removeToUnicodeMappingsInSourceRange(array &$map, int $start, int $end, int $sourceWidth): void
+    private function removeToUnicodeMappingsInSourceRange(
+        array &$map,
+        int $start,
+        int $end,
+        int $sourceWidth,
+        array $codeSpaceRanges = []
+    ): void
     {
         if ($sourceWidth <= 0 || $end < $start) {
             return;
         }
 
         foreach (array_keys($map) as $sourceKey) {
+            $sourceKey = (string) $sourceKey;
             if (strlen($sourceKey) !== $sourceWidth) {
                 continue;
             }
 
             $source = hexdec($sourceKey);
             if ($source >= $start && $source <= $end) {
+                if ($codeSpaceRanges !== [] && !$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $codeSpaceRanges)) {
+                    continue;
+                }
                 unset($map[$sourceKey]);
             }
         }
@@ -32554,7 +32598,26 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $targetHex = $this->incrementFixedWidthHexByOffset($rangeTarget, $source - $rangeStart);
+            $rangeCodeSpaceRanges = $range['codeSpaceRanges'] ?? [];
+            if (is_array($rangeCodeSpaceRanges) && $rangeCodeSpaceRanges !== []) {
+                if (!$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $rangeCodeSpaceRanges)) {
+                    continue;
+                }
+
+                $offset = $this->codeSpaceSequenceOffsetInCidRange(
+                    $rangeStart,
+                    $source,
+                    $sourceWidth,
+                    $rangeCodeSpaceRanges
+                );
+                if ($offset === null) {
+                    continue;
+                }
+            } else {
+                $offset = $source - $rangeStart;
+            }
+
+            $targetHex = $this->incrementFixedWidthHexByOffset($rangeTarget, $offset);
             $text = $this->decodeCMapUnicodeHex($targetHex);
         }
 
