@@ -1892,12 +1892,22 @@ final class PdfActionReviewExtractor
     private function decodePdfStringBytes(string $bytes): string
     {
         if (str_starts_with($bytes, "\xFE\xFF")) {
-            $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', substr($bytes, 2));
+            $utf16 = substr($bytes, 2);
+            if (strlen($utf16) % 2 !== 0 || !mb_check_encoding($utf16, 'UTF-16BE')) {
+                return '';
+            }
+
+            $decoded = @iconv('UTF-16BE', 'UTF-8//IGNORE', $utf16);
             return $decoded === false ? '' : $decoded;
         }
 
         if (str_starts_with($bytes, "\xFF\xFE")) {
-            $decoded = iconv('UTF-16LE', 'UTF-8//IGNORE', substr($bytes, 2));
+            $utf16 = substr($bytes, 2);
+            if (strlen($utf16) % 2 !== 0 || !mb_check_encoding($utf16, 'UTF-16LE')) {
+                return '';
+            }
+
+            $decoded = @iconv('UTF-16LE', 'UTF-8//IGNORE', $utf16);
             return $decoded === false ? '' : $decoded;
         }
 
