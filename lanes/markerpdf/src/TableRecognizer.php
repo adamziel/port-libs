@@ -1694,7 +1694,7 @@ final class TableRecognizer
             $out[] = $number;
         }
 
-        return $out;
+        return $this->canonicalBbox($out);
     }
 
     /**
@@ -1931,6 +1931,7 @@ final class TableRecognizer
                 $idField => (int) $id,
                 'bbox' => $bbox,
                 'coordinate_source' => $this->bboxCoordinateSourceFromRecord($item),
+                'endpoint_order_normalized' => $this->bboxEndpointOrderNormalizedFromRecord($item),
                 'width' => $bbox[2] - $bbox[0],
                 'height' => $bbox[3] - $bbox[1],
                 'area' => $this->area($bbox),
@@ -2373,6 +2374,9 @@ final class TableRecognizer
             ];
             if (isset($band['coordinate_source']) && is_string($band['coordinate_source'])) {
                 $reviewRow['coordinate_source'] = $band['coordinate_source'];
+            }
+            if (($band['endpoint_order_normalized'] ?? false) === true) {
+                $reviewRow['endpoint_order_normalized'] = true;
             }
             $reviewRows[] = $reviewRow;
 
@@ -3869,17 +3873,9 @@ final class TableRecognizer
                 continue;
             }
 
-            $values = [$record[$x1], $record[$y1], $record[$x2], $record[$y2]];
-            $out = [];
-            foreach ($values as $value) {
-                $number = $this->numericScalar($value);
-                if ($number === null) {
-                    return null;
-                }
-                $out[] = $number;
-            }
+            $out = $this->rawBboxCoordinates([$record[$x1], $record[$y1], $record[$x2], $record[$y2]]);
 
-            return $out;
+            return $out === null ? null : $this->canonicalBbox($out);
         }
 
         return null;
@@ -3902,6 +3898,20 @@ final class TableRecognizer
     /**
      * @param array<string, mixed> $record
      */
+    private function bboxEndpointOrderNormalizedFromRecord(array $record): bool
+    {
+        $raw = $this->rawBboxCoordinatesFromValue($record['bbox'] ?? null)
+            ?? $this->rawBboxCoordinatesFromNamedFields($record);
+        if ($raw === null) {
+            return false;
+        }
+
+        return $raw[2] < $raw[0] || $raw[3] < $raw[1];
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
     private function bboxNamedFieldSource(array $record): ?string
     {
         $sets = [
@@ -3917,6 +3927,85 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param mixed $bbox
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromValue(mixed $bbox): ?array
+    {
+        if (!is_array($bbox)) {
+            return null;
+        }
+
+        return $this->rawBboxCoordinatesFromNamedFields($bbox)
+            ?? $this->rawBboxCoordinates(array_values($bbox));
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromNamedFields(array $record): ?array
+    {
+        $sets = [
+            ['x1', 'y1', 'x2', 'y2'],
+            ['x_start', 'y_start', 'x_end', 'y_end'],
+            ['left', 'top', 'right', 'bottom'],
+        ];
+
+        foreach ($sets as $keys) {
+            [$x1, $y1, $x2, $y2] = $keys;
+            if (
+                !array_key_exists($x1, $record)
+                || !array_key_exists($y1, $record)
+                || !array_key_exists($x2, $record)
+                || !array_key_exists($y2, $record)
+            ) {
+                continue;
+            }
+
+            return $this->rawBboxCoordinates([$record[$x1], $record[$y1], $record[$x2], $record[$y2]]);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinates(array $values): ?array
+    {
+        if (count($values) !== 4) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            $number = $this->numericScalar($value);
+            if ($number === null) {
+                return null;
+            }
+            $out[] = $number;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<float> $bbox
+     * @return list<float>
+     */
+    private function canonicalBbox(array $bbox): array
+    {
+        return [
+            min($bbox[0], $bbox[2]),
+            min($bbox[1], $bbox[3]),
+            max($bbox[0], $bbox[2]),
+            max($bbox[1], $bbox[3]),
+        ];
     }
 
     /**
