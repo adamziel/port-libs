@@ -318,6 +318,57 @@ $broadToUnicodeCodespacePdf = "%PDF-1.4\n"
     . "3 0 obj\n<< /Length " . strlen($broadToUnicodeCodespaceCmap) . " >>\nstream\n{$broadToUnicodeCodespaceCmap}\nendstream\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($broadToUnicodeCodespaceContent) . " >>\nstream\n{$broadToUnicodeCodespaceContent}\nendstream\nendobj\n"
     . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /MalformedBroadToUnicodeCodespace /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [65 68 1000 69 72 250] >>\nendobj\n%%EOF";
+$notdefCharEncodingCmap = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "/CMapName /NotdefCharSourceWidth-H def\n"
+    . "1 begincodespacerange\n"
+    . "<20> <27>\n"
+    . "endcodespacerange\n"
+    . "8 beginnotdefchar\n"
+    . "<20> 100\n"
+    . "<21> 101\n"
+    . "<22> 102\n"
+    . "<23> 103\n"
+    . "<24> 104\n"
+    . "<25> 105\n"
+    . "<26> 106\n"
+    . "<27> 107\n"
+    . "endnotdefchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$notdefCharToUnicodeCmap = "/CIDInit /ProcSet findresource begin\n"
+    . "12 dict begin\n"
+    . "begincmap\n"
+    . "1 begincodespacerange\n"
+    . "<20> <27>\n"
+    . "endcodespacerange\n"
+    . "8 beginbfchar\n"
+    . "<20> <0041>\n"
+    . "<21> <0042>\n"
+    . "<22> <0043>\n"
+    . "<23> <0044>\n"
+    . "<24> <0045>\n"
+    . "<25> <0046>\n"
+    . "<26> <0047>\n"
+    . "<27> <0048>\n"
+    . "endbfchar\n"
+    . "endcmap\n"
+    . "CMapName currentdict /CMap defineresource pop\n"
+    . "end\n"
+    . "end\n";
+$notdefCharContent = 'BT /Fcid 12 Tf '
+    . '1 0 0 1 72 720 Tm <20212223> Tj '
+    . '1 0 0 1 132 720 Tm <24252627> Tj ET';
+$notdefCharPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /NotdefCharSourceWidth /Encoding 3 0 R /DescendantFonts [5 0 R] /ToUnicode 6 0 R >>\nendobj\n"
+    . "3 0 obj\n<< /Length " . strlen($notdefCharEncodingCmap) . " >>\nstream\n{$notdefCharEncodingCmap}\nendstream\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($notdefCharContent) . " >>\nstream\n{$notdefCharContent}\nendstream\nendobj\n"
+    . "5 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /NotdefCharSourceWidth /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [100 103 1000 104 107 250] >>\nendobj\n"
+    . "6 0 obj\n<< /Length " . strlen($notdefCharToUnicodeCmap) . " >>\nstream\n{$notdefCharToUnicodeCmap}\nendstream\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
 $lines = $extractor->extractTextLines($pdf);
@@ -381,11 +432,15 @@ $broadToUnicodeCodespaceLines = $extractor->extractTextLines($broadToUnicodeCode
 $broadToUnicodeCodespaceRuns = $extractor->extractTextRuns($broadToUnicodeCodespacePdf);
 $broadToUnicodeCodespacePages = $extractor->extractStyledTextPages($broadToUnicodeCodespacePdf);
 $broadToUnicodeCodespaceSpans = $broadToUnicodeCodespacePages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$notdefCharLines = $extractor->extractTextLines($notdefCharPdf);
+$notdefCharRuns = $extractor->extractTextRuns($notdefCharPdf);
+$notdefCharPages = $extractor->extractStyledTextPages($notdefCharPdf);
+$notdefCharSpans = $notdefCharPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
 
 echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, one-byte ToUnicode codespace padding fallback, repeated zero-padded source-byte collapse, explicit longer source-key precedence, malformed mixed-width bfrange rejection, predefined ToUnicode usecmap source-code inheritance, explicit CID CMap row recovery over malformed broad codespace, zero-padded remapped CID range source widths, and explicit ToUnicode row recovery over malformed broad codespace before Gutenberg paragraph rendering',
+    'native_boundary' => 'predefined Identity-H/UCS2-H source-width fallback with CIDFont default, metric-miss ToUnicode width fallback, partial metric-miss chunk fallback, DW-only metric-miss fallback, horizontal and vertical TJ adjustment gap recovery, odd hex operand and CMap source-key right-padding, one-byte ToUnicode codespace padding fallback, repeated zero-padded source-byte collapse, explicit longer source-key precedence, malformed mixed-width bfrange rejection, predefined ToUnicode usecmap source-code inheritance, explicit CID CMap row recovery over malformed broad codespace, zero-padded remapped CID range source widths, explicit ToUnicode row recovery over malformed broad codespace, and Encoding CMap notdefchar source width fallback before Gutenberg paragraph rendering',
     'default_width_source_fallback_applied' => $lines === ['ABCD EFGH'],
     'predefined_identity_source_width_applied' => $lines === ['ABCD EFGH'],
     'padding_bytes_not_counted_as_glyphs' => ($spans[0]['bbox'][2] ?? null) === 48.0,
@@ -452,9 +507,13 @@ echo "<!-- markerpdf-cmap-source-width-fallback-smoke " . htmlspecialchars(json_
     'broad_tounicode_codespace_decoy_chunks_excluded' => !str_contains(implode('', $broadToUnicodeCodespaceLines), '䅂') && !str_contains(implode('', $broadToUnicodeCodespaceLines), '䍄'),
     'broad_tounicode_codespace_span_widths' => array_column($broadToUnicodeCodespaceSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
     'broad_tounicode_codespace_false_join_excluded' => !in_array('ABCDEFGH', $broadToUnicodeCodespaceLines, true),
+    'notdef_char_source_widths_applied' => $notdefCharLines === ['ABCD EFGH'],
+    'notdef_char_runs_preserved' => $notdefCharRuns === ['ABCD', 'EFGH'],
+    'notdef_char_span_widths' => array_column($notdefCharSpans, 'bbox') === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'notdef_char_false_join_excluded' => !in_array('ABCDEFGH', $notdefCharLines, true),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines, $repeatedZeroPaddingLines, $explicitLongSourceLines, $mixedWidthBfrangeLines, $predefinedUseCMapLines, $cidCharMalformedCodespaceLines, $cidRangeZeroPaddedLines, $broadToUnicodeCodespaceLines) as $line) {
+foreach (array_merge($lines, $predefinedUcs2Lines, $metricMissLines, $defaultMetricMissLines, $partialMetricMissLines, $tjGapLines, $verticalTjGapLines, $oddHexLines, $oddCMapSourceKeyLines, $codespacePaddingLines, $repeatedZeroPaddingLines, $explicitLongSourceLines, $mixedWidthBfrangeLines, $predefinedUseCMapLines, $cidCharMalformedCodespaceLines, $cidRangeZeroPaddedLines, $broadToUnicodeCodespaceLines, $notdefCharLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
