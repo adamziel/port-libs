@@ -718,6 +718,76 @@ return [
         $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
         $t->true(!str_contains($encoded, $imagePayload));
     },
+    'preserves image XObject current paths across q Q graphics-state restores' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before q path clipped images) Tj ET\n"
+            . "q q 10 10 m 40 10 l 40 30 l 10 30 l h Q W n 50 0 0 40 0 0 cm /QPath#20Image Do Q\n"
+            . "20 20 m 30 20 l 30 30 l 20 30 l h q W n Q W n 50 0 0 40 60 0 cm /Cleared#20QPath#20Image Do\n"
+            . 'BT /F1 12 Tf 72 660 Td (After q path clipped images) Tj ET';
+        $qPathPayload = 'BT /F1 12 Tf 72 720 Td (Q Path Image Payload Noise) Tj ET';
+        $clearedPayload = 'BT /F1 12 Tf 72 720 Td (Cleared Q Path Image Payload Noise) Tj ET';
+        $qPathCompressed = gzcompress($qPathPayload);
+        $clearedCompressed = gzcompress($clearedPayload);
+        if (!is_string($qPathCompressed) || !is_string($clearedCompressed)) {
+            throw new RuntimeException('Unable to compress q/Q path clip image fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /QPath#20Image 5 0 R /Cleared#20QPath#20Image 6 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 50 /Height 40 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($qPathCompressed) . " >>\nstream\n{$qPathCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 50 /Height 40 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($clearedCompressed) . " >>\nstream\n{$clearedCompressed}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $entriesByName = [];
+        foreach ($review['entries'] as $entry) {
+            $entriesByName[$entry['resource_name']] = $entry;
+        }
+
+        $t->same(2, $review['image_xobject_count']);
+        $t->same(2, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $qPath = $entriesByName['QPath Image'];
+        $t->same([[50.0, 0.0, 0.0, 40.0, 0.0, 0.0]], $qPath['invocation_matrices']);
+        $t->same([[0.0, 0.0, 50.0, 40.0]], $qPath['invocation_bboxes']);
+        $t->same([[10.0, 10.0, 40.0, 30.0]], $qPath['invocation_clip_bboxes']);
+        $t->same([[10.0, 10.0, 40.0, 30.0]], $qPath['invocation_visible_bboxes']);
+        $t->same([10.0, 10.0, 40.0, 30.0], $qPath['image_visible_bbox']);
+        $t->same(true, $qPath['clip_applied']);
+        $t->same(true, $qPath['clip_reduces_painted_bbox']);
+        $t->same(false, $qPath['clip_excludes_image']);
+        $t->same(1, $qPath['painted_invocation_count']);
+        $t->same(0, $qPath['clip_excluded_invocation_count']);
+        $t->same(hash('sha256', $qPathPayload), $qPath['decoded_sha256']);
+
+        $cleared = $entriesByName['Cleared QPath Image'];
+        $t->same([[50.0, 0.0, 0.0, 40.0, 60.0, 0.0]], $cleared['invocation_matrices']);
+        $t->same([[60.0, 0.0, 110.0, 40.0]], $cleared['invocation_bboxes']);
+        $t->same([], $cleared['invocation_clip_bboxes']);
+        $t->same([[60.0, 0.0, 110.0, 40.0]], $cleared['invocation_visible_bboxes']);
+        $t->same([60.0, 0.0, 110.0, 40.0], $cleared['image_visible_bbox']);
+        $t->same(false, $cleared['clip_applied']);
+        $t->same(false, $cleared['clip_reduces_painted_bbox']);
+        $t->same(false, $cleared['clip_excludes_image']);
+        $t->same(1, $cleared['painted_invocation_count']);
+        $t->same(0, $cleared['clip_excluded_invocation_count']);
+        $t->same(hash('sha256', $clearedPayload), $cleared['decoded_sha256']);
+
+        $t->same(['Before q path clipped images', 'After q path clipped images'], $extractor->extractTextLines($pdf));
+        $t->same("Before q path clipped images\nAfter q path clipped images", $plainText);
+        $t->true(!str_contains($plainText, 'Q Path Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Cleared Q Path Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $qPathPayload));
+        $t->true(!str_contains($encoded, $clearedPayload));
+    },
     'records image XObject dictionary metadata without leaking metadata streams into text' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before image metadata) Tj ET\n"
             . "q 18 0 0 9 72 690 cm /Meta#20Image Do Q\n"

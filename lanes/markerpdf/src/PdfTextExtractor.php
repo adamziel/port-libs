@@ -3575,9 +3575,6 @@ final class PdfTextExtractor
                 $clipState = array_pop($clipStateStack);
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
-                    $currentPathRectangle = $clipState['currentPathRectangle'];
-                    $currentPathPoint = $clipState['currentPathPoint'];
-                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -4722,7 +4719,10 @@ final class PdfTextExtractor
             if ($token === 'Q') {
                 $restoredStates = array_pop($graphicsStateStack);
                 if (is_array($restoredStates)) {
-                    $currentStates = $restoredStates;
+                    $currentStates = $this->restoreImageInvocationGraphicsStatesPreservingCurrentPath(
+                        $restoredStates,
+                        $currentStates
+                    );
                 }
                 $operands = [];
                 continue;
@@ -4972,7 +4972,10 @@ final class PdfTextExtractor
             if ($token === 'Q') {
                 $restoredStates = array_pop($graphicsStateStack);
                 if (is_array($restoredStates)) {
-                    $currentStates = $restoredStates;
+                    $currentStates = $this->restoreImageInvocationGraphicsStatesPreservingCurrentPath(
+                        $restoredStates,
+                        $currentStates
+                    );
                 }
                 $operands = [];
                 continue;
@@ -5126,6 +5129,32 @@ final class PdfTextExtractor
             'graphics_state' => $this->defaultInvocationGraphicsState(),
             'marked_content' => [],
         ]] : $normalized;
+    }
+
+    /**
+     * q/Q restores the graphics state, including clipping and CTM, but the PDF
+     * current path itself remains live until a path-painting or `n` operator.
+     *
+     * @param list<array<string, mixed>> $restoredStates
+     * @param list<array<string, mixed>> $liveStates
+     * @return list<array<string, mixed>>
+     */
+    private function restoreImageInvocationGraphicsStatesPreservingCurrentPath(
+        array $restoredStates,
+        array $liveStates
+    ): array {
+        foreach ($restoredStates as $index => $state) {
+            if (!isset($liveStates[$index]) || !is_array($state) || !is_array($liveStates[$index])) {
+                continue;
+            }
+
+            $state['path_bbox'] = $liveStates[$index]['path_bbox'] ?? null;
+            $state['path_current_point'] = $liveStates[$index]['path_current_point'] ?? null;
+            $state['path_start_point'] = $liveStates[$index]['path_start_point'] ?? null;
+            $restoredStates[$index] = $state;
+        }
+
+        return $restoredStates;
     }
 
     /**
@@ -28577,9 +28606,6 @@ final class PdfTextExtractor
                 $clipState = array_pop($clipStateStack);
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
-                    $currentPathRectangle = $clipState['currentPathRectangle'];
-                    $currentPathPoint = $clipState['currentPathPoint'];
-                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -29028,9 +29054,6 @@ final class PdfTextExtractor
                 $clipState = array_pop($clipStateStack);
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
-                    $currentPathRectangle = $clipState['currentPathRectangle'];
-                    $currentPathPoint = $clipState['currentPathPoint'];
-                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
@@ -30185,9 +30208,6 @@ final class PdfTextExtractor
                 $clipState = array_pop($clipStateStack);
                 if (is_array($clipState)) {
                     $clipRectangle = $clipState['clipRectangle'];
-                    $currentPathRectangle = $clipState['currentPathRectangle'];
-                    $currentPathPoint = $clipState['currentPathPoint'];
-                    $currentSubpathStartPoint = $clipState['currentSubpathStartPoint'];
                     $currentTransformationMatrix = $clipState['currentTransformationMatrix'];
                 }
                 $operands = [];
