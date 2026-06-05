@@ -3516,6 +3516,10 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
+            if (!$this->fieldTreeChildOwnedByParent($objectNumber, $kidRef, $objects)) {
+                continue;
+            }
+
             $kidBody = $this->dictionaryObjectBody($objects[$kidRef]) ?? trim($objects[$kidRef]);
             if ($this->isPureWidget($kidBody)) {
                 $widgetRefs[] = $kidRef;
@@ -6228,6 +6232,10 @@ final class PdfAcroFormExtractor
 
         foreach ($this->kidReferences($body, $objects) as $kidRef) {
             if (!isset($objects[$kidRef])) {
+                continue;
+            }
+
+            if (!$this->fieldTreeChildOwnedByParent($objectNumber, $kidRef, $objects)) {
                 continue;
             }
 
@@ -9002,7 +9010,26 @@ final class PdfAcroFormExtractor
         }
 
         $parentBody = $this->dictionaryObjectBody($objects[$parentObject]) ?? trim($objects[$parentObject]);
-        return in_array($childObject, $this->kidReferences($parentBody, $objects), true);
+        return in_array($childObject, $this->kidReferences($parentBody, $objects), true)
+            && $this->fieldTreeChildOwnedByParent($parentObject, $childObject, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function fieldTreeChildOwnedByParent(int $parentObject, int $childObject, array $objects): bool
+    {
+        if (!isset($objects[$childObject])) {
+            return false;
+        }
+
+        $childBody = $this->dictionaryObjectBody($objects[$childObject]) ?? trim($objects[$childObject]);
+        $parentValue = $this->valueAfterName($childBody, 'Parent');
+        if ($parentValue === null) {
+            return true;
+        }
+
+        return $this->validObjectReferenceFromValue($parentValue, $objects) === $parentObject;
     }
 
     /**
@@ -9037,6 +9064,10 @@ final class PdfAcroFormExtractor
         $seen[$rootObject] = true;
         $body = $this->dictionaryObjectBody($objects[$rootObject]) ?? trim($objects[$rootObject]);
         foreach ($this->kidReferences($body, $objects) as $kidRef) {
+            if (!$this->fieldTreeChildOwnedByParent($rootObject, $kidRef, $objects)) {
+                continue;
+            }
+
             if ($kidRef === $targetObject || $this->fieldTreeContainsObject($kidRef, $targetObject, $objects, $seen)) {
                 return true;
             }
@@ -9058,6 +9089,10 @@ final class PdfAcroFormExtractor
         $seen[$objectNumber] = true;
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
         foreach ($this->kidReferences($body, $objects) as $kidRef) {
+            if (!$this->fieldTreeChildOwnedByParent($objectNumber, $kidRef, $objects)) {
+                continue;
+            }
+
             $this->collectFieldTreeObjectNumbers($kidRef, $objects, $seen);
         }
     }
