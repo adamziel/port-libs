@@ -19614,7 +19614,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($this->decodeParmsHasMalformedKnownParameters($decodeParmsValue, $objects)) {
+            if ($decodeParmsValue !== null) {
                 $count++;
             }
         }
