@@ -1028,7 +1028,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTransform']['relationshipTargetsValid'] ?? null) !== true
         || ($summary['relationshipTransform']['valid'] ?? null) !== true
         || ($summary['relationshipTransform']['issues'] ?? null) !== []
-        || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="Internal"')
+        || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="Internal"')
         || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="External"')
         || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'rIdDraftReview')
         || count($summary['signatureRelationshipTransforms'] ?? []) !== 1

@@ -1512,8 +1512,9 @@ XML;
             'rIdHero',
             'rIdEmbeddedWorkbook',
         ], array_column($transform['relationships'], 'id'));
-        $t->same('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdEmbeddedWorkbook" Target="embeddings/source-workbook.xlsx" TargetMode="Internal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"></Relationship><Relationship Id="rIdHero" Target="media/hero.png" TargetMode="Internal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"></Relationship><Relationship Id="rIdReviewer" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"></Relationship></Relationships>', $transform['relationshipXml']);
+        $t->same('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdEmbeddedWorkbook" Target="embeddings/source-workbook.xlsx" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"></Relationship><Relationship Id="rIdHero" Target="media/hero.png" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"></Relationship><Relationship Id="rIdReviewer" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"></Relationship></Relationships>', $transform['relationshipXml']);
         $t->same(false, str_contains($transform['relationshipXml'], 'rIdDraft'));
+        $t->same(false, str_contains($transform['relationshipXml'], 'TargetMode="Internal"'));
         $t->same(false, str_contains($transform['relationshipXml'], '/word/media/hero.png'));
 
         $invalid = $graph->materializeRelationshipTransform('/word/document.xml', ['rIdMissing'], []);
@@ -1528,6 +1529,54 @@ XML;
         $t->same(false, $missingSource['valid']);
         $t->same(['relationship-source-not-loaded', 'unmatched-source-id'], $missingSource['issues']);
         $t->same(null, $missingSource['relationshipXml']);
+    },
+    'omits internal TargetMode attributes from OPC relationship transform XML' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdInternalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+  <Relationship Id="rIdExternalSource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/review.png', 'data' => 'PNG'],
+        ]));
+
+        $transform = $graph->materializeRelationshipTransform(
+            '/word/document.xml',
+            ['rIdInternalImage', 'rIdExternalSource'],
+        );
+
+        $expectedXml = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternalSource" Target="https://example.test/source" TargetMode="External" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"></Relationship><Relationship Id="rIdInternalImage" Target="media/review.png" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"></Relationship></Relationships>';
+        $t->same(['rIdExternalSource', 'rIdInternalImage'], $transform['relationshipIds']);
+        $t->same($expectedXml, $transform['relationshipXml']);
+        $t->same(false, str_contains((string) $transform['relationshipXml'], 'TargetMode="Internal"'));
+        $t->contains('TargetMode="External"', (string) $transform['relationshipXml']);
+
+        $roundTrip = OpcRelationships::fromXml((string) $transform['relationshipXml'], '/word/document.xml');
+        $t->same('/word/media/review.png', $roundTrip->resolveTarget('rIdInternalImage'));
+        $t->same(OpcRelationship::TARGET_MODE_INTERNAL, $roundTrip->byId('rIdInternalImage')?->targetMode);
+        $t->same('https://example.test/source', $roundTrip->resolveTarget('rIdExternalSource'));
+        $t->true($roundTrip->byId('rIdExternalSource')?->isExternal() ?? false);
     },
     'accepts singular OPC relationship group reference selectors in signature transforms' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

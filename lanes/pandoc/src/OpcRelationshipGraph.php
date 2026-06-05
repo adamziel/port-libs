@@ -1732,7 +1732,9 @@ final class OpcRelationshipGraph
             $xml .= '<Relationship'
                 . ' Id="' . self::escapeXmlAttribute($relationship->id) . '"'
                 . ' Target="' . self::escapeXmlAttribute($relationship->target) . '"'
-                . ' TargetMode="' . self::escapeXmlAttribute($relationship->targetMode) . '"'
+                . ($relationship->targetMode === OpcRelationship::TARGET_MODE_INTERNAL
+                    ? ''
+                    : ' TargetMode="' . self::escapeXmlAttribute($relationship->targetMode) . '"')
                 . ' Type="' . self::escapeXmlAttribute($relationship->type) . '"'
                 . '></Relationship>';
         }
