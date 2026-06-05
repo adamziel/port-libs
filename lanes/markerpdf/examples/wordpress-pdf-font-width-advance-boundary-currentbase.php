@@ -43,6 +43,15 @@ $relativeTdPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($relativeTdContent) . " >>\nstream\n{$relativeTdContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$relativeTdStyledGapContent = 'BT /Ftdgap 12 Tf '
+    . '1 0 0 1 72 720 Tm <4142> Tj 48 0 Td <4344> Tj '
+    . 'T* 1 0 0 1 72 704 Tm <4142> Tj 24 0 Td <4344> Tj ET';
+$relativeTdStyledGapPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftdgap 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+RelativeTdStyledGap /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($relativeTdStyledGapContent) . " >>\nstream\n{$relativeTdStyledGapContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $scaledTdContent = 'BT /Fscale 12 Tf '
     . '0.5 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
     . 'T* 0.5 0 0 1 72 704 Tm <4142> Tj 48 0 Td <4344> Tj ET';
@@ -251,6 +260,25 @@ $relativeTdSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $relativeTdSpans
 );
+$relativeTdStyledGapLines = $extractor->extractTextLines($relativeTdStyledGapPdf);
+$relativeTdStyledGapPlainText = implode("\n", $relativeTdStyledGapLines);
+$relativeTdStyledGapPages = $extractor->extractStyledTextPages($relativeTdStyledGapPdf);
+$relativeTdStyledGapLinesStyled = [];
+foreach (($relativeTdStyledGapPages[0]['blocks'] ?? []) as $block) {
+    foreach (($block['lines'] ?? []) as $line) {
+        $relativeTdStyledGapLinesStyled[] = $line;
+    }
+}
+$relativeTdStyledGapFirstLine = $relativeTdStyledGapLinesStyled[0] ?? [];
+$relativeTdStyledGapSecondLine = $relativeTdStyledGapLinesStyled[1] ?? [];
+$relativeTdStyledGapFirstBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $relativeTdStyledGapFirstLine['spans'] ?? []
+);
+$relativeTdStyledGapSecondBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $relativeTdStyledGapSecondLine['spans'] ?? []
+);
 $scaledTdLines = $extractor->extractTextLines($scaledTdPdf);
 $scaledTdPlainText = implode("\n", $scaledTdLines);
 $scaledTdPages = $extractor->extractStyledTextPages($scaledTdPdf);
@@ -379,7 +407,7 @@ $type3FontMatrixWidthsSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-and-type3-fontmatrix-width-advance',
+    'source' => 'native-pdf-simple-font-average-positive-lastchar-malformed-range-quote-relative-td-styled-gap-scaled-td-text-matrix-vertical-negative-rotated-horizontal-vector-text-object-reset-text-rise-tj-drawn-extent-vertical-width-vertical-tj-negative-tc-and-type3-fontmatrix-width-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -393,6 +421,12 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'relative_td_larger_gap_still_preserved' => ($relativeTdLines[1] ?? null) === 'AB CD',
     'relative_td_false_gap_excluded' => !str_contains($relativeTdPlainText, 'AB CD' . "\n" . 'AB CD'),
     'relative_td_span_bboxes_preserved' => $relativeTdSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'relative_td_styled_gap_lines_preserved' => $relativeTdStyledGapLines === ['AB CD', 'ABCD'],
+    'relative_td_styled_gap_plain_text_preserved' => $relativeTdStyledGapPlainText === "AB CD\nABCD",
+    'relative_td_styled_gap_bboxes_preserved' => $relativeTdStyledGapFirstBboxes === [[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]],
+    'relative_td_styled_gap_line_bbox_preserved' => ($relativeTdStyledGapFirstLine['bbox'] ?? null) === [0.0, 0.0, 72.0, 12.0],
+    'relative_td_styled_gap_compaction_excluded' => $relativeTdStyledGapFirstBboxes !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'relative_td_styled_no_gap_bboxes_preserved' => $relativeTdStyledGapSecondBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
     'scaled_td_uses_text_matrix_current_end' => ($scaledTdLines[0] ?? null) === 'ABCD',
     'scaled_td_larger_gap_still_preserved' => ($scaledTdLines[1] ?? null) === 'AB CD',
     'scaled_td_false_gap_excluded' => !str_contains($scaledTdPlainText, 'AB CD' . "\n" . 'AB CD'),
@@ -458,6 +492,9 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'terminal_tc_span_bboxes' => $terminalTcSpanBboxes,
     'relative_td_lines' => $relativeTdLines,
     'relative_td_span_bboxes' => $relativeTdSpanBboxes,
+    'relative_td_styled_gap_lines' => $relativeTdStyledGapLines,
+    'relative_td_styled_gap_first_bboxes' => $relativeTdStyledGapFirstBboxes,
+    'relative_td_styled_gap_second_bboxes' => $relativeTdStyledGapSecondBboxes,
     'scaled_td_lines' => $scaledTdLines,
     'scaled_td_span_bboxes' => $scaledTdSpanBboxes,
     'text_matrix_vertical_scale_lines' => $textMatrixScaleLines,
@@ -498,7 +535,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $terminalTcLines, $relativeTdLines, $relativeTdStyledGapLines, $scaledTdLines, $textMatrixScaleLines, $negativeTextMatrixLines, $textRiseLines, $tjBacktrackLines, $tjDrawnExtentLines, $negativeTcBacktrackLines, $sparseWidthLines, $lastCharLines, $malformedRangeLines, $rotatedTextMatrixLines, $textObjectResetLines, $verticalLines, $verticalTjLines, $type3FontMatrixWidthsLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";

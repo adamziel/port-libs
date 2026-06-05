@@ -22140,6 +22140,11 @@ final class PdfTextExtractor
         $currentTextMatrixHorizontalScale = 1.0;
         $currentTextMatrixHorizontalExtentScale = 1.0;
         $currentTextMatrixVerticalScale = 1.0;
+        $currentTextEndX = null;
+        $currentTextEndY = null;
+        $currentTextDrawnEndX = null;
+        $currentTextDrawnEndY = null;
+        $pendingStyledSpanGap = 0.0;
         $textRise = 0.0;
         $spanId = 0;
         $textRenderingMode = 0;
@@ -22155,6 +22160,11 @@ final class PdfTextExtractor
                 if ($token === "'" || $token === '"') {
                     $this->pushSpanLine($lines, $spans);
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                    $currentTextEndX = $currentTextX;
+                    $currentTextEndY = $currentTextY;
+                    $currentTextDrawnEndX = $currentTextX;
+                    $currentTextDrawnEndY = $currentTextY;
+                    $pendingStyledSpanGap = 0.0;
                 }
 
                 if ($token === '"') {
@@ -22207,8 +22217,58 @@ final class PdfTextExtractor
                         $wordSpacing,
                         $horizontalScale * $currentTextMatrixHorizontalExtentScale,
                         $currentTextMatrixVerticalScale,
-                        $textRise
+                        $textRise,
+                        $this->styledSpanXStartAfterPendingGap($spans, $pendingStyledSpanGap)
                     );
+                    $pendingStyledSpanGap = 0.0;
+                    if ($this->mapWritingMode($toUnicodeMap) === 1) {
+                        $currentTextDrawnEndY = $this->advanceTextEndYForOperand(
+                            $currentTextDrawnEndY ?? $currentTextY,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing
+                        );
+                        $currentTextEndY = $this->advanceTextEndYForOperand(
+                            $currentTextEndY ?? $currentTextY,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            true
+                        );
+                    } else {
+                        $textStartX = $currentTextEndX ?? $currentTextX;
+                        $currentTextDrawnEndX = $this->textOperandHorizontalDrawnEndX(
+                            $textStartX,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        ) ?? $this->advanceTextEndXForOperand(
+                            $textStartX,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale
+                        );
+                        $currentTextEndX = $this->advanceTextEndXForOperand(
+                            $textStartX,
+                            $operand,
+                            $toUnicodeMap,
+                            $currentFontSize,
+                            $characterSpacing,
+                            $wordSpacing,
+                            $horizontalScale * $currentTextMatrixHorizontalScale,
+                            true
+                        );
+                    }
                 }
                 $operands = [];
                 continue;
@@ -22254,8 +22314,10 @@ final class PdfTextExtractor
                         0.0,
                         100.0,
                         $currentTextMatrixVerticalScale,
-                        $textRise
+                        $textRise,
+                        $this->styledSpanXStartAfterPendingGap($spans, $pendingStyledSpanGap)
                     );
+                    $pendingStyledSpanGap = 0.0;
                 }
                 $operands = [];
                 continue;
@@ -22360,9 +22422,21 @@ final class PdfTextExtractor
                     : $this->textMoveBreaksLine($operands)
                 ) {
                     $this->pushSpanLine($lines, $spans);
+                    $pendingStyledSpanGap = 0.0;
+                } elseif ($this->mapWritingMode($toUnicodeMap) !== 1) {
+                    $pendingStyledSpanGap = $this->styledTextMoveGapWidth(
+                        $operands,
+                        $currentTextX,
+                        $currentTextEndX,
+                        $currentTextMatrixHorizontalScale
+                    ) ?? $pendingStyledSpanGap;
                 }
                 $currentTextX = $this->textMoveX($operands, $currentTextX, $currentTextMatrixHorizontalScale);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
+                $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
+                $currentTextDrawnEndX = $currentTextX;
+                $currentTextDrawnEndY = $currentTextY;
                 $operands = [];
                 continue;
             }
@@ -22376,9 +22450,14 @@ final class PdfTextExtractor
                     : ($matrixY !== null && $currentTextY !== null && abs($matrixY - $currentTextY) > 0.000001)
                 ) {
                     $this->pushSpanLine($lines, $spans);
+                    $pendingStyledSpanGap = 0.0;
                 }
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $matrixY;
+                $currentTextEndX = $currentTextX;
+                $currentTextEndY = $currentTextY;
+                $currentTextDrawnEndX = $currentTextX;
+                $currentTextDrawnEndY = $currentTextY;
                 $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $currentTextMatrixHorizontalExtentScale = $this->textMatrixHorizontalExtentScale($operands)
                     ?? abs($currentTextMatrixHorizontalScale);
@@ -22389,11 +22468,20 @@ final class PdfTextExtractor
 
             if ($token === 'T*' || $token === 'ET') {
                 $this->pushSpanLine($lines, $spans);
+                $pendingStyledSpanGap = 0.0;
                 if ($token === 'T*') {
                     $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                    $currentTextEndX = $currentTextX;
+                    $currentTextEndY = $currentTextY;
+                    $currentTextDrawnEndX = $currentTextX;
+                    $currentTextDrawnEndY = $currentTextY;
                 } else {
                     $currentTextX = null;
                     $currentTextY = null;
+                    $currentTextEndX = null;
+                    $currentTextEndY = null;
+                    $currentTextDrawnEndX = null;
+                    $currentTextDrawnEndY = null;
                     $currentTextMatrixHorizontalScale = 1.0;
                     $currentTextMatrixHorizontalExtentScale = 1.0;
                     $currentTextMatrixVerticalScale = 1.0;
@@ -22405,9 +22493,14 @@ final class PdfTextExtractor
             if ($token === 'BT') {
                 $currentTextX = 0.0;
                 $currentTextY = null;
+                $currentTextEndX = null;
+                $currentTextEndY = null;
+                $currentTextDrawnEndX = null;
+                $currentTextDrawnEndY = null;
                 $currentTextMatrixHorizontalScale = 1.0;
                 $currentTextMatrixHorizontalExtentScale = 1.0;
                 $currentTextMatrixVerticalScale = 1.0;
+                $pendingStyledSpanGap = 0.0;
                 $operands = [];
                 continue;
             }
@@ -22454,7 +22547,8 @@ final class PdfTextExtractor
         float $wordSpacing = 0.0,
         float $horizontalScale = 100.0,
         float $verticalScale = 1.0,
-        float $textRise = 0.0
+        float $textRise = 0.0,
+        ?float $xStartOverride = null
     ): void {
         if ($text === '') {
             return;
@@ -22465,8 +22559,8 @@ final class PdfTextExtractor
         $flags = $fontInfo['flags'];
         $fontName = $fontInfo['name'] ?? $fontResource ?? 'None';
         $fontSize ??= 12.0;
-        $xStart = 0.0;
-        if ($spans !== []) {
+        $xStart = is_float($xStartOverride) && is_finite($xStartOverride) ? $xStartOverride : 0.0;
+        if ($xStartOverride === null && $spans !== []) {
             $previousBbox = $spans[count($spans) - 1]['bbox'] ?? null;
             if (is_array($previousBbox) && isset($previousBbox[2]) && (is_int($previousBbox[2]) || is_float($previousBbox[2]))) {
                 $xStart = (float) $previousBbox[2];
@@ -22499,6 +22593,46 @@ final class PdfTextExtractor
 
         $spans[] = $span;
         $spanId++;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spans
+     */
+    private function styledSpanXStartAfterPendingGap(array $spans, float $pendingGap): ?float
+    {
+        if ($pendingGap < self::POSITIONED_TEXT_WORD_GAP || $spans === []) {
+            return null;
+        }
+
+        $previousBbox = $spans[count($spans) - 1]['bbox'] ?? null;
+        if (!is_array($previousBbox) || !isset($previousBbox[2]) || (!is_int($previousBbox[2]) && !is_float($previousBbox[2]))) {
+            return null;
+        }
+
+        return (float) $previousBbox[2] + $pendingGap;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function styledTextMoveGapWidth(
+        array $operands,
+        ?float $currentTextX,
+        ?float $currentTextEndX,
+        float $textMatrixHorizontalScale
+    ): ?float {
+        if ($currentTextX === null || $currentTextEndX === null) {
+            return null;
+        }
+
+        $tx = $this->scaledTextMoveOperandX($operands, $textMatrixHorizontalScale);
+        if ($tx === null) {
+            return null;
+        }
+
+        $gap = ($currentTextX + $tx) - $currentTextEndX;
+
+        return $gap >= self::POSITIONED_TEXT_WORD_GAP ? $gap : null;
     }
 
     /**

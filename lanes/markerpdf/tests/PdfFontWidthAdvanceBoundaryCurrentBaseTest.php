@@ -52,6 +52,18 @@ $fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthRelativeTdStyledGapBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Ftdgap 12 Tf '
+        . '1 0 0 1 72 720 Tm <4142> Tj 48 0 Td <4344> Tj '
+        . 'T* 1 0 0 1 72 704 Tm <4142> Tj 24 0 Td <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Ftdgap 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+RelativeTdStyledGap /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontWidthScaledTdAdvanceBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Fscale 12 Tf '
         . '0.5 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
@@ -491,6 +503,36 @@ return [
         $t->true(str_contains($plainText, 'AB CD'));
         $t->true(!str_contains($plainText, 'RelativeTdAdvance'));
         $t->true(!str_contains($plainText, 'Ftd'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'preserves relative Td word-gap geometry in native styled bboxes on current base' => static function (TestRunner $t) use ($fontWidthRelativeTdStyledGapBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthRelativeTdStyledGapBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $styledLines = [];
+        foreach (($pages[0]['blocks'] ?? []) as $block) {
+            foreach (($block['lines'] ?? []) as $line) {
+                $styledLines[] = $line;
+            }
+        }
+        $firstLine = $styledLines[0] ?? [];
+        $secondLine = $styledLines[1] ?? [];
+
+        $t->same(['AB CD', 'ABCD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("AB CD\nABCD", $plainText);
+        $t->same("AB CD\nABCD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [48.0, 0.0, 72.0, 12.0]], array_column($firstLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 72.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->same(['AB', 'CD'], array_column($secondLine['spans'] ?? [], 'text'));
+        $t->same([[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]], array_column($secondLine['spans'] ?? [], 'bbox'));
+        $t->same([0.0, 0.0, 48.0, 12.0], $secondLine['bbox'] ?? null);
+        $t->true(array_column($firstLine['spans'] ?? [], 'bbox') !== [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]]);
+        $t->true(!str_contains($plainText, 'AB CD' . "\n" . 'AB CD'));
+        $t->true(!str_contains($plainText, 'RelativeTdStyledGap'));
+        $t->true(!str_contains($plainText, 'Ftdgap'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'uses scaled text matrix advance before relative Td word-gap decisions on current base' => static function (TestRunner $t) use ($fontWidthScaledTdAdvanceBoundaryCurrentBasePdf): void {
