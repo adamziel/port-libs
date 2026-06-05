@@ -24,6 +24,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
   <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
   <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>
   <Override PartName="/word/charts/review-chart.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
   <Override PartName="/word/diagrams/review-data.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
   <Override PartName="/word/diagrams/review-layout.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"/>
@@ -50,6 +51,7 @@ XML],
   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
   <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
   <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
@@ -488,14 +490,21 @@ XML],
 </w:endnotes>
 XML],
     ['name' => 'word/comments.xml', 'data' => <<<'XML'
-<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
   <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-04T09:55:00Z">
-    <w:p><w:r><w:t>DOCX reviewer comment import note.</w:t></w:r></w:p>
+    <w:p w14:paraId="00DOCX09"><w:r><w:t>DOCX reviewer comment import note.</w:t></w:r></w:p>
   </w:comment>
   <w:comment w:id="10" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-05T03:20:00Z">
-    <w:p><w:r><w:t>DOCX multi-paragraph reviewer comment import note.</w:t></w:r></w:p>
+    <w:p w14:paraId="00DOCX10"><w:r><w:t>DOCX multi-paragraph reviewer comment import note.</w:t></w:r></w:p>
   </w:comment>
 </w:comments>
+XML],
+    ['name' => 'word/commentsExtended.xml', 'data' => <<<'XML'
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00DOCX09" w15:done="1"/>
+  <w15:commentEx w15:paraId="00DOCX10" w15:paraIdParent="00DOCX09" w15:done="0"/>
+</w15:commentsEx>
 XML],
     ['name' => 'word/header1.xml', 'data' => <<<'XML'
 <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -633,6 +642,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($noteItemsByKey['endnote:6']['referenceLabel'] ?? '') !== 'VIII' || ($noteItemsByKey['endnote:6']['referenceNumber'] ?? 0) !== 8) {
         throw new RuntimeException('DOCX body handoff self-test missing automatic endnote label report');
     }
+    if (($noteItemsByKey['comment:9']['commentParaId'] ?? '') !== '00DOCX09' || ($noteItemsByKey['comment:9']['commentResolved'] ?? null) !== true) {
+        throw new RuntimeException('DOCX body handoff self-test missing resolved commentsExtended metadata');
+    }
+    if (($noteItemsByKey['comment:10']['commentParaId'] ?? '') !== '00DOCX10' || ($noteItemsByKey['comment:10']['commentParentParaId'] ?? '') !== '00DOCX09' || ($noteItemsByKey['comment:10']['commentResolved'] ?? null) !== false) {
+        throw new RuntimeException('DOCX body handoff self-test missing threaded commentsExtended metadata');
+    }
     if (($summary['sectionProperties'][0]['pageSize']['orientation'] ?? '') !== 'landscape') {
         throw new RuntimeException('DOCX body handoff self-test missing section page orientation');
     }
@@ -718,15 +733,15 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Source textbox note from VML shape.</p>',
         '<p>Fallback textbox reminder.</p>',
         '<p> textbox tail.</p>',
-        '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">starts here</span></p>',
-        '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">continues here</span> for import review',
+        '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">starts here</span></p>',
+        '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">continues here</span> for import review',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
         '<a href="https://example.test/source-packet?post=42">the source link</a>',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
         'and flag missing note references<sup id="fnref-4"><a href="#fn-4" role="doc-noteref">4</a></sup>/<sup id="fnref-5"><a href="#fn-5" role="doc-noteref">5</a></sup>',
         'while automatic note labels remain auditable<sup id="fnref-6"><a href="#fn-6" role="doc-noteref">6</a></sup>/<sup id="fnref-7"><a href="#fn-7" role="doc-noteref">7</a></sup>',
-        '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> and reviewer comment</span>',
+        '<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z" data-docx-comment-para-id="00DOCX09" data-docx-comment-resolved="true"> and reviewer comment</span>',
         '<aside data-review="docx-alt"><p>Alternative HTML chunk from source packet.</p></aside>',
         '<p>Plain text source note<br/>Second imported line</p>',
         '<p>Final plain-text checkpoint.</p>',

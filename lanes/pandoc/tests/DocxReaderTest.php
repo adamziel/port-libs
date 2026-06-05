@@ -649,6 +649,62 @@ $crossParagraphCommentsXml = <<<'XML'
 </w:comments>
 XML;
 
+$commentsExtendedContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>
+</Types>
+XML;
+
+$commentsExtendedDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
+</Relationships>
+XML;
+
+$commentsExtendedDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Threaded comments </w:t></w:r>
+      <w:commentRangeStart w:id="9"/>
+      <w:r><w:t>resolved source</w:t></w:r>
+      <w:commentRangeEnd w:id="9"/>
+      <w:r><w:commentReference w:id="9"/></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:commentRangeStart w:id="10"/>
+      <w:r><w:t>reply source</w:t></w:r>
+      <w:commentRangeEnd w:id="10"/>
+      <w:r><w:commentReference w:id="10"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$commentsExtendedCommentsXml = <<<'XML'
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-05T14:00:00Z">
+    <w:p w14:paraId="00ABCDEF"><w:r><w:t>Resolved reviewer comment.</w:t></w:r></w:p>
+  </w:comment>
+  <w:comment w:id="10" w:author="Migration Reply" w:initials="MR2" w:date="2026-06-05T14:05:00Z">
+    <w:p w14:paraId="00FEDCBA"><w:r><w:t>Reply reviewer comment.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+
+$commentsExtendedXml = <<<'XML'
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00ABCDEF" w15:done="1"/>
+  <w15:commentEx w15:paraId="00FEDCBA" w15:paraIdParent="00ABCDEF" w15:done="0"/>
+</w15:commentsEx>
+XML;
+
 $missingNotesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1511,6 +1567,24 @@ $buildCrossParagraphCommentRangePackage = static function () use (
         ['name' => 'word/document.xml', 'data' => $crossParagraphCommentRangeDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $commentsOnlyDocumentRelationshipsXml],
         ['name' => 'word/comments.xml', 'data' => $crossParagraphCommentsXml],
+    ]);
+};
+
+$buildCommentsExtendedPackage = static function () use (
+    $commentsExtendedContentTypesXml,
+    $packageRelationshipsXml,
+    $commentsExtendedDocumentRelationshipsXml,
+    $commentsExtendedDocumentXml,
+    $commentsExtendedCommentsXml,
+    $commentsExtendedXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $commentsExtendedContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $commentsExtendedDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $commentsExtendedDocumentRelationshipsXml],
+        ['name' => 'word/comments.xml', 'data' => $commentsExtendedCommentsXml],
+        ['name' => 'word/commentsExtended.xml', 'data' => $commentsExtendedXml],
     ]);
 };
 
@@ -2454,6 +2528,76 @@ return [
         $t->contains('<p>Before <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">first paragraph note</span></p>', $blocks);
         $t->contains('<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z">second paragraph note</span> after range <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
         $t->contains('<li id="fn-1"><p>Comment spans two DOCX paragraphs.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'preserves DOCX commentsExtended resolution and thread metadata' => static function (TestRunner $t) use ($buildCommentsExtendedPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildCommentsExtendedPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('Threaded comments ', $paragraph->children[0]->attr('text'));
+
+        $resolvedRange = $paragraph->children[1];
+        $t->same('span', $resolvedRange->type);
+        $t->same(['docx-comment-range'], $resolvedRange->attr('classes'));
+        $resolvedAttrs = $resolvedRange->attr('attributes');
+        $t->same('9', $resolvedAttrs['data-docx-comment-id']);
+        $t->same('Migration Reviewer', $resolvedAttrs['data-docx-comment-author']);
+        $t->same('MR', $resolvedAttrs['data-docx-comment-initials']);
+        $t->same('2026-06-05T14:00:00Z', $resolvedAttrs['data-docx-comment-date']);
+        $t->same('00ABCDEF', $resolvedAttrs['data-docx-comment-para-id']);
+        $t->same('true', $resolvedAttrs['data-docx-comment-resolved']);
+        $t->same('resolved source', $resolvedRange->children[0]->attr('text'));
+
+        $resolvedComment = $paragraph->children[2];
+        $t->same('note', $resolvedComment->type);
+        $t->same('9', $resolvedComment->attr('id'));
+        $t->same('comment', $resolvedComment->attr('sourceType'));
+        $t->same('00ABCDEF', $resolvedComment->attr('commentParaId'));
+        $t->same(true, $resolvedComment->attr('commentResolved'));
+        $t->same('/word/commentsExtended.xml', $resolvedComment->attr('commentsExtendedPart'));
+        $t->same('Resolved reviewer comment.', $resolvedComment->children[0]->children[0]->attr('text'));
+
+        $t->same(' and ', $paragraph->children[3]->attr('text'));
+        $replyRange = $paragraph->children[4];
+        $replyAttrs = $replyRange->attr('attributes');
+        $t->same('10', $replyAttrs['data-docx-comment-id']);
+        $t->same('Migration Reply', $replyAttrs['data-docx-comment-author']);
+        $t->same('MR2', $replyAttrs['data-docx-comment-initials']);
+        $t->same('00FEDCBA', $replyAttrs['data-docx-comment-para-id']);
+        $t->same('00ABCDEF', $replyAttrs['data-docx-comment-parent-para-id']);
+        $t->same('false', $replyAttrs['data-docx-comment-resolved']);
+        $t->same('reply source', $replyRange->children[0]->attr('text'));
+
+        $replyComment = $paragraph->children[5];
+        $t->same('10', $replyComment->attr('id'));
+        $t->same('comment', $replyComment->attr('sourceType'));
+        $t->same('00FEDCBA', $replyComment->attr('commentParaId'));
+        $t->same('00ABCDEF', $replyComment->attr('commentParentParaId'));
+        $t->same(false, $replyComment->attr('commentResolved'));
+        $t->same('/word/commentsExtended.xml', $replyComment->attr('commentsExtendedPart'));
+        $t->same('Reply reviewer comment.', $replyComment->children[0]->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $notes = $result['importReport']['notes'];
+        $t->same(2, $notes['count']);
+        $t->same(2, $notes['commentCount']);
+        $t->same('00ABCDEF', $notes['items'][0]['commentParaId']);
+        $t->same(null, $notes['items'][0]['commentParentParaId']);
+        $t->same(true, $notes['items'][0]['commentResolved']);
+        $t->same('/word/commentsExtended.xml', $notes['items'][0]['commentsExtendedPart']);
+        $t->same('00FEDCBA', $notes['items'][1]['commentParaId']);
+        $t->same('00ABCDEF', $notes['items'][1]['commentParentParaId']);
+        $t->same(false, $notes['items'][1]['commentResolved']);
+
+        $t->contains('Threaded comments [resolved source]{.docx-comment-range data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T14:00:00Z" data-docx-comment-para-id="00ABCDEF" data-docx-comment-resolved="true"}[^1]', $markdown);
+        $t->contains('[reply source]{.docx-comment-range data-docx-comment-id="10" data-docx-comment-author="Migration Reply" data-docx-comment-initials="MR2" data-docx-comment-date="2026-06-05T14:05:00Z" data-docx-comment-para-id="00FEDCBA" data-docx-comment-parent-para-id="00ABCDEF" data-docx-comment-resolved="false"}[^2].', $markdown);
+        $t->contains('<span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T14:00:00Z" data-docx-comment-para-id="00ABCDEF" data-docx-comment-resolved="true">resolved source</span>', $blocks);
+        $t->contains('<span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reply" data-docx-comment-initials="MR2" data-docx-comment-date="2026-06-05T14:05:00Z" data-docx-comment-para-id="00FEDCBA" data-docx-comment-parent-para-id="00ABCDEF" data-docx-comment-resolved="false">reply source</span>', $blocks);
+        $t->contains('<li id="fn-1"><p>Resolved reviewer comment.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>Reply reviewer comment.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'preserves missing DOCX footnote and endnote references as empty note placeholders' => static function (TestRunner $t) use ($buildMissingNotesPackage): void {
         $reader = new DocxReader();

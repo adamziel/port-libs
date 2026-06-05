@@ -7,6 +7,8 @@ namespace PortLibs\Pandoc;
 final class DocxReader
 {
     public const WORDPROCESSINGML_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    public const WORDPROCESSINGML_2010_NS = 'http://schemas.microsoft.com/office/word/2010/wordml';
+    public const WORDPROCESSINGML_2012_NS = 'http://schemas.microsoft.com/office/word/2012/wordml';
     public const DRAWINGML_MAIN_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     public const DRAWINGML_PICTURE_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
     public const DRAWINGML_CHART_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
@@ -26,6 +28,7 @@ final class DocxReader
     public const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     public const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     public const REL_TYPE_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    public const REL_TYPE_COMMENTS_EXTENDED = 'http://schemas.microsoft.com/office/2011/relationships/commentsExtended';
     public const REL_TYPE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
@@ -190,7 +193,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}
+     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>}
      */
     private function notesImportReport(AstNode $document): array
     {
@@ -208,7 +211,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string}> $items
+     * @param list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}> $items
      */
     private function collectNoteImportReportItems(AstNode $node, array &$items): void
     {
@@ -216,6 +219,7 @@ final class DocxReader
             $sourceType = $node->attr('sourceType', 'note');
             $referenceNumber = $node->attr('referenceNumber');
             $referenceStart = $node->attr('referenceStart');
+            $commentResolved = $node->attr('commentResolved');
             $items[] = [
                 'id' => is_string($node->attr('id')) ? $node->attr('id') : null,
                 'sourceType' => is_string($sourceType) && $sourceType !== '' ? $sourceType : 'note',
@@ -232,6 +236,10 @@ final class DocxReader
                 'author' => is_string($node->attr('author')) ? $node->attr('author') : null,
                 'initials' => is_string($node->attr('initials')) ? $node->attr('initials') : null,
                 'date' => is_string($node->attr('date')) ? $node->attr('date') : null,
+                'commentParaId' => is_string($node->attr('commentParaId')) ? $node->attr('commentParaId') : null,
+                'commentParentParaId' => is_string($node->attr('commentParentParaId')) ? $node->attr('commentParentParaId') : null,
+                'commentResolved' => is_bool($commentResolved) ? $commentResolved : null,
+                'commentsExtendedPart' => is_string($node->attr('commentsExtendedPart')) ? $node->attr('commentsExtendedPart') : null,
             ];
         }
 
@@ -2111,11 +2119,18 @@ final class DocxReader
                 'author' => 'data-docx-comment-author',
                 'initials' => 'data-docx-comment-initials',
                 'date' => 'data-docx-comment-date',
+                'commentParaId' => 'data-docx-comment-para-id',
+                'commentParentParaId' => 'data-docx-comment-parent-para-id',
             ] as $source => $target) {
                 $value = $comment->attr($source);
                 if (is_string($value) && $value !== '') {
                     $attributes[$target] = $value;
                 }
+            }
+
+            $resolved = $comment->attr('commentResolved');
+            if (is_bool($resolved)) {
+                $attributes['data-docx-comment-resolved'] = $resolved ? 'true' : 'false';
             }
         }
 
@@ -4640,14 +4655,17 @@ final class DocxReader
      */
     private function loadReferencedNotes(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
     {
+        $commentsExtended = $this->loadCommentsExtendedMetadata($package, $graph, $documentPart);
+
         return array_replace(
             $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_FOOTNOTES, 'footnotes', 'footnote', 'footnote', 'DOCX footnotes XML'),
             $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_ENDNOTES, 'endnotes', 'endnote', 'endnote', 'DOCX endnotes XML'),
-            $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_COMMENTS, 'comments', 'comment', 'comment', 'DOCX comments XML'),
+            $this->loadNotePart($package, $graph, $documentPart, self::REL_TYPE_COMMENTS, 'comments', 'comment', 'comment', 'DOCX comments XML', $commentsExtended),
         );
     }
 
     /**
+     * @param array<string, array{part:string, paraId:string, parentParaId?:string, resolved?:bool}> $commentsExtended
      * @return array<string, AstNode>
      */
     private function loadNotePart(
@@ -4658,7 +4676,8 @@ final class DocxReader
         string $rootName,
         string $itemName,
         string $sourceType,
-        string $label
+        string $label,
+        array $commentsExtended = []
     ): array {
         $part = $graph->firstTargetOfType($relationshipType, $documentPart);
         if ($part === null) {
@@ -4705,12 +4724,112 @@ final class DocxReader
                         $attrs[$metadataName] = $metadata;
                     }
                 }
+
+                foreach ($this->commentExtendedAttrs($note, $commentsExtended) as $key => $value) {
+                    $attrs[$key] = $value;
+                }
             }
 
             $notes[$sourceType . ':' . $id] = new AstNode('note', $attrs, $this->noteBlocks($note, $package, $relationships));
         }
 
         return $notes;
+    }
+
+    /**
+     * @param array<string, array{part:string, paraId:string, parentParaId?:string, resolved?:bool}> $commentsExtended
+     * @return array<string, mixed>
+     */
+    private function commentExtendedAttrs(\DOMElement $comment, array $commentsExtended): array
+    {
+        $paraId = $this->commentParagraphId($comment);
+        if ($paraId === null) {
+            return [];
+        }
+
+        $attrs = [
+            'commentParaId' => $paraId,
+        ];
+        $extended = $commentsExtended[$paraId] ?? null;
+        if (!is_array($extended)) {
+            return $attrs;
+        }
+
+        $attrs['commentsExtendedPart'] = $extended['part'];
+        if (isset($extended['parentParaId']) && is_string($extended['parentParaId']) && $extended['parentParaId'] !== '') {
+            $attrs['commentParentParaId'] = $extended['parentParaId'];
+        }
+        if (array_key_exists('resolved', $extended) && is_bool($extended['resolved'])) {
+            $attrs['commentResolved'] = $extended['resolved'];
+        }
+
+        return $attrs;
+    }
+
+    private function commentParagraphId(\DOMElement $comment): ?string
+    {
+        foreach ($comment->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'p')) {
+                continue;
+            }
+
+            return $this->wordExtensionAttr($child, 'paraId');
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, array{part:string, paraId:string, parentParaId?:string, resolved?:bool}>
+     */
+    private function loadCommentsExtendedMetadata(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $part = $graph->firstTargetOfType(self::REL_TYPE_COMMENTS_EXTENDED, $documentPart);
+        if ($part === null) {
+            return [];
+        }
+
+        $part = OpcPackagePath::stripQueryAndFragment($part);
+        if (!$package->has($part)) {
+            return [];
+        }
+
+        $dom = self::loadXml($package->read($part), 'DOCX commentsExtended XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'commentsEx') {
+            return [];
+        }
+
+        $items = [];
+        foreach ($root->childNodes as $comment) {
+            if (!$comment instanceof \DOMElement || $comment->localName !== 'commentEx') {
+                continue;
+            }
+
+            $paraId = $this->wordExtensionAttr($comment, 'paraId');
+            if ($paraId === null || $paraId === '') {
+                continue;
+            }
+
+            $item = [
+                'part' => $part,
+                'paraId' => $paraId,
+            ];
+
+            $parentParaId = $this->wordExtensionAttr($comment, 'paraIdParent');
+            if ($parentParaId !== null && $parentParaId !== '') {
+                $item['parentParaId'] = $parentParaId;
+            }
+
+            $resolved = $this->onOffStringValue($this->wordExtensionAttr($comment, 'done'));
+            if ($resolved !== null) {
+                $item['resolved'] = $resolved;
+            }
+
+            $items[$paraId] = $item;
+        }
+
+        return $items;
     }
 
     /**
@@ -5678,6 +5797,18 @@ final class DocxReader
         return $this->namespacedAttr($element, self::OFFICE_RELATIONSHIPS_NS, $localName);
     }
 
+    private function wordExtensionAttr(\DOMElement $element, string $localName): ?string
+    {
+        foreach ([self::WORDPROCESSINGML_2012_NS, self::WORDPROCESSINGML_2010_NS] as $namespace) {
+            $value = $this->namespacedAttr($element, $namespace, $localName);
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
     private function namespacedAttr(\DOMElement $element, string $namespace, string $localName): ?string
     {
         if ($element->hasAttributeNS($namespace, $localName)) {
@@ -5715,6 +5846,23 @@ final class DocxReader
         }
 
         return !in_array(strtolower($value), ['0', 'false', 'off', 'none'], true);
+    }
+
+    private function onOffStringValue(?string $value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = strtolower(trim($value));
+        if (in_array($value, ['1', 'true', 'on'], true)) {
+            return true;
+        }
+        if (in_array($value, ['0', 'false', 'off'], true)) {
+            return false;
+        }
+
+        return null;
     }
 
     private function isWordElement(\DOMElement $element, string $localName): bool
