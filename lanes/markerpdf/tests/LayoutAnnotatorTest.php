@@ -151,6 +151,83 @@ return [
         $t->true(!str_contains($encoded, 'hidden layout raw PDF bytes'));
         $t->true(!str_contains($encoded, 'hidden rendered page payload'));
     },
+    'keeps nested pdftext page markers fallback-only when trusted layout metadata exists' => static function (TestRunner $t): void {
+        $layoutPayload = [
+            'metadata' => [
+                'document_page' => 771,
+                'raw_private_payload' => 'hidden trusted layout adapter payload',
+            ],
+            'pdftext' => [
+                'page' => 770,
+                'blocks' => [[
+                    'lines' => [[
+                        'spans' => [[
+                            'text' => 'Stale nested pdftext layout marker must stay hidden',
+                            'bbox' => [72.0, 160.0, 520.0, 174.0],
+                        ]],
+                    ]],
+                ]],
+            ],
+            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+            'bboxes' => [
+                ['label' => 'Text', 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                ['label' => 'Picture', 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+            ],
+        ];
+
+        $result = (new LayoutAnnotator())->runWithSuppliedLayouts(
+            [[
+                'metadata' => ['document_page' => 771],
+                'pdftext' => ['page' => 770, 'blocks' => []],
+                'image' => 'trusted-document-page-layout-render',
+                'raw_render_payload' => 'hidden trusted render payload',
+            ]],
+            [[
+                'pnum' => 771,
+                'blocks' => [],
+            ]],
+            [$layoutPayload]
+        );
+
+        $layout = $result['pages'][0]['layout'];
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+
+        $t->same(1, $result['plan']['assigned_pages']);
+        $t->same(771, $layout['document_page'] ?? null);
+        $t->true(!array_key_exists('page', $layout), 'Stale nested pdftext.page must not be preserved beside trusted document_page.');
+        $t->true(!array_key_exists('pdftext', $layout));
+        $t->same(['Text', 'Picture'], array_column($layout['bboxes'], 'label'));
+        $t->true(!str_contains($encoded, 'hidden trusted layout adapter payload'));
+        $t->true(!str_contains($encoded, 'Stale nested pdftext layout marker'));
+        $t->true(!str_contains($encoded, 'hidden trusted render payload'));
+    },
+    'uses nested pdftext page markers as layout metadata fallback only without adapter identity' => static function (TestRunner $t): void {
+        $result = (new LayoutAnnotator())->runWithSuppliedLayouts(
+            [[
+                'pdftext' => ['page' => 772],
+                'image' => 'fallback-pdftext-layout-render',
+            ]],
+            [[
+                'pnum' => 772,
+                'blocks' => [],
+            ]],
+            [[
+                'source' => ['adapter' => 'no page identity'],
+                'pdftext' => ['page' => 772],
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Text', 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                ],
+            ]]
+        );
+
+        $layout = $result['pages'][0]['layout'];
+
+        $t->same(1, $result['plan']['assigned_pages']);
+        $t->same(772, $layout['page'] ?? null);
+        $t->same(['Text'], array_column($layout['bboxes'], 'label'));
+        $t->true(!array_key_exists('pdftext', $layout));
+    },
     'leaves unpaired pages unchanged when supplied layouts are shorter than pages' => static function (TestRunner $t): void {
         $pages = [
             ['blocks' => []],

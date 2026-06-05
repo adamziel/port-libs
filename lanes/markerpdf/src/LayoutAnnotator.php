@@ -38,6 +38,14 @@ final class LayoutAnnotator
         'source',
         'pdftext',
     ];
+    private const PDFTEXT_PAYLOAD_WRAPPER = 'pdftext';
+    private const LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS = [
+        ['page_index', 'doc_page_index', 'document_page_index', 'source_page_index'],
+        ['selected_page_index', 'trimmed_page_index', 'relative_page_index'],
+        ['pnum', 'page', 'pdftext_page', 'source_page', 'document_page'],
+        ['page_number'],
+        ['selected_page_number', 'trimmed_page_number', 'relative_page_number'],
+    ];
 
     private LayoutOrderer $layout;
     private MarkerSettings $settings;
@@ -146,7 +154,14 @@ final class LayoutAnnotator
     private function layoutResultPageMarkerSources(array $layoutResult): array
     {
         $sources = [];
-        $this->collectLayoutResultPageMarkerSources($layoutResult, $sources);
+        $this->collectLayoutResultPageMarkerSources($layoutResult, $sources, 0, false);
+
+        if ($this->layoutResultPageMarkerSourcesHaveMarkers($sources)) {
+            return $sources;
+        }
+
+        $sources = [];
+        $this->collectLayoutResultPageMarkerSources($layoutResult, $sources, 0, true);
 
         return $sources;
     }
@@ -155,7 +170,7 @@ final class LayoutAnnotator
      * @param array<string, mixed> $artifact
      * @param list<array<string, mixed>> $sources
      */
-    private function collectLayoutResultPageMarkerSources(array $artifact, array &$sources, int $depth = 0): void
+    private function collectLayoutResultPageMarkerSources(array $artifact, array &$sources, int $depth = 0, bool $includePdftextPayload = true): void
     {
         $sources[] = $artifact;
         if ($depth >= 2) {
@@ -163,12 +178,16 @@ final class LayoutAnnotator
         }
 
         foreach (self::LAYOUT_RESULT_PAGE_MARKER_WRAPPERS as $key) {
+            if ($key === self::PDFTEXT_PAYLOAD_WRAPPER && !$includePdftextPayload) {
+                continue;
+            }
+
             $value = $artifact[$key] ?? null;
             if (!is_array($value)) {
                 continue;
             }
             foreach ($this->dictionaryWrapperValues($value) as $wrapperValue) {
-                $this->collectLayoutResultPageMarkerSources($wrapperValue, $sources, $depth + 1);
+                $this->collectLayoutResultPageMarkerSources($wrapperValue, $sources, $depth + 1, $includePdftextPayload);
             }
         }
     }
@@ -191,6 +210,47 @@ final class LayoutAnnotator
         }
 
         return $dictionaries;
+    }
+
+    /**
+     * A nested pdftext dictionary is usually a copied page payload. Use its page
+     * markers only as a fallback when adapter metadata has no page identity.
+     *
+     * @param list<array<string, mixed>> $sources
+     */
+    private function layoutResultPageMarkerSourcesHaveMarkers(array $sources): bool
+    {
+        foreach ($sources as $source) {
+            foreach (self::LAYOUT_RESULT_PAGE_MARKER_FIELD_GROUPS as $fields) {
+                if ($this->integerFields($source, $fields) !== []) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $artifact
+     * @param list<string> $fields
+     * @return list<int>
+     */
+    private function integerFields(array $artifact, array $fields): array
+    {
+        $values = [];
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $artifact)) {
+                continue;
+            }
+
+            $integer = $this->integerValue($artifact[$field]);
+            if ($integer !== null) {
+                $values[] = $integer;
+            }
+        }
+
+        return array_values(array_unique($values, SORT_REGULAR));
     }
 
     private function integerValue(mixed $value): ?int
