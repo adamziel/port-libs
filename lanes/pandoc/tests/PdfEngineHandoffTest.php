@@ -2317,6 +2317,84 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner extracts bounded pdf collection portfolio metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Collection 20 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '20 0 obj',
+            '<< /Type /Collection /View /T /D (review-assets.zip) /Schema << /Title 21 0 R /Size << /Type /CollectionField /Subtype /Size /N (Attachment size) /O 2 /V false /E false >> >> /Sort << /S [/Title /Size] /A [true false] >> >>',
+            'endobj',
+            '21 0 obj',
+            '<< /Type /CollectionField /Subtype /S /N (Review title) /O 1 /V true /E true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/portfolio.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/portfolio.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'type' => 'Collection',
+            'view' => 'T',
+            'defaultDocument' => 'review-assets.zip',
+            'schemaFields' => [
+                [
+                    'name' => 'Title',
+                    'subtype' => 'S',
+                    'title' => 'Review title',
+                    'order' => 1,
+                    'visible' => true,
+                    'editable' => true,
+                ],
+                [
+                    'name' => 'Size',
+                    'subtype' => 'Size',
+                    'title' => 'Attachment size',
+                    'order' => 2,
+                    'visible' => false,
+                    'editable' => false,
+                ],
+            ],
+            'sort' => [
+                'fields' => ['Title', 'Size'],
+                'ascending' => [true, false],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfCollectionMetadata']);
+        $t->contains('pdf-byte-collection', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-collection-view:T', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-collection-default:review-assets.zip', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-collection-schema-fields:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-collection-sort-fields:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfCollectionMetadata']);
+    },
+
     'fake runner extracts bounded pdf acroform field metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms.pdf']);

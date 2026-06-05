@@ -287,6 +287,7 @@ final class PdfEngineHandoff
      *     pdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -687,6 +688,7 @@ final class PdfEngineHandoff
         $pdfStructureElements = [];
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
+        $pdfCollectionMetadata = [];
         $pdfSignatures = [];
         $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
@@ -745,6 +747,7 @@ final class PdfEngineHandoff
                 $pdfStructureElements = $pdfInspection['structureElements'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
+                $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfSignatures = $pdfInspection['signatures'];
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
@@ -1100,6 +1103,21 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-optional-content-order:' . count($pdfOptionalContentConfig['order']);
                     }
                 }
+                if ($pdfCollectionMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-collection';
+                    if (is_string($pdfCollectionMetadata['view'] ?? null) && $pdfCollectionMetadata['view'] !== '') {
+                        $diagnostics[] = 'pdf-byte-collection-view:' . $pdfCollectionMetadata['view'];
+                    }
+                    if (is_string($pdfCollectionMetadata['defaultDocument'] ?? null) && $pdfCollectionMetadata['defaultDocument'] !== '') {
+                        $diagnostics[] = 'pdf-byte-collection-default:' . $pdfCollectionMetadata['defaultDocument'];
+                    }
+                    if (isset($pdfCollectionMetadata['schemaFields']) && is_array($pdfCollectionMetadata['schemaFields']) && $pdfCollectionMetadata['schemaFields'] !== []) {
+                        $diagnostics[] = 'pdf-byte-collection-schema-fields:' . count($pdfCollectionMetadata['schemaFields']);
+                    }
+                    if (isset($pdfCollectionMetadata['sort']['fields']) && is_array($pdfCollectionMetadata['sort']['fields']) && $pdfCollectionMetadata['sort']['fields'] !== []) {
+                        $diagnostics[] = 'pdf-byte-collection-sort-fields:' . count($pdfCollectionMetadata['sort']['fields']);
+                    }
+                }
                 if ($pdfSignatures !== []) {
                     $diagnostics[] = 'pdf-byte-signatures:' . count($pdfSignatures);
                     $byteRangeCount = 0;
@@ -1355,6 +1373,7 @@ final class PdfEngineHandoff
             'pdfStructureElements' => $pdfStructureElements,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
+            'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfSignatures' => $pdfSignatures,
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
@@ -1434,6 +1453,7 @@ final class PdfEngineHandoff
      *     finalPdfStructureElements: list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfSignatures: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -1627,6 +1647,7 @@ final class PdfEngineHandoff
             'finalPdfStructureElements' => is_array($finalRun) && is_array($finalRun['pdfStructureElements'] ?? null) ? $finalRun['pdfStructureElements'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
+            'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfSignatures' => is_array($finalRun) && is_array($finalRun['pdfSignatures'] ?? null) ? $finalRun['pdfSignatures'] : [],
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
@@ -2710,6 +2731,7 @@ final class PdfEngineHandoff
      *     viewerPreferences:array<string, bool|int|string>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureElements:list<array{object:string, type:string|null, parent:string|null, pageObject:string|null, alt:string|null, actualText:string|null, language:string|null, title:string|null, childCount:int|null}>,
+     *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatureSubFilters:array<string, int>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -2796,6 +2818,7 @@ final class PdfEngineHandoff
             'structureElements' => $this->extractPdfStructureElements($pdfBytes),
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
+            'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
             'signatures' => $signatures,
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
@@ -4852,6 +4875,170 @@ final class PdfEngineHandoff
             'order' => $this->collectPdfReferencesFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
             'orderLabels' => $this->collectPdfStringsFromArray($this->extractPdfArrayOrReferenceValue($configuration, 'Order', $objects)),
         ];
+    }
+
+    /**
+     * @return array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{}
+     */
+    private function extractPdfCollectionMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Collection')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $collection = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Collection', $objects);
+        if ($collection === null) {
+            return [];
+        }
+
+        return [
+            'type' => $this->extractPdfNameToken($collection, 'Type'),
+            'view' => $this->extractPdfNameToken($collection, 'View'),
+            'defaultDocument' => $this->extractPdfStringOrNameValue($collection, 'D'),
+            'schemaFields' => $this->extractPdfCollectionSchemaFields($collection, $objects),
+            'sort' => $this->extractPdfCollectionSort($collection, $objects),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>
+     */
+    private function extractPdfCollectionSchemaFields(string $collection, array $objects): array
+    {
+        $schema = $this->extractPdfDictionaryOrReferenceValue($collection, 'Schema', $objects);
+        if ($schema === null) {
+            return [];
+        }
+
+        $fields = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($schema) as $entry) {
+            if ($entry['key'] === 'Type') {
+                continue;
+            }
+
+            $dictionary = null;
+            if ($entry['value']['kind'] === 'dictionary') {
+                $dictionary = $entry['value']['value'];
+            } elseif ($entry['value']['kind'] === 'reference') {
+                $dictionary = $objects[$this->pdfReferenceKey($entry['value']['value'])] ?? null;
+            }
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $summary = $this->summarizePdfCollectionField($entry['key'], $dictionary);
+            if ($summary !== null) {
+                $fields[] = $summary;
+            }
+        }
+
+        usort(
+            $fields,
+            static function (array $left, array $right): int {
+                $leftOrder = $left['order'] ?? PHP_INT_MAX;
+                $rightOrder = $right['order'] ?? PHP_INT_MAX;
+                if ($leftOrder !== $rightOrder) {
+                    return $leftOrder <=> $rightOrder;
+                }
+
+                return strcmp($left['name'], $right['name']);
+            }
+        );
+
+        return $fields;
+    }
+
+    /**
+     * @return array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}|null
+     */
+    private function summarizePdfCollectionField(string $name, string $dictionary): ?array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'subtype' => $this->extractPdfNameToken($dictionary, 'Subtype'),
+            'title' => $this->extractPdfStringOrNameValue($dictionary, 'N'),
+            'order' => $this->extractPdfIntegerToken($dictionary, 'O'),
+            'visible' => $this->extractPdfBooleanToken($dictionary, 'V'),
+            'editable' => $this->extractPdfBooleanToken($dictionary, 'E'),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{fields:list<string>, ascending:list<bool>}|array{}
+     */
+    private function extractPdfCollectionSort(string $collection, array $objects): array
+    {
+        $sort = $this->extractPdfDictionaryOrReferenceValue($collection, 'Sort', $objects);
+        if ($sort === null) {
+            return [];
+        }
+
+        $fieldsValue = $this->extractPdfValueForName($sort, 'S');
+        $fields = $fieldsValue === null ? [] : $this->pdfValueToNameList($fieldsValue, $objects);
+        $ascendingValue = $this->extractPdfValueForName($sort, 'A');
+        $ascending = $ascendingValue === null ? [] : $this->pdfValueToBooleanList($ascendingValue, $objects);
+        if ($fields === [] && $ascending === []) {
+            return [];
+        }
+
+        return [
+            'fields' => $fields,
+            'ascending' => $ascending,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<bool>
+     */
+    private function pdfValueToBooleanList(array $value, array $objects, int $depth = 0): array
+    {
+        if ($depth > 8) {
+            return [];
+        }
+
+        if ($value['kind'] === 'keyword' && in_array($value['value'], ['true', 'false'], true)) {
+            return [$value['value'] === 'true'];
+        }
+
+        if ($value['kind'] === 'array') {
+            $booleans = [];
+            $this->walkPdfArrayValues($value['value'], function (array $item) use (&$booleans, $objects, $depth): void {
+                if ($item['kind'] === 'keyword' && in_array($item['value'], ['true', 'false'], true)) {
+                    $booleans[] = $item['value'] === 'true';
+                    return;
+                }
+
+                if ($item['kind'] === 'reference') {
+                    foreach ($this->pdfValueToBooleanList($item, $objects, $depth + 1) as $boolean) {
+                        $booleans[] = $boolean;
+                    }
+                }
+            });
+
+            return $booleans;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($body === null) {
+                return [];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+
+            return $resolved === null ? [] : $this->pdfValueToBooleanList($resolved, $objects, $depth + 1);
+        }
+
+        return [];
     }
 
     /**
