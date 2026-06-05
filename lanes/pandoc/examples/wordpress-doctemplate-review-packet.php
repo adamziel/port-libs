@@ -45,6 +45,7 @@ $context = [
     'warnings' => [
         ['source' => 'media', 'priority' => 1, 'message' => 'Check &amp; confirm alt text'],
         ['source' => 'links', 'priority' => 4, 'message' => 'Verify edit links before publish'],
+        ['source' => '魚', 'priority' => 9, 'message' => 'Confirm multilingual source label spacing'],
     ],
     'body' => implode("\n", [
         '<!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
@@ -57,10 +58,11 @@ $output = (new DocTemplate())->renderResource($templatePath, $resources, $contex
 if (in_array('--self-test', $argv, true)) {
     foreach ([
         '<h1>BATCH 42 REVIEW</h1>',
-        '<p class="summary">2 warnings queued for Batch 42 Review</p>',
+        '<p class="summary">3 warnings queued for Batch 42 Review</p>',
         '<p class="authors">Migration bot, Content editor</p>',
         '<li data-index="1" data-source="media"><span class="marker">A.</span> <span class="source">MEDIA   </span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',
         '<li data-index="2" data-source="links"><span class="marker">B.</span> <span class="source">LINKS   </span> <span class="priority">  IV</span> Verify edit links before publish</li>',
+        '<li data-index="3" data-source="魚"><span class="marker">C.</span> <span class="source">魚      </span> <span class="priority">  IX</span> Confirm multilingual source label spacing</li>',
         '  <!-- wp:paragraph --><p>Imported body is already escaped.</p><!-- /wp:paragraph -->',
         '  <!-- wp:paragraph --><p>Second reviewer packet line stays nested.</p><!-- /wp:paragraph -->',
     ] as $needle) {

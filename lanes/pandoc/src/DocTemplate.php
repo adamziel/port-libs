@@ -1078,14 +1078,7 @@ final class DocTemplate
 
     private function padBlockLine(string $line, int $width, string $alignment): string
     {
-        $padding = max(0, $width - $this->stringLength($line));
-
-        return match ($alignment) {
-            'left' => $line . str_repeat(' ', $padding),
-            'right' => str_repeat(' ', $padding) . $line,
-            'center' => str_repeat(' ', intdiv($padding, 2)) . $line . str_repeat(' ', $padding - intdiv($padding, 2)),
-            default => $line,
-        };
+        return UnicodeText::padDisplay($line, $width, $alignment);
     }
 
     private function pipePairs(mixed $value): mixed

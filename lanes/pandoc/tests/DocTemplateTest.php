@@ -307,6 +307,39 @@ TPL;
         ]), $output);
     },
 
+    'pads pandoc doctemplate block pipes by unicode display width' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+CJK: <$cjk/left 6 "|" "|"$>
+Emoji: <$emoji/right 4 "|" "|"$>
+Accent: <$accent/center 6 "|" "|"$>
+Rows:
+$for(items)$- $it.label/left 8 "|" "|"$ $it.status$
+$endfor$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'cjk' => '漢字',
+            'emoji' => "🧑🏾‍💻",
+            'accent' => "Cafe\u{0301}",
+            'items' => [
+                ['label' => '魚', 'status' => 'source'],
+                ['label' => "A\u{0301}", 'status' => 'accent'],
+                ['label' => "☑️", 'status' => 'emoji'],
+            ],
+        ]);
+
+        $t->same(implode("\n", [
+            'CJK: <|漢字  |>',
+            'Emoji: <|  🧑🏾‍💻|>',
+            "Accent: <| Cafe\u{0301} |>",
+            'Rows:',
+            '- |魚      | source',
+            "- |A\u{0301}       | accent",
+            '- |☑️      | emoji',
+            '',
+        ]), $output);
+    },
+
     'leaves non textual values unchanged for pandoc doctemplate block pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Meta: $meta/left 12 "| " " |"$
