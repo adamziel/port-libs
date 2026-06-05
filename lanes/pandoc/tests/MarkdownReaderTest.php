@@ -1679,6 +1679,69 @@ return [
         $t->same('set-tag-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="set-tag-yaml-body">Set tag YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml ordered map and pairs tags in metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Ordered metadata **Packet**',
+            'review-order_: &review_order !!omap',
+            '  - source-title: Original export',
+            '  - source-title: Revised export',
+            '  - priority: !!int "3"',
+            'review:',
+            '  ordered-steps: *review_order',
+            '  reviewer-pairs: !!pairs',
+            '    - owner: Import Desk',
+            '    - owner: QA Desk',
+            '    - "source:key": "metadata: value"',
+            '  nested:',
+            '    - !!omap',
+            '      - status: queued',
+            '      - status: approved',
+            'flow-ordered: !!omap [{stage: collected}, {stage: normalized}, {priority: !!int "2"}]',
+            'flow-pairs: {reviewers: !!pairs [{owner: Import Desk}, {owner: QA Desk}], source-order: !!omap [{source: front}, {source: body}]}',
+            '...',
+            '',
+            '# Ordered YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Ordered metadata **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same(null, $meta['review-order_'] ?? null);
+        $t->same('source-title', $meta['review']['ordered-steps'][0]['key']);
+        $t->same('Original export', $meta['review']['ordered-steps'][0]['value']);
+        $t->same('source-title', $meta['review']['ordered-steps'][1]['key']);
+        $t->same('Revised export', $meta['review']['ordered-steps'][1]['value']);
+        $t->same('priority', $meta['review']['ordered-steps'][2]['key']);
+        $t->same(3, $meta['review']['ordered-steps'][2]['value']);
+        $t->same('owner', $meta['review']['reviewer-pairs'][0]['key']);
+        $t->same('Import Desk', $meta['review']['reviewer-pairs'][0]['value']);
+        $t->same('owner', $meta['review']['reviewer-pairs'][1]['key']);
+        $t->same('QA Desk', $meta['review']['reviewer-pairs'][1]['value']);
+        $t->same('source:key', $meta['review']['reviewer-pairs'][2]['key']);
+        $t->same('metadata: value', $meta['review']['reviewer-pairs'][2]['value']);
+        $t->same('status', $meta['review']['nested'][0][0]['key']);
+        $t->same('queued', $meta['review']['nested'][0][0]['value']);
+        $t->same('status', $meta['review']['nested'][0][1]['key']);
+        $t->same('approved', $meta['review']['nested'][0][1]['value']);
+        $t->same('stage', $meta['flow-ordered'][0]['key']);
+        $t->same('collected', $meta['flow-ordered'][0]['value']);
+        $t->same('stage', $meta['flow-ordered'][1]['key']);
+        $t->same('normalized', $meta['flow-ordered'][1]['value']);
+        $t->same('priority', $meta['flow-ordered'][2]['key']);
+        $t->same(2, $meta['flow-ordered'][2]['value']);
+        $t->same('owner', $meta['flow-pairs']['reviewers'][1]['key']);
+        $t->same('QA Desk', $meta['flow-pairs']['reviewers'][1]['value']);
+        $t->same('source', $meta['flow-pairs']['source-order'][0]['key']);
+        $t->same('front', $meta['flow-pairs']['source-order'][0]['value']);
+        $t->same('source', $meta['flow-pairs']['source-order'][1]['key']);
+        $t->same('body', $meta['flow-pairs']['source-order'][1]['value']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('ordered-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="ordered-yaml-body">Ordered YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml timestamp and binary explicit tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

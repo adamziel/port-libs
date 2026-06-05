@@ -109,6 +109,17 @@ sequence-label-sets:
   - !!set
     ? queued
     ? "needs:review"
+review-order_: &review_order !!omap
+  - source-title: Original export
+  - source-title: Revised export
+  - priority: !!int "3"
+ordered-review:
+  steps: *review_order
+  reviewer-pairs: !!pairs
+    - owner: Import Desk
+    - owner: QA Desk
+    - "source:key": "metadata: value"
+flow-ordered-review: {steps: !!omap [{stage: collected}, {stage: normalized}], reviewers: !!pairs [{owner: Import Desk}, {owner: QA Desk}]}
 review-notes:
   - |-
     Preserve original front matter.
@@ -382,6 +393,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!array_key_exists('needs:review', $meta['sequence-label-sets'][1] ?? []) || $meta['sequence-label-sets'][1]['needs:review'] !== null) {
         throw new RuntimeException('YAML metadata self-test missing sequence block set tag metadata');
     }
+    if (($meta['ordered-review']['steps'][0]['key'] ?? '') !== 'source-title' || ($meta['ordered-review']['steps'][0]['value'] ?? '') !== 'Original export') {
+        throw new RuntimeException('YAML metadata self-test missing ordered-map first source title');
+    }
+    if (($meta['ordered-review']['steps'][1]['key'] ?? '') !== 'source-title' || ($meta['ordered-review']['steps'][1]['value'] ?? '') !== 'Revised export') {
+        throw new RuntimeException('YAML metadata self-test missing ordered-map duplicate source title');
+    }
+    if (($meta['ordered-review']['steps'][2]['value'] ?? null) !== 3) {
+        throw new RuntimeException('YAML metadata self-test missing ordered-map explicit integer value');
+    }
+    if (($meta['ordered-review']['reviewer-pairs'][1]['key'] ?? '') !== 'owner' || ($meta['ordered-review']['reviewer-pairs'][1]['value'] ?? '') !== 'QA Desk') {
+        throw new RuntimeException('YAML metadata self-test missing pairs duplicate owner metadata');
+    }
+    if (($meta['flow-ordered-review']['steps'][1]['value'] ?? '') !== 'normalized') {
+        throw new RuntimeException('YAML metadata self-test missing flow ordered-map metadata');
+    }
+    if (($meta['flow-ordered-review']['reviewers'][0]['value'] ?? '') !== 'Import Desk') {
+        throw new RuntimeException('YAML metadata self-test missing flow pairs metadata');
+    }
     if (($meta['review-notes'][0] ?? '') !== "Preserve original front matter.\nKeep reviewer line breaks.") {
         throw new RuntimeException('YAML metadata self-test missing literal sequence block scalar note');
     }
@@ -579,6 +608,7 @@ echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ??
 echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
 echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri]'] ?? '') . ' / ' . ($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') . ' / ' . ($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') . "\n";
+echo 'Ordered review duplicate key: ' . ($meta['ordered-review']['steps'][0]['key'] ?? '') . ' => ' . ($meta['ordered-review']['steps'][0]['value'] ?? '') . ' / ' . ($meta['ordered-review']['steps'][1]['value'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";

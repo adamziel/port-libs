@@ -669,6 +669,13 @@ final class MarkdownReader
     private function parseYamlMetadataValue(string $sourceValue, array $children): array
     {
         [$sourceValue, $anchorName, $tags] = $this->parseYamlValueDirectives($sourceValue);
+        if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
+            $value = $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children);
+            $this->rememberYamlAnchor($anchorName, $value);
+
+            return [$value, $anchorName];
+        }
+
         if ($this->yamlHasExplicitTag($tags, 'set')) {
             $value = $this->parseYamlExplicitSetValue($sourceValue, $children);
             $this->rememberYamlAnchor($anchorName, $value);
@@ -886,6 +893,13 @@ final class MarkdownReader
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
                 $children[] = $lines[$index];
                 $index++;
+            }
+
+            if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
+                $value = $this->parseYamlExplicitOrderedPairsValue($sourceValue, $children);
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
+                continue;
             }
 
             if ($this->yamlHasExplicitTag($tags, 'set')) {
@@ -1257,6 +1271,12 @@ final class MarkdownReader
             return $parsed;
         }
 
+        if ($this->yamlHasExplicitOrderedPairsTag($tags)) {
+            $parsed = $this->parseYamlExplicitOrderedPairsValue($value, []);
+            $this->rememberYamlAnchor($anchorName, $parsed);
+            return $parsed;
+        }
+
         if ($this->yamlHasExplicitTag($tags, 'set')) {
             $parsed = $this->parseYamlExplicitSetValue($value, []);
             $this->rememberYamlAnchor($anchorName, $parsed);
@@ -1584,6 +1604,109 @@ final class MarkdownReader
         }
 
         return $set;
+    }
+
+    /**
+     * @param list<string> $children
+     * @return list<array{key:string, value:mixed}>
+     */
+    private function parseYamlExplicitOrderedPairsValue(string $sourceValue, array $children): array
+    {
+        $sourceValue = ltrim($sourceValue);
+        if ($sourceValue !== '') {
+            $candidate = $children === []
+                ? trim($this->stripYamlTrailingComment($sourceValue))
+                : $this->stripYamlTrailingComment(
+                    trim($this->stripYamlFlowComments($sourceValue . "\n" . implode("\n", $children)))
+                );
+
+            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate);
+            if ($flowPairs !== null) {
+                return $flowPairs;
+            }
+
+            return [];
+        }
+
+        $normalized = $this->stripYamlCommonIndent($children);
+        while ($normalized !== [] && trim($normalized[0]) === '') {
+            array_shift($normalized);
+        }
+        while ($normalized !== [] && trim((string) end($normalized)) === '') {
+            array_pop($normalized);
+        }
+
+        if ($normalized !== []) {
+            $candidate = $this->stripYamlTrailingComment(
+                trim($this->stripYamlFlowComments(implode("\n", $normalized)))
+            );
+            $flowPairs = $this->parseYamlExplicitOrderedPairsFlowCandidate($candidate);
+            if ($flowPairs !== null) {
+                return $flowPairs;
+            }
+        }
+
+        return $this->yamlOrderedPairsFromSequence($this->parseYamlSequence($normalized));
+    }
+
+    /**
+     * @return list<array{key:string, value:mixed}>|null
+     */
+    private function parseYamlExplicitOrderedPairsFlowCandidate(string $candidate): ?array
+    {
+        $candidate = trim($candidate);
+        if ($candidate === '' || $candidate[0] !== '[' || !str_ends_with(rtrim($candidate), ']')) {
+            return null;
+        }
+
+        if (!$this->isBalancedYamlFlowCollection($candidate)) {
+            return null;
+        }
+
+        $source = substr(rtrim($candidate), 1, -1);
+        $items = array_map(
+            fn (string $item): mixed => $this->parseYamlScalarValue($item),
+            $this->splitYamlFlowItems($source)
+        );
+
+        return $this->yamlOrderedPairsFromSequence($items);
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @return list<array{key:string, value:mixed}>
+     */
+    private function yamlOrderedPairsFromSequence(array $items): array
+    {
+        $pairs = [];
+        foreach ($items as $item) {
+            if ($this->isYamlAssociativeArray($item)) {
+                foreach ($item as $key => $value) {
+                    $pairKey = (string) $key;
+                    if ($pairKey === '') {
+                        continue;
+                    }
+
+                    $pairs[] = [
+                        'key' => $pairKey,
+                        'value' => $this->cloneYamlMetadataValue($value),
+                    ];
+                }
+                continue;
+            }
+
+            $pairKey = $this->normalizeYamlExplicitMappingKey($item);
+            if ($pairKey === null || $pairKey === '') {
+                continue;
+            }
+
+            $pairs[] = [
+                'key' => $pairKey,
+                'value' => null,
+            ];
+        }
+
+        return $pairs;
     }
 
     /**
@@ -2057,6 +2180,14 @@ final class MarkdownReader
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string> $tags
+     */
+    private function yamlHasExplicitOrderedPairsTag(array $tags): bool
+    {
+        return $this->yamlHasExplicitTag($tags, 'omap') || $this->yamlHasExplicitTag($tags, 'pairs');
     }
 
     private function normalizeYamlTag(string $tag): string
