@@ -36,7 +36,7 @@ $opfXml = <<<'XML'
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources" media-overlay="mo-chapter"/>
     <item id="slideshow" href="slides/source-slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler"/>
     <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
@@ -122,6 +122,9 @@ $chapterXhtml = <<<'XML'
     <h1 id="source">Source chapter</h1>
     <span id="page-1"></span>
     <p>EPUB XHTML content is preserved for WordPress import review.</p>
+    <p>Remote media marker: <img src="https://cdn.example.test/images/source.png" alt="remote source"/></p>
+    <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi><mo>=</mo><mn>1</mn></math>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title>Source mark</title><circle cx="5" cy="5" r="4"/></svg>
   </body>
 </html>
 XML;
@@ -285,6 +288,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['scheme'] ?? null) !== 'marc:relators') {
         throw new RuntimeException('Expected EPUB OPF creator role scheme to stay reviewable');
     }
+    if (($result['resourceProperties']['summary']['mathmlCount'] ?? null) !== 1 || ($result['resourceProperties']['summary']['svgCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB resource-property report to count MathML and SVG content markers');
+    }
+    if (($result['resourceProperties']['summary']['remoteResourcesCount'] ?? null) !== 1 || ($result['resourceProperties']['summary']['scriptedCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB resource-property report to count remote-resource and scripted markers');
+    }
+    if (($result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'remote-resources']) {
+        throw new RuntimeException('Expected EPUB chapter resource review flags for MathML, SVG, and remote resources');
+    }
+    if (($result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) !== ['scripted']) {
+        throw new RuntimeException('Expected EPUB fallback handler resource review flag for scripting');
+    }
+    if (($result['document']->children[0]->attr('resourceReviewFlags') ?? []) !== ['mathml', 'svg', 'remote-resources']) {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB resource review flags');
+    }
+    if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
+        throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
+    }
     if (($result['renditions']['count'] ?? null) !== 2 || ($result['renditions']['alternateCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB multiple rootfile renditions to be summarized');
     }
@@ -407,6 +428,9 @@ echo 'remoteMetadataLink=' . (($result['metadata']['links'][1]['external'] ?? fa
 echo 'identifierType=' . ($result['metadata']['dc']['identifier'][0]['refinements']['identifier-type'][0]['text'] ?? '') . "\n";
 echo 'creatorFileAs=' . ($result['metadata']['dc']['creator'][0]['refinements']['file-as'][0]['text'] ?? '') . "\n";
 echo 'creatorRole=' . ($result['metadata']['dc']['creator'][0]['refinements']['role'][0]['text'] ?? '') . "\n";
+echo 'resourceReviewItems=' . ($result['resourceProperties']['summary']['reviewRequiredCount'] ?? 0) . "\n";
+echo 'chapterReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) . "\n";
+echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) . "\n";
 echo 'renditions=' . ($result['renditions']['count'] ?? 0) . "\n";
 echo 'alternateRenditionTitle=' . ($result['renditions']['items'][1]['metadata']['title'] ?? '') . "\n";
 echo 'alternateRenditionLayout=' . ($result['renditions']['items'][1]['renditionProperties']['layout'] ?? '') . "\n";

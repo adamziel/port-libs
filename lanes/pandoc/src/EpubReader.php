@@ -36,6 +36,7 @@ final class EpubReader
      *     collections:list<array<string, mixed>>,
      *     renditions:array<string, mixed>,
      *     bindings:array<string, mixed>,
+     *     resourceProperties:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
@@ -60,6 +61,7 @@ final class EpubReader
             $opf['guide'],
             $opf['collections'],
             $opf['bindings'],
+            $opf['resourceProperties'],
             $renditions
         );
 
@@ -77,6 +79,7 @@ final class EpubReader
             'collections' => $opf['collections'],
             'renditions' => $renditions,
             'bindings' => $opf['bindings'],
+            'resourceProperties' => $opf['resourceProperties'],
             'encryption' => $opf['encryption'],
             'mediaOverlays' => $opf['mediaOverlays'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
@@ -109,6 +112,7 @@ final class EpubReader
                 'collections' => $opf['collections'],
                 'renditions' => $renditions,
                 'bindings' => $opf['bindings'],
+                'resourceProperties' => $opf['resourceProperties'],
                 'encryption' => $opf['encryption'],
                 'mediaOverlays' => $opf['mediaOverlays'],
                 'assets' => $opf['assetReport'],
@@ -232,6 +236,7 @@ final class EpubReader
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
+     *     resourceProperties:array<string, mixed>,
      *     encryption:array<string, mixed>,
      *     mediaOverlays:array<string, array<string, mixed>>,
      *     xhtmlAssets:list<array<string, mixed>>,
@@ -272,6 +277,7 @@ final class EpubReader
         $spine = $this->readSpine($spineElement, $manifestById, $bindings);
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById);
         $manifest = array_values($manifestById);
+        $resourceProperties = self::resourcePropertyReport($manifest);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
         $assetReport = $this->assetReport($package, $opfPart, $manifest, $metadata);
@@ -292,6 +298,7 @@ final class EpubReader
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
+            'resourceProperties' => $resourceProperties,
             'encryption' => $encryption,
             'mediaOverlays' => $mediaOverlays,
             'xhtmlAssets' => $this->xhtmlAssets($package, $manifest),
@@ -849,6 +856,10 @@ final class EpubReader
                 throw new \RuntimeException('Duplicate EPUB manifest id: ' . $id);
             }
 
+            $properties = self::spaceDelimited($item->getAttribute('properties'));
+            $resourceFlags = self::resourcePropertyFlags($properties);
+            $resourceReviewFlags = self::resourceReviewFlags($resourceFlags);
+
             if (self::isExternalReference($href)) {
                 $manifest[$id] = [
                     'id' => $id,
@@ -857,7 +868,9 @@ final class EpubReader
                     'part' => null,
                     'external' => true,
                     'mediaType' => $mediaType,
-                    'properties' => self::spaceDelimited($item->getAttribute('properties')),
+                    'properties' => $properties,
+                    'resourceFlags' => $resourceFlags,
+                    'resourceReviewFlags' => $resourceReviewFlags,
                     'fallback' => self::nullableAttribute($item, 'fallback'),
                     'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
                     'exists' => false,
@@ -886,7 +899,9 @@ final class EpubReader
                 'part' => $part,
                 'external' => false,
                 'mediaType' => $mediaType,
-                'properties' => self::spaceDelimited($item->getAttribute('properties')),
+                'properties' => $properties,
+                'resourceFlags' => $resourceFlags,
+                'resourceReviewFlags' => $resourceReviewFlags,
                 'fallback' => self::nullableAttribute($item, 'fallback'),
                 'mediaOverlay' => self::nullableAttribute($item, 'media-overlay'),
                 'exists' => $exists,
@@ -1678,6 +1693,95 @@ final class EpubReader
     }
 
     /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array{
+     *     summary:array<string, int>,
+     *     items:list<array<string, mixed>>,
+     *     itemsById:array<string, array<string, mixed>>,
+     *     itemsByProperty:array<string, list<array<string, mixed>>>,
+     *     reviewItems:list<array<string, mixed>>
+     * }
+     */
+    private static function resourcePropertyReport(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $itemsByProperty = [
+            'nav' => [],
+            'cover-image' => [],
+            'mathml' => [],
+            'svg' => [],
+            'remote-resources' => [],
+            'scripted' => [],
+            'switch' => [],
+        ];
+        $reviewItems = [];
+
+        foreach ($manifest as $item) {
+            $properties = array_values(array_filter(
+                is_array($item['properties'] ?? null) ? $item['properties'] : [],
+                static fn (mixed $property): bool => is_string($property) && $property !== '',
+            ));
+            $recognized = array_values(array_filter(
+                $properties,
+                static fn (string $property): bool => array_key_exists($property, $itemsByProperty),
+            ));
+            if ($recognized === []) {
+                continue;
+            }
+
+            $flags = is_array($item['resourceFlags'] ?? null)
+                ? $item['resourceFlags']
+                : self::resourcePropertyFlags($properties);
+            $reviewFlags = is_array($item['resourceReviewFlags'] ?? null)
+                ? array_values($item['resourceReviewFlags'])
+                : self::resourceReviewFlags($flags);
+            $reportItem = [
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                'external' => (bool) ($item['external'] ?? false),
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'exists' => (bool) ($item['exists'] ?? false),
+                'properties' => $recognized,
+                'flags' => $flags,
+                'reviewFlags' => $reviewFlags,
+                'reviewRequired' => $reviewFlags !== [],
+            ];
+
+            $items[] = $reportItem;
+            if ($reportItem['id'] !== '') {
+                $itemsById[$reportItem['id']] = $reportItem;
+            }
+            foreach ($recognized as $property) {
+                $itemsByProperty[$property][] = $reportItem;
+            }
+            if ($reportItem['reviewRequired']) {
+                $reviewItems[] = $reportItem;
+            }
+        }
+
+        return [
+            'summary' => [
+                'navCount' => count($itemsByProperty['nav']),
+                'coverImageCount' => count($itemsByProperty['cover-image']),
+                'mathmlCount' => count($itemsByProperty['mathml']),
+                'svgCount' => count($itemsByProperty['svg']),
+                'remoteResourcesCount' => count($itemsByProperty['remote-resources']),
+                'scriptedCount' => count($itemsByProperty['scripted']),
+                'switchCount' => count($itemsByProperty['switch']),
+                'reviewRequiredCount' => count($reviewItems),
+            ],
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByProperty' => $itemsByProperty,
+            'reviewItems' => $reviewItems,
+        ];
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $manifestById
      * @param list<array<string, mixed>> $manifest
      */
@@ -2193,6 +2297,8 @@ final class EpubReader
                 'target' => $item['target'],
                 'part' => $item['part'],
                 'properties' => $item['properties'],
+                'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
+                'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
                 'html' => $package->read((string) $item['part']),
             ];
@@ -2246,6 +2352,8 @@ final class EpubReader
                 'external' => (bool) ($item['external'] ?? false),
                 'mediaType' => $item['mediaType'],
                 'properties' => $item['properties'],
+                'resourceFlags' => $item['resourceFlags'] ?? self::resourcePropertyFlags($item['properties'] ?? []),
+                'resourceReviewFlags' => $item['resourceReviewFlags'] ?? [],
                 'exists' => $item['exists'],
                 'byteLength' => $item['byteLength'],
                 'crc32' => $item['crc32'],
@@ -2529,6 +2637,7 @@ final class EpubReader
      * @param array<string, mixed> $guide
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
+     * @param array<string, mixed> $resourceProperties
      * @param array<string, mixed> $renditions
      */
     private function documentNode(
@@ -2539,6 +2648,7 @@ final class EpubReader
         array $guide,
         array $collections,
         array $bindings,
+        array $resourceProperties,
         array $renditions
     ): AstNode {
         $assetsByPart = [];
@@ -2567,6 +2677,8 @@ final class EpubReader
                 'id' => $item['idref'],
                 'linear' => $item['linear'],
                 'mediaOverlay' => $item['mediaOverlay'],
+                'resourceFlags' => $asset['resourceFlags'] ?? [],
+                'resourceReviewFlags' => $asset['resourceReviewFlags'] ?? [],
                 'source' => $isFallback ? 'epub3-spine-fallback' : 'epub3-spine',
             ];
 
@@ -2591,6 +2703,7 @@ final class EpubReader
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
+            'resourceProperties' => $resourceProperties,
             'renditions' => $renditions,
             'title' => $metadata['title'] ?? '',
         ], $children);
@@ -2649,6 +2762,47 @@ final class EpubReader
         }
 
         return preg_split('/\s+/', $value) ?: [];
+    }
+
+    /**
+     * @param list<string> $properties
+     *
+     * @return array{nav:bool, coverImage:bool, mathml:bool, svg:bool, remoteResources:bool, scripted:bool, switch:bool}
+     */
+    private static function resourcePropertyFlags(array $properties): array
+    {
+        return [
+            'nav' => in_array('nav', $properties, true),
+            'coverImage' => in_array('cover-image', $properties, true),
+            'mathml' => in_array('mathml', $properties, true),
+            'svg' => in_array('svg', $properties, true),
+            'remoteResources' => in_array('remote-resources', $properties, true),
+            'scripted' => in_array('scripted', $properties, true),
+            'switch' => in_array('switch', $properties, true),
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $flags
+     *
+     * @return list<string>
+     */
+    private static function resourceReviewFlags(array $flags): array
+    {
+        $reviewFlags = [];
+        foreach ([
+            'mathml' => 'mathml',
+            'svg' => 'svg',
+            'remoteResources' => 'remote-resources',
+            'scripted' => 'scripted',
+            'switch' => 'switch',
+        ] as $flag => $property) {
+            if (($flags[$flag] ?? false) === true) {
+                $reviewFlags[] = $property;
+            }
+        }
+
+        return $reviewFlags;
     }
 
     /**

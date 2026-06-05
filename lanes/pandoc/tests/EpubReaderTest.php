@@ -726,6 +726,55 @@ return [
         $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
         $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
     },
+    'summarizes EPUB manifest resource properties for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithResourceProperties = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources"/>',
+            $opfXml
+        );
+        $opfWithResourceProperties = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml" properties="scripted switch"/>',
+            $opfWithResourceProperties
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithResourceProperties));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $report = $result['resourceProperties'];
+        $t->same(1, $report['summary']['navCount']);
+        $t->same(1, $report['summary']['coverImageCount']);
+        $t->same(1, $report['summary']['mathmlCount']);
+        $t->same(1, $report['summary']['svgCount']);
+        $t->same(1, $report['summary']['remoteResourcesCount']);
+        $t->same(1, $report['summary']['scriptedCount']);
+        $t->same(1, $report['summary']['switchCount']);
+        $t->same(2, $report['summary']['reviewRequiredCount']);
+
+        $t->same(true, $manifestById['chapter-1']['resourceFlags']['mathml']);
+        $t->same(true, $manifestById['chapter-1']['resourceFlags']['svg']);
+        $t->same(true, $manifestById['chapter-1']['resourceFlags']['remoteResources']);
+        $t->same(false, $manifestById['chapter-1']['resourceFlags']['scripted']);
+        $t->same(['mathml', 'svg', 'remote-resources'], $manifestById['chapter-1']['resourceReviewFlags']);
+        $t->same(true, $manifestById['chapter-2']['resourceFlags']['scripted']);
+        $t->same(true, $manifestById['chapter-2']['resourceFlags']['switch']);
+        $t->same(['scripted', 'switch'], $manifestById['chapter-2']['resourceReviewFlags']);
+
+        $t->same('chapter-1', $report['itemsByProperty']['mathml'][0]['id']);
+        $t->same('chapter-1', $report['itemsByProperty']['remote-resources'][0]['id']);
+        $t->same('chapter-2', $report['itemsByProperty']['scripted'][0]['id']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $report['itemsById']['chapter-1']['part']);
+        $t->same(['mathml', 'svg', 'remote-resources'], $report['itemsById']['chapter-1']['reviewFlags']);
+        $t->same(true, $report['itemsById']['chapter-1']['reviewRequired']);
+        $t->same('chapter-2', $report['reviewItems'][1]['id']);
+        $t->same($report, $result['importReport']['resourceProperties']);
+        $t->same($report, $result['document']->attr('resourceProperties'));
+        $t->same(['mathml', 'svg', 'remote-resources'], $result['document']->children[0]->attr('resourceReviewFlags'));
+        $t->same(['scripted', 'switch'], $result['document']->children[1]->attr('resourceReviewFlags'));
+    },
     'reports cover image attachment candidates and unmanifested package assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,
