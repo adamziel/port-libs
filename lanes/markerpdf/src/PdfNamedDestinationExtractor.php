@@ -1188,6 +1188,13 @@ final class PdfNamedDestinationExtractor
     ): ?array {
         $destination = $this->resolve($value, $objects, $cache);
         if ($this->isDictionary($destination) && array_key_exists('D', $destination)) {
+            if (array_key_exists('S', $destination)) {
+                $actionType = $this->nameValue($this->resolve($destination['S'], $objects, $cache));
+                if ($actionType !== 'GoTo') {
+                    return null;
+                }
+            }
+
             $destination = $this->resolve($destination['D'], $objects, $cache);
         }
 
