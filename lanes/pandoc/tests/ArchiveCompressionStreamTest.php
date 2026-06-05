@@ -976,6 +976,33 @@ return [
         $t->same(strlen($dictionaryBlock) + strlen($matchPayload), $frames[0]['compressedSize']);
     },
 
+    'builds dependent lz4 frame blocks using previous review fixture history' => static function (TestRunner $t): void {
+        $historyBlock = '';
+        for ($index = 0; strlen($historyBlock) < 65536; $index++) {
+            $historyBlock .= hash('sha256', 'pandoc-dependent-lz4-review-' . $index, true);
+        }
+        $historyBlock = substr($historyBlock, 0, 65536);
+        $dependentBlock = substr($historyBlock, 1) . $historyBlock[0];
+        $reviewPacket = $historyBlock . $dependentBlock;
+
+        $lz4 = Lz4Frame::build($reviewPacket, [
+            'blockIndependent' => false,
+            'blockChecksum' => true,
+            'contentChecksum' => true,
+            'contentSize' => true,
+        ]);
+        $frames = Lz4Frame::frames($lz4);
+
+        $t->same($reviewPacket, Lz4Frame::decode($lz4));
+        $t->same(1, count($frames));
+        $t->same(false, $frames[0]['blockIndependent']);
+        $t->same(2, $frames[0]['blockCount']);
+        $t->same(['uncompressed', 'compressed'], $frames[0]['blockTypes']);
+        $t->same(strlen($reviewPacket), $frames[0]['contentSize']);
+        $t->true($frames[0]['compressedSize'] < strlen($reviewPacket));
+        $t->true(strlen($lz4) < strlen($reviewPacket));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

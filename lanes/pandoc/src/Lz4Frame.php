@@ -29,17 +29,21 @@ final class Lz4Frame
     ];
 
     /**
-     * @param array{blockMaxSize?:int, blockChecksum?:bool, contentChecksum?:bool, contentSize?:bool} $options
+     * @param array{blockMaxSize?:int, blockIndependent?:bool, blockChecksum?:bool, contentChecksum?:bool, contentSize?:bool} $options
      */
     public static function build(string $data, array $options = []): string
     {
         $blockMaxSize = $options['blockMaxSize'] ?? 65536;
         $blockMaxCode = self::blockMaxCode($blockMaxSize);
+        $blockIndependent = (bool) ($options['blockIndependent'] ?? true);
         $blockChecksum = (bool) ($options['blockChecksum'] ?? false);
         $contentChecksum = (bool) ($options['contentChecksum'] ?? true);
         $includeContentSize = (bool) ($options['contentSize'] ?? true);
 
-        $flags = self::VERSION_SUPPORTED | self::FLAG_BLOCK_INDEPENDENCE;
+        $flags = self::VERSION_SUPPORTED;
+        if ($blockIndependent) {
+            $flags |= self::FLAG_BLOCK_INDEPENDENCE;
+        }
         if ($blockChecksum) {
             $flags |= self::FLAG_BLOCK_CHECKSUM;
         }
@@ -59,9 +63,10 @@ final class Lz4Frame
             . $descriptor
             . chr((self::xxh32($descriptor) >> 8) & 0xff);
 
+        $blockHistory = '';
         for ($offset = 0, $length = strlen($data); $offset < $length; $offset += $blockMaxSize) {
             $block = substr($data, $offset, $blockMaxSize);
-            $encoded = self::encodeRawBlock($block);
+            $encoded = self::encodeRawBlock($block, $blockIndependent ? '' : $blockHistory);
             if ($encoded !== '' && strlen($encoded) < strlen($block)) {
                 $blockPayload = $encoded;
                 $blockSizeField = strlen($encoded);
@@ -73,6 +78,10 @@ final class Lz4Frame
             $bytes .= self::packUInt32($blockSizeField) . $blockPayload;
             if ($blockChecksum) {
                 $bytes .= self::packUInt32(self::xxh32($blockPayload));
+            }
+
+            if (!$blockIndependent) {
+                $blockHistory = self::appendDependentBlockHistory($blockHistory, $block);
             }
         }
 
@@ -303,25 +312,35 @@ final class Lz4Frame
         return $frames;
     }
 
-    private static function encodeRawBlock(string $payload): string
+    private static function encodeRawBlock(string $payload, string $dependentHistory = ''): string
     {
         $length = strlen($payload);
         if ($length === 0) {
             return '';
         }
 
+        if (strlen($dependentHistory) > self::DEPENDENT_BLOCK_HISTORY_SIZE) {
+            $dependentHistory = substr($dependentHistory, -self::DEPENDENT_BLOCK_HISTORY_SIZE);
+        }
+        $historyLength = strlen($dependentHistory);
+
         $out = '';
         $anchor = 0;
         $offset = 0;
         $table = [];
+        for ($historyOffset = 0; $historyOffset <= $historyLength - 4; $historyOffset++) {
+            $sequence = substr($dependentHistory, $historyOffset, 4);
+            $table[$sequence] ??= $historyOffset;
+        }
         $lastMatchStart = $length - 12;
 
         while ($offset <= $lastMatchStart) {
             $sequence = substr($payload, $offset, 4);
+            $globalOffset = $historyLength + $offset;
             $reference = $table[$sequence] ?? null;
-            $table[$sequence] = $offset;
+            $table[$sequence] = $globalOffset;
 
-            if ($reference === null || $offset - $reference > 0xffff) {
+            if ($reference === null || $globalOffset - $reference > 0xffff) {
                 $offset++;
                 continue;
             }
@@ -330,7 +349,7 @@ final class Lz4Frame
             $maxMatchLength = $length - $offset - 5;
             while (
                 $matchLength < $maxMatchLength
-                && $payload[$reference + $matchLength] === $payload[$offset + $matchLength]
+                && self::combinedByte($dependentHistory, $payload, $reference + $matchLength) === $payload[$offset + $matchLength]
             ) {
                 $matchLength++;
             }
@@ -342,14 +361,14 @@ final class Lz4Frame
 
             $out .= self::encodeRawSequence(
                 substr($payload, $anchor, $offset - $anchor),
-                $offset - $reference,
+                $globalOffset - $reference,
                 $matchLength,
             );
 
             $matchEnd = $offset + $matchLength;
             $primeEnd = min($matchEnd, $length - 3);
             for ($prime = $offset + 1; $prime < $primeEnd; $prime++) {
-                $table[substr($payload, $prime, 4)] = $prime;
+                $table[substr($payload, $prime, 4)] = $historyLength + $prime;
             }
 
             $offset = $matchEnd;
@@ -361,6 +380,16 @@ final class Lz4Frame
         }
 
         return $out;
+    }
+
+    private static function combinedByte(string $history, string $payload, int $position): string
+    {
+        $historyLength = strlen($history);
+        if ($position < $historyLength) {
+            return $history[$position];
+        }
+
+        return $payload[$position - $historyLength];
     }
 
     private static function decodeRawBlock(string $payload, int $maxOutputBytes, string $dependentHistory = ''): string
