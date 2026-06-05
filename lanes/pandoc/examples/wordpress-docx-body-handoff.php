@@ -188,6 +188,17 @@ XML],
       <w:r><w:t>.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Proof and permissions </w:t></w:r>
+      <w:proofErr w:type="spellStart"/>
+      <w:r><w:t>migraton</w:t></w:r>
+      <w:proofErr w:type="spellEnd"/>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:permStart w:id="70" w:edGrp="everyone"/>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>review window</w:t></w:r>
+      <w:permEnd w:id="70"/>
+      <w:r><w:t xml:space="preserve"> stay labeled.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Character style reviewer label </w:t></w:r>
       <w:r><w:rPr><w:rStyle w:val="ReviewAlert"/></w:rPr><w:t>inherited urgency</w:t></w:r>
       <w:r><w:t xml:space="preserve"> and </w:t></w:r>
@@ -759,6 +770,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<div class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="review-section" data-docx-custom-xml-prop-section-id="source-review"><p>Custom XML review block for source packet.</p></div>',
         '<p>Decoded source symbols α • ✓ ← remain visible.</p>',
         '<p>Reviewer marks <span class="docx-highlight docx-highlight-yellow" data-docx-highlight="yellow">priority update</span> and <span class="docx-shading" data-docx-shading-val="clear" data-docx-shading-fill="D9EAF7">source shading</span>.</p>',
+        '<p>Proof and permissions <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> plus <span class="docx-permission-range docx-permission-group" data-docx-permission-id="70" data-docx-permission-group="everyone"><strong>review window</strong></span> stay labeled.</p>',
         '<p>Character style reviewer label <span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>inherited urgency</u></em></strong></span> and <span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted follow-up</u></strong></span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',

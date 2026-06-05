@@ -1906,7 +1906,69 @@ final class DocxReader
     {
         $inlines = [];
         $activeCommentRangeNodes = [];
+        $activeProofError = null;
+        $activeProofErrorNodes = [];
+        $activePermissionRange = null;
+        $activePermissionRangeNodes = [];
         $activeField = null;
+
+        $emitInlineNodes = function (array $nodes) use (
+            &$inlines,
+            &$activeCommentRangeId,
+            &$activeCommentRangeNodes,
+            &$activeProofError,
+            &$activeProofErrorNodes,
+            &$activePermissionRange,
+            &$activePermissionRangeNodes
+        ): void {
+            if ($nodes === []) {
+                return;
+            }
+
+            if ($activeProofError !== null) {
+                array_push($activeProofErrorNodes, ...$nodes);
+                return;
+            }
+
+            if ($activePermissionRange !== null) {
+                array_push($activePermissionRangeNodes, ...$nodes);
+                return;
+            }
+
+            if ($activeCommentRangeId !== null) {
+                array_push($activeCommentRangeNodes, ...$nodes);
+                return;
+            }
+
+            array_push($inlines, ...$nodes);
+        };
+
+        $closeProofError = function (?string $endType = null) use (&$activeProofError, &$activeProofErrorNodes, $emitInlineNodes): void {
+            if ($activeProofError === null) {
+                return;
+            }
+
+            $node = $this->proofErrorRangeNode($activeProofError, $activeProofErrorNodes, $endType);
+            $activeProofError = null;
+            $activeProofErrorNodes = [];
+            if ($node instanceof AstNode) {
+                $emitInlineNodes([$node]);
+            }
+        };
+
+        $closePermissionRange = function (?string $endId = null) use (&$activePermissionRange, &$activePermissionRangeNodes, $emitInlineNodes): void {
+            if ($activePermissionRange === null || !$this->permissionRangeEndMatches($activePermissionRange, $endId)) {
+                return;
+            }
+
+            $node = $this->permissionRangeNode($activePermissionRange, $activePermissionRangeNodes);
+            $activePermissionRange = null;
+            $activePermissionRangeNodes = [];
+            if ($node instanceof AstNode) {
+                $emitInlineNodes([$node]);
+            }
+        };
+
         foreach ($paragraph->childNodes as $child) {
             if (!$child instanceof \DOMElement || $this->isWordElement($child, 'pPr')) {
                 continue;
@@ -1916,12 +1978,7 @@ final class DocxReader
                 $nodes = $this->consumeFieldElement($activeField, $child, $package, $relationships, $referencedNotes);
                 if ($nodes !== null) {
                     $activeField = null;
-                    if ($activeCommentRangeId !== null) {
-                        array_push($activeCommentRangeNodes, ...$nodes);
-                        continue;
-                    }
-
-                    array_push($inlines, ...$nodes);
+                    $emitInlineNodes($nodes);
                 }
                 continue;
             }
@@ -1929,6 +1986,37 @@ final class DocxReader
             if ($this->startsComplexField($child)) {
                 $activeField = $this->newFieldState();
                 $this->consumeFieldElement($activeField, $child, $package, $relationships, $referencedNotes);
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'proofErr')) {
+                $proofStart = $this->proofErrorRangeStart($child);
+                if ($proofStart !== null) {
+                    $closeProofError(null);
+                    $activeProofError = $proofStart;
+                    $activeProofErrorNodes = [];
+                    continue;
+                }
+
+                $proofEnd = $this->proofErrorRangeEndType($child);
+                if ($proofEnd !== null) {
+                    $closeProofError($proofEnd);
+                    continue;
+                }
+            }
+
+            if ($this->isWordElement($child, 'permStart')) {
+                $permissionRange = $this->permissionRangeAttrs($child);
+                if ($permissionRange !== null) {
+                    $closePermissionRange(null);
+                    $activePermissionRange = $permissionRange;
+                    $activePermissionRangeNodes = [];
+                }
+                continue;
+            }
+
+            if ($this->isWordElement($child, 'permEnd')) {
+                $closePermissionRange($this->wordAttr($child, 'id'));
                 continue;
             }
 
@@ -1954,12 +2042,7 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'bookmarkStart')) {
                 $nodes = $this->bookmarkStartNodes($child);
-                if ($activeCommentRangeId !== null) {
-                    array_push($activeCommentRangeNodes, ...$nodes);
-                    continue;
-                }
-
-                array_push($inlines, ...$nodes);
+                $emitInlineNodes($nodes);
                 continue;
             }
 
@@ -1968,27 +2051,132 @@ final class DocxReader
             }
 
             $nodes = $this->inlineNodes($child, $package, $relationships, $referencedNotes);
-            if ($activeCommentRangeId !== null) {
-                array_push($activeCommentRangeNodes, ...$nodes);
-                continue;
-            }
-
-            array_push($inlines, ...$nodes);
+            $emitInlineNodes($nodes);
         }
 
         if ($activeField !== null) {
             $nodes = $this->fieldResultNodes($activeField);
-            if ($activeCommentRangeId !== null) {
-                array_push($activeCommentRangeNodes, ...$nodes);
-            } else {
-                array_push($inlines, ...$nodes);
-            }
+            $emitInlineNodes($nodes);
         }
+        $closeProofError(null);
+        $closePermissionRange(null);
         if ($activeCommentRangeId !== null) {
             $this->appendCommentRangeSpan($inlines, $activeCommentRangeId, $activeCommentRangeNodes, $referencedNotes);
         }
 
         return $this->coalesceTextNodes($inlines);
+    }
+
+    /**
+     * @return array{kind:string, startType:string}|null
+     */
+    private function proofErrorRangeStart(\DOMElement $proofErr): ?array
+    {
+        $type = $this->wordAttr($proofErr, 'type');
+        $kind = match ($type) {
+            'spellStart' => 'spelling',
+            'gramStart' => 'grammar',
+            default => null,
+        };
+
+        if ($kind === null || $type === null) {
+            return null;
+        }
+
+        return [
+            'kind' => $kind,
+            'startType' => $type,
+        ];
+    }
+
+    private function proofErrorRangeEndType(\DOMElement $proofErr): ?string
+    {
+        $type = $this->wordAttr($proofErr, 'type');
+
+        return in_array($type, ['spellEnd', 'gramEnd'], true) ? $type : null;
+    }
+
+    /**
+     * @param array{kind:string, startType:string} $range
+     * @param list<AstNode> $children
+     */
+    private function proofErrorRangeNode(array $range, array $children, ?string $endType): ?AstNode
+    {
+        $children = $this->coalesceTextNodes($children);
+        if ($children === []) {
+            return null;
+        }
+
+        $attributes = [
+            'data-docx-proof-error' => $range['kind'],
+            'data-docx-proof-start' => $range['startType'],
+        ];
+        if ($endType !== null && $endType !== '') {
+            $attributes['data-docx-proof-end'] = $endType;
+        }
+
+        return new AstNode('span', [
+            'classes' => ['docx-proof-error', 'docx-proof-' . $range['kind']],
+            'attributes' => $attributes,
+        ], $children);
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function permissionRangeAttrs(\DOMElement $permissionStart): ?array
+    {
+        $attributes = [];
+        $id = $this->wordAttr($permissionStart, 'id');
+        if ($id !== null && $id !== '') {
+            $attributes['data-docx-permission-id'] = $id;
+        }
+
+        $classes = ['docx-permission-range'];
+        $group = $this->wordAttr($permissionStart, 'edGrp');
+        if ($group !== null && $group !== '') {
+            $attributes['data-docx-permission-group'] = $group;
+            $classes[] = 'docx-permission-group';
+        }
+
+        $user = $this->wordAttr($permissionStart, 'user');
+        if ($user !== null && $user !== '') {
+            $attributes['data-docx-permission-user'] = $user;
+            $classes[] = 'docx-permission-user';
+        }
+
+        if ($attributes === []) {
+            return null;
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array{classes:list<string>, attributes:array<string, string>} $range
+     */
+    private function permissionRangeEndMatches(array $range, ?string $endId): bool
+    {
+        $startId = $range['attributes']['data-docx-permission-id'] ?? null;
+
+        return $endId === null || $endId === '' || $startId === null || $startId === $endId;
+    }
+
+    /**
+     * @param array{classes:list<string>, attributes:array<string, string>} $range
+     * @param list<AstNode> $children
+     */
+    private function permissionRangeNode(array $range, array $children): ?AstNode
+    {
+        $children = $this->coalesceTextNodes($children);
+        if ($children === []) {
+            return null;
+        }
+
+        return new AstNode('span', $range, $children);
     }
 
     /**

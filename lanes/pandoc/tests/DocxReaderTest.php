@@ -950,6 +950,35 @@ $fieldMetadataDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$proofPermissionRangeDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Proofed </w:t></w:r>
+      <w:proofErr w:type="spellStart"/>
+      <w:r><w:t>migraton</w:t></w:r>
+      <w:proofErr w:type="spellEnd"/>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:proofErr w:type="gramStart"/>
+      <w:r><w:t>needs review are</w:t></w:r>
+      <w:proofErr w:type="gramEnd"/>
+      <w:r><w:t xml:space="preserve"> visible.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Editable </w:t></w:r>
+      <w:permStart w:id="7" w:edGrp="everyone"/>
+      <w:r><w:rPr><w:b/></w:rPr><w:t>review window</w:t></w:r>
+      <w:permEnd w:id="7"/>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:permStart w:id="8" w:user="reviewer@example.test"/>
+      <w:r><w:t>named reviewer slot</w:t></w:r>
+      <w:permEnd w:id="8"/>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $structuredDocumentTagXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -1770,6 +1799,14 @@ $buildFieldMetadataPackage = static function () use ($contentTypesXml, $packageR
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $fieldMetadataDocumentXml],
+    ]);
+};
+
+$buildProofPermissionRangePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $proofPermissionRangeDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $proofPermissionRangeDocumentXml],
     ]);
 };
 
@@ -3099,6 +3136,64 @@ return [
         $t->contains('<span class="docx-field docx-field-page" data-docx-field="page" data-docx-field-instruction="PAGE \* Arabic" data-docx-field-format="Arabic">7</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-numpages" data-docx-field="numpages" data-docx-field-instruction="NUMPAGES \* Arabic" data-docx-field-format="Arabic">12</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-date" data-docx-field="date" data-docx-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-docx-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
+    },
+    'preserves DOCX proof-error and permission ranges as reviewer spans' => static function (TestRunner $t) use ($buildProofPermissionRangePackage): void {
+        $document = (new DocxReader())->readDocument($buildProofPermissionRangePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+
+        $proof = $document->children[0];
+        $t->same('paragraph', $proof->type);
+        $t->same(5, count($proof->children));
+        $t->same('Proofed ', $proof->children[0]->attr('text'));
+
+        $spelling = $proof->children[1];
+        $t->same('span', $spelling->type);
+        $t->same(['docx-proof-error', 'docx-proof-spelling'], $spelling->attr('classes'));
+        $t->same('spelling', $spelling->attr('attributes')['data-docx-proof-error']);
+        $t->same('spellStart', $spelling->attr('attributes')['data-docx-proof-start']);
+        $t->same('spellEnd', $spelling->attr('attributes')['data-docx-proof-end']);
+        $t->same('migraton', $spelling->children[0]->attr('text'));
+
+        $t->same(' and ', $proof->children[2]->attr('text'));
+        $grammar = $proof->children[3];
+        $t->same('span', $grammar->type);
+        $t->same(['docx-proof-error', 'docx-proof-grammar'], $grammar->attr('classes'));
+        $t->same('grammar', $grammar->attr('attributes')['data-docx-proof-error']);
+        $t->same('gramStart', $grammar->attr('attributes')['data-docx-proof-start']);
+        $t->same('gramEnd', $grammar->attr('attributes')['data-docx-proof-end']);
+        $t->same('needs review are', $grammar->children[0]->attr('text'));
+        $t->same(' visible.', $proof->children[4]->attr('text'));
+
+        $permission = $document->children[1];
+        $t->same('paragraph', $permission->type);
+        $t->same(5, count($permission->children));
+        $t->same('Editable ', $permission->children[0]->attr('text'));
+
+        $groupRange = $permission->children[1];
+        $t->same('span', $groupRange->type);
+        $t->same(['docx-permission-range', 'docx-permission-group'], $groupRange->attr('classes'));
+        $t->same('7', $groupRange->attr('attributes')['data-docx-permission-id']);
+        $t->same('everyone', $groupRange->attr('attributes')['data-docx-permission-group']);
+        $t->same('strong', $groupRange->children[0]->type);
+        $t->same('review window', $groupRange->children[0]->children[0]->attr('text'));
+
+        $t->same(' and ', $permission->children[2]->attr('text'));
+        $userRange = $permission->children[3];
+        $t->same('span', $userRange->type);
+        $t->same(['docx-permission-range', 'docx-permission-user'], $userRange->attr('classes'));
+        $t->same('8', $userRange->attr('attributes')['data-docx-permission-id']);
+        $t->same('reviewer@example.test', $userRange->attr('attributes')['data-docx-permission-user']);
+        $t->same('named reviewer slot', $userRange->children[0]->attr('text'));
+        $t->same('.', $permission->children[4]->attr('text'));
+
+        $t->contains('Proofed [migraton]{.docx-proof-error .docx-proof-spelling data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd"} and [needs review are]{.docx-proof-error .docx-proof-grammar data-docx-proof-error="grammar" data-docx-proof-start="gramStart" data-docx-proof-end="gramEnd"} visible.', $markdown);
+        $t->contains('Editable [**review window**]{.docx-permission-range .docx-permission-group data-docx-permission-id="7" data-docx-permission-group="everyone"} and [named reviewer slot]{.docx-permission-range .docx-permission-user data-docx-permission-id="8" data-docx-permission-user="reviewer@example.test"}.', $markdown);
+
+        $t->contains('<p>Proofed <span class="docx-proof-error docx-proof-spelling" data-docx-proof-error="spelling" data-docx-proof-start="spellStart" data-docx-proof-end="spellEnd">migraton</span> and <span class="docx-proof-error docx-proof-grammar" data-docx-proof-error="grammar" data-docx-proof-start="gramStart" data-docx-proof-end="gramEnd">needs review are</span> visible.</p>', $blocks);
+        $t->contains('<p>Editable <span class="docx-permission-range docx-permission-group" data-docx-permission-id="7" data-docx-permission-group="everyone"><strong>review window</strong></span> and <span class="docx-permission-range docx-permission-user" data-docx-permission-id="8" data-docx-permission-user="reviewer@example.test">named reviewer slot</span>.</p>', $blocks);
     },
     'preserves DOCX structured document tag content controls with reviewer metadata' => static function (TestRunner $t) use ($buildStructuredDocumentTagPackage): void {
         $document = (new DocxReader())->readDocument($buildStructuredDocumentTagPackage());
