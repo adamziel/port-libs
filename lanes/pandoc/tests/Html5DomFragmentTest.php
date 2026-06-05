@@ -650,6 +650,40 @@ return [
         $t->same('/migration/foreign-content-review.html', $document->children[0]->attr('part'));
         $t->same([], $summary['blockedTags']);
     },
+    'preserves foreign-content cdata text before sanitized WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure><svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'
+                . '<math><annotation encoding="application/x-tex"><![CDATA[x < y & z]]></annotation></math></figure>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/foreign-cdata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<figure><svg><desc>Reviewer &lt;source&gt; &amp; notes</desc><text>A &lt; B &amp; C</text></svg><math><annotation encoding="application/x-tex">x &lt; y &amp; z</annotation></math></figure>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Reviewer <source> & notesA < B & Cx < y & z', $fragment->textContent());
+        $t->same(['annotation', 'desc', 'figure', 'math', 'svg', 'text'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $t->same([], $policyDiagnostics);
+        $t->same('figure', $nodes[0]['name']);
+        $t->same('Reviewer <source> & notes', $nodes[0]['children'][0]['children'][0]['children'][0]['text']);
+        $t->same('A < B & C', $nodes[0]['children'][0]['children'][1]['children'][0]['text']);
+        $t->same('x < y & z', $nodes[0]['children'][1]['children'][0]['children'][0]['text']);
+        $t->same('/migration/foreign-cdata-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<![CDATA['), 'Expected CDATA delimiters to be stripped before WordPress handoff');
+        $t->true(!str_contains($html, '<source>'), 'Expected CDATA tag-looking source text to remain escaped');
+        $t->true(!str_contains($blocks, '<source>'), 'Expected WordPress blocks to avoid parsed source-looking CDATA text');
+    },
     'hands normalized HTML fragments to WordPress raw HTML blocks without browser or Pandoc execution' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml('<h1 id="review">Import</h1><p>Manual<br>break &amp; reviewer note</p>');
         $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [

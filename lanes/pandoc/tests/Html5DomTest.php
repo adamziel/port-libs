@@ -129,6 +129,29 @@ return [
         $t->contains('<foreignObject><div viewbox="html attr"><lineargradient>HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject>', $serialized);
         $t->contains('<annotation-xml encoding="application/xhtml+xml"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml>', $serialized);
     },
+    'parses html foreign-content cdata sections as text for reader handoff' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'
+                . '<math><annotation encoding="application/x-tex"><![CDATA[x < y & z]]></annotation></math>'
+        );
+        $svg = Html5Dom::firstChildElement($body, 'svg');
+        $desc = $svg instanceof DOMElement ? Html5Dom::firstChildElement($svg, 'desc') : null;
+        $text = $svg instanceof DOMElement ? Html5Dom::firstChildElement($svg, 'text') : null;
+        $math = Html5Dom::firstChildElement($body, 'math');
+        $annotation = $math instanceof DOMElement ? Html5Dom::firstChildElement($math, 'annotation') : null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($desc instanceof DOMElement, 'Expected SVG desc CDATA container to survive parsing');
+        $t->true($text instanceof DOMElement, 'Expected SVG text CDATA container to survive parsing');
+        $t->same('Reviewer <source> & notes', $desc instanceof DOMElement ? Html5Dom::normalizedText($desc) : null);
+        $t->same('A < B & C', $text instanceof DOMElement ? Html5Dom::normalizedText($text) : null);
+        $t->true($annotation instanceof DOMElement, 'Expected MathML annotation CDATA container to survive parsing');
+        $t->same(['encoding' => 'application/x-tex'], $annotation instanceof DOMElement ? Html5Dom::attributes($annotation) : []);
+        $t->same('x < y & z', $annotation instanceof DOMElement ? Html5Dom::normalizedText($annotation) : null);
+        $t->same('<svg><desc>Reviewer &lt;source&gt; &amp; notes</desc><text>A &lt; B &amp; C</text></svg><math><annotation encoding="application/x-tex">x &lt; y &amp; z</annotation></math>', $serialized);
+        $t->true(!str_contains($serialized, '<![CDATA['), 'Expected CDATA delimiters to be normalized away before serialization');
+        $t->true(!str_contains($serialized, '<source>'), 'Expected CDATA tag-looking source text to stay escaped');
+    },
     'treats html title and textarea bodies as rcdata text before dom traversal' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea>'

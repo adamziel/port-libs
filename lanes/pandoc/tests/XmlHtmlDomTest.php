@@ -187,6 +187,28 @@ return [
         $t->same(['definitionURL' => '#x'], $mathContentAnnotation['children'][0]['attributes']);
         $t->same('<svg><foreignObject><div viewbox="html attr"><lineargradient data-review="html child">HTML child</lineargradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg><math><annotation-xml encoding="text/html"><div viewbox="math html"><textpath>HTML text</textpath></div></annotation-xml><annotation-xml encoding="MathML-Content"><ci definitionURL="#x">x</ci></annotation-xml></math>', $html);
     },
+    'preserves html foreign-content cdata sections as escaped text' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'
+                . '<math><annotation encoding="application/x-tex"><![CDATA[x < y & z]]></annotation></math>',
+            'foreign content CDATA fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('svg', $summary[0]['name']);
+        $t->same('desc', $summary[0]['children'][0]['name']);
+        $t->same('Reviewer <source> & notes', $summary[0]['children'][0]['text']);
+        $t->same('text', $summary[0]['children'][1]['name']);
+        $t->same('A < B & C', $summary[0]['children'][1]['text']);
+        $t->same('math', $summary[1]['name']);
+        $t->same('annotation', $summary[1]['children'][0]['name']);
+        $t->same(['encoding' => 'application/x-tex'], $summary[1]['children'][0]['attributes']);
+        $t->same('x < y & z', $summary[1]['children'][0]['text']);
+        $t->same('<svg><desc>Reviewer &lt;source&gt; &amp; notes</desc><text>A &lt; B &amp; C</text></svg><math><annotation encoding="application/x-tex">x &lt; y &amp; z</annotation></math>', $html);
+        $t->true(!str_contains($html, '<![CDATA['), 'Expected CDATA delimiters to be normalized away before HTML handoff');
+        $t->true(!str_contains($html, '<source>'), 'Expected CDATA tag-looking text to stay escaped');
+    },
     'serializes html rcdata elements as escaped text not parsed child markup' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea>'

@@ -347,7 +347,7 @@ final class XmlHtmlDom
     {
         $offset = 0;
         $protected = '';
-        $pattern = '~<(?P<name>xmp|noembed|noframes|title|textarea|plaintext)(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
+        $pattern = '~<(?P<name>script|style|xmp|noembed|noframes|title|textarea|plaintext)(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';
 
         while (preg_match($pattern, $html, $matches, PREG_OFFSET_CAPTURE, $offset) === 1) {
             $startTag = (string) $matches[0][0];
@@ -355,7 +355,7 @@ final class XmlHtmlDom
             $name = strtolower((string) $matches['name'][0]);
             $contentStart = $startOffset + strlen($startTag);
 
-            $protected .= substr($html, $offset, $startOffset - $offset) . $startTag;
+            $protected .= self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset)) . $startTag;
 
             if ($name === 'plaintext') {
                 $protected .= self::escapeHtmlRawTextContent(substr($html, $contentStart)) . '</plaintext>';
@@ -373,14 +373,18 @@ final class XmlHtmlDom
             $endTag = (string) $endMatches[0][0];
             $endOffset = (int) $endMatches[0][1];
             $content = substr($html, $contentStart, $endOffset - $contentStart);
-            $protected .= in_array($name, ['title', 'textarea'], true)
-                ? self::escapeHtmlRcdataContent($content)
-                : self::escapeHtmlRawTextContent($content);
+            if (in_array($name, ['script', 'style'], true)) {
+                $protected .= $content;
+            } elseif (in_array($name, ['title', 'textarea'], true)) {
+                $protected .= self::escapeHtmlRcdataContent($content);
+            } else {
+                $protected .= self::escapeHtmlRawTextContent($content);
+            }
             $protected .= $endTag;
             $offset = $endOffset + strlen($endTag);
         }
 
-        return $protected . substr($html, $offset);
+        return $protected . self::protectHtmlCdataSections(substr($html, $offset));
     }
 
     public static function normalizedText(\DOMNode $node): string
@@ -657,6 +661,15 @@ final class XmlHtmlDom
     private static function escapeHtmlRawTextContent(string $content): string
     {
         return strtr($content, ['&' => '&amp;', '<' => '&lt;', '>' => '&gt;']);
+    }
+
+    private static function protectHtmlCdataSections(string $html): string
+    {
+        return preg_replace_callback(
+            '/<!\[CDATA\[(.*?)\]\]>/s',
+            static fn (array $matches): string => self::escapeHtmlRawTextContent((string) $matches[1]),
+            $html
+        ) ?? $html;
     }
 
     private static function escapeHtmlRcdataContent(string $content): string
