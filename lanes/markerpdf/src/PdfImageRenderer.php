@@ -6900,11 +6900,15 @@ final class PdfImageRenderer
 
     private function extractPdfNameValue(string $dictionary, string $name): ?string
     {
-        if (preg_match('/\/' . preg_quote($name, '/') . '\b/s', $dictionary, $match, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
+        $offset = $this->skipPdfWhitespace($dictionary, 0);
+        if (substr($dictionary, $offset, 2) === '<<') {
+            $read = $this->readBalancedDictionary($dictionary, $offset);
+            if ($read !== null) {
+                return $this->pdfDictionaryValueForName($read['value'], $name);
+            }
         }
 
-        return $this->readPdfValueAt($dictionary, $match[0][1] + strlen($match[0][0]));
+        return $this->pdfDictionaryValueForName($dictionary, $name);
     }
 
     private function pdfDictionaryValueForName(string $dictionary, string $name): ?string
