@@ -4065,6 +4065,7 @@ final class PdfMetadataExtractor
                 $metadata[$key] = $value;
             }
         }
+        $this->applyCryptFilterDefaults($metadata, $version);
 
         $cryptFilters = $this->cryptFilterMetadata($dictionary, $objects);
         if ($cryptFilters !== []) {
@@ -4092,6 +4093,38 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * Encryption dictionaries using crypt filters inherit PDF defaults for
+     * omitted content roles. Materialize them once so security and attachment
+     * review paths make the same import decision.
+     *
+     * @param array<string, mixed> $metadata
+     */
+    private function applyCryptFilterDefaults(array &$metadata, ?int $version): void
+    {
+        if (!in_array($version, [4, 5], true)) {
+            return;
+        }
+
+        if (!is_string($metadata['stream_filter'] ?? null) || $metadata['stream_filter'] === '') {
+            $metadata['stream_filter'] = 'Identity';
+            $metadata['stream_filter_defaulted'] = true;
+            $metadata['stream_filter_source'] = 'pdf_default_identity';
+        }
+
+        if (!is_string($metadata['string_filter'] ?? null) || $metadata['string_filter'] === '') {
+            $metadata['string_filter'] = 'Identity';
+            $metadata['string_filter_defaulted'] = true;
+            $metadata['string_filter_source'] = 'pdf_default_identity';
+        }
+
+        if (!is_string($metadata['embedded_file_filter'] ?? null) || $metadata['embedded_file_filter'] === '') {
+            $metadata['embedded_file_filter'] = $metadata['stream_filter'];
+            $metadata['embedded_file_filter_defaulted_from_stream_filter'] = true;
+            $metadata['embedded_file_filter_source'] = 'pdf_default_stream_filter';
+        }
     }
 
     /**
