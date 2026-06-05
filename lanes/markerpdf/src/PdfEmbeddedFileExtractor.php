@@ -2158,8 +2158,12 @@ final class PdfEmbeddedFileExtractor
         if (substr($pdfBytes, $offset, 4) !== 'xref') {
             return null;
         }
+        $afterKeywordOffset = $offset + 4;
+        if ($afterKeywordOffset >= strlen($pdfBytes) || !ctype_space($pdfBytes[$afterKeywordOffset])) {
+            return null;
+        }
 
-        $sectionBodyOffset = $offset + 4;
+        $sectionBodyOffset = $afterKeywordOffset;
         $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $sectionBodyOffset);
         if ($trailerOffset === null) {
             return null;
