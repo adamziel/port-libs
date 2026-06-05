@@ -1045,7 +1045,10 @@ final class CitationCslProcessor
             $nonDroppingParticle = self::nameString($name['non-dropping-particle'] ?? '');
             $droppingParticle = self::nameString($name['dropping-particle'] ?? '');
             $suffix = self::nameString($name['suffix'] ?? '');
-            if ($literal === '' && $family === '' && $given === '' && $nonDroppingParticle === '' && $droppingParticle === '') {
+            $etAl = self::boolField($name, 'csl-et-al', false)
+                || self::boolField($name, 'etAl', false)
+                || self::boolField($name, 'et-al', false);
+            if (!$etAl && $literal === '' && $family === '' && $given === '' && $nonDroppingParticle === '' && $droppingParticle === '') {
                 throw new \InvalidArgumentException('CSL item ' . $id . ' field ' . $field . '[' . $index . '] has no name content');
             }
 
@@ -1059,6 +1062,7 @@ final class CitationCslProcessor
                 'commaSuffix' => self::boolField($name, 'comma-suffix', false),
                 'staticOrdering' => self::boolField($name, 'static-ordering', false),
                 'parseNames' => self::boolField($name, 'parse-names', true),
+                'etAl' => $etAl,
                 'annotations' => self::nameAnnotations($name['annotations'] ?? [], $id, $field, $index),
             ];
         }
@@ -2152,6 +2156,10 @@ final class CitationCslProcessor
         $parts = [];
         foreach ($names as $name) {
             if (!is_array($name)) {
+                continue;
+            }
+
+            if (($name['etAl'] ?? false) === true) {
                 continue;
             }
 
@@ -4979,11 +4987,28 @@ final class CitationCslProcessor
      */
     private function renderNameList(array $names, array $options, bool $bibliography): string
     {
-        $count = count($names);
+        $forceEtAl = false;
+        $renderableNames = [];
+        foreach ($names as $name) {
+            if (($name['etAl'] ?? false) === true) {
+                $forceEtAl = true;
+                break;
+            }
+
+            $renderableNames[] = $name;
+        }
+
+        if (!$forceEtAl) {
+            $renderableNames = $names;
+        }
+
+        $count = count($renderableNames);
         $etAlMin = $options['etAlMin'];
-        $useEtAl = is_int($etAlMin) && $count >= $etAlMin;
-        $visibleCount = $useEtAl ? max(1, min((int) $options['etAlUseFirst'], $count)) : $count;
-        $visible = array_slice($names, 0, $visibleCount);
+        $useEtAl = $forceEtAl || (is_int($etAlMin) && $count >= $etAlMin);
+        $visibleCount = $forceEtAl
+            ? $count
+            : ($useEtAl ? max(1, min((int) $options['etAlUseFirst'], $count)) : $count);
+        $visible = array_slice($renderableNames, 0, $visibleCount);
 
         $rendered = [];
         foreach ($visible as $index => $name) {

@@ -2306,6 +2306,103 @@ XML);
         $t->same('Manual Desk', $manualItem['shortAuthors'][0]['literal'] ?? null);
         $t->same('(MLS)', $manual->renderCitationCluster([$citation('manual-label', '[@manual-label]')]));
     },
+    'maps bounded biblatex others name sentinel into csl et al metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{truncated-review,
+  author       = {Smith, Ada and Ng, Nia and others},
+  editor       = {Curator, Eli and others},
+  title        = {Truncated Source Review},
+  journaltitle = {Journal of Imports},
+  date         = {2026},
+  pages        = {10--12},
+  url          = {https://example.test/truncated-review}
+}
+
+@book{single-listed-review,
+  author    = {Roe, Pat and others},
+  title     = {Single Listed Source},
+  date      = {2025},
+  publisher = {Review Press}
+}
+
+@online{literal-others-review,
+  author = {{others}},
+  title  = {Literal Others Packet},
+  date   = {2024},
+  url    = {https://example.test/literal-others}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('Smith', $items[0]['author'][0]['family'] ?? null);
+        $t->same('Ng', $items[0]['author'][1]['family'] ?? null);
+        $t->same('others', $items[0]['author'][2]['literal'] ?? null);
+        $t->same(true, $items[0]['author'][2]['csl-et-al'] ?? null);
+        $t->same('others', $items[0]['editor'][1]['literal'] ?? null);
+        $t->same(true, $items[0]['editor'][1]['csl-et-al'] ?? null);
+        $t->same(true, $items[1]['author'][1]['csl-et-al'] ?? null);
+        $t->same([['literal' => 'others']], $items[2]['author']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $truncated = $processor->item('truncated-review');
+        $singleListed = $processor->item('single-listed-review');
+        $literalOthers = $processor->item('literal-others-review');
+        $t->same(true, $truncated['authors'][2]['etAl'] ?? null);
+        $t->same(true, $truncated['editors'][1]['etAl'] ?? null);
+        $t->same(true, $singleListed['authors'][1]['etAl'] ?? null);
+        $t->same(false, $literalOthers['authors'][0]['etAl'] ?? null);
+        $t->same('(Smith, Ng, et al. 2026; Roe et al. 2025; others 2024)', $processor->renderCitationCluster([
+            $citation('truncated-review', '[@truncated-review]'),
+            $citation('single-listed-review', '[@single-listed-review]'),
+            $citation('literal-others-review', '[@literal-others-review]'),
+        ]));
+        $t->same('Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-review.', $processor->renderBibliographyEntry('truncated-review'));
+        $t->same('Roe, Pat et al. Single Listed Source. Review Press, 2025.', $processor->renderBibliographyEntry('single-listed-review'));
+        $t->same('others. Literal Others Packet. 2024. https://example.test/literal-others.', $processor->renderBibliographyEntry('literal-others-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author editor" delimiter=" / " delimiter-precedes-et-al="never">
+          <name initialize-with=". "/>
+          <et-al term="and others" prefix="+ "/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter="; " delimiter-precedes-et-al="never">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <et-al term="and others" prefix="+ "/>
+      </names>
+      <names variable="editor" delimiter="; " delimiter-precedes-et-al="never" prefix="editors: ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <et-al term="and others" prefix="+ "/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith / Ng + and others | 2026; Roe + and others | 2025; others | 2024]', $styled->renderCitationCluster([
+            $citation('truncated-review', '[@truncated-review]'),
+            $citation('single-listed-review', '[@single-listed-review]'),
+            $citation('literal-others-review', '[@literal-others-review]'),
+        ]));
+        $t->same('Smith, A.; Ng, N. + and others :: editors: Curator, E. + and others :: Truncated Source Review', $styled->renderBibliographyEntry('truncated-review'));
+
+        $document = (new MarkdownReader())->read('Truncated source @truncated-review and literal source [@literal-others-review] keep reviewer name-list intent.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Truncated source Smith, Ng, et al. (2026) and literal source (others 2024) keep reviewer name-list intent.</p>', $blocks);
+        $t->contains('<dt>Smith, Ng, et al. 2026</dt><dd>Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-review.</dd>', $blocks);
+        $t->contains('<dt>others 2024</dt><dd>others. Literal Others Packet. 2024. https://example.test/literal-others.</dd>', $blocks);
+    },
     'maps bounded biblatex software dataset version and pubstate metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @software{import-tool,

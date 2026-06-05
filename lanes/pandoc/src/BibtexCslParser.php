@@ -1472,6 +1472,13 @@ final class BibtexCslParser
             ];
         }
 
+        if (self::isEtAlNameSentinel($name)) {
+            return [
+                'literal' => 'others',
+                'csl-et-al' => true,
+            ];
+        }
+
         $parts = self::splitTopLevel($name, ',');
         if (count($parts) >= 2) {
             [$particle, $family] = self::splitLeadingParticle(self::cleanBibtexText($parts[0]));
@@ -1517,6 +1524,11 @@ final class BibtexCslParser
         }
 
         return $name;
+    }
+
+    private static function isEtAlNameSentinel(string $name): bool
+    {
+        return strtolower(self::cleanBibtexText($name)) === 'others';
     }
 
     /**

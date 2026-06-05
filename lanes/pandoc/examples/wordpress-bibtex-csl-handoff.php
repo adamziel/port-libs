@@ -65,6 +65,8 @@ Subtype source @review-subtype preserves source-kind metadata for review.
 
 Split URL date source @split-url-date preserves component access-date metadata.
 
+Truncated author source @truncated-name-list keeps source-authored et-al markers visible.
+
 Call-number source @archive-call-number preserves archive shelf metadata for review.
 
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
@@ -500,6 +502,16 @@ $bibtex = <<<'BIB'
   urlday   = {5}
 }
 
+@article{truncated-name-list,
+  author       = {Smith, Ada and Ng, Nia and others},
+  editor       = {Curator, Eli and others},
+  title        = {Truncated Source Review},
+  journaltitle = {Journal of Imports},
+  date         = {2026},
+  pages        = {10--12},
+  url          = {https://example.test/truncated-name-list}
+}
+
 @book{archive-call-number,
   author    = {Smith, Ada},
   title     = {Archive Shelf Packet},
@@ -820,6 +832,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($splitUrlDate['raw']['accessed']['date-parts'][0] ?? null) !== [2026, 6, 5]) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not map split URL access date into raw CSL metadata');
     }
+    $truncatedNameList = $processor->item('truncated-name-list');
+    if (($truncatedNameList['authors'][2]['etAl'] ?? null) !== true) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map author others sentinel into CSL et-al metadata');
+    }
+    if (($truncatedNameList['editors'][1]['etAl'] ?? null) !== true) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map editor others sentinel into CSL et-al metadata');
+    }
+    if ($processor->renderBibliographyEntry('truncated-name-list') !== 'Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-name-list.') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render source-authored et-al bibliography names');
+    }
     $archiveCallNumber = $processor->item('archive-call-number');
     if (($archiveCallNumber['callNumber'] ?? null) !== 'NYPL Manuscripts Division, MS 42 Box 7 Folder 3') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve archive call-number metadata');
@@ -892,6 +914,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>',
         '<p>Split URL date source Ng (2026) preserves component access-date metadata.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>',
+        '<p>Truncated author source Smith, Ng, et al. (2026) keeps source-authored et-al markers visible.</p>',
+        '<dt>Smith, Ng, et al. 2026</dt><dd>Smith, Ada; Ng, Nia; et al. Truncated Source Review. Journal of Imports. 2026. 10-12. https://example.test/truncated-name-list.</dd>',
         '<p>Call-number source Smith (2026) preserves archive shelf metadata for review.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Archive Shelf Packet. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
