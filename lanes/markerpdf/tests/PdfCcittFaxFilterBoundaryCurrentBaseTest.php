@@ -1457,6 +1457,47 @@ return [
         $t->same(false, $g4['decoded_with_current_filters'] ?? null);
         $t->same(false, $mixed['decoded_with_current_filters'] ?? null);
     },
+    'uses inline CCITT Fax EOFB and EOL markers before tokenizer fallback boundaries' => static function (TestRunner $t): void {
+        $extractor = new PdfTextExtractor();
+        $g4Marker = "\x00\x10\x01";
+        $rowEolMarker = "\x00\x10\x01";
+        $firstPayload = "\x11\x22{$g4Marker}";
+        $secondPayload = "\x33\x44{$rowEolMarker}";
+        $rawPayload = "\xff";
+        $content = "BT /F1 12 Tf 72 720 Td (Before inline CCITT markers) Tj ET\n"
+            . "BI /W 1728 /H 0 /IM true /F /CCF /DP << /K -1 /Columns 1728 /Rows 0 /EndOfBlock true >> ID\n"
+            . "{$firstPayload}\nEI\n"
+            . "BT /F1 12 Tf 72 700 Td (Between inline CCITT markers) Tj ET\n"
+            . "BI /W 1728 /H 1 /IM true /F /CCITTFaxDecode /DP << /K 0 /Columns 1728 /Rows 1 /EndOfLine true /EndOfBlock false >> ID\n"
+            . "{$secondPayload}\nEI\n"
+            . "BT /F1 12 Tf 72 680 Td (After inline CCITT markers) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC 8 ID{$rawPayload}EI\n"
+            . "BT /F1 12 Tf 72 660 Td (After raw inline image) Tj ET";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+            . "%%EOF";
+
+        $expected = [
+            'Before inline CCITT markers',
+            'Between inline CCITT markers',
+            'After inline CCITT markers',
+            'After raw inline image',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, $firstPayload));
+        $t->true(!str_contains($plainText, $secondPayload));
+        $t->true(!str_contains($plainText, 'CCITTFaxDecode'));
+        $t->true(!str_contains($plainText, 'CCF'));
+    },
     'decodes escaped CCITT Fax filter and DecodeParms keys for renderer review metadata' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $plan = $renderer->imageColorSpaceSoftMaskPlan(

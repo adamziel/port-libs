@@ -27277,13 +27277,26 @@ final class PdfTextExtractor
     }
 
     /**
-     * CCITTFaxDecode image data is preview-only in this native port. The fax
-     * bitstream has no cheap text-safe end marker, so delimiter-looking bytes
-     * stay closed until the tokenizer reaches the final inline-image fallback.
+     * CCITTFaxDecode image data is preview-only in this native port. When
+     * DecodeParms expose EOFB/RTC/EOL framing, use it only as a tokenizer
+     * boundary; the fax bytes still remain review-only and never become text.
+     *
+     * @param array<int, string> $objects
      */
-    private function inlineCcittFaxCandidateState(string $candidate): string
+    private function inlineCcittFaxCandidateState(string $candidate, ?string $decodeParms = null, array $objects = []): string
     {
-        return rtrim($candidate, "\x00\t\n\f\r ") === '' ? 'unknown' : 'incomplete';
+        $bytes = rtrim($candidate, "\x00\t\n\f\r ");
+        if ($bytes === '') {
+            return 'unknown';
+        }
+
+        foreach ($this->ccittFaxEndOfBlockMarkersForOwnership($decodeParms, $objects) as $marker) {
+            if (str_ends_with($bytes, $marker)) {
+                return 'complete';
+            }
+        }
+
+        return 'incomplete';
     }
 
     /**
@@ -27291,12 +27304,28 @@ final class PdfTextExtractor
      */
     private function inlineCcittFaxCandidateStateForFilters(string $dictionary, array $filters, string $candidate): string
     {
+        $ccittFilterIndex = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                $ccittFilterIndex = $index;
+                break;
+            }
+        }
+        if ($ccittFilterIndex === null) {
+            return 'unknown';
+        }
+
         $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, ['CCITTFaxDecode', 'CCF']);
         if ($bytes === null) {
             return 'unknown';
         }
 
-        return $this->inlineCcittFaxCandidateState($bytes);
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        $filterDecodeParms = $decodeParms === null
+            ? null
+            : $this->decodeParmsForFilterIndex($filters, $decodeParms, $ccittFilterIndex);
+
+        return $this->inlineCcittFaxCandidateState($bytes, $filterDecodeParms);
     }
 
     /**
