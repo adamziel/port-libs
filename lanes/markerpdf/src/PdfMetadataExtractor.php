@@ -7117,6 +7117,12 @@ final class PdfMetadataExtractor
                 break;
             }
 
+            $nextBegin = $this->xmpPacketInstructionOffset($xml, 'begin', $beginEnd);
+            if ($nextBegin !== null && $nextBegin < $end) {
+                $offset = $nextBegin;
+                continue;
+            }
+
             $endEnd = $this->xmlProcessingInstructionEndOffset($xml, $end);
             if ($endEnd === null) {
                 break;
