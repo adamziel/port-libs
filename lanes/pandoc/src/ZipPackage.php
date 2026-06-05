@@ -517,7 +517,11 @@ final class ZipPackage
      *     rawPackageComment:string,
      *     packageCommentEncoding:string,
      *     packageCommentLength:int,
+     *     hasPackageComment:bool,
+     *     hasEntryComments:bool,
+     *     hasComments:bool,
      *     entryCommentCount:int,
+     *     commentedEntryNames:list<string>,
      *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>,
      *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>
      * }
@@ -547,10 +551,51 @@ final class ZipPackage
             'rawPackageComment' => $this->packageComment,
             'packageCommentEncoding' => $packageComment['encoding'],
             'packageCommentLength' => strlen($this->packageComment),
+            'hasPackageComment' => $this->packageComment !== '',
+            'hasEntryComments' => $commentedEntries !== [],
+            'hasComments' => $this->packageComment !== '' || $commentedEntries !== [],
             'entryCommentCount' => count($commentedEntries),
+            'commentedEntryNames' => array_map(static fn (array $entry): string => $entry['name'], $commentedEntries),
             'commentedEntries' => $commentedEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @return array{
+     *     packageComment:string,
+     *     rawPackageComment:string,
+     *     packageCommentEncoding:string,
+     *     packageCommentLength:int,
+     *     hasPackageComment:bool,
+     *     hasEntryComments:bool,
+     *     hasComments:bool,
+     *     entryCommentCount:int,
+     *     commentedEntryNames:list<string>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int}>
+     * }
+     */
+    public function assertNoPackageOrEntryComments(): array
+    {
+        $summary = $this->commentPreflight();
+        if (!$summary['hasComments']) {
+            return $summary;
+        }
+
+        $commentSources = [];
+        if ($summary['hasPackageComment']) {
+            $commentSources[] = 'package comment';
+        }
+
+        foreach ($summary['commentedEntryNames'] as $name) {
+            $commentSources[] = $name . ' entry comment';
+        }
+
+        throw new \RuntimeException(
+            'ZIP package contains package or entry comments that require explicit import review: '
+            . implode(', ', $commentSources)
+        );
     }
 
     /**

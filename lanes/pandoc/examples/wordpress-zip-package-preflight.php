@@ -1313,6 +1313,12 @@ $packagePermissionPreflight = $package->permissionPreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
+$packageCommentPolicyRejected = false;
+try {
+    $package->assertNoPackageOrEntryComments();
+} catch (RuntimeException $exception) {
+    $packageCommentPolicyRejected = str_contains($exception->getMessage(), 'package or entry comments');
+}
 $packageSizeRejected = false;
 try {
     $package->assertSizePreflight($packageSizePreflight['uncompressedBytes'] - 1, null);
@@ -2104,6 +2110,18 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP package comment preflight to count reviewer entry comments');
     }
 
+    if (($packageCommentPreflight['hasComments'] ?? null) !== true) {
+        throw new RuntimeException('Expected ZIP package comment preflight to mark package or entry comments as present');
+    }
+
+    if (($packageCommentPreflight['commentedEntryNames'] ?? null) !== ['word/document.xml']) {
+        throw new RuntimeException('Expected ZIP package comment preflight to expose commented entry names');
+    }
+
+    if (!$packageCommentPolicyRejected) {
+        throw new RuntimeException('Expected strict ZIP package comment policy to reject package or entry comments');
+    }
+
     if (($packageCommentPreflight['commentedEntries'][0]['name'] ?? null) !== 'word/document.xml') {
         throw new RuntimeException('Expected ZIP package comment preflight to identify the commented document part');
     }
@@ -2668,6 +2686,7 @@ echo "ZIP package parts for WordPress import preflight:\n";
 echo 'packageComment=' . $package->packageComment() . "\n";
 echo 'packageCommentEncoding=' . $packageCommentPreflight['packageCommentEncoding'] . "\n";
 echo 'packageCommentedEntries=' . implode(',', array_map(static fn (array $entry): string => $entry['name'], $packageCommentPreflight['commentedEntries'])) . "\n";
+echo 'zipCommentPolicy=' . ($packageCommentPolicyRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'localOrder=' . implode(',', $package->localNames()) . "\n";
 foreach ($package->entries() as $entry) {
     $modifiedAt = $entry->lastModifiedTimestamp();

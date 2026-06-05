@@ -1226,6 +1226,53 @@ return [
         $t->same('utf-8', $summary['entries'][2]['commentEncoding']);
     },
 
+    'preflights strict zip comment policy before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $commentedPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>commented package policy</w:p></w:document>',
+                'method' => 8,
+                'comment' => 'document reviewer comment',
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => 'review packet comment metadata',
+                'method' => 0,
+            ],
+        ], 'source package review comment'));
+        $summary = $commentedPackage->commentPreflight();
+
+        $t->same('source package review comment', $summary['packageComment']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(true, $summary['hasComments']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(['word/document.xml'], $summary['commentedEntryNames']);
+        $t->same('document reviewer comment', $summary['commentedEntries'][0]['comment']);
+        $t->same('review packet comment metadata', $commentedPackage->read('/word/media/review-note.txt'));
+        $t->throws(\RuntimeException::class, static fn (): array => $commentedPackage->assertNoPackageOrEntryComments());
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>no comment policy</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => 'comment-free media handoff',
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoPackageOrEntryComments();
+
+        $t->same(false, $safeSummary['hasPackageComment']);
+        $t->same(false, $safeSummary['hasEntryComments']);
+        $t->same(false, $safeSummary['hasComments']);
+        $t->same(0, $safeSummary['entryCommentCount']);
+        $t->same([], $safeSummary['commentedEntryNames']);
+        $t->same('comment-free media handoff', $safePackage->read('/word/media/review-note.txt'));
+    },
+
     'rejects unsafe raw zip names even when unicode path metadata is safe' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $safeUnicodePath = 'word/media/review.png';
         $absoluteRawName = '/word/media/review.png';
