@@ -768,6 +768,7 @@ final class PdfTextExtractor
      *     cmap_stream_count: int,
      *     to_unicode_cmap_stream_count: int,
      *     encoding_cmap_stream_count: int,
+     *     use_cmap_stream_count: int,
      *     indirect_filter_count: int,
      *     indirect_length_count: int,
      *     xref_selected_operand_count: int,
@@ -793,6 +794,7 @@ final class PdfTextExtractor
             'cmap_stream_count' => 0,
             'to_unicode_cmap_stream_count' => 0,
             'encoding_cmap_stream_count' => 0,
+            'use_cmap_stream_count' => 0,
             'indirect_filter_count' => 0,
             'indirect_length_count' => 0,
             'xref_selected_operand_count' => 0,
@@ -879,12 +881,16 @@ final class PdfTextExtractor
 
             $hasToUnicodeUsage = $this->cMapReferenceUsagesContain($usages, 'to_unicode');
             $hasEncodingUsage = $this->cMapReferenceUsagesContain($usages, 'encoding_cmap');
+            $hasUseCMapUsage = $this->cMapReferenceUsagesContain($usages, 'use_cmap');
             $review['cmap_stream_count']++;
             if ($hasToUnicodeUsage) {
                 $review['to_unicode_cmap_stream_count']++;
             }
             if ($hasEncodingUsage) {
                 $review['encoding_cmap_stream_count']++;
+            }
+            if ($hasUseCMapUsage) {
+                $review['use_cmap_stream_count']++;
             }
             $review['indirect_filter_count'] += $filterIndirectCount;
             $review['indirect_length_count'] += $lengthIndirectCount;
@@ -960,7 +966,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array<int, list<array{usage: string, font_object: int, generation: int, reference: string}>>
+     * @return array<int, list<array<string, mixed>>>
      */
     private function cMapStreamReferenceUsages(array $objects): array
     {
@@ -998,11 +1004,44 @@ final class PdfTextExtractor
             }
         }
 
+        foreach ($objects as $cMapObjectNumber => $body) {
+            $stream = $this->streamDictionaryAndPayload($body, $objects);
+            if ($stream === null || !$this->cMapStreamDictionaryLooksLikeCMap($stream['dict'], $objects)) {
+                continue;
+            }
+
+            $offset = $this->topLevelNameValueOffset($stream['dict'], 'UseCMap');
+            if ($offset === null) {
+                continue;
+            }
+
+            $value = $this->pdfValueAtOffset($stream['dict'], $offset);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($this->pdfObjectReferencePairs($value) as $reference) {
+                $objectNumber = $reference['objectNumber'];
+                $generation = $reference['generation'];
+                if ($objectNumber <= 0) {
+                    continue;
+                }
+
+                $key = 'use_cmap:' . $cMapObjectNumber . ':' . $generation;
+                $usages[$objectNumber][$key] = [
+                    'usage' => 'use_cmap',
+                    'source_object' => $cMapObjectNumber,
+                    'generation' => $generation,
+                    'reference' => $objectNumber . ' ' . $generation . ' R',
+                ];
+            }
+        }
+
         foreach ($usages as $objectNumber => $entries) {
             $entries = array_values($entries);
             usort($entries, static fn (array $left, array $right): int => strcmp(
-                $left['usage'] . ':' . $left['font_object'] . ':' . $left['generation'],
-                $right['usage'] . ':' . $right['font_object'] . ':' . $right['generation']
+                $left['usage'] . ':' . ($left['font_object'] ?? $left['source_object'] ?? 0) . ':' . $left['generation'],
+                $right['usage'] . ':' . ($right['font_object'] ?? $right['source_object'] ?? 0) . ':' . $right['generation']
             ));
             $usages[$objectNumber] = $entries;
         }
@@ -1012,7 +1051,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<array{usage: string, font_object: int, generation: int, reference: string}> $usages
+     * @param list<array<string, mixed>> $usages
      */
     private function cMapReferenceUsagesContain(array $usages, string $usage): bool
     {
