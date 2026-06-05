@@ -185,6 +185,92 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'Indirect Names Stale'));
         $t->true(is_string($encoded) && !str_contains($encoded, $currentPayload));
     },
+    'resolves indirect EmbeddedFiles and page-tree Kids arrays in attachment preflight' => static function (TestRunner $t): void {
+        $nameTreePayload = "Title,Status\nIndirect Kids Attachment,Ready\n";
+        $pagePayload = '<wp-page><attachment role="indirect-kids"/></wp-page>';
+        $stalePayload = "Title,Status\nIndirect Kids Stale,Ignore\n";
+        $nameTreeChecksum = md5($nameTreePayload);
+        $pageChecksum = md5($pagePayload);
+        $staleChecksum = md5($stalePayload);
+
+        $pdf = "%PDF-2.0\n";
+        $offsets = [];
+        $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): void {
+            $offsets[$objectNumber] = strlen($pdf);
+            $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+        };
+
+        $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>');
+        $addObject(2, '<< /Type /Pages /Kids 30 0 R /Count 1 >>');
+        $addObject(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /AF [20 0 R] >>');
+        $addObject(6, '<< /Limits [(kids-current.csv) (kids-current.csv)] /Kids 7 0 R >>');
+        $addObject(7, '[8 0 R]');
+        $addObject(8, '<< /Limits [(kids-current.csv) (kids-current.csv)] /Names [(kids-current.csv) 10 0 R (zz-kids-stale.csv) 12 0 R] >>');
+        $addObject(10, '<< /Type /Filespec /F (kids-current.csv) /Desc (Current indirect Kids rows) /AFRelationship /Data /EF << /F 11 0 R >> >>');
+        $addObject(11, "<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($nameTreePayload) . " /CheckSum <{$nameTreeChecksum}> /ModDate (D:20260605054817Z) >> /Length " . strlen($nameTreePayload) . " >>\nstream\n{$nameTreePayload}\nendstream");
+        $addObject(12, '<< /Type /Filespec /F (zz-kids-stale.csv) /Desc (Stale indirect Kids rows) /AFRelationship /Alternative /EF << /F 13 0 R >> >>');
+        $addObject(13, "<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\nstream\n{$stalePayload}\nendstream");
+        $addObject(20, '<< /Type /Filespec /F (page-kids-source.xml) /Desc (Page source through indirect Kids) /AFRelationship /Source /EF << /F 21 0 R >> >>');
+        $addObject(21, "<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($pagePayload) . " /CheckSum <{$pageChecksum}> /ModDate (D:20260605054818Z) >> /Length " . strlen($pagePayload) . " >>\nstream\n{$pagePayload}\nendstream");
+        $addObject(30, '[3 0 R]');
+
+        $xrefOffset = strlen($pdf);
+        $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+        $pdf .= "xref\n0 31\n" . $xrefRow(0, 65535, 'f');
+        for ($objectNumber = 1; $objectNumber <= 30; $objectNumber++) {
+            $pdf .= isset($offsets[$objectNumber])
+                ? $xrefRow($offsets[$objectNumber])
+                : $xrefRow(0, 0, 'f');
+        }
+        $pdf .= "trailer\n<< /Size 31 /Root 1 0 R >>\nstartxref\n{$xrefOffset}\n%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(2, $summary['attachment_count']);
+        $t->same(strlen($nameTreePayload) + strlen($pagePayload), $summary['total_bytes']);
+        $t->same(['kids-current.csv', 'page-kids-source.xml'], $summary['filenames']);
+
+        $nameTreeAttachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $nameTreeAttachment['source']);
+        $t->same('kids-current.csv', $nameTreeAttachment['name_key']);
+        $t->same('kids-current.csv', $nameTreeAttachment['filename']);
+        $t->same('Current indirect Kids rows', $nameTreeAttachment['description']);
+        $t->same('Data', $nameTreeAttachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $nameTreeAttachment['relationship_role']);
+        $t->same('text/csv', $nameTreeAttachment['content_type']);
+        $t->same(strlen($nameTreePayload), $nameTreeAttachment['byte_length']);
+        $t->same($nameTreeChecksum, $nameTreeAttachment['checksum_hex']);
+        $t->same($nameTreeChecksum, $nameTreeAttachment['computed_checksum_hex']);
+        $t->same(true, $nameTreeAttachment['checksum_matches']);
+        $t->same('D:20260605054817Z', $nameTreeAttachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $nameTreeAttachment));
+
+        $pageAttachment = $summary['attachments'][1];
+        $t->same('page-associated-file', $pageAttachment['source']);
+        $t->same(true, $pageAttachment['associated_file']);
+        $t->same(true, $pageAttachment['page_associated_file']);
+        $t->same(1, $pageAttachment['page_number']);
+        $t->same(3, $pageAttachment['page_object_id']);
+        $t->same(0, $pageAttachment['page_associated_file_index']);
+        $t->same('page-kids-source.xml', $pageAttachment['filename']);
+        $t->same('Page source through indirect Kids', $pageAttachment['description']);
+        $t->same('Source', $pageAttachment['relationship']);
+        $t->same('original_source', $pageAttachment['relationship_role']);
+        $t->same('text/xml', $pageAttachment['content_type']);
+        $t->same(strlen($pagePayload), $pageAttachment['byte_length']);
+        $t->same($pageChecksum, $pageAttachment['checksum_hex']);
+        $t->same($pageChecksum, $pageAttachment['computed_checksum_hex']);
+        $t->same(true, $pageAttachment['checksum_matches']);
+        $t->same('D:20260605054818Z', $pageAttachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $pageAttachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'zz-kids-stale.csv'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Indirect Kids Stale'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $nameTreePayload));
+        $t->true(is_string($encoded) && !str_contains($encoded, $pagePayload));
+    },
     'summarizes catalog associated FileSpec attachments and dedupes EmbeddedFiles mirrors' => static function (TestRunner $t): void {
         $sourcePayload = '<wp-export><post id="catalog-af"/></wp-export>';
         $sourceChecksum = md5($sourcePayload);

@@ -441,7 +441,7 @@ final class PdfAttachmentExtractor
             }
         }
 
-        $kids = $this->arrayValue($dict['Kids'] ?? null);
+        $kids = $this->arrayValue($this->resolveValue($dict['Kids'] ?? null, $objects));
         if ($kids !== null) {
             foreach ($kids as $kid) {
                 foreach ($this->nameTreeEntries($kid, $objects, $seen, $childLimits, $depth + 1) as $entry) {
@@ -686,7 +686,7 @@ final class PdfAttachmentExtractor
         }
 
         $pages = [];
-        $kids = $this->arrayValue($dict['Kids'] ?? null) ?? [];
+        $kids = $this->arrayValue($this->resolveValue($dict['Kids'] ?? null, $objects)) ?? [];
         foreach ($kids as $kid) {
             foreach ($this->collectPageObjectIds($kid, $objects, $seen) as $pageId) {
                 $pages[] = $pageId;

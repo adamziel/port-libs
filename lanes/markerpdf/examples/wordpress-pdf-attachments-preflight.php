@@ -64,6 +64,43 @@ $pdf = "%PDF-1.7\n"
     . "stream\n{$postEofPayload}\nendstream\nendobj\n";
 
 $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+$kidsNameTreePayload = "Title,Status\nIndirect Kids Attachment,Ready\n";
+$kidsPagePayload = '<wp-page><attachment role="indirect-kids"/></wp-page>';
+$kidsStalePayload = "Title,Status\nIndirect Kids Stale,Ignore\n";
+$kidsNameTreeChecksum = md5($kidsNameTreePayload);
+$kidsPageChecksum = md5($kidsPagePayload);
+$kidsStaleChecksum = md5($kidsStalePayload);
+$indirectKidsPdf = "%PDF-2.0\n";
+$indirectKidsOffsets = [];
+$addIndirectKidsObject = static function (int $objectNumber, string $body) use (&$indirectKidsPdf, &$indirectKidsOffsets): void {
+    $indirectKidsOffsets[$objectNumber] = strlen($indirectKidsPdf);
+    $indirectKidsPdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+};
+$addIndirectKidsObject(1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>');
+$addIndirectKidsObject(2, '<< /Type /Pages /Kids 30 0 R /Count 1 >>');
+$addIndirectKidsObject(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /AF [20 0 R] >>');
+$addIndirectKidsObject(6, '<< /Limits [(kids-current.csv) (kids-current.csv)] /Kids 7 0 R >>');
+$addIndirectKidsObject(7, '[8 0 R]');
+$addIndirectKidsObject(8, '<< /Limits [(kids-current.csv) (kids-current.csv)] /Names [(kids-current.csv) 10 0 R (zz-kids-stale.csv) 12 0 R] >>');
+$addIndirectKidsObject(10, '<< /Type /Filespec /F (kids-current.csv) /Desc (Current indirect Kids rows) /AFRelationship /Data /EF << /F 11 0 R >> >>');
+$addIndirectKidsObject(11, "<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($kidsNameTreePayload) . " /CheckSum <{$kidsNameTreeChecksum}> /ModDate (D:20260605054817Z) >> /Length " . strlen($kidsNameTreePayload) . " >>\nstream\n{$kidsNameTreePayload}\nendstream");
+$addIndirectKidsObject(12, '<< /Type /Filespec /F (zz-kids-stale.csv) /Desc (Stale indirect Kids rows) /AFRelationship /Alternative /EF << /F 13 0 R >> >>');
+$addIndirectKidsObject(13, "<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($kidsStalePayload) . " /CheckSum <{$kidsStaleChecksum}> >> /Length " . strlen($kidsStalePayload) . " >>\nstream\n{$kidsStalePayload}\nendstream");
+$addIndirectKidsObject(20, '<< /Type /Filespec /F (page-kids-source.xml) /Desc (Page source through indirect Kids) /AFRelationship /Source /EF << /F 21 0 R >> >>');
+$addIndirectKidsObject(21, "<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size " . strlen($kidsPagePayload) . " /CheckSum <{$kidsPageChecksum}> /ModDate (D:20260605054818Z) >> /Length " . strlen($kidsPagePayload) . " >>\nstream\n{$kidsPagePayload}\nendstream");
+$addIndirectKidsObject(30, '[3 0 R]');
+$indirectKidsXrefOffset = strlen($indirectKidsPdf);
+$xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+$indirectKidsPdf .= "xref\n0 31\n" . $xrefRow(0, 65535, 'f');
+for ($objectNumber = 1; $objectNumber <= 30; $objectNumber++) {
+    $indirectKidsPdf .= isset($indirectKidsOffsets[$objectNumber])
+        ? $xrefRow($indirectKidsOffsets[$objectNumber])
+        : $xrefRow(0, 0, 'f');
+}
+$indirectKidsPdf .= "trailer\n<< /Size 31 /Root 1 0 R >>\nstartxref\n{$indirectKidsXrefOffset}\n%%EOF\n";
+$indirectKidsSummary = (new PdfAttachmentExtractor())->attachmentSummary($indirectKidsPdf);
+$indirectKidsJson = json_encode($indirectKidsSummary, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
 $findAttachment = static function (array $summary, string $filename): ?array {
     foreach ($summary['attachments'] ?? [] as $attachment) {
         if (is_array($attachment) && ($attachment['filename'] ?? null) === $filename) {
@@ -144,6 +181,22 @@ if (!is_array($pageAttachment)
 ) {
     throw new RuntimeException('Expected page associated source attachment review metadata without payload bytes.');
 }
+$indirectKidsNameTreeAttachment = $findAttachment($indirectKidsSummary, 'kids-current.csv');
+$indirectKidsPageAttachment = $findAttachment($indirectKidsSummary, 'page-kids-source.xml');
+if (($indirectKidsSummary['attachment_count'] ?? null) !== 2
+    || !is_array($indirectKidsNameTreeAttachment)
+    || ($indirectKidsNameTreeAttachment['source'] ?? null) !== 'embedded-files-name-tree'
+    || ($indirectKidsNameTreeAttachment['checksum_matches'] ?? null) !== true
+    || !is_array($indirectKidsPageAttachment)
+    || ($indirectKidsPageAttachment['source'] ?? null) !== 'page-associated-file'
+    || ($indirectKidsPageAttachment['page_number'] ?? null) !== 1
+    || ($indirectKidsPageAttachment['checksum_matches'] ?? null) !== true
+    || str_contains($indirectKidsJson, 'zz-kids-stale.csv')
+    || str_contains($indirectKidsJson, $kidsNameTreePayload)
+    || str_contains($indirectKidsJson, $kidsPagePayload)
+) {
+    throw new RuntimeException('Expected indirect EmbeddedFiles and page-tree Kids arrays to resolve without stale rows or payload bytes.');
+}
 
 echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'native_boundary' => 'PDF EmbeddedFiles name tree, catalog AF, page AF, and FileAttachment annotation preflight',
@@ -154,6 +207,12 @@ echo "<!-- markerpdf-pdf-attachments-smoke " . htmlspecialchars(json_encode([
     'filenames' => $summary['filenames'],
     'pruned_out_of_limits_name_tree_entry' => true,
     'indirect_embeddedfiles_names_array_preflight' => ($csvAttachment['source'] ?? null) === 'embedded-files-name-tree',
+    'indirect_embeddedfiles_kids_array_preflight' => ($indirectKidsNameTreeAttachment['source'] ?? null) === 'embedded-files-name-tree',
+    'indirect_page_tree_kids_array_preflight' => ($indirectKidsPageAttachment['source'] ?? null) === 'page-associated-file',
+    'indirect_kids_attachment_count' => $indirectKidsSummary['attachment_count'],
+    'indirect_kids_payload_omitted' => !str_contains($indirectKidsJson, $kidsNameTreePayload)
+        && !str_contains($indirectKidsJson, $kidsPagePayload),
+    'indirect_kids_stale_name_tree_entry_pruned' => !str_contains($indirectKidsJson, 'zz-kids-stale.csv'),
     'file_attachment_annotation_mirror_preflight' => ($csvAttachment['file_attachment_annotation'] ?? false) === true,
     'file_attachment_annotation_duplicate_payload_omitted' => $summary['attachment_count'] === 6
         && substr_count($summaryJson, 'review-notes.csv') >= 1
