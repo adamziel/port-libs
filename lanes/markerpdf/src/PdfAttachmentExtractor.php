@@ -391,7 +391,13 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
+            $seenNames = [];
             foreach ($this->nameTreeEntries($names['EmbeddedFiles'], $objects) as $entry) {
+                if (isset($seenNames[$entry['name']])) {
+                    continue;
+                }
+
+                $seenNames[$entry['name']] = true;
                 $entries[] = $entry;
             }
         }

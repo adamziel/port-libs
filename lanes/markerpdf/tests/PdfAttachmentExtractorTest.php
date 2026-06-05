@@ -207,6 +207,50 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'zz-stale.csv'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'Stale,Ignore'));
     },
+    'keeps first EmbeddedFiles duplicate name-tree key before stale duplicate attachment rows' => static function (TestRunner $t): void {
+        $currentPayload = "Title,Status\nDuplicate Key Current,Ready\n";
+        $stalePayload = "Title,Status\nDuplicate Key Stale,Ignore\n";
+        $currentChecksum = md5($currentPayload);
+        $staleChecksum = md5($stalePayload);
+
+        $pdf = "%PDF-2.0\n"
+            . "1 0 obj\n<< /Type /Catalog /Names << /EmbeddedFiles 2 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Names [(review.csv) 4 0 R (review.csv) 6 0 R] >>\nendobj\n"
+            . "4 0 obj\n<< /Type /Filespec /F (current-review.csv) /Desc (Current duplicate-key attachment rows) /AFRelationship /Data /EF << /F 5 0 R >> >>\nendobj\n"
+            . "5 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($currentPayload) . " /CheckSum <{$currentChecksum}> /ModDate (D:20260605081646Z) >> /Length " . strlen($currentPayload) . " >>\n"
+            . "stream\n{$currentPayload}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /Filespec /F (stale-duplicate-review.csv) /Desc (Stale duplicate-key attachment rows) /AFRelationship /Alternative /EF << /F 7 0 R >> >>\nendobj\n"
+            . "7 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Params << /Size " . strlen($stalePayload) . " /CheckSum <{$staleChecksum}> >> /Length " . strlen($stalePayload) . " >>\n"
+            . "stream\n{$stalePayload}\nendstream\nendobj\n"
+            . "%%EOF\n";
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encoded = json_encode($summary, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same(['current-review.csv'], $summary['filenames']);
+
+        $attachment = $summary['attachments'][0];
+        $t->same('embedded-files-name-tree', $attachment['source']);
+        $t->same('review.csv', $attachment['name_key']);
+        $t->same('current-review.csv', $attachment['filename']);
+        $t->same('Current duplicate-key attachment rows', $attachment['description']);
+        $t->same('Data', $attachment['relationship']);
+        $t->same('base_data_for_visual_presentation', $attachment['relationship_role']);
+        $t->same('text/csv', $attachment['content_type']);
+        $t->same(strlen($currentPayload), $attachment['byte_length']);
+        $t->same($currentChecksum, $attachment['checksum_hex']);
+        $t->same($currentChecksum, $attachment['computed_checksum_hex']);
+        $t->same(true, $attachment['checksum_matches']);
+        $t->same('D:20260605081646Z', $attachment['modified_at']);
+        $t->same(false, array_key_exists('bytes', $attachment));
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'stale-duplicate-review.csv'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Duplicate Key Stale'));
+        $t->true(is_string($encoded) && !str_contains($encoded, $currentPayload));
+    },
     'resolves indirect EmbeddedFiles name-tree Names arrays in attachment preflight' => static function (TestRunner $t): void {
         $currentPayload = "Title,Status\nIndirect Names Array,Ready\n";
         $stalePayload = "Title,Status\nIndirect Names Stale,Ignore\n";
