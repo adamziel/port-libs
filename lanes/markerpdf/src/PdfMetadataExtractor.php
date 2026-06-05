@@ -8925,7 +8925,7 @@ final class PdfMetadataExtractor
 
                 if ($child->namespaceURI === self::NS_RDF) {
                     if ($child->localName === 'Description') {
-                        if ($this->xmpDescriptionIsFragmentResourceTarget($child)) {
+                        if ($this->xmpElementIsNonDocumentResource($child)) {
                             continue;
                         }
 
@@ -8935,6 +8935,10 @@ final class PdfMetadataExtractor
                 }
 
                 if (is_string($child->namespaceURI) && $child->namespaceURI !== '') {
+                    if ($this->xmpElementIsNonDocumentResource($child)) {
+                        continue;
+                    }
+
                     $nodes[] = $child;
                 }
             }
@@ -8956,23 +8960,23 @@ final class PdfMetadataExtractor
             && $parent->parentNode instanceof DOMDocument;
     }
 
-    private function xmpDescriptionIsFragmentResourceTarget(DOMElement $description): bool
+    private function xmpElementIsNonDocumentResource(DOMElement $element): bool
     {
         if (
-            $description->hasAttributeNS(self::NS_RDF, 'ID')
-            || $description->hasAttributeNS(self::NS_XML, 'id')
-            || $description->hasAttributeNS(self::NS_RDF, 'nodeID')
+            $element->hasAttributeNS(self::NS_RDF, 'ID')
+            || $element->hasAttributeNS(self::NS_XML, 'id')
+            || $element->hasAttributeNS(self::NS_RDF, 'nodeID')
         ) {
             return true;
         }
 
-        if (!$description->hasAttributeNS(self::NS_RDF, 'about')) {
+        if (!$element->hasAttributeNS(self::NS_RDF, 'about')) {
             return false;
         }
 
-        $about = trim($description->getAttributeNS(self::NS_RDF, 'about'));
+        $about = trim($element->getAttributeNS(self::NS_RDF, 'about'));
 
-        return str_starts_with($about, '#');
+        return $about !== '';
     }
 
     /**
