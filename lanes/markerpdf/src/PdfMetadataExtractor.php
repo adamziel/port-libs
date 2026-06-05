@@ -777,8 +777,22 @@ final class PdfMetadataExtractor
     {
         $definitions = $this->directObjectDefinitions($pdfBytes);
         if ($definitions !== []) {
-            $reference = $this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $objects, $definitions)
-                ?? $this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $objects, $definitions);
+            $reference = $this->trailerInfoReferenceFromStartxrefChain($pdfBytes, $objects, $definitions);
+            if ($reference !== null) {
+                $infoDictionary = $this->resolveDictionaryFromValue(
+                    $reference['objectNumber'] . ' ' . $reference['generation'] . ' R',
+                    $objects
+                );
+                if ($infoDictionary !== null) {
+                    return $infoDictionary;
+                }
+            }
+
+            if ($this->trailerInfoClearedByStartxrefChain($pdfBytes, $objects, $definitions)) {
+                return null;
+            }
+
+            $reference = $this->trailerInfoReferenceFromLatestClassicXrefTable($pdfBytes, $objects, $definitions);
             if ($reference !== null) {
                 $infoDictionary = $this->resolveDictionaryFromValue(
                     $reference['objectNumber'] . ' ' . $reference['generation'] . ' R',
@@ -867,6 +881,10 @@ final class PdfMetadataExtractor
                 }
             }
 
+            if ($this->trailerExplicitlyClearsEncryption($tableSection['trailer'])) {
+                return null;
+            }
+
             $previousOffset = $this->previousXrefOffsetForSectionBody(
                 $pdfBytes,
                 $tableSection['trailer'],
@@ -889,6 +907,10 @@ final class PdfMetadataExtractor
             return $info;
         }
 
+        if ($this->trailerExplicitlyClearsEncryption($streamSection['body'])) {
+            return null;
+        }
+
         $previousOffset = $this->previousXrefOffsetForSectionBody(
             $pdfBytes,
             $streamSection['body'],
@@ -899,6 +921,45 @@ final class PdfMetadataExtractor
         return $previousOffset === null
             ? null
             : $this->trailerInfoReferenceFromOffsetChain($pdfBytes, $previousOffset, $objects, $definitions, $seenOffsets);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, bodyStart?: int, bodyEnd?: int, body: string}>> $definitions
+     */
+    private function trailerInfoClearedByStartxrefChain(string $pdfBytes, array $objects, array $definitions): bool
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        $tableSection = $this->xrefTableSectionAt($pdfBytes, $offset, $definitions, $objects);
+        if ($tableSection !== null) {
+            if ($this->dictionaryTopLevelRawValue($tableSection['trailer'], 'Info') !== null) {
+                return false;
+            }
+
+            return $this->trailerExplicitlyClearsEncryption($tableSection['trailer']);
+        }
+
+        $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+        if ($streamSection === null) {
+            return false;
+        }
+
+        if ($this->dictionaryTopLevelRawValue($streamSection['body'], 'Info') !== null) {
+            return false;
+        }
+
+        return $this->trailerExplicitlyClearsEncryption($streamSection['body']);
+    }
+
+    private function trailerExplicitlyClearsEncryption(string $body): bool
+    {
+        $encrypt = $this->dictionaryTopLevelRawValue($body, 'Encrypt');
+
+        return $encrypt !== null && trim($encrypt) === 'null';
     }
 
     /**
@@ -7881,7 +7942,7 @@ final class PdfMetadataExtractor
         }
 
         $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
-        if (substr($pdfBytes, $offset, 4) !== 'xref') {
+        if (!$this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
             return null;
         }
         $afterKeywordOffset = $offset + 4;
@@ -8767,7 +8828,7 @@ final class PdfMetadataExtractor
         ?array $definitions = null,
         ?int $candidateBeforeOffset = null
     ): ?int {
-        if ($this->xrefStreamDictionaryAtObjectOffset($pdfBytes, $offset) !== null) {
+        if ($definitions !== null && $this->xrefStreamSectionAtOffset($offset, $definitions) !== null) {
             return null;
         }
 
@@ -8777,6 +8838,14 @@ final class PdfMetadataExtractor
         }
 
         if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) === null) {
+            if (
+                $candidateBeforeOffset !== null
+                && $offset < $candidateBeforeOffset
+                && $latestClassicOffset < $candidateBeforeOffset
+            ) {
+                return $latestClassicOffset;
+            }
+
             if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
                 return null;
             }

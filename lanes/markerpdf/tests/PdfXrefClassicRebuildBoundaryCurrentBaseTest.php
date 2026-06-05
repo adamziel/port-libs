@@ -768,6 +768,93 @@ $xrefClassicRebuildNameDelimitedXrefBoundaryCurrentBasePdf = static function ():
     return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $nameDelimitedXrefOffset];
 };
 
+$xrefClassicRebuildNameOffsetStartxrefBoundaryCurrentBasePdf = static function (): array {
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Name-Offset XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $nameOffsetXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Name Offset XRef Decoy Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current name-offset xref page) Tj T* (Name-offset startxref repaired) Tj ET';
+    $nameOffsetContent = 'BT /F1 12 Tf 72 720 Td (Name-offset xref decoy page) Tj T* (Name-offset root leak) Tj ET';
+    $currentPayload = '<wp-export><post id="current-name-offset-xref"/></wp-export>';
+    $nameOffsetPayload = '<wp-export><post id="decoy-name-offset-xref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $streamObject = static fn (string $content): string => "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Type /Catalog /Pages 2 0 R /Metadata 6 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>');
+    $addObject(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(5, $streamObject($currentContent));
+    $addObject(6, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(7, '<< /Title (Current Name-Offset XRef Info) /Author (Current Name-Offset Importer) >>');
+    $addObject(8, '<< /Names [(current-name-offset-xref.xml) 9 0 R] >>');
+    $addObject(9, '<< /Type /Filespec /F (current-name-offset-xref.xml) /Desc (Current name-offset xref attachment) /AFRelationship /Source /EF << /F 10 0 R >> >>');
+    $addObject(10, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 11\n"
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[1])
+        . $xrefRow($offsets[2])
+        . $xrefRow($offsets[3])
+        . $xrefRow($offsets[4])
+        . $xrefRow($offsets[5])
+        . $xrefRow($offsets[6])
+        . $xrefRow($offsets[7])
+        . $xrefRow($offsets[8])
+        . $xrefRow($offsets[9])
+        . $xrefRow($offsets[10])
+        . "trailer\n<< /Size 32 /Root 1 0 R /Info 7 0 R >>\n";
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 24 0 R >>');
+    $addObject(24, $streamObject($nameOffsetContent));
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($nameOffsetXmp) . " >>\nstream\n{$nameOffsetXmp}\nendstream");
+    $addObject(27, '<< /Title (Name Offset XRef Decoy Info) /Author (Name Offset Decoy Importer) >>');
+    $addObject(28, '<< /Names [(decoy-name-offset-xref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (decoy-name-offset-xref.xml) /Desc (Decoy name-offset xref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($nameOffsetPayload) . " >>\nstream\n{$nameOffsetPayload}\nendstream");
+
+    $nameOffsetXrefOffset = strlen($pdf);
+    $pdf .= "/xref\n"
+        . "20 12\n"
+        . $xrefRow($offsets[20])
+        . $xrefRow($offsets[21])
+        . $xrefRow($offsets[22])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[24])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[26])
+        . $xrefRow($offsets[27])
+        . $xrefRow($offsets[28])
+        . $xrefRow(0, 65535, 'f')
+        . $xrefRow($offsets[30])
+        . $xrefRow($offsets[31])
+        . "trailer\n<< /Size 32 /Root 20 0 R /Info 27 0 R >>\n"
+        . "startxref\n" . ($nameOffsetXrefOffset + 1) . "\n%%EOF";
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $nameOffsetXrefOffset + 1];
+};
+
 return [
     'rebuilds damaged startxref from the latest classic xref trailer boundary before WordPress text extraction' => static function (
         TestRunner $t
@@ -1054,6 +1141,41 @@ return [
         $t->true(!str_contains($text, 'Delimited xref root leak'));
         $t->true(!str_contains($encodedMetadata, 'Name Delimited XRef Decoy'));
         $t->true(!str_contains($encodedFiles, 'decoy-name-delimited-xref'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'repairs startxref offsets that point inside name-token xref decoys before WordPress imports' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildNameOffsetStartxrefBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $currentXrefOffset, $nameOffsetStartxrefOffset] = $xrefClassicRebuildNameOffsetStartxrefBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($currentXrefOffset > 0);
+        $t->true($nameOffsetStartxrefOffset > $currentXrefOffset);
+        $t->same(['Current name-offset xref page', 'Name-offset startxref repaired'], $extractor->extractTextLines($pdf));
+        $t->same(['Current name-offset xref page', 'Name-offset startxref repaired'], $extractor->extractTextRuns($pdf));
+        $t->same("Current name-offset xref page\nName-offset startxref repaired", $text);
+        $t->same("Current name-offset xref page\nName-offset startxref repaired\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Name-Offset XRef Title', $metadata['title']);
+        $t->same('Current Name-Offset XRef Info', $metadata['info']['Title']);
+        $t->same('Current Name-Offset Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-name-offset-xref.xml', $files[0]['name']);
+        $t->same('current-name-offset-xref.xml', $files[0]['filename']);
+        $t->same('Current name-offset xref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->true(!str_contains($text, 'Name-offset xref decoy page'));
+        $t->true(!str_contains($text, 'Name-offset root leak'));
+        $t->true(!str_contains($encodedMetadata, 'Name Offset XRef Decoy'));
+        $t->true(!str_contains($encodedFiles, 'decoy-name-offset-xref'));
         $t->true(!str_contains($text, "\0"));
     },
 ];

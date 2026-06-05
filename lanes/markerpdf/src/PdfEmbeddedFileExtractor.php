@@ -2155,7 +2155,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $offset = $this->skipWhitespace($pdfBytes, $offset);
-        if (substr($pdfBytes, $offset, 4) !== 'xref') {
+        if (!$this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
             return null;
         }
         $afterKeywordOffset = $offset + 4;
@@ -3076,6 +3076,14 @@ final class PdfEmbeddedFileExtractor
         }
 
         if ($this->xrefTableSectionAt($pdfBytes, $offset, $definitions) === null) {
+            if (
+                $candidateBeforeOffset !== null
+                && $offset < $candidateBeforeOffset
+                && $latestClassicOffset < $candidateBeforeOffset
+            ) {
+                return $latestClassicOffset;
+            }
+
             if ($offset < strlen($pdfBytes) && $latestClassicOffset <= $offset) {
                 return null;
             }
