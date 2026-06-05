@@ -23,6 +23,34 @@ $padTo = static function (string $bytes, int $size): string {
 
     return $remainder === 0 ? $bytes : $bytes . str_repeat("\0", $size - $remainder);
 };
+$directoryNameSortUnits = static function (string $name) use ($utf16le): array {
+    $upper = function_exists('mb_strtoupper') ? mb_strtoupper($name, 'UTF-8') : strtoupper($name);
+    $bytes = $utf16le($upper);
+    $units = [];
+    for ($offset = 0, $length = strlen($bytes); $offset + 2 <= $length; $offset += 2) {
+        $units[] = unpack('vvalue', substr($bytes, $offset, 2))['value'];
+    }
+
+    return $units;
+};
+$compareCfbDirectoryNames = static function (string $left, string $right) use ($utf16le, $directoryNameSortUnits): int {
+    $leftLength = strlen($utf16le($left . "\0"));
+    $rightLength = strlen($utf16le($right . "\0"));
+    if ($leftLength !== $rightLength) {
+        return $leftLength <=> $rightLength;
+    }
+
+    $leftUnits = $directoryNameSortUnits($left);
+    $rightUnits = $directoryNameSortUnits($right);
+    $count = min(count($leftUnits), count($rightUnits));
+    for ($index = 0; $index < $count; $index++) {
+        if ($leftUnits[$index] !== $rightUnits[$index]) {
+            return $leftUnits[$index] <=> $rightUnits[$index];
+        }
+    }
+
+    return count($leftUnits) <=> count($rightUnits);
+};
 $directoryEntry = static function (
     string $name,
     int $type,
@@ -37,7 +65,7 @@ $directoryEntry = static function (
     return str_pad($nameBytes, 64, "\0")
         . $u16(strlen($nameBytes))
         . chr($type)
-        . "\0"
+        . "\x01"
         . $u32($leftSibling)
         . $u32($rightSibling)
         . $u32($child)
@@ -144,6 +172,42 @@ $sectorSize = 512;
 $free = 0xffffffff;
 $end = 0xfffffffe;
 $fatSector = 0xfffffffd;
+
+$nodes = [
+    [
+        'name' => 'Root Entry',
+        'children' => range(1, count($streams)),
+    ],
+];
+$streamIndex = 0;
+foreach ($streams as $name => $_data) {
+    $nodes[] = [
+        'name' => (string) $name,
+        'children' => [],
+    ];
+    $streamIndex++;
+}
+
+$leftSiblings = [];
+$rightSiblings = [];
+$childIds = [];
+$buildSiblingTree = static function (array $children) use (&$buildSiblingTree, &$nodes, &$leftSiblings, &$rightSiblings, $compareCfbDirectoryNames, $free): int {
+    usort($children, static fn (int $left, int $right): int => $compareCfbDirectoryNames((string) $nodes[$left]['name'], (string) $nodes[$right]['name']));
+    $middle = intdiv(count($children), 2);
+    $nodeIndex = $children[$middle];
+    $left = array_slice($children, 0, $middle);
+    $right = array_slice($children, $middle + 1);
+    $leftSiblings[$nodeIndex] = $left === [] ? $free : $buildSiblingTree($left);
+    $rightSiblings[$nodeIndex] = $right === [] ? $free : $buildSiblingTree($right);
+
+    return $nodeIndex;
+};
+foreach ($nodes as $nodeIndex => $node) {
+    if ($node['children'] !== []) {
+        $childIds[$nodeIndex] = $buildSiblingTree($node['children']);
+    }
+}
+
 $miniFat = [];
 $miniStream = '';
 $locations = [];
@@ -187,19 +251,19 @@ $directory = $directoryEntry(
     $miniStreamSize,
     $free,
     $free,
-    count($streams) === 0 ? $free : 1
+    $childIds[0] ?? $free
 );
 $streamIndex = 0;
-$streamCount = count($streams);
 foreach ($streams as $name => $data) {
     $location = $locations[$name];
+    $directoryId = $streamIndex + 1;
     $directory .= $directoryEntry(
         (string) $name,
         2,
         $location['startSector'],
         $location['size'],
-        $free,
-        $streamIndex === $streamCount - 1 ? $free : $streamIndex + 2,
+        $leftSiblings[$directoryId] ?? $free,
+        $rightSiblings[$directoryId] ?? $free,
         $free
     );
     $streamIndex++;

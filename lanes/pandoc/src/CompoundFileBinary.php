@@ -16,7 +16,7 @@ final class CompoundFileBinary
     /** @var list<int> */
     private array $fat;
 
-    /** @var list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> */
+    /** @var list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> */
     private array $entries;
 
     /** @var array<string, int> */
@@ -29,7 +29,7 @@ final class CompoundFileBinary
 
     /**
      * @param list<int> $fat
-     * @param list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
+     * @param list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
      * @param array<string, int> $entriesByName
      */
     private function __construct(
@@ -162,7 +162,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>
+     * @return list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>
      */
     public function entries(): array
     {
@@ -220,7 +220,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null
+     * @return array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null
      */
     private function findEntry(string $name): ?array
     {
@@ -231,7 +231,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}
+     * @return array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}
      */
     private function requireStreamEntry(string $name): array
     {
@@ -367,7 +367,7 @@ final class CompoundFileBinary
     }
 
     /**
-     * @return array{0:list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>,1:array<string,int>}
+     * @return array{0:list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}>,1:array<string,int>}
      */
     private static function parseDirectory(string $directoryBytes): array
     {
@@ -382,18 +382,26 @@ final class CompoundFileBinary
                 $rawEntries[$directoryId] = null;
                 continue;
             }
+            if (!in_array($type, [1, 2, 5], true)) {
+                throw new \RuntimeException('CFB directory entry has an unsupported object type');
+            }
 
             $nameLength = self::u16($entryBytes, 64);
-            if ($nameLength < 2 || $nameLength > 64) {
+            if ($nameLength < 2 || $nameLength > 64 || ($nameLength % 2) !== 0) {
                 $rawEntries[$directoryId] = null;
                 continue;
             }
             $nameBytes = substr($entryBytes, 0, $nameLength - 2);
             $name = self::decodeUtf16Le($nameBytes);
+            if (strpbrk($name, '/\\:!') !== false) {
+                throw new \RuntimeException('CFB directory entry name contains an illegal character: ' . $name);
+            }
             $entry = [
                 'name' => $name,
                 'path' => $name,
                 'type' => $type,
+                'colorFlag' => ord($entryBytes[67]),
+                'nameLength' => $nameLength,
                 'startSector' => self::u32($entryBytes, 116),
                 'size' => self::u64($entryBytes, 120),
                 'leftSiblingId' => self::u32($entryBytes, 68),
@@ -414,16 +422,18 @@ final class CompoundFileBinary
         $root['path'] = '';
         $entries = [$root];
         $visited = [$root['directoryId'] => true];
-        self::collectDirectoryTree($root['childId'], '', $rawEntries, $entries, $byName, $visited);
+        self::collectDirectoryTree($root['childId'], '', $rawEntries, $entries, $byName, $visited, null, null, false);
 
         return [$entries, $byName];
     }
 
     /**
-     * @param array<int,array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null> $rawEntries
-     * @param list<array{name:string,path:string,type:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
+     * @param array<int,array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null> $rawEntries
+     * @param list<array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}> $entries
      * @param array<string,int> $byName
      * @param array<int,bool> $visited
+     * @param array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null $minEntry
+     * @param array{name:string,path:string,type:int,colorFlag:int,nameLength:int,startSector:int,size:int,leftSiblingId:int,rightSiblingId:int,childId:int,directoryId:int}|null $maxEntry
      */
     private static function collectDirectoryTree(
         int $nodeId,
@@ -431,7 +441,10 @@ final class CompoundFileBinary
         array $rawEntries,
         array &$entries,
         array &$byName,
-        array &$visited
+        array &$visited,
+        ?array $minEntry,
+        ?array $maxEntry,
+        bool $parentIsRed
     ): void {
         if (!self::isRegularSector($nodeId)) {
             return;
@@ -445,7 +458,21 @@ final class CompoundFileBinary
 
         $visited[$nodeId] = true;
         $entry = $rawEntries[$nodeId];
-        self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited);
+        if (!in_array($entry['colorFlag'], [0, 1], true)) {
+            throw new \RuntimeException('CFB directory entry has an invalid red-black color flag: ' . $entry['name']);
+        }
+        if ($parentIsRed && $entry['colorFlag'] === 0) {
+            throw new \RuntimeException('CFB directory sibling tree contains consecutive red nodes');
+        }
+        if ($minEntry !== null && self::compareDirectoryEntries($entry, $minEntry) <= 0) {
+            throw new \RuntimeException('CFB directory sibling tree is not sorted by name: ' . $entry['name']);
+        }
+        if ($maxEntry !== null && self::compareDirectoryEntries($entry, $maxEntry) >= 0) {
+            throw new \RuntimeException('CFB directory sibling tree is not sorted by name: ' . $entry['name']);
+        }
+
+        $entryIsRed = $entry['colorFlag'] === 0;
+        self::collectDirectoryTree($entry['leftSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $minEntry, $entry, $entryIsRed);
 
         $entry['path'] = $parentPath === '' ? $entry['name'] : $parentPath . '/' . $entry['name'];
         $entryIndex = count($entries);
@@ -465,10 +492,51 @@ final class CompoundFileBinary
             }
         }
         if ($entry['type'] === 1) {
-            self::collectDirectoryTree($entry['childId'], $entry['path'], $rawEntries, $entries, $byName, $visited);
+            self::collectDirectoryTree($entry['childId'], $entry['path'], $rawEntries, $entries, $byName, $visited, null, null, false);
         }
 
-        self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited);
+        self::collectDirectoryTree($entry['rightSiblingId'], $parentPath, $rawEntries, $entries, $byName, $visited, $entry, $maxEntry, $entryIsRed);
+    }
+
+    /**
+     * @param array{name:string,nameLength:int} $left
+     * @param array{name:string,nameLength:int} $right
+     */
+    private static function compareDirectoryEntries(array $left, array $right): int
+    {
+        if ($left['nameLength'] !== $right['nameLength']) {
+            return $left['nameLength'] <=> $right['nameLength'];
+        }
+
+        $leftUnits = self::directoryNameSortUnits($left['name']);
+        $rightUnits = self::directoryNameSortUnits($right['name']);
+        $count = min(count($leftUnits), count($rightUnits));
+        for ($index = 0; $index < $count; $index++) {
+            if ($leftUnits[$index] !== $rightUnits[$index]) {
+                return $leftUnits[$index] <=> $rightUnits[$index];
+            }
+        }
+
+        return count($leftUnits) <=> count($rightUnits);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function directoryNameSortUnits(string $name): array
+    {
+        $upper = function_exists('mb_strtoupper') ? mb_strtoupper($name, 'UTF-8') : strtoupper($name);
+        $bytes = iconv('UTF-8', 'UTF-16LE//IGNORE', $upper);
+        if (!is_string($bytes)) {
+            $bytes = '';
+        }
+
+        $units = [];
+        for ($offset = 0, $length = strlen($bytes); $offset + 2 <= $length; $offset += 2) {
+            $units[] = self::u16($bytes, $offset);
+        }
+
+        return $units;
     }
 
     private static function normalizeName(string $name): string

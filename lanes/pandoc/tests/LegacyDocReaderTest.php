@@ -24,6 +24,34 @@ $padTo = static function (string $bytes, int $size): string {
 
     return $remainder === 0 ? $bytes : $bytes . str_repeat("\0", $size - $remainder);
 };
+$directoryNameSortUnits = static function (string $name) use ($utf16le): array {
+    $upper = function_exists('mb_strtoupper') ? mb_strtoupper($name, 'UTF-8') : strtoupper($name);
+    $bytes = $utf16le($upper);
+    $units = [];
+    for ($offset = 0, $length = strlen($bytes); $offset + 2 <= $length; $offset += 2) {
+        $units[] = unpack('vvalue', substr($bytes, $offset, 2))['value'];
+    }
+
+    return $units;
+};
+$compareCfbDirectoryNames = static function (string $left, string $right) use ($utf16le, $directoryNameSortUnits): int {
+    $leftLength = strlen($utf16le($left . "\0"));
+    $rightLength = strlen($utf16le($right . "\0"));
+    if ($leftLength !== $rightLength) {
+        return $leftLength <=> $rightLength;
+    }
+
+    $leftUnits = $directoryNameSortUnits($left);
+    $rightUnits = $directoryNameSortUnits($right);
+    $count = min(count($leftUnits), count($rightUnits));
+    for ($index = 0; $index < $count; $index++) {
+        if ($leftUnits[$index] !== $rightUnits[$index]) {
+            return $leftUnits[$index] <=> $rightUnits[$index];
+        }
+    }
+
+    return count($leftUnits) <=> count($rightUnits);
+};
 
 $directoryEntry = static function (
     string $name,
@@ -42,7 +70,7 @@ $directoryEntry = static function (
     return str_pad($nameBytes, 64, "\0")
         . $u16(strlen($nameBytes))
         . chr($type)
-        . "\0"
+        . "\x01"
         . $u32($leftSibling)
         . $u32($rightSibling)
         . $u32($child)
@@ -54,7 +82,7 @@ $directoryEntry = static function (
         . $u64($size);
 };
 
-$buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($u16, $u32, $directoryEntry, $padTo): string {
+$buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($u16, $u32, $directoryEntry, $padTo, $compareCfbDirectoryNames): string {
     $sectorSize = 512;
     $miniSectorSize = 64;
     $free = 0xffffffff;
@@ -178,14 +206,21 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true) use ($
     $leftSiblings = [];
     $rightSiblings = [];
     $childIds = [];
+    $buildSiblingTree = static function (array $children) use (&$buildSiblingTree, &$nodes, &$leftSiblings, &$rightSiblings, $compareCfbDirectoryNames, $free): int {
+        usort($children, static fn (int $left, int $right): int => $compareCfbDirectoryNames((string) $nodes[$left]['name'], (string) $nodes[$right]['name']));
+        $middle = intdiv(count($children), 2);
+        $nodeIndex = $children[$middle];
+        $left = array_slice($children, 0, $middle);
+        $right = array_slice($children, $middle + 1);
+        $leftSiblings[$nodeIndex] = $left === [] ? $free : $buildSiblingTree($left);
+        $rightSiblings[$nodeIndex] = $right === [] ? $free : $buildSiblingTree($right);
+
+        return $nodeIndex;
+    };
     foreach ($nodes as $nodeIndex => $node) {
         $children = $node['children'];
         if ($children !== []) {
-            $childIds[$nodeIndex] = $children[0];
-        }
-        foreach ($children as $childOffset => $childIndex) {
-            $leftSiblings[$childIndex] = $free;
-            $rightSiblings[$childIndex] = $children[$childOffset + 1] ?? $free;
+            $childIds[$nodeIndex] = $buildSiblingTree($children);
         }
     }
 
@@ -355,7 +390,7 @@ return [
         ]);
         $compoundFile = CompoundFileBinary::fromBytes($bytes);
 
-        $t->same(['WordDocument', "\x05SummaryInformation", 'LargePreview'], $compoundFile->streamNames());
+        $t->same(['LargePreview', 'WordDocument', "\x05SummaryInformation"], $compoundFile->streamNames());
         $t->true($compoundFile->hasStream('worddocument'));
         $t->same(18, $compoundFile->streamSize('WordDocument'));
         $t->same('small stream bytes', $compoundFile->readStream('WordDocument'));
@@ -370,8 +405,8 @@ return [
         $compoundFile = CompoundFileBinary::fromBytes($bytes);
 
         $t->same([
-            'WordDocument',
             'Review/Notes',
+            'WordDocument',
         ], $compoundFile->streamNames());
         $t->true($compoundFile->hasStream('Review/Notes'));
         $t->same(false, $compoundFile->hasStream('Notes'));
@@ -386,6 +421,48 @@ return [
         $cyclic = substr_replace($bytes, $u32(1), $firstStreamRightSiblingOffset, 4);
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($cyclic));
+    },
+    'rejects unsorted CFB directory sibling trees before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $bytes = $buildCfb([
+            'A' => 'a',
+            'BB' => 'bb',
+            'CCC' => 'ccc',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $bbLeftSiblingOffset = $directorySectorOffset + (2 * 128) + 68;
+        $bbRightSiblingOffset = $directorySectorOffset + (2 * 128) + 72;
+        $unsorted = substr_replace($bytes, $u32(3), $bbLeftSiblingOffset, 4);
+        $unsorted = substr_replace($unsorted, $u32(0xffffffff), $bbRightSiblingOffset, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($unsorted));
+    },
+    'rejects consecutive red CFB directory sibling-tree nodes' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'A' => 'a',
+            'BB' => 'bb',
+            'CCC' => 'ccc',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $bbColorOffset = $directorySectorOffset + (2 * 128) + 67;
+        $aColorOffset = $directorySectorOffset + (1 * 128) + 67;
+        $redTree = substr_replace($bytes, "\0", $bbColorOffset, 1);
+        $redTree = substr_replace($redTree, "\0", $aColorOffset, 1);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($redTree));
+    },
+    'rejects illegal CFB directory names and invalid color flags' => static function (TestRunner $t) use ($buildCfb): void {
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($buildCfb([
+            'Bad:Name' => 'bad stream',
+        ])));
+
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $streamColorOffset = $directorySectorOffset + 128 + 67;
+        $invalidColor = substr_replace($bytes, "\x02", $streamColorOffset, 1);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($invalidColor));
     },
     'extracts non-complex legacy DOC text and OLE SummaryInformation metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $propertySet): void {
         $docBytes = $buildCfb([
