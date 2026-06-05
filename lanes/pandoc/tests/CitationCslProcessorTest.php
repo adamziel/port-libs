@@ -3398,6 +3398,103 @@ XML
 XML
         ));
     },
+    'applies bounded csl bibliography display parts for second field layouts' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-packet',
+                'type' => 'report',
+                'title' => 'Source Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'note' => 'Attachment needs review.',
+                'URL' => 'https://example.test/source-packet',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Display Review Style</title>
+    <id>https://example.test/styles/bounded-display-review</id>
+    <updated>2026-06-05T07:25:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography second-field-align="flush">
+    <layout delimiter=" ">
+      <text variable="citation-key" display="left-margin" prefix="[" suffix="]"/>
+      <group display="right-inline" delimiter=". " suffix=".">
+        <names variable="author">
+          <name initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+      <text variable="note" display="indent" prefix="Review note: "/>
+      <text variable="URL" display="block" prefix="Source: "/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Display Review Style', $summary['title'] ?? null);
+        $t->same('flush', $summary['bibliographyOptions']['secondFieldAlign'] ?? null);
+        $t->same('left-margin', $summary['bibliographyRendering'][0]['display'] ?? null);
+        $t->same('right-inline', $summary['bibliographyRendering'][1]['display'] ?? null);
+        $t->same('indent', $summary['bibliographyRendering'][2]['display'] ?? null);
+        $t->same('block', $summary['bibliographyRendering'][3]['display'] ?? null);
+
+        $t->same('(de la Cruz 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-packet', 'text' => '[@source-packet]']),
+        ]));
+        $t->same('[source-packet] de la Cruz, A. M. Source Packet. 2026. Review note: Attachment needs review. Source: https://example.test/source-packet', $processor->renderBibliographyEntry('source-packet'));
+
+        $document = (new MarkdownReader())->read('Review cites @source-packet for second-field bibliography output.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $bibliography = $processed->children[2];
+        $item = $bibliography->children[0];
+        $displayParts = $item->attr('cslDisplayParts');
+        $t->same('definition_list', $bibliography->type);
+        $t->same('flush', $bibliography->attr('secondFieldAlign'));
+        $t->same('definition_item', $item->type);
+        $t->same([
+            ['display' => 'left-margin', 'text' => '[source-packet]'],
+            ['display' => 'right-inline', 'text' => 'de la Cruz, A. M. Source Packet. 2026.'],
+            ['display' => 'indent', 'text' => 'Review note: Attachment needs review.'],
+            ['display' => 'block', 'text' => 'Source: https://example.test/source-packet'],
+        ], $displayParts);
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites de la Cruz (2026) for second-field bibliography output.', $markdown);
+        $t->contains('de la Cruz 2026' . "\n" . ':   \[source-packet\] de la Cruz, A. M. Source Packet. 2026. Review note: Attachment needs review. Source: https://example.test/source-packet', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites de la Cruz (2026) for second-field bibliography output.</p>', $blocks);
+        $t->contains('<dt>de la Cruz 2026</dt><dd><div class="csl-entry"><div class="csl-left-margin">[source-packet]</div><div class="csl-right-inline">de la Cruz, A. M. Source Packet. 2026.</div><div class="csl-indent">Review note: Attachment needs review.</div><div class="csl-block">Source: https://example.test/source-packet</div></div></dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <text variable="title" display="sideways"/>
+    </layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

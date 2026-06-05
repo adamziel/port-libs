@@ -320,6 +320,12 @@ final class WordPressBlockWriter
             }
             $html .= '<dt>' . $this->renderInlines($term) . '</dt>';
 
+            $cslDisplayParts = $item->attr('cslDisplayParts', []);
+            if (is_array($cslDisplayParts) && $cslDisplayParts !== []) {
+                $html .= '<dd>' . $this->renderCslDisplayPartsHtml($cslDisplayParts) . '</dd>';
+                continue;
+            }
+
             foreach ($children as $definition) {
                 if ($definition->type !== 'definition') {
                     continue;
@@ -330,6 +336,36 @@ final class WordPressBlockWriter
         $html .= '</dl>';
 
         return $html;
+    }
+
+    /**
+     * @param list<array{display?:mixed, text?:mixed}> $parts
+     */
+    private function renderCslDisplayPartsHtml(array $parts): string
+    {
+        $html = '<div class="csl-entry">';
+        foreach ($parts as $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $display = strtolower(trim((string) ($part['display'] ?? '')));
+            $class = match ($display) {
+                'left-margin' => 'csl-left-margin',
+                'right-inline' => 'csl-right-inline',
+                'indent' => 'csl-indent',
+                'block' => 'csl-block',
+                default => '',
+            };
+            $text = (string) ($part['text'] ?? '');
+            if ($class === '' || $text === '') {
+                continue;
+            }
+
+            $html .= '<div class="' . $class . '">' . $this->esc($text) . '</div>';
+        }
+
+        return $html . '</div>';
     }
 
     private function renderTableHtml(AstNode $node): string

@@ -808,6 +808,7 @@ final class CslStyle
             'prefix' => self::optionalAttribute($group, 'prefix'),
             'suffix' => self::optionalAttribute($group, 'suffix'),
             'delimiter' => self::optionalAttribute($group, 'delimiter'),
+            'display' => self::displayAttribute($group, $scope),
             'children' => self::renderingElements($group, $scope),
         ];
     }
@@ -835,6 +836,7 @@ final class CslStyle
             'quotes' => self::booleanRenderingAttribute($text, 'quotes', false, $scope),
             'stripPeriods' => self::booleanRenderingAttribute($text, 'strip-periods', false, $scope),
             'textCase' => self::textCaseAttribute($text, $scope),
+            'display' => self::displayAttribute($text, $scope),
         ];
         if ($variable !== '') {
             $element['variable'] = $variable;
@@ -890,6 +892,7 @@ final class CslStyle
             'delimiter' => self::optionalAttribute($date, 'delimiter'),
             'dateParts' => $dateParts,
             'textCase' => self::textCaseAttribute($date, $scope),
+            'display' => self::displayAttribute($date, $scope),
         ];
     }
 
@@ -932,6 +935,7 @@ final class CslStyle
             'variable' => $variable,
             'form' => $form,
             'textCase' => self::textCaseAttribute($number, $scope),
+            'display' => self::displayAttribute($number, $scope),
         ];
     }
 
@@ -950,6 +954,7 @@ final class CslStyle
             'prefix' => self::optionalAttribute($names, 'prefix'),
             'suffix' => self::optionalAttribute($names, 'suffix'),
             'variable' => $variable,
+            'display' => self::displayAttribute($names, $scope),
         ];
         $overrides = self::nameRenderingOverridesFromNames($names, $scope);
         if ($overrides !== []) {
@@ -1002,6 +1007,7 @@ final class CslStyle
             'plural' => $plural,
             'stripPeriods' => self::booleanRenderingAttribute($label, 'strip-periods', false, $scope),
             'textCase' => self::textCaseAttribute($label, $scope),
+            'display' => self::displayAttribute($label, $scope),
         ];
     }
 
@@ -1175,6 +1181,20 @@ final class CslStyle
 
         if (!in_array($value, ['lowercase', 'uppercase', 'capitalize-first', 'capitalize-all', 'sentence', 'title'], true)) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' text-case must be lowercase, uppercase, capitalize-first, capitalize-all, sentence, or title');
+        }
+
+        return $value;
+    }
+
+    private static function displayAttribute(\DOMElement $element, string $scope): string
+    {
+        $value = strtolower(trim($element->getAttribute('display')));
+        if ($value === '') {
+            return '';
+        }
+
+        if (!in_array($value, ['block', 'left-margin', 'right-inline', 'indent'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' display must be block, left-margin, right-inline, or indent');
         }
 
         return $value;

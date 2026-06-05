@@ -403,7 +403,13 @@ final class CitationCslProcessor
 
             $label = $this->citationLabel($item);
             $entry = $this->renderBibliographyEntry($id);
-            $items[] = new AstNode('definition_item', ['term' => $label, 'cslId' => $id], [
+            $attrs = ['term' => $label, 'cslId' => $id];
+            $displayParts = $this->bibliographyDisplayParts($item);
+            if ($displayParts !== []) {
+                $attrs['cslDisplayParts'] = $displayParts;
+            }
+
+            $items[] = new AstNode('definition_item', $attrs, [
                 new AstNode('term', ['text' => $label], [
                     new AstNode('text', ['text' => $label]),
                 ]),
@@ -1556,6 +1562,46 @@ final class CitationCslProcessor
         return $this->style->formatBibliographyEntry(
             $this->renderRenderingElements($elements, $item, 'bibliography', $this->style->bibliographyDelimiter())
         );
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<array{display:string, text:string}>
+     */
+    private function bibliographyDisplayParts(array $item): array
+    {
+        $parts = [];
+        foreach ($this->style->bibliographyRenderingElements() as $element) {
+            if (!is_array($element)) {
+                continue;
+            }
+
+            $display = $this->renderingDisplay($element);
+            if ($display === '') {
+                continue;
+            }
+
+            $value = $this->renderRenderingElement($element, $item, 'bibliography');
+            if ($value === '') {
+                continue;
+            }
+
+            $parts[] = ['display' => $display, 'text' => $value];
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $element
+     */
+    private function renderingDisplay(array $element): string
+    {
+        $display = strtolower(trim((string) ($element['display'] ?? '')));
+
+        return in_array($display, ['block', 'left-margin', 'right-inline', 'indent'], true)
+            ? $display
+            : '';
     }
 
     /**
