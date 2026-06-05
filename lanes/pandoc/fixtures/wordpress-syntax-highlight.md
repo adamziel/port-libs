@@ -468,3 +468,20 @@ FROM `wp_postmeta`
 WHERE `post_id` = :post_id AND `meta_key` LIKE 'review\_%' ESCAPE '\\';
 COMMIT;
 ```
+
+``` {.pgsql #postgres-trigger-review .numberLines startFrom=250}
+-- PostgreSQL trigger review
+CREATE OR REPLACE FUNCTION wp_review_notice()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $review$
+BEGIN
+  RAISE NOTICE 'import %', NEW.post_title;
+  NEW.reviewed_at := CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$review$;
+CREATE TRIGGER wp_review_before_insert
+BEFORE INSERT ON wp_posts
+FOR EACH ROW EXECUTE FUNCTION wp_review_notice();
+```

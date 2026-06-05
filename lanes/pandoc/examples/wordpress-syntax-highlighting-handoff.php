@@ -226,6 +226,12 @@ if (!$sqlCodeBlock instanceof PortLibs\Pandoc\AstNode || $sqlCodeBlock->type !==
 }
 $sql = $highlighter->highlightCodeBlock($sqlCodeBlock, 'tango');
 $sqlWordpressBlock = $highlighter->wordpressHtmlBlock($sqlCodeBlock, 'tango');
+$postgresqlCodeBlock = $document->children[31] ?? null;
+if (!$postgresqlCodeBlock instanceof PortLibs\Pandoc\AstNode || $postgresqlCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a PostgreSQL trigger code block');
+}
+$postgresql = $highlighter->highlightCodeBlock($postgresqlCodeBlock, 'breezedark');
+$postgresqlWordpressBlock = $highlighter->wordpressHtmlBlock($postgresqlCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -926,6 +932,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($sqlWordpressBlock, '<span class="kw">COMMIT</span><span class="op">;</span>')) {
         throw new RuntimeException('Expected SQL commit token handoff');
     }
+    if (($postgresql['language'] ?? '') !== 'sql') {
+        throw new RuntimeException('Expected PostgreSQL alias to normalize to SQL highlighting');
+    }
+    if (($postgresql['lineNumbering']['start'] ?? null) !== 250) {
+        throw new RuntimeException('Expected PostgreSQL source startFrom line-number handoff');
+    }
+    if (!str_contains($postgresql['html'], '<span class="kw">CREATE</span> <span class="kw">OR</span> <span class="kw">REPLACE</span> <span class="kw">FUNCTION</span>')) {
+        throw new RuntimeException('Expected PostgreSQL function keyword token handoff');
+    }
+    if (!str_contains($postgresql['html'], '<span class="kw">AS</span> <span class="st">$review$</span>')) {
+        throw new RuntimeException('Expected PostgreSQL dollar-quoted opener string handoff');
+    }
+    if (!str_contains($postgresql['html'], '<span class="st">  RAISE NOTICE &#039;import %&#039;, NEW.post_title;</span>')) {
+        throw new RuntimeException('Expected PostgreSQL dollar-quoted body string handoff');
+    }
+    if (!str_contains($postgresqlWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected PostgreSQL WordPress style metadata');
+    }
+    if (!str_contains($postgresqlWordpressBlock, '<span class="st">$review$</span><span class="op">;</span>')) {
+        throw new RuntimeException('Expected PostgreSQL dollar-quoted closer handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -981,6 +1008,7 @@ echo "dotHighlightedHtml:\n" . $dot['html'] . "\n";
 echo "javascriptHighlightedHtml:\n" . $javascript['html'] . "\n";
 echo "csharpHighlightedHtml:\n" . $csharp['html'] . "\n";
 echo "sqlHighlightedHtml:\n" . $sql['html'] . "\n";
+echo "postgresqlHighlightedHtml:\n" . $postgresql['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1007,4 +1035,5 @@ echo "dotWordpressBlock:\n" . $dotWordpressBlock . "\n";
 echo "javascriptWordpressBlock:\n" . $javascriptWordpressBlock . "\n";
 echo "csharpWordpressBlock:\n" . $csharpWordpressBlock . "\n";
 echo "sqlWordpressBlock:\n" . $sqlWordpressBlock . "\n";
+echo "postgresqlWordpressBlock:\n" . $postgresqlWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

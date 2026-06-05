@@ -709,6 +709,57 @@ return [
         $t->contains('<span class="kw">WITH</span> <span class="va">posts</span> <span class="kw">AS</span> <span class="op">(</span><span class="kw">SELECT</span> <span class="dv">42</span> <span class="kw">AS</span> <span class="va">id</span><span class="op">,</span> <span class="st">&#039;Imported&#039;</span> <span class="kw">AS</span> <span class="ot">&quot;post_title&quot;</span><span class="op">)</span>', $sqlite['html']);
         $t->contains('<span class="kw">WHERE</span> <span class="va">id</span> <span class="op">=</span> <span class="va">$1</span>', $sqlite['html']);
     },
+    'highlights postgresql dollar quoted review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[31] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a PostgreSQL trigger code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directPgsql = $highlighter->highlight(
+            'DO $$ BEGIN RAISE NOTICE \'Imported %\', 42; END $$;',
+            'plpgsql'
+        );
+        $taggedDollar = $highlighter->highlight(
+            'SELECT $wp_import$<!-- wp:paragraph --><p>Imported</p><!-- /wp:paragraph -->$wp_import$::text;',
+            'pgsql'
+        );
+
+        $t->same('pgsql', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('sql', SyntaxHighlighter::normalizeLanguage('pgsql'));
+        $t->same('sql', SyntaxHighlighter::normalizeLanguage('plpgsql'));
+        $t->same('sql', $highlighted['language']);
+        $t->same('pgsql', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(250, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource pgsql numberLines"><code class="sourceCode sql" style="counter-reset: source-line 249;">', $highlighted['html']);
+        $t->contains('<span id="postgres-trigger-review-250"><a href="#postgres-trigger-review-250"></a><span class="co">-- PostgreSQL trigger review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">CREATE</span> <span class="kw">OR</span> <span class="kw">REPLACE</span> <span class="kw">FUNCTION</span> <span class="fu">wp_review_notice</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="kw">RETURNS</span> <span class="dt">trigger</span>', $highlighted['html']);
+        $t->contains('<span class="kw">LANGUAGE</span> <span class="dt">plpgsql</span>', $highlighted['html']);
+        $t->contains('<span class="kw">AS</span> <span class="st">$review$</span>', $highlighted['html']);
+        $t->contains('<span id="postgres-trigger-review-255"><a href="#postgres-trigger-review-255"></a><span class="st">BEGIN</span></span>', $highlighted['html']);
+        $t->contains('<span class="st">  RAISE NOTICE &#039;import %&#039;, NEW.post_title;</span>', $highlighted['html']);
+        $t->contains('<span class="st">$review$</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">CREATE</span> <span class="dt">TRIGGER</span> <span class="va">wp_review_before_insert</span>', $highlighted['html']);
+        $t->contains('<span class="kw">FOR</span> <span class="kw">EACH</span> <span class="kw">ROW</span> <span class="kw">EXECUTE</span> <span class="kw">FUNCTION</span> <span class="fu">wp_review_notice</span><span class="op">();</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<span class="st">$review$</span>', $wordpressBlock);
+        $t->same('sql', $directPgsql['language']);
+        $t->same('plpgsql', $directPgsql['requestedLanguage']);
+        $t->contains('<span class="kw">DO</span> <span class="st">$$ BEGIN RAISE NOTICE &#039;Imported %&#039;, 42; END $$</span><span class="op">;</span>', $directPgsql['html']);
+        $t->same('sql', $taggedDollar['language']);
+        $t->contains('<span class="kw">SELECT</span> <span class="st">$wp_import$&lt;!-- wp:paragraph --&gt;&lt;p&gt;Imported&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;$wp_import$</span><span class="op">::</span><span class="dt">text</span><span class="op">;</span>', $taggedDollar['html']);
+    },
     'highlights haskell and literate haskell review snippets' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [
             'classes' => ['sourceCode', 'literate-haskell'],
