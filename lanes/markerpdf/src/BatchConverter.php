@@ -699,7 +699,7 @@ final class BatchConverter
         }
 
         $runtimeMetadata = $runtimeMetadataPlan['metadata'];
-        $metadataFilenames = array_values(array_filter(array_keys($runtimeMetadata), 'is_string'));
+        $metadataFilenames = array_map(static fn (int|string $filename): string => (string) $filename, array_keys($runtimeMetadata));
         sort($metadataFilenames, SORT_STRING);
         $selectedMetadataFilenames = array_values(array_filter(
             $selectedFilenames,
@@ -1445,13 +1445,12 @@ final class BatchConverter
 
         try {
             $decodedObject = json_decode($contents, false, flags: JSON_THROW_ON_ERROR);
-            $decodedArray = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             throw new InvalidArgumentException('Batch metadata file must contain valid JSON.', previous: $exception);
         }
 
         $jsonType = $this->jsonMetadataType($decodedObject);
-        if (!$decodedObject instanceof stdClass || !is_array($decodedArray)) {
+        if (!$decodedObject instanceof stdClass) {
             return [
                 'metadata' => [],
                 'metadata_json_type' => $jsonType,
@@ -1466,21 +1465,10 @@ final class BatchConverter
         $metadata = [];
         $metadataValueTypes = [];
         $objectValues = get_object_vars($decodedObject);
-        foreach ($decodedArray as $filename => $value) {
-            if (!is_string($filename)) {
-                return [
-                    'metadata' => [],
-                    'metadata_json_type' => $jsonType,
-                    'metadata_get_available' => false,
-                    'metadata_shape_error_boundary' => 'metadata-get-failed',
-                    'metadata_shape_error_class' => 'AttributeError',
-                    'metadata_shape_error_message' => "'" . $jsonType . "' object has no attribute 'get'",
-                    'metadata_value_types' => [],
-                ];
-            }
-
-            $metadata[$filename] = $value;
-            $metadataValueTypes[$filename] = $this->jsonMetadataType($objectValues[$filename] ?? null);
+        foreach ($objectValues as $filename => $value) {
+            $filename = (string) $filename;
+            $metadata[$filename] = $this->runtimeMetadataPhpValue($value);
+            $metadataValueTypes[$filename] = $this->jsonMetadataType($value);
         }
 
         return [
@@ -1516,6 +1504,24 @@ final class BatchConverter
         }
 
         return get_debug_type($value);
+    }
+
+    private function runtimeMetadataPhpValue(mixed $value): mixed
+    {
+        if ($value instanceof stdClass) {
+            $converted = [];
+            foreach (get_object_vars($value) as $key => $child) {
+                $converted[(string) $key] = $this->runtimeMetadataPhpValue($child);
+            }
+
+            return $converted;
+        }
+
+        if (is_array($value)) {
+            return array_map(fn (mixed $child): mixed => $this->runtimeMetadataPhpValue($child), $value);
+        }
+
+        return $value;
     }
 
     /**

@@ -1205,6 +1205,60 @@ return [
             $removeTree($output);
         }
     },
+    'keeps numeric-string metadata filenames addressable like Python json dict keys' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            foreach (['0', '01', '2.pdf', 'missing'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            $metadataFile = $output . DIRECTORY_SEPARATOR . 'numeric-filename-metadata.json';
+            file_put_contents($metadataFile, json_encode([
+                '0' => ['title' => 'Zero Basename Import', 'languages' => ['English']],
+                '01' => ['title' => 'Leading Zero Basename Import'],
+                '2.pdf' => ['title' => 'Numeric Prefix PDF Import'],
+            ], JSON_THROW_ON_ERROR));
+
+            $plan = (new BatchConverter())->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                workers: 6,
+                metadataFile: $metadataFile,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same(['0', '01', '2.pdf', 'missing'], $plan['chunking']['selected_filenames']);
+            $t->same(true, $plan['metadata']['metadata_load_success']);
+            $t->same('object', $plan['metadata']['metadata_json_type']);
+            $t->same(true, $plan['metadata']['metadata_get_available']);
+            $t->same(null, $plan['metadata']['metadata_shape_error_boundary']);
+            $t->same(['0', '01', '2.pdf'], $plan['metadata']['metadata_filenames']);
+            $t->same(['0', '01', '2.pdf'], $plan['metadata']['selected_metadata_filenames']);
+            $t->same(['missing'], $plan['metadata']['missing_metadata_filenames']);
+            $t->same('dict', $plan['metadata']['metadata_value_types']['0']);
+            $t->same('dict', $plan['metadata']['metadata_value_types']['01']);
+            $t->same('dict', $plan['metadata']['metadata_value_types']['2.pdf']);
+
+            $taskArgsByName = [];
+            foreach ($plan['worker_pool']['task_args'] as $taskArg) {
+                $taskArgsByName[basename($taskArg['filepath'])] = $taskArg;
+            }
+            $t->same(['title' => 'Zero Basename Import', 'languages' => ['English']], $taskArgsByName['0']['metadata']);
+            $t->same(['title' => 'Leading Zero Basename Import'], $taskArgsByName['01']['metadata']);
+            $t->same(['title' => 'Numeric Prefix PDF Import'], $taskArgsByName['2.pdf']['metadata']);
+            $t->same(null, $taskArgsByName['missing']['metadata']);
+            $t->same(4, $plan['worker_pool']['task_args_count']);
+            $t->same(4, $plan['worker_pool']['total_processes']);
+            $t->same(true, $plan['worker_pool']['pool_launchable']);
+            $t->same(false, $plan['executes_python_or_models']);
+            $t->same(false, $plan['executes_multiprocessing']);
+            $t->same(false, $plan['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py os.listdir file-only boundary without extension filtering' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
