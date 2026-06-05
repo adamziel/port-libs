@@ -7585,12 +7585,12 @@ final class PdfTextExtractor
             return null;
         }
 
-        $eoi = strpos($value, "\xff\xd9", $jpegStart + 2);
-        if ($eoi === false) {
+        $eoiEnd = $this->dctPreviewEoiEndOffset($value, $jpegStart);
+        if ($eoiEnd === null) {
             return null;
         }
 
-        $terminator = $this->skipDctPreviewPadding($value, $eoi + 2);
+        $terminator = $this->skipDctPreviewPadding($value, $eoiEnd);
         return $this->endstreamKeywordAt($value, $terminator) ? $terminator : null;
     }
 
@@ -7795,13 +7795,83 @@ final class PdfTextExtractor
             $start++;
         }
 
-        $bytes = rtrim(substr($bytes, $start), "\x00\t\n\f\r ");
-        if (!str_starts_with($bytes, "\xff\xd8")) {
+        if (substr($bytes, $start, 2) !== "\xff\xd8") {
             return false;
         }
 
-        $eoi = strrpos($bytes, "\xff\xd9");
-        return $eoi !== false && $eoi + 2 === strlen($bytes);
+        $eoiEnd = $this->dctPreviewEoiEndOffset($bytes, $start);
+        return $eoiEnd !== null && $this->skipDctPreviewPadding($bytes, $eoiEnd) === $length;
+    }
+
+    private function dctPreviewEoiEndOffset(string $bytes, int $startOffset = 0, ?int $limitOffset = null): ?int
+    {
+        $limit = min($limitOffset ?? strlen($bytes), strlen($bytes));
+        $start = $startOffset;
+        while ($start < $limit && str_contains("\x00\t\n\f\r ", $bytes[$start])) {
+            $start++;
+        }
+
+        if ($start + 2 > $limit || substr($bytes, $start, 2) !== "\xff\xd8") {
+            return null;
+        }
+
+        $offset = $start + 2;
+        while ($offset < $limit) {
+            $markerStart = strpos($bytes, "\xff", $offset);
+            if ($markerStart === false || $markerStart + 1 >= $limit) {
+                return null;
+            }
+
+            $markerOffset = $markerStart + 1;
+            while ($markerOffset < $limit && $bytes[$markerOffset] === "\xff") {
+                $markerOffset++;
+            }
+            if ($markerOffset >= $limit) {
+                return null;
+            }
+
+            $marker = ord($bytes[$markerOffset]);
+            if ($marker === 0x00) {
+                $offset = $markerOffset + 1;
+                continue;
+            }
+            if ($marker === 0xd9) {
+                return $markerOffset + 1;
+            }
+            if ($marker === 0xd8 || $marker === 0x01 || ($marker >= 0xd0 && $marker <= 0xd7)) {
+                $offset = $markerOffset + 1;
+                continue;
+            }
+
+            $lengthOffset = $markerOffset + 1;
+            if ($lengthOffset + 2 > $limit) {
+                return null;
+            }
+
+            $segmentLength = (ord($bytes[$lengthOffset]) << 8) | ord($bytes[$lengthOffset + 1]);
+            if ($segmentLength < 2) {
+                return $this->dctPreviewLenientEoiEndOffset($bytes, $markerOffset + 1, $limit);
+            }
+
+            $segmentEnd = $lengthOffset + 2 + ($segmentLength - 2);
+            if ($segmentEnd > $limit) {
+                if (ord($bytes[$lengthOffset]) <= 0x0f) {
+                    return null;
+                }
+
+                return $this->dctPreviewLenientEoiEndOffset($bytes, $markerOffset + 1, $limit);
+            }
+
+            $offset = $segmentEnd;
+        }
+
+        return null;
+    }
+
+    private function dctPreviewLenientEoiEndOffset(string $bytes, int $offset, int $limit): ?int
+    {
+        $eoi = strpos(substr($bytes, 0, $limit), "\xff\xd9", $offset);
+        return $eoi === false ? null : $eoi + 2;
     }
 
     private function contentStreamEndstreamTerminatorOffset(string $value, int $streamStart, string $dict): ?int
