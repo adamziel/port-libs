@@ -56,7 +56,7 @@ final class Html5Dom
      */
     public static function parseXmlDocument(string $xml, string $label = 'XML document'): \DOMDocument
     {
-        self::assertSafeXmlSource($xml, $label);
+        self::assertSafeXmlDocumentSource($xml, $label);
 
         return self::loadXml($xml, $label);
     }
@@ -205,6 +205,8 @@ final class Html5Dom
             throw new \RuntimeException('Unable to parse ' . $label);
         }
 
+        self::assertNoProcessingInstructions($dom, $label);
+
         return $dom;
     }
 
@@ -253,6 +255,17 @@ final class Html5Dom
         }
     }
 
+    private static function assertSafeXmlDocumentSource(string $xml, string $label): void
+    {
+        self::assertNoNullByte($xml, $label);
+        if (preg_match('/<!\s*DOCTYPE\b/i', $xml) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare a doctype');
+        }
+        if (preg_match('/<!\s*ENTITY\b/i', $xml) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare entities');
+        }
+    }
+
     private static function assertNoHtmlFragmentDeclarations(string $html, string $label): void
     {
         if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
@@ -267,6 +280,17 @@ final class Html5Dom
     {
         if (str_contains($source, "\0")) {
             throw new \InvalidArgumentException($label . ' must not contain NUL bytes');
+        }
+    }
+
+    private static function assertNoProcessingInstructions(\DOMNode $node, string $label): void
+    {
+        if ($node instanceof \DOMProcessingInstruction) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+
+        foreach ($node->childNodes as $child) {
+            self::assertNoProcessingInstructions($child, $label);
         }
     }
 

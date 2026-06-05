@@ -182,6 +182,8 @@ final class XmlHtmlDom
             throw new \InvalidArgumentException(self::parseErrorMessage('Unable to parse ' . $label, $errors));
         }
 
+        self::assertNoProcessingInstructions($dom, $label);
+
         return $dom;
     }
 
@@ -456,6 +458,17 @@ final class XmlHtmlDom
         }
         if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $source) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+    }
+
+    private static function assertNoProcessingInstructions(\DOMNode $node, string $label): void
+    {
+        if ($node instanceof \DOMProcessingInstruction) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+
+        foreach ($node->childNodes as $child) {
+            self::assertNoProcessingInstructions($child, $label);
         }
     }
 

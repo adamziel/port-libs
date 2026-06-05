@@ -25,6 +25,25 @@ return [
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<pkg><item></pkg>', 'broken XML'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument('<!DOCTYPE pkg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><pkg>&xxe;</pkg>', 'unsafe XML'));
     },
+    'allows XML declarations but rejects XML processing instructions' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(
+            '<?xml version="1.0" encoding="UTF-8"?><pkg><item>Review packet</item></pkg>',
+            'declared review packet XML',
+            preserveWhiteSpace: false
+        );
+
+        $t->true($dom->documentElement instanceof DOMElement);
+        $t->same('pkg', $dom->documentElement->tagName);
+        $t->same('Review packet', $dom->documentElement->textContent);
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument(
+            '<?xml-stylesheet href="https://example.invalid/review.xsl"?><pkg><item>review</item></pkg>',
+            'stylesheet XML'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtmlDom::loadXmlDocument(
+            '<?xml version="1.0"?><pkg><?review href="file:///etc/passwd"?><item>review</item></pkg>',
+            'review PI XML'
+        ));
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',

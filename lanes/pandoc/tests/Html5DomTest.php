@@ -122,6 +122,26 @@ return [
         $t->contains('<m:math xmlns:m="urn:math"><m:mi>x</m:mi></m:math>', $serialized);
         $t->contains('<w:t xmlns:w="urn:word" xml:space="preserve"> reviewer text </w:t>', $serialized);
     },
+    'parses XML documents with declarations and rejects processing instruction nodes' => static function (TestRunner $t): void {
+        $dom = Html5Dom::parseXmlDocument(
+            '<?xml version="1.0" encoding="UTF-8"?><pkg xmlns="urn:packet"><item>Review packet</item></pkg>',
+            'declared XML document'
+        );
+        $root = $dom->documentElement;
+
+        $t->true($root instanceof DOMElement);
+        $t->same('pkg', $root->localName);
+        $t->same('urn:packet', $root->namespaceURI);
+        $t->same('Review packet', Html5Dom::normalizedText($root));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseXmlDocument(
+            '<?xml-stylesheet href="https://example.invalid/review.xsl"?><pkg/>',
+            'stylesheet XML document'
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => Html5Dom::parseXmlDocument(
+            '<?xml version="1.0"?><pkg><?review href="file:///etc/passwd"?></pkg>',
+            'review PI XML document'
+        ));
+    },
     'rejects unsafe XML declarations doctypes entities and NUL bytes before parsing' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<?xml version="1.0"?><root/>'));
         $t->throws(InvalidArgumentException::class, static fn (): DOMElement => Html5Dom::parseXmlFragment('<!DOCTYPE root><root/>'));

@@ -22,6 +22,11 @@ HTML;
 
 $dom = XmlHtmlDom::loadHtmlFragment($fragment, 'WordPress source HTML fragment');
 $html = XmlHtmlDom::serializeHtmlFragment($dom);
+$reviewXml = XmlHtmlDom::loadXmlDocument(
+    '<?xml version="1.0" encoding="UTF-8"?><review><item source="legacy">DOM packet</item></review>',
+    'WordPress XML review packet',
+    preserveWhiteSpace: false
+);
 $document = new AstNode('document', [], [
     new AstNode('raw_html', ['format' => 'html', 'html' => $html]),
 ]);
@@ -45,6 +50,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($html, '<script data-review="metadata" type="application/json">{"source":"legacy <html> & notes"}</script>')) {
         throw new RuntimeException('Expected raw text JSON script serialization for review metadata');
+    }
+    if (($reviewXml->documentElement?->tagName ?? '') !== 'review' || $reviewXml->documentElement->textContent !== 'DOM packet') {
+        throw new RuntimeException('Expected XML declaration-bearing review packet to parse safely');
+    }
+    try {
+        XmlHtmlDom::loadXmlDocument(
+            '<?xml-stylesheet href="https://example.invalid/review.xsl"?><review><item>bad</item></review>',
+            'unsafe XML review packet'
+        );
+
+        throw new RuntimeException('Expected XML processing instruction to be rejected');
+    } catch (InvalidArgumentException) {
     }
     if (!str_contains($blocks, '<!-- wp:html -->') || !str_contains($blocks, 'data-source="legacy-html"')) {
         throw new RuntimeException('Expected serialized fragment to hand off as a WordPress HTML block');
