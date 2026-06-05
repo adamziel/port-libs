@@ -1416,7 +1416,10 @@ final class DocTemplate
             return $pairs;
         }
 
-        foreach ($value as $key => $item) {
+        $ordered = $value;
+        ksort($ordered, SORT_STRING);
+
+        foreach ($ordered as $key => $item) {
             $pairs[] = ['key' => $key, 'value' => $item];
         }
 

@@ -24,6 +24,7 @@ HTML,
 <p class="next-warning">${ warnings/rest/first:components/next-warning()/uppercase }</p>
 <p class="ticket">Ticket: ${ review-id/left 8 "[" "]" }</p>
 <p class="authors">$for(authors/pairs)$$it.value.name$$sep$, $endfor$</p>
+<p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
 <p class="audit-flag" data-suppressed="$suppressed$">Suppressed: <$suppressed$></p>
 </header>
 HTML,
@@ -57,6 +58,11 @@ $context = [
         ['name' => 'Migration bot'],
         ['name' => 'Content editor'],
     ],
+    'reviewMeta' => [
+        'zeta' => 'queued-last',
+        'alpha' => 'queued-first',
+        'review-id' => 'PR-42',
+    ],
     'suppressed' => false,
     'révision' => ['état' => 'prêt', 'titre' => 'Résumé de migration'],
     'warnings' => [
@@ -89,6 +95,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="next-warning">LINKS: VERIFY EDIT LINKS BEFORE PUBLISH</p>',
         '<p class="ticket">Ticket: [        ]</p>',
         '<p class="authors">Migration bot, Content editor</p>',
+        '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
         '<p class="audit-flag" data-suppressed="">Suppressed: <></p>',
         '<p class="source-summary" data-état="prêt">Résumé de migration</p>',
         '<li data-index="1" data-source="media" data-review-title="Batch 42 Review"><span class="marker">A.</span> <span class="source">{MEDIA   }</span> <span class="priority">   I</span> Check &amp; confirm alt text</li>',

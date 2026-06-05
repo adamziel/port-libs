@@ -343,6 +343,27 @@ TPL;
         ]), $output);
     },
 
+    'renders pandoc doctemplate map pairs in deterministic upstream key order' => static function (TestRunner $t): void {
+        $template = <<<'TPL'
+Metadata: $for(metadata/pairs)$$it.key$=$it.value$$sep$; $endfor$
+List: $for(checks/pairs)$$it.key$=$it.value$$sep$; $endfor$
+TPL;
+
+        $output = (new DocTemplate())->render($template, [
+            'metadata' => [
+                'zeta' => 'queued-last',
+                'alpha' => 'queued-first',
+                'review-id' => 'PR-42',
+            ],
+            'checks' => ['media', 'links', 'layout'],
+        ]);
+
+        $t->same(implode("\n", [
+            'Metadata: alpha=queued-first; review-id=PR-42; zeta=queued-last',
+            'List: 1=media; 2=links; 3=layout',
+        ]), $output);
+    },
+
     'applies pandoc doctemplate pipes to loop expressions and conditionals' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 $if(warnings/first)$Warnings:
