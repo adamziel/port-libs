@@ -3551,20 +3551,16 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $xObjectDictionary, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $resourceObjects = [];
-        foreach ($matches as $resource) {
-            $objectNumber = (int) $resource[2];
-            $generation = (int) $resource[3];
+        foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
+            $objectNumber = $resource['objectNumber'];
+            $generation = $resource['generation'];
             $objectBody = $this->objectBodyForResourceReference($objects, $objectNumber, $generation);
             if ($objectBody === null || !isset($objects[$objectNumber]) || $objects[$objectNumber] !== $objectBody) {
                 continue;
             }
 
-            $resourceObjects[$this->decodePdfName($resource[1])] = $objectNumber;
+            $resourceObjects[$resourceName] = $objectNumber;
         }
 
         return $resourceObjects;
@@ -3582,19 +3578,76 @@ final class PdfTextExtractor
             return [];
         }
 
-        if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $xObjectDictionary, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $references = [];
-        foreach ($matches as $resource) {
-            $objectNumber = (int) $resource[2];
-            $generation = (int) $resource[3];
-            $references[$this->decodePdfName($resource[1])] = [
+        foreach ($this->topLevelResourceReferenceEntries($xObjectDictionary) as $resourceName => $resource) {
+            $objectNumber = $resource['objectNumber'];
+            $generation = $resource['generation'];
+            $references[$resourceName] = [
                 'objectNumber' => $objectNumber,
                 'generation' => $generation,
                 'body' => $this->objectBodyForExactReference($objects, $objectNumber, $generation),
             ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return array<string, array{objectNumber: int, generation: int}>
+     */
+    private function topLevelResourceReferenceEntries(string $dictionary): array
+    {
+        $dictionary = trim($dictionary);
+        if (str_starts_with($dictionary, '<<')) {
+            $body = $this->readPdfDictionaryAt($dictionary, 0);
+            if ($body === null) {
+                return [];
+            }
+            $dictionary = $body;
+        }
+
+        $references = [];
+        $offset = 0;
+        $length = strlen($dictionary);
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $next = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $next > $offset ? $next : $offset + 1;
+                continue;
+            }
+
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $resourceName = $this->decodePdfName(substr($dictionary, $nameStart, $nameEnd - $nameStart));
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $dictionary, $match, 0, $valueOffset) === 1) {
+                $references[$resourceName] = [
+                    'objectNumber' => (int) $match[1],
+                    'generation' => (int) $match[2],
+                ];
+            }
+
+            $next = $this->skipPdfValueAt($dictionary, $valueOffset);
+            $offset = $next > $valueOffset ? $next : $valueOffset + 1;
         }
 
         return $references;

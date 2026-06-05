@@ -970,6 +970,58 @@ return [
         $t->true(str_contains($encoded, hash('sha256', $currentPayload)));
         $t->true(!str_contains($encoded, hash('sha256', $stalePayload)));
     },
+    'ignores nested private XObject resource dictionary entries before image review and form text expansion' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before nested private XObject) Tj ET\n"
+            . "q 20 0 0 10 72 690 cm /Hero#20Image Do Q\n"
+            . "q 10 0 0 10 108 690 cm /Private#20Image Do Q\n"
+            . "q 10 0 0 10 132 690 cm /Private#20Form Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After nested private XObject) Tj ET';
+        $heroPayload = 'BT /F1 12 Tf 72 720 Td (Hero Image Payload Noise) Tj ET';
+        $privateImagePayload = 'BT /F1 12 Tf 72 720 Td (Private Image Payload Noise) Tj ET';
+        $privateFormPayload = 'BT /F1 12 Tf 72 720 Td (Private Form Text Leak) Tj ET';
+        $heroCompressed = gzcompress($heroPayload);
+        $privateImageCompressed = gzcompress($privateImagePayload);
+        if (!is_string($heroCompressed) || !is_string($privateImageCompressed)) {
+            throw new RuntimeException('Unable to compress nested private XObject fixture payloads.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Hero#20Image 5 0 R /Private << /Private#20Image 6 0 R /Private#20Form 7 0 R >> >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($heroCompressed) . " >>\nstream\n{$heroCompressed}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 9 /Height 9 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($privateImageCompressed) . " >>\nstream\n{$privateImageCompressed}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 40 20] /Resources << /Font << /F1 10 0 R >> >> /Length " . strlen($privateFormPayload) . " >>\nstream\n{$privateFormPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+        $t->same('Hero Image', $review['entries'][0]['resource_name']);
+        $t->same(['Hero Image'], $review['entries'][0]['resource_path']);
+        $t->same(5, $review['entries'][0]['object_number']);
+        $t->same([[20.0, 0.0, 0.0, 10.0, 72.0, 690.0]], $review['entries'][0]['invocation_matrices']);
+        $t->same([72.0, 690.0, 92.0, 700.0], $review['entries'][0]['image_unit_bbox']);
+        $t->same(true, $review['entries'][0]['decoded_with_current_filters']);
+        $t->same(hash('sha256', $heroPayload), $review['entries'][0]['decoded_sha256']);
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, 'Private Image'));
+        $t->true(!str_contains($encoded, hash('sha256', $privateImagePayload)));
+        $t->true(!str_contains($encoded, $privateImagePayload));
+        $t->true(!str_contains($encoded, 'Private Form'));
+
+        $t->same(['Before nested private XObject', 'After nested private XObject'], $extractor->extractTextLines($pdf));
+        $t->same("Before nested private XObject\nAfter nested private XObject", $plainText);
+        $t->true(!str_contains($plainText, 'Hero Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Private Image Payload Noise'));
+        $t->true(!str_contains($plainText, 'Private Form Text Leak'));
+    },
     'reports encrypted image XObject documents as fail-closed empty reviews' => static function (TestRunner $t): void {
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
             . "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n"
