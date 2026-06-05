@@ -1403,6 +1403,109 @@ XML;
         $t->contains('<p>Source cites [@smith1899] and [@missing-source].</p>', $blocksHtml);
         $t->contains('<p>Source cites (Smith 1899) and [@missing-source].</p>', $processedBlocks);
     },
+    'maps ODT table of contents into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTableOfContents = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:table-of-content text:name="Source Navigation" text:style-name="Contents_20_1" text:protected="true" text:protection-key="toc-key" text:protection-key-digest-algorithm="urn:odf:sha1">
+        <text:table-of-content-source text:outline-level="3" text:relative-tab-stop-position="true" text:use-index-marks="false" text:use-index-source-styles="true">
+          <text:index-title-template text:style-name="ContentsTitle">Contents</text:index-title-template>
+          <text:table-of-content-entry-template text:outline-level="1" text:style-name="ContentsEntry">
+            <text:index-entry-link-start/>
+            <text:index-entry-text/>
+            <text:index-entry-tab-stop style:type="right" style:position="17cm" style:leader-char="."/>
+            <text:index-entry-page-number/>
+            <text:index-entry-link-end/>
+          </text:table-of-content-entry-template>
+          <text:index-source-styles text:outline-level="1">
+            <text:index-source-style text:style-name="ImportHeading"/>
+          </text:index-source-styles>
+        </text:table-of-content-source>
+        <text:index-title text:name="Table of Contents">
+          <text:p>Contents</text:p>
+        </text:index-title>
+        <text:index-body>
+          <text:p><text:a xlink:href="#odt-source-packet">ODT source packet</text:a><text:tab/>1</text:p>
+          <text:p><text:a xlink:href="#review">Review table</text:a><text:tab/>2</text:p>
+        </text:index-body>
+      </text:table-of-content>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTableOfContents));
+        $blocks = $result['document']->children;
+
+        $t->same(1, count($blocks));
+        $toc = $blocks[0];
+        $t->same('div', $toc->type);
+        $t->same('source-navigation', $toc->attr('id'));
+        $t->same(['odf-table-of-contents', 'odf-protected-table-of-contents'], $toc->attr('classes'));
+        $t->same('Source Navigation', $toc->attr('tableOfContentsName'));
+        $t->same('Contents_20_1', $toc->attr('styleName'));
+        $t->same(true, $toc->attr('protected'));
+        $t->same(true, $toc->attr('protectionKeyPresent'));
+        $t->same('urn:odf:sha1', $toc->attr('protectionKeyDigestAlgorithm'));
+
+        $source = $toc->attr('tableOfContentsSource');
+        $t->same(3, $source['outlineLevel']);
+        $t->same(true, $source['relativeTabStopPosition']);
+        $t->same(false, $source['useIndexMarks']);
+        $t->same(true, $source['useIndexSourceStyles']);
+        $t->same([['outlineLevel' => 1, 'styleNames' => ['ImportHeading']]], $source['sourceStyles']);
+        $t->same('title', $source['templates'][0]['type']);
+        $t->same('ContentsTitle', $source['templates'][0]['styleName']);
+        $t->same('entry', $source['templates'][1]['type']);
+        $t->same(1, $source['templates'][1]['outlineLevel']);
+        $t->same('ContentsEntry', $source['templates'][1]['styleName']);
+        $t->same(['index-entry-link-start', 'index-entry-text', 'index-entry-tab-stop', 'index-entry-page-number', 'index-entry-link-end'], array_column($source['templates'][1]['components'], 'type'));
+        $t->same('right', $source['templates'][1]['components'][2]['tabStopType']);
+        $t->same('17cm', $source['templates'][1]['components'][2]['tabStopPosition']);
+        $t->same('.', $source['templates'][1]['components'][2]['leaderChar']);
+
+        $attributes = $toc->attr('attributes');
+        $t->same('Source Navigation', $attributes['data-odf-toc-name']);
+        $t->same('Contents_20_1', $attributes['data-odf-toc-style-name']);
+        $t->same('true', $attributes['data-odf-toc-protected']);
+        $t->same('true', $attributes['data-odf-toc-protection-key-present']);
+        $t->same('urn:odf:sha1', $attributes['data-odf-toc-protection-key-digest-algorithm']);
+        $t->same('3', $attributes['data-odf-toc-source-outline-level']);
+        $t->same('true', $attributes['data-odf-toc-source-relative-tab-stop-position']);
+        $t->same('false', $attributes['data-odf-toc-source-use-index-marks']);
+        $t->same('true', $attributes['data-odf-toc-source-use-index-source-styles']);
+        $t->same('1', $attributes['data-odf-toc-source-style-count']);
+        $t->same('2', $attributes['data-odf-toc-template-count']);
+
+        $title = $toc->children[0];
+        $body = $toc->children[1];
+        $t->same('div', $title->type);
+        $t->same(['odf-index-title'], $title->attr('classes'));
+        $t->same('true', $title->attr('attributes')['data-odf-index-title']);
+        $t->same('Contents', $title->children[0]->attr('text'));
+        $t->same('div', $body->type);
+        $t->same(['odf-index-body'], $body->attr('classes'));
+        $t->same('true', $body->attr('attributes')['data-odf-index-body']);
+        $t->same('#odt-source-packet', $body->children[0]->children[0]->attr('url'));
+        $t->same('ODT source packet', $body->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('#review', $body->children[1]->children[0]->attr('url'));
+        $t->same(1, $result['importReport']['content']['tableOfContentsCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {#source-navigation .odf-table-of-contents .odf-protected-table-of-contents data-odf-toc-name="Source Navigation"', $markdown);
+        $t->contains('data-odf-toc-source-use-index-marks="false"', $markdown);
+        $t->contains('[ODT source packet](#odt-source-packet)', $markdown);
+        $t->contains('<div id="source-navigation" class="odf-table-of-contents odf-protected-table-of-contents" data-odf-toc-name="Source Navigation"', $blocksHtml);
+        $t->contains('data-odf-toc-source-style-count="1"', $blocksHtml);
+        $t->contains('<div class="odf-index-title" data-odf-index-title="true"><p>Contents</p></div>', $blocksHtml);
+        $t->contains('<a href="#odt-source-packet">ODT source packet</a>', $blocksHtml);
+    },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedSections = <<<'XML'
 <office:document-content

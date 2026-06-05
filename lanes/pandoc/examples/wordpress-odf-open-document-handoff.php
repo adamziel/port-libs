@@ -114,6 +114,20 @@ $contentXml = <<<'XML'
         <text:user-field-decl text:name="SourcePackage" office:value-type="string" office:string-value="package-42"/>
       </text:user-field-decls>
       <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
+      <text:table-of-content text:name="Source Navigation" text:style-name="Contents_20_1" text:protected="true" text:protection-key="toc-review-key" text:protection-key-digest-algorithm="urn:odf:sha1">
+        <text:table-of-content-source text:outline-level="2" text:relative-tab-stop-position="true" text:use-index-source-styles="true">
+          <text:index-source-styles text:outline-level="1">
+            <text:index-source-style text:style-name="ImportHeading"/>
+          </text:index-source-styles>
+        </text:table-of-content-source>
+        <text:index-title text:name="Table of Contents">
+          <text:p>Contents</text:p>
+        </text:index-title>
+        <text:index-body>
+          <text:p><text:a xlink:href="#odt-source-packet">ODT source packet</text:a><text:tab/>1</text:p>
+          <text:p><text:a xlink:href="#review">Review table</text:a><text:tab/>2</text:p>
+        </text:index-body>
+      </text:table-of-content>
       <text:section text:name="Linked Policy Appendix" text:protected="true" text:protection-key="review-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
         <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
         <text:p>Linked appendix fallback text.</text:p>
@@ -239,6 +253,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<h1>ODT source packet</h1>')) {
         throw new RuntimeException('Expected ODT heading to render as a WordPress heading block');
+    }
+    if (($result['importReport']['content']['tableOfContentsCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table of contents to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<div id="source-navigation" class="odf-table-of-contents odf-protected-table-of-contents" data-odf-toc-name="Source Navigation"')) {
+        throw new RuntimeException('Expected ODT table-of-contents metadata to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-toc-source-outline-level="2"')) {
+        throw new RuntimeException('Expected ODT table-of-contents source settings to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<a href="#odt-source-packet">ODT source packet</a>')) {
+        throw new RuntimeException('Expected ODT table-of-contents entry links to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<sup><span data-odf-style-name="SourceSuperscript">TM</span></sup>')) {
         throw new RuntimeException('Expected ODT superscript source mark to render in WordPress blocks');

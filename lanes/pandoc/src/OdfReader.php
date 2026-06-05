@@ -183,6 +183,7 @@ final class OdfReader
                     'sectionCount' => $contentStats['sectionCount'],
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
+                    'tableOfContentsCount' => $contentStats['tableOfContentsCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                 ],
@@ -602,6 +603,13 @@ final class OdfReader
                 $blocks[] = $this->sectionNode($child, $package, $catalog);
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'table-of-content')) {
+                $tableOfContents = $this->tableOfContentsNode($child, $package, $catalog);
+                if ($tableOfContents !== null) {
+                    $blocks[] = $tableOfContents;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::TABLE_NS, 'table')) {
                 $blocks[] = $this->tableNode($child, $package, $catalog);
                 continue;
@@ -850,6 +858,222 @@ final class OdfReader
         }
 
         return new AstNode('div', $attrs, $this->blockNodes($section, $package, $catalog));
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function tableOfContentsNode(\DOMElement $tableOfContents, ZipPackage $package, array $catalog): ?AstNode
+    {
+        $name = self::attr($tableOfContents, self::TEXT_NS, 'name');
+        $styleName = self::attr($tableOfContents, self::TEXT_NS, 'style-name');
+        $attrs = [
+            'sourceFormat' => 'odt',
+            'classes' => ['odf-table-of-contents'],
+            'attributes' => [],
+        ];
+
+        if ($name !== '') {
+            $attrs['id'] = self::slug($name);
+            $attrs['tableOfContentsName'] = $name;
+            $attrs['attributes']['data-odf-toc-name'] = $name;
+        }
+        if ($styleName !== '') {
+            $attrs['styleName'] = $styleName;
+            $attrs['attributes']['data-odf-toc-style-name'] = $styleName;
+        }
+
+        $protected = self::nullableBool(self::attr($tableOfContents, self::TEXT_NS, 'protected'));
+        if ($protected !== null) {
+            $attrs['protected'] = $protected;
+            $attrs['attributes']['data-odf-toc-protected'] = $protected ? 'true' : 'false';
+            if ($protected) {
+                $attrs['classes'][] = 'odf-protected-table-of-contents';
+            }
+        }
+
+        $protectionKey = self::attr($tableOfContents, self::TEXT_NS, 'protection-key');
+        if ($protectionKey !== '') {
+            $attrs['protectionKeyPresent'] = true;
+            $attrs['attributes']['data-odf-toc-protection-key-present'] = 'true';
+        }
+        $digestAlgorithm = self::attr($tableOfContents, self::TEXT_NS, 'protection-key-digest-algorithm');
+        if ($digestAlgorithm !== '') {
+            $attrs['protectionKeyDigestAlgorithm'] = $digestAlgorithm;
+            $attrs['attributes']['data-odf-toc-protection-key-digest-algorithm'] = $digestAlgorithm;
+        }
+
+        $source = self::firstChildElement($tableOfContents, 'table-of-content-source', self::TEXT_NS);
+        if ($source instanceof \DOMElement) {
+            $sourceMetadata = $this->tableOfContentsSourceMetadata($source);
+            if ($sourceMetadata !== []) {
+                $attrs['tableOfContentsSource'] = $sourceMetadata;
+                $this->addTableOfContentsSourceAttributes($attrs['attributes'], $sourceMetadata);
+            }
+        }
+
+        $children = [];
+        foreach (self::childElements($tableOfContents) as $child) {
+            if ($this->isElement($child, self::TEXT_NS, 'index-title')) {
+                $titleBlocks = $this->blockNodes($child, $package, $catalog);
+                if ($titleBlocks !== []) {
+                    $children[] = new AstNode('div', [
+                        'sourceFormat' => 'odt',
+                        'classes' => ['odf-index-title'],
+                        'attributes' => [
+                            'data-odf-index-title' => 'true',
+                        ],
+                    ], $titleBlocks);
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::TEXT_NS, 'index-body')) {
+                $bodyBlocks = $this->blockNodes($child, $package, $catalog);
+                if ($bodyBlocks !== []) {
+                    $children[] = new AstNode('div', [
+                        'sourceFormat' => 'odt',
+                        'classes' => ['odf-index-body'],
+                        'attributes' => [
+                            'data-odf-index-body' => 'true',
+                        ],
+                    ], $bodyBlocks);
+                }
+            }
+        }
+
+        if ($children === [] && $attrs['attributes'] === []) {
+            return null;
+        }
+
+        return new AstNode('div', $attrs, $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableOfContentsSourceMetadata(\DOMElement $source): array
+    {
+        $metadata = self::withoutEmpty([
+            'outlineLevel' => self::nullableInt(self::attr($source, self::TEXT_NS, 'outline-level')),
+            'relativeTabStopPosition' => self::nullableBool(self::attr($source, self::TEXT_NS, 'relative-tab-stop-position')),
+            'useIndexMarks' => self::nullableBool(self::attr($source, self::TEXT_NS, 'use-index-marks')),
+            'useIndexSourceStyles' => self::nullableBool(self::attr($source, self::TEXT_NS, 'use-index-source-styles')),
+            'useObjects' => self::nullableBool(self::attr($source, self::TEXT_NS, 'use-objects')),
+            'useTables' => self::nullableBool(self::attr($source, self::TEXT_NS, 'use-tables')),
+            'useGraphics' => self::nullableBool(self::attr($source, self::TEXT_NS, 'use-graphics')),
+        ]);
+
+        $sourceStyles = $this->tableOfContentsSourceStyles($source);
+        if ($sourceStyles !== []) {
+            $metadata['sourceStyles'] = $sourceStyles;
+        }
+
+        $templates = $this->tableOfContentsTemplates($source);
+        if ($templates !== []) {
+            $metadata['templates'] = $templates;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<array{outlineLevel?:int, styleNames:list<string>}>
+     */
+    private function tableOfContentsSourceStyles(\DOMElement $source): array
+    {
+        $styles = [];
+        foreach (self::childElements($source, 'index-source-styles', self::TEXT_NS) as $sourceStyles) {
+            $styleNames = [];
+            foreach (self::childElements($sourceStyles, 'index-source-style', self::TEXT_NS) as $sourceStyle) {
+                $styleName = self::attr($sourceStyle, self::TEXT_NS, 'style-name');
+                if ($styleName !== '') {
+                    $styleNames[] = $styleName;
+                }
+            }
+
+            $entry = self::withoutEmpty([
+                'outlineLevel' => self::nullableInt(self::attr($sourceStyles, self::TEXT_NS, 'outline-level')),
+                'styleNames' => $styleNames,
+            ]);
+            if ($entry !== []) {
+                $styles[] = $entry;
+            }
+        }
+
+        return $styles;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function tableOfContentsTemplates(\DOMElement $source): array
+    {
+        $templates = [];
+        foreach (self::childElements($source) as $template) {
+            if (!$this->isElement($template, self::TEXT_NS, 'index-title-template')
+                && !$this->isElement($template, self::TEXT_NS, 'table-of-content-entry-template')) {
+                continue;
+            }
+
+            $templates[] = self::withoutEmpty([
+                'type' => $template->localName === 'index-title-template' ? 'title' : 'entry',
+                'outlineLevel' => self::nullableInt(self::attr($template, self::TEXT_NS, 'outline-level')),
+                'styleName' => self::nullable(self::attr($template, self::TEXT_NS, 'style-name')),
+                'components' => $this->tableOfContentsTemplateComponents($template),
+            ]);
+        }
+
+        return $templates;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function tableOfContentsTemplateComponents(\DOMElement $template): array
+    {
+        $components = [];
+        foreach (self::childElements($template) as $component) {
+            if ($component->namespaceURI !== self::TEXT_NS) {
+                continue;
+            }
+
+            $componentMetadata = self::withoutEmpty([
+                'type' => $component->localName,
+                'styleName' => self::attr($component, self::TEXT_NS, 'style-name'),
+                'leaderChar' => self::attr($component, self::STYLE_NS, 'leader-char'),
+                'tabStopType' => self::attr($component, self::STYLE_NS, 'type'),
+                'tabStopPosition' => self::attr($component, self::STYLE_NS, 'position'),
+            ]);
+            if ($componentMetadata !== []) {
+                $components[] = $componentMetadata;
+            }
+        }
+
+        return $components;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, mixed> $sourceMetadata
+     */
+    private function addTableOfContentsSourceAttributes(array &$attributes, array $sourceMetadata): void
+    {
+        foreach ($sourceMetadata as $name => $value) {
+            if (is_bool($value)) {
+                $attributes['data-odf-toc-source-' . self::kebabCase($name)] = $value ? 'true' : 'false';
+                continue;
+            }
+            if (is_int($value) || is_string($value)) {
+                $attributes['data-odf-toc-source-' . self::kebabCase($name)] = (string) $value;
+            }
+        }
+
+        if (isset($sourceMetadata['sourceStyles']) && is_array($sourceMetadata['sourceStyles'])) {
+            $attributes['data-odf-toc-source-style-count'] = (string) count($sourceMetadata['sourceStyles']);
+        }
+        if (isset($sourceMetadata['templates']) && is_array($sourceMetadata['templates'])) {
+            $attributes['data-odf-toc-template-count'] = (string) count($sourceMetadata['templates']);
+        }
     }
 
     /**
@@ -3382,7 +3606,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, continuedListCount:int, listHeaderCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -3407,6 +3631,7 @@ final class OdfReader
             'sectionCount' => 0,
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
+            'tableOfContentsCount' => 0,
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
         ];
@@ -3422,6 +3647,9 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-protected-section')) {
                 $stats['protectedSectionCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-of-contents')) {
+                $stats['tableOfContentsCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
                 $stats['bookmarkCount']++;
