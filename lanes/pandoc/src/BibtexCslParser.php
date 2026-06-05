@@ -566,6 +566,10 @@ final class BibtexCslParser
     private static function entryToCslItem(string $type, string $key, array $fields): array
     {
         $page = self::normalizePages(self::firstField($fields, ['pages', 'page']));
+        $publisherList = self::literalListFromFirstField($fields, ['publisher', 'institution', 'school', 'organization']);
+        $publisherPlaceList = self::literalListFromFirstField($fields, ['location', 'address', 'venue']);
+        $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher']);
+        $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress']);
         $item = [
             'id' => $key,
             'type' => self::cslType($type),
@@ -587,8 +591,8 @@ final class BibtexCslParser
             'event-title-addon' => self::firstField($fields, ['eventtitleaddon']),
             'event-place' => self::firstField($fields, ['venue', 'eventvenue', 'eventlocation', 'eventplace']),
             'event-type' => self::firstField($fields, ['eventtype']),
-            'publisher' => self::firstField($fields, ['publisher', 'institution', 'school', 'organization']),
-            'publisher-place' => self::firstField($fields, ['location', 'address', 'venue']),
+            'publisher' => self::literalListDisplay($publisherList),
+            'publisher-place' => self::literalListDisplay($publisherPlaceList),
             'page' => $page,
             'page-first' => self::firstPageFromRange($page),
             'number' => self::firstField($fields, ['number']),
@@ -621,8 +625,8 @@ final class BibtexCslParser
             'addendum' => self::firstField($fields, ['addendum']),
             'name-addon' => self::firstField($fields, ['nameaddon', 'name-addon']),
             'original-title' => self::firstField($fields, ['origtitle']),
-            'original-publisher' => self::firstField($fields, ['origpublisher']),
-            'original-publisher-place' => self::firstField($fields, ['origlocation', 'origaddress']),
+            'original-publisher' => self::literalListDisplay($originalPublisherList),
+            'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),
             'original-language' => self::firstField($fields, ['origlanguage']),
             'rawBibtex' => [
                 'type' => $type,
@@ -630,6 +634,22 @@ final class BibtexCslParser
                 'fields' => $fields,
             ],
         ];
+
+        if ($publisherList !== []) {
+            $item['publisher-list'] = $publisherList;
+        }
+
+        if ($publisherPlaceList !== []) {
+            $item['publisher-place-list'] = $publisherPlaceList;
+        }
+
+        if ($originalPublisherList !== []) {
+            $item['original-publisher-list'] = $originalPublisherList;
+        }
+
+        if ($originalPublisherPlaceList !== []) {
+            $item['original-publisher-place-list'] = $originalPublisherPlaceList;
+        }
 
         $keywords = self::keywordList(self::firstField($fields, ['keywords', 'keyword']));
         if ($keywords !== []) {
@@ -945,6 +965,89 @@ final class BibtexCslParser
             array_map(static fn (string $keyword): string => trim($keyword), $keywords),
             static fn (string $keyword): bool => $keyword !== ''
         ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $names
+     * @return list<string>
+     */
+    private static function literalListFromFirstField(array $fields, array $names): array
+    {
+        foreach ($names as $name) {
+            if (!isset($fields[$name]) || trim($fields[$name]) === '') {
+                continue;
+            }
+
+            $values = self::literalListFromText($fields[$name]);
+            if ($values !== []) {
+                return $values;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function literalListFromText(string $value): array
+    {
+        $values = [];
+        foreach (self::splitBiblatexLiteralList($value) as $part) {
+            $part = self::cleanBibtexText($part);
+            if ($part !== '') {
+                $values[] = $part;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitBiblatexLiteralList(string $value): array
+    {
+        $parts = [];
+        $buffer = '';
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '{') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth = max(0, $depth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($depth === 0 && preg_match('/\G\s+and\s+/i', $value, $match, 0, $i) === 1) {
+                $parts[] = $buffer;
+                $buffer = '';
+                $i += strlen($match[0]) - 1;
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return $parts;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function literalListDisplay(array $values): string
+    {
+        return implode('; ', $values);
     }
 
     /**

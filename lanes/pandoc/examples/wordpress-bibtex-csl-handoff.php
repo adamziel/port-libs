@@ -37,6 +37,8 @@ Title metadata sources @title-review and @chapter-title-review keep reviewer sub
 
 Publication detail sources @journal-detail and @book-detail preserve volume, issue, series, and identifier metadata.
 
+Publisher-list source @distributed-review and institutional packet [@institutional-packet] preserve multi-place publication metadata.
+
 Abbreviated journal source @short-journal-detail preserves short journal metadata for review.
 
 First-page metadata for @journal-detail keeps page-range review cues addressable.
@@ -299,6 +301,25 @@ $bibtex = <<<'BIB'
   seriesnumber = {7},
   publisher    = {Review Press},
   isbn         = {978-1-2345-6789-0}
+}
+
+@book{distributed-review,
+  author        = {Curator, Eli},
+  title         = {Distributed Source Review},
+  date          = {2026},
+  publisher     = {{Review Press} and {Archive Desk}},
+  location      = {{New York} and {London}},
+  origpublisher = {{Archivo Press} and {Migration Desk}},
+  origlocation  = {{Madrid} and {Barcelona}},
+  url           = {https://example.test/distributed-review}
+}
+
+@report{institutional-packet,
+  author      = {Ng, Nia},
+  title       = {Institutional Review Packet},
+  date        = {2025},
+  institution = {{Migration Board} and {Source Lab}},
+  address     = {{Remote} and {Portland}}
 }
 
 @inbook{volume-chapter,
@@ -599,6 +620,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bookDetail['isbn'] ?? null) !== '978-1-2345-6789-0') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book ISBN metadata');
     }
+    $distributedReview = $processor->item('distributed-review');
+    if (($distributedReview['publisherList'] ?? null) !== ['Review Press', 'Archive Desk']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve distributed publisher literal-list metadata');
+    }
+    if (($distributedReview['publisherPlaceList'] ?? null) !== ['New York', 'London']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve distributed publisher-place literal-list metadata');
+    }
+    if (($distributedReview['originalPublisherList'] ?? null) !== ['Archivo Press', 'Migration Desk']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve distributed original publisher list metadata');
+    }
+    if (($distributedReview['originalPublisherPlaceList'] ?? null) !== ['Madrid', 'Barcelona']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve distributed original publisher-place list metadata');
+    }
+    $institutionalPacket = $processor->item('institutional-packet');
+    if (($institutionalPacket['publisherList'] ?? null) !== ['Migration Board', 'Source Lab']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map institutional publisher literal-list metadata');
+    }
+    if (($institutionalPacket['publisherPlaceList'] ?? null) !== ['Remote', 'Portland']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not map institutional publisher-place literal-list metadata');
+    }
     $volumeChapter = $processor->item('volume-chapter');
     if (($volumeChapter['mainTitle'] ?? null) !== 'Migration Source Dossier: Multi-volume Reviewer Set') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve volume-chapter main title metadata');
@@ -782,6 +823,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Publication detail sources Doe (2026) and Curator (2025) preserve volume, issue, series, and identifier metadata.</p>',
         '<p>First-page metadata for Doe (2026) keeps page-range review cues addressable.</p>',
         '<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>',
+        '<p>Publisher-list source Curator (2026) and institutional packet (Ng 2025) preserve multi-place publication metadata.</p>',
+        '<dt>Curator 2026</dt><dd>Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.</dd>',
+        '<dt>Ng 2025</dt><dd>Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.</dd>',
         '<p>Abbreviated journal source Doe (2026) preserves short journal metadata for review.</p>',
         '<dt>Doe 2026</dt><dd>Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.</dd>',
         '<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>',

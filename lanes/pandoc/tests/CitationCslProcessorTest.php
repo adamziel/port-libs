@@ -1195,6 +1195,104 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex publisher and location literal lists into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{distributed-review,
+  author        = {Curator, Eli},
+  title         = {Distributed Source Review},
+  date          = {2026},
+  publisher     = {{Review Press} and {Archive Desk}},
+  location      = {{New York} and {London}},
+  origpublisher = {{Archivo Press} and {Migration Desk}},
+  origlocation  = {{Madrid} and {Barcelona}},
+  url           = {https://example.test/distributed-review}
+}
+
+@report{institutional-packet,
+  author      = {Ng, Nia},
+  title       = {Institutional Review Packet},
+  date        = {2025},
+  institution = {{Migration Board} and {Source Lab}},
+  address     = {{Remote} and {Portland}}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Review Press; Archive Desk', $items[0]['publisher']);
+        $t->same(['Review Press', 'Archive Desk'], $items[0]['publisher-list']);
+        $t->same('New York; London', $items[0]['publisher-place']);
+        $t->same(['New York', 'London'], $items[0]['publisher-place-list']);
+        $t->same(['Archivo Press', 'Migration Desk'], $items[0]['original-publisher-list']);
+        $t->same(['Madrid', 'Barcelona'], $items[0]['original-publisher-place-list']);
+        $t->same('Migration Board; Source Lab', $items[1]['publisher']);
+        $t->same(['Remote', 'Portland'], $items[1]['publisher-place-list']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $review = $processor->item('distributed-review');
+        $packet = $processor->item('institutional-packet');
+        $t->same(['Review Press', 'Archive Desk'], $review['publisherList'] ?? null);
+        $t->same(['New York', 'London'], $review['publisherPlaceList'] ?? null);
+        $t->same(['Archivo Press', 'Migration Desk'], $review['originalPublisherList'] ?? null);
+        $t->same(['Madrid', 'Barcelona'], $review['originalPublisherPlaceList'] ?? null);
+        $t->same(['Migration Board', 'Source Lab'], $packet['publisherList'] ?? null);
+        $t->same(['Remote', 'Portland'], $packet['publisherPlaceList'] ?? null);
+        $t->same('(Curator 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('distributed-review', '[@distributed-review]'),
+            $citation('institutional-packet', '[@institutional-packet]'),
+        ]));
+        $t->same(
+            'Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.',
+            $processor->renderBibliographyEntry('distributed-review')
+        );
+        $t->same('Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.', $processor->renderBibliographyEntry('institutional-packet'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher-list"/>
+        <text variable="publisher-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher-list"/>
+      <text variable="publisher-place-list"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Curator | Review Press; Archive Desk | New York; London; Ng | Migration Board; Source Lab | Remote; Portland]', $styled->renderCitationCluster([
+            $citation('distributed-review', '[@distributed-review]'),
+            $citation('institutional-packet', '[@institutional-packet]'),
+        ]));
+        $t->same('Distributed Source Review :: Review Press; Archive Desk :: New York; London :: Archivo Press; Migration Desk :: Madrid; Barcelona', $styled->renderBibliographyEntry('distributed-review'));
+        $t->same('Institutional Review Packet :: Migration Board; Source Lab :: Remote; Portland', $styled->renderBibliographyEntry('institutional-packet'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-publisher-list',
+            'title' => 'Manual Publisher List',
+            'publisher' => 'Primary Press',
+            'publisher-list' => ['Primary Press', 'Secondary Desk'],
+            'publisher-place-list' => ['Remote', 'Lisbon'],
+        ]])->item('manual-publisher-list');
+        $t->same(['Primary Press', 'Secondary Desk'], $manual['publisherList'] ?? null);
+        $t->same(['Remote', 'Lisbon'], $manual['publisherPlaceList'] ?? null);
+
+        $document = (new MarkdownReader())->read('Publisher list source @distributed-review and institutional packet [@institutional-packet] keep multi-place metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Publisher list source Curator (2026) and institutional packet (Ng 2025) keep multi-place metadata.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.</dd>', $blocks);
+    },
     'maps bounded biblatex journal abbreviations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{short-journal-detail,

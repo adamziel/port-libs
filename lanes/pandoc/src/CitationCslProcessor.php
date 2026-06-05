@@ -398,6 +398,17 @@ final class CitationCslProcessor
             $parts[] = $year . '.';
         }
 
+        $publisherPlaceList = $item['publisherPlaceList'] ?? [];
+        if (is_array($publisherPlaceList) && count($publisherPlaceList) > 1) {
+            $places = array_values(array_filter(
+                array_map(static fn (mixed $place): string => trim((string) $place), $publisherPlaceList),
+                static fn (string $place): bool => $place !== ''
+            ));
+            if ($places !== []) {
+                $parts[] = 'Publisher places: ' . implode('; ', $places) . '.';
+            }
+        }
+
         $page = (string) $item['page'];
         if ($page !== '') {
             $parts[] = $page . '.';
@@ -603,6 +614,14 @@ final class CitationCslProcessor
         ];
         $page = self::stringField($item, 'page');
         $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
+        $publisher = self::stringField($item, 'publisher');
+        $publisherPlace = self::stringField($item, 'publisher-place');
+        $originalPublisher = self::stringField($item, 'original-publisher');
+        $originalPublisherPlace = self::stringField($item, 'original-publisher-place');
+        $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
+        $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
+        $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
+        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList']);
 
         return [
             'id' => $id,
@@ -624,8 +643,10 @@ final class CitationCslProcessor
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon']),
             'eventPlace' => self::firstStringField($item, ['event-place', 'eventPlace']),
             'eventType' => self::firstStringField($item, ['event-type', 'eventType']),
-            'publisher' => self::stringField($item, 'publisher'),
-            'publisherPlace' => self::stringField($item, 'publisher-place'),
+            'publisher' => $publisher,
+            'publisherPlace' => $publisherPlace,
+            'publisherList' => $publisherList !== [] ? $publisherList : ($publisher !== '' ? [$publisher] : []),
+            'publisherPlaceList' => $publisherPlaceList !== [] ? $publisherPlaceList : ($publisherPlace !== '' ? [$publisherPlace] : []),
             'page' => $page,
             'pageFirst' => self::firstStringField($item, ['page-first', 'pageFirst']) ?: self::firstPageFromRange($page),
             'number' => self::stringField($item, 'number'),
@@ -663,8 +684,10 @@ final class CitationCslProcessor
             'issuedDate' => $issuedDate,
             'accessedDate' => self::dateVariable($item['accessed'] ?? null, $id, 'accessed'),
             'originalTitle' => self::stringField($item, 'original-title'),
-            'originalPublisher' => self::stringField($item, 'original-publisher'),
-            'originalPublisherPlace' => self::stringField($item, 'original-publisher-place'),
+            'originalPublisher' => $originalPublisher,
+            'originalPublisherPlace' => $originalPublisherPlace,
+            'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
+            'originalPublisherPlaceList' => $originalPublisherPlaceList !== [] ? $originalPublisherPlaceList : ($originalPublisherPlace !== '' ? [$originalPublisherPlace] : []),
             'originalLanguage' => self::stringField($item, 'original-language'),
             'originalDate' => self::dateVariable($item['original-date'] ?? null, $id, 'original-date'),
             'eventDate' => self::dateVariable($item['event-date'] ?? null, $id, 'event-date'),
@@ -4255,6 +4278,8 @@ final class CitationCslProcessor
             'event-type' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
+            'publisher-list' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
+            'publisher-place-list' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
             'page' => (string) $item['page'],
             'page-first' => (string) $item['pageFirst'],
             'number' => (string) $item['number'],
@@ -4287,6 +4312,8 @@ final class CitationCslProcessor
             'addendum' => (string) $item['addendum'],
             'name-addon' => (string) $item['nameAddon'],
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
+            'original-publisher-list' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
+            'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
             'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),
