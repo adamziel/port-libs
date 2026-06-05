@@ -159,6 +159,8 @@ $runLengthImageRow = 'RL EI BT /F1 12 Tf 72 618 Td (RunLength Inline Noise) Tj E
 $runLengthPayload = $runLengthLiteralEncode($runLengthImageRow, true);
 $malformedFilterPayload = 'abc EI BT /F1 12 Tf 72 574 Td (Malformed Filter Inline Noise) Tj ET rawtail';
 $unresolvedFilterPayload = 'abc EI BT /F1 12 Tf 72 546 Td (Unresolved Filter Inline Noise) Tj ET rawtail';
+$unsupportedCryptFilterPayload = 'abc EI BT /F1 12 Tf 72 530 Td (Crypt Inline Decode Noise) Tj ET rawtail';
+$unsupportedCryptFilterDictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Crypt /D [0 1]';
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -194,7 +196,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 548 Td (Before Unresolved Filter Inline) Tj ET\n"
     . "BI /W 8 /H 1 /CS /G /BPC 8 /F 99 0 R ID\n"
     . $unresolvedFilterPayload . "\nEI\n"
-    . "BT /F1 12 Tf 72 532 Td (After Unresolved Filter Inline) Tj ET";
+    . "BT /F1 12 Tf 72 532 Td (After Unresolved Filter Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 531 Td (Before Crypt Inline Review) Tj ET\n"
+    . "BI {$unsupportedCryptFilterDictionary} ID\n"
+    . $unsupportedCryptFilterPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 528 Td (After Crypt Inline Review) Tj ET";
 
 $pdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
@@ -343,6 +349,21 @@ try {
 } catch (InvalidArgumentException) {
     $unresolvedInlineDecodeRejected = true;
 }
+$unsupportedCryptFilterReview = $renderer->inlineImageReviewPlan(
+    $unsupportedCryptFilterDictionary,
+    $unsupportedCryptFilterPayload
+);
+$unsupportedCryptFilterPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $unsupportedCryptFilterDictionary,
+        $unsupportedCryptFilterPayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $unsupportedCryptFilterPreviewRejected = true;
+}
 $malformedInlineMaskDecodeRejected = false;
 try {
     $renderer->inlineImageMaskPreviewRows(
@@ -396,6 +417,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Malformed Filter Inline',
         'Before Unresolved Filter Inline',
         'After Unresolved Filter Inline',
+        'Before Crypt Inline Review',
+        'After Crypt Inline Review',
     ],
     'requires_ascii85_end_marker_before_ei' => true,
     'accepts_filtered_inline_sample_floor_before_real_ei' => true,
@@ -435,6 +458,12 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'rawtail'),
     'unresolved_inline_filter_operand_payload_excluded_until_safe_boundary' => !str_contains($plainText, 'Unresolved Filter Inline Noise')
         && !str_contains($plainText, 'rawtail'),
+    'unsupported_inline_filter_review_only' => ($unsupportedCryptFilterReview['inline_image_review_only'] ?? null) === true
+        && ($unsupportedCryptFilterReview['inline_image']['native_raster_decode'] ?? null) === false
+        && ($unsupportedCryptFilterReview['inline_image']['unsupported_filters'] ?? []) === ['Crypt']
+        && ($unsupportedCryptFilterReview['image_filter_boundary']['native_raster_decode'] ?? null) === false
+        && ($unsupportedCryptFilterReview['image_filter_boundary']['unsupported_filters'] ?? []) === ['Crypt'],
+    'unsupported_inline_filter_preview_rejected' => $unsupportedCryptFilterPreviewRejected,
     'invalid_lzw_earlychange_decode_failed' => $invalidLzwEarlyChangeDecodeFailed,
     'malformed_inline_decode_source' => $malformedInlineDecodeReview['image_decode']['source'] ?? null,
     'malformed_inline_decode_component_mismatch' => $malformedInlineDecodeReview['image_decode_component_mismatch'] ?? null,
@@ -458,6 +487,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'RL EI')
         && !str_contains($plainText, 'Malformed Filter Inline Noise')
         && !str_contains($plainText, 'Unresolved Filter Inline Noise')
+        && !str_contains($plainText, 'Crypt Inline Decode Noise')
         && !str_contains($plainText, 'rawtail'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 

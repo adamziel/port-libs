@@ -842,6 +842,11 @@ final class PdfImageRenderer
         $filters = $plan['image_filters'];
         $previewOnlyFilters = $plan['image_filter_boundary']['preview_only_filters'];
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
+        $unsupportedFilters = $this->unsupportedInlineImageFilters($filters);
+        if ($unsupportedFilters !== []) {
+            $plan['image_filter_boundary']['unsupported_filters'] = $unsupportedFilters;
+            $plan['image_filter_boundary']['native_raster_decode'] = false;
+        }
         $softMask = is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null;
         $softMaskBoundary = is_array($plan['soft_mask_filter_boundary'] ?? null) ? $plan['soft_mask_filter_boundary'] : null;
         $jpxSoftMaskInData = is_array($plan['jpx_soft_mask_in_data'] ?? null) ? $plan['jpx_soft_mask_in_data'] : null;
@@ -856,7 +861,8 @@ final class PdfImageRenderer
             'has_object_number' => false,
             'excluded_from_visible_text' => true,
             'review_only_filters' => $previewOnlyFilters,
-            'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [],
+            'unsupported_filters' => $unsupportedFilters,
+            'native_raster_decode' => $previewOnlyFilters === [] && $operandBoundaryFilters === [] && $unsupportedFilters === [],
             'soft_mask_present' => $softMask !== null && ($softMask['present'] ?? false) === true,
             'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
             'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
@@ -868,7 +874,7 @@ final class PdfImageRenderer
         ];
         $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
         $plan['inline_image_payload_excluded_from_text'] = true;
-        $plan['inline_image_review_only'] = $previewOnlyFilters !== [];
+        $plan['inline_image_review_only'] = $previewOnlyFilters !== [] || $unsupportedFilters !== [];
         $plan['notes'][] = 'inline_image_dictionary_abbreviations_expanded';
         $plan['notes'][] = 'inline_image_payload_excluded_from_visible_text';
         if (in_array('JBIG2Decode', $filters, true)) {
@@ -890,6 +896,10 @@ final class PdfImageRenderer
             $plan['notes'][] = $filter === self::UNRESOLVED_IMAGE_FILTER_OPERAND
                 ? 'inline_unresolved_image_filter_operand_fail_closed'
                 : 'inline_malformed_image_filter_operand_fail_closed';
+        }
+        foreach ($unsupportedFilters as $filter) {
+            $plan['notes'][] = 'inline_unsupported_image_filter_review_only';
+            $plan['notes'][] = 'inline_' . strtolower($filter) . '_image_filter_review_only';
         }
         if (
             ($plan['inline_image']['soft_mask_present'] ?? false) === true
@@ -4266,6 +4276,28 @@ final class PdfImageRenderer
      * @param list<string> $filters
      * @return list<string>
      */
+    private function unsupportedInlineImageFilters(array $filters): array
+    {
+        $unsupported = [];
+        foreach ($filters as $filter) {
+            if (
+                $this->isPreviewOnlyStreamFilter($filter)
+                || $this->isNativeImageStreamFilter($filter)
+                || in_array($filter, [self::MALFORMED_IMAGE_FILTER_OPERAND, self::UNRESOLVED_IMAGE_FILTER_OPERAND], true)
+            ) {
+                continue;
+            }
+
+            $unsupported[] = $filter;
+        }
+
+        return $unsupported;
+    }
+
+    /**
+     * @param list<string> $filters
+     * @return list<string>
+     */
     private function imageFilterOperandBoundaryFilters(array $filters): array
     {
         return array_values(array_filter(
@@ -6079,6 +6111,22 @@ final class PdfImageRenderer
     private function isPreviewOnlyStreamFilter(string $filter): bool
     {
         return $this->isPreviewOnlyImageFilter($filter) || in_array($filter, ['DCTDecode', 'DCT'], true);
+    }
+
+    private function isNativeImageStreamFilter(string $filter): bool
+    {
+        return in_array($filter, [
+            'ASCIIHexDecode',
+            'AHx',
+            'ASCII85Decode',
+            'A85',
+            'RunLengthDecode',
+            'RL',
+            'FlateDecode',
+            'Fl',
+            'LZWDecode',
+            'LZW',
+        ], true);
     }
 
     /**

@@ -605,6 +605,38 @@ return [
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'abc EI'));
     },
+    'marks unsupported inline image filters as review-only before RGB preview metadata' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Crypt Inline Decode Noise) Tj ET rawtail';
+        $dictionary = '/W 8 /H 1 /CS /G /BPC 8 /F /Crypt /D [0 1]';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Crypt Inline Review) Tj ET\n"
+            . "BI {$dictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Crypt Inline Review) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $renderer->inlineImageReviewPlan($dictionary, $payload);
+
+        $t->same([
+            'Before Crypt Inline Review',
+            'After Crypt Inline Review',
+        ], $extractor->extractTextLines($pdf));
+        $t->same("Before Crypt Inline Review\nAfter Crypt Inline Review", $plainText);
+        $t->true(!str_contains($plainText, 'Crypt Inline Decode Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->same(['Crypt'], $review['image_filters']);
+        $t->same(['Crypt'], $review['image_filter_boundary']['unsupported_filters']);
+        $t->same(false, $review['image_filter_boundary']['native_raster_decode']);
+        $t->same(true, $review['inline_image_review_only']);
+        $t->same(false, $review['inline_image']['native_raster_decode']);
+        $t->same(['Crypt'], $review['inline_image']['unsupported_filters']);
+        $t->contains('inline_unsupported_image_filter_review_only', implode(',', $review['notes']));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
+        );
+    },
     'closes malformed inline image filter fallbacks before the next inline image preamble' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $extractor = new PdfTextExtractor();
         $malformedPayload = 'abcdefgh EI BT /F1 12 Tf 72 660 Td (First Malformed Inline Noise) Tj ET rawtail';
