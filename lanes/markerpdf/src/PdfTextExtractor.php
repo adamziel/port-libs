@@ -21199,6 +21199,7 @@ final class PdfTextExtractor
                     if (
                         $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
+                        || $this->contentSegmentContainsUnterminatedMarkedContentReplacementLiteral($segmentAfterFallback)
                     ) {
                         $index = $incompletePreviewFallbackEnd + 2;
                         return true;
@@ -21296,6 +21297,167 @@ final class PdfTextExtractor
             if ($dictionary !== null && $this->inlineImageDictionaryHasImageKeys($dictionary)) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    private function contentSegmentContainsUnterminatedMarkedContentReplacementLiteral(string $segment): bool
+    {
+        $index = 0;
+        $length = strlen($segment);
+        $previousTokenWasName = false;
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($segment, $index);
+                $previousTokenWasName = true;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($segment[$index + 1] ?? '') === '<') {
+                    if (
+                        $previousTokenWasName
+                        && $this->incompleteDictionaryHasUnterminatedMarkedContentReplacementLiteral($segment, $index)
+                    ) {
+                        return true;
+                    }
+
+                    $this->readDictionaryToken($segment, $index);
+                    $previousTokenWasName = false;
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                $previousTokenWasName = false;
+                continue;
+            }
+
+            if ($char === '[') {
+                $this->readArrayToken($segment, $index);
+                $previousTokenWasName = false;
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($segment, $index);
+                $previousTokenWasName = false;
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($segment[$index])) {
+                $index++;
+            }
+            if ($index === $start) {
+                $index++;
+            }
+            $previousTokenWasName = false;
+        }
+
+        return false;
+    }
+
+    private function incompleteDictionaryHasUnterminatedMarkedContentReplacementLiteral(
+        string $segment,
+        int $dictionaryOffset
+    ): bool {
+        $index = $dictionaryOffset + 2;
+        $length = strlen($segment);
+        $dictionaryDepth = 1;
+        $arrayDepth = 0;
+        $pendingReplacementName = null;
+
+        while ($index < $length) {
+            $char = $segment[$index];
+            if (ctype_space($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($segment, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $isReplacementLiteral = $dictionaryDepth === 1
+                    && $arrayDepth === 0
+                    && in_array($pendingReplacementName, ['ActualText', 'Alt'], true);
+                if (!$this->consumeLiteralTokenReportsClosed($segment, $index) && $isReplacementLiteral) {
+                    return true;
+                }
+
+                $pendingReplacementName = null;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($segment[$index + 1] ?? '') === '<') {
+                    $dictionaryDepth++;
+                    $index += 2;
+                    $pendingReplacementName = null;
+                    continue;
+                }
+
+                $this->readHexToken($segment, $index);
+                $pendingReplacementName = null;
+                continue;
+            }
+
+            if ($char === '>' && ($segment[$index + 1] ?? '') === '>') {
+                $dictionaryDepth--;
+                $index += 2;
+                if ($dictionaryDepth <= 0) {
+                    return false;
+                }
+
+                $pendingReplacementName = null;
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayDepth++;
+                $index++;
+                $pendingReplacementName = null;
+                continue;
+            }
+
+            if ($char === ']') {
+                $arrayDepth = max(0, $arrayDepth - 1);
+                $index++;
+                $pendingReplacementName = null;
+                continue;
+            }
+
+            if ($char === '/') {
+                $nameToken = $this->readNameToken($segment, $index);
+                $pendingReplacementName = $dictionaryDepth === 1 && $arrayDepth === 0
+                    ? $this->decodePdfName(substr($nameToken, 1))
+                    : null;
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($segment[$index])) {
+                $index++;
+            }
+            if ($index === $start) {
+                $index++;
+            }
+            $pendingReplacementName = null;
         }
 
         return false;
