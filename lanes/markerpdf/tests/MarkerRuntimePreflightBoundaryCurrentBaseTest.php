@@ -413,7 +413,7 @@ return [
             $removeTree($output);
         }
     },
-    'keeps convert.py input and chunk boundary errors ahead of metadata file loading' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+    'keeps convert.py input and chunk errors ahead of metadata loading and records missing metadata files' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();
         try {
@@ -438,15 +438,37 @@ return [
             $invalidChunkMessage = $captureMessage(
                 static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, numChunks: 0, metadataFile: $missingMetadata)
             );
-            $missingMetadataMessage = $captureMessage(
-                static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, metadataFile: $missingMetadata)
+            $missingMetadataPlan = $batch->runtimeMainPreflightPlan(
+                $input,
+                $output,
+                metadataFile: $missingMetadata,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
             );
 
             $t->contains('Batch input folder does not exist', $missingInputMessage);
             $t->same(false, str_contains($missingInputMessage, 'metadata file'));
             $t->contains('Batch chunk count must be at least one', $invalidChunkMessage);
             $t->same(false, str_contains($invalidChunkMessage, 'metadata file'));
-            $t->contains('Batch metadata file is not readable', $missingMetadataMessage);
+
+            $t->same(true, $missingMetadataPlan['chunking']['chunking_reached']);
+            $t->same(null, $missingMetadataPlan['chunking']['chunk_error_boundary']);
+            $t->same(['queued.pdf'], $missingMetadataPlan['chunking']['selected_filenames']);
+            $t->same(true, $missingMetadataPlan['metadata']['metadata_load_reached']);
+            $t->same(false, $missingMetadataPlan['metadata']['metadata_load_success']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['metadata']['metadata_error_boundary']);
+            $t->same('FileNotFoundError', $missingMetadataPlan['metadata']['metadata_error_class']);
+            $t->contains('No such file or directory', $missingMetadataPlan['metadata']['metadata_error_message']);
+            $t->same(false, $missingMetadataPlan['spawn_start_method']['start_method_reached']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['spawn_start_method']['blocked_by']);
+            $t->same(false, $missingMetadataPlan['model_handoff']['model_handoff_reached']);
+            $t->same(false, $missingMetadataPlan['model_handoff']['upstream_model_execution_required']);
+            $t->same(0, $missingMetadataPlan['worker_pool']['task_args_count']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['worker_pool']['pool_error_boundary']);
+            $t->same(false, $missingMetadataPlan['console_summary']['summary_reached']);
+            $t->same('metadata-file-load-failed', $missingMetadataPlan['console_summary']['blocked_by']);
+            $t->same(false, $missingMetadataPlan['executes_python_or_models']);
             $t->same(false, $batch->runtimeMainPreflightPlan($input, $output)['executes_python_or_models']);
         } finally {
             $removeTree($input);

@@ -201,6 +201,14 @@ try {
         metadataFile: $missingMetadata,
         workers: 8
     );
+    $missingMetadataPlan = $batch->runtimeMainPreflightPlan(
+        $input,
+        $output,
+        metadataFile: $missingMetadata,
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu'
+    );
     $malformedMetadata = $output . DIRECTORY_SEPARATOR . 'malformed-metadata.json';
     file_put_contents($malformedMetadata, '{"ready-for-marker.pdf": {"title": "Ready"');
     $metadataErrorPlan = $batch->runtimeMainPreflightPlan(
@@ -543,6 +551,21 @@ try {
         throw new RuntimeException('Expected malformed metadata JSON to block before model handoff, task tuple construction, conversion summary, or worker-pool launch.');
     }
     if (
+        $missingMetadataPlan['chunking']['chunking_reached'] !== true
+        || $missingMetadataPlan['metadata']['metadata_load_reached'] !== true
+        || $missingMetadataPlan['metadata']['metadata_load_success'] !== false
+        || $missingMetadataPlan['metadata']['metadata_error_boundary'] !== 'metadata-file-load-failed'
+        || $missingMetadataPlan['metadata']['metadata_error_class'] !== 'FileNotFoundError'
+        || !str_contains((string) $missingMetadataPlan['metadata']['metadata_error_message'], 'No such file or directory')
+        || $missingMetadataPlan['spawn_start_method']['start_method_reached'] !== false
+        || $missingMetadataPlan['model_handoff']['model_handoff_reached'] !== false
+        || $missingMetadataPlan['worker_pool']['task_args_count'] !== 0
+        || $missingMetadataPlan['worker_pool']['pool_error_boundary'] !== 'metadata-file-load-failed'
+        || $missingMetadataPlan['console_summary']['summary_reached'] !== false
+    ) {
+        throw new RuntimeException('Expected missing metadata files to fail after chunking but before spawn, model handoff, summary, task args, or worker-pool launch.');
+    }
+    if (
         $metadataShapePlan['metadata']['metadata_load_success'] !== true
         || $metadataShapePlan['metadata']['metadata_json_type'] !== 'list'
         || $metadataShapePlan['metadata']['metadata_get_available'] !== false
@@ -821,6 +844,13 @@ try {
         'metadata_error_pool_error_boundary' => $metadataErrorPlan['worker_pool']['pool_error_boundary'],
         'metadata_error_conversion_summary_reached' => $metadataErrorPlan['console_summary']['summary_reached'],
         'metadata_error_conversion_summary_blocked_by' => $metadataErrorPlan['console_summary']['blocked_by'],
+        'missing_metadata_file_load_reached' => $missingMetadataPlan['metadata']['metadata_load_reached'],
+        'missing_metadata_file_error_boundary' => $missingMetadataPlan['metadata']['metadata_error_boundary'],
+        'missing_metadata_file_error_class' => $missingMetadataPlan['metadata']['metadata_error_class'],
+        'missing_metadata_file_blocks_spawn' => $missingMetadataPlan['spawn_start_method']['start_method_reached'] === false,
+        'missing_metadata_file_blocks_model_handoff' => $missingMetadataPlan['model_handoff']['model_handoff_reached'] === false,
+        'missing_metadata_file_task_args_count' => $missingMetadataPlan['worker_pool']['task_args_count'],
+        'missing_metadata_file_summary_reached' => $missingMetadataPlan['console_summary']['summary_reached'],
         'metadata_shape_json_type' => $metadataShapePlan['metadata']['metadata_json_type'],
         'metadata_shape_load_success' => $metadataShapePlan['metadata']['metadata_load_success'],
         'metadata_shape_get_available' => $metadataShapePlan['metadata']['metadata_get_available'],

@@ -623,9 +623,18 @@ final class BatchConverter
                 ]
                 : $this->loadRuntimeMetadataFile($absoluteMetadataFile);
         } catch (InvalidArgumentException $exception) {
-            if (!$this->isJsonMetadataLoadFailure($exception)) {
+            $metadataErrorBoundary = $this->isJsonMetadataLoadFailure($exception)
+                ? 'metadata-file-json-load-failed'
+                : $this->runtimeMainPreflightExceptionBoundary($exception);
+            if (!in_array($metadataErrorBoundary, ['metadata-file-load-failed', 'metadata-file-json-load-failed'], true)) {
                 throw $exception;
             }
+            $metadataErrorClass = $metadataErrorBoundary === 'metadata-file-json-load-failed'
+                ? 'JSONDecodeError'
+                : $this->runtimeMetadataFileLoadExceptionClass($absoluteMetadataFile);
+            $metadataErrorMessage = $metadataErrorBoundary === 'metadata-file-json-load-failed'
+                ? $exception->getMessage()
+                : $this->runtimeMetadataFileLoadUpstreamErrorMessage($absoluteMetadataFile, $exception->getMessage());
 
             return [
                 'schema' => 'markerpdf.convert_main_runtime_preflight.v1',
@@ -695,34 +704,34 @@ final class BatchConverter
                     ...$metadataPath,
                     'metadata_load_reached' => true,
                     'metadata_load_success' => false,
-                    'metadata_error_boundary' => 'metadata-file-json-load-failed',
-                    'metadata_error_class' => 'JSONDecodeError',
-                    'metadata_error_message' => $exception->getMessage(),
+                    'metadata_error_boundary' => $metadataErrorBoundary,
+                    'metadata_error_class' => $metadataErrorClass,
+                    'metadata_error_message' => $metadataErrorMessage,
                     'metadata_json_type' => null,
                     'metadata_get_available' => false,
                     'metadata_shape_error_boundary' => null,
                     'metadata_shape_error_class' => null,
                     'metadata_shape_error_message' => null,
                     'metadata_value_types' => [],
-                    'metadata_value_review' => $this->runtimeMetadataValueReview([], [], [], 'metadata-file-json-load-failed'),
+                    'metadata_value_review' => $this->runtimeMetadataValueReview([], [], [], $metadataErrorBoundary),
                     'metadata_filenames' => [],
                     'selected_metadata_filenames' => [],
                     'missing_metadata_filenames' => [],
                 ],
                 'spawn_start_method' => $this->convertMainSpawnStartMethodPlan(
-                    'metadata-file-json-load-failed',
+                    $metadataErrorBoundary,
                     $spawnStartMethodAlreadySet
                 ),
                 'model_handoff' => $this->convertMainModelHandoffPlan(
                     $torchDevice,
                     $torchDeviceModel,
-                    'metadata-file-json-load-failed'
+                    $metadataErrorBoundary
                 ),
                 'worker_pool' => [
                     'requested_workers' => $workers,
                     'total_processes' => 0,
                     'pool_launchable' => false,
-                    'pool_error_boundary' => 'metadata-file-json-load-failed',
+                    'pool_error_boundary' => $metadataErrorBoundary,
                     'start_method' => 'spawn',
                     'process_function' => 'process_single_pdf',
                     'task_args_count' => 0,
@@ -735,7 +744,7 @@ final class BatchConverter
                     $numChunks,
                     0,
                     $absoluteOutputFolder,
-                    'metadata-file-json-load-failed'
+                    $metadataErrorBoundary
                 ),
                 'conversion_boundary' => [
                     'min_length' => $minLength,
@@ -2472,6 +2481,42 @@ final class BatchConverter
     private function isJsonMetadataLoadFailure(InvalidArgumentException $exception): bool
     {
         return $exception->getPrevious() instanceof JsonException;
+    }
+
+    private function runtimeMetadataFileLoadExceptionClass(?string $absoluteMetadataFile): string
+    {
+        if ($absoluteMetadataFile === null || $absoluteMetadataFile === '') {
+            return InvalidArgumentException::class;
+        }
+        if (!file_exists($absoluteMetadataFile)) {
+            return 'FileNotFoundError';
+        }
+        if (is_dir($absoluteMetadataFile)) {
+            return 'IsADirectoryError';
+        }
+        if (!is_readable($absoluteMetadataFile)) {
+            return 'PermissionError';
+        }
+
+        return 'OSError';
+    }
+
+    private function runtimeMetadataFileLoadUpstreamErrorMessage(?string $absoluteMetadataFile, string $fallback): string
+    {
+        if ($absoluteMetadataFile === null || $absoluteMetadataFile === '') {
+            return $fallback;
+        }
+        if (!file_exists($absoluteMetadataFile)) {
+            return "[Errno 2] No such file or directory: '" . $absoluteMetadataFile . "'";
+        }
+        if (is_dir($absoluteMetadataFile)) {
+            return "[Errno 21] Is a directory: '" . $absoluteMetadataFile . "'";
+        }
+        if (!is_readable($absoluteMetadataFile)) {
+            return "[Errno 13] Permission denied: '" . $absoluteMetadataFile . "'";
+        }
+
+        return $fallback;
     }
 
     /**
