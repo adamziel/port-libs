@@ -232,12 +232,22 @@ final class PdfAttachmentExtractor
      */
     private function selectedCatalogObjectIds(string $pdfBytes, array $objects): ?array
     {
-        $catalogObjectId = $this->latestTrailerRootCatalogObjectId($pdfBytes);
-        if ($catalogObjectId === null || !isset($objects[$catalogObjectId])) {
+        $catalogReference = $this->latestTrailerRootCatalogReference($pdfBytes);
+        if ($catalogReference === null) {
             return null;
         }
 
-        $catalog = $this->dict($objects[$catalogObjectId]['value']);
+        $catalogObjectId = $catalogReference['objectNumber'];
+        $catalogObject = $this->objectForReference([
+            '__kind' => 'ref',
+            'object' => $catalogObjectId,
+            'generation' => $catalogReference['generation'],
+        ], $objects);
+        if ($catalogObject === null) {
+            return null;
+        }
+
+        $catalog = $this->dict($catalogObject['value']);
         if ($catalog === null || $this->nameValue($catalog['Type'] ?? null) !== 'Catalog') {
             return null;
         }
@@ -245,7 +255,10 @@ final class PdfAttachmentExtractor
         return [$catalogObjectId];
     }
 
-    private function latestTrailerRootCatalogObjectId(string $pdfBytes): ?int
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function latestTrailerRootCatalogReference(string $pdfBytes): ?array
     {
         $pdfBytes = $this->bytesThroughTerminalEof($pdfBytes);
         $offset = $this->latestStartxrefOffset($pdfBytes);
@@ -255,13 +268,13 @@ final class PdfAttachmentExtractor
 
         $table = $this->xrefTableSectionAt($pdfBytes, $offset);
         if ($table !== null) {
-            return $this->refObjectId($table['trailer']['Root'] ?? null);
+            return $this->refObjectReference($table['trailer']['Root'] ?? null);
         }
 
         $definitions = $this->directObjectDefinitions($pdfBytes);
         $stream = $this->xrefStreamSectionAt($offset, $definitions);
         if ($stream !== null) {
-            return $this->refObjectId($stream['dictionary']['Root'] ?? null);
+            return $this->refObjectReference($stream['dictionary']['Root'] ?? null);
         }
 
         return null;
@@ -353,11 +366,12 @@ final class PdfAttachmentExtractor
 
         $objectId = $this->refObjectId($value);
         if ($objectId !== null) {
-            if (in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+            $object = $this->objectForReference($value, $objects);
+            if (in_array($objectId, $seen, true) || $object === null) {
                 return [];
             }
             $seen[] = $objectId;
-            $value = $objects[$objectId]['value'];
+            $value = $object['value'];
         }
 
         $dict = $this->dict($value);
@@ -575,9 +589,10 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            $pagesId = $this->refObjectId($dict['Pages'] ?? null);
+            $pagesReference = $dict['Pages'] ?? null;
+            $pagesId = $this->refObjectId($pagesReference);
             if ($pagesId !== null) {
-                $pages = $this->collectPageObjectIds($pagesId, $objects);
+                $pages = $this->collectPageObjectIds($pagesReference, $objects);
                 if ($pages !== []) {
                     return $pages;
                 }
@@ -604,14 +619,20 @@ final class PdfAttachmentExtractor
      * @param list<int> $seen
      * @return list<int>
      */
-    private function collectPageObjectIds(int $objectId, array $objects, array $seen = []): array
+    private function collectPageObjectIds(mixed $pageReference, array $objects, array $seen = []): array
     {
-        if (in_array($objectId, $seen, true) || !isset($objects[$objectId])) {
+        $objectId = $this->refObjectId($pageReference);
+        if ($objectId === null) {
+            return [];
+        }
+
+        $object = $this->objectForReference($pageReference, $objects);
+        if (in_array($objectId, $seen, true) || $object === null) {
             return [];
         }
 
         $seen[] = $objectId;
-        $dict = $this->dict($objects[$objectId]['value']);
+        $dict = $this->dict($object['value']);
         if ($dict === null) {
             return [];
         }
@@ -627,11 +648,7 @@ final class PdfAttachmentExtractor
         $pages = [];
         $kids = $this->arrayValue($dict['Kids'] ?? null) ?? [];
         foreach ($kids as $kid) {
-            $kidId = $this->refObjectId($kid);
-            if ($kidId === null) {
-                continue;
-            }
-            foreach ($this->collectPageObjectIds($kidId, $objects, $seen) as $pageId) {
+            foreach ($this->collectPageObjectIds($kid, $objects, $seen) as $pageId) {
                 $pages[] = $pageId;
             }
         }
@@ -654,9 +671,10 @@ final class PdfAttachmentExtractor
         $annotations = [];
         foreach ($values as $value) {
             $objectId = $this->refObjectId($value);
+            $object = $this->objectForReference($value, $objects);
             $annotations[] = [
                 'objectId' => $objectId,
-                'value' => $objectId !== null && isset($objects[$objectId]) ? $objects[$objectId]['value'] : $value,
+                'value' => $object !== null ? $object['value'] : $value,
             ];
         }
 
@@ -823,11 +841,11 @@ final class PdfAttachmentExtractor
     ): ?array
     {
         $streamObjectId = $this->refObjectId($streamValue);
-        if ($streamObjectId === null || !isset($objects[$streamObjectId])) {
+        $streamObject = $this->objectForReference($streamValue, $objects);
+        if ($streamObjectId === null || $streamObject === null) {
             return null;
         }
 
-        $streamObject = $objects[$streamObjectId];
         if ($streamObject['stream'] === null) {
             return null;
         }
@@ -892,14 +910,14 @@ final class PdfAttachmentExtractor
         $keys = $preferUnicode ? ['UF', 'F', 'DOS', 'Unix', 'Mac'] : ['F', 'UF', 'DOS', 'Unix', 'Mac'];
         foreach ($keys as $key) {
             $objectId = $this->refObjectId($ef[$key] ?? null);
-            if ($objectId !== null) {
+            if ($objectId !== null && $this->objectForReference($ef[$key] ?? null, $objects) !== null) {
                 return ['objectId' => $objectId, 'key' => $key];
             }
         }
 
         foreach ($ef as $key => $value) {
             $objectId = $this->refObjectId($value);
-            if ($objectId !== null) {
+            if ($objectId !== null && $this->objectForReference($value, $objects) !== null) {
                 return ['objectId' => $objectId, 'key' => is_string($key) ? $key : 'unknown'];
             }
         }
@@ -1066,23 +1084,150 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            $body = $definition['body'];
-            $index = 0;
-            $value = $this->parseValue($body, $index);
-            $stream = $this->streamBytesFromBody($body, $index, $value);
-            $objects[$objectNumber] = [
-                'generation' => $definition['generation'],
-                'body' => $body,
-                'value' => $value,
-                'stream' => $stream,
-            ];
+            $objects[$objectNumber] = $this->parsedObjectFromDefinition($definition);
         }
         if ($xrefEntries !== []) {
+            $objects = $this->withCompressedObjectStreamObjects($objects, $xrefEntries);
+            $objects = $this->withTrailerDirectGenerationObjects($pdfBytes, $objects, $definitions);
+            $objects = $this->withReferencedDirectGenerationObjects($objects, $definitions, $xrefEntries);
             $objects = $this->withCompressedObjectStreamObjects($objects, $xrefEntries);
         }
         ksort($objects, SORT_NUMERIC);
 
         return $objects;
+    }
+
+    /**
+     * @param array{generation: int, body: string} $definition
+     * @return array{generation: int, body: string, value: mixed, stream: string|null}
+     */
+    private function parsedObjectFromDefinition(array $definition): array
+    {
+        $body = $definition['body'];
+        $index = 0;
+        $value = $this->parseValue($body, $index);
+        $stream = $this->streamBytesFromBody($body, $index, $value);
+
+        return [
+            'generation' => $definition['generation'],
+            'body' => $body,
+            'value' => $value,
+            'stream' => $stream,
+        ];
+    }
+
+    /**
+     * Latest trailers may reference a nonzero-generation catalog even when the
+     * latest xref row has a damaged offset. Keep that root generation
+     * available so its attachment graph can be followed deliberately.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array<int, array{generation: int, body: string, value: mixed, stream: string|null}>
+     */
+    private function withTrailerDirectGenerationObjects(string $pdfBytes, array $objects, array $definitions): array
+    {
+        $reference = $this->latestTrailerRootReference($pdfBytes, $definitions);
+        if ($reference === null || $reference['generation'] <= 0) {
+            return $objects;
+        }
+
+        $definition = $this->directObjectDefinitionForGeneration(
+            $definitions[$reference['objectNumber']] ?? [],
+            $reference['generation']
+        );
+        if ($definition === null) {
+            return $objects;
+        }
+
+        $objects[$reference['objectNumber']] = $this->parsedObjectFromDefinition($definition);
+        ksort($objects, SORT_NUMERIC);
+
+        return $objects;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, array{type: int, generation?: int, offset?: int, objectStream?: int, index?: int, indexIsExplicit?: bool}> $xrefEntries
+     * @return array<int, array{generation: int, body: string, value: mixed, stream: string|null}>
+     */
+    private function withReferencedDirectGenerationObjects(array $objects, array $definitions, array $xrefEntries): array
+    {
+        $repaired = $objects;
+        for ($pass = 0; $pass < 8; $pass++) {
+            $added = false;
+            foreach ($this->nonZeroGenerationObjectReferences($repaired) as $objectNumber => $generations) {
+                $xrefEntry = $xrefEntries[$objectNumber] ?? null;
+                if ($xrefEntry !== null && ($xrefEntry['type'] ?? null) !== 1) {
+                    continue;
+                }
+
+                krsort($generations, SORT_NUMERIC);
+                foreach (array_keys($generations) as $generation) {
+                    $generation = (int) $generation;
+                    if (($repaired[$objectNumber]['generation'] ?? null) === $generation) {
+                        continue;
+                    }
+
+                    $definition = $this->directObjectDefinitionForGeneration($definitions[$objectNumber] ?? [], $generation);
+                    if ($definition === null) {
+                        continue;
+                    }
+
+                    $repaired[$objectNumber] = $this->parsedObjectFromDefinition($definition);
+                    $added = true;
+                    break;
+                }
+            }
+
+            if (!$added) {
+                break;
+            }
+        }
+
+        ksort($repaired, SORT_NUMERIC);
+
+        return $repaired;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array<int, array<int, true>>
+     */
+    private function nonZeroGenerationObjectReferences(array $objects): array
+    {
+        $references = [];
+        foreach ($objects as $object) {
+            $this->collectNonZeroGenerationObjectReferences($object['value'], $references);
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<int, array<int, true>> $references
+     */
+    private function collectNonZeroGenerationObjectReferences(mixed $value, array &$references): void
+    {
+        if (!is_array($value)) {
+            return;
+        }
+        if (($value['__kind'] ?? null) === 'ref') {
+            $generation = (int) ($value['generation'] ?? 0);
+            if ($generation > 0) {
+                $references[(int) $value['object']][$generation] = true;
+            }
+
+            return;
+        }
+        if (isset($value['__kind'])) {
+            return;
+        }
+
+        foreach ($value as $child) {
+            $this->collectNonZeroGenerationObjectReferences($child, $references);
+        }
     }
 
     /**
@@ -1321,6 +1466,46 @@ final class PdfAttachmentExtractor
         $selected = end($definitions);
 
         return is_array($selected) ? $selected : null;
+    }
+
+    /**
+     * @param list<array{generation: int, offset: int, body: string}> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionForGeneration(array $definitions, int $generation): ?array
+    {
+        $candidates = [];
+        foreach ($definitions as $definition) {
+            if ($definition['generation'] === $generation) {
+                $candidates[] = $definition;
+            }
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function latestTrailerRootReference(string $pdfBytes, array $definitions): ?array
+    {
+        $offset = $this->latestStartxrefOffset($pdfBytes);
+        if ($offset === null) {
+            return null;
+        }
+
+        $table = $this->xrefTableSectionAt($pdfBytes, $offset);
+        if ($table !== null) {
+            return $this->refObjectReference($table['trailer']['Root'] ?? null);
+        }
+
+        $stream = $this->xrefStreamSectionAt($offset, $definitions);
+        if ($stream !== null) {
+            return $this->refObjectReference($stream['dictionary']['Root'] ?? null);
+        }
+
+        return null;
     }
 
     /**
@@ -1956,9 +2141,9 @@ final class PdfAttachmentExtractor
      */
     private function resolveValue(mixed $value, array $objects): mixed
     {
-        $objectId = $this->refObjectId($value);
-        if ($objectId !== null && isset($objects[$objectId])) {
-            return $objects[$objectId]['value'];
+        $object = $this->objectForReference($value, $objects);
+        if ($object !== null) {
+            return $object['value'];
         }
 
         return $value;
@@ -1994,6 +2179,40 @@ final class PdfAttachmentExtractor
     private function refObjectId(mixed $value): ?int
     {
         return is_array($value) && ($value['__kind'] ?? null) === 'ref' ? (int) $value['object'] : null;
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function refObjectReference(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['__kind'] ?? null) !== 'ref') {
+            return null;
+        }
+
+        return [
+            'objectNumber' => (int) $value['object'],
+            'generation' => (int) ($value['generation'] ?? 0),
+        ];
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @return array{generation: int, body: string, value: mixed, stream: string|null}|null
+     */
+    private function objectForReference(mixed $value, array $objects): ?array
+    {
+        $reference = $this->refObjectReference($value);
+        if ($reference === null) {
+            return null;
+        }
+
+        $object = $objects[$reference['objectNumber']] ?? null;
+        if ($object === null || $object['generation'] !== $reference['generation']) {
+            return null;
+        }
+
+        return $object;
     }
 
     private function nameValue(mixed $value): ?string
