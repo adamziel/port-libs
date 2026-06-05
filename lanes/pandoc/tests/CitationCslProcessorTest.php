@@ -4297,6 +4297,106 @@ XML
 XML
         ));
     },
+    'applies bounded csl name form short and count rendering' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'compact-source',
+                'type' => 'report',
+                'title' => 'Compact Reviewer Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la', 'suffix' => 'Jr.', 'comma-suffix' => true],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/compact-source',
+            ],
+            [
+                'id' => 'literal-source',
+                'type' => 'webpage',
+                'title' => 'Literal Reviewer Packet',
+                'author' => [
+                    ['literal' => 'Migration Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/literal-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Form Review Style</title>
+    <id>https://example.test/styles/bounded-name-form-review</id>
+    <updated>2026-06-05T16:34:38+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author" delimiter=", ">
+          <name form="short"/>
+        </names>
+        <group delimiter=" ">
+          <names variable="author">
+            <name form="count"/>
+          </names>
+          <text value="contributors"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter="; ">
+        <name form="short" name-as-sort-order="all">
+          <name-part name="family" text-case="uppercase"/>
+        </name>
+      </names>
+      <names variable="author">
+        <name form="count"/>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Name Form Review Style', $summary['title'] ?? null);
+        $t->same('short', $summary['nameRendering']['citation']['form'] ?? null);
+        $t->same('short', $summary['citationRendering'][0]['children'][0]['nameRendering']['form'] ?? null);
+        $t->same('count', $summary['citationRendering'][0]['children'][1]['children'][0]['nameRendering']['form'] ?? null);
+        $t->same('short', $summary['bibliographyRendering'][0]['nameRendering']['form'] ?? null);
+        $t->same('count', $summary['bibliographyRendering'][1]['nameRendering']['form'] ?? null);
+
+        $t->same('[de la Cruz and Ng | 2 contributors; Migration Desk | 1 contributors]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-source', 'text' => '[@compact-source]']),
+            new AstNode('citation', ['id' => 'literal-source', 'text' => '[@literal-source]']),
+        ]));
+        $t->same('DE LA CRUZ; NG :: 2 :: Compact Reviewer Packet :: https://example.test/compact-source', $processor->renderBibliographyEntry('compact-source'));
+        $t->same('Migration Desk :: 1 :: Literal Reviewer Packet :: https://example.test/literal-source', $processor->renderBibliographyEntry('literal-source'));
+
+        $document = (new MarkdownReader())->read('Compact source [@compact-source] and literal source [@literal-source] preserve reviewer name forms.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Compact source [de la Cruz and Ng | 2 contributors] and literal source [Migration Desk | 1 contributors] preserve reviewer name forms.', $markdown);
+        $t->contains('de la Cruz and Ng 2026' . "\n" . ':   DE LA CRUZ; NG :: 2 :: Compact Reviewer Packet :: https://example.test/compact-source', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Compact source [de la Cruz and Ng | 2 contributors] and literal source [Migration Desk | 1 contributors] preserve reviewer name forms.</p>', $blocks);
+        $t->contains('<dt>de la Cruz and Ng 2026</dt><dd>DE LA CRUZ; NG :: 2 :: Compact Reviewer Packet :: https://example.test/compact-source</dd>', $blocks);
+        $t->contains('<dt>Migration Desk 2025</dt><dd>Migration Desk :: 1 :: Literal Reviewer Packet :: https://example.test/literal-source</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><name form="nickname"/></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

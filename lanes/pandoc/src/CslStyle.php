@@ -87,6 +87,7 @@ final class CslStyle
         'citation' => [
             'delimiter' => ', ',
             'and' => 'text',
+            'form' => 'long',
             'etAlMin' => 3,
             'etAlUseFirst' => 1,
             'etAlUseLast' => false,
@@ -111,6 +112,7 @@ final class CslStyle
         'bibliography' => [
             'delimiter' => '; ',
             'and' => 'text',
+            'form' => 'long',
             'etAlMin' => null,
             'etAlUseFirst' => 1,
             'etAlUseLast' => false,
@@ -744,6 +746,7 @@ final class CslStyle
         return [
             'delimiter' => is_string($overrides['delimiter'] ?? null) ? $overrides['delimiter'] : $defaults['delimiter'],
             'and' => is_string($overrides['and'] ?? null) ? $overrides['and'] : $defaults['and'],
+            'form' => is_string($overrides['form'] ?? null) ? $overrides['form'] : ($defaults['form'] ?? 'long'),
             'etAlMin' => is_int($overrides['etAlMin'] ?? null) ? $overrides['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($overrides['etAlUseFirst'] ?? null) ? $overrides['etAlUseFirst'] : $defaults['etAlUseFirst'],
             'etAlUseLast' => is_bool($overrides['etAlUseLast'] ?? null) ? $overrides['etAlUseLast'] : (bool) ($defaults['etAlUseLast'] ?? false),
@@ -826,6 +829,11 @@ final class CslStyle
         }
         if ($nameAsSortOrder !== null && !in_array($nameAsSortOrder, ['first', 'all'], true)) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' name-as-sort-order must be first or all');
+        }
+
+        $form = self::nameFormAttribute($name, $names, $scope);
+        if ($form !== null) {
+            $overrides['form'] = $form;
         }
 
         $sortSeparator = null;
@@ -962,6 +970,21 @@ final class CslStyle
         }
 
         return null;
+    }
+
+    private static function nameFormAttribute(?\DOMElement $name, \DOMElement $names, string $scope): ?string
+    {
+        if ($name instanceof \DOMElement && $name->hasAttribute('form')) {
+            $form = strtolower(trim($name->getAttribute('form')));
+        } else {
+            return null;
+        }
+
+        if (!in_array($form, ['long', 'short', 'count'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' name form must be long, short, or count');
+        }
+
+        return $form;
     }
 
     private static function optionalBooleanNameAttribute(?\DOMElement $name, \DOMElement $names, string $attribute, string $scope): ?bool

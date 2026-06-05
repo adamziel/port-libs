@@ -4201,6 +4201,7 @@ final class CitationCslProcessor
         return [
             'delimiter' => is_string($options['delimiter'] ?? null) ? $options['delimiter'] : $defaults['delimiter'],
             'and' => is_string($options['and'] ?? null) ? $options['and'] : $defaults['and'],
+            'form' => is_string($options['form'] ?? null) ? $options['form'] : ($defaults['form'] ?? 'long'),
             'etAlMin' => is_int($options['etAlMin'] ?? null) ? $options['etAlMin'] : $defaults['etAlMin'],
             'etAlUseFirst' => is_int($options['etAlUseFirst'] ?? null) ? $options['etAlUseFirst'] : $defaults['etAlUseFirst'],
             'etAlUseLast' => is_bool($options['etAlUseLast'] ?? null) ? $options['etAlUseLast'] : (bool) ($defaults['etAlUseLast'] ?? false),
@@ -5078,6 +5079,10 @@ final class CitationCslProcessor
         }
 
         $count = count($renderableNames);
+        if (strtolower(trim((string) ($options['form'] ?? 'long'))) === 'count') {
+            return (string) $count;
+        }
+
         $etAlMin = $options['etAlMin'];
         $etAlUseFirst = $options['etAlUseFirst'];
         if (!$bibliography && $this->citationUsesSubsequentNameOptions($citation)) {
@@ -5271,6 +5276,15 @@ final class CitationCslProcessor
         }
 
         $nonDroppingParticle = (string) $name['nonDroppingParticle'];
+        if (strtolower(trim((string) ($options['form'] ?? 'long'))) === 'short') {
+            $family = trim($nonDroppingParticle . ' ' . (string) $name['family']);
+            if ($family !== '') {
+                return $this->formatNamePart('family', $family, $options);
+            }
+
+            return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
+        }
+
         $sortOrdered = $options['nameAsSortOrder'] === 'all' || ($options['nameAsSortOrder'] === 'first' && $index === 0);
         $demoteForDisplay = $sortOrdered && (string) ($options['demoteNonDroppingParticle'] ?? 'never') === 'display-and-sort';
         $family = trim($demoteForDisplay
