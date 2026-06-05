@@ -260,6 +260,25 @@ return [
         $t->same(['Hard', 'Break', "  \u{9B5A}\u{9B5A}"], UnicodeText::wrapByDisplayWidth("Hard\r\nBreak \u{9B5A}\u{9B5A}", 8, '  '));
         $t->same(['No wrap'], UnicodeText::wrapByDisplayWidth('No wrap', 0, '  '));
     },
+    'wraps unicode soft break opportunities without leaking controls' => static function (TestRunner $t): void {
+        $wrapped = UnicodeText::wrapByDisplayWidth("Zero\u{200B}width\u{200B}breaks soft\u{00AD}hyphen \u{9B5A}\u{200B}\u{9B5A} tail", 10, '  ');
+
+        $t->same([
+            'Zerowidth',
+            '  breaks',
+            '  soft-',
+            '  hyphen',
+            "  \u{9B5A}\u{9B5A}",
+            '  tail',
+        ], $wrapped);
+        $t->same(['reviewpacket'], UnicodeText::wrapByDisplayWidth("review\u{200B}packet", 20));
+        $t->same(['softhyphen'], UnicodeText::wrapByDisplayWidth("soft\u{00AD}hyphen", 20));
+        $t->same('', implode('', array_intersect(UnicodeText::characters(implode('', $wrapped)), ["\u{200B}", "\u{00AD}"])));
+        $t->contains('soft-', implode("\n", $wrapped));
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Soft-break wrapped line exceeds requested width');
+        }
+    },
     'writes markdown pipe table padding with unicode display widths' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [

@@ -378,27 +378,29 @@ final class UnicodeText
      */
     private static function wrapDisplayLine(string $line, int $width, string $subsequentIndent, string $ambiguousWidth): array
     {
-        $tokens = preg_split('/[ \t\f\v]+/u', trim($line), -1, PREG_SPLIT_NO_EMPTY);
-        if ($tokens === false || $tokens === []) {
+        $fragments = self::wrapFragments($line);
+        if ($fragments === []) {
             return [''];
         }
 
         $lines = [];
         $current = '';
-        foreach ($tokens as $token) {
+        foreach ($fragments as $fragment) {
+            $text = $fragment['text'];
             if ($current === '') {
-                [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent, $ambiguousWidth);
+                [$lines, $current] = self::startWrappedToken($lines, $text, $width, $subsequentIndent, $ambiguousWidth);
                 continue;
             }
 
-            $candidate = $current . ' ' . $token;
+            $candidate = $current . self::wrapSeparatorText($fragment['separator']) . $text;
             if (self::displayWidth($candidate, $ambiguousWidth) <= self::wrapContentWidth(count($lines), $width, $subsequentIndent, $ambiguousWidth)) {
                 $current = $candidate;
                 continue;
             }
 
-            $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent) . $current;
-            [$lines, $current] = self::startWrappedToken($lines, $token, $width, $subsequentIndent, $ambiguousWidth);
+            $lines[] = self::wrapLinePrefix(count($lines), $subsequentIndent)
+                . self::wrapBreakLineText($current, $fragment['separator'], count($lines), $width, $subsequentIndent, $ambiguousWidth);
+            [$lines, $current] = self::startWrappedToken($lines, $text, $width, $subsequentIndent, $ambiguousWidth);
         }
 
         if ($current !== '') {
@@ -406,6 +408,95 @@ final class UnicodeText
         }
 
         return $lines === [] ? [''] : $lines;
+    }
+
+    /**
+     * @return list<array{text:string, separator:string}>
+     */
+    private static function wrapFragments(string $line): array
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return [];
+        }
+
+        $fragments = [];
+        $buffer = '';
+        $separator = 'none';
+        foreach (self::characters($line) as $char) {
+            $codepoint = self::codepoint($char);
+            if (self::isWrapWhitespace($codepoint)) {
+                self::appendWrapFragment($fragments, $separator, $buffer);
+                $buffer = '';
+                $separator = 'space';
+                continue;
+            }
+            if ($codepoint === 0x200b) {
+                self::appendWrapFragment($fragments, $separator, $buffer);
+                $buffer = '';
+                $separator = 'soft';
+                continue;
+            }
+            if ($codepoint === 0x00ad) {
+                self::appendWrapFragment($fragments, $separator, $buffer);
+                $buffer = '';
+                $separator = 'soft-hyphen';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+        self::appendWrapFragment($fragments, $separator, $buffer);
+
+        return $fragments;
+    }
+
+    /**
+     * @param list<array{text:string, separator:string}> $fragments
+     */
+    private static function appendWrapFragment(array &$fragments, string $separator, string $buffer): void
+    {
+        if ($buffer === '') {
+            return;
+        }
+
+        $fragments[] = [
+            'text' => $buffer,
+            'separator' => $separator,
+        ];
+    }
+
+    private static function wrapSeparatorText(string $separator): string
+    {
+        return $separator === 'space' ? ' ' : '';
+    }
+
+    private static function wrapBreakLineText(
+        string $line,
+        string $separator,
+        int $lineIndex,
+        int $width,
+        string $subsequentIndent,
+        string $ambiguousWidth
+    ): string {
+        if ($separator !== 'soft-hyphen') {
+            return $line;
+        }
+
+        $hyphenated = $line . '-';
+        if (self::displayWidth($hyphenated, $ambiguousWidth) <= self::wrapContentWidth($lineIndex, $width, $subsequentIndent, $ambiguousWidth)) {
+            return $hyphenated;
+        }
+
+        return $line;
+    }
+
+    private static function isWrapWhitespace(int $codepoint): bool
+    {
+        return $codepoint === 0x20
+            || $codepoint === 0x09
+            || $codepoint === 0x0c
+            || $codepoint === 0x0b;
     }
 
     /**
