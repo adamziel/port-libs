@@ -182,6 +182,37 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     ];
 }
 
+$relationshipSelector = $graph->preflightRelationshipSelector(
+    $documentPart,
+    ['rIdHero', 'rIdReviewer', 'rIdMissingSelector'],
+    [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE],
+);
+$relationshipSelectorRelationships = [];
+foreach ($relationshipSelector['relationships'] as $relationship) {
+    $relationshipSelectorRelationships[$relationship['id']] = [
+        'id' => $relationship['id'],
+        'type' => $relationship['type'],
+        'target' => $relationship['target'],
+        'targetPart' => $relationship['targetPart'],
+        'contentType' => $relationship['contentType'],
+        'external' => $relationship['external'],
+        'selectedBySourceId' => $relationship['selectedBySourceId'],
+        'selectedBySourceType' => $relationship['selectedBySourceType'],
+        'valid' => $relationship['valid'],
+        'issues' => $relationship['issues'],
+    ];
+}
+$relationshipSelectorSummary = [
+    'source' => $relationshipSelector['source'],
+    'sourceIds' => $relationshipSelector['sourceIds'],
+    'sourceTypes' => $relationshipSelector['sourceTypes'],
+    'unmatchedSourceIds' => $relationshipSelector['unmatchedSourceIds'],
+    'unmatchedSourceTypes' => $relationshipSelector['unmatchedSourceTypes'],
+    'valid' => $relationshipSelector['valid'],
+    'issues' => $relationshipSelector['issues'],
+    'relationships' => $relationshipSelectorRelationships,
+];
+
 $reachableTargets = [];
 foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
     $reachableTargets[] = [
@@ -330,6 +361,7 @@ $summary = [
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
     'relationships' => $relationshipSummaries,
+    'relationshipSelector' => $relationshipSelectorSummary,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -510,6 +542,21 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['mediaParts'][3] ?? null) !== '/word/media/review source.png'
         || ($summary['relationships']['rIdReviewSource']['target'] ?? null) !== '/word/review source.xml'
         || isset($summary['relationships']['rIdDraftImage'])
+        || ($summary['relationshipSelector']['source'] ?? null) !== '/word/document.xml'
+        || ($summary['relationshipSelector']['sourceIds'] ?? null) !== ['rIdHero', 'rIdReviewer', 'rIdMissingSelector']
+        || ($summary['relationshipSelector']['sourceTypes'] ?? null) !== [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE]
+        || ($summary['relationshipSelector']['unmatchedSourceIds'] ?? null) !== ['rIdMissingSelector']
+        || ($summary['relationshipSelector']['unmatchedSourceTypes'] ?? null) !== []
+        || ($summary['relationshipSelector']['valid'] ?? null) !== false
+        || ($summary['relationshipSelector']['issues'] ?? null) !== ['unmatched-source-id']
+        || array_keys($summary['relationshipSelector']['relationships'] ?? []) !== ['rIdHero', 'rIdEmbeddedWorkbook', 'rIdReviewer']
+        || ($summary['relationshipSelector']['relationships']['rIdHero']['selectedBySourceId'] ?? null) !== true
+        || ($summary['relationshipSelector']['relationships']['rIdHero']['selectedBySourceType'] ?? null) !== false
+        || ($summary['relationshipSelector']['relationships']['rIdHero']['targetPart'] ?? null) !== '/word/media/hero image.PNG'
+        || ($summary['relationshipSelector']['relationships']['rIdEmbeddedWorkbook']['selectedBySourceType'] ?? null) !== true
+        || ($summary['relationshipSelector']['relationships']['rIdEmbeddedWorkbook']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.package'
+        || ($summary['relationshipSelector']['relationships']['rIdReviewer']['external'] ?? null) !== true
+        || ($summary['relationshipSelector']['relationships']['rIdReviewer']['selectedBySourceId'] ?? null) !== true
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'

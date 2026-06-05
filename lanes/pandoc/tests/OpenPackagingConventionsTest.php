@@ -1072,6 +1072,105 @@ XML;
 
         $t->same([], $graph->preflightEmbeddedPackages('/word/missing.xml'));
     },
+    'preflights OPC relationship selectors by SourceId and SourceType' => static function (TestRunner $t): void {
+        $selectorContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+</Types>
+XML;
+
+        $selectorPackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $selectorDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/wp-admin/post.php?post=42&amp;action=edit" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $selectorContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $selectorPackageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $selectorDocumentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
+        ]));
+
+        $selector = $graph->preflightRelationshipSelector(
+            '/word/document.xml',
+            ['rIdHero', 'rIdHero', 'rIdReviewer', 'rIdMissing'],
+            [OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE, 'http://example.test/missing-relationship-type'],
+        );
+
+        $selected = [];
+        foreach ($selector['relationships'] as $relationship) {
+            $selected[$relationship['id']] = $relationship;
+        }
+
+        $t->same('/word/document.xml', $selector['source']);
+        $t->same(['rIdHero', 'rIdReviewer', 'rIdMissing'], $selector['sourceIds']);
+        $t->same([
+            OpcRelationshipGraph::EMBEDDED_PACKAGE_RELATIONSHIP_TYPE,
+            'http://example.test/missing-relationship-type',
+        ], $selector['sourceTypes']);
+        $t->same(['rIdMissing'], $selector['unmatchedSourceIds']);
+        $t->same(['http://example.test/missing-relationship-type'], $selector['unmatchedSourceTypes']);
+        $t->same(false, $selector['valid']);
+        $t->same(['unmatched-source-id', 'unmatched-source-type'], $selector['issues']);
+        $t->same(['rIdHero', 'rIdEmbeddedWorkbook', 'rIdReviewer'], array_keys($selected));
+
+        $t->same(true, $selected['rIdHero']['selectedBySourceId']);
+        $t->same(false, $selected['rIdHero']['selectedBySourceType']);
+        $t->same('/word/media/hero.png', $selected['rIdHero']['targetPart']);
+        $t->same('image/png', $selected['rIdHero']['contentType']);
+        $t->same(true, $selected['rIdHero']['valid']);
+
+        $t->same(false, $selected['rIdEmbeddedWorkbook']['selectedBySourceId']);
+        $t->same(true, $selected['rIdEmbeddedWorkbook']['selectedBySourceType']);
+        $t->same('/word/embeddings/source-workbook.xlsx', $selected['rIdEmbeddedWorkbook']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.package', $selected['rIdEmbeddedWorkbook']['contentType']);
+        $t->same(true, $selected['rIdEmbeddedWorkbook']['valid']);
+
+        $t->same(true, $selected['rIdReviewer']['selectedBySourceId']);
+        $t->same(false, $selected['rIdReviewer']['selectedBySourceType']);
+        $t->same(true, $selected['rIdReviewer']['external']);
+        $t->same('https', $selected['rIdReviewer']['externalTargetScheme']);
+        $t->same(true, $selected['rIdReviewer']['externalTargetAllowed']);
+        $t->same(null, $selected['rIdReviewer']['targetPart']);
+
+        $overlap = $graph->preflightRelationshipSelector(
+            '/word/document.xml',
+            ['rIdHero'],
+            ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'],
+        );
+        $t->same(true, $overlap['valid']);
+        $t->same([], $overlap['issues']);
+        $t->same(1, count($overlap['relationships']));
+        $t->same(true, $overlap['relationships'][0]['selectedBySourceId']);
+        $t->same(true, $overlap['relationships'][0]['selectedBySourceType']);
+
+        $missingSource = $graph->preflightRelationshipSelector('/word/missing.xml', ['rIdHero'], []);
+        $t->same(false, $missingSource['valid']);
+        $t->same(['relationship-source-not-loaded', 'unmatched-source-id'], $missingSource['issues']);
+        $t->same([], $missingSource['relationships']);
+
+        $empty = $graph->preflightRelationshipSelector('/word/document.xml', [], []);
+        $t->same(false, $empty['valid']);
+        $t->same(['empty-relationship-selector'], $empty['issues']);
+
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $graph->preflightRelationshipSelector('/word/document.xml', ['1bad'], []));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $graph->preflightRelationshipSelector('/word/document.xml', ['rIdHero'], ['']));
+    },
     'preflights OPC package parts for content type and orphan relationship issues' => static function (TestRunner $t) use ($packageRelationshipsXml, $documentRelationshipsXml): void {
         $badContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
