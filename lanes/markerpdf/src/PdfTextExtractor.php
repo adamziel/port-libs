@@ -11951,10 +11951,17 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                foreach ($memberTable['members'] as $index => $member) {
-                    $nextOffset = isset($memberTable['members'][$index + 1])
-                        ? $memberTable['members'][$index + 1]['offset']
-                        : strlen($memberTable['decoded']) - $memberTable['first'];
+                $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+                foreach ($memberTable['members'] as $member) {
+                    $nextOffset = $this->objectStreamMemberEndOffset(
+                        $memberTable['members'],
+                        $member['offset'],
+                        $objectDataLength
+                    );
+                    if ($nextOffset === null) {
+                        continue;
+                    }
+
                     $memberStart = $definition['bodyStart'] + $entry['streamStart'] + $memberTable['first'] + $member['offset'];
                     $memberEnd = $definition['bodyStart'] + $entry['streamStart'] + $memberTable['first'] + $nextOffset;
                     if ($memberEnd <= $memberStart) {
@@ -13946,7 +13953,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            foreach ($pairs as $position => $pair) {
+            foreach ($pairs as $pair) {
                 $objectNumber = $pair['objectNumber'];
                 $offset = $pair['offset'];
                 $xrefEntry = $xrefEntries[$objectNumber] ?? null;
@@ -13982,8 +13989,8 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $nextOffset = isset($pairs[$position + 1]) ? $pairs[$position + 1]['offset'] : strlen($decoded) - $first;
-                if ($offset < 0 || $nextOffset < $offset) {
+                $nextOffset = $this->objectStreamMemberEndOffset($pairs, $offset, strlen($decoded) - $first);
+                if ($nextOffset === null) {
                     continue;
                 }
 
@@ -14025,6 +14032,30 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * Object-stream member offsets are relative to the first object byte. Do
+     * not assume the header rows are sorted by offset; xref type-2 indexes
+     * still point to header indexes, while body slicing is offset-owned.
+     *
+     * @param list<array{objectNumber: int, offset: int, index: int}> $members
+     */
+    private function objectStreamMemberEndOffset(array $members, int $memberOffset, int $objectDataLength): ?int
+    {
+        if ($memberOffset < 0 || $memberOffset >= $objectDataLength) {
+            return null;
+        }
+
+        $endOffset = $objectDataLength;
+        foreach ($members as $candidate) {
+            $candidateOffset = $candidate['offset'];
+            if ($candidateOffset > $memberOffset && $candidateOffset < $endOffset) {
+                $endOffset = $candidateOffset;
+            }
+        }
+
+        return $endOffset > $memberOffset ? $endOffset : null;
     }
 
     private function objectStreamIndexSelectionPolicy(
@@ -14992,15 +15023,18 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                foreach ($memberTable['members'] as $index => $member) {
+                $objectDataLength = strlen($memberTable['decoded']) - $memberTable['first'];
+                foreach ($memberTable['members'] as $member) {
                     if ($member['objectNumber'] !== $objectNumber) {
                         continue;
                     }
 
-                    $nextOffset = isset($memberTable['members'][$index + 1])
-                        ? $memberTable['members'][$index + 1]['offset']
-                        : strlen($memberTable['decoded']) - $memberTable['first'];
-                    if ($nextOffset <= $member['offset']) {
+                    $nextOffset = $this->objectStreamMemberEndOffset(
+                        $memberTable['members'],
+                        $member['offset'],
+                        $objectDataLength
+                    );
+                    if ($nextOffset === null) {
                         continue;
                     }
 
