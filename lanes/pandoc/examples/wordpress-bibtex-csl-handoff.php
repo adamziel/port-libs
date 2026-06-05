@@ -37,6 +37,8 @@ Title metadata sources @title-review and @chapter-title-review keep reviewer sub
 
 Publication detail sources @journal-detail and @book-detail preserve volume, issue, series, and identifier metadata.
 
+Abbreviated journal source @short-journal-detail preserves short journal metadata for review.
+
 First-page metadata for @journal-detail keeps page-range review cues addressable.
 
 Multi-volume source @volume-chapter and dossier [@dossier-set] preserve main-title and volume-family metadata.
@@ -275,6 +277,17 @@ $bibtex = <<<'BIB'
   eprint        = {2401.01234},
   archiveprefix = {arXiv},
   eprintclass   = {cs.DL}
+}
+
+@article{short-journal-detail,
+  author       = {Doe, Jane},
+  title        = {Abbreviated Field Notes},
+  journaltitle = {Journal of Imported Sources},
+  shortjournal = {J. Import. Sources},
+  date         = {2026},
+  pages        = {12--18},
+  issn         = {2468-1357},
+  url          = {https://example.test/short-journal}
 }
 
 @book{book-detail,
@@ -569,6 +582,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($journalDetail['pageFirst'] ?? null) !== '20') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve journal first-page metadata');
     }
+    $shortJournalDetail = $processor->item('short-journal-detail');
+    if (($shortJournalDetail['containerTitleShort'] ?? null) !== 'J. Import. Sources') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve short journal metadata');
+    }
+    if (($shortJournalDetail['journalAbbreviation'] ?? null) !== 'J. Import. Sources') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not expose journal abbreviation metadata');
+    }
     $bookDetail = $processor->item('book-detail');
     if (($bookDetail['edition'] ?? null) !== '2nd') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve book edition metadata');
@@ -762,6 +782,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Publication detail sources Doe (2026) and Curator (2025) preserve volume, issue, series, and identifier metadata.</p>',
         '<p>First-page metadata for Doe (2026) keeps page-range review cues addressable.</p>',
         '<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>',
+        '<p>Abbreviated journal source Doe (2026) preserves short journal metadata for review.</p>',
+        '<dt>Doe 2026</dt><dd>Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.</dd>',
         '<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>',
         '<p>Multi-volume source Smith (2026) and dossier (Curator 2025) preserve main-title and volume-family metadata.</p>',
         '<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>',

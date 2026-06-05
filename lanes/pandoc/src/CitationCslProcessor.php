@@ -602,6 +602,7 @@ final class CitationCslProcessor
             ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
         ];
         $page = self::stringField($item, 'page');
+        $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
 
         return [
             'id' => $id,
@@ -614,6 +615,8 @@ final class CitationCslProcessor
             'shortTitle' => self::stringField($item, 'short-title'),
             'titleAddon' => self::stringField($item, 'title-addon'),
             'containerTitle' => self::stringField($item, 'container-title'),
+            'containerTitleShort' => $containerTitleShort,
+            'journalAbbreviation' => $containerTitleShort,
             'containerTitleAddon' => self::stringField($item, 'container-title-addon'),
             'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
@@ -2868,6 +2871,11 @@ final class CitationCslProcessor
             $parts[] = 'Main title addendum: ' . rtrim($mainTitleAddon, '.') . '.';
         }
 
+        $containerTitleShort = (string) ($item['containerTitleShort'] ?? '');
+        if ($containerTitleShort !== '') {
+            $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.') . '.';
+        }
+
         $volume = (string) ($item['volume'] ?? '');
         $issue = (string) ($item['issue'] ?? '');
         $numberOfVolumes = (string) ($item['numberOfVolumes'] ?? '');
@@ -4035,6 +4043,8 @@ final class CitationCslProcessor
             'short-title' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
             'container-title' => (string) $item['containerTitle'],
+            'container-title-short' => (string) $item['containerTitleShort'],
+            'journalabbreviation', 'journal-abbreviation' => (string) $item['journalAbbreviation'],
             'container-title-addon' => (string) $item['containerTitleAddon'],
             'main-title' => (string) $item['mainTitle'],
             'main-title-addon' => (string) $item['mainTitleAddon'],

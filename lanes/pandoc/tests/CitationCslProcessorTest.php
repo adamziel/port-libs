@@ -1195,6 +1195,92 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded biblatex journal abbreviations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{short-journal-detail,
+  author       = {Doe, Jane},
+  title        = {Abbreviated Field Notes},
+  journaltitle = {Journal of Imported Sources},
+  shortjournal = {J. Import. Sources},
+  date         = {2026},
+  pages        = {12--18},
+  issn         = {2468-1357},
+  url          = {https://example.test/short-journal}
+}
+
+@article{short-journal-title-detail,
+  author            = {Ng, Nia},
+  title             = {Alternate Abbreviation Packet},
+  journaltitle      = {Migration Review Quarterly},
+  shortjournaltitle = {Migr. Rev. Q.},
+  date              = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('J. Import. Sources', $items[0]['container-title-short'] ?? null);
+        $t->same('J. Import. Sources', $items[0]['journalAbbreviation'] ?? null);
+        $t->same('Migr. Rev. Q.', $items[1]['container-title-short'] ?? null);
+        $t->same('Journal of Imported Sources', $items[0]['container-title']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $journal = $processor->item('short-journal-detail');
+        $alternate = $processor->item('short-journal-title-detail');
+        $t->same('J. Import. Sources', $journal['containerTitleShort'] ?? null);
+        $t->same('J. Import. Sources', $journal['journalAbbreviation'] ?? null);
+        $t->same('Migr. Rev. Q.', $alternate['containerTitleShort'] ?? null);
+        $t->same('(Doe 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('short-journal-detail', '[@short-journal-detail]'),
+            $citation('short-journal-title-detail', '[@short-journal-title-detail]'),
+        ]));
+        $t->same(
+            'Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.',
+            $processor->renderBibliographyEntry('short-journal-detail')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="container-title"/>
+        <text variable="container-title-short"/>
+        <text variable="journalAbbreviation"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title-short"/>
+      <text variable="journal-abbreviation"/>
+      <text variable="ISSN"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Doe | Journal of Imported Sources | J. Import. Sources | J. Import. Sources; Ng | Migration Review Quarterly | Migr. Rev. Q. | Migr. Rev. Q.]', $styled->renderCitationCluster([
+            $citation('short-journal-detail', '[@short-journal-detail]'),
+            $citation('short-journal-title-detail', '[@short-journal-title-detail]'),
+        ]));
+        $t->same('Abbreviated Field Notes :: J. Import. Sources :: J. Import. Sources :: 2468-1357', $styled->renderBibliographyEntry('short-journal-detail'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-journal-abbrev',
+            'title' => 'Manual Journal Abbreviation',
+            'container-title-short' => 'Manual J.',
+        ]])->item('manual-journal-abbrev');
+        $t->same('Manual J.', $manual['containerTitleShort'] ?? null);
+        $t->same('Manual J.', $manual['journalAbbreviation'] ?? null);
+
+        $document = (new MarkdownReader())->read('Short journal source @short-journal-detail keeps abbreviation metadata for review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Short journal source Doe (2026) keeps abbreviation metadata for review.</p>', $blocks);
+        $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.</dd>', $blocks);
+    },
     'maps bounded biblatex page first metadata for page ranges' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{range-detail,

@@ -578,6 +578,8 @@ final class BibtexCslParser
             'short-title' => self::firstField($fields, ['shorttitle']),
             'title-addon' => self::firstField($fields, ['titleaddon']),
             'container-title' => self::composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']),
+            'container-title-short' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation']),
+            'journalAbbreviation' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation']),
             'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'booktitleaddon']),
             'main-title' => self::composedTitle($fields, ['maintitle'], ['mainsubtitle']),
             'main-title-addon' => self::firstField($fields, ['maintitleaddon']),
