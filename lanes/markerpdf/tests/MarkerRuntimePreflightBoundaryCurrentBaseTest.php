@@ -869,6 +869,92 @@ return [
             $removeTree($output);
         }
     },
+    'records zero num_chunks chunk math failure after listing and output preflight' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $runtimeDirectoryOrder): void {
+        $input = $makeTempDir();
+        $root = $makeTempDir();
+        try {
+            foreach (['queued.pdf', 'wp-upload-notes.txt'] as $filename) {
+                file_put_contents($input . DIRECTORY_SEPARATOR . $filename, "%PDF-1.4\n% " . $filename . "\n%%EOF");
+            }
+            mkdir($input . DIRECTORY_SEPARATOR . 'nested.pdf');
+
+            $entryOrder = $runtimeDirectoryOrder($input);
+            $fileOrder = $runtimeDirectoryOrder($input, filesOnly: true);
+            $output = $root . DIRECTORY_SEPARATOR . 'marker-output';
+            $metadataFile = $root . DIRECTORY_SEPARATOR . 'missing-metadata.json';
+
+            $boundary = (new BatchConverter())->runtimeMainPreflightErrorBoundary(
+                $input,
+                $output,
+                numChunks: 0,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $t->same(false, $boundary['success']);
+            $t->same(null, $boundary['plan']);
+            $t->same('chunk-files-failed', $boundary['error_boundary']);
+            $t->same('ZeroDivisionError', $boundary['error_class']);
+            $t->same('division by zero', $boundary['upstream_error_message']);
+
+            $t->same(true, $boundary['paths']['input_path_exists']);
+            $t->same('directory', $boundary['paths']['input_path_type']);
+            $t->same(true, $boundary['paths']['output_folder_creation_reached']);
+            $t->same(false, $boundary['paths']['output_path_exists']);
+            $t->same('missing', $boundary['paths']['output_path_type']);
+            $t->same(true, $boundary['paths']['output_folder_creation_required']);
+            $t->same(false, $boundary['paths']['output_folder_creation_blocked']);
+            $t->same('os.makedirs(out_folder, exist_ok=True)', $boundary['paths']['output_folder_creation_call']);
+            $t->same(false, is_dir($output));
+
+            $t->same(true, $boundary['input_listing']['listing_reached']);
+            $t->same(true, $boundary['input_listing']['listing_success']);
+            $t->same($entryOrder, $boundary['input_listing']['entry_basenames']);
+            $t->same($fileOrder, $boundary['input_listing']['file_basenames']);
+            $t->same(['nested.pdf'], $boundary['input_listing']['skipped_non_file_basenames']);
+            $t->same(['wp-upload-notes.txt'], $boundary['input_listing']['non_pdf_file_basenames']);
+            $t->same(false, $boundary['input_listing']['extension_filter_active']);
+
+            $chunking = $boundary['chunking'];
+            $t->same(true, $chunking['chunking_reached']);
+            $t->same(0, $chunking['num_chunks']);
+            $t->same(true, $chunking['num_chunks_less_than_one_active']);
+            $t->same('math.ceil(len(files) / args.num_chunks)', $chunking['chunk_size_expression']);
+            $t->same('chunk-files-failed', $chunking['chunk_error_boundary']);
+            $t->same('ZeroDivisionError', $chunking['chunk_error_class']);
+            $t->same('division by zero', $chunking['chunk_error_message']);
+            $t->same(count($fileOrder), $chunking['input_file_count']);
+            $t->same(0, $chunking['selected_count']);
+            $t->same([], $chunking['selected_filenames']);
+
+            $t->same($metadataFile, $boundary['metadata']['metadata_file']);
+            $t->same(false, $boundary['metadata']['metadata_load_reached']);
+            $t->same(false, $boundary['spawn_start_method']['start_method_reached']);
+            $t->same('chunk-files-failed', $boundary['spawn_start_method']['blocked_by']);
+            $t->same(false, $boundary['model_handoff']['model_handoff_reached']);
+            $t->same(false, $boundary['model_handoff']['upstream_model_execution_required']);
+            $t->same(0, $boundary['worker_pool']['task_args_count']);
+            $t->same('chunk-files-failed', $boundary['worker_pool']['pool_error_boundary']);
+            $t->same(false, $boundary['console_summary']['summary_reached']);
+            $t->same('chunk-files-failed', $boundary['console_summary']['blocked_by']);
+            $t->same([
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $boundary['blocked_stages']);
+            $t->same(false, $boundary['executes_python_or_models']);
+            $t->same(false, $boundary['executes_multiprocessing']);
+            $t->same(false, $boundary['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($root);
+        }
+    },
     'flags empty convert.py chunks and invalid workers before pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         try {

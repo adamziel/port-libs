@@ -1291,10 +1291,17 @@ final class BatchConverter
             ];
         } catch (InvalidArgumentException $exception) {
             $errorBoundary = $this->runtimeMainPreflightExceptionBoundary($exception);
+            $successfulInputListing = null;
+            $outputCreation = null;
+            if ($errorBoundary !== 'input-folder-list-failed') {
+                $successfulInputListing = $this->inputDirectoryListing($absoluteInputFolder, preserveDirectoryOrder: true);
+                $outputCreation = $this->outputFolderCreationPlan($absoluteOutputFolder);
+            }
+            $inputFileCount = is_array($successfulInputListing) ? count($successfulInputListing['file_paths']) : 0;
 
             return [
                 'schema' => 'markerpdf.convert_main_runtime_preflight_error_boundary.v1',
-                'source' => 'sddai/markerPDF convert.py::main + os.listdir input-folder error boundary',
+                'source' => 'sddai/markerPDF convert.py::main + os.listdir + os.makedirs + chunk_files error boundary',
                 'success' => false,
                 'plan' => null,
                 'error' => $exception->getMessage(),
@@ -1313,22 +1320,53 @@ final class BatchConverter
                     'input_path_exists' => file_exists($absoluteInputFolder),
                     'input_path_type' => $this->filesystemPathType($absoluteInputFolder),
                     'output_folder_creation_reached' => $errorBoundary !== 'input-folder-list-failed',
-                    'output_folder_creation_required' => false,
-                    'output_folder_creation_blocked' => false,
+                    ...($outputCreation ?? [
+                        'output_folder_creation_required' => false,
+                        'output_folder_creation_blocked' => false,
+                    ]),
                     'metadata_file' => $absoluteMetadataFile,
                     ...$metadataPath,
                 ],
                 'input_listing' => [
                     'source' => 'os.listdir + os.path.isfile',
-                    'listing_reached' => $errorBoundary === 'input-folder-list-failed',
-                    'listing_success' => false,
-                    'entry_count' => 0,
-                    'entry_basenames' => [],
-                    'file_count' => 0,
-                    'file_basenames' => [],
-                    'skipped_non_file_count' => 0,
-                    'skipped_non_file_basenames' => [],
+                    'listing_reached' => $errorBoundary === 'input-folder-list-failed' || $successfulInputListing !== null,
+                    'listing_success' => $successfulInputListing !== null,
+                    'entry_order_source' => $successfulInputListing['entry_order_source'] ?? null,
+                    'sort_applied_before_chunking' => $successfulInputListing['sort_applied_before_chunking'] ?? false,
+                    'preserves_os_listdir_order' => $successfulInputListing['preserves_os_listdir_order'] ?? false,
+                    'entry_count' => $successfulInputListing === null ? 0 : count($successfulInputListing['entry_basenames']),
+                    'entry_basenames' => $successfulInputListing['entry_basenames'] ?? [],
+                    'file_count' => $successfulInputListing === null ? 0 : count($successfulInputListing['file_basenames']),
+                    'file_basenames' => $successfulInputListing['file_basenames'] ?? [],
+                    'skipped_non_file_count' => $successfulInputListing === null ? 0 : count($successfulInputListing['skipped_non_file_basenames']),
+                    'skipped_non_file_basenames' => $successfulInputListing['skipped_non_file_basenames'] ?? [],
+                    'file_filter' => 'os.path.isfile',
+                    'extension_filter_active' => false,
+                    'non_pdf_files_are_task_candidates' => ($successfulInputListing['non_pdf_file_basenames'] ?? []) !== [],
+                    'non_pdf_file_basenames' => $successfulInputListing['non_pdf_file_basenames'] ?? [],
                     'error_boundary' => $errorBoundary,
+                ],
+                'chunking' => [
+                    'chunk_index' => $chunkIndex,
+                    'num_chunks' => $numChunks,
+                    'chunk_size' => 0,
+                    'chunk_size_expression' => 'math.ceil(len(files) / args.num_chunks)',
+                    'start_index' => 0,
+                    'end_index' => 0,
+                    'python_slice_start_index' => 0,
+                    'python_slice_end_index' => 0,
+                    'negative_chunk_index_active' => $chunkIndex < 0,
+                    'negative_num_chunks_active' => $numChunks < 0,
+                    'num_chunks_less_than_one_active' => $numChunks < 1,
+                    'max_files' => $maxFiles,
+                    'max_files_limit_active' => $this->pythonTruthyInteger($maxFiles),
+                    'input_file_count' => $inputFileCount,
+                    'selected_count' => 0,
+                    'selected_filenames' => [],
+                    'chunking_reached' => $errorBoundary === 'chunk-files-failed',
+                    'chunk_error_boundary' => $errorBoundary === 'chunk-files-failed' ? 'chunk-files-failed' : $errorBoundary,
+                    'chunk_error_class' => $errorBoundary === 'chunk-files-failed' ? 'ZeroDivisionError' : null,
+                    'chunk_error_message' => $errorBoundary === 'chunk-files-failed' ? 'division by zero' : null,
                 ],
                 'metadata' => [
                     'metadata_file' => $absoluteMetadataFile,
@@ -2977,6 +3015,9 @@ final class BatchConverter
         string $absoluteInputFolder,
         string $fallback
     ): string {
+        if ($errorBoundary === 'chunk-files-failed') {
+            return 'division by zero';
+        }
         if ($errorBoundary !== 'input-folder-list-failed') {
             return $fallback;
         }

@@ -424,6 +424,15 @@ try {
     $invalidChunkError = $capturePreflightError(
         static fn (): array => $batch->runtimeMainPreflightPlan($input, $output, numChunks: 0, metadataFile: $missingMetadata)
     );
+    $zeroNumChunksBoundary = $batch->runtimeMainPreflightErrorBoundary(
+        $input,
+        $output,
+        numChunks: 0,
+        metadataFile: $missingMetadata,
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu'
+    );
 
     if ($plans['already-imported.pdf']['status'] !== 'skipped-existing') {
         throw new RuntimeException('Expected existing WordPress import output to skip before filetype checks.');
@@ -778,6 +787,22 @@ try {
     if (!str_contains($invalidChunkError, 'Batch chunk count must be at least one') || str_contains($invalidChunkError, 'metadata file')) {
         throw new RuntimeException('Expected invalid chunk count to be reported before metadata_file loading.');
     }
+    if (
+        $zeroNumChunksBoundary['success'] !== false
+        || $zeroNumChunksBoundary['error_boundary'] !== 'chunk-files-failed'
+        || $zeroNumChunksBoundary['error_class'] !== 'ZeroDivisionError'
+        || $zeroNumChunksBoundary['upstream_error_message'] !== 'division by zero'
+        || $zeroNumChunksBoundary['input_listing']['listing_success'] !== true
+        || $zeroNumChunksBoundary['paths']['output_folder_creation_reached'] !== true
+        || $zeroNumChunksBoundary['paths']['output_folder_creation_blocked'] !== false
+        || $zeroNumChunksBoundary['chunking']['chunking_reached'] !== true
+        || $zeroNumChunksBoundary['chunking']['chunk_error_boundary'] !== 'chunk-files-failed'
+        || $zeroNumChunksBoundary['metadata']['metadata_load_reached'] !== false
+        || $zeroNumChunksBoundary['worker_pool']['task_args_count'] !== 0
+        || $zeroNumChunksBoundary['console_summary']['summary_reached'] !== false
+    ) {
+        throw new RuntimeException('Expected zero --num_chunks to fail at convert.py chunk math after input listing and output preflight, before metadata or workers.');
+    }
     if ($runtimePlan['executes_python_or_models'] !== false || $runtimePlan['executes_multiprocessing'] !== false) {
         throw new RuntimeException('Runtime main preflight smoke must not launch model workers or multiprocessing.');
     }
@@ -1007,6 +1032,19 @@ try {
             && !str_contains($missingInputError, 'metadata file'),
         'invalid_chunk_error_precedes_metadata_file' => str_contains($invalidChunkError, 'Batch chunk count must be at least one')
             && !str_contains($invalidChunkError, 'metadata file'),
+        'zero_num_chunks_boundary_success' => $zeroNumChunksBoundary['success'],
+        'zero_num_chunks_error_boundary' => $zeroNumChunksBoundary['error_boundary'],
+        'zero_num_chunks_error_class' => $zeroNumChunksBoundary['error_class'],
+        'zero_num_chunks_upstream_error_message' => $zeroNumChunksBoundary['upstream_error_message'],
+        'zero_num_chunks_listing_success' => $zeroNumChunksBoundary['input_listing']['listing_success'],
+        'zero_num_chunks_file_basenames' => $zeroNumChunksBoundary['input_listing']['file_basenames'],
+        'zero_num_chunks_output_creation_reached' => $zeroNumChunksBoundary['paths']['output_folder_creation_reached'],
+        'zero_num_chunks_output_creation_blocked' => $zeroNumChunksBoundary['paths']['output_folder_creation_blocked'],
+        'zero_num_chunks_chunking_reached' => $zeroNumChunksBoundary['chunking']['chunking_reached'],
+        'zero_num_chunks_chunk_error_message' => $zeroNumChunksBoundary['chunking']['chunk_error_message'],
+        'zero_num_chunks_metadata_load_reached' => $zeroNumChunksBoundary['metadata']['metadata_load_reached'],
+        'zero_num_chunks_task_args_count' => $zeroNumChunksBoundary['worker_pool']['task_args_count'],
+        'zero_num_chunks_summary_reached' => $zeroNumChunksBoundary['console_summary']['summary_reached'],
         'ready_text_length' => $plans['ready-for-marker.pdf']['text_length'],
         'ready_should_invoke_converter' => $plans['ready-for-marker.pdf']['should_invoke_converter'],
         'existing_filetype_checked' => $plans['already-imported.pdf']['filetype_checked'],
