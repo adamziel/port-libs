@@ -472,6 +472,21 @@ return [
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($paxLinkPath));
     },
 
+    'rejects tar gnu long-link metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $gnuLongLink = $rawTarHeader('././@LongLink', 'K', 'packet/target.xml' . "\0", 0, false)
+            . $rawTarHeader('placeholder.xml', '0', '<w:document/>', 0, false)
+            . str_repeat("\0", 1024);
+        $message = null;
+
+        try {
+            TarArchive::fromString($gnuLongLink);
+        } catch (\RuntimeException $exception) {
+            $message = $exception->getMessage();
+        }
+
+        $t->same('TAR GNU long-link metadata is not supported by the pandoc archive reader', $message);
+    },
+
     'accepts utf8 pax paths and rejects invalid pax path bytes before package exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
         $unicodeName = "packet/review-\u{2603}/document.xml";
         $unicodeBytes = '<w:document><w:body><w:p>Unicode PAX path source</w:p></w:body></w:document>';

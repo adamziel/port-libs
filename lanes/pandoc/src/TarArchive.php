@@ -16,6 +16,7 @@ final class TarArchive
     private const TYPE_PAX_EXTENDED = 'x';
     private const TYPE_PAX_GLOBAL = 'g';
     private const TYPE_GNU_LONG_NAME = 'L';
+    private const TYPE_GNU_LONG_LINK = 'K';
     private const TYPE_GNU_SPARSE = 'S';
 
     /**
@@ -95,6 +96,10 @@ final class TarArchive
                 $pendingGnuLongName = self::parseGnuLongName(substr($bytes, $dataOffset, $headerSize));
                 $cursor = $nextCursor;
                 continue;
+            }
+
+            if ($typeFlag === self::TYPE_GNU_LONG_LINK) {
+                throw new \RuntimeException('TAR GNU long-link metadata is not supported by the pandoc archive reader');
             }
 
             if ($typeFlag === self::TYPE_PAX_EXTENDED || $typeFlag === self::TYPE_PAX_GLOBAL) {
