@@ -1878,6 +1878,7 @@ final class PdfTextExtractor
         $currentTextLeading = null;
         $currentTextX = null;
         $currentTextY = null;
+        $currentTextMatrixHorizontalScale = 1.0;
         $textStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
@@ -1966,7 +1967,7 @@ final class PdfTextExtractor
                         $currentTextLeading = -$moveY;
                     }
                 }
-                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextX = $this->textMoveX($operands, $currentTextX, $currentTextMatrixHorizontalScale);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $operands = [];
                 continue;
@@ -1975,6 +1976,7 @@ final class PdfTextExtractor
             if ($token === 'Tm') {
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $this->textMatrixY($operands);
+                $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
             }
@@ -1988,6 +1990,7 @@ final class PdfTextExtractor
             if ($token === 'BT') {
                 $currentTextX = null;
                 $currentTextY = null;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $operands = [];
                 continue;
             }
@@ -1995,6 +1998,7 @@ final class PdfTextExtractor
             if ($token === 'ET') {
                 $currentTextX = null;
                 $currentTextY = null;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $operands = [];
                 continue;
             }
@@ -16105,7 +16109,7 @@ final class PdfTextExtractor
                         $currentTextLeading = -$moveY;
                     }
                 }
-                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextX = $this->textMoveX($operands, $currentTextX, $currentTextMatrixHorizontalScale);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $operands = [];
                 continue;
@@ -16421,7 +16425,7 @@ final class PdfTextExtractor
                 ) {
                     $this->pushSpanLine($lines, $spans);
                 }
-                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextX = $this->textMoveX($operands, $currentTextX, $currentTextMatrixHorizontalScale);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $operands = [];
                 continue;
@@ -16933,11 +16937,11 @@ final class PdfTextExtractor
                     if ($this->textMoveBreaksLine($operands)) {
                         $this->pushLine($lines, $currentLine);
                         $pendingPositionWordGap = false;
-                    } elseif ($this->textMoveCreatesWordGap($operands, $currentTextX, $currentTextEndX)) {
+                    } elseif ($this->textMoveCreatesWordGap($operands, $currentTextX, $currentTextEndX, $currentTextMatrixHorizontalScale)) {
                         $pendingPositionWordGap = $currentLine !== '';
                     }
                 }
-                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextX = $this->textMoveX($operands, $currentTextX, $currentTextMatrixHorizontalScale);
                 $currentTextY = $this->textMoveY($operands, $currentTextY);
                 $currentTextEndX = $currentTextX;
                 $currentTextEndY = $currentTextY;
@@ -18172,9 +18176,14 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function textMoveCreatesWordGap(array $operands, ?float $currentTextX = null, ?float $currentTextEndX = null): bool
+    private function textMoveCreatesWordGap(
+        array $operands,
+        ?float $currentTextX = null,
+        ?float $currentTextEndX = null,
+        float $textMatrixHorizontalScale = 1.0
+    ): bool
     {
-        $tx = $this->textMoveOperandX($operands);
+        $tx = $this->scaledTextMoveOperandX($operands, $textMatrixHorizontalScale);
         if ($tx === null) {
             return false;
         }
@@ -18220,14 +18229,31 @@ final class PdfTextExtractor
     /**
      * @param list<string> $operands
      */
-    private function textMoveX(array $operands, ?float $currentTextX): ?float
+    private function textMoveX(array $operands, ?float $currentTextX, float $textMatrixHorizontalScale = 1.0): ?float
+    {
+        $tx = $this->scaledTextMoveOperandX($operands, $textMatrixHorizontalScale);
+        if ($tx === null) {
+            return null;
+        }
+
+        return $currentTextX === null ? $tx : $currentTextX + $tx;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function scaledTextMoveOperandX(array $operands, float $textMatrixHorizontalScale): ?float
     {
         $tx = $this->textMoveOperandX($operands);
         if ($tx === null) {
             return null;
         }
 
-        return $currentTextX === null ? $tx : $currentTextX + $tx;
+        if (!is_finite($textMatrixHorizontalScale)) {
+            return $tx;
+        }
+
+        return $tx * $textMatrixHorizontalScale;
     }
 
     /**

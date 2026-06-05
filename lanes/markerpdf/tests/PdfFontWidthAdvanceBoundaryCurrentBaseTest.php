@@ -40,6 +40,18 @@ $fontWidthRelativeTdAdvanceBoundaryCurrentBasePdf = static function (): string {
         . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 };
 
+$fontWidthScaledTdAdvanceBoundaryCurrentBasePdf = static function (): string {
+    $content = 'BT /Fscale 12 Tf '
+        . '0.5 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
+        . 'T* 0.5 0 0 1 72 704 Tm <4142> Tj 48 0 Td <4344> Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fscale 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+ScaledTdAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+};
+
 $fontWidthUnresolvedSlotBoundaryCurrentBasePdf = static function (): string {
     $content = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 
@@ -160,6 +172,27 @@ return [
         $t->true(str_contains($plainText, 'AB CD'));
         $t->true(!str_contains($plainText, 'RelativeTdAdvance'));
         $t->true(!str_contains($plainText, 'Ftd'));
+        $t->true(!str_contains($plainText, "\0"));
+    },
+    'uses scaled text matrix advance before relative Td word-gap decisions on current base' => static function (TestRunner $t) use ($fontWidthScaledTdAdvanceBoundaryCurrentBasePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $fontWidthScaledTdAdvanceBoundaryCurrentBasePdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $pages = $extractor->extractStyledTextPages($pdf);
+        $firstLine = $pages[0]['blocks'][0]['lines'][0] ?? [];
+        $firstSpans = $firstLine['spans'] ?? [];
+
+        $t->same(['ABCD', 'AB CD'], $extractor->extractTextLines($pdf));
+        $t->same(['AB', 'CD', 'AB', 'CD'], $extractor->extractTextRuns($pdf));
+        $t->same("ABCD\nAB CD", $plainText);
+        $t->same("ABCD\nAB CD\n", $extractor->naiveGetText($pdf));
+        $t->same(['AB', 'CD'], array_column($firstSpans, 'text'));
+        $t->same([[0.0, 0.0, 12.0, 12.0], [12.0, 0.0, 24.0, 12.0]], array_column($firstSpans, 'bbox'));
+        $t->same([0.0, 0.0, 24.0, 12.0], $firstLine['bbox'] ?? null);
+        $t->true(!str_contains($plainText, 'AB CD' . "\n" . 'AB CD'));
+        $t->true(str_contains($plainText, 'AB CD'));
+        $t->true(!str_contains($plainText, 'ScaledTdAdvance'));
+        $t->true(!str_contains($plainText, 'Fscale'));
         $t->true(!str_contains($plainText, "\0"));
     },
     'preserves unresolved simple-font width slots before current advance gap decisions' => static function (TestRunner $t) use ($fontWidthUnresolvedSlotBoundaryCurrentBasePdf): void {

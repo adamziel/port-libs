@@ -34,6 +34,15 @@ $relativeTdPdf = "%PDF-1.4\n"
     . "5 0 obj\n<< /Length " . strlen($relativeTdContent) . " >>\nstream\n{$relativeTdContent}\nendstream\nendobj\n"
     . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
 
+$scaledTdContent = 'BT /Fscale 12 Tf '
+    . '0.5 0 0 1 72 720 Tm <4142> Tj 24 0 Td <4344> Tj '
+    . 'T* 0.5 0 0 1 72 704 Tm <4142> Tj 48 0 Td <4344> Tj ET';
+$scaledTdPdf = "%PDF-1.4\n"
+    . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fscale 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+ScaledTdAdvance /Encoding 6 0 R /FirstChar 65 /LastChar 68 /Widths [1000 1000 1000 1000] >>\nendobj\n"
+    . "5 0 obj\n<< /Length " . strlen($scaledTdContent) . " >>\nstream\n{$scaledTdContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Type /Encoding /Differences [65 /A /B /C /D] >>\nendobj\n%%EOF";
+
 $sparseWidthContent = 'BT /Fsparse 12 Tf 1 0 0 1 72 720 Tm <43> Tj 1 0 0 1 87 720 Tm <44> Tj ET';
 $sparseWidthPdf = "%PDF-1.4\n"
     . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fsparse 2 0 R >> >> /Contents 5 0 R >>\nendobj\n"
@@ -107,6 +116,14 @@ $relativeTdSpanBboxes = array_map(
     static fn (array $span): array => $span['bbox'] ?? [],
     $relativeTdSpans
 );
+$scaledTdLines = $extractor->extractTextLines($scaledTdPdf);
+$scaledTdPlainText = implode("\n", $scaledTdLines);
+$scaledTdPages = $extractor->extractStyledTextPages($scaledTdPdf);
+$scaledTdSpans = $scaledTdPages[0]['blocks'][0]['lines'][0]['spans'] ?? [];
+$scaledTdSpanBboxes = array_map(
+    static fn (array $span): array => $span['bbox'] ?? [],
+    $scaledTdSpans
+);
 $sparseWidthLines = $extractor->extractTextLines($sparseWidthPdf);
 $sparseWidthPlainText = implode("\n", $sparseWidthLines);
 $sparseWidthPages = $extractor->extractStyledTextPages($sparseWidthPdf);
@@ -125,7 +142,7 @@ $verticalSpanBboxes = array_map(
 
 echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-font-width-advance-boundary-currentbase',
-    'source' => 'native-pdf-simple-font-average-positive-quote-relative-td-and-vertical-width-advance',
+    'source' => 'native-pdf-simple-font-average-positive-quote-relative-scaled-td-and-vertical-width-advance',
     'average_width_preserves_joined_word' => str_contains($plainText, 'WideBlock'),
     'generic_500_width_gap_excluded' => !str_contains($plainText, 'Wide Block'),
     'narrow_positioned_gap_still_preserved' => str_contains($plainText, 'Blo ck'),
@@ -135,6 +152,10 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'relative_td_larger_gap_still_preserved' => ($relativeTdLines[1] ?? null) === 'AB CD',
     'relative_td_false_gap_excluded' => !str_contains($relativeTdPlainText, 'AB CD' . "\n" . 'AB CD'),
     'relative_td_span_bboxes_preserved' => $relativeTdSpanBboxes === [[0.0, 0.0, 24.0, 12.0], [24.0, 0.0, 48.0, 12.0]],
+    'scaled_td_uses_text_matrix_current_end' => ($scaledTdLines[0] ?? null) === 'ABCD',
+    'scaled_td_larger_gap_still_preserved' => ($scaledTdLines[1] ?? null) === 'AB CD',
+    'scaled_td_false_gap_excluded' => !str_contains($scaledTdPlainText, 'AB CD' . "\n" . 'AB CD'),
+    'scaled_td_span_bboxes_preserved' => $scaledTdSpanBboxes === [[0.0, 0.0, 12.0, 12.0], [12.0, 0.0, 24.0, 12.0]],
     'unresolved_width_slot_preserved' => $sparseWidthLines === ['CD'],
     'unresolved_width_false_gap_excluded' => !str_contains($sparseWidthPlainText, 'C D'),
     'unresolved_width_slot_bboxes_preserved' => $sparseWidthSpanBboxes === [[0.0, 0.0, 9.0, 12.0], [9.0, 0.0, 12.0, 12.0]],
@@ -145,6 +166,8 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'quote_span_bbox' => $quoteSpan['bbox'] ?? null,
     'relative_td_lines' => $relativeTdLines,
     'relative_td_span_bboxes' => $relativeTdSpanBboxes,
+    'scaled_td_lines' => $scaledTdLines,
+    'scaled_td_span_bboxes' => $scaledTdSpanBboxes,
     'sparse_width_lines' => $sparseWidthLines,
     'sparse_width_span_bboxes' => $sparseWidthSpanBboxes,
     'vertical_span_bboxes' => $verticalSpanBboxes,
@@ -152,7 +175,7 @@ echo '<!-- markerpdf-font-width-advance-boundary-currentbase-smoke ' . htmlspeci
     'executes_external_pdf_tools' => false,
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 
-foreach (array_merge($lines, $quoteLines, $relativeTdLines, $sparseWidthLines, $verticalLines) as $line) {
+foreach (array_merge($lines, $quoteLines, $relativeTdLines, $scaledTdLines, $sparseWidthLines, $verticalLines) as $line) {
     echo "<!-- wp:paragraph -->\n";
     echo '<p>' . htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</p>\n";
     echo "<!-- /wp:paragraph -->\n\n";
