@@ -7794,6 +7794,18 @@ final class PdfMetadataExtractor
             }
         }
 
+        foreach ($this->xmpPacketContentCandidates($xml) as $packetXml) {
+            $packetDeclaredEncoding = $this->declaredXmlEncoding($packetXml);
+            if ($packetDeclaredEncoding === null || $this->isUtf8EncodingName($packetDeclaredEncoding)) {
+                continue;
+            }
+
+            $candidate = $this->convertedXmpXmlCandidate($packetXml, $packetDeclaredEncoding, false);
+            if ($candidate !== null) {
+                $this->addXmpPacketXmlCandidate($candidates, $candidate['xml'], $candidate['packet_encoding'], false, true);
+            }
+        }
+
         $declaredEncoding = $this->declaredXmlEncoding($xml);
         $this->addXmpXmlCandidate($candidates, $xml, $declaredEncoding ?? 'UTF-8', false, false);
 
@@ -7851,6 +7863,28 @@ final class PdfMetadataExtractor
         }
 
         foreach ($this->boundedXmpXmlRootCandidates($xml) as $boundedXml) {
+            $this->addXmpXmlCandidate($candidates, $boundedXml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
+        }
+    }
+
+    /**
+     * XMP packet begin/end markers can wrap an XML declaration. Decode that
+     * packet body using the declaration before the undeclared legacy fallback
+     * path, and still mark the parsed root as packet-bounded metadata.
+     *
+     * @param list<array{xml: string, packet_encoding: string, encoding_fallback: bool, decoded_to_utf8: bool, packet_boundary_applied: bool}> $candidates
+     */
+    private function addXmpPacketXmlCandidate(
+        array &$candidates,
+        string $xml,
+        string $packetEncoding,
+        bool $encodingFallback,
+        bool $decodedToUtf8
+    ): void
+    {
+        $this->addXmpXmlCandidate($candidates, $xml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
+
+        foreach ($this->boundedXmpXmlRootCandidatesFromXml($xml) as $boundedXml) {
             $this->addXmpXmlCandidate($candidates, $boundedXml, $packetEncoding, $encodingFallback, $decodedToUtf8, true);
         }
     }
