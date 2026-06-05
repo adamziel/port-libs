@@ -1309,6 +1309,118 @@ MARKDOWN);
         $t->same(['DCTDecode' => 2, 'FlateDecode' => 1], $sequence['finalPdfImageFilters']);
     },
 
+    'fake runner extracts bounded pdf form xobject metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/forms-xobject.pdf']);
+        $badgeBytes = "q 1 0 0 1 0 0 cm /ImBadge Do Q\n";
+        $overlayBytes = "q /GSReview gs 0 0 100 100 re f Q\n";
+        $imageBytes = 'fake raster bytes';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Resources << /XObject << /FxBadge 8 0 R /ImHero 11 0 R >> >> /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /XObject << /FxOverlay 9 0 R >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 200 80] /Matrix [1 0 0 1 12 24] /Resources << /ProcSet [/PDF /Text] >> /Group << /S /Transparency /CS /DeviceRGB /I true /K false >> /Length ' . strlen($badgeBytes) . ' >>',
+            'stream',
+            $badgeBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 100 100] /Group 10 0 R /Filter /FlateDecode /Length ' . strlen($overlayBytes) . ' >>',
+            'stream',
+            $overlayBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /S /Transparency /CS /DeviceCMYK /I false /K true >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 20 /Height 20 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Length ' . strlen($imageBytes) . ' >>',
+            'stream',
+            $imageBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/forms-xobject.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/forms-xobject.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'resourceName' => 'FxBadge',
+                'formObject' => '8 0 R',
+                'inherited' => true,
+                'bbox' => [0.0, 0.0, 200.0, 80.0],
+                'matrix' => [1.0, 0.0, 0.0, 1.0, 12.0, 24.0],
+                'resourcesPresent' => true,
+                'groupSubtype' => 'Transparency',
+                'groupColorSpace' => 'DeviceRGB',
+                'groupIsolated' => true,
+                'groupKnockout' => false,
+                'filters' => [],
+                'streamBytes' => strlen($badgeBytes),
+                'streamSha256' => hash('sha256', $badgeBytes),
+                'streamSkipped' => null,
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'resourceName' => 'FxOverlay',
+                'formObject' => '9 0 R',
+                'inherited' => false,
+                'bbox' => [0.0, 0.0, 100.0, 100.0],
+                'matrix' => null,
+                'resourcesPresent' => false,
+                'groupSubtype' => 'Transparency',
+                'groupColorSpace' => 'DeviceCMYK',
+                'groupIsolated' => false,
+                'groupKnockout' => true,
+                'filters' => ['FlateDecode'],
+                'streamBytes' => strlen($overlayBytes),
+                'streamSha256' => hash('sha256', $overlayBytes),
+                'streamSkipped' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfFormXObjects']);
+        $t->same(['FlateDecode' => 1], $result['pdfFormXObjectFilters']);
+        $t->contains('pdf-byte-form-xobjects:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-xobject-streams:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-xobject-groups:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-xobject-filters:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-xobject-filter:FlateDecode:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfFormXObjects']);
+        $t->same(['FlateDecode' => 1], $sequence['finalPdfFormXObjectFilters']);
+    },
+
     'fake runner extracts bounded pdf page label ranges from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-labels.pdf']);

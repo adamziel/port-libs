@@ -15,6 +15,7 @@ final class PdfEngineHandoff
     private const MAX_SIGNATURE_CONTENTS_BYTES = 262144;
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
+    private const MAX_FORM_XOBJECT_STREAM_BYTES = 262144;
     private const MAX_XREF_STREAM_BYTES = 262144;
     private const MAX_OBJECT_STREAM_BYTES = 262144;
     private const MAX_TRANSCRIPT_BYTES = 1048576;
@@ -269,6 +270,8 @@ final class PdfEngineHandoff
      *     pdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfImageColorSpaces: array<string, int>,
      *     pdfImageFilters: array<string, int>,
+     *     pdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     pdfFormXObjectFilters: array<string, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
@@ -666,6 +669,8 @@ final class PdfEngineHandoff
         $pdfImages = [];
         $pdfImageColorSpaces = [];
         $pdfImageFilters = [];
+        $pdfFormXObjects = [];
+        $pdfFormXObjectFilters = [];
         $pdfOutlineTitles = [];
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
@@ -721,6 +726,8 @@ final class PdfEngineHandoff
                 $pdfImages = $pdfInspection['images'];
                 $pdfImageColorSpaces = $pdfInspection['imageColorSpaces'];
                 $pdfImageFilters = $pdfInspection['imageFilters'];
+                $pdfFormXObjects = $pdfInspection['formXObjects'];
+                $pdfFormXObjectFilters = $pdfInspection['formXObjectFilters'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
@@ -836,6 +843,43 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'pdf-byte-image-filters:' . count($pdfImageFilters);
                     foreach ($pdfImageFilters as $filter => $filterCount) {
                         $diagnostics[] = 'pdf-byte-image-filter:' . $filter . ':' . $filterCount;
+                    }
+                }
+                if ($pdfFormXObjects !== []) {
+                    $diagnostics[] = 'pdf-byte-form-xobjects:' . count($pdfFormXObjects);
+                    $formStreams = 0;
+                    $formGroups = 0;
+                    $formStreamSkips = [];
+                    foreach ($pdfFormXObjects as $formXObject) {
+                        if (($formXObject['streamBytes'] ?? null) !== null) {
+                            $formStreams++;
+                        }
+                        if (
+                            ($formXObject['groupSubtype'] ?? null) !== null
+                            || ($formXObject['groupColorSpace'] ?? null) !== null
+                            || ($formXObject['groupIsolated'] ?? null) !== null
+                            || ($formXObject['groupKnockout'] ?? null) !== null
+                        ) {
+                            $formGroups++;
+                        }
+                        if (is_string($formXObject['streamSkipped'] ?? null) && $formXObject['streamSkipped'] !== '') {
+                            $formStreamSkips[$formXObject['streamSkipped']] = true;
+                        }
+                    }
+                    if ($formStreams > 0) {
+                        $diagnostics[] = 'pdf-byte-form-xobject-streams:' . $formStreams;
+                    }
+                    if ($formGroups > 0) {
+                        $diagnostics[] = 'pdf-byte-form-xobject-groups:' . $formGroups;
+                    }
+                    foreach (array_keys($formStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-form-xobject-stream-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfFormXObjectFilters !== []) {
+                    $diagnostics[] = 'pdf-byte-form-xobject-filters:' . count($pdfFormXObjectFilters);
+                    foreach ($pdfFormXObjectFilters as $filter => $filterCount) {
+                        $diagnostics[] = 'pdf-byte-form-xobject-filter:' . $filter . ':' . $filterCount;
                     }
                 }
                 if ($pdfTrailerCount > 0) {
@@ -1259,6 +1303,8 @@ final class PdfEngineHandoff
             'pdfImages' => $pdfImages,
             'pdfImageColorSpaces' => $pdfImageColorSpaces,
             'pdfImageFilters' => $pdfImageFilters,
+            'pdfFormXObjects' => $pdfFormXObjects,
+            'pdfFormXObjectFilters' => $pdfFormXObjectFilters,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
@@ -1327,6 +1373,8 @@ final class PdfEngineHandoff
      *     finalPdfImages: list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfImageColorSpaces: array<string, int>,
      *     finalPdfImageFilters: array<string, int>,
+     *     finalPdfFormXObjects: list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     finalPdfFormXObjectFilters: array<string, int>,
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     finalPdfStartXrefOffsets: list<int>,
@@ -1517,6 +1565,8 @@ final class PdfEngineHandoff
             'finalPdfImages' => is_array($finalRun) && is_array($finalRun['pdfImages'] ?? null) ? $finalRun['pdfImages'] : [],
             'finalPdfImageColorSpaces' => is_array($finalRun) && is_array($finalRun['pdfImageColorSpaces'] ?? null) ? $finalRun['pdfImageColorSpaces'] : [],
             'finalPdfImageFilters' => is_array($finalRun) && is_array($finalRun['pdfImageFilters'] ?? null) ? $finalRun['pdfImageFilters'] : [],
+            'finalPdfFormXObjects' => is_array($finalRun) && is_array($finalRun['pdfFormXObjects'] ?? null) ? $finalRun['pdfFormXObjects'] : [],
+            'finalPdfFormXObjectFilters' => is_array($finalRun) && is_array($finalRun['pdfFormXObjectFilters'] ?? null) ? $finalRun['pdfFormXObjectFilters'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
             'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
@@ -2608,6 +2658,8 @@ final class PdfEngineHandoff
      *     images:list<array{page:int, pageObject:string|null, resourceName:string, imageObject:string|null, inherited:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     imageColorSpaces:array<string, int>,
      *     imageFilters:array<string, int>,
+     *     formXObjects:list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     formXObjectFilters:array<string, int>,
      *     outlineTitles:list<string>,
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
@@ -2652,6 +2704,7 @@ final class PdfEngineHandoff
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
         $fonts = $this->extractPdfFonts($pdfBytes, $catalog);
         $images = $this->extractPdfImages($pdfBytes, $catalog);
+        $formXObjects = $this->extractPdfFormXObjects($pdfBytes, $catalog);
         $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
         $signatures = $this->extractPdfSignatures($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
@@ -2687,6 +2740,8 @@ final class PdfEngineHandoff
             'images' => $images,
             'imageColorSpaces' => $this->summarizePdfImageColorSpaces($images),
             'imageFilters' => $this->summarizePdfImageFilters($images),
+            'formXObjects' => $formXObjects,
+            'formXObjectFilters' => $this->summarizePdfFormXObjectFilters($formXObjects),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
@@ -2968,6 +3023,24 @@ final class PdfEngineHandoff
         }
 
         return array_map('intval', $matches[0]);
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function extractPdfNumberArrayToken(string $dictionary, string $name, int $required): ?array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, $name);
+        if ($array === null || preg_match_all('/[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[Ee][-+]?\d+)?/', $array, $matches) < $required) {
+            return null;
+        }
+
+        $numbers = [];
+        foreach (array_slice($matches[0], 0, $required) as $number) {
+            $numbers[] = (float) $number;
+        }
+
+        return $numbers;
     }
 
     /**
@@ -6501,7 +6574,15 @@ final class PdfEngineHandoff
      */
     private function extractPdfColorSpaceValue(string $dictionary, array $objects): ?string
     {
-        $value = $this->extractPdfValueForName($dictionary, 'ColorSpace');
+        return $this->extractPdfColorSpaceNameValue($dictionary, 'ColorSpace', $objects);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     */
+    private function extractPdfColorSpaceNameValue(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
         if ($value === null) {
             return null;
         }
@@ -6633,6 +6714,238 @@ final class PdfEngineHandoff
         $filters = [];
         foreach ($images as $image) {
             foreach ($image['filters'] as $filter) {
+                if (!is_string($filter) || $filter === '') {
+                    continue;
+                }
+
+                $filters[$filter] = ($filters[$filter] ?? 0) + 1;
+            }
+        }
+
+        ksort($filters);
+
+        return $filters;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>
+     */
+    private function extractPdfFormXObjects(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $forms = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfFormXObjectsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                null,
+                $visited,
+                $forms,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($forms === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $pageForms = $this->summarizePdfPageFormXObjects($body, $reference, null, $objects);
+                foreach ($pageForms as &$form) {
+                    $form['page'] = $pageNumber;
+                }
+                unset($form);
+                array_push($forms, ...$pageForms);
+            }
+        }
+
+        $forms = array_values($forms);
+        usort(
+            $forms,
+            static fn (array $a, array $b): int => [
+                $a['page'],
+                $a['resourceName'],
+                $a['formObject'] ?? '',
+            ] <=> [
+                $b['page'],
+                $b['resourceName'],
+                $b['formObject'] ?? '',
+            ]
+        );
+
+        return $forms;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $forms
+     */
+    private function collectPdfFormXObjectsFromPageTree(
+        array $objects,
+        string $reference,
+        ?string $inheritedResources,
+        array &$visited,
+        array &$forms,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($body, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $pageForms = $this->summarizePdfPageFormXObjects($body, $reference, $ownResources === null ? $inheritedResources : null, $objects);
+            foreach ($pageForms as &$form) {
+                $form['page'] = $pageNumber;
+            }
+            unset($form);
+            array_push($forms, ...$pageForms);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfFormXObjectsFromPageTree(
+                $objects,
+                $kidReference,
+                $resources,
+                $visited,
+                $forms,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>
+     */
+    private function summarizePdfPageFormXObjects(string $pageDictionary, string $pageReference, ?string $inheritedResources, array $objects): array
+    {
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        if ($resources === null) {
+            return [];
+        }
+
+        $xobjectDictionary = $this->extractPdfDictionaryOrReferenceValue($resources, 'XObject', $objects);
+        if ($xobjectDictionary === null) {
+            return [];
+        }
+
+        $forms = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($xobjectDictionary) as $entry) {
+            $form = $this->summarizePdfFormXObject(
+                $entry['key'],
+                $entry['value'],
+                $objects,
+                $pageReference,
+                $ownResources === null
+            );
+            if ($form !== null) {
+                $forms[] = $form;
+            }
+        }
+
+        return $forms;
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}|null
+     */
+    private function summarizePdfFormXObject(string $resourceName, array $value, array $objects, string $pageReference, bool $inherited): ?array
+    {
+        $formObject = null;
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $formDictionary = $objects[$reference] ?? null;
+            $formObject = $reference . ' R';
+        } elseif ($value['kind'] === 'dictionary') {
+            $formDictionary = $value['value'];
+        } else {
+            return null;
+        }
+
+        if ($formDictionary === null || $this->extractPdfNameToken($formDictionary, 'Subtype') !== 'Form') {
+            return null;
+        }
+
+        $group = $this->extractPdfDictionaryOrReferenceValue($formDictionary, 'Group', $objects);
+        $stream = $this->summarizePdfFormXObjectStream($formDictionary);
+
+        return [
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'resourceName' => $resourceName,
+            'formObject' => $formObject,
+            'inherited' => $inherited,
+            'bbox' => $this->extractPdfNumberArrayToken($formDictionary, 'BBox', 4),
+            'matrix' => $this->extractPdfNumberArrayToken($formDictionary, 'Matrix', 6),
+            'resourcesPresent' => $this->extractPdfValueForName($formDictionary, 'Resources') !== null,
+            'groupSubtype' => $group === null ? null : $this->extractPdfNameToken($group, 'S'),
+            'groupColorSpace' => $group === null ? null : $this->extractPdfColorSpaceNameValue($group, 'CS', $objects),
+            'groupIsolated' => $group === null ? null : $this->extractPdfBooleanToken($group, 'I'),
+            'groupKnockout' => $group === null ? null : $this->extractPdfBooleanToken($group, 'K'),
+            'filters' => $this->extractPdfFilterNames($formDictionary, $objects),
+            'streamBytes' => $stream['bytes'],
+            'streamSha256' => $stream['sha256'],
+            'streamSkipped' => $stream['skipped'],
+        ];
+    }
+
+    /**
+     * @return array{bytes:int|null, sha256:string|null, skipped:string|null}
+     */
+    private function summarizePdfFormXObjectStream(string $formDictionary): array
+    {
+        $summary = [
+            'bytes' => null,
+            'sha256' => null,
+            'skipped' => null,
+        ];
+        $bytes = $this->extractPdfStreamBytes($formDictionary);
+        if ($bytes === null) {
+            return $summary;
+        }
+
+        $summary['bytes'] = strlen($bytes);
+        if (strlen($bytes) > self::MAX_FORM_XOBJECT_STREAM_BYTES) {
+            $summary['skipped'] = 'too-large';
+
+            return $summary;
+        }
+
+        $summary['sha256'] = hash('sha256', $bytes);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, resourceName:string, formObject:string|null, inherited:bool, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $forms
+     * @return array<string, int>
+     */
+    private function summarizePdfFormXObjectFilters(array $forms): array
+    {
+        $filters = [];
+        foreach ($forms as $form) {
+            foreach ($form['filters'] as $filter) {
                 if (!is_string($filter) || $filter === '') {
                     continue;
                 }
