@@ -10,10 +10,10 @@ $pageText = 'BT /F1 12 Tf 72 720 Td (Visible AcroForm page widget boundary body)
 $pdf = "%PDF-1.7\n"
     . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /AcroForm 5 0 R >>\nendobj\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R 12 0 R 14 0 R 18 0 R] >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots [8 0 R (90 0 R) [91 0 R] << /Nested 92 0 R >> % 93 0 R stays a comment\n12 0 R 14 0 R 18 0 R] >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($pageText) . " >>\nstream\n{$pageText}\nendstream\nendobj\n"
-    . "5 0 obj\n<< /Fields [6 0 R] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
-    . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R] >>\nendobj\n"
+    . "5 0 obj\n<< /Fields [6 0 R (94 0 R) [95 0 R] << /Nested 96 0 R >> % 97 0 R stays a comment\n] /NeedAppearances true /DA (/Helv 9 Tf 0 0 0 rg) /DR << /Font << /Helv 40 0 R >> >> >>\nendobj\n"
+    . "6 0 obj\n<< /FT /Tx /T (listed.email) /V (listed@example.test) /Kids [8 0 R (98 0 R) [99 0 R] << /Nested 100 0 R >> % 101 0 R stays a comment\n] >>\nendobj\n"
     . "8 0 obj\n<< /Subtype /Widget /Parent 6 0 R /Rect [72 640 300 664] /P 3 0 R /F 4 >>\nendobj\n"
     . "10 0 obj\n<< /FT /Ch /T (omitted.category) /V (page) /Opt [(post) (page)] /Kids [12 0 R] >>\nendobj\n"
     . "12 0 obj\n<< /Subtype /Widget /Parent 10 0 R /Rect [72 600 260 624] /P 3 0 R /F 4 >>\nendobj\n"
@@ -28,6 +28,18 @@ $pdf = "%PDF-1.7\n"
     . "52 0 obj\n72\nendobj\n"
     . "53 0 obj\n520\nendobj\n"
     . "54 0 obj\n4\nendobj\n"
+    . "90 0 obj\n<< /Subtype /Widget /FT /Tx /T (decoy.annots.literal) /V (Annots literal decoy) /Rect [72 500 320 524] /P 3 0 R /F 4 >>\nendobj\n"
+    . "91 0 obj\n<< /Subtype /Widget /FT /Tx /T (decoy.annots.nested_array) /V (Annots nested array decoy) /Rect [72 460 320 484] /P 3 0 R /F 4 >>\nendobj\n"
+    . "92 0 obj\n<< /Subtype /Widget /FT /Tx /T (decoy.annots.nested_dict) /V (Annots nested dictionary decoy) /Rect [72 420 320 444] /P 3 0 R /F 4 >>\nendobj\n"
+    . "93 0 obj\n<< /Subtype /Widget /FT /Tx /T (decoy.annots.comment) /V (Annots comment decoy) /Rect [72 380 320 404] /P 3 0 R /F 4 >>\nendobj\n"
+    . "94 0 obj\n<< /FT /Tx /T (decoy.fields.literal) /V (Fields literal decoy) >>\nendobj\n"
+    . "95 0 obj\n<< /FT /Tx /T (decoy.fields.nested_array) /V (Fields nested array decoy) >>\nendobj\n"
+    . "96 0 obj\n<< /FT /Tx /T (decoy.fields.nested_dict) /V (Fields nested dictionary decoy) >>\nendobj\n"
+    . "97 0 obj\n<< /FT /Tx /T (decoy.fields.comment) /V (Fields comment decoy) >>\nendobj\n"
+    . "98 0 obj\n<< /FT /Tx /T (decoy.kids.literal) /V (Kids literal decoy) >>\nendobj\n"
+    . "99 0 obj\n<< /FT /Tx /T (decoy.kids.nested_array) /V (Kids nested array decoy) >>\nendobj\n"
+    . "100 0 obj\n<< /FT /Tx /T (decoy.kids.nested_dict) /V (Kids nested dictionary decoy) >>\nendobj\n"
+    . "101 0 obj\n<< /FT /Tx /T (decoy.kids.comment) /V (Kids comment decoy) >>\nendobj\n"
     . "%%EOF";
 
 $form = (new PdfAcroFormExtractor())->extractForm($pdf);
@@ -54,6 +66,26 @@ if (($indirectWidget['rect'] ?? null) !== [72.0, 520.0, 360.0, 544.0]) {
 }
 if (($indirectWidget['annotation_flags'] ?? null) !== 4 || ($indirectWidget['annotation_visibility'] ?? null) !== 'visible') {
     throw new RuntimeException('Indirect AcroForm widget annotation flags were not resolved.');
+}
+
+$decoyNames = [
+    'decoy.annots.literal',
+    'decoy.annots.nested_array',
+    'decoy.annots.nested_dict',
+    'decoy.annots.comment',
+    'decoy.fields.literal',
+    'decoy.fields.nested_array',
+    'decoy.fields.nested_dict',
+    'decoy.fields.comment',
+    'decoy.kids.literal',
+    'decoy.kids.nested_array',
+    'decoy.kids.nested_dict',
+    'decoy.kids.comment',
+];
+foreach ($decoyNames as $decoyName) {
+    if (isset($fieldsByName[$decoyName])) {
+        throw new RuntimeException("AcroForm array decoy field {$decoyName} must not be promoted.");
+    }
 }
 
 $rows = [];
@@ -83,6 +115,8 @@ echo '<!-- markerpdf:pdf-acroform-fields-boundary-currentbase ' . htmlspecialcha
     'indirect_widget_rect_resolved' => ($indirectWidget['rect'] ?? null) === [72.0, 520.0, 360.0, 544.0],
     'indirect_widget_flags_resolved' => ($indirectWidget['annotation_flags'] ?? null) === 4,
     'indirect_widget_visibility' => $indirectWidget['annotation_visibility'] ?? null,
+    'array_decoy_fields_excluded' => count(array_intersect($decoyNames, array_keys($fieldsByName))) === 0,
+    'array_decoy_sources' => ['annots_literal_nested_comment', 'fields_literal_nested_comment', 'kids_literal_nested_comment'],
     'detached_widget_excluded' => !isset($fieldsByName['detached.secret']),
     'executes_form_actions' => false,
     'executes_javascript' => false,

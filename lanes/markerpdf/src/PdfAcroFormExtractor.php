@@ -9836,19 +9836,58 @@ final class PdfAcroFormExtractor
      */
     private function validObjectReferences(string $value, array $objects): array
     {
-        if (!preg_match_all('/(\d+)\s+(\d+)\s+R\b/', $value, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $references = [];
-        foreach ($matches as $match) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
-            if (!$this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $this->skipWhitespace($value, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $char = $value[$offset];
+            if ($char === '(') {
+                $offset = $this->skipLiteralString($value, $offset);
                 continue;
             }
 
-            $references[] = $objectNumber;
+            if ($char === '[') {
+                $endOffset = null;
+                $this->readPdfArrayAt($value, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 1);
+                continue;
+            }
+
+            if ($char === '<' && substr($value, $offset, 2) === '<<') {
+                $endOffset = null;
+                $this->readPdfDictionaryAt($value, $offset, $endOffset);
+                $offset = $endOffset ?? ($offset + 2);
+                continue;
+            }
+
+            if ($char === '<') {
+                $offset = $this->skipHexString($value, $offset);
+                continue;
+            }
+
+            if ($char === '/') {
+                $offset = $this->skipPdfName($value, $offset);
+                continue;
+            }
+
+            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) === 1) {
+                $objectNumber = (int) $match[1];
+                $generation = (int) $match[2];
+                if ($this->referenceGenerationMatches($objectNumber, $generation, $objects)) {
+                    $references[] = $objectNumber;
+                }
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $endOffset = null;
+            $this->readPdfValueAt($value, $offset, $endOffset);
+            $offset = $endOffset !== null && $endOffset > $offset ? $endOffset : $offset + 1;
         }
 
         return $references;
