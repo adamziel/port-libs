@@ -7411,7 +7411,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $body = $this->indirectObjectBodyForReference($objects, $objectNumber, $generation);
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
         if ($body === null) {
             return null;
         }
@@ -7519,11 +7519,11 @@ final class PdfTextExtractor
      */
     private function parsePageLabelDictionary(string $dictionary, array $objects): array
     {
-        $candidate = $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'S', $objects);
+        $candidate = $this->pageLabelNameValueAfterName($dictionary, 'S', $objects);
         $style = in_array($candidate, ['D', 'R', 'r', 'A', 'a'], true) ? $candidate : null;
 
         $start = 1;
-        $startValue = $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'St', $objects);
+        $startValue = $this->pageLabelIntegerValueAfterName($dictionary, 'St', $objects);
         if ($startValue !== null) {
             $start = max(1, $startValue);
         }
@@ -7541,7 +7541,123 @@ final class PdfTextExtractor
     private function pageLabelPrefix(string $dictionary, array $objects): string
     {
         $value = $this->pdfValueAfterName($dictionary, 'P');
-        return $value === null ? '' : $this->pdfTextStringValue($value, $objects) ?? '';
+        return $value === null ? '' : $this->pageLabelTextStringValue($value, $objects) ?? '';
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelNameValueAfterName(string $dictionary, string $name, array $objects): ?string
+    {
+        $value = $this->pdfValueAfterName($dictionary, $name);
+        return $value === null ? null : $this->pageLabelNameValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelNameValue(string $value, array $objects, array $seen = []): ?string
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($body === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pageLabelNameValue($body, $objects, $seen);
+        }
+
+        if (($value[0] ?? '') !== '/') {
+            return null;
+        }
+
+        $end = 1;
+        while ($end < strlen($value) && !str_contains(" \t\r\n\f[]()<>{}/%", $value[$end])) {
+            $end++;
+        }
+
+        return $this->decodePdfName(substr($value, 1, $end - 1));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelIntegerValueAfterName(string $dictionary, string $name, array $objects): ?int
+    {
+        $value = $this->pdfValueAfterName($dictionary, $name);
+        return $value === null ? null : $this->pageLabelIntegerValue($value, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelIntegerValue(string $value, array $objects, array $seen = []): ?int
+    {
+        $value = trim($value);
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) !== 1) {
+            return null;
+        }
+
+        $objectNumber = (int) $match[1];
+        $generation = (int) $match[2];
+        $objectKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+            return null;
+        }
+
+        $body = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$objectKey] = true;
+        return $this->pageLabelIntegerValue($body, $objects, $seen);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pageLabelTextStringValue(string $value, array $objects, array $seen = []): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
+            $objectNumber = (int) $match[1];
+            $generation = (int) $match[2];
+            $objectKey = $objectNumber . ':' . $generation;
+            if ($objectNumber <= 0 || isset($seen[$objectKey])) {
+                return null;
+            }
+
+            $objectBody = $this->pageLabelObjectBodyForReference($objects, $objectNumber, $generation);
+            if ($objectBody === null) {
+                return null;
+            }
+
+            $seen[$objectKey] = true;
+            return $this->pageLabelTextStringValue($objectBody, $objects, $seen);
+        }
+
+        return $this->pdfTextStringValue($value, $objects);
     }
 
     /**
