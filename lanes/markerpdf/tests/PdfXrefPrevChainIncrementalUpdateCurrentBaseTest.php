@@ -1007,6 +1007,95 @@ $xrefPrevChainCompressedPrevOperandPdf = static function () use ($xrefPrevChainI
     return $pdf;
 };
 
+$xrefPrevChainDamagedMiddlePrevPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current damaged middle Prev page) Tj T* (Base xref repaired before decoys) Tj ET';
+    $decoyContent = 'BT /F1 12 Tf 72 720 Td (Post xref damaged middle Prev decoy page) Tj ET';
+    $currentPayload = '<wp-export><post id="current-damaged-middle-prev"/></wp-export>';
+    $decoyPayload = '<wp-export><post id="post-xref-damaged-middle-prev-decoy"/></wp-export>';
+    $currentXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Current Damaged Middle Prev XMP Title',
+        'Middle Prev repaired to the earlier base xref section'
+    ));
+    $decoyXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Post Xref Damaged Middle Prev Decoy Title',
+        'Post xref direct objects must not win when the base xref is repairable'
+    ));
+    if (!is_string($currentXmp) || !is_string($decoyXmp)) {
+        throw new RuntimeException('Unable to compress damaged middle-Prev fixture streams.');
+    }
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $currentInfoOffset = $addObject(6, 0, '<< /Title (Current Damaged Middle Prev Info Title) /Author (Current Damaged Middle Author) /Producer (Current Damaged Middle Producer) >>');
+    $currentMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $currentNameTreeOffset = $addObject(8, 0, '<< /Names [(current-damaged-middle-prev.xml) 10 0 R] >>');
+    $currentFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (current-damaged-middle-prev.xml) /Desc (Current damaged middle Prev attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $currentEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $baseXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($currentCatalogOffset)
+        . $xrefTableRow($currentPagesOffset)
+        . $xrefTableRow($currentPageOffset)
+        . $xrefTableRow($currentContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($currentInfoOffset)
+        . $xrefTableRow($currentMetadataOffset)
+        . $xrefTableRow($currentNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($currentFileSpecOffset)
+        . $xrefTableRow($currentEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$baseXrefOffset}\n%%EOF\n";
+
+    $damagedPrevOffset = $baseXrefOffset + 2;
+    $middleXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "30 1\n"
+        . $xrefTableRow(0, 0, 'f')
+        . "trailer\n<< /Size 31 /Prev {$damagedPrevOffset} >>\n"
+        . "startxref\n{$middleXrefOffset}\n%%EOF\n";
+
+    $latestXrefOffset = strlen($pdf);
+    $latestRows = $xrefStreamRow(1, $latestXrefOffset, 0);
+    $compressedLatestRows = gzcompress($latestRows);
+    if (!is_string($compressedLatestRows)) {
+        throw new RuntimeException('Unable to compress damaged middle-Prev latest xref stream.');
+    }
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 31 /Root 1 0 R /Info 6 0 R /Prev ' . $middleXrefOffset . ' /Index [20 1] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedLatestRows) . " >>\n"
+        . "stream\n{$compressedLatestRows}\nendstream\nendobj\n";
+
+    $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (it-IT) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $addObject(4, 0, "<< /Length " . strlen($decoyContent) . " >>\nstream\n{$decoyContent}\nendstream");
+    $addObject(6, 0, '<< /Title (Post Xref Damaged Middle Prev Decoy Info) /Author (Post Xref Decoy Author) /Producer (Post Xref Decoy Producer) >>');
+    $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($decoyXmp) . " >>\nstream\n{$decoyXmp}\nendstream");
+    $addObject(8, 0, '<< /Names [(post-xref-damaged-middle-prev-decoy.xml) 10 0 R] >>');
+    $addObject(10, 0, '<< /Type /Filespec /F (post-xref-damaged-middle-prev-decoy.xml) /Desc (Post xref damaged middle Prev decoy attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($decoyPayload) . " >>\nstream\n{$decoyPayload}\nendstream");
+
+    $pdf .= "startxref\n{$latestXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 return [
     'repairs current metadata generation objects through damaged xref Prev chain offsets' => static function (
         TestRunner $t
@@ -1312,6 +1401,36 @@ return [
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-post-xref-decoy'));
         $t->true(!str_contains($text, 'Stale post xref decoy page'));
         $t->true(!str_contains($text, 'Previous indirect xref operand page'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'repairs damaged middle Prev pointers to the earlier base xref before post-xref decoys' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainDamagedMiddlePrevPdf): void {
+        $pdf = $xrefPrevChainDamagedMiddlePrevPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(['Current damaged middle Prev page', 'Base xref repaired before decoys'], $extractor->extractTextLines($pdf));
+        $t->same("Current damaged middle Prev page\nBase xref repaired before decoys", $text);
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Current Damaged Middle Prev XMP Title', $metadata['title']);
+        $t->same('Middle Prev repaired to the earlier base xref section', $metadata['description']);
+        $t->same('Current Damaged Middle Prev Info Title', $metadata['info']['Title']);
+        $t->same(['Current Damaged Middle Author'], $metadata['authors']);
+        $t->same('Current Damaged Middle Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-damaged-middle-prev.xml', $files[0]['filename']);
+        $t->same('Current damaged middle Prev attachment', $files[0]['description']);
+        $t->same('<wp-export><post id="current-damaged-middle-prev"/></wp-export>', $files[0]['content']);
+        $t->true(str_contains($pdf, '/Prev '));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Post Xref Damaged Middle Prev'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'post-xref-damaged-middle-prev-decoy'));
+        $t->true(!str_contains($text, 'Post xref damaged middle Prev decoy page'));
         $t->true(!str_contains($text, "\0"));
     },
 ];
