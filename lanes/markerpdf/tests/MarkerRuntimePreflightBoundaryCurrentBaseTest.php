@@ -520,6 +520,88 @@ return [
             $removeTree($output);
         }
     },
+    'records unreadable input folders as upstream PermissionError preflight failures' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        $output = $makeTempDir();
+        $unreadableInput = $root . DIRECTORY_SEPARATOR . 'unreadable-input';
+        try {
+            mkdir($unreadableInput);
+            file_put_contents($unreadableInput . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% queued pdf\n%%EOF");
+            chmod($unreadableInput, 0000);
+            $metadataFile = $root . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($metadataFile, json_encode([
+                'queued.pdf' => ['title' => 'Should not load'],
+            ], JSON_THROW_ON_ERROR));
+
+            $batch = new BatchConverter();
+            $boundary = $batch->runtimeMainPreflightErrorBoundary(
+                $unreadableInput,
+                $output,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+
+            $captureMessage = static function (callable $callback): string {
+                try {
+                    $callback();
+                } catch (InvalidArgumentException $exception) {
+                    return $exception->getMessage();
+                }
+
+                return '';
+            };
+            $directMessage = $captureMessage(
+                static fn (): array => $batch->runtimeMainPreflightPlan($unreadableInput, $output, metadataFile: $metadataFile)
+            );
+
+            $t->same(false, $boundary['success']);
+            $t->same(null, $boundary['plan']);
+            $t->same('input-folder-list-failed', $boundary['error_boundary']);
+            $t->same('PermissionError', $boundary['error_class']);
+            $t->contains('Permission denied', $boundary['upstream_error_message']);
+            $t->contains('Batch input folder is not readable', $boundary['error']);
+            $t->contains('Batch input folder is not readable', $directMessage);
+            $t->same(true, $boundary['paths']['input_path_exists']);
+            $t->same('directory', $boundary['paths']['input_path_type']);
+            $t->same(false, $boundary['paths']['output_folder_creation_reached']);
+            $t->same($metadataFile, $boundary['paths']['metadata_file']);
+            $t->same(true, $boundary['input_listing']['listing_reached']);
+            $t->same(false, $boundary['input_listing']['listing_success']);
+            $t->same(0, $boundary['input_listing']['entry_count']);
+            $t->same([], $boundary['input_listing']['entry_basenames']);
+            $t->same(false, $boundary['metadata']['metadata_load_reached']);
+            $t->same(false, $boundary['spawn_start_method']['start_method_reached']);
+            $t->same('input-folder-list-failed', $boundary['spawn_start_method']['blocked_by']);
+            $t->same(false, $boundary['model_handoff']['model_handoff_reached']);
+            $t->same(false, $boundary['model_handoff']['upstream_model_execution_required']);
+            $t->same(false, $boundary['worker_pool']['pool_launchable']);
+            $t->same(0, $boundary['worker_pool']['task_args_count']);
+            $t->same('input-folder-list-failed', $boundary['worker_pool']['pool_error_boundary']);
+            $t->same(false, $boundary['console_summary']['summary_reached']);
+            $t->same('input-folder-list-failed', $boundary['console_summary']['blocked_by']);
+            $t->same([
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $boundary['blocked_stages']);
+            $t->same(false, $boundary['executes_python_or_models']);
+            $t->same(false, $boundary['executes_multiprocessing']);
+            $t->same(false, $boundary['executes_external_pdf_tools']);
+        } finally {
+            if (is_dir($unreadableInput)) {
+                chmod($unreadableInput, 0700);
+            }
+            $removeTree($root);
+            $removeTree($output);
+        }
+    },
     'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

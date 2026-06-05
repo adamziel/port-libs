@@ -122,6 +122,10 @@ try {
     file_put_contents($blockedOutput, 'not a directory');
     $fileValuedInput = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'not-a-folder.pdf';
     file_put_contents($fileValuedInput, '%PDF file-valued input folder boundary');
+    $unreadableInput = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'unreadable-input';
+    mkdir($unreadableInput);
+    file_put_contents($unreadableInput . DIRECTORY_SEPARATOR . 'queued.pdf', "%PDF-1.4\n% unreadable queue\n%%EOF");
+    chmod($unreadableInput, 0000);
     $missingInputBoundary = $batch->runtimeMainPreflightErrorBoundary(
         $input . DIRECTORY_SEPARATOR . 'missing-input',
         $blockedOutput,
@@ -136,6 +140,14 @@ try {
         metadataFile: $missingMetadata,
         workers: 8,
         torchDevice: 'mps',
+        torchDeviceModel: 'cpu'
+    );
+    $unreadableInputBoundary = $batch->runtimeMainPreflightErrorBoundary(
+        $unreadableInput,
+        $blockedOutput,
+        metadataFile: $missingMetadata,
+        workers: 8,
+        torchDevice: 'cuda',
         torchDeviceModel: 'cpu'
     );
     $outputConflictPlan = $batch->runtimeMainPreflightPlan(
@@ -371,6 +383,19 @@ try {
         throw new RuntimeException('Expected file-valued input folder boundary to mirror upstream os.listdir NotADirectoryError before any runtime handoff.');
     }
     if (
+        $unreadableInputBoundary['success'] !== false
+        || $unreadableInputBoundary['error_boundary'] !== 'input-folder-list-failed'
+        || $unreadableInputBoundary['error_class'] !== 'PermissionError'
+        || $unreadableInputBoundary['paths']['input_path_type'] !== 'directory'
+        || $unreadableInputBoundary['input_listing']['listing_success'] !== false
+        || $unreadableInputBoundary['paths']['output_folder_creation_reached'] !== false
+        || $unreadableInputBoundary['metadata']['metadata_load_reached'] !== false
+        || $unreadableInputBoundary['worker_pool']['task_args_count'] !== 0
+        || $unreadableInputBoundary['executes_python_or_models'] !== false
+    ) {
+        throw new RuntimeException('Expected unreadable input folder boundary to mirror upstream os.listdir PermissionError before any runtime handoff.');
+    }
+    if (
         $metadataErrorPlan['metadata']['metadata_load_success'] !== false
         || $metadataErrorPlan['metadata']['metadata_error_boundary'] !== 'metadata-file-json-load-failed'
         || $metadataErrorPlan['worker_pool']['pool_error_boundary'] !== 'metadata-file-json-load-failed'
@@ -574,6 +599,12 @@ try {
         'file_input_boundary_error_class' => $fileInputBoundary['error_class'],
         'file_input_boundary_path_type' => $fileInputBoundary['paths']['input_path_type'],
         'file_input_boundary_listing_success' => $fileInputBoundary['input_listing']['listing_success'],
+        'unreadable_input_boundary_error_class' => $unreadableInputBoundary['error_class'],
+        'unreadable_input_boundary_path_type' => $unreadableInputBoundary['paths']['input_path_type'],
+        'unreadable_input_boundary_listing_success' => $unreadableInputBoundary['input_listing']['listing_success'],
+        'unreadable_input_boundary_blocks_output_creation' => $unreadableInputBoundary['paths']['output_folder_creation_reached'] === false,
+        'unreadable_input_boundary_metadata_load_reached' => $unreadableInputBoundary['metadata']['metadata_load_reached'],
+        'unreadable_input_boundary_task_args_count' => $unreadableInputBoundary['worker_pool']['task_args_count'],
         'metadata_error_load_reached' => $metadataErrorPlan['metadata']['metadata_load_reached'],
         'metadata_error_load_success' => $metadataErrorPlan['metadata']['metadata_load_success'],
         'metadata_error_boundary' => $metadataErrorPlan['metadata']['metadata_error_boundary'],
@@ -676,6 +707,9 @@ try {
         'executes_external_pdf_tools' => $plans['ready-for-marker.pdf']['executes_external_pdf_tools'],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
+    if (isset($unreadableInput) && is_dir($unreadableInput)) {
+        chmod($unreadableInput, 0700);
+    }
     $removeTree($input);
     $removeTree($output);
     $removeTree($blockedOutputRoot);

@@ -1621,12 +1621,20 @@ final class BatchConverter
 
             throw new InvalidArgumentException('Batch input folder does not exist: ' . $inputFolder);
         }
+        if (!is_readable($inputFolder)) {
+            throw new InvalidArgumentException('Batch input folder is not readable: ' . $inputFolder);
+        }
 
         $entryBasenames = [];
         $filePathsByBasename = [];
         $skippedNonFileBasenames = [];
 
-        foreach (scandir($inputFolder) ?: [] as $entry) {
+        $entries = @scandir($inputFolder);
+        if ($entries === false) {
+            throw new InvalidArgumentException('Batch input folder cannot be listed: ' . $inputFolder);
+        }
+
+        foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
@@ -2255,7 +2263,9 @@ final class BatchConverter
     {
         $message = $exception->getMessage();
         if (str_contains($message, 'Batch input folder does not exist')
-            || str_contains($message, 'Batch input folder is not a directory')) {
+            || str_contains($message, 'Batch input folder is not a directory')
+            || str_contains($message, 'Batch input folder is not readable')
+            || str_contains($message, 'Batch input folder cannot be listed')) {
             return 'input-folder-list-failed';
         }
         if (str_contains($message, 'Batch chunk count must be at least one')) {
@@ -2271,7 +2281,17 @@ final class BatchConverter
     private function runtimeMainPreflightExceptionClass(string $errorBoundary, string $absoluteInputFolder): string
     {
         if ($errorBoundary === 'input-folder-list-failed') {
-            return file_exists($absoluteInputFolder) ? 'NotADirectoryError' : 'FileNotFoundError';
+            if (!file_exists($absoluteInputFolder)) {
+                return 'FileNotFoundError';
+            }
+            if (!is_dir($absoluteInputFolder)) {
+                return 'NotADirectoryError';
+            }
+            if (!is_readable($absoluteInputFolder)) {
+                return 'PermissionError';
+            }
+
+            return 'OSError';
         }
         if ($errorBoundary === 'chunk-files-failed') {
             return 'ZeroDivisionError';
@@ -2290,6 +2310,13 @@ final class BatchConverter
         }
 
         if (file_exists($absoluteInputFolder)) {
+            if (is_dir($absoluteInputFolder) && !is_readable($absoluteInputFolder)) {
+                return "[Errno 13] Permission denied: '" . $absoluteInputFolder . "'";
+            }
+            if (is_dir($absoluteInputFolder)) {
+                return "[Errno 5] Input/output error: '" . $absoluteInputFolder . "'";
+            }
+
             return "[Errno 20] Not a directory: '" . $absoluteInputFolder . "'";
         }
 
