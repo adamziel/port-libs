@@ -1341,6 +1341,32 @@ final class TableFormatter
             }
         }
 
+        foreach ([
+            ['x', 'y', 'width', 'height'],
+            ['x0', 'y0', 'width', 'height'],
+            ['left', 'top', 'width', 'height'],
+        ] as $keys) {
+            [$x, $y, $width, $height] = $keys;
+            if (
+                !array_key_exists($x, $record)
+                || !array_key_exists($y, $record)
+                || !array_key_exists($width, $record)
+                || !array_key_exists($height, $record)
+            ) {
+                continue;
+            }
+
+            $coordinates = $this->numericCoordinates([$record[$x], $record[$y], $record[$width], $record[$height]]);
+            if ($coordinates !== null) {
+                return $this->canonicalBbox([
+                    $coordinates[0],
+                    $coordinates[1],
+                    $coordinates[0] + $coordinates[2],
+                    $coordinates[1] + $coordinates[3],
+                ]);
+            }
+        }
+
         return null;
     }
 
