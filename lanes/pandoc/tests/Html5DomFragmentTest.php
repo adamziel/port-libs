@@ -176,6 +176,37 @@ return [
         $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
         $t->true(!str_contains($blocks, '<applet'), 'Expected WordPress blocks to omit applet wrapper');
     },
+    'unwraps noscript fallback content while dropping unsafe container before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<noscript><p>Script-disabled fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p>'
+            . '<img src="/uploads/fallback.png" alt="Fallback"><script>drop()</script></noscript><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/noscript-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>Script-disabled fallback <a href="/review">review</a><a>bad</a></p><img src="/uploads/fallback.png" alt="Fallback"><p>after</p>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Script-disabled fallback reviewbadafter', $fragment->textContent());
+        $t->same(['a', 'img', 'p'], $summary['elementNames']);
+        $t->same(['noscript', 'script'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(3, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'unsafe-url', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same('p', $nodes[0]['name']);
+        $t->same('img', $nodes[1]['name']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/noscript-fallback-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<noscript'), 'Expected noscript wrapper to be stripped');
+        $t->true(!str_contains($html, '<script'), 'Expected nested active script to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe noscript fallback URL to be stripped');
+        $t->true(!str_contains($blocks, '<noscript'), 'Expected WordPress blocks to omit noscript wrapper');
+    },
     'filters mixed unsafe srcset candidates before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<p>'

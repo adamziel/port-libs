@@ -584,6 +584,7 @@ final class Html5DomFragment
             'iframe',
             'noembed',
             'noframes',
+            'noscript',
             'object',
             'optgroup',
             'option',
