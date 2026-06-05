@@ -1508,21 +1508,41 @@ final class BatchConverter
 
         try {
             $conversion = $this->normalizeConversion($converter($filepath, $metadata));
-            if (trim($conversion['text']) === '') {
-                $conversionResult = $this->processSinglePdfPostConversionBoundary($filepath, 'empty-output');
+        } catch (Throwable $throwable) {
+            $errorOutput = $this->conversionErrorOutput($filepath, $throwable);
+            $conversionResult = $this->processSinglePdfPostConversionBoundary($filepath, 'error', $throwable, $errorOutput);
 
-                return $this->result('skipped-empty-output', $filepath, [
-                    'filename' => $filename,
-                    'preflight' => $preflight,
-                    'conversion_result' => $conversionResult,
-                    'upstream_return_value' => $conversionResult['upstream_return_value'],
-                    'upstream_return_type' => $conversionResult['upstream_return_type'],
-                    'upstream_return_boundary' => $conversionResult['upstream_return_boundary'],
-                    'executes_python_or_models' => false,
-                    'executes_external_pdf_tools' => false,
-                ]);
-            }
+            return $this->result('error', $filepath, [
+                'filename' => $filename,
+                'error' => $throwable->getMessage(),
+                'error_output' => $errorOutput,
+                'conversion_result' => $conversionResult,
+                'upstream_return_value' => $conversionResult['upstream_return_value'],
+                'upstream_return_type' => $conversionResult['upstream_return_type'],
+                'upstream_return_boundary' => $conversionResult['upstream_return_boundary'],
+                'writes_markdown' => false,
+                'preflight' => $preflight,
+                'executes_python_or_models' => false,
+                'executes_external_pdf_tools' => false,
+            ]);
+        }
 
+        if (trim($conversion['text']) === '') {
+            $conversionResult = $this->processSinglePdfPostConversionBoundary($filepath, 'empty-output');
+
+            return $this->result('skipped-empty-output', $filepath, [
+                'filename' => $filename,
+                'preflight' => $preflight,
+                'conversion_result' => $conversionResult,
+                'upstream_return_value' => $conversionResult['upstream_return_value'],
+                'upstream_return_type' => $conversionResult['upstream_return_type'],
+                'upstream_return_boundary' => $conversionResult['upstream_return_boundary'],
+                'executes_python_or_models' => false,
+                'executes_external_pdf_tools' => false,
+            ]);
+        }
+
+        try {
             $subfolder = $this->writer->saveMarkdown(
                 $outputFolder,
                 $filename,
@@ -1532,7 +1552,12 @@ final class BatchConverter
             );
         } catch (Throwable $throwable) {
             $errorOutput = $this->conversionErrorOutput($filepath, $throwable);
-            $conversionResult = $this->processSinglePdfPostConversionBoundary($filepath, 'error', $throwable, $errorOutput);
+            $conversionResult = $this->processSinglePdfPostConversionBoundary(
+                $filepath,
+                'save-markdown-error',
+                $throwable,
+                $errorOutput
+            );
 
             return $this->result('error', $filepath, [
                 'filename' => $filename,
@@ -1930,6 +1955,7 @@ final class BatchConverter
         $converted = $outcome === 'converted';
         $empty = $outcome === 'empty-output';
         $error = $outcome === 'error';
+        $saveError = $outcome === 'save-markdown-error';
         $errorOutput ??= $error && $throwable !== null
             ? $this->conversionErrorOutput($filepath, $throwable)
             : null;
@@ -1944,15 +1970,19 @@ final class BatchConverter
             $stdoutMessage = $errorOutput['message_line'] ?? null;
             $errorBoundary = 'conversion-exception-print-return-none';
             $upstreamReturnBoundary = 'conversion-exception-print-return-none';
+        } elseif ($saveError) {
+            $stdoutMessage = $errorOutput['message_line'] ?? null;
+            $errorBoundary = 'save-markdown-exception-print-return-none';
+            $upstreamReturnBoundary = 'save-markdown-exception-print-return-none';
         }
 
         return [
             'source' => 'convert.py process_single_pdf post-conversion boundary',
-            'order' => 'after_convert_single_pdf_before_save_markdown',
+            'order' => $saveError ? 'after_nonempty_output_during_save_markdown' : 'after_convert_single_pdf_before_save_markdown',
             'conversion_reached' => true,
             'conversion_success' => !$error,
             'empty_output' => $empty,
-            'save_markdown_reached' => $converted,
+            'save_markdown_reached' => $converted || $saveError,
             'save_markdown_writes_markdown' => $converted,
             'stdout_message_line' => $stdoutMessage,
             'error_boundary' => $errorBoundary,

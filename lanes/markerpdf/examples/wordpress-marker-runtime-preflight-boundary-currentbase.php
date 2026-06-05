@@ -250,6 +250,20 @@ try {
         null,
         static fn (): string => throw new RuntimeException('runtime model boundary unavailable')
     );
+    $saveFailurePath = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'save-markdown-failure.pdf';
+    file_put_contents($saveFailurePath, "%PDF-1.4\n% save markdown failure\n%%EOF");
+    file_put_contents($output . DIRECTORY_SEPARATOR . 'save-markdown-failure', 'subfolder collision');
+    $postConversionSaveError = $batch->processFile(
+        $saveFailurePath,
+        $output,
+        ['title' => 'Save Markdown Failure'],
+        null,
+        static fn (): array => [
+            'text' => '<!-- wp:paragraph --><p>Save markdown failure should not persist.</p><!-- /wp:paragraph -->',
+            'images' => [],
+            'metadata' => ['title' => 'Save Markdown Failure'],
+        ]
+    );
     $textLengthErrorPath = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'text-length-error.pdf';
     file_put_contents($textLengthErrorPath, "%PDF-1.4\n% text length error\n%%EOF");
     $textLengthErrorPreflight = $batch->processFilePreflightPlan(
@@ -535,6 +549,18 @@ try {
         throw new RuntimeException('Expected converter exceptions to print error review output and return None without writing Markdown.');
     }
     if (
+        $postConversionSaveError['status'] !== 'error'
+        || $postConversionSaveError['conversion_result']['error_boundary'] !== 'save-markdown-exception-print-return-none'
+        || $postConversionSaveError['conversion_result']['conversion_success'] !== true
+        || $postConversionSaveError['conversion_result']['save_markdown_reached'] !== true
+        || $postConversionSaveError['conversion_result']['save_markdown_writes_markdown'] !== false
+        || $postConversionSaveError['conversion_result']['upstream_return_boundary'] !== 'save-markdown-exception-print-return-none'
+        || $postConversionSaveError['conversion_result']['traceback_available'] !== true
+        || is_file($output . DIRECTORY_SEPARATOR . 'save-markdown-failure' . DIRECTORY_SEPARATOR . 'save-markdown-failure.md')
+    ) {
+        throw new RuntimeException('Expected save_markdown exceptions after non-empty conversion to print error review output and return None without persisted Markdown.');
+    }
+    if (
         $textLengthErrorPreflight['status'] !== 'error'
         || $textLengthErrorPreflight['error_stage'] !== 'get_length_of_text'
         || $textLengthErrorPreflight['error_boundary'] !== 'preflight-exception-print-return-none'
@@ -714,6 +740,12 @@ try {
         'post_conversion_error_boundary' => $postConversionError['conversion_result']['upstream_return_boundary'],
         'post_conversion_error_class' => $postConversionError['conversion_result']['error_class'],
         'post_conversion_error_traceback_available' => $postConversionError['conversion_result']['traceback_available'],
+        'post_conversion_save_error_status' => $postConversionSaveError['status'],
+        'post_conversion_save_error_boundary' => $postConversionSaveError['conversion_result']['upstream_return_boundary'],
+        'post_conversion_save_error_after_conversion' => $postConversionSaveError['conversion_result']['conversion_success'],
+        'post_conversion_save_error_reaches_save_markdown' => $postConversionSaveError['conversion_result']['save_markdown_reached'],
+        'post_conversion_save_error_writes_markdown' => $postConversionSaveError['conversion_result']['save_markdown_writes_markdown'],
+        'post_conversion_save_error_traceback_available' => $postConversionSaveError['conversion_result']['traceback_available'],
         'text_length_error_status' => $textLengthErrorPreflight['status'],
         'text_length_error_stage' => $textLengthErrorPreflight['error_stage'],
         'text_length_error_boundary' => $textLengthErrorPreflight['error_boundary'],

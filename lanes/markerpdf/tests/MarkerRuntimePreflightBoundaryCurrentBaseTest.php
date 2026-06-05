@@ -1502,6 +1502,53 @@ return [
             $removeTree($output);
         }
     },
+    'records process_single_pdf save_markdown exceptions after nonempty conversion output' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $input = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $filepath = $input . DIRECTORY_SEPARATOR . 'save-fails.pdf';
+            file_put_contents($filepath, "%PDF-1.4\n% save fails\n%%EOF");
+            file_put_contents($output . DIRECTORY_SEPARATOR . 'save-fails', 'subfolder collision');
+
+            $result = (new BatchConverter())->processFile(
+                $filepath,
+                $output,
+                ['title' => 'Save Fails Import'],
+                null,
+                static fn (): array => [
+                    'text' => '<!-- wp:paragraph --><p>Save failure should not persist.</p><!-- /wp:paragraph -->',
+                    'images' => [],
+                    'metadata' => ['title' => 'Save Fails Import'],
+                ]
+            );
+
+            $boundary = $result['conversion_result'];
+            $t->same('error', $result['status']);
+            $t->same('ready-for-conversion', $result['preflight']['status']);
+            $t->same(true, $boundary['conversion_reached']);
+            $t->same(true, $boundary['conversion_success']);
+            $t->same('after_nonempty_output_during_save_markdown', $boundary['order']);
+            $t->same(true, $boundary['save_markdown_reached']);
+            $t->same(false, $boundary['save_markdown_writes_markdown']);
+            $t->same('save-markdown-exception-print-return-none', $boundary['error_boundary']);
+            $t->same(RuntimeException::class, $boundary['error_class']);
+            $t->contains('Unable to create markerPDF output folder', (string) $boundary['error_message']);
+            $t->contains('Error converting ' . $filepath . ': Unable to create markerPDF output folder', (string) $boundary['stdout_message_line']);
+            $t->same(true, $boundary['traceback_available']);
+            $t->contains('RuntimeException: Unable to create markerPDF output folder', (string) $boundary['traceback']);
+            $t->same(null, $boundary['upstream_return_value']);
+            $t->same('python-none', $boundary['upstream_return_type']);
+            $t->same('save-markdown-exception-print-return-none', $boundary['upstream_return_boundary']);
+            $t->same('save-markdown-exception-print-return-none', $result['upstream_return_boundary']);
+            $t->same(false, is_file($output . DIRECTORY_SEPARATOR . 'save-fails' . DIRECTORY_SEPARATOR . 'save-fails.md'));
+            $t->same(false, $result['writes_markdown']);
+            $t->same(false, $result['executes_python_or_models']);
+            $t->same(false, $result['executes_external_pdf_tools']);
+        } finally {
+            $removeTree($input);
+            $removeTree($output);
+        }
+    },
     'records convert.py conversion summary stdout before task args and pool launch' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

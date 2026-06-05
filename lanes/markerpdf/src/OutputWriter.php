@@ -169,7 +169,7 @@ final class OutputWriter
         array $metadata
     ): array {
         $subfolderPath = $this->getSubfolderPath($outputFolder, $filename);
-        if (!is_dir($subfolderPath) && !mkdir($subfolderPath, 0777, true) && !is_dir($subfolderPath)) {
+        if (!is_dir($subfolderPath) && !@mkdir($subfolderPath, 0777, true) && !is_dir($subfolderPath)) {
             throw new RuntimeException('Unable to create markerPDF output folder: ' . $subfolderPath);
         }
 
