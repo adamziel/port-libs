@@ -54,6 +54,22 @@ $inlineImageTokenizerTightIdSeparatorPdf = static function (): string {
         . "%%EOF";
 };
 
+$inlineImageTokenizerCommentAfterIdPdf = static function (): string {
+    $payload = 'abc EI BT /F1 12 Tf 72 660 Td (Comment ID Inline Payload Noise) Tj ET rawtail';
+    $content = "BT /F1 12 Tf 72 720 Td (Before Comment ID Boundary) Tj ET\n"
+        . "BI /W 16 /H 1 /CS /G /BPC 8 ID% comment after ID token\n"
+        . $payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 704 Td (After Comment ID Boundary) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerTightEiTerminatorPdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before Tight EI Boundary) Tj ET\n"
         . "BI /W 1 /H 1 /CS /G /BPC 8 IDxEI\n"
@@ -385,6 +401,25 @@ return [
         $t->true(!str_contains($plainText, 'Tight ID Inline Payload Noise'));
         $t->true(!str_contains($plainText, 'rawtail'));
         $t->true(!str_contains($plainText, 'IDabc'));
+    },
+    'treats immediate PDF comments after inline image ID as token separators before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerCommentAfterIdPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerCommentAfterIdPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Comment ID Boundary',
+            'After Comment ID Boundary',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Comment ID Inline Payload Noise'));
+        $t->true(!str_contains($plainText, 'comment after ID token'));
+        $t->true(!str_contains($plainText, 'rawtail'));
     },
     'recovers tight EI inline image terminators after exact sample floors before WordPress text extraction' => static function (TestRunner $t) use ($inlineImageTokenizerTightEiTerminatorPdf): void {
         $extractor = new PdfTextExtractor();

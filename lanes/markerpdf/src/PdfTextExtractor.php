@@ -22913,6 +22913,11 @@ final class PdfTextExtractor
             return $afterId;
         }
 
+        $commentBoundary = $this->inlineImageDataCommentBoundaryFollowsId($stream, $afterId);
+        if ($commentBoundary !== null) {
+            return $commentBoundary;
+        }
+
         $dictionary = implode(' ', $entries);
         if ($dictionary === '' || !$this->inlineImageDictionaryHasImageKeys($dictionary)) {
             return null;
@@ -23813,6 +23818,34 @@ final class PdfTextExtractor
     private function inlineImageDataSeparatorFollowsId(string $stream, int $index): bool
     {
         return $index < strlen($stream) && ctype_space($stream[$index]);
+    }
+
+    private function inlineImageDataCommentBoundaryFollowsId(string $stream, int $index): ?int
+    {
+        $length = strlen($stream);
+        if ($index >= $length || $stream[$index] !== '%') {
+            return null;
+        }
+
+        $this->skipPdfComment($stream, $index);
+        if ($index >= $length) {
+            return $index;
+        }
+
+        if ($stream[$index] === "\r") {
+            $index++;
+            if ($index < $length && $stream[$index] === "\n") {
+                $index++;
+            }
+
+            return $index;
+        }
+
+        if ($stream[$index] === "\n") {
+            return $index + 1;
+        }
+
+        return $index;
     }
 
     private function inlineImageEndMarkerAt(string $stream, int $offset): bool
