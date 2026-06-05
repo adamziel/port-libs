@@ -2354,7 +2354,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true);
+            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true, true);
             if ($decoded !== null) {
                 $streams[] = $this->filterOptionalContentMarkedBlocks(
                     $decoded,
@@ -4248,7 +4248,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true);
+            $decoded = $this->decodeStreamObject($objects[$contentObjectNumber], $objects, true, true);
             if ($decoded !== null) {
                 $streams[] = $decoded;
             }
@@ -6422,7 +6422,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objectBody, $objects, true);
+        $decoded = $this->decodeStreamObject($objectBody, $objects, true, true);
         if ($decoded === null) {
             return null;
         }
@@ -6853,7 +6853,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        $decoded = $this->decodeStreamObject($objects[$appearanceObjectNumber], $objects, true);
+        $decoded = $this->decodeStreamObject($objects[$appearanceObjectNumber], $objects, true, true);
         if ($decoded === null) {
             return null;
         }
@@ -7923,7 +7923,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true);
+            $decoded = $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, true, true);
             if ($decoded === null) {
                 continue;
             }
@@ -9750,7 +9750,8 @@ final class PdfTextExtractor
     private function decodeStreamObject(
         string $objectBody,
         array $objects,
-        bool $ignoreNullFilterDecodeParms = false
+        bool $ignoreNullFilterDecodeParms = false,
+        bool $requireBoundedFilterEndMarkers = false
     ): ?string
     {
         $entry = $this->streamDictionaryAndPayload($objectBody, $objects);
@@ -9762,7 +9763,14 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->decodeStream($entry['dict'], $entry['stream'], $objects, false, $ignoreNullFilterDecodeParms);
+        return $this->decodeStream(
+            $entry['dict'],
+            $entry['stream'],
+            $objects,
+            false,
+            $ignoreNullFilterDecodeParms,
+            $requireBoundedFilterEndMarkers
+        );
     }
 
     /**
@@ -11010,9 +11018,14 @@ final class PdfTextExtractor
                 return null;
             }
             if (
-                $requireExplicitFilterEndMarkers
-                && $requireBoundedExplicitFilterEndMarkers
-                && !$this->streamFilterInputHasBoundedEndMarker($filter, $stream, $filterDecodeParms, $objects)
+                $requireBoundedExplicitFilterEndMarkers
+                && !$this->streamFilterInputHasBoundedEndMarker(
+                    $filter,
+                    $stream,
+                    $filterDecodeParms,
+                    $objects,
+                    !$requireExplicitFilterEndMarkers
+                )
             ) {
                 return null;
             }
@@ -11068,11 +11081,16 @@ final class PdfTextExtractor
         string $filter,
         string $stream,
         ?string $decodeParms = null,
-        array $objects = []
+        array $objects = [],
+        bool $allowMissingExplicitEndMarker = false
     ): bool
     {
         $offset = $this->streamFilterInputEndByteOffset($filter, $stream, $decodeParms, $objects);
         if ($offset === null) {
+            if ($allowMissingExplicitEndMarker && $this->streamFilterRequiresExplicitEndMarker($filter)) {
+                return true;
+            }
+
             return !in_array($filter, [
                 'ASCIIHexDecode',
                 'AHx',
