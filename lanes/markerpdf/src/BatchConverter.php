@@ -915,6 +915,154 @@ final class BatchConverter
     }
 
     /**
+     * WordPress-safe wrapper for convert.py::main preflight failures.
+     *
+     * Upstream fails at os.listdir(in_folder) before os.makedirs(out_folder),
+     * metadata loading, model handoff, task construction, or pool launch. This
+     * exposes that early boundary without changing runtimeMainPreflightPlan()
+     * callers that intentionally expect exceptions.
+     *
+     * @param array<string, array<string, mixed>> $metadataByFilename
+     * @return array<string, mixed>
+     */
+    public function runtimeMainPreflightErrorBoundary(
+        string $inputFolder,
+        string $outputFolder,
+        int $chunkIndex = 0,
+        int $numChunks = 1,
+        ?int $maxFiles = null,
+        array $metadataByFilename = [],
+        ?int $minLength = null,
+        int $workers = 5,
+        ?string $metadataFile = null,
+        ?string $torchDevice = null,
+        ?string $torchDeviceModel = null,
+        bool $spawnStartMethodAlreadySet = false
+    ): array {
+        $absoluteInputFolder = $this->absolutePath($inputFolder);
+        $absoluteOutputFolder = $this->absolutePath($outputFolder);
+        $absoluteMetadataFile = $metadataFile === null || $metadataFile === ''
+            ? null
+            : $this->absolutePath($metadataFile);
+
+        try {
+            $plan = $this->runtimeMainPreflightPlan(
+                $inputFolder,
+                $outputFolder,
+                $chunkIndex,
+                $numChunks,
+                $maxFiles,
+                $metadataByFilename,
+                $minLength,
+                $workers,
+                $metadataFile,
+                $torchDevice,
+                $torchDeviceModel,
+                $spawnStartMethodAlreadySet
+            );
+
+            return [
+                'schema' => 'markerpdf.convert_main_runtime_preflight_error_boundary.v1',
+                'source' => 'sddai/markerPDF convert.py::main + os.listdir input-folder error boundary',
+                'success' => true,
+                'plan' => $plan,
+                'error' => null,
+                'error_boundary' => null,
+                'error_class' => null,
+                'upstream_error_message' => null,
+                'paths' => [
+                    'input_folder' => $inputFolder,
+                    'output_folder' => $outputFolder,
+                    'absolute_input_folder' => $absoluteInputFolder,
+                    'absolute_output_folder' => $absoluteOutputFolder,
+                    'input_path_exists' => file_exists($absoluteInputFolder),
+                    'input_path_type' => $this->filesystemPathType($absoluteInputFolder),
+                    'output_folder_creation_reached' => true,
+                    'metadata_file' => $absoluteMetadataFile,
+                ],
+                'input_listing' => [
+                    'source' => 'os.listdir + os.path.isfile',
+                    'listing_reached' => true,
+                    'listing_success' => true,
+                    'error_boundary' => null,
+                ],
+                'blocked_stages' => [],
+                'review_only' => true,
+                'executes_python_or_models' => false,
+                'executes_multiprocessing' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        } catch (InvalidArgumentException $exception) {
+            $errorBoundary = $this->runtimeMainPreflightExceptionBoundary($exception);
+
+            return [
+                'schema' => 'markerpdf.convert_main_runtime_preflight_error_boundary.v1',
+                'source' => 'sddai/markerPDF convert.py::main + os.listdir input-folder error boundary',
+                'success' => false,
+                'plan' => null,
+                'error' => $exception->getMessage(),
+                'error_boundary' => $errorBoundary,
+                'error_class' => $this->runtimeMainPreflightExceptionClass($errorBoundary, $absoluteInputFolder),
+                'upstream_error_message' => $this->runtimeMainPreflightUpstreamErrorMessage(
+                    $errorBoundary,
+                    $absoluteInputFolder,
+                    $exception->getMessage()
+                ),
+                'paths' => [
+                    'input_folder' => $inputFolder,
+                    'output_folder' => $outputFolder,
+                    'absolute_input_folder' => $absoluteInputFolder,
+                    'absolute_output_folder' => $absoluteOutputFolder,
+                    'input_path_exists' => file_exists($absoluteInputFolder),
+                    'input_path_type' => $this->filesystemPathType($absoluteInputFolder),
+                    'output_folder_creation_reached' => $errorBoundary !== 'input-folder-list-failed',
+                    'output_folder_creation_required' => false,
+                    'output_folder_creation_blocked' => false,
+                    'metadata_file' => $absoluteMetadataFile,
+                ],
+                'input_listing' => [
+                    'source' => 'os.listdir + os.path.isfile',
+                    'listing_reached' => $errorBoundary === 'input-folder-list-failed',
+                    'listing_success' => false,
+                    'entry_count' => 0,
+                    'entry_basenames' => [],
+                    'file_count' => 0,
+                    'file_basenames' => [],
+                    'skipped_non_file_count' => 0,
+                    'skipped_non_file_basenames' => [],
+                    'error_boundary' => $errorBoundary,
+                ],
+                'metadata' => [
+                    'metadata_file' => $absoluteMetadataFile,
+                    'metadata_load_reached' => false,
+                    'metadata_filenames' => [],
+                    'selected_metadata_filenames' => [],
+                    'missing_metadata_filenames' => [],
+                ],
+                'spawn_start_method' => $this->convertMainSpawnStartMethodPlan($errorBoundary, $spawnStartMethodAlreadySet),
+                'model_handoff' => $this->convertMainModelHandoffPlan($torchDevice, $torchDeviceModel, $errorBoundary),
+                'worker_pool' => [
+                    'requested_workers' => $workers,
+                    'total_processes' => 0,
+                    'pool_launchable' => false,
+                    'pool_error_boundary' => $errorBoundary,
+                    'start_method' => 'spawn',
+                    'process_function' => 'process_single_pdf',
+                    'task_args_count' => 0,
+                    'task_args' => [],
+                    'progress_iterator' => $this->progressIterator(),
+                ],
+                'console_summary' => $this->conversionSummaryPlan(0, $chunkIndex, $numChunks, 0, $absoluteOutputFolder, $errorBoundary),
+                'blocked_stages' => $this->runtimeMainPreflightBlockedStages($errorBoundary),
+                'review_only' => true,
+                'executes_python_or_models' => false,
+                'executes_multiprocessing' => false,
+                'executes_external_pdf_tools' => false,
+            ];
+        }
+    }
+
+    /**
      * Runtime worker-side mirror for convert.py::process_single_pdf.
      *
      * convert.py queues every file candidate selected by os.listdir() before
@@ -1428,6 +1576,10 @@ final class BatchConverter
     private function inputDirectoryListing(string $inputFolder): array
     {
         if (!is_dir($inputFolder)) {
+            if (file_exists($inputFolder)) {
+                throw new InvalidArgumentException('Batch input folder is not a directory: ' . $inputFolder);
+            }
+
             throw new InvalidArgumentException('Batch input folder does not exist: ' . $inputFolder);
         }
 
@@ -2007,6 +2159,103 @@ final class BatchConverter
             'emitted_before_pool_launch' => $reached,
             'blocked_by' => $blockedBy,
         ];
+    }
+
+    private function runtimeMainPreflightExceptionBoundary(InvalidArgumentException $exception): string
+    {
+        $message = $exception->getMessage();
+        if (str_contains($message, 'Batch input folder does not exist')
+            || str_contains($message, 'Batch input folder is not a directory')) {
+            return 'input-folder-list-failed';
+        }
+        if (str_contains($message, 'Batch chunk count must be at least one')) {
+            return 'chunk-files-failed';
+        }
+        if (str_contains($message, 'Batch metadata file')) {
+            return 'metadata-file-load-failed';
+        }
+
+        return 'runtime-main-preflight-failed';
+    }
+
+    private function runtimeMainPreflightExceptionClass(string $errorBoundary, string $absoluteInputFolder): string
+    {
+        if ($errorBoundary === 'input-folder-list-failed') {
+            return file_exists($absoluteInputFolder) ? 'NotADirectoryError' : 'FileNotFoundError';
+        }
+        if ($errorBoundary === 'chunk-files-failed') {
+            return 'ZeroDivisionError';
+        }
+
+        return InvalidArgumentException::class;
+    }
+
+    private function runtimeMainPreflightUpstreamErrorMessage(
+        string $errorBoundary,
+        string $absoluteInputFolder,
+        string $fallback
+    ): string {
+        if ($errorBoundary !== 'input-folder-list-failed') {
+            return $fallback;
+        }
+
+        if (file_exists($absoluteInputFolder)) {
+            return "[Errno 20] Not a directory: '" . $absoluteInputFolder . "'";
+        }
+
+        return "[Errno 2] No such file or directory: '" . $absoluteInputFolder . "'";
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function runtimeMainPreflightBlockedStages(string $errorBoundary): array
+    {
+        if ($errorBoundary === 'input-folder-list-failed') {
+            return [
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ];
+        }
+        if ($errorBoundary === 'chunk-files-failed') {
+            return [
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ];
+        }
+
+        return [
+            'set_spawn_start_method',
+            'prepare_model_handoff',
+            'print_conversion_summary',
+            'build_task_args',
+            'pool_imap_process_single_pdf',
+        ];
+    }
+
+    private function filesystemPathType(string $path): string
+    {
+        if (is_dir($path)) {
+            return 'directory';
+        }
+        if (is_file($path)) {
+            return 'file';
+        }
+        if (file_exists($path)) {
+            return 'other';
+        }
+
+        return 'missing';
     }
 
     private function percentComplete(int $completed, int $total): float

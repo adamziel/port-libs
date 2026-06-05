@@ -423,6 +423,103 @@ return [
             $removeTree($output);
         }
     },
+    'records input-folder list failures as WordPress-safe runtime preflight errors' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $root = $makeTempDir();
+        $output = $makeTempDir();
+        try {
+            $batch = new BatchConverter();
+            $inputFile = $root . DIRECTORY_SEPARATOR . 'not-a-folder.pdf';
+            $blockedOutput = $root . DIRECTORY_SEPARATOR . 'blocked-output';
+            $metadataFile = $root . DIRECTORY_SEPARATOR . 'metadata.json';
+            file_put_contents($inputFile, '%PDF input folder collision');
+            file_put_contents($blockedOutput, 'output file conflict should not be inspected');
+            file_put_contents($metadataFile, json_encode([
+                'not-a-folder.pdf' => ['title' => 'Should not load'],
+            ], JSON_THROW_ON_ERROR));
+
+            $missing = $batch->runtimeMainPreflightErrorBoundary(
+                $root . DIRECTORY_SEPARATOR . 'missing-input',
+                $blockedOutput,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'cuda',
+                torchDeviceModel: 'cpu'
+            );
+            $fileInput = $batch->runtimeMainPreflightErrorBoundary(
+                $inputFile,
+                $blockedOutput,
+                metadataFile: $metadataFile,
+                workers: 4,
+                torchDevice: 'mps',
+                torchDeviceModel: 'cpu'
+            );
+            $success = $batch->runtimeMainPreflightErrorBoundary($root, $output, workers: 2);
+
+            $t->same('markerpdf.convert_main_runtime_preflight_error_boundary.v1', $missing['schema']);
+            $t->contains('convert.py::main', $missing['source']);
+            $t->same(false, $missing['success']);
+            $t->same(null, $missing['plan']);
+            $t->same('input-folder-list-failed', $missing['error_boundary']);
+            $t->same('FileNotFoundError', $missing['error_class']);
+            $t->contains('No such file or directory', $missing['upstream_error_message']);
+            $t->contains('Batch input folder does not exist', $missing['error']);
+            $t->same(false, $missing['paths']['input_path_exists']);
+            $t->same('missing', $missing['paths']['input_path_type']);
+            $t->same(false, $missing['paths']['output_folder_creation_reached']);
+            $t->same($metadataFile, $missing['paths']['metadata_file']);
+            $t->same(true, $missing['input_listing']['listing_reached']);
+            $t->same(false, $missing['input_listing']['listing_success']);
+            $t->same(0, $missing['input_listing']['entry_count']);
+            $t->same([], $missing['input_listing']['file_basenames']);
+            $t->same(false, $missing['metadata']['metadata_load_reached']);
+            $t->same(false, $missing['spawn_start_method']['start_method_reached']);
+            $t->same('input-folder-list-failed', $missing['spawn_start_method']['blocked_by']);
+            $t->same(false, $missing['model_handoff']['model_handoff_reached']);
+            $t->same(false, $missing['model_handoff']['upstream_model_execution_required']);
+            $t->same(false, $missing['worker_pool']['pool_launchable']);
+            $t->same('input-folder-list-failed', $missing['worker_pool']['pool_error_boundary']);
+            $t->same(false, $missing['console_summary']['summary_reached']);
+            $t->same([
+                'makedirs_output_exist_ok',
+                'chunk_files',
+                'load_metadata_file',
+                'set_spawn_start_method',
+                'prepare_model_handoff',
+                'print_conversion_summary',
+                'build_task_args',
+                'pool_imap_process_single_pdf',
+            ], $missing['blocked_stages']);
+            $t->same(false, $missing['executes_python_or_models']);
+            $t->same(false, $missing['executes_multiprocessing']);
+            $t->same(false, $missing['executes_external_pdf_tools']);
+
+            $t->same(false, $fileInput['success']);
+            $t->same('input-folder-list-failed', $fileInput['error_boundary']);
+            $t->same('NotADirectoryError', $fileInput['error_class']);
+            $t->contains('Not a directory', $fileInput['upstream_error_message']);
+            $t->contains('Batch input folder is not a directory', $fileInput['error']);
+            $t->same(true, $fileInput['paths']['input_path_exists']);
+            $t->same('file', $fileInput['paths']['input_path_type']);
+            $t->same(false, $fileInput['paths']['output_folder_creation_reached']);
+            $t->same(false, $fileInput['metadata']['metadata_load_reached']);
+            $t->same(false, $fileInput['model_handoff']['main_load_all_models']);
+            $t->same(false, $fileInput['model_handoff']['worker_loads_models_when_init_arg_null']);
+            $t->same(false, $fileInput['executes_python_or_models']);
+
+            $t->same(true, $success['success']);
+            $t->same(null, $success['error_boundary']);
+            $t->same(null, $success['error']);
+            $t->same('markerpdf.convert_main_runtime_preflight.v1', $success['plan']['schema']);
+            $t->same(true, $success['input_listing']['listing_success']);
+            $t->same('directory', $success['paths']['input_path_type']);
+            $t->same(true, $success['paths']['output_folder_creation_reached']);
+            $t->same([], $success['blocked_stages']);
+            $t->same(false, $success['executes_python_or_models']);
+        } finally {
+            $removeTree($root);
+            $removeTree($output);
+        }
+    },
     'matches convert.py integer truthiness for max and min_length gates' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
         $input = $makeTempDir();
         $output = $makeTempDir();

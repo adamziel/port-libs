@@ -120,6 +120,24 @@ try {
     $missingMetadata = $input . DIRECTORY_SEPARATOR . 'missing-metadata.json';
     $blockedOutput = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'marker-output';
     file_put_contents($blockedOutput, 'not a directory');
+    $fileValuedInput = $blockedOutputRoot . DIRECTORY_SEPARATOR . 'not-a-folder.pdf';
+    file_put_contents($fileValuedInput, '%PDF file-valued input folder boundary');
+    $missingInputBoundary = $batch->runtimeMainPreflightErrorBoundary(
+        $input . DIRECTORY_SEPARATOR . 'missing-input',
+        $blockedOutput,
+        metadataFile: $missingMetadata,
+        workers: 8,
+        torchDevice: 'cuda',
+        torchDeviceModel: 'cpu'
+    );
+    $fileInputBoundary = $batch->runtimeMainPreflightErrorBoundary(
+        $fileValuedInput,
+        $blockedOutput,
+        metadataFile: $missingMetadata,
+        workers: 8,
+        torchDevice: 'mps',
+        torchDeviceModel: 'cpu'
+    );
     $outputConflictPlan = $batch->runtimeMainPreflightPlan(
         $input,
         $blockedOutput,
@@ -305,6 +323,32 @@ try {
         throw new RuntimeException('Expected output-folder file conflicts to block before metadata loading, conversion summary, or worker-pool planning.');
     }
     if (
+        $missingInputBoundary['success'] !== false
+        || $missingInputBoundary['error_boundary'] !== 'input-folder-list-failed'
+        || $missingInputBoundary['error_class'] !== 'FileNotFoundError'
+        || $missingInputBoundary['paths']['output_folder_creation_reached'] !== false
+        || $missingInputBoundary['metadata']['metadata_load_reached'] !== false
+        || $missingInputBoundary['model_handoff']['model_handoff_reached'] !== false
+        || $missingInputBoundary['worker_pool']['task_args_count'] !== 0
+        || $missingInputBoundary['console_summary']['summary_reached'] !== false
+        || $missingInputBoundary['executes_python_or_models'] !== false
+        || $missingInputBoundary['executes_multiprocessing'] !== false
+    ) {
+        throw new RuntimeException('Expected missing input folder boundary to block before output creation, metadata loading, model handoff, summary, task args, and multiprocessing.');
+    }
+    if (
+        $fileInputBoundary['success'] !== false
+        || $fileInputBoundary['error_boundary'] !== 'input-folder-list-failed'
+        || $fileInputBoundary['error_class'] !== 'NotADirectoryError'
+        || $fileInputBoundary['paths']['input_path_type'] !== 'file'
+        || $fileInputBoundary['input_listing']['listing_success'] !== false
+        || $fileInputBoundary['paths']['output_folder_creation_reached'] !== false
+        || $fileInputBoundary['metadata']['metadata_load_reached'] !== false
+        || $fileInputBoundary['executes_python_or_models'] !== false
+    ) {
+        throw new RuntimeException('Expected file-valued input folder boundary to mirror upstream os.listdir NotADirectoryError before any runtime handoff.');
+    }
+    if (
         $metadataErrorPlan['metadata']['metadata_load_success'] !== false
         || $metadataErrorPlan['metadata']['metadata_error_boundary'] !== 'metadata-file-json-load-failed'
         || $metadataErrorPlan['worker_pool']['pool_error_boundary'] !== 'metadata-file-json-load-failed'
@@ -475,6 +519,16 @@ try {
         'output_conflict_pool_error_boundary' => $outputConflictPlan['worker_pool']['pool_error_boundary'],
         'output_conflict_conversion_summary_reached' => $outputConflictPlan['console_summary']['summary_reached'],
         'output_conflict_conversion_summary_blocked_by' => $outputConflictPlan['console_summary']['blocked_by'],
+        'missing_input_boundary_success' => $missingInputBoundary['success'],
+        'missing_input_boundary_error' => $missingInputBoundary['error_boundary'],
+        'missing_input_boundary_error_class' => $missingInputBoundary['error_class'],
+        'missing_input_boundary_blocks_output_creation' => $missingInputBoundary['paths']['output_folder_creation_reached'] === false,
+        'missing_input_boundary_metadata_load_reached' => $missingInputBoundary['metadata']['metadata_load_reached'],
+        'missing_input_boundary_task_args_count' => $missingInputBoundary['worker_pool']['task_args_count'],
+        'missing_input_boundary_blocked_stages' => $missingInputBoundary['blocked_stages'],
+        'file_input_boundary_error_class' => $fileInputBoundary['error_class'],
+        'file_input_boundary_path_type' => $fileInputBoundary['paths']['input_path_type'],
+        'file_input_boundary_listing_success' => $fileInputBoundary['input_listing']['listing_success'],
         'metadata_error_load_reached' => $metadataErrorPlan['metadata']['metadata_load_reached'],
         'metadata_error_load_success' => $metadataErrorPlan['metadata']['metadata_load_success'],
         'metadata_error_boundary' => $metadataErrorPlan['metadata']['metadata_error_boundary'],
