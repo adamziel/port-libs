@@ -18198,6 +18198,7 @@ final class PdfTextExtractor
             ];
             if ($name === 'Filter') {
                 $review['valid_filter_operand'] = $this->directFilterOperandTokenTypeIsValid($tokenType);
+                $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($item);
             }
             if ($name === 'DecodeParms') {
                 $review['valid_decodeparms_operand'] = $this->decodeParmsOperandBodyIsValid($item, $objects);
@@ -18772,17 +18773,23 @@ final class PdfTextExtractor
             return true;
         }
 
-        if (!str_starts_with($body, '[')) {
-            return false;
-        }
+        return str_starts_with($body, '[') && $this->filterOperandArrayContainsDictionary($body);
+    }
 
+    private function filterOperandArrayContainsDictionary(string $body): bool
+    {
         $arrayBody = $this->readPdfArrayAt($body, 0);
         if ($arrayBody === null) {
             return false;
         }
 
         foreach ($this->pdfArrayItems($arrayBody) as $item) {
-            if (str_starts_with(ltrim($item), '<<')) {
+            $item = ltrim($item);
+            if (str_starts_with($item, '<<')) {
+                return true;
+            }
+
+            if (str_starts_with($item, '[') && $this->filterOperandArrayContainsDictionary($item)) {
                 return true;
             }
         }

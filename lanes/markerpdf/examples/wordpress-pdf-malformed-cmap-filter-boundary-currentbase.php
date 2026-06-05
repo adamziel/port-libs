@@ -502,6 +502,40 @@ $buildStaleReferenceCMapFilterPdf = static function () use ($utf16beHex): string
     return $pdf;
 };
 
+$buildNestedArrayDictionaryCMapFilterPdf = static function () use ($utf16beHex): string {
+    $safeText = 'Nested Array Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPNestedArrayFilterBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Nested Array CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress nested-array CMap filter-boundary fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPNestedArrayFilterBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPNestedArrayFilterBoundary-H /Filter [ [ [ << /Owner (nested dictionary is not a decoder) /Fake /Nested >> ] ] /FlateDecode ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $buildPostEndCMapOperatorPdf = static function () use ($utf16beHex): string {
     $cMap = "/CIDInit /ProcSet findresource begin\n"
         . "12 dict begin\n"
@@ -691,6 +725,7 @@ $trailingDecodeParmsPdf = $buildTrailingDecodeParmsCMapFilterPdf();
 $nullFilterDecodeParmsPdf = $buildNullFilterDecodeParmsCMapPdf();
 $indirectNullFilterDecodeParmsPdf = $buildIndirectNullFilterDecodeParmsCMapPdf();
 $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
+$nestedArrayDictionaryPdf = $buildNestedArrayDictionaryCMapFilterPdf();
 $postEndPdf = $buildPostEndCMapOperatorPdf();
 $secondProgramPdf = $buildSecondProgramCMapPdf();
 $unsupportedFilterPdf = $buildUnsupportedCMapFilterPdf();
@@ -708,6 +743,7 @@ $trailingDecodeParmsLines = $extractor->extractTextLines($trailingDecodeParmsPdf
 $nullFilterDecodeParmsLines = $extractor->extractTextLines($nullFilterDecodeParmsPdf);
 $indirectNullFilterDecodeParmsLines = $extractor->extractTextLines($indirectNullFilterDecodeParmsPdf);
 $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
+$nestedArrayDictionaryLines = $extractor->extractTextLines($nestedArrayDictionaryPdf);
 $postEndLines = $extractor->extractTextLines($postEndPdf);
 $secondProgramLines = $extractor->extractTextLines($secondProgramPdf);
 $unsupportedFilterLines = $extractor->extractTextLines($unsupportedFilterPdf);
@@ -723,6 +759,7 @@ $trailingDecodeParmsPlainText = implode("\n", $trailingDecodeParmsLines);
 $nullFilterDecodeParmsPlainText = implode("\n", $nullFilterDecodeParmsLines);
 $indirectNullFilterDecodeParmsPlainText = implode("\n", $indirectNullFilterDecodeParmsLines);
 $staleReferencePlainText = implode("\n", $staleReferenceLines);
+$nestedArrayDictionaryPlainText = implode("\n", $nestedArrayDictionaryLines);
 $postEndPlainText = implode("\n", $postEndLines);
 $secondProgramPlainText = implode("\n", $secondProgramLines);
 $unsupportedFilterPlainText = implode("\n", $unsupportedFilterLines);
@@ -738,6 +775,7 @@ $trailingDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerRevie
 $nullFilterDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($nullFilterDecodeParmsPdf);
 $indirectNullFilterDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectNullFilterDecodeParmsPdf);
 $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($staleReferencePdf);
+$nestedArrayDictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($nestedArrayDictionaryPdf);
 $postEndReview = $extractor->extractCMapStreamFilterLengthOwnerReview($postEndPdf);
 $secondProgramReview = $extractor->extractCMapStreamFilterLengthOwnerReview($secondProgramPdf);
 $unsupportedFilterReview = $extractor->extractCMapStreamFilterLengthOwnerReview($unsupportedFilterPdf);
@@ -753,6 +791,7 @@ $trailingDecodeParmsEntry = $trailingDecodeParmsReview['entries'][0] ?? [];
 $nullFilterDecodeParmsEntry = $nullFilterDecodeParmsReview['entries'][0] ?? [];
 $indirectNullFilterDecodeParmsEntry = $indirectNullFilterDecodeParmsReview['entries'][0] ?? [];
 $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
+$nestedArrayDictionaryEntry = $nestedArrayDictionaryReview['entries'][0] ?? [];
 $postEndEntry = $postEndReview['entries'][0] ?? [];
 $secondProgramEntry = $secondProgramReview['entries'][0] ?? [];
 $unsupportedFilterEntry = $unsupportedFilterReview['entries'][0] ?? [];
@@ -799,6 +838,10 @@ if ($staleReferenceLines !== ['Stale Reference Safe Import']) {
     throw new RuntimeException('Expected stale-reference malformed CMap filter fallback text.');
 }
 
+if ($nestedArrayDictionaryLines !== ['Nested Array Safe Import']) {
+    throw new RuntimeException('Expected nested-array malformed CMap filter fallback text.');
+}
+
 if ($postEndLines !== ['PostEnd Safe Import']) {
     throw new RuntimeException('Expected post-endcmap CMap operator payload to stay excluded from WordPress text.');
 }
@@ -842,6 +885,8 @@ if (
     || str_contains($indirectNullFilterDecodeParmsPlainText, 'WPIndirectNullFilterDecodeParmsBoundary-H')
     || str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
     || str_contains($staleReferencePlainText, 'xref-selected dictionary is not a decoder')
+    || str_contains($nestedArrayDictionaryPlainText, 'Nested Array CMap Leak')
+    || str_contains($nestedArrayDictionaryPlainText, 'nested dictionary is not a decoder')
     || str_contains($postEndPlainText, 'PostEnd CMap Leak')
     || str_contains($postEndPlainText, 'WPPostEndCMapDecoy-H')
     || str_contains($secondProgramPlainText, 'Second Program CMap Leak')
@@ -1026,6 +1071,22 @@ if (($staleReferenceEntry['filter_operands'][0]['dictionary_filter_operand'] ?? 
     throw new RuntimeException('Expected stale-reference CMap filter operand to expose dictionary_filter_operand=true.');
 }
 
+if (($nestedArrayDictionaryEntry['filter_operand_policy'] ?? null) !== 'reject_dictionary_filter_operands') {
+    throw new RuntimeException('Expected nested-array dictionary CMap filter operand review metadata.');
+}
+
+if (($nestedArrayDictionaryReview['dictionary_filter_operand_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected nested-array CMap filter operand to be classified as a dictionary.');
+}
+
+if (($nestedArrayDictionaryReview['malformed_filter_operand_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected nested-array dictionary CMap filter operand not to be classified as generic malformed.');
+}
+
+if (($nestedArrayDictionaryEntry['filter_operands'][0]['dictionary_filter_operand'] ?? null) !== true) {
+    throw new RuntimeException('Expected nested-array filter operand to expose dictionary_filter_operand=true.');
+}
+
 if (($postEndReview['decoded_cmap_count'] ?? null) !== 1) {
     throw new RuntimeException('Expected post-endcmap CMap stream to decode before parser-boundary filtering.');
 }
@@ -1121,6 +1182,7 @@ $lines = array_merge(
     $nullFilterDecodeParmsLines,
     $indirectNullFilterDecodeParmsLines,
     $staleReferenceLines,
+    $nestedArrayDictionaryLines,
     $postEndLines,
     $secondProgramLines,
     $cryptIdentityLines,
@@ -1205,6 +1267,18 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'stale_reference_valid_filter_rejected' => ($staleReferenceReview['decoded_cmap_count'] ?? null) === 0
         && (($staleReferenceEntry['filter_operands'][0]['generation'] ?? null) === 0)
         && (($staleReferenceEntry['filter_operands'][0]['selected_generation'] ?? null) === 1),
+    'nested_array_decoded_cmap_count' => $nestedArrayDictionaryReview['decoded_cmap_count'] ?? null,
+    'nested_array_invalid_filter_operand_count' => $nestedArrayDictionaryReview['invalid_filter_operand_count'] ?? null,
+    'nested_array_dictionary_filter_operand_count' => $nestedArrayDictionaryReview['dictionary_filter_operand_count'] ?? null,
+    'nested_array_malformed_filter_operand_count' => $nestedArrayDictionaryReview['malformed_filter_operand_count'] ?? null,
+    'nested_array_filter_operand_policy' => $nestedArrayDictionaryEntry['filter_operand_policy'] ?? null,
+    'nested_array_filter_dictionary_classified' => ($nestedArrayDictionaryEntry['filter_operands'][0]['dictionary_filter_operand'] ?? null) === true,
+    'nested_array_filter_rejected' => ($nestedArrayDictionaryReview['decoded_cmap_count'] ?? null) === 0
+        && (($nestedArrayDictionaryReview['dictionary_filter_operand_count'] ?? null) === 1)
+        && (($nestedArrayDictionaryReview['malformed_filter_operand_count'] ?? null) === 0),
+    'nested_array_payload_excluded' => !str_contains($nestedArrayDictionaryPlainText, 'Nested Array CMap Leak')
+        && !str_contains($nestedArrayDictionaryPlainText, 'nested dictionary is not a decoder')
+        && !str_contains($nestedArrayDictionaryPlainText, 'WPNestedArrayFilterBoundary-H'),
     'post_endcmap_decoded_cmap_count' => $postEndReview['decoded_cmap_count'] ?? null,
     'post_endcmap_cmap_name' => $postEndEntry['cmap_name'] ?? null,
     'post_endcmap_bounded_cmap_length' => $postEndEntry['bounded_cmap_length'] ?? null,
@@ -1262,6 +1336,8 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($indirectNullFilterDecodeParmsPlainText, '99 0 R')
         && !str_contains($indirectNullFilterDecodeParmsPlainText, 'Predictor')
         && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
+        && !str_contains($nestedArrayDictionaryPlainText, 'Nested Array CMap Leak')
+        && !str_contains($nestedArrayDictionaryPlainText, 'nested dictionary is not a decoder')
         && !str_contains($postEndPlainText, 'PostEnd CMap Leak')
         && !str_contains($secondProgramPlainText, 'Second Program CMap Leak')
         && !str_contains($cryptIdentityPlainText, 'WPCryptIdentityBoundary-H')
