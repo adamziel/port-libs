@@ -62,6 +62,11 @@ $escapedInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
     '/W 8 /H 3 /IM true /F /CCF /DP << /Decoy << /Columns 4 /Rows 1 /BlackIs1 false /EndOfBlock true >> /#4B -1 /Colu#6Dns 32 /Ro#77s 3 /Black#49s1 true /EncodedByte#41lign true /EndOf#4cine true /EndOf#42lock false /DamagedRowsBefore#45rror 5 >>',
     $escapedInlinePayload
 );
+$nullFilterInlinePayload = "fax bytes EI BT /F1 12 Tf 72 640 Td (Inline null-filter CCITT payload noise) Tj ET final";
+$nullFilterInlineReview = (new PdfImageRenderer())->inlineImageReviewPlan(
+    '/W 16 /H 2 /IM true /F [null /CCF] /DP [null << /K -1 /Columns 16 /Rows 2 /BlackIs1 true /EndOfBlock false >>] /D [1 0]',
+    $nullFilterInlinePayload
+);
 $fakeObject = 'BT /F1 12 Tf 72 700 Td (WordPress Flate CCITT prefix leak) Tj ET';
 $flateWrappedFaxPayload = "\x00\x11\x22\x33\n"
     . "endstream\nendobj\n"
@@ -134,6 +139,8 @@ $invalidInlineParms = $invalidInlineReview['image_filter_details'][0]['decode_pa
 $inlineGeometryBoundary = $inlineGeometryReview['ccitt_fax_decode_boundary'] ?? [];
 $escapedInlineParms = $escapedInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
 $escapedInlineBoundary = $escapedInlineReview['ccitt_fax_decode_boundary'] ?? [];
+$nullFilterInlineParms = $nullFilterInlineReview['image_filter_details'][0]['decode_parms'] ?? [];
+$nullFilterInlineBoundary = $nullFilterInlineReview['ccitt_fax_decode_boundary'] ?? [];
 $geometryBoundary = $geometryReview['entries'][0]['ccitt_fax_decode_boundary'] ?? [];
 if (!in_array('inline_ccitt_fax_image_filter_review_only', $inlineNotes, true)) {
     throw new RuntimeException('Inline CCITT Fax review boundary smoke failed.');
@@ -181,6 +188,16 @@ if (
 ) {
     throw new RuntimeException('Escaped CCITT DecodeParms renderer boundary smoke failed.');
 }
+if (
+    ($nullFilterInlineParms['k'] ?? null) !== -1
+    || ($nullFilterInlineParms['columns'] ?? null) !== 16
+    || ($nullFilterInlineParms['rows'] ?? null) !== 2
+    || ($nullFilterInlineParms['end_of_block'] ?? null) !== false
+    || ($nullFilterInlineBoundary['dimension_mismatch'] ?? null) !== false
+    || str_contains(json_encode($nullFilterInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $nullFilterInlinePayload)
+) {
+    throw new RuntimeException('Null-filter CCITT DecodeParms renderer boundary smoke failed.');
+}
 
 echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
     'source' => 'native-pdf-stream-filter-boundary',
@@ -209,6 +226,17 @@ echo '<!-- markerpdf:pdf-ccitt-fax-filter ' . htmlspecialchars(json_encode([
         && ($escapedInlineParms['rows'] ?? null) === 3,
     'inline_escaped_payload_excluded_from_review' => !str_contains(json_encode($escapedInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $escapedInlinePayload),
     'inline_escaped_dimension_mismatch' => $escapedInlineBoundary['dimension_mismatch'] ?? null,
+    'inline_null_filter_decode_parms' => [
+        'k' => $nullFilterInlineParms['k'] ?? null,
+        'columns' => $nullFilterInlineParms['columns'] ?? null,
+        'rows' => $nullFilterInlineParms['rows'] ?? null,
+        'black_is_1' => $nullFilterInlineParms['black_is_1'] ?? null,
+        'end_of_block' => $nullFilterInlineParms['end_of_block'] ?? null,
+    ],
+    'inline_null_filter_decode_parms_aligned' => ($nullFilterInlineParms['columns'] ?? null) === 16
+        && ($nullFilterInlineParms['rows'] ?? null) === 2,
+    'inline_null_filter_payload_excluded_from_review' => !str_contains(json_encode($nullFilterInlineReview, JSON_UNESCAPED_SLASHES) ?: '', $nullFilterInlinePayload),
+    'inline_null_filter_dimension_mismatch' => $nullFilterInlineBoundary['dimension_mismatch'] ?? null,
     'xobject_geometry_effective_width' => $geometryBoundary['effective_width'] ?? null,
     'xobject_geometry_effective_height' => $geometryBoundary['effective_height'] ?? null,
     'xobject_geometry_width_source' => $geometryBoundary['width_source'] ?? null,

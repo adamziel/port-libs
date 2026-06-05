@@ -4058,6 +4058,18 @@ final class PdfImageRenderer
      */
     private function imageFilterNames(string $dictionary, array $objects): array
     {
+        return array_values(array_filter(
+            $this->imageFilterValues($dictionary, $objects),
+            static fn (?string $filter): bool => is_string($filter)
+        ));
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<string|null>
+     */
+    private function imageFilterValues(string $dictionary, array $objects): array
+    {
         $value = $this->extractPdfNameValue($dictionary, 'Filter');
         if ($value === null) {
             return [];
@@ -4068,6 +4080,11 @@ final class PdfImageRenderer
             $filters = [];
             foreach ($this->pdfArrayValues($resolved) as $entry) {
                 $entry = trim($this->resolvePdfValue($entry, $objects));
+                if ($entry === 'null') {
+                    $filters[] = null;
+                    continue;
+                }
+
                 $name = $this->pdfNameValue($entry);
                 if ($name !== null) {
                     $filters[] = $name;
@@ -4088,12 +4105,16 @@ final class PdfImageRenderer
      */
     private function imageFilterDetails(string $dictionary, array $objects): array
     {
-        $filters = $this->imageFilterNames($dictionary, $objects);
+        $filters = $this->imageFilterValues($dictionary, $objects);
         $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
         $details = [];
 
         foreach ($filters as $index => $filter) {
-            $decodeParmsValue = $decodeParms[$index] ?? (count($filters) === 1 ? ($decodeParms[0] ?? null) : null);
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            $decodeParmsValue = $this->decodeParmsValueForImageFilterIndex($filters, $decodeParms, $index);
             $details[] = [
                 'filter' => $filter,
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
@@ -4102,6 +4123,42 @@ final class PdfImageRenderer
         }
 
         return $details;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeParmsValueForImageFilterIndex(array $filters, array $decodeParms, int $index): ?string
+    {
+        $nonNullFilterIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (is_string($filter)) {
+                $nonNullFilterIndexes[] = $filterIndex;
+            }
+        }
+
+        if (count($decodeParms) === count($nonNullFilterIndexes) && count($filters) !== count($decodeParms)) {
+            $compactPosition = array_search($index, $nonNullFilterIndexes, true);
+            if ($compactPosition !== false) {
+                $decodeParmsIndexes = array_keys($decodeParms);
+                $decodeParmsIndex = $decodeParmsIndexes[$compactPosition] ?? null;
+
+                return is_int($decodeParmsIndex) ? ($decodeParms[$decodeParmsIndex] ?? null) : null;
+            }
+        }
+
+        if (array_key_exists($index, $decodeParms)) {
+            return $decodeParms[$index];
+        }
+
+        if (count($decodeParms) !== 1 || $nonNullFilterIndexes !== [$index]) {
+            return null;
+        }
+
+        $decodeParmsIndex = array_key_first($decodeParms);
+
+        return is_int($decodeParmsIndex) ? ($decodeParms[$decodeParmsIndex] ?? null) : null;
     }
 
     private function isPreviewOnlyImageFilter(string $filter): bool
