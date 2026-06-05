@@ -8,6 +8,17 @@ use InvalidArgumentException;
 
 final class PdfNamedDestinationExtractor
 {
+    private const VALID_DESTINATION_VIEW_NAMES = [
+        'Fit' => true,
+        'FitB' => true,
+        'FitBH' => true,
+        'FitBV' => true,
+        'FitH' => true,
+        'FitR' => true,
+        'FitV' => true,
+        'XYZ' => true,
+    ];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -1222,7 +1233,7 @@ final class PdfNamedDestinationExtractor
         }
 
         $fit = $this->nameValue($this->resolve($destination[1] ?? null, $objects, $cache));
-        if ($fit === null || $fit === '') {
+        if ($fit === null || !isset(self::VALID_DESTINATION_VIEW_NAMES[$fit])) {
             return null;
         }
 
