@@ -856,6 +856,86 @@ $xrefClassicRebuildNameOffsetStartxrefBoundaryCurrentBasePdf = static function (
     return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $nameOffsetXrefOffset + 1];
 };
 
+$xrefClassicRebuildLinearizedHintStartxrefBoundaryCurrentBasePdf = static function (): array {
+    $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Current Hint-Bounded XRef Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $hintDecoyXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        . '<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        . '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Hint Startxref Decoy Title</rdf:li></rdf:Alt></dc:title>'
+        . '</rdf:Description></rdf:RDF></x:xmpmeta>';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current hint-bounded xref page) Tj T* (Linearized hint startxref ignored) Tj ET';
+    $hintDecoyContent = 'BT /F1 12 Tf 72 720 Td (Hint startxref decoy page) Tj T* (Linearized hint root leak) Tj ET';
+    $currentPayload = '<wp-export><post id="current-hint-bounded-xref"/></wp-export>';
+    $hintDecoyPayload = '<wp-export><post id="decoy-hint-bounded-xref"/></wp-export>';
+    $currentChecksum = strtoupper(hash('md5', $currentPayload));
+
+    $pdf = "%PDF-1.7\n";
+    $offsets = [];
+    $addObject = static function (int $objectNumber, string $body) use (&$pdf, &$offsets): int {
+        $offset = strlen($pdf);
+        $offsets[$objectNumber] = $offset;
+        $pdf .= "{$objectNumber} 0 obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $streamObject = static fn (string $content): string => "<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream";
+    $xrefRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+
+    $addObject(1, '<< /Linearized 1 /L 0000000000 /H [ 0000000000 0000000000 ] /O 4 /E 0 /N 1 /T 0 >>');
+    $addObject(2, '<< /Type /Catalog /Pages 3 0 R /Metadata 7 0 R /Names << /EmbeddedFiles 9 0 R >> >>');
+    $addObject(3, '<< /Type /Pages /Kids [4 0 R] /Count 1 >>');
+    $addObject(4, '<< /Type /Page /Parent 3 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>');
+    $addObject(5, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(6, $streamObject($currentContent));
+    $addObject(7, "<< /Type /Metadata /Subtype /XML /Length " . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $addObject(8, '<< /Title (Current Hint-Bounded XRef Info) /Author (Current Hint Importer) >>');
+    $addObject(9, '<< /Names [(current-hint-bounded-xref.xml) 10 0 R] >>');
+    $addObject(10, '<< /Type /Filespec /F (current-hint-bounded-xref.xml) /Desc (Current hint-bounded xref attachment) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $addObject(11, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size ' . strlen($currentPayload) . ' /CheckSum <' . $currentChecksum . "> >> /Length " . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "xref\n0 12\n";
+    for ($objectNumber = 0; $objectNumber <= 11; $objectNumber++) {
+        $pdf .= $objectNumber === 0
+            ? $xrefRow(0, 65535, 'f')
+            : $xrefRow($offsets[$objectNumber] ?? 0, 0, isset($offsets[$objectNumber]) ? 'n' : 'f');
+    }
+    $pdf .= "trailer\n<< /Size 32 /Root 2 0 R /Info 8 0 R >>\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF\n";
+
+    $addObject(20, '<< /Type /Catalog /Pages 21 0 R /Metadata 26 0 R /Names << /EmbeddedFiles 28 0 R >> >>');
+    $addObject(21, '<< /Type /Pages /Kids [22 0 R] /Count 1 >>');
+    $addObject(22, '<< /Type /Page /Parent 21 0 R /Resources << /Font << /F1 23 0 R >> >> /Contents 24 0 R >>');
+    $addObject(23, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $addObject(24, $streamObject($hintDecoyContent));
+    $addObject(26, "<< /Type /Metadata /Subtype /XML /Length " . strlen($hintDecoyXmp) . " >>\nstream\n{$hintDecoyXmp}\nendstream");
+    $addObject(27, '<< /Title (Hint Startxref Decoy Info) /Author (Hint Decoy Importer) >>');
+    $addObject(28, '<< /Names [(decoy-hint-bounded-xref.xml) 30 0 R] >>');
+    $addObject(30, '<< /Type /Filespec /F (decoy-hint-bounded-xref.xml) /Desc (Decoy hint-bounded xref attachment) /AFRelationship /Source /EF << /F 31 0 R >> >>');
+    $addObject(31, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($hintDecoyPayload) . " >>\nstream\n{$hintDecoyPayload}\nendstream");
+
+    $hintDecoyXrefOffset = strlen($pdf);
+    $pdf .= "xref\n20 12\n";
+    for ($objectNumber = 20; $objectNumber <= 31; $objectNumber++) {
+        $pdf .= $xrefRow($offsets[$objectNumber] ?? 0, 0, isset($offsets[$objectNumber]) ? 'n' : 'f');
+    }
+    $pdf .= "trailer\n<< /Size 32 /Root 20 0 R /Info 27 0 R >>\n";
+    $hintStart = strlen($pdf);
+    $pdf .= "startxref\n{$hintDecoyXrefOffset}\n%%EOF";
+    $hintLength = strlen($pdf) - $hintStart;
+    $pdf = str_replace(
+        '0000000000 /H [ 0000000000 0000000000',
+        sprintf('%010d /H [ %010d %010d', strlen($pdf), $hintStart, $hintLength),
+        $pdf
+    );
+
+    return [$pdf, $currentPayload, strtolower($currentChecksum), $currentXrefOffset, $hintDecoyXrefOffset, $hintStart, $hintLength];
+};
+
 $xrefClassicRebuildMalformedRowBoundaryCurrentBasePdf = static function (): array {
     $currentXmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
         . '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
@@ -1298,6 +1378,49 @@ return [
         $t->true(!str_contains($text, 'Name-offset root leak'));
         $t->true(!str_contains($encodedMetadata, 'Name Offset XRef Decoy'));
         $t->true(!str_contains($encodedFiles, 'decoy-name-offset-xref'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'skips linearized hint-range startxref tokens during classic rebuild before WordPress imports' => static function (
+        TestRunner $t
+    ) use ($xrefClassicRebuildLinearizedHintStartxrefBoundaryCurrentBasePdf): void {
+        [$pdf, $currentPayload, $currentChecksum, $currentXrefOffset, $hintDecoyXrefOffset, $hintStart, $hintLength] = $xrefClassicRebuildLinearizedHintStartxrefBoundaryCurrentBasePdf();
+        $extractor = new PdfTextExtractor();
+        $text = $extractor->extractPlainText($pdf);
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES) ?: '';
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES) ?: '';
+
+        $t->true($currentXrefOffset > 0);
+        $t->true($hintDecoyXrefOffset > $currentXrefOffset);
+        $t->true($hintStart > $hintDecoyXrefOffset);
+        $t->true($hintLength > 0);
+        $t->same(['Current hint-bounded xref page', 'Linearized hint startxref ignored'], $extractor->extractTextLines($pdf));
+        $t->same(['Current hint-bounded xref page', 'Linearized hint startxref ignored'], $extractor->extractTextRuns($pdf));
+        $t->same("Current hint-bounded xref page\nLinearized hint startxref ignored", $text);
+        $t->same("Current hint-bounded xref page\nLinearized hint startxref ignored\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same('Current Hint-Bounded XRef Title', $metadata['title']);
+        $t->same('Current Hint-Bounded XRef Info', $metadata['info']['Title']);
+        $t->same('Current Hint Importer', $metadata['info']['Author']);
+        $t->same(1, count($files));
+        $t->same('current-hint-bounded-xref.xml', $files[0]['name']);
+        $t->same('current-hint-bounded-xref.xml', $files[0]['filename']);
+        $t->same('Current hint-bounded xref attachment', $files[0]['description']);
+        $t->same('Source', $files[0]['relationship']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same($currentChecksum, $files[0]['checksum']);
+        $t->same(true, $files[0]['checksum_matches']);
+        $t->same(['current-hint-bounded-xref.xml'], $attachmentSummary['filenames']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(strlen($currentPayload), $attachmentSummary['total_bytes']);
+        $t->true(!str_contains($text, 'Hint startxref decoy page'));
+        $t->true(!str_contains($text, 'Linearized hint root leak'));
+        $t->true(!str_contains($encodedMetadata, 'Hint Startxref Decoy'));
+        $t->true(!str_contains($encodedFiles, 'decoy-hint-bounded-xref'));
+        $t->true(!str_contains($encodedAttachmentSummary, 'decoy-hint-bounded-xref'));
         $t->true(!str_contains($text, "\0"));
     },
     'rejects malformed classic xref table rows during rebuild before WordPress imports' => static function (

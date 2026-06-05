@@ -1936,6 +1936,7 @@ final class PdfAttachmentExtractor
             return null;
         }
 
+        $linearizedHintRanges = $this->linearizedHintTableRanges($pdfBytes, $definitions);
         for ($index = count($matches) - 1; $index >= 0; $index--) {
             $match = $matches[$index];
             $tokenOffset = $match[0][1] ?? null;
@@ -1948,6 +1949,7 @@ final class PdfAttachmentExtractor
                     && $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
                 )
                 || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+                || $this->offsetInPdfByteRanges($tokenOffset, $linearizedHintRanges)
             ) {
                 continue;
             }
@@ -1959,6 +1961,67 @@ final class PdfAttachmentExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int, generation?: int, offset?: int, body?: string}>>|null $definitions
+     * @return list<array{start: int, end: int}>
+     */
+    private function linearizedHintTableRanges(string $pdfBytes, ?array $definitions = null): array
+    {
+        $definitions ??= $this->directObjectDefinitions($pdfBytes);
+        $firstDefinition = null;
+        foreach ($definitions as $entries) {
+            foreach ($entries as $definition) {
+                if (!isset($definition['offset'], $definition['body'])) {
+                    continue;
+                }
+
+                if ($firstDefinition === null || $definition['offset'] < $firstDefinition['offset']) {
+                    $firstDefinition = $definition;
+                }
+            }
+        }
+
+        if (
+            $firstDefinition === null
+            || preg_match('/\/Linearized\b/', (string) $firstDefinition['body']) !== 1
+            || preg_match('/\/H\s*\[(.*?)\]/s', (string) $firstDefinition['body'], $match) !== 1
+            || preg_match_all('/[-+]?\d+/', $match[1], $values) < 2
+        ) {
+            return [];
+        }
+
+        $ranges = [];
+        $numbers = array_map('intval', $values[0]);
+        for ($index = 0, $count = count($numbers); $index + 1 < $count; $index += 2) {
+            $start = max(0, $numbers[$index]);
+            $length = max(0, $numbers[$index + 1]);
+            if ($length === 0) {
+                continue;
+            }
+
+            $ranges[] = [
+                'start' => $start,
+                'end' => $start + $length,
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{start: int, end: int}> $ranges
+     */
+    private function offsetInPdfByteRanges(int $offset, array $ranges): bool
+    {
+        foreach ($ranges as $range) {
+            if ($offset >= $range['start'] && $offset < $range['end']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function tokenStartsInPdfCommentLine(string $pdfBytes, int $tokenOffset): bool
