@@ -26372,6 +26372,9 @@ final class PdfTextExtractor
                 continue;
             }
             $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);
+            if ($overwrite) {
+                $this->removeCidMappingsInSourceRange($cidMap, $source, $last, $sourceWidth, $sameWidthCodeSpaceRanges);
+            }
 
             if ($cidRanges !== null) {
                 $cidRange = [
@@ -26413,6 +26416,40 @@ final class PdfTextExtractor
                 $source++;
                 $mappedCount++;
             }
+        }
+    }
+
+    /**
+     * @param array<string, int> $cidMap
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function removeCidMappingsInSourceRange(
+        array &$cidMap,
+        int $start,
+        int $end,
+        int $sourceWidth,
+        array $codeSpaceRanges = []
+    ): void {
+        if ($sourceWidth <= 0 || $end < $start) {
+            return;
+        }
+
+        foreach (array_keys($cidMap) as $sourceKey) {
+            $sourceKey = (string) $sourceKey;
+            if (strlen($sourceKey) !== $sourceWidth) {
+                continue;
+            }
+
+            $source = hexdec($sourceKey);
+            if ($source < $start || $source > $end) {
+                continue;
+            }
+
+            if ($codeSpaceRanges !== [] && !$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $codeSpaceRanges)) {
+                continue;
+            }
+
+            unset($cidMap[$sourceKey]);
         }
     }
 
