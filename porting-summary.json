@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-05 09:34:02 UTC",
-    "sourceCommit": "2c2ebe381d3997ecc009f7ff86452373d7b92f2f",
-    "sourceCommitShort": "2c2ebe381d39",
+    "generated": "2026-06-05 09:34:10 UTC",
+    "sourceCommit": "6122267b338247dcd2678a870f18fbac5bff7084",
+    "sourceCommitShort": "6122267b3382",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2c2ebe381d3997ecc009f7ff86452373d7b92f2f",
-    "dashboardCommitShort": "2c2ebe381d39",
+    "dashboardCommit": "6122267b338247dcd2678a870f18fbac5bff7084",
+    "dashboardCommitShort": "6122267b3382",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -139,9 +139,9 @@
             "unmapped": "1,009",
             "php": "807 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-05 UTC PDF engine handoff current-base named-destination slic...",
+            "audit": "2026-06-05 UTC upstream-runner dependency audit on accepted base 8018...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For PDF engine follow-up, keep compressed name trees/object s...",
+            "nextTarget": "For Legacy DOC/CFB follow-up, keep applying style references...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
