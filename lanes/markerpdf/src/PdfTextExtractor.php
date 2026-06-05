@@ -7381,8 +7381,9 @@ final class PdfTextExtractor
             return $end === false ? null : substr($body, $offset, $end - $offset + 1);
         }
 
-        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
-            return $match[0];
+        $reference = $this->pdfIndirectReferenceTokenAt($body, $offset);
+        if ($reference !== null) {
+            return $reference['token'];
         }
 
         if ($body[$offset] === '/') {
@@ -7865,13 +7866,14 @@ final class PdfTextExtractor
 
         $references = [];
         foreach ($this->pdfArrayItems($arrayBody) as $item) {
-            if (preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($item), $match) !== 1) {
+            $reference = $this->pageLabelReferenceOperand($item);
+            if ($reference === null) {
                 continue;
             }
 
             $references[] = [
-                'objectNumber' => (int) $match[1],
-                'generation' => (int) $match[2],
+                'objectNumber' => $reference['objectNumber'],
+                'generation' => $reference['generation'],
             ];
         }
 
@@ -7929,12 +7931,13 @@ final class PdfTextExtractor
             return (int) $value;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $key = $objectNumber . ':' . $generation;
         if ($objectNumber <= 0 || isset($seen[$key])) {
             return null;
@@ -7985,12 +7988,13 @@ final class PdfTextExtractor
             return (int) $value;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $key = $objectNumber . ':' . $generation;
         if ($objectNumber <= 0 || isset($seen[$key])) {
             return null;
@@ -8025,12 +8029,13 @@ final class PdfTextExtractor
             return $this->readPdfDictionaryTokenAt($value, $offset);
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b$/', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $objectKey = $objectNumber . ':' . $generation;
         if ($objectNumber <= 0 || isset($seen[$objectKey])) {
             return null;
@@ -8060,6 +8065,28 @@ final class PdfTextExtractor
     }
 
     /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function pageLabelReferenceOperand(string $value): ?array
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
+        if ($reference === null) {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfWhitespace($value, $reference['endOffset']);
+        if ($endOffset < strlen($value)) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
+        ];
+    }
+
+    /**
      * @param array<int, string> $objects
      */
     private function pageLabelArrayValueAfterNameResolved(string $body, string $name, array $objects): ?string
@@ -8079,12 +8106,13 @@ final class PdfTextExtractor
             return $this->readPdfArrayAt($value, $offset);
         }
 
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $objectKey = $objectNumber . ':' . $generation;
         if ($objectNumber <= 0 || isset($seen[$objectKey])) {
             return null;
@@ -8145,9 +8173,10 @@ final class PdfTextExtractor
     private function pageLabelNameValue(string $value, array $objects, array $seen = []): ?string
     {
         $value = trim($value);
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $objectKey = $objectNumber . ':' . $generation;
             if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
@@ -8194,12 +8223,13 @@ final class PdfTextExtractor
             return (int) $value;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectNumber = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $objectKey = $objectNumber . ':' . $generation;
         if ($objectNumber <= 0 || isset($seen[$objectKey])) {
             return null;
@@ -8225,9 +8255,10 @@ final class PdfTextExtractor
             return null;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
-            $objectNumber = (int) $match[1];
-            $generation = (int) $match[2];
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference !== null) {
+            $objectNumber = $reference['objectNumber'];
+            $generation = $reference['generation'];
             $objectKey = $objectNumber . ':' . $generation;
             if ($objectNumber <= 0 || isset($seen[$objectKey])) {
                 return null;
@@ -13545,8 +13576,9 @@ final class PdfTextExtractor
             return $end === false ? $length : $end + 1;
         }
 
-        if (preg_match('/\G\d+\s+\d+\s+R\b/s', $body, $match, 0, $offset) === 1) {
-            return $offset + strlen($match[0]);
+        $reference = $this->pdfIndirectReferenceTokenAt($body, $offset);
+        if ($reference !== null) {
+            return $reference['endOffset'];
         }
 
         if ($body[$offset] === '/') {
@@ -13581,9 +13613,10 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (preg_match('/\G\d+\s+\d+\s+R\b/s', $arrayBody, $match, 0, $index) === 1) {
-                $items[] = $match[0];
-                $index += strlen($match[0]);
+            $reference = $this->pdfIndirectReferenceTokenAt($arrayBody, $index);
+            if ($reference !== null) {
+                $items[] = $reference['token'];
+                $index = $reference['endOffset'];
                 continue;
             }
 
@@ -13632,6 +13665,51 @@ final class PdfTextExtractor
     private function nameValueOffset(string $body, string $name): ?int
     {
         return $this->pdfNameValueOffset($body, $name, false);
+    }
+
+    /**
+     * PDF comments are whitespace, including inside indirect-reference operands.
+     *
+     * @return array{token: string, objectNumber: int, generation: int, endOffset: int}|null
+     */
+    private function pdfIndirectReferenceTokenAt(string $body, int $offset): ?array
+    {
+        $length = strlen($body);
+        $start = $this->skipPdfWhitespace($body, $offset);
+        if ($start >= $length || preg_match('/\G\d+/s', $body, $objectMatch, 0, $start) !== 1) {
+            return null;
+        }
+
+        $afterObject = $start + strlen($objectMatch[0]);
+        $generationOffset = $this->skipPdfWhitespace($body, $afterObject);
+        if (
+            $generationOffset <= $afterObject
+            || $generationOffset >= $length
+            || preg_match('/\G\d+/s', $body, $generationMatch, 0, $generationOffset) !== 1
+        ) {
+            return null;
+        }
+
+        $afterGeneration = $generationOffset + strlen($generationMatch[0]);
+        $referenceOffset = $this->skipPdfWhitespace($body, $afterGeneration);
+        if (
+            $referenceOffset <= $afterGeneration
+            || ($body[$referenceOffset] ?? '') !== 'R'
+        ) {
+            return null;
+        }
+
+        $endOffset = $referenceOffset + 1;
+        if ($endOffset < $length && !$this->isBareTokenDelimiter($body[$endOffset])) {
+            return null;
+        }
+
+        return [
+            'token' => (int) $objectMatch[0] . ' ' . (int) $generationMatch[0] . ' R',
+            'objectNumber' => (int) $objectMatch[0],
+            'generation' => (int) $generationMatch[0],
+            'endOffset' => $endOffset,
+        ];
     }
 
     private function topLevelNameValueOffset(string $body, string $name): ?int

@@ -1428,12 +1428,13 @@ final class MarkerAppPreview
         if ($kids !== null) {
             $kids = trim($this->resolvePageLabelPdfValue($kids, $objects, $seen));
             foreach ($this->arrayElements($kids) as $kid) {
-                if (!preg_match('/^(\d+)\s+(\d+)\s+R$/', trim($kid), $match)) {
+                $reference = $this->pageLabelReferenceOperand($kid);
+                if ($reference === null) {
                     continue;
                 }
 
-                $objectId = (int) $match[1];
-                $generation = (int) $match[2];
+                $objectId = $reference['objectNumber'];
+                $generation = $reference['generation'];
                 $kidBody = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
                 if ($kidBody === null) {
                     continue;
@@ -1497,12 +1498,13 @@ final class MarkerAppPreview
             return (int) $value;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectId = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectId = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
         if ($body === null) {
             return null;
@@ -1552,12 +1554,13 @@ final class MarkerAppPreview
             return (int) $value;
         }
 
-        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return null;
         }
 
-        $objectId = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectId = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $body = $this->objectBodyForReference($objects, $objectId, $generation, $seen);
         if ($body === null) {
             return null;
@@ -1626,12 +1629,13 @@ final class MarkerAppPreview
     private function resolvePageLabelPdfValue(string $value, array $objects, array $seen = []): string
     {
         $value = trim($value);
-        if (preg_match('/^(\d+)\s+(\d+)\s+R$/', $value, $match) !== 1) {
+        $reference = $this->pageLabelReferenceOperand($value);
+        if ($reference === null) {
             return $value;
         }
 
-        $objectId = (int) $match[1];
-        $generation = (int) $match[2];
+        $objectId = $reference['objectNumber'];
+        $generation = $reference['generation'];
         $objectKey = $objectId . ':' . $generation;
         if (
             $objectId <= 0
@@ -1647,6 +1651,28 @@ final class MarkerAppPreview
         }
 
         return $this->resolvePageLabelPdfValue($body, $objects, [...$seen, $objectKey]);
+    }
+
+    /**
+     * @return array{objectNumber: int, generation: int}|null
+     */
+    private function pageLabelReferenceOperand(string $value): ?array
+    {
+        $offset = $this->skipPdfWhitespace($value, 0);
+        $reference = $this->pdfIndirectReferenceValueAt($value, $offset);
+        if ($reference === null) {
+            return null;
+        }
+
+        $endOffset = $this->skipPdfWhitespace($value, $reference['endOffset']);
+        if ($endOffset < strlen($value)) {
+            return null;
+        }
+
+        return [
+            'objectNumber' => $reference['objectNumber'],
+            'generation' => $reference['generation'],
+        ];
     }
 
     private function formatPageLabel(string $prefix, ?string $style, int $number): string
@@ -1965,6 +1991,11 @@ final class MarkerAppPreview
             return null;
         }
 
+        $reference = $this->pdfIndirectReferenceValueAt($body, $offset);
+        if ($reference !== null) {
+            return [$reference['token'], $reference['endOffset']];
+        }
+
         $tail = substr($body, $offset);
         if (preg_match('/[+-]?\d+(?:\.\d+)?/A', $tail, $number) === 1) {
             $end = $offset + strlen($number[0]);
@@ -1981,6 +2012,52 @@ final class MarkerAppPreview
         }
 
         return null;
+    }
+
+    /**
+     * @return array{token: string, objectNumber: int, generation: int, endOffset: int}|null
+     */
+    private function pdfIndirectReferenceValueAt(string $body, int $offset): ?array
+    {
+        $length = strlen($body);
+        $start = $this->skipPdfWhitespace($body, $offset);
+        if ($start >= $length || preg_match('/\G\d+/s', $body, $objectMatch, 0, $start) !== 1) {
+            return null;
+        }
+
+        $afterObject = $start + strlen($objectMatch[0]);
+        $generationOffset = $this->skipPdfWhitespace($body, $afterObject);
+        if (
+            $generationOffset <= $afterObject
+            || $generationOffset >= $length
+            || preg_match('/\G\d+/s', $body, $generationMatch, 0, $generationOffset) !== 1
+        ) {
+            return null;
+        }
+
+        $afterGeneration = $generationOffset + strlen($generationMatch[0]);
+        $referenceOffset = $this->skipPdfWhitespace($body, $afterGeneration);
+        if (
+            $referenceOffset <= $afterGeneration
+            || ($body[$referenceOffset] ?? '') !== 'R'
+        ) {
+            return null;
+        }
+
+        $endOffset = $referenceOffset + 1;
+        if ($endOffset < $length) {
+            $next = $body[$endOffset];
+            if (!ctype_space($next) && !str_contains('[]()<>{}/%', $next)) {
+                return null;
+            }
+        }
+
+        return [
+            'token' => (int) $objectMatch[0] . ' ' . (int) $generationMatch[0] . ' R',
+            'objectNumber' => (int) $objectMatch[0],
+            'generation' => (int) $generationMatch[0],
+            'endOffset' => $endOffset,
+        ];
     }
 
     /**
