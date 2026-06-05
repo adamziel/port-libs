@@ -101,6 +101,7 @@ final class CslStyle
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string} $bibliographyOptions
+     * @param array{disambiguateAddYearSuffix:bool} $citationOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
      * @param list<array<string, mixed>> $citationRenderingElements
@@ -114,6 +115,7 @@ final class CslStyle
         private readonly array $citationLayout,
         private readonly array $bibliographyLayout,
         private readonly array $bibliographyOptions,
+        private readonly array $citationOptions,
         private readonly array $citationSortKeys,
         private readonly array $bibliographySortKeys,
         private readonly array $citationRenderingElements,
@@ -131,6 +133,7 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            ['disambiguateAddYearSuffix' => false],
             [],
             [],
             [],
@@ -229,6 +232,7 @@ final class CslStyle
             $bibliography instanceof \DOMElement
                 ? self::parseBibliographyOptions($bibliography)
                 : ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => ''],
+            self::parseCitationOptions($citation),
             self::sortKeys($citation, 'citation'),
             $bibliography instanceof \DOMElement ? self::sortKeys($bibliography, 'bibliography') : [],
             $citationRenderingElements,
@@ -278,6 +282,14 @@ final class CslStyle
     public function bibliographyOptions(): array
     {
         return $this->bibliographyOptions;
+    }
+
+    /**
+     * @return array{disambiguateAddYearSuffix:bool}
+     */
+    public function citationOptions(): array
+    {
+        return $this->citationOptions;
     }
 
     public function term(string $name, string $form = 'long', bool $plural = false): string
@@ -367,7 +379,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function summary(): array
     {
@@ -376,6 +388,7 @@ final class CslStyle
             'citationLayout' => $this->citationLayout,
             'bibliographyLayout' => $this->bibliographyLayout,
             'bibliographyOptions' => $this->bibliographyOptions,
+            'citationOptions' => $this->citationOptions,
             'citationSort' => $this->citationSortKeys,
             'bibliographySort' => $this->bibliographySortKeys,
             'citationRendering' => $this->citationRenderingElements,
@@ -499,7 +512,17 @@ final class CslStyle
         ];
     }
 
-    private static function booleanAttribute(\DOMElement $element, string $name, bool $default): bool
+    /**
+     * @return array{disambiguateAddYearSuffix:bool}
+     */
+    private static function parseCitationOptions(\DOMElement $citation): array
+    {
+        return [
+            'disambiguateAddYearSuffix' => self::booleanAttribute($citation, 'disambiguate-add-year-suffix', false, 'citation'),
+        ];
+    }
+
+    private static function booleanAttribute(\DOMElement $element, string $name, bool $default, string $context = 'bibliography'): bool
     {
         if (!$element->hasAttribute($name)) {
             return $default;
@@ -514,7 +537,7 @@ final class CslStyle
             return false;
         }
 
-        throw new \InvalidArgumentException('CSL bibliography attribute ' . $name . ' must be true or false');
+        throw new \InvalidArgumentException('CSL ' . $context . ' attribute ' . $name . ' must be true or false');
     }
 
     private static function integerAttribute(\DOMElement $element, string $name): ?int

@@ -79,7 +79,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string}, citationOptions:array{disambiguateAddYearSuffix:bool}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -140,6 +140,8 @@ final class CitationCslProcessor
             );
         }
 
+        $item = $this->itemWithCitationContext($item, $citation);
+
         return new AstNode(
             'citation',
             [
@@ -174,6 +176,7 @@ final class CitationCslProcessor
         }
 
         $citations = $this->ensureClusterCitationPositions($citations);
+        $citations = $this->annotateCitationYearSuffixesForCluster($citations);
         $attrs = [
             ...$group->attrs,
             'rendered' => $this->renderCitationCluster($citations),
@@ -192,8 +195,11 @@ final class CitationCslProcessor
     public function apply(AstNode $document): AstNode
     {
         $state = $this->emptyCitationPositionState();
+        $positioned = $this->annotateCitationPositions($document, $state);
+        $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($positioned));
+        $annotated = $this->annotateCitationYearSuffixes($positioned, $yearSuffixes);
 
-        return $this->mapNode($this->annotateCitationPositions($document, $state));
+        return $this->mapNode($annotated);
     }
 
     public function appendBibliography(AstNode $document, string $headingText = 'References'): AstNode
@@ -220,6 +226,7 @@ final class CitationCslProcessor
     public function bibliographyBlocks(AstNode $document, string $headingText = 'References'): array
     {
         $ids = $this->uniqueKnownCitationIds($document);
+        $yearSuffixes = $this->yearSuffixesForIds($ids);
         $ids = $this->sortBibliographyIds($ids);
         if ($ids === []) {
             return [];
@@ -233,7 +240,7 @@ final class CitationCslProcessor
             ], [
                 new AstNode('text', ['text' => $headingText]),
             ]),
-            $this->bibliographyDefinitionList($ids),
+            $this->bibliographyDefinitionList($ids, $yearSuffixes),
         ];
     }
 
@@ -244,6 +251,7 @@ final class CitationCslProcessor
     {
         $citations = $this->ensureClusterCitationPositions($citations);
         $citations = $this->sortCitationCluster($citations);
+        $citations = $this->annotateCitationYearSuffixesForCluster($citations);
         $entries = [];
         foreach ($citations as $citation) {
             if (!$citation instanceof AstNode || $citation->type !== 'citation') {
@@ -273,6 +281,17 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('Unknown CSL item id: ' . $id);
         }
 
+        $yearSuffixes = $this->yearSuffixesForIds(array_keys($this->itemsById));
+        $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? '');
+
+        return $this->renderBibliographyEntryForItem($item);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function renderBibliographyEntryForItem(array $item): string
+    {
         $customEntry = $this->renderCustomBibliographyEntry($item);
         if ($customEntry !== null) {
             return $customEntry;
@@ -391,9 +410,14 @@ final class CitationCslProcessor
 
     /**
      * @param list<string> $ids
+     * @param array<string, string> $yearSuffixes
      */
-    public function bibliographyDefinitionList(array $ids): AstNode
+    public function bibliographyDefinitionList(array $ids, array $yearSuffixes = []): AstNode
     {
+        if ($yearSuffixes === []) {
+            $yearSuffixes = $this->yearSuffixesForIds($ids);
+        }
+
         $items = [];
         foreach ($ids as $id) {
             $item = $this->itemsById[$id] ?? null;
@@ -401,8 +425,9 @@ final class CitationCslProcessor
                 continue;
             }
 
+            $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? '');
             $label = $this->citationLabel($item);
-            $entry = $this->renderBibliographyEntry($id);
+            $entry = $this->renderBibliographyEntryForItem($item);
             $attrs = ['term' => $label, 'cslId' => $id];
             $displayParts = $this->bibliographyDisplayParts($item);
             if ($displayParts !== []) {
@@ -1275,6 +1300,82 @@ final class CitationCslProcessor
         return $annotated;
     }
 
+    /**
+     * @param list<AstNode> $citations
+     * @return list<AstNode>
+     */
+    private function annotateCitationYearSuffixesForCluster(array $citations): array
+    {
+        if (!$this->style->citationOptions()['disambiguateAddYearSuffix']) {
+            return $citations;
+        }
+
+        $ids = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return $citations;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            if ($id !== '' && isset($this->itemsById[$id]) && !in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+        }
+
+        $yearSuffixes = $this->yearSuffixesForIds($ids);
+        $annotated = [];
+        foreach ($citations as $citation) {
+            if (array_key_exists('cslYearSuffix', $citation->attrs)) {
+                $annotated[] = $citation;
+                continue;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            $annotated[] = new AstNode($citation->type, [
+                ...$citation->attrs,
+                'cslYearSuffix' => $yearSuffixes[$id] ?? '',
+            ], $citation->children);
+        }
+
+        return $annotated;
+    }
+
+    /**
+     * @param array<string, string> $yearSuffixes
+     */
+    private function annotateCitationYearSuffixes(AstNode $node, array $yearSuffixes): AstNode
+    {
+        if (!$this->style->citationOptions()['disambiguateAddYearSuffix']) {
+            return $node;
+        }
+
+        if ($node->type === 'citation') {
+            $id = (string) $node->attr('id', '');
+            if ($id === '' || !isset($this->itemsById[$id])) {
+                return $node;
+            }
+
+            return new AstNode($node->type, [
+                ...$node->attrs,
+                'cslYearSuffix' => $yearSuffixes[$id] ?? '',
+            ], $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $annotated = $this->annotateCitationYearSuffixes($child, $yearSuffixes);
+            $children[] = $annotated;
+            $changed = $changed || $annotated !== $child;
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
     private function mapNode(AstNode $node): AstNode
     {
         if ($node->type === 'citation') {
@@ -1330,6 +1431,87 @@ final class CitationCslProcessor
         }
 
         return $ids;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array<string, string>
+     */
+    private function yearSuffixesForIds(array $ids): array
+    {
+        if (!$this->style->citationOptions()['disambiguateAddYearSuffix']) {
+            return [];
+        }
+
+        $suffixes = [];
+        $groups = [];
+        foreach ($ids as $id) {
+            if (!isset($this->itemsById[$id]) || array_key_exists($id, $suffixes)) {
+                continue;
+            }
+
+            $item = $this->itemsById[$id];
+            $suffixes[$id] = '';
+            $groups[$this->yearSuffixDisambiguationKey($item)][] = $id;
+        }
+
+        foreach ($groups as $groupIds) {
+            if (count($groupIds) < 2) {
+                continue;
+            }
+
+            foreach (array_values($groupIds) as $index => $id) {
+                $suffixes[$id] = $this->yearSuffixForIndex($index);
+            }
+        }
+
+        return $suffixes;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function yearSuffixDisambiguationKey(array $item): string
+    {
+        $withoutSuffix = $this->itemWithYearSuffix($item, '');
+
+        return $this->citationAuthorLabel($withoutSuffix) . "\n" . $this->citationYear($withoutSuffix);
+    }
+
+    private function yearSuffixForIndex(int $index): string
+    {
+        $suffix = '';
+        do {
+            $suffix = chr(ord('a') + ($index % 26)) . $suffix;
+            $index = intdiv($index, 26) - 1;
+        } while ($index >= 0);
+
+        return $suffix;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function itemWithYearSuffix(array $item, string $suffix): array
+    {
+        return [
+            ...$item,
+            'yearSuffix' => $suffix,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function itemWithCitationContext(array $item, ?AstNode $citation): array
+    {
+        if (!$citation instanceof AstNode || !array_key_exists('cslYearSuffix', $citation->attrs)) {
+            return $item;
+        }
+
+        return $this->itemWithYearSuffix($item, (string) $citation->attr('cslYearSuffix', ''));
     }
 
     /**
@@ -1528,6 +1710,7 @@ final class CitationCslProcessor
             return $this->sourceCitationText($citation);
         }
 
+        $item = $this->itemWithCitationContext($item, $citation);
         $customEntry = $this->renderCustomCitationEntry($citation, $item);
         if ($customEntry !== null) {
             return $customEntry;
@@ -1714,19 +1897,27 @@ final class CitationCslProcessor
         if (is_array($date) && isset($date['rangeParts']) && is_array($date['rangeParts'])) {
             $yearRange = $this->citationYearRange($date['rangeParts']);
             if ($yearRange !== '') {
-                return $yearRange;
+                return $this->appendYearSuffix($yearRange, $item);
             }
         }
 
         if (isset($item['issuedYear']) && $item['issuedYear'] !== null) {
-            return (string) $item['issuedYear'];
+            return $this->appendYearSuffix((string) $item['issuedYear'], $item);
         }
 
         if (is_array($date) && (string) ($date['literal'] ?? '') !== '') {
-            return (string) $date['literal'];
+            return $this->appendYearSuffix((string) $date['literal'], $item);
         }
 
-        return $this->style->term('no date');
+        return $this->appendYearSuffix($this->style->term('no date'), $item);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function appendYearSuffix(string $year, array $item): string
+    {
+        return $year . (string) ($item['yearSuffix'] ?? '');
     }
 
     /**
@@ -3094,6 +3285,7 @@ final class CitationCslProcessor
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
+            'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
             'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
@@ -3130,6 +3322,10 @@ final class CitationCslProcessor
 
         if ($normalized === 'locator') {
             return $this->citationLocatorParts($citation)['value'] !== '';
+        }
+
+        if ($normalized === 'year-suffix') {
+            return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
         }
 
         if (in_array($normalized, ['author', 'editor', 'holder', 'translator', 'original-author', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], true)) {

@@ -3585,6 +3585,177 @@ XML
 XML
         ));
     },
+    'applies bounded csl year suffix disambiguation for ambiguous author dates' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-post',
+                'type' => 'report',
+                'title' => 'Post Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/post-import',
+            ],
+            [
+                'id' => 'ng-2026',
+                'type' => 'report',
+                'title' => 'Ng Import Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ng-import',
+            ],
+            [
+                'id' => 'smith-media',
+                'type' => 'report',
+                'title' => 'Media Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/media-import',
+            ],
+            [
+                'id' => 'smith-2025',
+                'type' => 'report',
+                'title' => 'Earlier Import Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/earlier-import',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Year Suffix Review Style</title>
+    <id>https://example.test/styles/bounded-year-suffix-review</id>
+    <updated>2026-06-05T07:53:00+00:00</updated>
+  </info>
+  <citation disambiguate-add-year-suffix="true">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <group delimiter="">
+          <date variable="issued"><date-part name="year"/></date>
+          <text variable="year-suffix"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <group delimiter="">
+        <date variable="issued"><date-part name="year"/></date>
+        <text variable="year-suffix"/>
+      </group>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Year Suffix Review Style', $summary['title'] ?? null);
+        $t->same(true, $summary['citationOptions']['disambiguateAddYearSuffix'] ?? null);
+        $t->same('year-suffix', $summary['citationRendering'][0]['children'][1]['children'][1]['variable'] ?? null);
+        $t->same('year-suffix', $summary['bibliographyRendering'][1]['children'][1]['variable'] ?? null);
+
+        $t->same('(Smith 2026a; Smith 2026b; Ng 2026; Smith 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'smith-post', 'text' => '[@smith-post]']),
+            new AstNode('citation', ['id' => 'smith-media', 'text' => '[@smith-media]']),
+            new AstNode('citation', ['id' => 'ng-2026', 'text' => '[@ng-2026]']),
+            new AstNode('citation', ['id' => 'smith-2025', 'text' => '[@smith-2025]']),
+        ]));
+        $t->same('Smith, A. 2026a. Post Import Packet. https://example.test/post-import.', $processor->renderBibliographyEntry('smith-post'));
+        $t->same('Smith, A. 2026b. Media Import Packet. https://example.test/media-import.', $processor->renderBibliographyEntry('smith-media'));
+        $t->same('Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.', $processor->renderBibliographyEntry('ng-2026'));
+
+        $document = (new MarkdownReader())->read('Review cites @smith-post, @ng-2026, and [@smith-media; @smith-2025] before the bibliography.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citationNodes = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citationNodes): void {
+            if ($node->type === 'citation') {
+                $citationNodes[(string) $node->attr('id', '')] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+        $bibliography = $processed->children[2];
+        $t->same('a', $citationNodes['smith-post']->attr('cslYearSuffix'));
+        $t->same('', $citationNodes['ng-2026']->attr('cslYearSuffix'));
+        $t->same('b', $citationNodes['smith-media']->attr('cslYearSuffix'));
+        $t->same('', $citationNodes['smith-2025']->attr('cslYearSuffix'));
+        $t->same('Smith 2026a', $bibliography->children[0]->children[0]->attr('text'));
+        $t->same('Ng 2026', $bibliography->children[1]->children[0]->attr('text'));
+        $t->same('Smith 2026b', $bibliography->children[2]->children[0]->attr('text'));
+        $t->same('Smith 2025', $bibliography->children[3]->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Review cites Smith (2026a), Ng (2026), and (Smith 2026b; Smith 2025) before the bibliography.', $markdown);
+        $t->contains('Smith 2026a' . "\n" . ':   Smith, A. 2026a. Post Import Packet. https://example.test/post-import.', $markdown);
+        $t->contains('Smith 2026b' . "\n" . ':   Smith, A. 2026b. Media Import Packet. https://example.test/media-import.', $markdown);
+        $t->contains('Ng 2026' . "\n" . ':   Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites Smith (2026a), Ng (2026), and (Smith 2026b; Smith 2025) before the bibliography.</p>', $blocks);
+        $t->contains('<dt>Smith 2026a</dt><dd>Smith, A. 2026a. Post Import Packet. https://example.test/post-import.</dd>', $blocks);
+        $t->contains('<dt>Smith 2026b</dt><dd>Smith, A. 2026b. Media Import Packet. https://example.test/media-import.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet. https://example.test/ng-import.</dd>', $blocks);
+
+        $withoutOption = CitationCslProcessor::fromItems([[
+            'id' => 'plain-a',
+            'title' => 'Plain A',
+            'author' => [['family' => 'Smith', 'given' => 'Ada']],
+            'issued' => ['date-parts' => [[2026]]],
+        ], [
+            'id' => 'plain-b',
+            'title' => 'Plain B',
+            'author' => [['family' => 'Smith', 'given' => 'Ada']],
+            'issued' => ['date-parts' => [[2026]]],
+        ]])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter="">
+        <date variable="issued"><date-part name="year"/></date>
+        <text variable="year-suffix"/>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML
+        );
+        $t->same('(2026; 2026)', $withoutOption->renderCitationCluster([
+            new AstNode('citation', ['id' => 'plain-a', 'text' => '[@plain-a]']),
+            new AstNode('citation', ['id' => 'plain-b', 'text' => '[@plain-b]']),
+        ]));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation disambiguate-add-year-suffix="sometimes">
+    <layout><text variable="title"/></layout>
+  </citation>
+</style>
+XML
+        ));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
