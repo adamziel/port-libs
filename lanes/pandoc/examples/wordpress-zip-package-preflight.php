@@ -39,6 +39,13 @@ $buildNtfsExtra = static function (int $modifiedAt, int $accessedAt, int $create
 
     return pack('vv', 0x000a, strlen($payload)) . $payload;
 };
+$packUInt64 = static function (int $value): string {
+    if ($value < 0) {
+        throw new RuntimeException('ZIP64 fixture values must be non-negative');
+    }
+
+    return pack('VV', $value & 0xffffffff, intdiv($value, 0x100000000));
+};
 $buildRawTarRecord = static function (string $name, string $typeFlag, string $data = '', int $modifiedAt = 0, ?int $headerSize = null): string {
     $octal = static fn (int $value, int $length): string => str_pad(decoct($value), $length - 1, '0', STR_PAD_LEFT) . "\0";
     $field = static fn (string $value, int $length): string => str_pad($value, $length, "\0");
@@ -1061,6 +1068,34 @@ $rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields):
 
     return $zip;
 };
+$buildZip64EndOfCentralDirectoryBackedPackage = static function (string $zip) use ($packUInt64): string {
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('ZIP end-of-central-directory fixture was not found');
+    }
+
+    $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+    $zip64EocdOffset = $eocdOffset;
+    $zip64Eocd = "PK\x06\x06"
+        . $packUInt64(44)
+        . pack('vvVV', 45, 45, 0, 0)
+        . $packUInt64(3)
+        . $packUInt64(3)
+        . $packUInt64((int) $centralDirectorySize)
+        . $packUInt64((int) $centralDirectoryOffset);
+    $zip64Locator = "PK\x06\x07"
+        . pack('V', 0)
+        . $packUInt64($zip64EocdOffset)
+        . pack('V', 1);
+    $eocd = substr($zip, $eocdOffset);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 8, 2);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 10, 2);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 12, 4);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 16, 4);
+
+    return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
+};
 $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): string {
     $centralName = 'word/document.xml';
     $localName = 'word/other.xml';
@@ -1224,6 +1259,14 @@ try {
     ZipPackage::fromString($zip64EocdBytes);
 } catch (RuntimeException $exception) {
     $zip64EocdRejected = str_contains($exception->getMessage(), 'ZIP64 packages');
+}
+$zip64LocatorBytes = $buildZip64EndOfCentralDirectoryBackedPackage($package->bytes());
+$zip64LocatorPreflight = ZipPackage::endOfCentralDirectoryPreflight($zip64LocatorBytes);
+$zip64LocatorRejected = false;
+try {
+    ZipPackage::fromString($zip64LocatorBytes);
+} catch (RuntimeException $exception) {
+    $zip64LocatorRejected = str_contains($exception->getMessage(), 'ZIP64 end-of-central-directory');
 }
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
@@ -1864,6 +1907,15 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP64 EOCD markers to be reported and rejected before import');
     }
 
+    if (
+        ($zip64LocatorPreflight['hasZip64EndOfCentralDirectoryLocator'] ?? null) !== true
+        || ($zip64LocatorPreflight['hasZip64EndOfCentralDirectory'] ?? null) !== true
+        || ($zip64LocatorPreflight['zip64EndOfCentralDirectorySize'] ?? null) !== 56
+        || !$zip64LocatorRejected
+    ) {
+        throw new RuntimeException('Expected ZIP64 EOCD locator metadata to be reported and rejected before import');
+    }
+
     if (($package->localNames()[0] ?? null) !== '[Content_Types].xml') {
         throw new RuntimeException('Expected local ZIP entry order to be inspectable for package preflight');
     }
@@ -2382,6 +2434,9 @@ echo 'zipSplitArchivePolicy=' . ($splitZipArchiveRejected ? 'rejected' : 'not-re
 echo 'zipSplitArchiveSingleDisk=' . ($splitZipArchivePreflight['isSingleDisk'] ? 'true' : 'false') . "\n";
 echo 'zip64EocdPolicy=' . ($zip64EocdRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zip64EocdRequiresZip64=' . ($zip64EocdPreflight['requiresZip64'] ? 'true' : 'false') . "\n";
+echo 'zip64LocatorPolicy=' . ($zip64LocatorRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zip64LocatorDetected=' . ($zip64LocatorPreflight['hasZip64EndOfCentralDirectoryLocator'] ? 'true' : 'false') . "\n";
+echo 'zip64LocatorRecordSize=' . ($zip64LocatorPreflight['zip64EndOfCentralDirectorySize'] ?? 'none') . "\n";
 echo 'descriptor.comments.xml=' . $descriptorPackage->read('/word/comments.xml') . "\n";
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";

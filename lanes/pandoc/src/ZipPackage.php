@@ -9,6 +9,8 @@ final class ZipPackage
     private const EOCD_SIGNATURE = "PK\x05\x06";
     private const CENTRAL_DIRECTORY_SIGNATURE = "PK\x01\x02";
     private const CENTRAL_DIRECTORY_DIGITAL_SIGNATURE = "PK\x05\x05";
+    private const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = "PK\x06\x06";
+    private const ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE = "PK\x06\x07";
     private const LOCAL_FILE_SIGNATURE = "PK\x03\x04";
     private const ENCRYPTED_GENERAL_PURPOSE_FLAG = 0x0001;
     private const ENHANCED_DEFLATE_GENERAL_PURPOSE_FLAG = 0x0010;
@@ -20,6 +22,7 @@ final class ZipPackage
     private const MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT = 20;
     private const INFOZIP_UNICODE_PATH_EXTRA_ID = 0x7075;
     private const INFOZIP_UNICODE_COMMENT_EXTRA_ID = 0x6375;
+    private const UINT32_FACTOR = 4294967296;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_SYMLINK_TYPE = 0xa000;
     private const CP437_EXTENDED_CHARS = [
@@ -58,6 +61,14 @@ final class ZipPackage
 
     public static function fromString(string $bytes): self
     {
+        $archivePreflight = self::endOfCentralDirectoryPreflight($bytes);
+        if (
+            $archivePreflight['hasZip64EndOfCentralDirectory']
+            || $archivePreflight['hasZip64EndOfCentralDirectoryLocator']
+        ) {
+            throw new \RuntimeException('ZIP64 end-of-central-directory records are not supported by this bounded package reader');
+        }
+
         $eocdOffset = self::findEndOfCentralDirectory($bytes);
         $entryCount = self::readUInt16($bytes, $eocdOffset + 10);
         $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
@@ -679,7 +690,13 @@ final class ZipPackage
      *     packageCommentLength:int,
      *     isSingleDisk:bool,
      *     requiresZip64:bool,
-     *     isArchiveLayoutSupported:bool
+     *     isArchiveLayoutSupported:bool,
+     *     hasZip64EndOfCentralDirectoryLocator:bool,
+     *     hasZip64EndOfCentralDirectory:bool,
+     *     zip64EndOfCentralDirectoryLocatorOffset:?int,
+     *     zip64EndOfCentralDirectoryOffset:?int,
+     *     zip64EndOfCentralDirectorySize:?int,
+     *     zip64TotalDisks:?int
      * }
      */
     public static function endOfCentralDirectoryPreflight(string $bytes): array
@@ -698,6 +715,8 @@ final class ZipPackage
         $requiresZip64 = $totalEntryCount === 0xffff
             || $centralDirectorySize === 0xffffffff
             || $centralDirectoryOffset === 0xffffffff;
+        $zip64 = self::zip64EndOfCentralDirectoryPreflight($bytes, $eocdOffset);
+        $requiresZip64 = $requiresZip64 || $zip64['hasZip64EndOfCentralDirectoryLocator'];
 
         return [
             'eocdOffset' => $eocdOffset,
@@ -713,6 +732,12 @@ final class ZipPackage
             'isSingleDisk' => $isSingleDisk,
             'requiresZip64' => $requiresZip64,
             'isArchiveLayoutSupported' => $isSingleDisk && !$requiresZip64,
+            'hasZip64EndOfCentralDirectoryLocator' => $zip64['hasZip64EndOfCentralDirectoryLocator'],
+            'hasZip64EndOfCentralDirectory' => $zip64['hasZip64EndOfCentralDirectory'],
+            'zip64EndOfCentralDirectoryLocatorOffset' => $zip64['zip64EndOfCentralDirectoryLocatorOffset'],
+            'zip64EndOfCentralDirectoryOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
+            'zip64EndOfCentralDirectorySize' => $zip64['zip64EndOfCentralDirectorySize'],
+            'zip64TotalDisks' => $zip64['zip64TotalDisks'],
         ];
     }
 
@@ -731,6 +756,12 @@ final class ZipPackage
      *     isSingleDisk:bool,
      *     requiresZip64:bool,
      *     isArchiveLayoutSupported:bool,
+     *     hasZip64EndOfCentralDirectoryLocator:bool,
+     *     hasZip64EndOfCentralDirectory:bool,
+     *     zip64EndOfCentralDirectoryLocatorOffset:?int,
+     *     zip64EndOfCentralDirectoryOffset:?int,
+     *     zip64EndOfCentralDirectorySize:?int,
+     *     zip64TotalDisks:?int,
      *     hasCentralDirectorySignature:bool,
      *     centralDirectorySignatureOffset:?int,
      *     centralDirectorySignatureLength:int
@@ -1205,6 +1236,57 @@ final class ZipPackage
     private function dataDescriptorLengthAt(int $offset): int
     {
         return substr($this->bytes, $offset, 4) === "PK\x07\x08" ? 16 : 12;
+    }
+
+    /**
+     * @return array{
+     *     hasZip64EndOfCentralDirectoryLocator:bool,
+     *     hasZip64EndOfCentralDirectory:bool,
+     *     zip64EndOfCentralDirectoryLocatorOffset:?int,
+     *     zip64EndOfCentralDirectoryOffset:?int,
+     *     zip64EndOfCentralDirectorySize:?int,
+     *     zip64TotalDisks:?int
+     * }
+     */
+    private static function zip64EndOfCentralDirectoryPreflight(string $bytes, int $eocdOffset): array
+    {
+        $empty = [
+            'hasZip64EndOfCentralDirectoryLocator' => false,
+            'hasZip64EndOfCentralDirectory' => false,
+            'zip64EndOfCentralDirectoryLocatorOffset' => null,
+            'zip64EndOfCentralDirectoryOffset' => null,
+            'zip64EndOfCentralDirectorySize' => null,
+            'zip64TotalDisks' => null,
+        ];
+
+        $locatorOffset = $eocdOffset - 20;
+        if ($locatorOffset < 0 || substr($bytes, $locatorOffset, 4) !== self::ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE) {
+            return $empty;
+        }
+
+        self::assertRange($bytes, $locatorOffset, 20, 'ZIP64 end-of-central-directory locator');
+        $recordOffset = self::readUInt64($bytes, $locatorOffset + 8);
+        $totalDisks = self::readUInt32($bytes, $locatorOffset + 16);
+        if (substr($bytes, $recordOffset, 4) !== self::ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE) {
+            throw new \RuntimeException('ZIP64 end-of-central-directory locator points to an invalid record');
+        }
+
+        self::assertRange($bytes, $recordOffset, 12, 'ZIP64 end-of-central-directory record');
+        $declaredRecordPayloadSize = self::readUInt64($bytes, $recordOffset + 4);
+        $recordSize = 12 + $declaredRecordPayloadSize;
+        self::assertRange($bytes, $recordOffset, $recordSize, 'ZIP64 end-of-central-directory record');
+        if ($recordOffset + $recordSize !== $locatorOffset) {
+            throw new \RuntimeException('ZIP64 end-of-central-directory record does not end before its locator');
+        }
+
+        return [
+            'hasZip64EndOfCentralDirectoryLocator' => true,
+            'hasZip64EndOfCentralDirectory' => true,
+            'zip64EndOfCentralDirectoryLocatorOffset' => $locatorOffset,
+            'zip64EndOfCentralDirectoryOffset' => $recordOffset,
+            'zip64EndOfCentralDirectorySize' => $recordSize,
+            'zip64TotalDisks' => $totalDisks,
+        ];
     }
 
     private static function findEndOfCentralDirectory(string $bytes): int
@@ -1783,6 +1865,29 @@ final class ZipPackage
         }
 
         return (int) $values['value'];
+    }
+
+    private static function readUInt64(string $bytes, int $offset): int
+    {
+        self::assertRange($bytes, $offset, 8, 'uint64');
+        $values = unpack('Vlow/Vhigh', substr($bytes, $offset, 8));
+        if (!is_array($values)) {
+            throw new \RuntimeException('Unable to read ZIP uint64 value');
+        }
+
+        $low = (int) $values['low'];
+        $high = (int) $values['high'];
+        $maxHigh = intdiv(PHP_INT_MAX, self::UINT32_FACTOR);
+        if ($high > $maxHigh) {
+            throw new \RuntimeException('ZIP uint64 value is too large for this platform');
+        }
+
+        $value = ($high * self::UINT32_FACTOR) + $low;
+        if ($value > PHP_INT_MAX) {
+            throw new \RuntimeException('ZIP uint64 value is too large for this platform');
+        }
+
+        return $value;
     }
 
     private static function unsignedCrc32(string $bytes): int

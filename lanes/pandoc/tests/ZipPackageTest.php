@@ -339,6 +339,48 @@ $buildCentralDirectorySignaturePackage = static function (
         . $centralDirectorySignature
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, $centralDirectorySize, strlen($body), 0);
 };
+$packUInt64 = static function (int $value): string {
+    if ($value < 0) {
+        throw new RuntimeException('ZIP64 fixture values must be non-negative');
+    }
+
+    return pack('VV', $value & 0xffffffff, intdiv($value, 0x100000000));
+};
+$buildZip64EndOfCentralDirectoryPackage = static function () use ($buildZipPackage, $packUInt64): string {
+    $zip = $buildZipPackage([
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:p>zip64 package metadata</w:p></w:document>',
+            'method' => 8,
+        ],
+    ]);
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('EOCD fixture not found');
+    }
+
+    $centralDirectorySize = unpack('Vvalue', substr($zip, $eocdOffset + 12, 4))['value'];
+    $centralDirectoryOffset = unpack('Vvalue', substr($zip, $eocdOffset + 16, 4))['value'];
+    $zip64EocdOffset = $eocdOffset;
+    $zip64Eocd = "PK\x06\x06"
+        . $packUInt64(44)
+        . pack('vvVV', 45, 45, 0, 0)
+        . $packUInt64(1)
+        . $packUInt64(1)
+        . $packUInt64((int) $centralDirectorySize)
+        . $packUInt64((int) $centralDirectoryOffset);
+    $zip64Locator = "PK\x06\x07"
+        . pack('V', 0)
+        . $packUInt64($zip64EocdOffset)
+        . pack('V', 1);
+    $eocd = substr($zip, $eocdOffset);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 8, 2);
+    $eocd = substr_replace($eocd, pack('v', 0xffff), 10, 2);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 12, 4);
+    $eocd = substr_replace($eocd, pack('V', 0xffffffff), 16, 4);
+
+    return substr($zip, 0, $eocdOffset) . $zip64Eocd . $zip64Locator . $eocd;
+};
 $rewriteEndOfCentralDirectory = static function (string $zip, array $fields): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -994,6 +1036,20 @@ return [
         $t->same(true, $zip64Summary['requiresZip64']);
         $t->same(false, $zip64Summary['isArchiveLayoutSupported']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip64MarkerZip));
+    },
+
+    'preflights zip64 end of central directory locator before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage): void {
+        $zip = $buildZip64EndOfCentralDirectoryPackage();
+        $summary = ZipPackage::endOfCentralDirectoryPreflight($zip);
+
+        $t->same(true, $summary['requiresZip64']);
+        $t->same(false, $summary['isArchiveLayoutSupported']);
+        $t->same(true, $summary['hasZip64EndOfCentralDirectoryLocator']);
+        $t->same(true, $summary['hasZip64EndOfCentralDirectory']);
+        $t->same($summary['eocdOffset'] - 20, $summary['zip64EndOfCentralDirectoryLocatorOffset']);
+        $t->same(56, $summary['zip64EndOfCentralDirectorySize']);
+        $t->same(1, $summary['zip64TotalDisks']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
     'decodes cp437 zip entry names and comments when utf8 flag is absent' => static function (TestRunner $t) use ($buildZipPackage): void {
