@@ -2211,10 +2211,25 @@ final class LegacyDocReader
             0x000b => $valueOffset + 2 <= strlen($bytes)
                 ? ['value' => $this->readVariantBool($bytes, $valueOffset), 'bytes' => 8]
                 : null,
+            0x0012 => $valueOffset + 2 <= strlen($bytes)
+                ? ['value' => self::u16($bytes, $valueOffset), 'bytes' => 8]
+                : null,
+            0x0013 => $valueOffset + 4 <= strlen($bytes)
+                ? ['value' => self::u32($bytes, $valueOffset), 'bytes' => 8]
+                : null,
+            0x0014 => $valueOffset + 8 <= strlen($bytes)
+                ? ['value' => self::signed64($bytes, $valueOffset), 'bytes' => 12]
+                : null,
+            0x0015 => $valueOffset + 8 <= strlen($bytes)
+                ? ['value' => self::unsigned64($bytes, $valueOffset), 'bytes' => 12]
+                : null,
             0x001e => $this->typedSizedValue($this->readLpstrWithSize($bytes, $valueOffset, $codepage)),
             0x001f => $this->typedSizedValue($this->readLpwstrWithSize($bytes, $valueOffset)),
             0x0040 => $valueOffset + 8 <= strlen($bytes)
                 ? ['value' => $this->readFiletime($bytes, $valueOffset), 'bytes' => 12]
+                : null,
+            0x0048 => $valueOffset + 16 <= strlen($bytes)
+                ? ['value' => self::formatClsid(substr($bytes, $valueOffset, 16)), 'bytes' => 20]
                 : null,
             0x100c => $this->typedSizedValue($this->readVariantVectorWithSize($bytes, $valueOffset, $codepage)),
             0x101e => $this->typedSizedValue($this->readLpstrVectorWithSize($bytes, $valueOffset, $codepage)),
@@ -3824,6 +3839,66 @@ final class LegacyDocReader
     private static function signed32(int $value): int
     {
         return $value >= 0x80000000 ? $value - 0x100000000 : $value;
+    }
+
+    private static function signed64(string $bytes, int $offset): int
+    {
+        $low = self::u32($bytes, $offset);
+        $high = self::u32($bytes, $offset + 4);
+        if ($high < 0x80000000) {
+            return self::u64($bytes, $offset);
+        }
+        if ($high === 0x80000000 && $low === 0) {
+            return -PHP_INT_MAX - 1;
+        }
+
+        $inverseLow = (~$low) & 0xffffffff;
+        $inverseHigh = (~$high) & 0xffffffff;
+        $magnitude = ($inverseHigh * 4294967296) + $inverseLow + 1;
+
+        return -$magnitude;
+    }
+
+    private static function unsigned64(string $bytes, int $offset): int|string
+    {
+        $low = self::u32($bytes, $offset);
+        $high = self::u32($bytes, $offset + 4);
+        if ($high <= intdiv(PHP_INT_MAX - $low, 4294967296)) {
+            return ($high * 4294967296) + $low;
+        }
+
+        return self::unsigned64DecimalString($high, $low);
+    }
+
+    private static function unsigned64DecimalString(int $high, int $low): string
+    {
+        $digits = '';
+        while ($high !== 0 || $low !== 0) {
+            $quotientHigh = intdiv($high, 10);
+            $currentLow = ($high % 10) * 4294967296 + $low;
+            $quotientLow = intdiv($currentLow, 10);
+            $digits = (string) ($currentLow % 10) . $digits;
+            $high = $quotientHigh;
+            $low = $quotientLow;
+        }
+
+        return $digits === '' ? '0' : $digits;
+    }
+
+    private static function formatClsid(string $bytes): string
+    {
+        if (strlen($bytes) !== 16) {
+            throw new \RuntimeException('Legacy DOC CLSID property value is truncated');
+        }
+
+        return sprintf(
+            '%08x-%04x-%04x-%s-%s',
+            self::u32($bytes, 0),
+            self::u16($bytes, 4),
+            self::u16($bytes, 6),
+            bin2hex(substr($bytes, 8, 2)),
+            bin2hex(substr($bytes, 10, 6))
+        );
     }
 
     private static function u16(string $bytes, int $offset): int

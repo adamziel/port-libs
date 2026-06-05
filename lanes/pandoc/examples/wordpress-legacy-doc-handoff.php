@@ -130,6 +130,8 @@ $typedLpstr = static function (string $value): string {
 $typedI2 = static fn (int $value): string => pack('v', 0x0002) . "\0\0" . pack('v', $value) . "\0\0";
 $typedI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
 $typedBool = static fn (bool $value): string => pack('v', 0x000b) . "\0\0" . pack('v', $value ? 0xffff : 0) . "\0\0";
+$typedUi4 = static fn (int $value): string => pack('v', 0x0013) . "\0\0" . pack('V', $value);
+$typedUi8Parts = static fn (int $low, int $high): string => pack('v', 0x0015) . "\0\0" . pack('V2', $low, $high);
 $typedFiletime = static function (string $iso8601) use ($u64): string {
     $seconds = strtotime($iso8601);
     if ($seconds === false) {
@@ -137,6 +139,9 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
     }
 
     return pack('v', 0x0040) . "\0\0" . $u64(((int) $seconds + 11644473600) * 10000000);
+};
+$typedClsid = static function (string $clsid) use ($clsidBytes): string {
+    return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
 $typedVectorLpstr = static function (array $values): string {
     $payload = pack('V', count($values));
@@ -521,6 +526,8 @@ $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
 if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
     throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
 }
+$sourceGuid = 'f0e1d2c3-b4a5-9687-1020-304050607080';
+$archiveBytes = 6000000000;
 
 $streams = [
     'WordDocument' => $wordDocument,
@@ -544,6 +551,7 @@ $streams = [
             'properties' => [
                 1 => $typedI2(65001),
                 2 => $typedLpstr('Data Liberation import queue - legacy обзор'),
+                4 => $typedUi4(4096),
                 5 => $typedI4(2),
                 6 => $typedI4(2),
                 11 => $typedBool(false),
@@ -570,11 +578,15 @@ $streams = [
                     2 => 'MigrationBatch',
                     3 => 'Needs Review',
                     4 => 'Source Id',
+                    5 => 'Archive Bytes',
+                    6 => 'Source Guid',
                 ]),
                 1 => $typedI2(1252),
                 2 => $typedLpstr('legacy-doc-42'),
                 3 => $typedBool(true),
                 4 => $typedI4(4242),
+                5 => $typedUi8Parts(1705032704, 1),
+                6 => $typedClsid($sourceGuid),
             ],
         ],
     ]),
@@ -980,6 +992,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['lineCount'] ?? null) !== 2 || ($summary['metadata']['linksDirty'] ?? null) !== true) {
         throw new RuntimeException('Legacy DOC handoff self-test missing DocumentSummaryInformation review metadata');
     }
+    if (($summary['metadata']['byteCount'] ?? null) !== 4096) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing unsigned byte-count metadata');
+    }
     if (($summary['metadata']['documentParts'] ?? []) !== ['Overview', 'Reviewer notes', 'Source appendix']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing document part titles');
     }
@@ -990,6 +1005,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'MigrationBatch' => 'legacy-doc-42',
         'Needs Review' => true,
         'Source Id' => 4242,
+        'Archive Bytes' => $archiveBytes,
+        'Source Guid' => $sourceGuid,
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
     }

@@ -379,6 +379,10 @@ $typedLpwstr = static function (string $value) use ($utf16le): string {
 $typedI2 = static fn (int $value): string => pack('v', 0x0002) . "\0\0" . pack('v', $value) . "\0\0";
 $typedI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
 $typedBool = static fn (bool $value): string => pack('v', 0x000b) . "\0\0" . pack('v', $value ? 0xffff : 0) . "\0\0";
+$typedUi2 = static fn (int $value): string => pack('v', 0x0012) . "\0\0" . pack('v', $value) . "\0\0";
+$typedUi4 = static fn (int $value): string => pack('v', 0x0013) . "\0\0" . pack('V', $value);
+$typedI8Parts = static fn (int $low, int $high): string => pack('v', 0x0014) . "\0\0" . pack('V2', $low, $high);
+$typedUi8Parts = static fn (int $low, int $high): string => pack('v', 0x0015) . "\0\0" . pack('V2', $low, $high);
 $typedFiletime = static function (string $iso8601) use ($u64): string {
     $seconds = strtotime($iso8601);
     if ($seconds === false) {
@@ -386,6 +390,9 @@ $typedFiletime = static function (string $iso8601) use ($u64): string {
     }
 
     return pack('v', 0x0040) . "\0\0" . $u64(((int) $seconds + 11644473600) * 10000000);
+};
+$typedClsid = static function (string $clsid) use ($clsidBytes): string {
+    return pack('v', 0x0048) . "\0\0" . $clsidBytes($clsid);
 };
 $typedVectorLpstr = static function (array $values): string {
     $payload = pack('V', count($values));
@@ -1369,6 +1376,68 @@ return [
             'Needs Review' => true,
             'Source Id' => 9876,
             'Review Timestamp' => '2024-03-04T05:06:07Z',
+        ], $metadata['customProperties']);
+        $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+    },
+    'extracts legacy DOC unsigned integer 64-bit and CLSID OLE property scalars' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedPropertySetStream, $typedDictionary, $typedI2, $typedUi2, $typedUi4, $typedI8Parts, $typedUi8Parts, $typedClsid): void {
+        $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
+        $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+        if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
+            throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+        }
+
+        $sourceGuid = 'f0e1d2c3-b4a5-9687-1020-304050607080';
+        $archiveBytes = 6000000000;
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Scalar metadata review packet\r"),
+            "\x05SummaryInformation" => $typedPropertySet([
+                14 => $typedUi4(2147483650),
+                19 => $typedUi4(0x0000000d),
+            ]),
+            "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+                [
+                    'fmtid' => $docSummaryFmtid,
+                    'properties' => [
+                        4 => $typedUi4(4294967295),
+                    ],
+                ],
+                [
+                    'fmtid' => $userDefinedFmtid,
+                    'properties' => [
+                        0 => $typedDictionary([
+                            2 => 'Reviewer Tier',
+                            3 => 'Archive Revision',
+                            4 => 'Signed Delta',
+                            5 => 'Archive Bytes',
+                            6 => 'Source Guid',
+                            7 => 'Max Unsigned',
+                        ]),
+                        1 => $typedI2(1252),
+                        2 => $typedUi2(65535),
+                        3 => $typedUi4(4000000000),
+                        4 => $typedI8Parts(0xffffffd6, 0xffffffff),
+                        5 => $typedUi8Parts(1705032704, 1),
+                        6 => $typedClsid($sourceGuid),
+                        7 => $typedUi8Parts(0xffffffff, 0xffffffff),
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+
+        $t->same(2147483650, $metadata['pageCount']);
+        $t->same(0x0000000d, $metadata['documentSecurity']);
+        $t->same(['passwordProtected', 'readOnlyEnforced', 'lockedForAnnotations'], $metadata['documentSecurityFlags']);
+        $t->same(4294967295, $metadata['byteCount']);
+        $t->same([
+            'Reviewer Tier' => 65535,
+            'Archive Revision' => 4000000000,
+            'Signed Delta' => -42,
+            'Archive Bytes' => $archiveBytes,
+            'Source Guid' => $sourceGuid,
+            'Max Unsigned' => '18446744073709551615',
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
