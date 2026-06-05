@@ -1129,7 +1129,8 @@ final class TableRecognizer
             return $imageSize;
         }
 
-        $cropBbox = $this->tableCropBbox($table, $imageSize);
+        $cropCandidate = $this->tableCropBboxCandidate($table, $imageSize);
+        $cropBbox = $cropCandidate['bbox'] ?? null;
         if ($cropBbox !== null) {
             $fromCropExtent = $this->imageSizeFromBboxExtent($cropBbox);
             if ($fromCropExtent !== null) {
@@ -1137,6 +1138,9 @@ final class TableRecognizer
                 $imageSize['height'] = $fromCropExtent['height'];
                 if (!isset($imageSize['table_bbox'])) {
                     $imageSize['table_bbox'] = $cropBbox;
+                    if (isset($cropCandidate['source'])) {
+                        $imageSize['table_bbox_source'] = $cropCandidate['source'];
+                    }
                 }
                 $imageSize['image_size_source'] = 'table_crop_bbox_extent';
 
@@ -1949,33 +1953,9 @@ final class TableRecognizer
      */
     private function tableCropBbox(array $table, array $imageSize): ?array
     {
-        foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
-            if (isset($table[$key])) {
-                $bbox = $this->bboxFromGeometryValue($table[$key]);
-                if ($bbox !== null) {
-                    return $bbox;
-                }
-            }
-            if (isset($imageSize[$key])) {
-                $bbox = $this->bboxFromGeometryValue($imageSize[$key]);
-                if ($bbox !== null) {
-                    return $bbox;
-                }
-            }
-        }
+        $candidate = $this->tableCropBboxCandidate($table, $imageSize);
 
-        if (isset($table['bbox'])) {
-            $bbox = $this->bboxFromGeometryValue($table['bbox']);
-            if ($bbox !== null) {
-                return $bbox;
-            }
-        }
-        $polygonBbox = $this->polygonBboxFromRecord($table);
-        if ($polygonBbox !== null) {
-            return $polygonBbox;
-        }
-
-        return null;
+        return $candidate['bbox'] ?? null;
     }
 
     /**
@@ -1984,22 +1964,118 @@ final class TableRecognizer
      */
     private function tableCropBboxSource(array $table, array $imageSize): ?string
     {
+        $candidate = $this->tableCropBboxCandidate($table, $imageSize);
+        if ($candidate !== null) {
+            return $candidate['source'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Saved recognition sidecars sometimes wrap the table crop plan instead of
+     * repeating it as a top-level table bbox. Upstream still crops the rendered
+     * page image before tabled assignment, so those nested crop records are
+     * authoritative for localizing rows, columns, and cells.
+     *
+     * @param array<string, mixed> $table
+     * @param array{width?: int|float, height?: int|float}|list<int|float> $imageSize
+     * @return array{bbox: list<float>, source: string}|null
+     */
+    private function tableCropBboxCandidate(array $table, array $imageSize): ?array
+    {
         foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox'] as $key) {
             if (isset($table[$key]) && $this->bboxFromGeometryValue($table[$key]) !== null) {
-                return $key;
+                return [
+                    'bbox' => $this->bboxFromGeometryValue($table[$key]),
+                    'source' => $key,
+                ];
             }
             if (isset($imageSize[$key]) && $this->bboxFromGeometryValue($imageSize[$key]) !== null) {
-                return $key;
+                $source = $key;
+                if ($key === 'table_bbox' && isset($imageSize['table_bbox_source']) && is_scalar($imageSize['table_bbox_source'])) {
+                    $source = (string) $imageSize['table_bbox_source'];
+                }
+
+                return [
+                    'bbox' => $this->bboxFromGeometryValue($imageSize[$key]),
+                    'source' => $source,
+                ];
             }
         }
 
         if (isset($table['bbox']) && $this->bboxFromGeometryValue($table['bbox']) !== null) {
-            return is_array($table['bbox'])
+            return [
+                'bbox' => $this->bboxFromGeometryValue($table['bbox']),
+                'source' => is_array($table['bbox'])
                 ? ($this->bboxNamedFieldSource($table['bbox']) ?? 'bbox_array')
-                : 'bbox_array';
+                : 'bbox_array',
+            ];
         }
 
-        return $this->polygonCoordinateSourceFromRecord($table);
+        $tableNested = $this->nestedTableCropBboxCandidate($table);
+        if ($tableNested !== null) {
+            return $tableNested;
+        }
+
+        $imageNested = $this->nestedTableCropBboxCandidate($imageSize);
+        if ($imageNested !== null) {
+            return $imageNested;
+        }
+
+        $polygonBbox = $this->polygonBboxFromRecord($table);
+        if ($polygonBbox !== null) {
+            $source = $this->polygonCoordinateSourceFromRecord($table);
+            if ($source !== null) {
+                return [
+                    'bbox' => $polygonBbox,
+                    'source' => $source,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $source
+     * @return array{bbox: list<float>, source: string}|null
+     */
+    private function nestedTableCropBboxCandidate(array $source): ?array
+    {
+        foreach (['table_image', 'table_crop', 'crop', 'crop_image', 'table_region', 'table_box'] as $containerKey) {
+            $container = $source[$containerKey] ?? null;
+            if (!is_array($container)) {
+                continue;
+            }
+
+            foreach (['table_bbox', 'table_crop_bbox', 'crop_bbox', 'highres_bbox', 'page_table_bbox', 'source_bbox', 'bbox', 'box'] as $bboxKey) {
+                if (!array_key_exists($bboxKey, $container)) {
+                    continue;
+                }
+
+                $bbox = $this->bboxFromGeometryValue($container[$bboxKey]);
+                if ($bbox !== null) {
+                    return [
+                        'bbox' => $bbox,
+                        'source' => $containerKey . '.' . $bboxKey,
+                    ];
+                }
+            }
+
+            $polygonBbox = $this->polygonBboxFromRecord($container);
+            if ($polygonBbox !== null) {
+                $sourceKey = $this->polygonCoordinateSourceFromRecord($container);
+                if ($sourceKey !== null) {
+                    return [
+                        'bbox' => $polygonBbox,
+                        'source' => $containerKey . '.' . $sourceKey,
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
