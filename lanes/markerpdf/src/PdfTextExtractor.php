@@ -29533,7 +29533,12 @@ final class PdfTextExtractor
 
             if ($char === '[') {
                 if (!$insideTextObject) {
-                    return false;
+                    if (count($outsideTextOperands) >= 2) {
+                        return false;
+                    }
+
+                    $outsideTextOperands[] = $this->readArrayToken($segment, $index);
+                    continue;
                 }
                 $this->readArrayToken($segment, $index);
                 continue;
@@ -29875,6 +29880,25 @@ final class PdfTextExtractor
 
         if (in_array($operator, ['CS', 'cs', 'gs', 'ri', 'sh'], true)) {
             return count($operands) === 1 && $this->markedContentTagOperand($operands[0]);
+        }
+
+        if ($operator === 'd') {
+            if (count($operands) !== 2 || $this->numericOperand($operands[1]) === null) {
+                return false;
+            }
+
+            $dashArray = $this->pdfArrayAtStart($operands[0]);
+            if ($dashArray === null) {
+                return false;
+            }
+
+            foreach ($this->pdfArrayItems($dashArray) as $item) {
+                if ($this->numericOperand($item) === null) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         if (!in_array($operator, ['SC', 'sc', 'SCN', 'scn'], true) || $operands === [] || count($operands) > 9) {
