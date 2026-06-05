@@ -155,8 +155,22 @@ final class OpcContentTypes
 
     private static function assertContentType(string $contentType): void
     {
-        if ($contentType === '' || str_contains($contentType, "\0") || !str_contains($contentType, '/')) {
+        if ($contentType === '' || preg_match('/[\x00-\x1F\x7F]/', $contentType) === 1) {
             throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
+        }
+
+        $token = '[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+';
+        if (preg_match('/\A' . $token . '\/' . $token . '/', $contentType, $matches) !== 1 || $matches[0] === '') {
+            throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
+        }
+
+        $rest = substr($contentType, strlen($matches[0]));
+        while ($rest !== '') {
+            if (preg_match('/\A\s*;\s*' . $token . '\s*=\s*(?:' . $token . '|"(?:[^"\\\\\x00-\x1F\x7F]|\\\\[\x20-\x7E])*")/', $rest, $parameter) !== 1) {
+                throw new \InvalidArgumentException('OPC content type must be a non-empty MIME type');
+            }
+
+            $rest = substr($rest, strlen($parameter[0]));
         }
     }
 

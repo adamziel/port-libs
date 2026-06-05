@@ -85,6 +85,39 @@ return [
             '/docProps/core.xml' => 'application/vnd.openxmlformats-package.core-properties+xml',
         ], $roundTrip->overrides());
     },
+    'validates OPC content type media type grammar including parameters' => static function (TestRunner $t): void {
+        $types = new OpcContentTypes();
+        $types->addDefault('xml', 'application/xml');
+        $types->addDefault('svg', 'image/svg+xml; charset=UTF-8');
+        $types->addOverride('/word/document.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml');
+        $types->addOverride('/word/media/review.html', 'text/html; charset="utf-8"; source=import-review');
+
+        $t->same('application/xml', $types->contentTypeForPart('/word/styles.xml'));
+        $t->same('image/svg+xml; charset=UTF-8', $types->contentTypeForPart('/word/media/diagram.svg'));
+        $t->same('text/html; charset="utf-8"; source=import-review', $types->contentTypeForPart('/word/media/review.html'));
+        $t->same([
+            'xml' => 'application/xml',
+            'svg' => 'image/svg+xml; charset=UTF-8',
+        ], $types->defaults());
+
+        foreach ([
+            'application/',
+            '/xml',
+            'application//xml',
+            'application xml/html',
+            'application/xml bad',
+            'application/xml;',
+            'application/xml; charset',
+            'application/xml; charset=',
+            'application/xml; =utf-8',
+            'application/xml; charset="unterminated',
+        ] as $invalidContentType) {
+            $t->throws(\InvalidArgumentException::class, static function () use ($invalidContentType): void {
+                $types = new OpcContentTypes();
+                $types->addDefault('bad', $invalidContentType);
+            });
+        }
+    },
     'rejects malformed OPC content types XML and unsafe part names' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="urn:bad"/>'));
         $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml('<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="xml"/></Types>'));
