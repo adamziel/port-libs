@@ -7827,23 +7827,48 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<string, true> $seen
      */
-    private function pdfArrayFromValue(string $value, array $objects): ?string
+    private function pdfArrayFromValue(string $value, array $objects, array $seen = []): ?string
     {
         $offset = $this->skipPdfWhitespace($value, 0);
         if (($value[$offset] ?? '') === '[') {
             return $this->readPdfArrayAt($value, $offset);
         }
 
-        if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $value, $match, 0, $offset) !== 1) {
+        $referenceOffset = $offset;
+        $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+        if ($reference === null) {
             return null;
         }
 
-        $objectNumber = (int) $match[1];
-        $generation = (int) $match[2];
-        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+        return $this->pdfArrayFromReferencedObject(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation'],
+            $seen
+        );
+    }
 
-        return $body === null ? null : $this->pdfArrayAtStart(trim($body));
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     */
+    private function pdfArrayFromReferencedObject(array $objects, int $objectNumber, int $generation, array $seen = []): ?string
+    {
+        $key = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || $generation < 0 || isset($seen[$key])) {
+            return null;
+        }
+
+        $body = $this->objectBodyForExactReference($objects, $objectNumber, $generation);
+        if ($body === null) {
+            return null;
+        }
+
+        $seen[$key] = true;
+
+        return $this->pdfArrayFromValue(trim($body), $objects, $seen);
     }
 
     /**
@@ -15057,8 +15082,11 @@ final class PdfTextExtractor
             return null;
         }
 
-        $objectBody = $this->objectBodyForExactReference($objects, $reference['objectNumber'], $reference['generation']);
-        return $objectBody === null ? null : $this->pdfArrayAtStart(trim($objectBody));
+        return $this->pdfArrayFromReferencedObject(
+            $objects,
+            $reference['objectNumber'],
+            $reference['generation']
+        );
     }
 
     /**
@@ -17904,16 +17932,44 @@ final class PdfTextExtractor
      */
     private function pdfObjectReferencePairs(string $value): array
     {
-        if (!preg_match_all('/\b(\d+)\s+(\d+)\s+R\b/s', $value, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
-
         $references = [];
-        foreach ($matches as $match) {
+        $length = strlen($value);
+        $offset = 0;
+        while ($offset < $length) {
+            $char = $value[$offset];
+
+            if ($char === '%') {
+                $this->skipPdfComment($value, $offset);
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($value, $offset);
+                continue;
+            }
+
+            if ($char === '<' && ($value[$offset + 1] ?? '') !== '<') {
+                $this->readHexToken($value, $offset);
+                continue;
+            }
+
+            if ($offset > 0 && !$this->isBareTokenDelimiter($value[$offset - 1])) {
+                $offset++;
+                continue;
+            }
+
+            $referenceOffset = $offset;
+            $reference = $this->readPdfIndirectReferenceToken($value, $referenceOffset);
+            if ($reference === null) {
+                $offset++;
+                continue;
+            }
+
             $references[] = [
-                'objectNumber' => (int) $match[1],
-                'generation' => (int) $match[2],
+                'objectNumber' => $reference['objectNumber'],
+                'generation' => $reference['generation'],
             ];
+            $offset = $referenceOffset;
         }
 
         return $references;
