@@ -928,6 +928,13 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($childLines !== [] && $this->isYamlExplicitMappingKeyLine(trim($sourceValue))) {
+                $value = $this->parseYamlMetadataLines(array_merge([$sourceValue], $childLines));
+                $this->rememberYamlAnchor($anchorName, $value);
+                $items[] = $value;
+                continue;
+            }
+
             $value = $this->parseYamlScalarValueFromDirectives($sourceValue, null, $tags);
             $this->rememberYamlAnchor($anchorName, $value);
             $items[] = $value;

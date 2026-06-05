@@ -169,6 +169,19 @@ flow-explicit-review: {? [source, uri]: https://example.test/exports/packet#flow
 flow-explicit-reference:
   id: flow-explicit-key-ref
   metadata: {? [source, key]: metadata value, ? {type: review}: kept}
+sequence-explicit-review-items:
+  - ? [source, uri]
+    : https://example.test/exports/packet#sequence-explicit-item
+    status: queued
+    labels:
+      - migration
+      - wordpress
+  - ? {owner: desk, ticket: 7}
+    : approved
+    source note: Reviewed by structured key
+  - ? "source:key"
+    : "metadata: value"
+    owner: Import Desk
 source label: Migration review
 plain-key-review:
   source owner: Import Desk
@@ -429,6 +442,24 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-explicit-reference']['metadata']['{type: review}'] ?? '') !== 'kept') {
         throw new RuntimeException('YAML metadata self-test missing nested flow explicit map key metadata');
     }
+    if (($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') !== 'https://example.test/exports/packet#sequence-explicit-item') {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit sequence key metadata');
+    }
+    if (($meta['sequence-explicit-review-items'][0]['labels'] ?? []) !== ['migration', 'wordpress']) {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit-key labels');
+    }
+    if (($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit map key metadata');
+    }
+    if (($meta['sequence-explicit-review-items'][1]['source note'] ?? '') !== 'Reviewed by structured key') {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit-key source note');
+    }
+    if (($meta['sequence-explicit-review-items'][2]['source:key'] ?? '') !== 'metadata: value') {
+        throw new RuntimeException('YAML metadata self-test missing sequence item explicit quoted key metadata');
+    }
+    if (array_key_exists('? [source, uri]', $meta['sequence-explicit-review-items'][0] ?? [])) {
+        throw new RuntimeException('YAML metadata self-test leaked raw sequence item explicit key');
+    }
     if (($meta['source label'] ?? '') !== 'Migration review') {
         throw new RuntimeException('YAML metadata self-test missing plain spaced source label');
     }
@@ -502,6 +533,7 @@ echo 'Explicit key review: ' . ($meta['explicit-review']['status'] ?? '') . ' / 
 echo 'Sequence key review: ' . ($meta['sequence-key-review']['[owner, desk]'] ?? '') . ' / ' . ($meta['[sequence, source-uri]'] ?? '') . "\n";
 echo 'Map key review: ' . ($meta['map-key-review']['{owner: desk, ticket: 7}'] ?? '') . ' / ' . ($meta['{source: uri, type: review}'] ?? '') . "\n";
 echo 'Flow explicit key review: ' . ($meta['flow-explicit-review']['[source, uri]'] ?? '') . ' / ' . ($meta['flow-explicit-review']['{owner: desk, ticket: 7}'] ?? '') . "\n";
+echo 'Sequence item explicit key: ' . ($meta['sequence-explicit-review-items'][0]['[source, uri]'] ?? '') . ' / ' . ($meta['sequence-explicit-review-items'][1]['{owner: desk, ticket: 7}'] ?? '') . "\n";
 echo 'Plain key review: ' . ($meta['plain-key-review']['source owner'] ?? '') . ' / ' . ($meta['source label'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";

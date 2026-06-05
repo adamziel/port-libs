@@ -1922,6 +1922,57 @@ return [
         $t->same('flow-explicit-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="flow-explicit-key-yaml-body">Flow explicit key YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit mapping keys in sequence metadata items' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sequence explicit item **Packet**',
+            'review-items:',
+            '  - ? [source, uri]',
+            '    : https://example.test/import#sequence-item',
+            '    status: queued',
+            '    labels:',
+            '      - migration',
+            '      - wordpress',
+            '  - ? {owner: desk, ticket: 7}',
+            '    : approved',
+            '    source note: Reviewed by structured key',
+            '  - ? "source:key"',
+            '    : "metadata: value"',
+            '    owner: Import Desk',
+            'references:',
+            '  - id: sequence-explicit-item-ref',
+            '    review-links:',
+            '      - ? [source, key]',
+            '        : metadata value',
+            '        status: kept',
+            '...',
+            '',
+            '# Sequence explicit item YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sequence explicit item **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('Packet', $titleInlines[1]->children[0]->attr('text'));
+        $t->same('https://example.test/import#sequence-item', $meta['review-items'][0]['[source, uri]']);
+        $t->same('queued', $meta['review-items'][0]['status']);
+        $t->same(['migration', 'wordpress'], $meta['review-items'][0]['labels']);
+        $t->same('approved', $meta['review-items'][1]['{owner: desk, ticket: 7}']);
+        $t->same('Reviewed by structured key', $meta['review-items'][1]['source note']);
+        $t->same('metadata: value', $meta['review-items'][2]['source:key']);
+        $t->same('Import Desk', $meta['review-items'][2]['owner']);
+        $t->same('sequence-explicit-item-ref', $meta['references'][0]['id']);
+        $t->same('metadata value', $meta['references'][0]['review-links'][0]['[source, key]']);
+        $t->same('kept', $meta['references'][0]['review-links'][0]['status']);
+        $t->same(false, array_key_exists('? [source, uri]', $meta['review-items'][0]));
+        $t->same(false, array_key_exists('? {owner: desk, ticket: 7}', $meta['review-items'][1]));
+        $t->same(false, array_key_exists('? "source:key"', $meta['review-items'][2]));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sequence-explicit-item-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sequence-explicit-item-yaml-body">Sequence explicit item YAML body</h1>', $blocks);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
