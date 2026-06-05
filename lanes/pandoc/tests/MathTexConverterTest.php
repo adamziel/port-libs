@@ -232,6 +232,16 @@ return [
         $t->contains('<mtable columnalign="right left right left"><mtr><mtd><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><msup><mi>x</mi><mn>2</mn></msup></mtd><mtd><mi>g</mi><mo>(</mo><mi>x</mi><mo>)</mo></mtd><mtd><mo>=</mo><mi>x</mi><mo>+</mo><mn>1</mn></mtd></mtr></mtable>', $alignAtMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{alignat*}{2}f(x) &amp;= x^2 &amp; g(x) &amp;= x + 1\\end{alignat*}</annotation>', $alignAtMathml);
     },
+    'converts bounded tex ams row tags and labels to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $taggedAlignMathml = $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true);
+        $taggedAlignAtMathml = $converter->texToMathMl('\\begin{alignat}{2}a &= b & c &= d \\tag{A}\\\\ u &= v & w &= z\\end{alignat}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $taggedAlignMathml);
+        $t->contains('<mtable columnalign="right left"><mlabeledtr><mtd><mtext>(WP-1)</mtext></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mlabeledtr><mlabeledtr id="eq:row-review"><mtd><mtext>review</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>', $taggedAlignMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}</annotation>', $taggedAlignMathml);
+        $t->contains('<mtable columnalign="right left right left"><mlabeledtr><mtd><mtext>(A)</mtext></mtd><mtd><mi>a</mi></mtd><mtd><mo>=</mo><mi>b</mi></mtd><mtd><mi>c</mi></mtd><mtd><mo>=</mo><mi>d</mi></mtd></mlabeledtr><mtr><mtd><mi>u</mi></mtd><mtd><mo>=</mo><mi>v</mi></mtd><mtd><mi>w</mi></mtd><mtd><mo>=</mo><mi>z</mi></mtd></mtr></mtable>', $taggedAlignAtMathml);
+    },
     'converts bounded tex spacing commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $punctuationSpacingMathml = $converter->texToMathMl('p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c', true);
@@ -455,6 +465,10 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{5}a &= b\\end{alignedat}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignedat}{2}a &= b & c\\end{alignedat}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{alignat}{1}a &= b \\\\ \\end{alignat}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\tag{}\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\tag{A} \\tag{B}\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}\\tag{A}\\end{align}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{align}a &= b \\label{}\\end{align}'));
     },
     'rejects malformed bounded tex math groups without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

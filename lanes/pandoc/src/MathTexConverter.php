@@ -1219,7 +1219,7 @@ final class MathTexConverter
         $spec = self::AMS_ROW_ENVIRONMENTS[$environment];
         $this->validateAmsRowEnvironmentRows($rows, $environment, $spec['columns']);
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"');
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc($spec['columnalign']) . '"', true, $environment);
     }
 
     private function parseAmsAlignedAtEnvironment(string $source, int &$offset, string $environment): string
@@ -1233,7 +1233,7 @@ final class MathTexConverter
         $rows = $this->splitAlignmentRows($content, $environment);
         $this->validateAmsRowEnvironmentRows($rows, $environment, $pairs * 2);
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"');
+        return $this->environmentTable($rows, ' columnalign="' . $this->esc(implode(' ', array_fill(0, $pairs, 'right left'))) . '"', true, $environment);
     }
 
     private function normalizeAmsAlignedAtPairCount(string $pairCount, string $environment): int
@@ -1511,18 +1511,199 @@ final class MathTexConverter
     /**
      * @param list<list<string>> $rows
      */
-    private function environmentTable(array $rows, string $attributes): string
+    private function environmentTable(array $rows, string $attributes, bool $allowRowMetadata = false, string $environment = ''): string
     {
         $table = '<mtable' . $attributes . '>';
-        foreach ($rows as $row) {
-            $table .= '<mtr>';
+        foreach ($rows as $rowIndex => $row) {
+            $metadata = [
+                'labelId' => null,
+                'tag' => null,
+                'tagStarred' => false,
+            ];
+
+            if ($allowRowMetadata) {
+                $parsed = $this->extractEnvironmentRowMetadata($row, $environment, $rowIndex);
+                $row = $parsed['cells'];
+                $metadata = [
+                    'labelId' => $parsed['labelId'],
+                    'tag' => $parsed['tag'],
+                    'tagStarred' => $parsed['tagStarred'],
+                ];
+            }
+
+            if ($metadata['tag'] !== null) {
+                $tagText = $metadata['tagStarred'] ? $metadata['tag'] : '(' . $metadata['tag'] . ')';
+                $table .= '<mlabeledtr' . ($metadata['labelId'] !== null ? ' id="' . $this->esc($metadata['labelId']) . '"' : '') . '>'
+                    . '<mtd><mtext>' . $this->esc($tagText) . '</mtext></mtd>';
+            } else {
+                $table .= '<mtr' . ($metadata['labelId'] !== null ? ' id="' . $this->esc($metadata['labelId']) . '"' : '') . '>';
+            }
+
             foreach ($row as $cell) {
                 $table .= '<mtd>' . $this->parseEnvironmentCell($cell) . '</mtd>';
             }
-            $table .= '</mtr>';
+            $table .= $metadata['tag'] !== null ? '</mlabeledtr>' : '</mtr>';
         }
 
         return $table . '</mtable>';
+    }
+
+    /**
+     * @param list<string> $row
+     * @return array{cells:list<string>, label:?string, labelId:?string, tag:?string, tagStarred:bool}
+     */
+    private function extractEnvironmentRowMetadata(array $row, string $environment, int $rowIndex): array
+    {
+        $label = null;
+        $labelId = null;
+        $tag = null;
+        $tagStarred = false;
+        $cells = [];
+
+        foreach ($row as $cell) {
+            $parsed = $this->stripEnvironmentCellRowMetadata($cell, $environment, $rowIndex);
+            $cells[] = trim($parsed['cell']);
+
+            if ($parsed['label'] !== null) {
+                if ($label !== null) {
+                    throw new \InvalidArgumentException('Duplicate TeX ' . $environment . ' row label at row ' . ($rowIndex + 1));
+                }
+
+                $label = $parsed['label'];
+                $labelId = $this->normalizeEquationLabelId($parsed['label']);
+            }
+
+            if ($parsed['tag'] !== null) {
+                if ($tag !== null) {
+                    throw new \InvalidArgumentException('Duplicate TeX ' . $environment . ' row tag at row ' . ($rowIndex + 1));
+                }
+
+                $tag = $parsed['tag'];
+                $tagStarred = $parsed['tagStarred'];
+            }
+        }
+
+        $hasContent = false;
+        foreach ($cells as $cell) {
+            if (trim($cell) !== '') {
+                $hasContent = true;
+                break;
+            }
+        }
+
+        if (!$hasContent) {
+            throw new \InvalidArgumentException('Expected TeX ' . $environment . ' row content at row ' . ($rowIndex + 1));
+        }
+
+        return [
+            'cells' => $cells,
+            'label' => $label,
+            'labelId' => $labelId,
+            'tag' => $tag,
+            'tagStarred' => $tagStarred,
+        ];
+    }
+
+    /**
+     * @return array{cell:string, label:?string, tag:?string, tagStarred:bool}
+     */
+    private function stripEnvironmentCellRowMetadata(string $source, string $environment, int $rowIndex): array
+    {
+        $output = '';
+        $label = null;
+        $tag = null;
+        $tagStarred = false;
+        $depth = 0;
+        $offset = 0;
+        $length = strlen($source);
+
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '\\') {
+                $commandOffset = $offset + 1;
+                $command = $this->readCommandName($source, $commandOffset);
+                if ($depth === 0 && $command === 'begin') {
+                    $environmentOffset = $commandOffset;
+                    $nestedEnvironment = $this->readRequiredGroupText($source, $environmentOffset);
+                    $this->readEnvironmentContent($source, $environmentOffset, $nestedEnvironment);
+                    $output .= substr($source, $offset, $environmentOffset - $offset);
+                    $offset = $environmentOffset;
+                    continue;
+                }
+
+                if ($depth === 0 && ($command === 'label' || $command === 'tag')) {
+                    $cursor = $commandOffset;
+                    $starred = false;
+                    if ($command === 'tag' && ($source[$cursor] ?? '') === '*') {
+                        $starred = true;
+                        $cursor++;
+                    }
+
+                    $this->skipWhitespace($source, $cursor);
+                    $argument = $this->readTexBraceArgument($source, $cursor);
+                    if ($argument === null) {
+                        throw new \InvalidArgumentException('Expected TeX \\' . $command . ' group in ' . $environment . ' row ' . ($rowIndex + 1));
+                    }
+
+                    $value = trim($argument['value']);
+                    if ($value === '') {
+                        throw new \InvalidArgumentException('Expected TeX \\' . $command . ' content in ' . $environment . ' row ' . ($rowIndex + 1));
+                    }
+
+                    if ($command === 'label') {
+                        if ($label !== null) {
+                            throw new \InvalidArgumentException('Duplicate TeX ' . $environment . ' row label at row ' . ($rowIndex + 1));
+                        }
+
+                        $label = $value;
+                    } else {
+                        if ($tag !== null) {
+                            throw new \InvalidArgumentException('Duplicate TeX ' . $environment . ' row tag at row ' . ($rowIndex + 1));
+                        }
+
+                        $tag = $value;
+                        $tagStarred = $starred;
+                    }
+
+                    $offset = $argument['next'];
+                    continue;
+                }
+
+                $output .= $char;
+                $offset++;
+                if (($source[$offset] ?? '') !== '' && !ctype_alpha($source[$offset])) {
+                    $output .= $source[$offset];
+                    $offset++;
+                }
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $output .= $char;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth > 0) {
+                    $depth--;
+                }
+                $output .= $char;
+                $offset++;
+                continue;
+            }
+
+            $output .= $char;
+            $offset++;
+        }
+
+        return [
+            'cell' => $output,
+            'label' => $label,
+            'tag' => $tag,
+            'tagStarred' => $tagStarred,
+        ];
     }
 
     private function readEnvironmentContent(string $source, int &$offset, string $environment): string
