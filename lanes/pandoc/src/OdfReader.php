@@ -198,6 +198,7 @@ final class OdfReader
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
                     'tableOfContentsCount' => $contentStats['tableOfContentsCount'],
                     'generatedIndexCount' => $contentStats['generatedIndexCount'],
+                    'tableCaptionCount' => $contentStats['tableCaptionCount'],
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
@@ -710,6 +711,19 @@ final class OdfReader
         }
 
         $node = new AstNode('paragraph', $attrs, $inlines);
+        if ($styleName === 'Table') {
+            return new AstNode('div', [
+                'sourceFormat' => 'odt',
+                'styleName' => $styleName,
+                'style' => $style,
+                'text' => $text,
+                'tableCaption' => true,
+                'classes' => ['caption', 'odf-table-caption'],
+                'attributes' => [
+                    'data-odf-table-caption-style-name' => $styleName,
+                ],
+            ], [$node]);
+        }
         if ($this->isBlockquoteParagraphStyle($style)) {
             $quoteAttrs = $attrs;
             $quoteAttrs['classes'] = ['odf-blockquote'];
@@ -4290,7 +4304,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -4319,6 +4333,7 @@ final class OdfReader
             'protectedSectionCount' => 0,
             'tableOfContentsCount' => 0,
             'generatedIndexCount' => 0,
+            'tableCaptionCount' => 0,
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
             'tableTemplateReferenceCount' => 0,
@@ -4344,6 +4359,9 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-generated-index')) {
                 $stats['generatedIndexCount']++;
+            }
+            if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-caption')) {
+                $stats['tableCaptionCount']++;
             }
             if ($node->type === 'table' && (string) $node->attr('templateName', '') !== '') {
                 $stats['tableTemplateReferenceCount']++;

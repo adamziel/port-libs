@@ -47,6 +47,7 @@ $stylesXml = <<<'XML'
     <style:style style:name="ReviewQuote" style:family="paragraph" style:display-name="Review Quote">
       <style:paragraph-properties fo:margin-left="6mm"/>
     </style:style>
+    <style:style style:name="Table" style:family="paragraph" style:display-name="Table"/>
     <style:style style:name="StrongSource" style:family="text">
       <style:text-properties fo:font-weight="bold" fo:font-style="italic"/>
     </style:style>
@@ -161,6 +162,7 @@ $contentXml = <<<'XML'
           <text:p><text:a xlink:href="#source-hero-seq">Figure 1</text:a><text:tab/>2</text:p>
         </text:index-body>
       </text:illustration-index>
+      <text:p text:style-name="Table">Table 1: Review matrix caption</text:p>
       <text:section text:name="Linked Policy Appendix" text:protected="true" text:protection-key="review-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
         <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
         <text:p>Linked appendix fallback text.</text:p>
@@ -311,6 +313,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<a href="#source-hero-seq">Figure 1</a>')) {
         throw new RuntimeException('Expected ODT generated index body links to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['tableCaptionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table caption style paragraphs to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<div class="caption odf-table-caption" data-odf-table-caption-style-name="Table"><p>Table 1: Review matrix caption</p></div>')) {
+        throw new RuntimeException('Expected ODT table caption style paragraphs to render as WordPress caption divs');
     }
     if (!str_contains($blocks, '<sup><span data-odf-style-name="SourceSuperscript">TM</span></sup>')) {
         throw new RuntimeException('Expected ODT superscript source mark to render in WordPress blocks');

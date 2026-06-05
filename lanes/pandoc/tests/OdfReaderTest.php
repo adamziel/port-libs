@@ -1927,6 +1927,50 @@ XML;
         $t->contains('<span class="odf-index-mark odf-index-mark-alphabetical" data-odf-index-mark-type="alphabetical" data-odf-index-mark-element="alphabetical-index-mark-start" data-odf-index-mark-id="idx-claim" data-odf-index-mark-string-value="source claim" data-odf-index-mark-key1="Migration" data-odf-index-mark-key2="ODT" data-odf-index-mark-main-entry="true">source claim</span>', $blocksHtml);
         $t->contains('<span class="odf-index-mark odf-index-mark-user" data-odf-index-mark-type="user" data-odf-index-mark-element="user-index-mark" data-odf-index-mark-index-name="Reviewer Terms" data-odf-index-mark-string-value="Data Liberation">Data Liberation</span>', $blocksHtml);
     },
+    'maps ODT table caption paragraph styles into caption divs' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTableCaptionStyle = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:automatic-styles>
+    <style:style style:name="CaptionStrong" style:family="text">
+      <style:text-properties fo:font-weight="bold" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"/>
+    </style:style>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <text:p text:style-name="Table">Table <text:span text:style-name="CaptionStrong">1</text:span>: Source media audit</text:p>
+      <text:p text:style-name="BodyText">Following paragraph stays ordinary.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTableCaptionStyle));
+        $blocks = $result['document']->children;
+
+        $t->same(2, count($blocks));
+        $caption = $blocks[0];
+        $t->same('div', $caption->type);
+        $t->same(['caption', 'odf-table-caption'], $caption->attr('classes'));
+        $t->same('Table', $caption->attr('styleName'));
+        $t->same(true, $caption->attr('tableCaption'));
+        $t->same('Table 1: Source media audit', $caption->attr('text'));
+        $t->same('Table', $caption->attr('attributes')['data-odf-table-caption-style-name']);
+        $t->same('paragraph', $caption->children[0]->type);
+        $t->same('Table 1: Source media audit', $caption->children[0]->attr('text'));
+        $t->same('strong', $caption->children[0]->children[1]->type);
+        $t->same('paragraph', $blocks[1]->type);
+        $t->same('Following paragraph stays ordinary.', $blocks[1]->attr('text'));
+        $t->same(1, $result['importReport']['content']['tableCaptionCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('::: {.caption .odf-table-caption data-odf-table-caption-style-name="Table"}', $markdown);
+        $t->contains('Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
+        $t->contains('<div class="caption odf-table-caption" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></div>', $blocksHtml);
+    },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedSections = <<<'XML'
 <office:document-content
