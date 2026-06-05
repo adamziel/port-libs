@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfImageRenderer;
 use PortLibs\MarkerPDF\PdfTextExtractor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -28,10 +29,16 @@ $pdf = "%PDF-1.4\n"
     . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
 
 $extractor = new PdfTextExtractor();
+$renderer = new PdfImageRenderer();
 $lines = $extractor->extractTextLines($pdf);
 $plainText = $extractor->extractPlainText($pdf);
 $review = $extractor->extractImageXObjectBoundaryReview($pdf);
 $photoReview = $review['entries'][0] ?? [];
+$rendererObjects = [
+    30 => "<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nPROFILE\nendstream",
+];
+$rendererImage = "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [ /ICCBased 30 0 R ] /BitsPerComponent 8 /Filter [[/DCTDecode]] /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream";
+$rendererPreview = $renderer->iccBasedImageStreamPreviewRows($rendererImage, $rendererObjects);
 $payloadExcluded = !str_contains($plainText, 'WordPress Malformed DCT Leak')
     && !str_contains($plainText, 'JFIF')
     && !str_contains($plainText, 'endstream');
@@ -40,8 +47,19 @@ $recoveredLength = ($photoReview['raw_length'] ?? null) === strlen($jpegPayload)
 $failedClosed = ($photoReview['filters_resolved'] ?? true) === false
     && ($photoReview['native_raster_decode'] ?? true) === false
     && ($photoReview['decoded_with_current_filters'] ?? true) === false;
+$rendererRawBoundary = ($rendererPreview['review_only_image_stream'] ?? false) === true
+    && ($rendererPreview['image_stream']['raw_dct_preview_boundary'] ?? false) === true
+    && ($rendererPreview['image_stream']['filters'] ?? []) === ['MalformedFilterOperand']
+    && ($rendererPreview['image_stream']['raw_length'] ?? null) === strlen($jpegPayload)
+    && ($rendererPreview['image_stream']['decoded_with_current_filters'] ?? true) === false;
 
-if ($lines !== ['Before Malformed DCT Import', 'After Malformed DCT Import'] || !$payloadExcluded || !$recoveredLength || !$failedClosed) {
+if (
+    $lines !== ['Before Malformed DCT Import', 'After Malformed DCT Import']
+    || !$payloadExcluded
+    || !$recoveredLength
+    || !$failedClosed
+    || !$rendererRawBoundary
+) {
     throw new RuntimeException('Malformed DCTDecode filter boundary leaked image payload bytes or allowed native raster decode.');
 }
 
@@ -51,6 +69,7 @@ echo '<!-- markerpdf:pdf-dctdecode-malformed-filter-boundary-currentbase ' . htm
     'stream_filters_resolved' => $photoReview['filters_resolved'] ?? null,
     'malformed_filter_operand_fail_closed' => $failedClosed,
     'raw_jpeg_owner_boundary_used_for_review_only_stream' => true,
+    'renderer_raw_dct_preview_boundary' => $rendererRawBoundary,
     'stale_length_fake_endstream_rejected' => $recoveredLength,
     'embedded_fake_object_rejected' => $payloadExcluded,
     'dctdecode_image_payload_excluded_from_text' => $payloadExcluded,
@@ -58,6 +77,10 @@ echo '<!-- markerpdf:pdf-dctdecode-malformed-filter-boundary-currentbase ' . htm
     'xobject_preview_only_filters' => $photoReview['preview_only_filters'] ?? [],
     'xobject_native_raster_decode' => $photoReview['native_raster_decode'] ?? null,
     'xobject_decoded_with_current_filters' => $photoReview['decoded_with_current_filters'] ?? null,
+    'renderer_image_stream_filters' => $rendererPreview['image_stream']['filters'] ?? [],
+    'renderer_image_stream_unsupported_filters' => $rendererPreview['image_stream']['unsupported_filters'] ?? [],
+    'renderer_image_stream_raw_length' => $rendererPreview['image_stream']['raw_length'] ?? null,
+    'renderer_image_stream_decode_failed' => $rendererPreview['image_stream']['decode_failed'] ?? null,
     'paragraphs' => $lines,
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,

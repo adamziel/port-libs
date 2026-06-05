@@ -945,6 +945,40 @@ return [
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },
+    'keeps direct renderer malformed DCTDecode operands review-only at raw JPEG boundaries' => static function (TestRunner $t): void {
+        $renderer = new PdfImageRenderer();
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Renderer malformed DCT payload leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\xff\xd9";
+        $fakeTerminatorOffset = strpos($jpegPayload, "\nendstream\n");
+        if ($fakeTerminatorOffset === false) {
+            throw new RuntimeException('Focused renderer malformed DCT fixture must expose a fake endstream marker.');
+        }
+
+        $objects = [
+            30 => "<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nPROFILE\nendstream",
+        ];
+        $imageObject = "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace [ /ICCBased 30 0 R ] /BitsPerComponent 8 /Filter [[/DCTDecode]] /Length {$fakeTerminatorOffset} >>\nstream\n{$jpegPayload}\nendstream";
+
+        $preview = $renderer->iccBasedImageStreamPreviewRows($imageObject, $objects);
+
+        $t->same(true, $preview['review_only_image_stream']);
+        $t->same(0, $preview['preview_pixel_count']);
+        $t->same(['MalformedFilterOperand'], $preview['image_stream']['filters']);
+        $t->same([], $preview['image_stream']['preview_only_filters']);
+        $t->same(['MalformedFilterOperand'], $preview['image_stream']['unsupported_filters']);
+        $t->same(strlen($jpegPayload), $preview['image_stream']['raw_length']);
+        $t->true(($preview['image_stream']['raw_length'] ?? 0) > $fakeTerminatorOffset);
+        $t->same(null, $preview['image_stream']['decoded_length']);
+        $t->same(false, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(true, $preview['image_stream']['decode_failed']);
+        $t->same(true, $preview['image_stream']['raw_dct_preview_boundary']);
+        $t->same([], $preview['pixels']);
+        $t->contains('malformed_image_filter_operand_fail_closed', implode(',', $preview['notes']));
+        $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $preview['notes']));
+    },
     'keeps Crypt Identity DCTDecode stale EOI boundaries before fake JPEG payload objects' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseCryptIdentityFixture): void {
         $fixture = $pdfDctDecodeFilterBoundaryCurrentBaseCryptIdentityFixture();
         $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();

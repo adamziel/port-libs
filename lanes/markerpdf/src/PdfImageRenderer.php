@@ -1747,7 +1747,7 @@ final class PdfImageRenderer
         if (($imageStreamMeta['decode_failed'] ?? false) === true) {
             throw new InvalidArgumentException('Inline image prefix filters must be complete before output preview.');
         }
-        $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
+        $imageStreamReviewOnly = !$imageStreamDecoded && $this->imageStreamBoundaryIsReviewOnly($imageStreamMeta);
         $usesSuppliedSamples = $suppliedSamples !== null;
         if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
             throw new InvalidArgumentException('Inline image filters must be natively decoded before output preview.');
@@ -3081,7 +3081,7 @@ final class PdfImageRenderer
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
         $imageStreamDecoded = ($imageStream['decoded_with_current_filters'] ?? false) === true
             && is_string($imageStream['decoded_bytes'] ?? null);
-        $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
+        $imageStreamReviewOnly = !$imageStreamDecoded && $this->imageStreamBoundaryIsReviewOnly($imageStreamMeta);
         if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
             throw new InvalidArgumentException('Alternate colorant image stream filters must be natively decoded before RGB preview.');
         }
@@ -3708,7 +3708,7 @@ final class PdfImageRenderer
         $imageStreamMeta = $this->streamBoundaryPublicMetadata($imageStream);
         $imageStreamDecoded = ($imageStream['decoded_with_current_filters'] ?? false) === true
             && is_string($imageStream['decoded_bytes'] ?? null);
-        $imageStreamReviewOnly = !$imageStreamDecoded && $imageStreamMeta['preview_only_filters'] !== [];
+        $imageStreamReviewOnly = !$imageStreamDecoded && $this->imageStreamBoundaryIsReviewOnly($imageStreamMeta);
         if (!$imageStreamDecoded && !$imageStreamReviewOnly) {
             throw new InvalidArgumentException('ICCBased image stream filters must be natively decoded before RGB preview.');
         }
@@ -3762,7 +3762,7 @@ final class PdfImageRenderer
                 ? 'iccbased_image_stream_unfiltered_samples_before_rgb_conversion'
                 : 'iccbased_image_stream_filters_decoded_before_rgb_conversion',
         ];
-        if (!$imageStreamMeta['decoded_with_current_filters'] && $imageStreamMeta['preview_only_filters'] !== []) {
+        if (!$imageStreamMeta['decoded_with_current_filters'] && $this->imageStreamBoundaryIsReviewOnly($imageStreamMeta)) {
             $streamNotes[0] = 'iccbased_image_stream_preview_only_before_rgb_conversion';
         }
         if ($softMaskStreamMeta !== null) {
@@ -5919,7 +5919,15 @@ final class PdfImageRenderer
             return $this->decodedInlineImageStreamPreviewBoundary($dictionary, null, $objects);
         }
 
-        return $this->decodedInlineImageStreamPreviewBoundary($dictionary, $stream, $objects);
+        $boundary = $this->decodedInlineImageStreamPreviewBoundary($dictionary, $stream, $objects);
+        if (
+            $this->imageFilterOperandBoundaryFilters($boundary['filters']) !== []
+            && $this->dctPreviewStreamPayloadBytes($imageObject, $objects) !== null
+        ) {
+            $boundary['raw_dct_preview_boundary'] = true;
+        }
+
+        return $boundary;
     }
 
     /**
@@ -6030,6 +6038,10 @@ final class PdfImageRenderer
             'decode_failed' => $boundary['decode_failed'],
         ];
 
+        if (($boundary['raw_dct_preview_boundary'] ?? false) === true) {
+            $metadata['raw_dct_preview_boundary'] = true;
+        }
+
         if (($boundary['native_prefix_decoded'] ?? false) === true) {
             $metadata['native_prefix_decoded'] = true;
             $metadata['native_prefix_decoded_length'] = $boundary['native_prefix_decoded_length'] ?? null;
@@ -6039,6 +6051,15 @@ final class PdfImageRenderer
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function imageStreamBoundaryIsReviewOnly(array $metadata): bool
+    {
+        return ($metadata['preview_only_filters'] ?? []) !== []
+            || ($metadata['raw_dct_preview_boundary'] ?? false) === true;
     }
 
     /**
@@ -6926,7 +6947,7 @@ final class PdfImageRenderer
                 break;
             }
         }
-        if (!$hasDctFilter) {
+        if (!$hasDctFilter && !$this->imageFilterStackCanUseRawDctBoundary($dictionary['value'], $filters)) {
             return null;
         }
 
@@ -6942,17 +6963,32 @@ final class PdfImageRenderer
             $streamStart++;
         }
 
-        $terminator = $this->dctPreviewStreamTerminatorOffset(
-            $resolved,
-            $streamStart,
-            $dictionary['value'],
-            $objects,
-            $filters
-        );
+        $terminator = $hasDctFilter
+            ? $this->dctPreviewStreamTerminatorOffset(
+                $resolved,
+                $streamStart,
+                $dictionary['value'],
+                $objects,
+                $filters
+            )
+            : $this->rawDctPreviewStreamTerminatorOffset($resolved, $streamStart);
 
         return $terminator === null
             ? null
             : $this->stripStreamTerminatingLineEnding(substr($resolved, $streamStart, $terminator - $streamStart));
+    }
+
+    /**
+     * @param list<string|null> $filters
+     */
+    private function imageFilterStackCanUseRawDctBoundary(string $dictionary, array $filters): bool
+    {
+        $filterNames = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if ($this->imageFilterOperandBoundaryFilters($filterNames) === []) {
+            return false;
+        }
+
+        return $this->pdfNameValue($this->extractPdfNameValue($dictionary, 'Subtype') ?? '') === 'Image';
     }
 
     /**
