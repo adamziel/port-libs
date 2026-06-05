@@ -25,6 +25,7 @@ final class MathTexConverter
     /** @var array<string, string> */
     private const OPERATOR_COMMANDS = [
         'approx' => '≈',
+        'backprime' => '‵',
         'cap' => '∩',
         'cdot' => '⋅',
         'colon' => ':',
@@ -52,6 +53,7 @@ final class MathTexConverter
         'notin' => '∉',
         'partial' => '∂',
         'pm' => '±',
+        'prime' => '′',
         'prod' => '∏',
         'rightarrow' => '→',
         'Rightarrow' => '⇒',
@@ -364,6 +366,10 @@ final class MathTexConverter
         '⏞' => 'over brace',
         '⏟' => 'under brace',
         '¯' => 'bar',
+        '′' => 'prime',
+        '″' => 'double prime',
+        '‴' => 'triple prime',
+        '‵' => 'back prime',
         '‾' => 'overline',
         '˙' => 'dot',
         '¨' => 'double dot',
@@ -3109,8 +3115,14 @@ final class MathTexConverter
         while (true) {
             $this->skipWhitespace($source, $offset);
             $marker = $source[$offset] ?? '';
-            if ($marker !== '_' && $marker !== '^') {
+            if ($marker !== '_' && $marker !== '^' && $marker !== "'") {
                 break;
+            }
+
+            if ($marker === "'") {
+                $prime = $this->parsePrimeShorthand($source, $offset);
+                $superscript = $superscript === null ? $prime : $this->row([$superscript, $prime]);
+                continue;
             }
 
             $offset++;
@@ -3153,6 +3165,26 @@ final class MathTexConverter
         }
 
         return $base;
+    }
+
+    private function parsePrimeShorthand(string $source, int &$offset): string
+    {
+        $count = 0;
+        while (($source[$offset] ?? '') === "'") {
+            $count++;
+            $offset++;
+        }
+
+        if ($count === 0) {
+            throw new \InvalidArgumentException('Expected TeX prime shorthand at offset ' . $offset);
+        }
+
+        return match ($count) {
+            1 => '<mo>′</mo>',
+            2 => '<mo>″</mo>',
+            3 => '<mo>‴</mo>',
+            default => $this->row(array_fill(0, $count, '<mo>′</mo>')),
+        };
     }
 
     private function readScriptPlacementCommand(string $source, int &$offset): ?string

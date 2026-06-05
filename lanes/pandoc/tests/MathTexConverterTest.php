@@ -579,6 +579,22 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\not'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\not_1'));
     },
+    'converts bounded tex prime shorthand and prime commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $primeMathml = $converter->texToMathMl("f'(x) + g''_i + h_i''' + x^{2}'", true);
+        $commandMathml = $converter->texToMathMl('\\partial^\\prime f + y^\\backprime + z^{\\prime\\prime}');
+        $accessibleMathml = $converter->texToAccessibleMathMl("f'(x) + g''_i");
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $primeMathml);
+        $t->contains('<msup><mi>f</mi><mo>′</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo>', $primeMathml);
+        $t->contains('<msubsup><mi>g</mi><mi>i</mi><mo>″</mo></msubsup>', $primeMathml);
+        $t->contains('<msubsup><mi>h</mi><mi>i</mi><mo>‴</mo></msubsup>', $primeMathml);
+        $t->contains('<msup><mi>x</mi><mrow><mn>2</mn><mo>′</mo></mrow></msup>', $primeMathml);
+        $t->contains('<annotation encoding="application/x-tex">f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + x^{2}&#039;</annotation>', $primeMathml);
+        $t->contains('<msup><mo>∂</mo><mo>′</mo></msup><mi>f</mi><mo>+</mo><msup><mi>y</mi><mo>‵</mo></msup><mo>+</mo><msup><mi>z</mi><mrow><mo>′</mo><mo>′</mo></mrow></msup>', $commandMathml);
+        $t->contains('alttext="f superscript prime left parenthesis x right parenthesis plus g sub i superscript double prime"', $accessibleMathml);
+        $t->contains('intent="row(superscript(f,prime),left_parenthesis,x,right_parenthesis,plus,subsup(g,i,double_prime))"', $accessibleMathml);
+    },
     'converts bounded tex accents overlines and underlines to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $accentMathml = $converter->texToMathMl('\\hat{x} + \\widehat{ab} + \\bar y + \\overline{AB} + \\vec{v}_i');

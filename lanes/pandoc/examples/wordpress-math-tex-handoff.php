@@ -25,6 +25,8 @@ $$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \sqrt[3]
 
 Negated relation audit $p_i \not\in P + a \not= b + x \not\leq y + A \not\subseteq B + \not\alpha_i$ stays semantic.
 
+Prime audit $f'(x) + g''_i + h_i''' + \partial^\prime f + y^\backprime$ stays semantic.
+
 Above and below audit $\overset{\text{new}}{p_i} + \underset{0}{\lim}_{n \to \infty} a_n + \overbrace{x + y}^{\text{sum}} + \underbrace{m_i}_{\text{media}} + \displaystyle \frac{q}{r}$ stays semantic.
 
 Infix audit ${a+b \over c+d} + {n \choose k} + {n \atop k} + {p_i \brack m_i} + {x+y \brace z}$ stays semantic.
@@ -126,6 +128,7 @@ $summary = [
     'macroExpandedMathml' => $converter->texToMathMl('\\wptuple{post_id,media_id}', false, $converter->macroDefinitionsFromDocument($document)),
     'optionalMacroMathml' => $converter->texToMathMl('\\wpreview{p_i} + \\wpreview[final]{m_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'notRelationMathml' => $converter->texToMathMl('p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i'),
+    'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + \\partial^\\prime f + y^\\backprime"),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
     'infixFractionMathml' => $converter->texToMathMl('{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z}'),
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
@@ -187,6 +190,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\wpreview{p_i} + \\wpreview[final]{m_i}\\)</span>',
         '<span class="math display">\\[\\sum_{i=1}^{n} \\operatorname{migrate}(p_i) + \\frac{a_1}{\\sqrt{b^2}} + \\sqrt[3]{x_i + y_i} + \\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c} + \\dfrac{q_i}{r_i} + \\genfrac{\\langle}{\\rangle}{0pt}{0}{n}{k} + \\widehat{\\operatorname{quality}} + \\vec{v}_i + \\begin{pmatrix}p_1 &amp; m_1 \\\\ p_2 &amp; m_2\\end{pmatrix} + \\begin{aligned}x_i &amp;= \\operatorname{score}(p_i) \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{aligned} + \\begin{array}{l|c|r}\\alpha &amp; \\beta &amp; \\omega \\\\ 1 &amp; 2 &amp; 3\\end{array} + \\begin{cases}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases} + \\forall p_i \\in P \\Rightarrow p_i \\notin \\emptyset + \\alpha \\times \\omega\\]</span>',
         '<span class="math inline">\\(p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i\\)</span>',
+        '<span class="math inline">\\(f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + \\partial^\\prime f + y^\\backprime\\)</span>',
         '<span class="math inline">\\(\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}\\)</span>',
         '<span class="math inline">\\({a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z}\\)</span>',
         '<span class="math inline">\\({a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}\\)</span>',
@@ -224,6 +228,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\wpreview{p_i} + \\wpreview[final]{m_i}</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mo>∉</mo><mi>P</mi><mo>+</mo><mi>a</mi><mo>≠</mo><mi>b</mi><mo>+</mo><mi>x</mi><mo>≰</mo><mi>y</mi><mo>+</mo><mi>A</mi><mo>⊈</mo><mi>B</mi><mo>+</mo><msub><menclose notation="updiagonalstrike"><mi>α</mi></menclose><mi>i</mi></msub>',
         '<annotation encoding="application/x-tex">p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i</annotation>',
+        '<msup><mi>f</mi><mo>′</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><msubsup><mi>g</mi><mi>i</mi><mo>″</mo></msubsup>',
+        '<msup><mo>∂</mo><mo>′</mo></msup><mi>f</mi><mo>+</mo><msup><mi>y</mi><mo>‵</mo></msup>',
         '<msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></msubsup>',
         '<mi>migrate</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo>',
         '<mfrac><msub><mi>a</mi><mn>1</mn></msub><msqrt><msup><mi>b</mi><mn>2</mn></msup></msqrt></mfrac>',
