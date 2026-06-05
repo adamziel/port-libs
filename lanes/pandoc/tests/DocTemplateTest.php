@@ -474,6 +474,29 @@ TPL;
         ]), $output);
     },
 
+    'wraps pandoc doctemplate breakable spaces at bounded line lengths' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $template = <<<'TPL'
+Summary: $~$alpha beta gamma delta$~$
+Partial: ${ review-line() }
+Nowrap: ${ review-line()/nowrap }
+Plain: alpha beta gamma delta
+TPL;
+
+        $output = $renderer->renderWrapped($template, [], 19, [
+            'review-line' => '$~$media links layout status$~$',
+        ]);
+
+        $t->same(implode("\n", [
+            'Summary: alpha beta',
+            'gamma delta',
+            'Partial: media',
+            'links layout status',
+            'Nowrap: media links layout status',
+            'Plain: alpha beta gamma delta',
+        ]), $output);
+    },
+
     'renders parameter-free pandoc doctemplate pipes for text arrays and maps' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Title: $title/uppercase$ / $title/uppercase/lowercase$

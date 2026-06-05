@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class DocTemplate
 {
     private const MAX_PARTIAL_DEPTH = 50;
+    private const BREAKABLE_SPACE_MARKER = "\x1F";
 
     /**
      * @param array<string, mixed> $context
@@ -14,7 +15,21 @@ final class DocTemplate
      */
     public function render(string $template, array $context, array $partials = []): string
     {
-        return $this->renderTemplate($template, $context, $this->normalizePartialMap($partials), []);
+        return $this->renderTemplate($template, $context, $this->normalizePartialMap($partials), [], false);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @param array<string, string> $partials
+     */
+    public function renderWrapped(string $template, array $context, int $lineLength, array $partials = []): string
+    {
+        $this->validateLineLength($lineLength);
+
+        return $this->wrapBreakableSpaces(
+            $this->renderTemplate($template, $context, $this->normalizePartialMap($partials), [], true),
+            $lineLength,
+        );
     }
 
     /**
@@ -37,15 +52,36 @@ final class DocTemplate
     }
 
     /**
+     * @param array<string, string> $resources
+     * @param array<string, mixed> $context
+     */
+    public function renderResourceWrapped(string $templatePath, array $resources, array $context, int $lineLength, ?string $userDataDirectory = null): string
+    {
+        $this->validateLineLength($lineLength);
+        $templatePath = $this->normalizeTemplateResourcePath($templatePath);
+        $resources = $this->normalizeTemplateResourceMap($resources);
+        if (!array_key_exists($templatePath, $resources)) {
+            throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
+        }
+
+        return $this->renderWrapped(
+            $resources[$templatePath],
+            $context,
+            $lineLength,
+            $this->partialsForTemplateResource($templatePath, $resources, $userDataDirectory),
+        );
+    }
+
+    /**
      * @param array<string, mixed> $context
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
-    private function renderTemplate(string $template, array $context, array $partials, array $partialStack): string
+    private function renderTemplate(string $template, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $tokens = $this->tokenize($template);
 
-        return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialStack);
+        return $this->renderRange($tokens, 0, count($tokens), $context, $partials, $partialStack, $preserveBreakableSpaces);
     }
 
     /**
@@ -459,7 +495,7 @@ final class DocTemplate
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
-    private function renderRange(array $tokens, int $start, int $end, array $context, array $partials, array $partialStack): string
+    private function renderRange(array $tokens, int $start, int $end, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $output = '';
         $pendingNestColumn = null;
@@ -469,7 +505,10 @@ final class DocTemplate
             if ($token['type'] === 'text') {
                 $text = $token['value'];
                 if (($token['breakable'] ?? false) === true) {
-                    $text = $this->normalizeBreakableSpaces($text);
+                    $text = $this->normalizeBreakableSpaces(
+                        $text,
+                        $preserveBreakableSpaces ? self::BREAKABLE_SPACE_MARKER : ' ',
+                    );
                 }
 
                 $this->appendRenderedChunk($output, $text, $pendingNestColumn, true);
@@ -488,7 +527,7 @@ final class DocTemplate
 
             $ifVariable = $this->controlVariable($directive, 'if');
             if ($ifVariable !== null) {
-                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialStack);
+                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderIf($tokens, $index + 1, $end, $ifVariable, $context, $partials, $partialStack, $preserveBreakableSpaces);
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
@@ -499,7 +538,7 @@ final class DocTemplate
 
             $forVariable = $this->controlVariable($directive, 'for');
             if ($forVariable !== null) {
-                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialStack);
+                [$rendered, $nextIndex, $skipFollowingLineEnding] = $this->renderFor($tokens, $index + 1, $end, $forVariable, $context, $partials, $partialStack, $preserveBreakableSpaces);
                 $this->appendRenderedChunk($output, $rendered, $pendingNestColumn);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
@@ -513,7 +552,7 @@ final class DocTemplate
             }
 
             $isBarePartial = $this->parsePartialDirective($directive) !== null;
-            $rendered = $this->renderDirective($directive, $context, $partials, $partialStack);
+            $rendered = $this->renderDirective($directive, $context, $partials, $partialStack, $preserveBreakableSpaces);
             if ($pendingNestColumn === null) {
                 $autoNestPrefix = $this->automaticNestPrefix($tokens, $index, $end, $output);
                 if ($autoNestPrefix !== null) {
@@ -539,7 +578,7 @@ final class DocTemplate
      * @param list<string> $partialStack
      * @return array{0:string, 1:int, 2:bool}
      */
-    private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context, array $partials, array $partialStack): array
+    private function renderIf(array $tokens, int $start, int $end, string $firstVariable, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): array
     {
         [$branches, $nextIndex, $blockMultiline] = $this->collectIfBranches($tokens, $start, $end, $firstVariable);
 
@@ -554,6 +593,7 @@ final class DocTemplate
                         $partials,
                         $partialStack,
                         $branch['trimLeadingLineEnding'],
+                        $preserveBreakableSpaces,
                     ),
                     $nextIndex,
                     $blockMultiline,
@@ -652,7 +692,7 @@ final class DocTemplate
      * @param list<string> $partialStack
      * @return array{0:string, 1:int, 2:bool}
      */
-    private function renderFor(array $tokens, int $start, int $end, string $variable, array $context, array $partials, array $partialStack): array
+    private function renderFor(array $tokens, int $start, int $end, string $variable, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): array
     {
         [$bodyStart, $bodyEnd, $separatorStart, $separatorEnd, $nextIndex, $blockMultiline] = $this->collectForSlices($tokens, $start, $end);
         $expression = $this->parseVariableExpression($variable);
@@ -670,6 +710,7 @@ final class DocTemplate
                 $partials,
                 $partialStack,
                 $blockMultiline,
+                $preserveBreakableSpaces,
             );
         }
 
@@ -687,6 +728,7 @@ final class DocTemplate
                 $partials,
                 $partialStack,
                 $blockMultiline,
+                $preserveBreakableSpaces,
             );
 
         return [implode($separator, $rendered), $nextIndex, $blockMultiline];
@@ -755,12 +797,13 @@ final class DocTemplate
         array $partials,
         array $partialStack,
         bool $dropLeadingLineEnding,
+        bool $preserveBreakableSpaces,
     ): string {
         if ($dropLeadingLineEnding) {
             $this->dropLeadingLineEndingAt($tokens, $start, $end);
         }
 
-        return $this->renderRange($tokens, $start, $end, $context, $partials, $partialStack);
+        return $this->renderRange($tokens, $start, $end, $context, $partials, $partialStack, $preserveBreakableSpaces);
     }
 
     /**
@@ -830,16 +873,16 @@ final class DocTemplate
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
-    private function renderDirective(string $directive, array $context, array $partials, array $partialStack): string
+    private function renderDirective(string $directive, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $partial = $this->parsePartialDirective($directive);
         if ($partial !== null) {
-            return $this->renderPartialDirective($partial, $context, $partials, $partialStack);
+            return $this->renderPartialDirective($partial, $context, $partials, $partialStack, $preserveBreakableSpaces);
         }
 
         $appliedPartial = $this->parseAppliedPartialDirective($directive);
         if ($appliedPartial !== null) {
-            return $this->renderAppliedPartialDirective($appliedPartial, $context, $partials, $partialStack);
+            return $this->renderAppliedPartialDirective($appliedPartial, $context, $partials, $partialStack, $preserveBreakableSpaces);
         }
 
         return $this->renderVariableDirective($directive, $context);
@@ -870,9 +913,9 @@ final class DocTemplate
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
-    private function renderPartialDirective(array $partial, array $context, array $partials, array $partialStack): string
+    private function renderPartialDirective(array $partial, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
     {
-        $value = $this->renderPartial($partial['name'], $context, $partials, $partialStack);
+        $value = $this->renderPartial($partial['name'], $context, $partials, $partialStack, $preserveBreakableSpaces);
         foreach ($partial['pipes'] as $pipe) {
             $value = $this->applyPipe($pipe, $value);
         }
@@ -886,7 +929,7 @@ final class DocTemplate
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
-    private function renderAppliedPartialDirective(array $appliedPartial, array $context, array $partials, array $partialStack): string
+    private function renderAppliedPartialDirective(array $appliedPartial, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
     {
         $resolved = $this->resolveParsedExpression($appliedPartial['variable'], $context);
         $iterations = $this->loopIterations($resolved['exists'], $resolved['value']);
@@ -897,7 +940,7 @@ final class DocTemplate
         $rendered = [];
         foreach ($iterations as $item) {
             $iterationContext = $this->contextForLoopIteration($context, $appliedPartial['variable']['name'], $item);
-            $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialStack);
+            $value = $this->renderPartial($appliedPartial['partial']['name'], $iterationContext, $partials, $partialStack, $preserveBreakableSpaces);
             foreach ($appliedPartial['partial']['pipes'] as $pipe) {
                 $value = $this->applyPipe($pipe, $value);
             }
@@ -913,7 +956,7 @@ final class DocTemplate
      * @param array<string, string> $partials
      * @param list<string> $partialStack
      */
-    private function renderPartial(string $name, array $context, array $partials, array $partialStack): string
+    private function renderPartial(string $name, array $context, array $partials, array $partialStack, bool $preserveBreakableSpaces): string
     {
         if (!array_key_exists($name, $partials) || !is_string($partials[$name])) {
             throw new \UnexpectedValueException("Missing doctemplate partial {$name}");
@@ -923,7 +966,7 @@ final class DocTemplate
             return '(loop)';
         }
 
-        $rendered = $this->renderTemplate($partials[$name], $context, $partials, [...$partialStack, $name]);
+        $rendered = $this->renderTemplate($partials[$name], $context, $partials, [...$partialStack, $name], $preserveBreakableSpaces);
 
         return $this->stripIncludedPartialFinalNewline($rendered);
     }
@@ -1402,7 +1445,7 @@ final class DocTemplate
             'rest' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 1) : $value,
             'allbutlast' => is_array($value) && array_is_list($value) && $value !== [] ? array_slice($value, 0, -1) : $value,
             'chomp' => $this->pipeChomp($value),
-            'nowrap' => $value,
+            'nowrap' => $this->pipeNowrap($value),
             'alpha' => $this->mapTextualValue($value, fn (string $text): string => $this->pipeAlphaText($text)),
             'roman' => $this->mapTextualValue($value, fn (string $text): string => $this->pipeRomanText($text)),
             'left', 'right', 'center' => $this->pipeBlock($pipe['name'], $pipe['args'], $value),
@@ -1501,7 +1544,7 @@ final class DocTemplate
 
         $leftBorder = is_string($args[1] ?? null) ? $args[1] : '';
         $rightBorder = is_string($args[2] ?? null) ? $args[2] : '';
-        $lines = preg_split('/\r\n|\n|\r/', $value === null ? '' : (string) $value);
+        $lines = preg_split('/\r\n|\n|\r/', str_replace(self::BREAKABLE_SPACE_MARKER, ' ', $value === null ? '' : (string) $value));
         if ($lines === false) {
             $lines = [$value === null ? '' : (string) $value];
         }
@@ -1582,7 +1625,25 @@ final class DocTemplate
         }
 
         if (is_string($value)) {
-            return rtrim($value, "\r\n");
+            return rtrim($value, "\r\n" . self::BREAKABLE_SPACE_MARKER);
+        }
+
+        return $value;
+    }
+
+    private function pipeNowrap(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $nowrap = [];
+            foreach ($value as $key => $item) {
+                $nowrap[$key] = $this->pipeNowrap($item);
+            }
+
+            return $nowrap;
+        }
+
+        if (is_string($value)) {
+            return str_replace(self::BREAKABLE_SPACE_MARKER, ' ', $value);
         }
 
         return $value;
@@ -1891,8 +1952,74 @@ final class DocTemplate
         }
     }
 
-    private function normalizeBreakableSpaces(string $text): string
+    private function validateLineLength(int $lineLength): void
     {
-        return preg_replace('/[ \t\r\n]+/', ' ', $text) ?? $text;
+        if ($lineLength < 1) {
+            throw new \InvalidArgumentException('Doctemplate wrapped rendering requires a positive line length');
+        }
+    }
+
+    private function wrapBreakableSpaces(string $value, int $lineLength): string
+    {
+        if (!str_contains($value, self::BREAKABLE_SPACE_MARKER)) {
+            return $value;
+        }
+
+        $parts = explode(self::BREAKABLE_SPACE_MARKER, $value);
+        $output = '';
+        $column = 0;
+
+        foreach ($parts as $index => $part) {
+            if ($index > 0) {
+                $nextWidth = $this->leadingSegmentWidth($part);
+                if ($column > 0 && $column + 1 + $nextWidth > $lineLength) {
+                    $output .= "\n";
+                    $column = 0;
+                } elseif ($column > 0) {
+                    $output .= ' ';
+                    $column++;
+                }
+            }
+
+            $this->appendWrappedSegment($output, $column, $part);
+        }
+
+        return $output;
+    }
+
+    private function leadingSegmentWidth(string $value): int
+    {
+        if (preg_match('/\r\n|\n|\r/', $value, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            $value = substr($value, 0, $matches[0][1]);
+        }
+
+        return UnicodeText::displayWidth(str_replace("\t", ' ', $value));
+    }
+
+    private function appendWrappedSegment(string &$output, int &$column, string $segment): void
+    {
+        $offset = 0;
+        $length = strlen($segment);
+
+        while ($offset < $length) {
+            if (preg_match('/\r\n|\n|\r/', $segment, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+                $chunk = substr($segment, $offset);
+                $output .= $chunk;
+                $column += UnicodeText::displayWidth(str_replace("\t", ' ', $chunk));
+                return;
+            }
+
+            $lineEnding = $matches[0][0];
+            $lineEndingStart = $matches[0][1];
+            $chunk = substr($segment, $offset, $lineEndingStart - $offset);
+            $output .= $chunk . $lineEnding;
+            $column = 0;
+            $offset = $lineEndingStart + strlen($lineEnding);
+        }
+    }
+
+    private function normalizeBreakableSpaces(string $text, string $replacement = ' '): string
+    {
+        return preg_replace('/[ \t\r\n]+/', $replacement, $text) ?? $text;
     }
 }

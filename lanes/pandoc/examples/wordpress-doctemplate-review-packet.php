@@ -30,6 +30,7 @@ for $title$$~$</p>
 <p class="review-sources">${ reviewSources/rest/uppercase[ / ] }</p>
 <p class="chomped-review-sources">${ reviewSourcesWithNewlines/chomp/uppercase[ / ] }</p>
 <p class="review-meta">$for(reviewMeta/pairs)$$it.key$=$it.value$$sep$; $endfor$</p>
+<pre class="plain-text-summary">$wrappedPlainSummary$</pre>
 <p class="labeled-note">$^$Note: $summaryNote$</p>
 <p class="dedented-note">$^$$dedentedNote$
 </p>
@@ -112,7 +113,14 @@ for ($index = 4; $index <= 27; $index++) {
     ];
 }
 
-$output = (new DocTemplate())->renderResource($templatePath, $resources, $context, 'wp-data');
+$renderer = new DocTemplate();
+$context['wrappedPlainSummary'] = $renderer->renderWrapped(
+    '$~$Review queue includes media links layout and multilingual source packet follow-ups.$~$',
+    [],
+    48,
+);
+
+$output = $renderer->renderResource($templatePath, $resources, $context, 'wp-data');
 
 if (in_array('--self-test', $argv, true)) {
     $sourceSummaryPrefix = '<p class="source-summary" data-état="prêt">Résumé de migration ';
@@ -126,6 +134,7 @@ if (in_array('--self-test', $argv, true)) {
         '<p class="review-sources">LINKS / LAYOUT</p>',
         '<p class="chomped-review-sources">MEDIA / LINKS / LAYOUT</p>',
         '<p class="review-meta">alpha=queued-first; review-id=PR-42; zeta=queued-last</p>',
+        "<pre class=\"plain-text-summary\">Review queue includes media links layout and\nmultilingual source packet follow-ups.</pre>",
         $labeledNotePrefix . 'Note: Review imported title blocks' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($labeledNotePrefix))
             . 'Confirm reviewer packet spacing</p>',
