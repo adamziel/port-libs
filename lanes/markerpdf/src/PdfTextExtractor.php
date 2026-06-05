@@ -2012,6 +2012,10 @@ final class PdfTextExtractor
             return [];
         }
 
+        if ($this->currentTrailerRootReferenceBlocksFallback) {
+            return [];
+        }
+
         $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
         return array_map(
             static fn (string $stream): array => [
@@ -15210,6 +15214,13 @@ final class PdfTextExtractor
      */
     private function currentTrailerRootReferenceResolution(string $pdfBytes, array $definitions): array
     {
+        if ($this->currentXrefSectionFreesInheritedTrailerRoot($pdfBytes, $definitions)) {
+            return [
+                'present' => true,
+                'reference' => null,
+            ];
+        }
+
         $reference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions)
             ?? $this->trailerRootReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
         if ($reference !== null) {
@@ -15249,7 +15260,7 @@ final class PdfTextExtractor
 
         $rootReference = $this->currentTrailerRootReference;
         if ($rootReference === null) {
-            return $this->hasCatalogObject($objects);
+            return true;
         }
 
         $rootBody = $this->objectBodyForExactReference(
@@ -15266,6 +15277,60 @@ final class PdfTextExtractor
         }
 
         return $this->hasCatalogObject($objects);
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     */
+    private function currentXrefSectionFreesInheritedTrailerRoot(string $pdfBytes, array $definitions): bool
+    {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        return $this->xrefSectionFreesInheritedTrailerRootAtOffset(
+            $pdfBytes,
+            $offset,
+            $this->latestDirectObjects($definitions),
+            $definitions
+        );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array<int, bool> $seenOffsets
+     */
+    private function xrefSectionFreesInheritedTrailerRootAtOffset(
+        string $pdfBytes,
+        int $offset,
+        array $objects,
+        array $definitions,
+        array $seenOffsets = []
+    ): bool {
+        if ($offset < 0 || isset($seenOffsets[$offset])) {
+            return false;
+        }
+        $seenOffsets[$offset] = true;
+
+        $section = $this->xrefSectionEntriesAndPreviousOffset($pdfBytes, $offset, $objects, $definitions, $seenOffsets);
+        if ($section === null || $section['rootPresent']) {
+            return false;
+        }
+
+        $previousOffset = $section['previousOffset'];
+        if ($previousOffset === null || $previousOffset < 0) {
+            return false;
+        }
+
+        $previousRoot = $this->trailerRootReferenceFromOffsetChain($pdfBytes, $previousOffset, $definitions, $seenOffsets);
+        if ($previousRoot === null) {
+            return false;
+        }
+
+        $entry = $section['entries'][$previousRoot['objectNumber']] ?? null;
+        return ($entry['type'] ?? null) === 0;
     }
 
     /**
@@ -18105,7 +18170,8 @@ final class PdfTextExtractor
      *     source: string,
      *     offset: int,
      *     entries: array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}>,
-     *     previousOffset: int|null
+     *     previousOffset: int|null,
+     *     rootPresent: bool
      * }|null
      */
     private function xrefSectionEntriesAndPreviousOffset(
@@ -18119,8 +18185,13 @@ final class PdfTextExtractor
         if ($tableSection !== null) {
             $entries = $tableSection['entries'];
             $trailer = $tableSection['trailer'];
+            $rootPresent = $this->topLevelPdfValueAfterName($trailer, 'Root') !== null;
             $hybridStreamOffset = $this->pdfIntegerValueAfterName($trailer, 'XRefStm');
             if ($hybridStreamOffset !== null && $hybridStreamOffset >= 0 && !isset($seenOffsets[$hybridStreamOffset])) {
+                $hybridStreamSection = $this->xrefStreamSectionAtOffset($hybridStreamOffset, $definitions, $pdfBytes);
+                if ($hybridStreamSection !== null) {
+                    $rootPresent = $rootPresent || $this->topLevelPdfValueAfterName($hybridStreamSection['body'], 'Root') !== null;
+                }
                 foreach ($this->xrefStreamEntriesAtOffset($hybridStreamOffset, $objects, $definitions) as $objectNumber => $entry) {
                     if (
                         !isset($entries[$objectNumber])
@@ -18136,6 +18207,7 @@ final class PdfTextExtractor
                 'offset' => $offset,
                 'entries' => $entries,
                 'previousOffset' => $this->previousXrefOffsetFromSectionBody($pdfBytes, $trailer, $objects),
+                'rootPresent' => $rootPresent,
             ];
         }
 
@@ -18158,6 +18230,7 @@ final class PdfTextExtractor
                     $streamSection['definition']['offset']
                 )
             ),
+            'rootPresent' => $this->topLevelPdfValueAfterName($streamSection['body'], 'Root') !== null,
         ];
     }
 
