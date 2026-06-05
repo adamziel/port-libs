@@ -68,6 +68,85 @@ final class OpcRelationshipGraph
         return new self($package, $contentTypes, $relationshipsBySource);
     }
 
+    /**
+     * @return list<array{partName:string, contentType:?string, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, loaded:bool, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
+     */
+    public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
+    {
+        if (!$package->has('[Content_Types].xml')) {
+            throw new \RuntimeException('OPC package is missing [Content_Types].xml');
+        }
+
+        $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        $preflight = [];
+        foreach ($package->names() as $name) {
+            if (!self::isRelationshipPartName($name)) {
+                continue;
+            }
+
+            $partName = OpcPackagePath::canonicalPartName($name);
+            $contentType = $contentTypes->contentTypeForPart($partName);
+            $relationshipSource = null;
+            $relationshipSourceIsRelationshipPart = null;
+            $sourceExists = null;
+            $loaded = false;
+            $relationshipCount = null;
+            $parseError = null;
+            $issues = [];
+
+            try {
+                $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
+                $relationshipSourceIsRelationshipPart = $relationshipSource !== '/'
+                    && self::isRelationshipPartName($relationshipSource);
+                $sourceExists = $relationshipSource === '/' || $package->has($relationshipSource);
+            } catch (\InvalidArgumentException $exception) {
+                $issues[] = 'invalid-relationship-part-name';
+                $parseError = $exception->getMessage();
+            }
+
+            if ($contentType === null) {
+                $issues[] = 'missing-content-type';
+            } elseif ($contentType !== self::RELATIONSHIP_PART_CONTENT_TYPE) {
+                $issues[] = 'invalid-relationship-content-type';
+            }
+
+            if ($relationshipSourceIsRelationshipPart === true) {
+                $issues[] = 'relationship-part-source';
+            }
+
+            if ($sourceExists === false) {
+                $issues[] = 'orphan-relationship-part';
+            }
+
+            if ($issues === [] && $relationshipSource !== null) {
+                try {
+                    $relationships = OpcRelationships::fromXml($package->read($partName), $relationshipSource);
+                    $loaded = true;
+                    $relationshipCount = count($relationships->all());
+                } catch (\Throwable $exception) {
+                    $issues[] = 'malformed-relationship-xml';
+                    $parseError = $exception->getMessage();
+                }
+            }
+
+            $issues = array_values(array_unique($issues));
+            $preflight[] = [
+                'partName' => $partName,
+                'contentType' => $contentType,
+                'relationshipSource' => $relationshipSource,
+                'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
+                'sourceExists' => $sourceExists,
+                'loaded' => $loaded,
+                'relationshipCount' => $relationshipCount,
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'parseError' => $parseError,
+            ];
+        }
+
+        return $preflight;
+    }
+
     public function package(): ZipPackage
     {
         return $this->package;

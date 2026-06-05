@@ -112,6 +112,22 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'],
 ]);
 
+$relationshipPartLoads = [];
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+    $relationshipPartLoads[$part['partName']] = [
+        'partName' => $part['partName'],
+        'contentType' => $part['contentType'],
+        'relationshipSource' => $part['relationshipSource'],
+        'relationshipSourceIsRelationshipPart' => $part['relationshipSourceIsRelationshipPart'],
+        'sourceExists' => $part['sourceExists'],
+        'loaded' => $part['loaded'],
+        'relationshipCount' => $part['relationshipCount'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+        'parseError' => $part['parseError'],
+    ];
+}
+
 $graph = OpcRelationshipGraph::fromPackage($package);
 $types = $graph->contentTypes();
 $officeDocumentRoot = $graph->preflightOfficeDocumentRoot(OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES);
@@ -363,6 +379,7 @@ $summary = [
         'contentTypeOverrides' => $packageConsistencyOverrides,
         'relationshipTargets' => $packageConsistencyTargets,
     ],
+    'relationshipPartLoads' => $relationshipPartLoads,
     'packageParts' => $packagePartPreflight,
     'relationshipSources' => $graph->sourcePartNames(),
     'relationships' => $relationshipSummaries,
@@ -537,6 +554,21 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['packageParts']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipSource'] ?? null) !== '/'
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/_rels/.rels']['relationshipCount'] ?? null) !== 3
+        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipSource'] ?? null) !== '/word/document.xml'
+        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/word/_rels/document.xml.rels']['relationshipCount'] ?? null) !== 14
+        || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['relationshipSource'] ?? null) !== '/word/review source.xml'
+        || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['sourceExists'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/word/_rels/review%20source.xml.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['relationshipSource'] ?? null) !== '/word/draft.xml'
+        || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['loaded'] ?? null) !== false
+        || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['relationshipCount'] ?? null) !== null
+        || ($summary['relationshipPartLoads']['/word/_rels/draft.xml.rels']['issues'] ?? null) !== ['invalid-relationship-content-type']
+        || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['loaded'] ?? null) !== true
+        || ($summary['relationshipPartLoads']['/_xmlsignatures/_rels/origin.sigs.rels']['relationshipCount'] ?? null) !== 1
         || ($summary['integrity']['invalidRelationshipParts'][0]['partName'] ?? null) !== '/word/_rels/draft.xml.rels'
         || ($summary['integrity']['invalidRelationshipParts'][0]['relationshipSourceLoaded'] ?? null) !== false
         || ($summary['integrity']['strictXmlShapeGuards']['contentTypeUnexpectedAttributeRejected'] ?? null) !== true
