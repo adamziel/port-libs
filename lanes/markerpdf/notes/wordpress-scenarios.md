@@ -434,6 +434,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdftext-dictionary-char-core-boundary-currentbase.php` maps supplied pdftext `keep_chars` character dictionaries into WordPress review metadata. It preserves upstream-shaped `char`, `bbox`, `rotation`, `font`, and `char_idx` rows while excluding legacy `c` aliases plus raw span/character font payload keys before Marker `char_blocks`, and emits a Gutenberg paragraph without Python, pdftext, pypdfium/PDFium execution, models, OCR, or external PDF tools.
 
+`examples/wordpress-pdf-type3-charprocs-resource-comment-currentbase.php` maps PDF comments inside Type3 CharProc glyph-private `/Resources /XObject` references into a WordPress-safe fallback path. It treats comments as whitespace before resource traversal, emits only `Visible fallback content`, and excludes direct CharProc payloads plus top-level, stream-local, and nested glyph-private Form XObject text without Python, pdftext, pypdfium/PDFium execution, Poppler, Ghostscript, models, OCR, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.

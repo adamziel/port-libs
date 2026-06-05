@@ -3977,10 +3977,12 @@ final class PdfTextExtractor
                 break;
             }
 
-            if (preg_match('/\G(\d+)\s+(\d+)\s+R\b/s', $dictionary, $match, 0, $valueOffset) === 1) {
+            $referenceOffset = $valueOffset;
+            $reference = $this->readPdfIndirectReferenceToken($dictionary, $referenceOffset);
+            if ($reference !== null) {
                 $references[$resourceName] = [
-                    'objectNumber' => (int) $match[1],
-                    'generation' => (int) $match[2],
+                    'objectNumber' => $reference['objectNumber'],
+                    'generation' => $reference['generation'],
                 ];
             }
 
