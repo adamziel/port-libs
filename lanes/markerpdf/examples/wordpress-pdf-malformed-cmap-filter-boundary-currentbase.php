@@ -313,6 +313,40 @@ $buildDecodeParmsCMapFilterPdf = static function () use ($utf16beHex): string {
     return $pdf;
 };
 
+$buildTrailingDecodeParmsCMapFilterPdf = static function () use ($utf16beHex): string {
+    $safeText = 'Trailing DecodeParms Safe Import';
+    $safeHex = $utf16beHex($safeText);
+    $leakingCMap = "/CIDInit /ProcSet findresource begin\n"
+        . "12 dict begin\n"
+        . "begincmap\n"
+        . "/CMapName /WPTrailingDecodeParmsBoundary-H def\n"
+        . "1 begincodespacerange\n"
+        . "<0000> <FFFF>\n"
+        . "endcodespacerange\n"
+        . "1 beginbfchar\n"
+        . "<" . substr($safeHex, 0, 4) . "> <" . $utf16beHex('Trailing DecodeParms CMap Leak') . ">\n"
+        . "endbfchar\n"
+        . "endcmap\n"
+        . "CMapName currentdict /CMap defineresource pop\n"
+        . "end\n"
+        . "end\n";
+    $compressedCMap = gzcompress($leakingCMap, 0);
+    if (!is_string($compressedCMap)) {
+        throw new RuntimeException('Unable to compress trailing DecodeParms CMap filter-boundary fixture.');
+    }
+
+    $content = "BT /Fcid 12 Tf 72 720 Td <{$safeHex}> Tj ET";
+
+    return "%PDF-1.5\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /Fcid 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /WPTrailingDecodeParmsBoundary /Encoding /Identity-H /ToUnicode 6 0 R >>\nendobj\n"
+        . "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "6 0 obj\n<< /Type /CMap /CMapName /WPTrailingDecodeParmsBoundary-H /Filter /FlateDecode /DecodeParms [ null << /Predictor /Twelve /Columns 1 >> ] /Length " . strlen($compressedCMap) . " >>\nstream\n{$compressedCMap}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $buildStaleReferenceCMapFilterPdf = static function () use ($utf16beHex): string {
     $safeText = 'Stale Reference Safe Import';
     $safeHex = $utf16beHex($safeText);
@@ -400,6 +434,7 @@ $indirectLiteralPdf = $buildIndirectLiteralCMapFilterPdf();
 $indirectArrayDictionaryPdf = $buildIndirectArrayDictionaryCMapFilterPdf();
 $generationPdf = $buildGenerationCMapFilterPdf();
 $decodeParmsPdf = $buildDecodeParmsCMapFilterPdf();
+$trailingDecodeParmsPdf = $buildTrailingDecodeParmsCMapFilterPdf();
 $staleReferencePdf = $buildStaleReferenceCMapFilterPdf();
 
 $extractor = new PdfTextExtractor();
@@ -409,6 +444,7 @@ $indirectLiteralLines = $extractor->extractTextLines($indirectLiteralPdf);
 $indirectArrayDictionaryLines = $extractor->extractTextLines($indirectArrayDictionaryPdf);
 $generationLines = $extractor->extractTextLines($generationPdf);
 $decodeParmsLines = $extractor->extractTextLines($decodeParmsPdf);
+$trailingDecodeParmsLines = $extractor->extractTextLines($trailingDecodeParmsPdf);
 $staleReferenceLines = $extractor->extractTextLines($staleReferencePdf);
 $dictionaryPlainText = implode("\n", $dictionaryLines);
 $literalPlainText = implode("\n", $literalLines);
@@ -416,6 +452,7 @@ $indirectLiteralPlainText = implode("\n", $indirectLiteralLines);
 $indirectArrayDictionaryPlainText = implode("\n", $indirectArrayDictionaryLines);
 $generationPlainText = implode("\n", $generationLines);
 $decodeParmsPlainText = implode("\n", $decodeParmsLines);
+$trailingDecodeParmsPlainText = implode("\n", $trailingDecodeParmsLines);
 $staleReferencePlainText = implode("\n", $staleReferenceLines);
 $dictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($dictionaryPdf);
 $literalReview = $extractor->extractCMapStreamFilterLengthOwnerReview($literalPdf);
@@ -423,6 +460,7 @@ $indirectLiteralReview = $extractor->extractCMapStreamFilterLengthOwnerReview($i
 $indirectArrayDictionaryReview = $extractor->extractCMapStreamFilterLengthOwnerReview($indirectArrayDictionaryPdf);
 $generationReview = $extractor->extractCMapStreamFilterLengthOwnerReview($generationPdf);
 $decodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($decodeParmsPdf);
+$trailingDecodeParmsReview = $extractor->extractCMapStreamFilterLengthOwnerReview($trailingDecodeParmsPdf);
 $staleReferenceReview = $extractor->extractCMapStreamFilterLengthOwnerReview($staleReferencePdf);
 $dictionaryEntry = $dictionaryReview['entries'][0] ?? [];
 $literalEntry = $literalReview['entries'][0] ?? [];
@@ -430,6 +468,7 @@ $indirectLiteralEntry = $indirectLiteralReview['entries'][0] ?? [];
 $indirectArrayDictionaryEntry = $indirectArrayDictionaryReview['entries'][0] ?? [];
 $generationEntry = $generationReview['entries'][0] ?? [];
 $decodeParmsEntry = $decodeParmsReview['entries'][0] ?? [];
+$trailingDecodeParmsEntry = $trailingDecodeParmsReview['entries'][0] ?? [];
 $staleReferenceEntry = $staleReferenceReview['entries'][0] ?? [];
 
 if ($dictionaryLines !== ['Safe Import']) {
@@ -456,6 +495,10 @@ if ($decodeParmsLines !== ['DecodeParms Safe Import']) {
     throw new RuntimeException('Expected current-generation malformed CMap DecodeParms fallback text.');
 }
 
+if ($trailingDecodeParmsLines !== ['Trailing DecodeParms Safe Import']) {
+    throw new RuntimeException('Expected trailing malformed CMap DecodeParms fallback text.');
+}
+
 if ($staleReferenceLines !== ['Stale Reference Safe Import']) {
     throw new RuntimeException('Expected stale-reference malformed CMap filter fallback text.');
 }
@@ -473,6 +516,8 @@ if (
     || str_contains($generationPlainText, 'current generation dictionary is not a decoder')
     || str_contains($decodeParmsPlainText, 'DecodeParms CMap Leak')
     || str_contains($decodeParmsPlainText, 'Twelve')
+    || str_contains($trailingDecodeParmsPlainText, 'Trailing DecodeParms CMap Leak')
+    || str_contains($trailingDecodeParmsPlainText, 'Twelve')
     || str_contains($staleReferencePlainText, 'Stale Reference CMap Leak')
     || str_contains($staleReferencePlainText, 'xref-selected dictionary is not a decoder')
 ) {
@@ -543,6 +588,22 @@ if (($decodeParmsEntry['decodeparms_operands'][0]['generation'] ?? null) !== 1) 
     throw new RuntimeException('Expected current-generation DecodeParms operand to be selected.');
 }
 
+if (($trailingDecodeParmsEntry['decodeparms_operand_policy'] ?? null) !== 'reject_malformed_decodeparms_parameters') {
+    throw new RuntimeException('Expected trailing malformed DecodeParms parameter review metadata.');
+}
+
+if (($trailingDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null) !== 1) {
+    throw new RuntimeException('Expected trailing malformed DecodeParms parameter to fail CMap decoding.');
+}
+
+if (($trailingDecodeParmsReview['decoded_cmap_count'] ?? null) !== 0) {
+    throw new RuntimeException('Expected trailing malformed DecodeParms CMap stream not to decode.');
+}
+
+if (($trailingDecodeParmsEntry['decodeparms_operands'][1]['token_type'] ?? null) !== 'dictionary') {
+    throw new RuntimeException('Expected trailing malformed DecodeParms operand to remain review-visible metadata.');
+}
+
 if (($staleReferenceEntry['filter_operand_policy'] ?? null) !== 'reject_dictionary_filter_operands') {
     throw new RuntimeException('Expected stale-reference CMap filter operand review metadata.');
 }
@@ -574,6 +635,7 @@ $lines = array_merge(
     $indirectArrayDictionaryLines,
     $generationLines,
     $decodeParmsLines,
+    $trailingDecodeParmsLines,
     $staleReferenceLines
 );
 
@@ -616,6 +678,11 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
     'decodeparms_object_generation' => $decodeParmsEntry['decodeparms_operands'][0]['generation'] ?? null,
     'decodeparms_stale_valid_parameters_rejected' => ($decodeParmsReview['decoded_cmap_count'] ?? null) === 0
         && (($decodeParmsEntry['decodeparms_operands'][0]['generation'] ?? null) === 1),
+    'trailing_decodeparms_decoded_cmap_count' => $trailingDecodeParmsReview['decoded_cmap_count'] ?? null,
+    'trailing_decodeparms_invalid_parameter_count' => $trailingDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null,
+    'trailing_decodeparms_operand_policy' => $trailingDecodeParmsEntry['decodeparms_operand_policy'] ?? null,
+    'trailing_decodeparms_unmatched_parameter_rejected' => ($trailingDecodeParmsReview['decoded_cmap_count'] ?? null) === 0
+        && (($trailingDecodeParmsReview['invalid_decodeparms_parameter_count'] ?? null) === 1),
     'stale_reference_decoded_cmap_count' => $staleReferenceReview['decoded_cmap_count'] ?? null,
     'stale_reference_invalid_filter_operand_count' => $staleReferenceReview['invalid_filter_operand_count'] ?? null,
     'stale_reference_dictionary_filter_operand_count' => $staleReferenceReview['dictionary_filter_operand_count'] ?? null,
@@ -633,6 +700,7 @@ echo '<!-- markerpdf-malformed-cmap-filter-boundary-currentbase-smoke ' . htmlsp
         && !str_contains($indirectArrayDictionaryPlainText, 'Indirect Array Dictionary Leak')
         && !str_contains($generationPlainText, 'Stale Generation CMap Leak')
         && !str_contains($decodeParmsPlainText, 'DecodeParms CMap Leak')
+        && !str_contains($trailingDecodeParmsPlainText, 'Trailing DecodeParms CMap Leak')
         && !str_contains($staleReferencePlainText, 'Stale Reference CMap Leak'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 

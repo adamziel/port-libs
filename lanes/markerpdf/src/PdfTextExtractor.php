@@ -7954,6 +7954,9 @@ final class PdfTextExtractor
         if ($decodeParms === null) {
             return null;
         }
+        if ($this->invalidUnappliedDecodeParmsParameterCount($filters, $decodeParms, $objects) > 0) {
+            return null;
+        }
         foreach ($filters as $index => $filter) {
             if ($filter === null) {
                 continue;
@@ -8008,8 +8011,22 @@ final class PdfTextExtractor
      */
     private function decodeParmsForFilterIndex(array $filters, array $decodeParms, int $index): ?string
     {
+        $decodeParmsIndex = $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $index);
+        if ($decodeParmsIndex === null) {
+            return null;
+        }
+
+        return $decodeParms[$decodeParmsIndex] ?? null;
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     */
+    private function decodeParmsIndexForFilterIndex(array $filters, array $decodeParms, int $index): ?int
+    {
         if (array_key_exists($index, $decodeParms)) {
-            return $decodeParms[$index];
+            return $index;
         }
 
         if (count($decodeParms) !== 1) {
@@ -8023,9 +8040,12 @@ final class PdfTextExtractor
             }
         }
 
-        return $nonNullFilterIndexes === [$index]
-            ? $decodeParms[0]
-            : null;
+        if ($nonNullFilterIndexes !== [$index]) {
+            return null;
+        }
+
+        $decodeParmsIndex = array_key_first($decodeParms);
+        return is_int($decodeParmsIndex) ? $decodeParmsIndex : null;
     }
 
     /**
@@ -15862,7 +15882,7 @@ final class PdfTextExtractor
      */
     private function invalidDecodeParmsParameterCount(?array $filters, ?array $decodeParms, array $objects): int
     {
-        if ($filters === null || $decodeParms === null) {
+        if ($filters === null || $filters === [] || $decodeParms === null) {
             return 0;
         }
 
@@ -15882,7 +15902,69 @@ final class PdfTextExtractor
             }
         }
 
+        return $count + $this->invalidUnappliedDecodeParmsParameterCount($filters, $decodeParms, $objects);
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @param array<int, string> $objects
+     */
+    private function invalidUnappliedDecodeParmsParameterCount(array $filters, array $decodeParms, array $objects): int
+    {
+        if ($filters === []) {
+            return 0;
+        }
+
+        $appliedDecodeParmsIndexes = [];
+        foreach ($filters as $filterIndex => $filter) {
+            if (!is_string($filter)) {
+                continue;
+            }
+
+            $decodeParmsIndex = $this->decodeParmsIndexForFilterIndex($filters, $decodeParms, $filterIndex);
+            if ($decodeParmsIndex !== null) {
+                $appliedDecodeParmsIndexes[$decodeParmsIndex] = true;
+            }
+        }
+
+        $count = 0;
+        foreach ($decodeParms as $decodeParmsIndex => $decodeParmsValue) {
+            if ($decodeParmsValue === null || isset($appliedDecodeParmsIndexes[$decodeParmsIndex])) {
+                continue;
+            }
+
+            if ($this->decodeParmsHasMalformedKnownParameters($decodeParmsValue, $objects)) {
+                $count++;
+            }
+        }
+
         return $count;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsHasMalformedKnownParameters(string $decodeParms, array $objects): bool
+    {
+        foreach (['Predictor', 'Columns', 'Colors', 'BitsPerComponent', 'EarlyChange'] as $name) {
+            if (
+                $this->decodeParmsHasName($decodeParms, $name)
+                && $this->decodeParmsInt($decodeParms, $name, $objects) === null
+            ) {
+                return true;
+            }
+        }
+
+        foreach (['Columns', 'Colors', 'BitsPerComponent'] as $name) {
+            $value = $this->decodeParmsInt($decodeParms, $name, $objects);
+            if ($value !== null && $value < 1) {
+                return true;
+            }
+        }
+
+        $earlyChange = $this->decodeParmsInt($decodeParms, 'EarlyChange', $objects);
+        return $earlyChange !== null && !in_array($earlyChange, [0, 1], true);
     }
 
     /**
