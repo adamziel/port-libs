@@ -8311,6 +8311,8 @@ final class PdfTextExtractor
         }
 
         $entries = [];
+        $kidNodes = [];
+        $kidOrder = 0;
 
         foreach ($this->pageLabelKidObjectReferences($dictionary, $objects) as $kidReference) {
             $kidObjectNumber = $kidReference['objectNumber'];
@@ -8332,7 +8334,28 @@ final class PdfTextExtractor
 
             $nextSeen = $seen;
             $nextSeen[$kidKey] = true;
-            foreach ($this->pageLabelNumberTreeEntries($kidDictionary, $objects, $pageCount, $nextSeen, $limits) as $pageIndex => $section) {
+            $kidNodes[] = [
+                'dictionary' => $kidDictionary,
+                'seen' => $nextSeen,
+                'limits' => $this->pageLabelMergedLimits($limits, $this->pageLabelLimits($kidDictionary, $objects)),
+                'order' => $kidOrder++,
+            ];
+        }
+
+        usort(
+            $kidNodes,
+            static function (array $left, array $right): int {
+                $leftLimits = $left['limits'];
+                $rightLimits = $right['limits'];
+
+                return ($leftLimits[0] ?? PHP_INT_MAX) <=> ($rightLimits[0] ?? PHP_INT_MAX)
+                    ?: ($leftLimits[1] ?? PHP_INT_MAX) <=> ($rightLimits[1] ?? PHP_INT_MAX)
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        foreach ($kidNodes as $kidNode) {
+            foreach ($this->pageLabelNumberTreeEntries($kidNode['dictionary'], $objects, $pageCount, $kidNode['seen'], $limits) as $pageIndex => $section) {
                 if (!array_key_exists($pageIndex, $entries)) {
                     $entries[$pageIndex] = $section;
                 }
@@ -8467,6 +8490,26 @@ final class PdfTextExtractor
         }
 
         return null;
+    }
+
+    /**
+     * @param array{0: int, 1: int}|null $parentLimits
+     * @param array{0: int, 1: int}|null $localLimits
+     * @return array{0: int, 1: int}|null
+     */
+    private function pageLabelMergedLimits(?array $parentLimits, ?array $localLimits): ?array
+    {
+        if ($parentLimits === null) {
+            return $localLimits;
+        }
+        if ($localLimits === null) {
+            return $parentLimits;
+        }
+
+        $lower = max($parentLimits[0], $localLimits[0]);
+        $upper = min($parentLimits[1], $localLimits[1]);
+
+        return $lower <= $upper ? [$lower, $upper] : null;
     }
 
     /**

@@ -1617,6 +1617,8 @@ final class MarkerAppPreview
         $kids = $this->valueAfterName($value, 'Kids');
         if ($kids !== null) {
             $kids = trim($this->resolvePageLabelPdfValue($kids, $objects, $seen));
+            $kidNodes = [];
+            $kidOrder = 0;
             foreach ($this->arrayElements($kids) as $kid) {
                 $reference = $this->pageLabelReferenceOperand($kid);
                 if ($reference === null) {
@@ -1631,12 +1633,33 @@ final class MarkerAppPreview
                 }
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
+                $kidNodes[] = [
+                    'body' => $kidBody,
+                    'seen' => $kidSeen,
+                    'limits' => $this->mergePageLabelLimits($limits, $this->pageLabelLimits($kidBody, $objects, $kidSeen)),
+                    'order' => $kidOrder++,
+                ];
+            }
+
+            usort(
+                $kidNodes,
+                static function (array $left, array $right): int {
+                    $leftLimits = $left['limits'];
+                    $rightLimits = $right['limits'];
+
+                    return ($leftLimits[0] ?? PHP_INT_MAX) <=> ($rightLimits[0] ?? PHP_INT_MAX)
+                        ?: ($leftLimits[1] ?? PHP_INT_MAX) <=> ($rightLimits[1] ?? PHP_INT_MAX)
+                        ?: $left['order'] <=> $right['order'];
+                }
+            );
+
+            foreach ($kidNodes as $kidNode) {
                 $seenPageIndexes = [];
                 foreach ($sections as $section) {
                     $seenPageIndexes[$section['page_index']] = true;
                 }
 
-                foreach ($this->pageLabelSections($kidBody, $objects, $kidSeen, $limits) as $section) {
+                foreach ($this->pageLabelSections($kidNode['body'], $objects, $kidNode['seen'], $limits) as $section) {
                     $pageIndex = $section['page_index'];
                     if (isset($seenPageIndexes[$pageIndex])) {
                         continue;
@@ -1746,6 +1769,26 @@ final class MarkerAppPreview
         if ($lower === null || $upper === null) {
             return null;
         }
+
+        return $lower <= $upper ? [$lower, $upper] : null;
+    }
+
+    /**
+     * @param array{0: int, 1: int}|null $parentLimits
+     * @param array{0: int, 1: int}|null $localLimits
+     * @return array{0: int, 1: int}|null
+     */
+    private function mergePageLabelLimits(?array $parentLimits, ?array $localLimits): ?array
+    {
+        if ($parentLimits === null) {
+            return $localLimits;
+        }
+        if ($localLimits === null) {
+            return $parentLimits;
+        }
+
+        $lower = max($parentLimits[0], $localLimits[0]);
+        $upper = min($parentLimits[1], $localLimits[1]);
 
         return $lower <= $upper ? [$lower, $upper] : null;
     }
