@@ -12,6 +12,7 @@ final class OdfReader
     private const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
     private const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
     private const DRAW_NS = 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0';
+    private const FORM_NS = 'urn:oasis:names:tc:opendocument:xmlns:form:1.0';
     private const SVG_NS = 'urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
     private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
@@ -25,6 +26,9 @@ final class OdfReader
 
     /** @var array<string, array<string, mixed>> */
     private array $manifestByPart = [];
+
+    /** @var array<string, array<string, mixed>> */
+    private array $formControlsById = [];
 
     /** @var array<int, int> */
     private array $listContinuationStartCounters = [];
@@ -166,6 +170,8 @@ final class OdfReader
                     'mathCount' => $contentStats['mathCount'],
                     'embeddedObjectCount' => $contentStats['embeddedObjectCount'],
                     'missingEmbeddedObjectCount' => $contentStats['missingEmbeddedObjectCount'],
+                    'formControlCount' => $contentStats['formControlCount'],
+                    'missingFormControlCount' => $contentStats['missingFormControlCount'],
                     'sectionCount' => $contentStats['sectionCount'],
                     'linkedSectionCount' => $contentStats['linkedSectionCount'],
                     'protectedSectionCount' => $contentStats['protectedSectionCount'],
@@ -349,6 +355,7 @@ final class OdfReader
         }
 
         $this->trackedChanges = $this->trackedChangesFromText($text);
+        $this->formControlsById = $this->formControlsFromText($text);
         $this->listContinuationStartCounters = [];
         $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
@@ -593,6 +600,13 @@ final class OdfReader
                 $block = $this->frameBlockNode($child, $package, $catalog);
                 if ($block !== null) {
                     $blocks[] = $block;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::DRAW_NS, 'control')) {
+                $control = $this->formControlNode($child, null, false);
+                if ($control !== null) {
+                    $blocks[] = $control;
                 }
                 continue;
             }
@@ -1030,6 +1044,11 @@ final class OdfReader
             return new AstNode('div', $attrs, $this->blockNodes($textBox, $package, $catalog));
         }
 
+        $control = self::firstChildElement($frame, 'control', self::DRAW_NS);
+        if ($control instanceof \DOMElement) {
+            return $this->formControlNode($control, $frame, false);
+        }
+
         $objectOle = $this->frameObjectOleNode($frame, $package, false);
         if ($objectOle instanceof AstNode) {
             return $objectOle;
@@ -1065,6 +1084,263 @@ final class OdfReader
             'sourceFormat' => 'odt',
             'classes' => ['odf-annotation'],
         ], $note->children);
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function formControlsFromText(\DOMElement $text): array
+    {
+        $forms = self::firstChildElement($text, 'forms', self::OFFICE_NS);
+        if (!$forms instanceof \DOMElement) {
+            return [];
+        }
+
+        $controls = [];
+        $this->collectFormControls($forms, '', $controls);
+
+        return $controls;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $controls
+     */
+    private function collectFormControls(\DOMElement $container, string $formName, array &$controls): void
+    {
+        if ($this->isElement($container, self::FORM_NS, 'form')) {
+            $name = self::attr($container, self::FORM_NS, 'name');
+            if ($name !== '') {
+                $formName = $name;
+            }
+        }
+
+        foreach (self::childElements($container) as $child) {
+            if ($this->isElement($child, self::FORM_NS, 'form')) {
+                $this->collectFormControls($child, $formName, $controls);
+                continue;
+            }
+
+            if ($child->namespaceURI !== self::FORM_NS || !in_array($child->localName, self::formControlElementNames(), true)) {
+                continue;
+            }
+
+            $control = $this->formControlDefinition($child, $formName);
+            if ($control !== null) {
+                $controls[(string) $control['id']] = $control;
+            }
+        }
+    }
+
+    /**
+     * @return ?array<string, mixed>
+     */
+    private function formControlDefinition(\DOMElement $control, string $formName): ?array
+    {
+        $id = self::attr($control, self::FORM_NS, 'id');
+        if ($id === '') {
+            $id = self::attr($control, self::FORM_NS, 'name');
+        }
+        if ($id === '') {
+            return null;
+        }
+
+        return self::withoutEmpty([
+            'id' => $id,
+            'type' => $control->localName,
+            'formName' => self::nullable($formName),
+            'name' => self::nullable(self::attr($control, self::FORM_NS, 'name')),
+            'label' => self::nullable(self::attr($control, self::FORM_NS, 'label')),
+            'implementation' => self::nullable(self::attr($control, self::FORM_NS, 'control-implementation')),
+            'value' => self::nullable(self::attr($control, self::FORM_NS, 'value')),
+            'currentValue' => self::nullable(self::attr($control, self::FORM_NS, 'current-value')),
+            'currentState' => self::nullable(self::attr($control, self::FORM_NS, 'current-state')),
+            'linkedCell' => self::nullable(self::attr($control, self::FORM_NS, 'linked-cell')),
+            'sourceCellRange' => self::nullable(self::attr($control, self::FORM_NS, 'source-cell-range')),
+            'tabIndex' => self::nullableInt(self::attr($control, self::FORM_NS, 'tab-index')),
+            'href' => self::nullable(self::attr($control, self::XLINK_NS, 'href')),
+            'disabled' => self::nullableBool(self::attr($control, self::FORM_NS, 'disabled')),
+            'printable' => self::nullableBool(self::attr($control, self::FORM_NS, 'printable')),
+        ]);
+    }
+
+    private function formControlNode(\DOMElement $controlReference, ?\DOMElement $frame, bool $inline): ?AstNode
+    {
+        $controlId = self::attr($controlReference, self::DRAW_NS, 'control');
+        if ($controlId === '') {
+            $controlId = self::attr($controlReference, self::FORM_NS, 'id');
+        }
+        if ($controlId === '') {
+            return null;
+        }
+
+        $definition = $this->formControlsById[$controlId] ?? null;
+        $exists = is_array($definition);
+        $type = $exists ? (string) ($definition['type'] ?? '') : '';
+        $label = $this->formControlLabel($controlId, $definition, $frame);
+
+        $attributes = [
+            'data-odf-control-id' => $controlId,
+        ];
+        if ($type !== '') {
+            $attributes['data-odf-control-type'] = $type;
+        }
+        $attributes['data-odf-control-exists'] = $exists ? 'true' : 'false';
+
+        if (is_array($definition)) {
+            foreach ([
+                'formName',
+                'name',
+                'label',
+                'implementation',
+                'value',
+                'currentValue',
+                'currentState',
+                'linkedCell',
+                'sourceCellRange',
+                'tabIndex',
+                'href',
+                'disabled',
+                'printable',
+            ] as $name) {
+                if (!array_key_exists($name, $definition)) {
+                    continue;
+                }
+                $value = $definition[$name];
+                $attributes['data-odf-control-' . self::kebabCase($name)] = is_bool($value)
+                    ? ($value ? 'true' : 'false')
+                    : (string) $value;
+            }
+        }
+
+        $frameMetadata = $frame instanceof \DOMElement ? $this->formControlFrameMetadata($frame) : [];
+        foreach ($frameMetadata as $name => $value) {
+            $attributes['data-odf-control-' . self::kebabCase($name)] = $value;
+        }
+
+        $classes = ['odf-form-control'];
+        if ($type !== '') {
+            $classes[] = 'odf-control-' . self::formControlClassSuffix($type);
+        }
+        if (!$exists) {
+            $classes[] = 'odf-missing-form-control';
+        }
+
+        $attrs = [
+            'sourceFormat' => 'odt-form-control',
+            'controlId' => $controlId,
+            'exists' => $exists,
+            'classes' => $classes,
+            'attributes' => $attributes,
+        ];
+        if ($type !== '') {
+            $attrs['controlType'] = $type;
+        }
+        if (is_array($definition)) {
+            $attrs['formControl'] = $definition;
+        }
+        foreach ($frameMetadata as $name => $value) {
+            $attrs[$name] = $value;
+        }
+
+        $text = new AstNode('text', ['text' => $label]);
+        if ($inline) {
+            return new AstNode('span', $attrs, [$text]);
+        }
+
+        return new AstNode('div', $attrs, [
+            new AstNode('paragraph', [
+                'sourceFormat' => 'odt',
+                'text' => $label,
+            ], [$text]),
+        ]);
+    }
+
+    /**
+     * @param ?array<string, mixed> $definition
+     */
+    private function formControlLabel(string $controlId, ?array $definition, ?\DOMElement $frame): string
+    {
+        if (is_array($definition)) {
+            foreach (['label', 'currentValue', 'value', 'name'] as $name) {
+                $value = (string) ($definition[$name] ?? '');
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        if ($frame instanceof \DOMElement) {
+            $title = self::firstChildElement($frame, 'title', self::SVG_NS);
+            if ($title instanceof \DOMElement && self::normalizedText($title) !== '') {
+                return self::normalizedText($title);
+            }
+            $name = self::attr($frame, self::DRAW_NS, 'name');
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        return $controlId;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function formControlFrameMetadata(\DOMElement $frame): array
+    {
+        $metadata = [];
+        $name = self::attr($frame, self::DRAW_NS, 'name');
+        if ($name !== '') {
+            $metadata['frameName'] = $name;
+        }
+
+        foreach (['width', 'height'] as $dimension) {
+            $value = self::attr($frame, self::SVG_NS, $dimension);
+            if ($value !== '') {
+                $metadata[$dimension] = $value;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function formControlElementNames(): array
+    {
+        return [
+            'button',
+            'checkbox',
+            'combobox',
+            'currency',
+            'date',
+            'file',
+            'fixed-text',
+            'formatted-text',
+            'generic-control',
+            'grid',
+            'hidden',
+            'image',
+            'image-frame',
+            'listbox',
+            'numeric',
+            'password',
+            'pattern',
+            'radio',
+            'text',
+            'textarea',
+            'time',
+            'value-range',
+        ];
+    }
+
+    private static function formControlClassSuffix(string $type): string
+    {
+        $suffix = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', $type) ?? '');
+        $suffix = trim($suffix, '-');
+
+        return $suffix === '' ? 'unknown' : $suffix;
     }
 
     /**
@@ -1172,6 +1448,14 @@ final class OdfReader
                 continue;
             }
             if ($this->isElement($child, self::DRAW_NS, 'frame')) {
+                $control = self::firstChildElement($child, 'control', self::DRAW_NS);
+                if ($control instanceof \DOMElement) {
+                    $controlNode = $this->formControlNode($control, $child, true);
+                    if ($controlNode instanceof AstNode) {
+                        $nodes[] = $controlNode;
+                    }
+                    continue;
+                }
                 $image = $this->frameImageNode($child, $package);
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
@@ -1185,6 +1469,13 @@ final class OdfReader
                 $objectOle = $this->frameObjectOleNode($child, $package, true);
                 if ($objectOle instanceof AstNode) {
                     $nodes[] = $objectOle;
+                }
+                continue;
+            }
+            if ($this->isElement($child, self::DRAW_NS, 'control')) {
+                $control = $this->formControlNode($child, null, true);
+                if ($control instanceof AstNode) {
+                    $nodes[] = $control;
                 }
                 continue;
             }
@@ -2698,7 +2989,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
+     * @return array{noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, sequenceCount:int, fieldCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, continuedListCount:int, listHeaderCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -2717,6 +3008,8 @@ final class OdfReader
             'mathCount' => 0,
             'embeddedObjectCount' => 0,
             'missingEmbeddedObjectCount' => 0,
+            'formControlCount' => 0,
+            'missingFormControlCount' => 0,
             'sectionCount' => 0,
             'linkedSectionCount' => 0,
             'protectedSectionCount' => 0,
@@ -2773,6 +3066,12 @@ final class OdfReader
                 $stats['embeddedObjectCount']++;
                 if ($node->attr('exists') !== true) {
                     $stats['missingEmbeddedObjectCount']++;
+                }
+            }
+            if (($node->type === 'span' || $node->type === 'div') && $this->nodeHasClass($node, 'odf-form-control')) {
+                $stats['formControlCount']++;
+                if ($node->attr('exists') !== true) {
+                    $stats['missingFormControlCount']++;
                 }
             }
             if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('continued') === true) {
@@ -2977,6 +3276,16 @@ final class OdfReader
     private static function nullableInt(string $value): ?int
     {
         return ctype_digit($value) ? (int) $value : null;
+    }
+
+    private static function nullableBool(string $value): ?bool
+    {
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return null;
+        }
+
+        return in_array($value, ['true', '1', 'yes', 'checked'], true);
     }
 
     private static function nullable(string $value): ?string

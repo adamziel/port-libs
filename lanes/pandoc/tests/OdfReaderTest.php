@@ -1009,6 +1009,84 @@ XML;
         $t->contains('<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>after source page boundary.', $blocksHtml);
         $t->contains('<h2>Appendix marker<span class="odf-soft-page-break" data-odf-soft-page-break="true"></span>continued heading</h2>', $blocksHtml);
     },
+    'maps ODT form controls into review placeholders' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithForms = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:form="urn:oasis:names:tc:opendocument:xmlns:form:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <office:forms>
+        <form:form form:name="Review Form">
+          <form:text form:id="ctrl-title" form:name="SourceTitle" form:label="Source title" form:current-value="Migrated title" form:control-implementation="ooo:com.sun.star.form.component.TextField"/>
+          <form:checkbox form:id="ctrl-publish" form:name="PublishReady" form:label="Ready to publish" form:current-state="checked"/>
+        </form:form>
+      </office:forms>
+      <text:p>Title field <draw:control draw:control="ctrl-title"/> and missing <draw:control draw:control="ctrl-missing"/> remain visible.</text:p>
+      <draw:frame draw:name="Publish checkbox" svg:width="3cm" svg:height="1cm">
+        <draw:control draw:control="ctrl-publish"/>
+      </draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithForms));
+        $blocks = $result['document']->children;
+        $paragraph = $blocks[0];
+        $titleControl = $paragraph->children[1];
+        $missingControl = $paragraph->children[3];
+        $blockControl = $blocks[1];
+
+        $t->same(2, count($blocks));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Title field Source title and missing ctrl-missing remain visible.', $paragraph->attr('text'));
+        $t->same('span', $titleControl->type);
+        $t->same(['odf-form-control', 'odf-control-text'], $titleControl->attr('classes'));
+        $t->same('ctrl-title', $titleControl->attr('controlId'));
+        $t->same('text', $titleControl->attr('controlType'));
+        $t->same(true, $titleControl->attr('exists'));
+        $t->same('Review Form', $titleControl->attr('formControl')['formName']);
+        $t->same('SourceTitle', $titleControl->attr('formControl')['name']);
+        $t->same('Source title', $titleControl->attr('formControl')['label']);
+        $t->same('Migrated title', $titleControl->attr('formControl')['currentValue']);
+        $t->same('ooo:com.sun.star.form.component.TextField', $titleControl->attr('formControl')['implementation']);
+        $t->same('ctrl-title', $titleControl->attr('attributes')['data-odf-control-id']);
+        $t->same('text', $titleControl->attr('attributes')['data-odf-control-type']);
+        $t->same('true', $titleControl->attr('attributes')['data-odf-control-exists']);
+        $t->same('Source title', $titleControl->children[0]->attr('text'));
+
+        $t->same('span', $missingControl->type);
+        $t->same(['odf-form-control', 'odf-missing-form-control'], $missingControl->attr('classes'));
+        $t->same(false, $missingControl->attr('exists'));
+        $t->same('ctrl-missing', $missingControl->children[0]->attr('text'));
+        $t->same('false', $missingControl->attr('attributes')['data-odf-control-exists']);
+
+        $t->same('div', $blockControl->type);
+        $t->same(['odf-form-control', 'odf-control-checkbox'], $blockControl->attr('classes'));
+        $t->same('ctrl-publish', $blockControl->attr('controlId'));
+        $t->same('checkbox', $blockControl->attr('controlType'));
+        $t->same('checked', $blockControl->attr('formControl')['currentState']);
+        $t->same('Publish checkbox', $blockControl->attr('attributes')['data-odf-control-frame-name']);
+        $t->same('3cm', $blockControl->attr('attributes')['data-odf-control-width']);
+        $t->same('1cm', $blockControl->attr('attributes')['data-odf-control-height']);
+        $t->same('Ready to publish', $blockControl->children[0]->attr('text'));
+        $t->same(3, $result['importReport']['content']['formControlCount']);
+        $t->same(1, $result['importReport']['content']['missingFormControlCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Source title]{.odf-form-control .odf-control-text data-odf-control-id="ctrl-title" data-odf-control-type="text" data-odf-control-exists="true"', $markdown);
+        $t->contains('[ctrl-missing]{.odf-form-control .odf-missing-form-control data-odf-control-id="ctrl-missing" data-odf-control-exists="false"}', $markdown);
+        $t->contains('::: {.odf-form-control .odf-control-checkbox data-odf-control-id="ctrl-publish" data-odf-control-type="checkbox" data-odf-control-exists="true"', $markdown);
+        $t->contains('<span class="odf-form-control odf-control-text" data-odf-control-id="ctrl-title" data-odf-control-type="text" data-odf-control-exists="true"', $blocksHtml);
+        $t->contains('<span class="odf-form-control odf-missing-form-control" data-odf-control-id="ctrl-missing" data-odf-control-exists="false">ctrl-missing</span>', $blocksHtml);
+        $t->contains('<div class="odf-form-control odf-control-checkbox" data-odf-control-id="ctrl-publish" data-odf-control-type="checkbox" data-odf-control-exists="true"', $blocksHtml);
+        $t->contains('Ready to publish', $blocksHtml);
+    },
     'maps ODT variable user page and date fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFields = <<<'XML'
 <office:document-content
