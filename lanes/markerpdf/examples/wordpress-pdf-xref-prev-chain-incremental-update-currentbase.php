@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\MarkerPDF\PdfAttachmentExtractor;
 use PortLibs\MarkerPDF\PdfEmbeddedFileExtractor;
 use PortLibs\MarkerPDF\PdfMetadataExtractor;
 use PortLibs\MarkerPDF\PdfTextExtractor;
@@ -716,7 +717,9 @@ $mismatchMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($misma
 $mismatchEncodedMetadata = json_encode($mismatchMetadata, JSON_UNESCAPED_SLASHES);
 $mismatchPlainText = $extractor->extractPlainText($mismatchPdf);
 $attachmentFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($attachmentPdf);
+$attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($attachmentPdf);
 $attachmentEncoded = json_encode($attachmentFiles, JSON_UNESCAPED_SLASHES);
+$attachmentSummaryEncoded = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
 $malformedIndexMetadata = (new PdfMetadataExtractor())->extractDocumentMetadata($malformedIndexPdf);
 $malformedIndexPlainText = $extractor->extractPlainText($malformedIndexPdf);
 $malformedIndexFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($malformedIndexPdf);
@@ -786,9 +789,16 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'generation_mismatch_text_selected' => str_contains($mismatchPlainText, 'Metadata generation boundary'),
     'embedded_file_current_attachment_selected' => ($attachmentFiles[0]['filename'] ?? null) === 'current-source.xml',
     'embedded_file_current_payload_selected' => ($attachmentFiles[0]['content'] ?? null) === $currentPayload,
+    'attachment_preflight_current_summary_selected' => ($attachmentSummary['filenames'] ?? []) === ['current-source.xml'],
+    'attachment_preflight_current_bytes_selected' => ($attachmentSummary['total_bytes'] ?? null) === strlen($currentPayload),
+    'attachment_preflight_no_runtime_execution' => ($attachmentSummary['executes_python_or_models'] ?? null) === false
+        && ($attachmentSummary['executes_external_pdf_tools'] ?? null) === false,
     'embedded_file_stale_prev_attachment_excluded' => is_string($attachmentEncoded)
         && !str_contains($attachmentEncoded, 'stale-prev-attachment')
         && !str_contains($attachmentEncoded, 'stale-source.xml'),
+    'attachment_preflight_stale_prev_attachment_excluded' => is_string($attachmentSummaryEncoded)
+        && !str_contains($attachmentSummaryEncoded, 'stale-prev-attachment')
+        && !str_contains($attachmentSummaryEncoded, 'stale-source.xml'),
     'malformed_index_same_generation_current_info_selected' => ($malformedIndexMetadata['title'] ?? null) === 'Current Malformed Index Smoke Title',
     'malformed_index_same_generation_current_language_selected' => ($malformedIndexMetadata['language'] ?? null) === 'en-US',
     'malformed_index_same_generation_current_text_selected' => str_contains($malformedIndexPlainText, 'Current malformed index smoke page'),

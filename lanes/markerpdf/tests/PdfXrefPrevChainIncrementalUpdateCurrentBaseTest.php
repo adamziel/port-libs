@@ -2072,9 +2072,12 @@ return [
         $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
         $extractor = new PdfTextExtractor();
         $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $attachmentSummary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
         $text = $extractor->extractPlainText($pdf);
         $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
         $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedAttachmentSummary = json_encode($attachmentSummary, JSON_UNESCAPED_SLASHES);
+        $currentAttachment = '<wp-export><post id="current-direct-prev-owner"/></wp-export>';
 
         $t->same(['Current direct Prev owner page', 'Direct Prev helper selected'], $extractor->extractTextLines($pdf));
         $t->same("Current direct Prev owner page\nDirect Prev helper selected", $text);
@@ -2089,10 +2092,18 @@ return [
         $t->same('current-direct-prev-owner.xml', $files[0]['filename']);
         $t->same('Current direct Prev owner attachment', $files[0]['description']);
         $t->same('<wp-export><post id="current-direct-prev-owner"/></wp-export>', $files[0]['content']);
+        $t->same(1, $attachmentSummary['attachment_count']);
+        $t->same(strlen($currentAttachment), $attachmentSummary['total_bytes']);
+        $t->same(['current-direct-prev-owner.xml'], $attachmentSummary['filenames']);
+        $t->same('Current direct Prev owner attachment', $attachmentSummary['attachments'][0]['description']);
+        $t->same('current-direct-prev-owner.xml', $attachmentSummary['attachments'][0]['filename']);
+        $t->same(false, $attachmentSummary['executes_python_or_models']);
+        $t->same(false, $attachmentSummary['executes_external_pdf_tools']);
         $t->true(str_contains($pdf, '/Prev 30 0 R'));
         $t->true(str_contains($pdf, 'post-xref direct Prev helper decoy'));
         $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Stale Direct Prev Owner'));
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-direct-prev-owner'));
+        $t->true(is_string($encodedAttachmentSummary) && !str_contains($encodedAttachmentSummary, 'stale-direct-prev-owner'));
         $t->true(!str_contains($text, 'Stale direct Prev owner page'));
         $t->true(!str_contains($text, "\0"));
     },

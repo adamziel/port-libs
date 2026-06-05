@@ -3329,6 +3329,10 @@ final class PdfAttachmentExtractor
         }
 
         $decodedEntryCount = intdiv(strlen($decoded), $entryWidth);
+        $previousOffset = $definitions !== [] && isset($section['offset'])
+            ? $this->intValue($this->xrefStreamDictionaryValue($section, 'Prev', $definitions))
+            : null;
+        $xrefOffset = (int) ($section['offset'] ?? -1);
         $entries = [];
         $fieldOffset = 0;
         foreach ($this->xrefStreamIndexRanges($section, $decodedEntryCount, $definitions) as $range) {
@@ -3339,10 +3343,33 @@ final class PdfAttachmentExtractor
                 $fieldThree = $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[2]);
 
                 if ($type === 1) {
+                    $generation = $fieldThree;
+                    if ($definitions !== [] && $widths[1] > 0 && $previousOffset !== null && $previousOffset >= 0) {
+                        $rowObjectNumber = $objectNumber;
+                        $rowGeneration = $generation;
+                        $offsetOwner = $this->directObjectDefinitionAtOffset($definitions, $fieldTwo);
+                        $updateOwner = $this->currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+                            $rowObjectNumber,
+                            $rowGeneration,
+                            $offsetOwner,
+                            $previousOffset,
+                            $xrefOffset,
+                            $definitions
+                        );
+                        if ($updateOwner !== null) {
+                            $objectNumber = $rowObjectNumber;
+                            $fieldTwo = $updateOwner['offset'];
+                            $generation = $updateOwner['generation'];
+                        } elseif ($offsetOwner !== null) {
+                            $objectNumber = $offsetOwner['objectNumber'];
+                            $generation = $offsetOwner['generation'];
+                        }
+                    }
+
                     $entries[$objectNumber] = [
                         'type' => 1,
                         'offset' => $fieldTwo,
-                        'generation' => $fieldThree,
+                        'generation' => $generation,
                     ];
                     continue;
                 }
@@ -3362,6 +3389,104 @@ final class PdfAttachmentExtractor
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{objectNumber: int, generation: int, offset: int, body: string}|null
+     */
+    private function directObjectDefinitionAtOffset(array $definitions, int $offset): ?array
+    {
+        foreach ($definitions as $objectNumber => $entries) {
+            foreach ($entries as $definition) {
+                if ($definition['offset'] !== $offset) {
+                    continue;
+                }
+
+                return [
+                    'objectNumber' => (int) $objectNumber,
+                    'generation' => $definition['generation'],
+                    'offset' => $definition['offset'],
+                    'body' => $definition['body'],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{objectNumber: int, generation: int, offset: int, body: string}|null $offsetOwner
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForStaleXrefOffset(
+        int $objectNumber,
+        int $generation,
+        ?array $offsetOwner,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if (
+            $offsetOwner !== null
+            && $offsetOwner['offset'] > $previousOffset
+            && $offsetOwner['offset'] < $xrefOffset
+        ) {
+            if (
+                $offsetOwner['objectNumber'] === $objectNumber
+                && $offsetOwner['generation'] === $generation
+            ) {
+                return null;
+            }
+
+            return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+                $objectNumber,
+                $generation,
+                $previousOffset,
+                $xrefOffset,
+                $definitions
+            );
+        }
+
+        return $this->currentUpdateDirectObjectDefinitionForXrefRow(
+            $objectNumber,
+            $generation,
+            $previousOffset,
+            $xrefOffset,
+            $definitions
+        );
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @return array{generation: int, offset: int, body: string}|null
+     */
+    private function currentUpdateDirectObjectDefinitionForXrefRow(
+        int $objectNumber,
+        int $generation,
+        int $previousOffset,
+        int $xrefOffset,
+        array $definitions
+    ): ?array {
+        if ($objectNumber <= 0 || $previousOffset < 0 || $xrefOffset <= $previousOffset) {
+            return null;
+        }
+
+        $candidates = [];
+        foreach ($definitions[$objectNumber] ?? [] as $definition) {
+            if (
+                $definition['generation'] !== $generation
+                || $definition['offset'] <= $previousOffset
+                || $definition['offset'] >= $xrefOffset
+            ) {
+                continue;
+            }
+
+            $candidates[] = $definition;
+        }
+
+        return $this->latestDirectObjectDefinition($candidates);
     }
 
     /**
