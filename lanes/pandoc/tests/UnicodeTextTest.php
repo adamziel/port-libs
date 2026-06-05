@@ -354,6 +354,30 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 9, 'Emoji ZWJ variation wrapped line exceeds requested width');
         }
     },
+    'measures supplementary east asian wide symbols for display columns' => static function (TestRunner $t): void {
+        $ideographicMarks = "\u{16FE0}\u{16FE1}\u{16FE2}\u{16FE3}";
+        $kanaLetters = "\u{1B000}\u{1B11F}\u{1B132}\u{1B150}\u{1B155}\u{1B164}";
+        $nushu = "\u{1B170}";
+        $enclosedIdeographic = "\u{1F004}\u{1F0CF}\u{1F18E}\u{1F191}\u{1F200}\u{1F210}\u{1F240}\u{1F250}\u{1F260}";
+        $sample = "\u{16FE0}\u{1B000}\u{1F200}X";
+        $khitanFillerCluster = "\u{16FE0}\u{16FE4}";
+        $vietnameseReadingMark = "\u{16FF0}";
+        $wrapped = UnicodeText::wrapByDisplayWidth("Wide {$sample} tail", 10, '  ');
+
+        $t->same(8, UnicodeText::displayWidth($ideographicMarks));
+        $t->same(12, UnicodeText::displayWidth($kanaLetters));
+        $t->same(2, UnicodeText::displayWidth($nushu));
+        $t->same(18, UnicodeText::displayWidth($enclosedIdeographic));
+        $t->same(2, UnicodeText::displayWidth($khitanFillerCluster));
+        $t->same(0, UnicodeText::displayWidth($vietnameseReadingMark));
+        $t->same(["\u{16FE0}\u{1B000}", "\u{1F200}X"], UnicodeText::splitAtDisplayWidth($sample, 3));
+        $t->same(["\u{16FE0}", "\u{1B000}", "\u{1F200}", 'X'], UnicodeText::splitByDisplayBreakpoints($sample, [2, 4, 6]));
+        $t->same("\u{1F200}  ", UnicodeText::padDisplay("\u{1F200}", 4));
+        $t->same(['Wide', "  {$sample}", '  tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 10, 'Supplementary East Asian wide wrapped line exceeds requested width');
+        }
+    },
     'applies east asian ambiguous width policy for display columns' => static function (TestRunner $t): void {
         $ambiguous = "\u{00B7}\u{03A9}\u{2014}\u{2026}\u{2122}";
         $combining = "A\u{0301}\u{00B7}";

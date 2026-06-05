@@ -1291,6 +1291,23 @@ final class UnicodeText
             || ($codepoint >= 0xfe30 && $codepoint <= 0xfe6f)
             || ($codepoint >= 0xff00 && $codepoint <= 0xff60)
             || ($codepoint >= 0xffe0 && $codepoint <= 0xffe6)
+            || ($codepoint >= 0x16fe0 && $codepoint <= 0x16fe4)
+            || ($codepoint >= 0x16ff0 && $codepoint <= 0x16ff1)
+            || ($codepoint >= 0x1b000 && $codepoint <= 0x1b122)
+            || $codepoint === 0x1b132
+            || ($codepoint >= 0x1b150 && $codepoint <= 0x1b152)
+            || $codepoint === 0x1b155
+            || ($codepoint >= 0x1b164 && $codepoint <= 0x1b167)
+            || ($codepoint >= 0x1b170 && $codepoint <= 0x1b2fb)
+            || $codepoint === 0x1f004
+            || $codepoint === 0x1f0cf
+            || $codepoint === 0x1f18e
+            || ($codepoint >= 0x1f191 && $codepoint <= 0x1f19a)
+            || ($codepoint >= 0x1f200 && $codepoint <= 0x1f202)
+            || ($codepoint >= 0x1f210 && $codepoint <= 0x1f23b)
+            || ($codepoint >= 0x1f240 && $codepoint <= 0x1f248)
+            || ($codepoint >= 0x1f250 && $codepoint <= 0x1f251)
+            || ($codepoint >= 0x1f260 && $codepoint <= 0x1f265)
             || ($codepoint >= 0x1f300 && $codepoint <= 0x1f64f)
             || ($codepoint >= 0x1f680 && $codepoint <= 0x1f6ff)
             || ($codepoint >= 0x1fa70 && $codepoint <= 0x1faff)
