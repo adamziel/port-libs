@@ -557,6 +557,73 @@ MARKDOWN);
         $t->contains('engine-output-bytes:' . strlen($pdfBytes), implode(',', $result['diagnostics']));
     },
 
+    'fake runner extracts bounded pdf page tree and outline titles from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/review.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Outlines /First 6 0 R /Last 7 0 R /Count 2 >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Title (Migration packet) /Parent 5 0 R /Dest [3 0 R /Fit] /Next 7 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Title <FEFF00460069006E0061006C00200070006100670065> /Parent 5 0 R /Dest [4 0 R /Fit] /Prev 6 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+        $log = 'Output written on packets/review.pdf (2 pages, ' . strlen($pdfBytes) . " bytes).\n";
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/review.log' => $log,
+                'packets/review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $mismatch = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/review.log' => 'Output written on packets/review.pdf (1 page, ' . strlen($pdfBytes) . " bytes).\n",
+                'packets/review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/review.log' => $log,
+                    'packets/review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(2, $result['pdfPageCount']);
+        $t->same(['Migration packet', 'Final page'], $result['pdfOutlineTitles']);
+        $t->contains('pdf-byte-page-count:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-items:2', implode(',', $result['diagnostics']));
+        $t->same(false, $mismatch['ok']);
+        $t->same('pdf-output-page-mismatch', $mismatch['reason']);
+        $t->contains('engine-output-page-mismatch:1:2', implode(',', $mismatch['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same(2, $sequence['finalPdfPageCount']);
+        $t->same(['Migration packet', 'Final page'], $sequence['finalPdfOutlineTitles']);
+    },
+
     'fake runner rejects truncated stale or mismatched pdf output artifacts' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);

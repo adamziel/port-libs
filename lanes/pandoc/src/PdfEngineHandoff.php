@@ -8,6 +8,7 @@ final class PdfEngineHandoff
 {
     private const MAX_SOURCE_MAP_BYTES = 1048576;
     private const MAX_DEPENDENCY_FILE_BYTES = 1048576;
+    private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
 
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
@@ -238,6 +239,8 @@ final class PdfEngineHandoff
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
      *     pdfTrailerComplete: bool,
+     *     pdfPageCount: int|null,
+     *     pdfOutlineTitles: list<string>,
      *     pdfSha256: string|null,
      *     stdout: string,
      *     stderr: string,
@@ -544,6 +547,23 @@ final class PdfEngineHandoff
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
+        $pdfPageCount = null;
+        $pdfOutlineTitles = [];
+        if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')) {
+            if (strlen($pdfBytes) > self::MAX_PDF_OUTPUT_INSPECTION_BYTES) {
+                $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
+            } else {
+                $pdfInspection = $this->inspectPdfOutput($pdfBytes);
+                $pdfPageCount = $pdfInspection['pageCount'];
+                $pdfOutlineTitles = $pdfInspection['outlineTitles'];
+                if ($pdfPageCount !== null) {
+                    $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
+                }
+                if ($pdfOutlineTitles !== []) {
+                    $diagnostics[] = 'pdf-byte-outline-items:' . count($pdfOutlineTitles);
+                }
+            }
+        }
         if (
             is_string($pdfBytes)
             && str_starts_with($pdfBytes, '%PDF-')
@@ -559,6 +579,13 @@ final class PdfEngineHandoff
             && $declaredOutput['bytes'] !== strlen($pdfBytes)
         ) {
             $diagnostics[] = 'engine-output-byte-mismatch:' . $declaredOutput['bytes'] . ':' . strlen($pdfBytes);
+        }
+        if (
+            $declaredOutput['pages'] !== null
+            && $pdfPageCount !== null
+            && $declaredOutput['pages'] !== $pdfPageCount
+        ) {
+            $diagnostics[] = 'engine-output-page-mismatch:' . $declaredOutput['pages'] . ':' . $pdfPageCount;
         }
         if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') && !$pdfTrailerComplete) {
             $diagnostics[] = 'pdf-output-truncated';
@@ -608,6 +635,15 @@ final class PdfEngineHandoff
             $status = 'failed';
             $reason = 'pdf-output-byte-mismatch';
         }
+        if (
+            $reason === null
+            && $declaredOutput['pages'] !== null
+            && $pdfPageCount !== null
+            && $declaredOutput['pages'] !== $pdfPageCount
+        ) {
+            $status = 'failed';
+            $reason = 'pdf-output-page-mismatch';
+        }
 
         return [
             'ok' => $status === 'ok',
@@ -648,6 +684,8 @@ final class PdfEngineHandoff
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],
             'pdfTrailerComplete' => $pdfTrailerComplete,
+            'pdfPageCount' => $pdfPageCount,
+            'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfSha256' => is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-') ? hash('sha256', $pdfBytes) : null,
             'stdout' => (string) ($result['stdout'] ?? ''),
             'stderr' => (string) ($result['stderr'] ?? ''),
@@ -674,6 +712,8 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputFile: string|null,
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
+     *     finalPdfPageCount: int|null,
+     *     finalPdfOutlineTitles: list<string>,
      *     sourceSha256: string|null,
      *     finalResourceArtifactsSha256: array<string, string>,
      *     finalEngineDependencyArtifactsSha256: array<string, string>,
@@ -811,6 +851,8 @@ final class PdfEngineHandoff
             'finalDeclaredOutputFile' => is_array($finalRun) && is_string($finalRun['declaredOutputFile'] ?? null) ? $finalRun['declaredOutputFile'] : null,
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
+            'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
+            'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'sourceSha256' => is_array($finalRun) && is_string($finalRun['sourceSha256'] ?? null) ? $finalRun['sourceSha256'] : null,
             'finalResourceArtifactsSha256' => is_array($finalRun) && is_array($finalRun['resourceArtifactsSha256'] ?? null) ? $finalRun['resourceArtifactsSha256'] : [],
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
@@ -1761,6 +1803,282 @@ final class PdfEngineHandoff
     private function hasCompletePdfTrailer(string $pdfBytes): bool
     {
         return preg_match('/%%EOF\s*\z/s', $pdfBytes) === 1;
+    }
+
+    /**
+     * @return array{pageCount:int|null, outlineTitles:list<string>}
+     */
+    private function inspectPdfOutput(string $pdfBytes): array
+    {
+        return [
+            'pageCount' => $this->extractPdfPageCount($pdfBytes),
+            'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
+        ];
+    }
+
+    private function extractPdfPageCount(string $pdfBytes): ?int
+    {
+        $objects = $this->pdfObjectBodies($pdfBytes);
+        $pageTreeCounts = [];
+        foreach ($objects as $body) {
+            if (preg_match('/\/Type\s*\/Pages\b/s', $body) !== 1) {
+                continue;
+            }
+            if (preg_match('/\/Count\s+(\d+)\b/s', $body, $matches) !== 1) {
+                continue;
+            }
+
+            $count = (int) $matches[1];
+            if ($count > 0) {
+                $pageTreeCounts[] = $count;
+            }
+        }
+        if ($pageTreeCounts !== []) {
+            return max($pageTreeCounts);
+        }
+
+        $pageObjects = 0;
+        foreach ($objects as $body) {
+            if (preg_match('/\/Type\s*\/Page\b/s', $body) === 1) {
+                $pageObjects++;
+            }
+        }
+
+        return $pageObjects > 0 ? $pageObjects : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfOutlineTitles(string $pdfBytes): array
+    {
+        $titles = [];
+        foreach ($this->pdfObjectBodies($pdfBytes) as $body) {
+            if (!str_contains($body, '/Title')) {
+                continue;
+            }
+            if (preg_match('/\/(?:Parent|Dest|A|Next|Prev)\b/s', $body) !== 1) {
+                continue;
+            }
+
+            foreach ($this->extractPdfTitleStrings($body) as $title) {
+                $titles[] = $title;
+            }
+        }
+
+        return $titles;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfObjectBodies(string $pdfBytes): array
+    {
+        if (preg_match_all('/\b\d+\s+\d+\s+obj\b(.*?)\bendobj\b/s', $pdfBytes, $matches) < 1) {
+            return [];
+        }
+
+        return $matches[1];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfTitleStrings(string $objectBody): array
+    {
+        $titles = [];
+        $offset = 0;
+        $length = strlen($objectBody);
+        while (($position = strpos($objectBody, '/Title', $offset)) !== false) {
+            $cursor = $position + strlen('/Title');
+            if ($cursor < $length && preg_match('/[A-Za-z0-9_.-]/', $objectBody[$cursor]) === 1) {
+                $offset = $cursor;
+                continue;
+            }
+            while ($cursor < $length && ctype_space($objectBody[$cursor])) {
+                $cursor++;
+            }
+
+            $parsed = null;
+            if ($cursor < $length && $objectBody[$cursor] === '(') {
+                $parsed = $this->parsePdfLiteralString($objectBody, $cursor);
+            } elseif (
+                $cursor < $length
+                && $objectBody[$cursor] === '<'
+                && ($cursor + 1 >= $length || $objectBody[$cursor + 1] !== '<')
+            ) {
+                $parsed = $this->parsePdfHexString($objectBody, $cursor);
+            }
+
+            if ($parsed !== null) {
+                $title = trim($parsed['value']);
+                if ($title !== '') {
+                    $titles[] = $title;
+                }
+                $offset = $parsed['next'];
+                continue;
+            }
+
+            $offset = $cursor + 1;
+        }
+
+        return $titles;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function parsePdfLiteralString(string $bytes, int $offset): ?array
+    {
+        $length = strlen($bytes);
+        if ($offset >= $length || $bytes[$offset] !== '(') {
+            return null;
+        }
+
+        $depth = 1;
+        $value = '';
+        for ($i = $offset + 1; $i < $length; $i++) {
+            $char = $bytes[$i];
+            if ($char === '\\') {
+                if ($i + 1 >= $length) {
+                    break;
+                }
+                $next = $bytes[++$i];
+                if ($next === "\r" || $next === "\n") {
+                    if ($next === "\r" && $i + 1 < $length && $bytes[$i + 1] === "\n") {
+                        $i++;
+                    }
+                    continue;
+                }
+                if ($next >= '0' && $next <= '7') {
+                    $octal = $next;
+                    for ($j = 0; $j < 2 && $i + 1 < $length && $bytes[$i + 1] >= '0' && $bytes[$i + 1] <= '7'; $j++) {
+                        $octal .= $bytes[++$i];
+                    }
+                    $value .= chr(octdec($octal));
+                    continue;
+                }
+
+                $value .= match ($next) {
+                    'n' => "\n",
+                    'r' => "\r",
+                    't' => "\t",
+                    'b' => "\x08",
+                    'f' => "\x0c",
+                    default => $next,
+                };
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                $value .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return ['value' => $this->pdfTextBytesToUtf8($value), 'next' => $i + 1];
+                }
+                $value .= $char;
+                continue;
+            }
+
+            $value .= $char;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function parsePdfHexString(string $bytes, int $offset): ?array
+    {
+        $end = strpos($bytes, '>', $offset + 1);
+        if ($end === false) {
+            return null;
+        }
+
+        $hex = preg_replace('/\s+/', '', substr($bytes, $offset + 1, $end - $offset - 1)) ?? '';
+        if ($hex === '' || preg_match('/\A[0-9A-Fa-f]+\z/', $hex) !== 1) {
+            return null;
+        }
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $raw = hex2bin($hex);
+        if ($raw === false) {
+            return null;
+        }
+
+        return ['value' => $this->pdfTextBytesToUtf8($raw), 'next' => $end + 1];
+    }
+
+    private function pdfTextBytesToUtf8(string $bytes): string
+    {
+        if (str_starts_with($bytes, "\xFE\xFF")) {
+            return $this->utf16BytesToUtf8(substr($bytes, 2), true);
+        }
+        if (str_starts_with($bytes, "\xFF\xFE")) {
+            return $this->utf16BytesToUtf8(substr($bytes, 2), false);
+        }
+        if (preg_match('//u', $bytes) === 1) {
+            return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', '', $bytes) ?? $bytes;
+        }
+
+        return preg_replace('/[^\x20-\x7E]+/', '', $bytes) ?? '';
+    }
+
+    private function utf16BytesToUtf8(string $bytes, bool $bigEndian): string
+    {
+        $output = '';
+        $length = strlen($bytes) - (strlen($bytes) % 2);
+        for ($i = 0; $i < $length; $i += 2) {
+            $first = ord($bytes[$i]);
+            $second = ord($bytes[$i + 1]);
+            $codepoint = $bigEndian ? (($first << 8) | $second) : (($second << 8) | $first);
+            if ($codepoint >= 0xD800 && $codepoint <= 0xDBFF && $i + 3 < $length) {
+                $third = ord($bytes[$i + 2]);
+                $fourth = ord($bytes[$i + 3]);
+                $low = $bigEndian ? (($third << 8) | $fourth) : (($fourth << 8) | $third);
+                if ($low >= 0xDC00 && $low <= 0xDFFF) {
+                    $codepoint = 0x10000 + (($codepoint - 0xD800) << 10) + ($low - 0xDC00);
+                    $i += 2;
+                }
+            }
+            if ($codepoint === 0) {
+                continue;
+            }
+
+            $output .= $this->codepointToUtf8($codepoint);
+        }
+
+        return $output;
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint < 0 || $codepoint > 0x10FFFF || ($codepoint >= 0xD800 && $codepoint <= 0xDFFF)) {
+            return '';
+        }
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3F))
+            . chr(0x80 | (($codepoint >> 6) & 0x3F))
+            . chr(0x80 | ($codepoint & 0x3F));
     }
 
     private function normalizeRelativePath(string $path, string $label): string
