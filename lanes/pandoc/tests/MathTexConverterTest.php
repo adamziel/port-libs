@@ -213,6 +213,19 @@ return [
         $t->contains('<msup><mi>sin</mi><mn>2</mn></msup><mi>θ</mi>', $functionMathml);
         $t->contains('<msub><mi>log</mi><mn>10</mn></msub><mi>x</mi><mo>+</mo><msubsup><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mn>3</mn></msubsup><mi>k</mi>', $functionMathml);
     },
+    'converts bounded tex explicit operator limits to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $limitsMathml = $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q', true);
+        $nolimitsMathml = $converter->texToMathMl('\\int\\nolimits_{0}^{1} f(x) dx + \\sum\\nolimits_{j} a_j');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $limitsMathml);
+        $t->contains('<munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>', $limitsMathml);
+        $t->contains('<munder><mo>lim</mo><mrow><mi>x</mi><mo>→</mo><mn>0</mn></mrow></munder><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>', $limitsMathml);
+        $t->contains('<mover><mo>∏</mo><mi>N</mi></mover><mi>q</mi>', $limitsMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q</annotation>', $limitsMathml);
+        $t->contains('<msubsup><mo>∫</mo><mn>0</mn><mn>1</mn></msubsup><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>d</mi><mi>x</mi><mo>+</mo><msub><mo>∑</mo><mi>j</mi></msub><msub><mi>a</mi><mi>j</mi></msub>', $nolimitsMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\int\\nolimits_{0}^{1} f(x) dx + \\sum\\nolimits_{j} a_j</annotation>', $nolimitsMathml);
+    },
     'converts bounded tex substack limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $substackMathml = $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)', true);
@@ -678,6 +691,9 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\text{unterminated'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\limits_{i=1}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sum\\limits'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\int\\nolimits'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a & b}'));

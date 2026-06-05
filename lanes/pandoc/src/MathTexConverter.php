@@ -1153,7 +1153,8 @@ final class MathTexConverter
             }
 
             $base = $this->parseAtom($source, $offset);
-            $nodes[] = $this->applyScripts($source, $offset, $base);
+            $scriptPlacement = $this->readScriptPlacementCommand($source, $offset);
+            $nodes[] = $this->applyScripts($source, $offset, $base, $scriptPlacement);
         }
 
         return $nodes;
@@ -1258,6 +1259,10 @@ final class MathTexConverter
 
         if ($command === 'ref' || $command === 'eqref') {
             return $this->parseEquationReferenceCommand($source, $offset, $command);
+        }
+
+        if ($command === 'limits' || $command === 'nolimits') {
+            throw new \InvalidArgumentException('Unexpected TeX \\' . $command . ' without previous math base at offset ' . $offset);
         }
 
         if ($command === 'substack') {
@@ -2797,7 +2802,7 @@ final class MathTexConverter
         return $this->applyScripts($source, $offset, $this->parseAtom($source, $offset));
     }
 
-    private function applyScripts(string $source, int &$offset, string $base): string
+    private function applyScripts(string $source, int &$offset, string $base, ?string $scriptPlacement = null): string
     {
         $subscript = null;
         $superscript = null;
@@ -2818,6 +2823,24 @@ final class MathTexConverter
             }
         }
 
+        if ($scriptPlacement !== null && $subscript === null && $superscript === null) {
+            throw new \InvalidArgumentException('Expected TeX \\' . $scriptPlacement . ' subscript or superscript at offset ' . $offset);
+        }
+
+        if ($scriptPlacement === 'limits') {
+            if ($subscript !== null && $superscript !== null) {
+                return '<munderover>' . $base . $subscript . $superscript . '</munderover>';
+            }
+
+            if ($subscript !== null) {
+                return '<munder>' . $base . $subscript . '</munder>';
+            }
+
+            if ($superscript !== null) {
+                return '<mover>' . $base . $superscript . '</mover>';
+            }
+        }
+
         if ($subscript !== null && $superscript !== null) {
             return '<msubsup>' . $base . $subscript . $superscript . '</msubsup>';
         }
@@ -2831,6 +2854,24 @@ final class MathTexConverter
         }
 
         return $base;
+    }
+
+    private function readScriptPlacementCommand(string $source, int &$offset): ?string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $commandOffset = $offset + 1;
+        $command = $this->readCommandName($source, $commandOffset);
+        if ($command !== 'limits' && $command !== 'nolimits') {
+            return null;
+        }
+
+        $offset = $commandOffset;
+
+        return $command;
     }
 
     private function parseScriptArgument(string $source, int &$offset): string
