@@ -11341,7 +11341,7 @@ final class PdfAcroFormExtractor
         }
 
         foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
+            if ($this->pdfNameValueAfterName($body, 'Type') !== 'Catalog') {
                 continue;
             }
 
@@ -11358,7 +11358,7 @@ final class PdfAcroFormExtractor
 
         $pages = [];
         foreach ($objects as $objectNumber => $body) {
-            if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+            if ($this->pdfNameValueAfterName($body, 'Type') === 'Page') {
                 $pages[] = $objectNumber;
             }
         }
@@ -11379,7 +11379,7 @@ final class PdfAcroFormExtractor
 
         $seen[$objectNumber] = true;
         $body = $objects[$objectNumber];
-        if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+        if ($this->pdfNameValueAfterName($body, 'Type') === 'Page') {
             return [$objectNumber];
         }
 
