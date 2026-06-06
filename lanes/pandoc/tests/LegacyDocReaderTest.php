@@ -409,6 +409,28 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
     return str_pad($header, 512, "\0") . implode('', $sectors);
 };
 
+$moveFatListingToDifatSector = static function (string $bytes) use ($u32): array {
+    $sectorSize = 512;
+    $free = 0xffffffff;
+    $end = 0xfffffffe;
+    $difatSector = intdiv(strlen($bytes) - 512, $sectorSize);
+    if ($difatSector < 0 || $difatSector >= 128) {
+        throw new RuntimeException('CFB DIFAT overflow test fixture requires the first FAT sector to cover the added DIFAT sector');
+    }
+
+    $difatBytes = $u32(0) . str_repeat($u32($free), 126) . $u32($end);
+    $bytes = substr_replace($bytes, $u32(0xfffffffc), 512 + ($difatSector * 4), 4);
+    $bytes = substr_replace($bytes, $u32($difatSector), 68, 4);
+    $bytes = substr_replace($bytes, $u32(1), 72, 4);
+    $bytes = substr_replace($bytes, str_repeat($u32($free), 109), 76, 109 * 4);
+    $bytes .= $difatBytes;
+
+    return [
+        'bytes' => $bytes,
+        'difatSector' => $difatSector,
+    ];
+};
+
 $typedLpstr = static function (string $value): string {
     $bytes = $value . "\0";
     $raw = pack('v', 0x001e) . "\0\0" . pack('V', strlen($bytes)) . $bytes;
@@ -1374,6 +1396,32 @@ return [
         ] as $corruptDocBytes) {
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
+    },
+    'reads CFB packages whose FAT sector is listed from a DIFAT overflow sector' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $moveFatListingToDifatSector): void {
+        $wordDocument = $buildSimpleWordDocument("DIFAT overflow import packet\r");
+        $fixture = $moveFatListingToDifatSector($buildCfb([
+            'WordDocument' => $wordDocument,
+            "\x05SummaryInformation" => 'summary bytes',
+        ]));
+
+        $t->true($fixture['difatSector'] > 0);
+        $cfb = CompoundFileBinary::fromBytes($fixture['bytes']);
+        $t->same(['WordDocument', "\x05SummaryInformation"], $cfb->streamNames());
+        $t->true($cfb->hasStream('WordDocument'));
+        $t->same($wordDocument, $cfb->readStream('WordDocument'));
+
+        $result = (new LegacyDocReader())->readBytes($fixture['bytes']);
+        $t->same('DIFAT overflow import packet', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same(2, $result['metadata']['cfbStreamCount']);
+        $t->same(['WordDocument', "\x05SummaryInformation"], $result['document']->attr('cfbStreams'));
+    },
+    'rejects unterminated CFB DIFAT overflow chains before stream lookup' => static function (TestRunner $t) use ($buildCfb, $moveFatListingToDifatSector, $u32): void {
+        $fixture = $moveFatListingToDifatSector($buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]));
+        $unterminated = substr_replace($fixture['bytes'], $u32(0), 512 + ((int) $fixture['difatSector'] * 512) + 508, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($unterminated));
     },
     'rejects invalid CFB directory object-type fields before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
         $bytes = $buildCfb([

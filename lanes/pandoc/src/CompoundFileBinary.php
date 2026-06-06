@@ -140,6 +140,9 @@ final class CompoundFileBinary
             }
             $difatSector = self::u32($sectorBytes, $sectorSize - 4);
         }
+        if ($difatSectorCount > 0 && $difatSector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB DIFAT chain is not terminated');
+        }
 
         $fatSectorIds = array_slice($difat, 0, $fatSectorCount);
         if (count($fatSectorIds) !== $fatSectorCount) {

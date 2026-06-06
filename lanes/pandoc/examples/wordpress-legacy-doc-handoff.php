@@ -959,7 +959,29 @@ $header = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
     . $u32(0)
     . str_repeat($u32($free), 108);
 
+$moveFatListingToDifatSector = static function (string $bytes) use ($u32, $sectorSize, $free, $end): array {
+    $difatSector = intdiv(strlen($bytes) - 512, $sectorSize);
+    if ($difatSector < 0 || $difatSector >= 128) {
+        throw new RuntimeException('Legacy DOC handoff fixture requires the first FAT sector to cover the DIFAT overflow sector');
+    }
+
+    $difatBytes = $u32(0) . str_repeat($u32($free), 126) . $u32($end);
+    $bytes = substr_replace($bytes, $u32(0xfffffffc), 512 + ($difatSector * 4), 4);
+    $bytes = substr_replace($bytes, $u32($difatSector), 68, 4);
+    $bytes = substr_replace($bytes, $u32(1), 72, 4);
+    $bytes = substr_replace($bytes, str_repeat($u32($free), 109), 76, 109 * 4);
+    $bytes .= $difatBytes;
+
+    return [
+        'bytes' => $bytes,
+        'difatSector' => $difatSector,
+    ];
+};
+
 $docBytes = str_pad($header, 512, "\0") . implode('', $sectors);
+$difatFixture = $moveFatListingToDifatSector($docBytes);
+$docBytes = $difatFixture['bytes'];
+$difatSector = (int) $difatFixture['difatSector'];
 $result = (new LegacyDocReader())->readBytes($docBytes);
 $blocks = (new WordPressBlockWriter())->write($result['document']);
 
@@ -982,11 +1004,15 @@ $summary = [
     'comments' => $result['comments'],
     'embeddedObjects' => $result['embeddedObjects'],
     'macroProjects' => $result['macroProjects'],
+    'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
+    if ($difatSector <= 0) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing DIFAT overflow sector');
+    }
     if (($summary['metadata']['title'] ?? '') !== 'Legacy DOC import packet') {
         throw new RuntimeException('Legacy DOC handoff self-test missing metadata title');
     }
@@ -1381,7 +1407,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'invalid CFB mini stream cutoff' => substr_replace($docBytes, $u32(2048), 56, 4),
         'CFB MiniFAT start sector without MiniFAT count' => substr_replace($docBytes, $u32(0), 64, 4),
         'CFB MiniFAT count without valid start sector' => substr_replace($docBytes, $u32($end), 60, 4),
-        'CFB DIFAT start sector without DIFAT count' => substr_replace($docBytes, $u32(2), 68, 4),
+        'CFB DIFAT start sector without DIFAT count' => substr_replace($docBytes, $u32(0), 72, 4),
+        'unterminated CFB DIFAT overflow chain' => substr_replace($docBytes, $u32(0), 512 + ($difatSector * $sectorSize) + ($sectorSize - 4), 4),
         'CFB root sibling directory reference' => substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 68), 4),
         'CFB stream child directory reference' => substr_replace($docBytes, $u32($objectPoolDirectoryId), $directoryFieldOffset($wordDocumentDirectoryId, 76), 4),
         'CFB storage stream-data bytes' => substr_replace($docBytes, $u64(64), $directoryFieldOffset($objectPoolDirectoryId, 120), 8),
