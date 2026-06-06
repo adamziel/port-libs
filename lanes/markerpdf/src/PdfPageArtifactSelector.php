@@ -184,14 +184,33 @@ final class PdfPageArtifactSelector
      * Supplied marker/pdftext adapters are commonly JSON-decoded without the
      * associative-array flag. Normalize plain JSON objects before page-marker
      * matching while leaving non-data objects and scalar payloads untouched.
+     * Some caches wrap selected layout/order artifacts in the same
+     * dictionary_output/pages envelope used by pdftext page dictionaries; unwrap
+     * those page-list envelopes before marker selection so stale cover rows do
+     * not remain a single positional artifact.
      *
      * @param list<mixed> $artifacts
      * @return list<mixed>
      */
     public static function normalizeSuppliedArtifacts(array $artifacts): array
     {
+        $artifacts = self::normalizeSuppliedArtifactValue($artifacts);
+        $artifacts = self::artifactListFromEnvelope($artifacts) ?? $artifacts;
+
         $normalized = [];
         foreach (array_values($artifacts) as $artifact) {
+            if (is_array($artifact)) {
+                $artifact = self::normalizeSuppliedArtifactValue($artifact);
+                $unwrapped = self::artifactListFromEnvelope($artifact);
+                if ($unwrapped !== null) {
+                    foreach (array_values($unwrapped) as $unwrappedArtifact) {
+                        $normalized[] = self::normalizeSuppliedArtifactValue($unwrappedArtifact);
+                    }
+
+                    continue;
+                }
+            }
+
             $normalized[] = self::normalizeSuppliedArtifactValue($artifact);
         }
 
@@ -213,6 +232,73 @@ final class PdfPageArtifactSelector
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @return list<mixed>|null
+     */
+    private static function artifactListFromEnvelope(array $value): ?array
+    {
+        if (self::hasDirectArtifactPayload($value)) {
+            return null;
+        }
+
+        foreach (['pages', 'dictionary_output'] as $pageListKey) {
+            if (!array_key_exists($pageListKey, $value)) {
+                continue;
+            }
+
+            $artifacts = self::normalizeSuppliedArtifactValue($value[$pageListKey]);
+            if (!is_array($artifacts)) {
+                continue;
+            }
+
+            if (!self::hasDirectArtifactPayload($artifacts) && array_key_exists('pages', $artifacts)) {
+                $nested = self::normalizeSuppliedArtifactValue($artifacts['pages']);
+                if (is_array($nested)) {
+                    return array_values($nested);
+                }
+            }
+
+            if (self::hasDirectArtifactPayload($artifacts)) {
+                return null;
+            }
+
+            return array_values($artifacts);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<mixed> $value
+     */
+    private static function hasDirectArtifactPayload(array $value): bool
+    {
+        foreach ([
+            'blocks',
+            'bbox',
+            'bboxes',
+            'image',
+            'image_bbox',
+            'layout',
+            'layout_result',
+            'order',
+            'order_result',
+            'prediction',
+            'result',
+            'model_output',
+            'output',
+            'page_data',
+            'page_result',
+        ] as $key) {
+            if (array_key_exists($key, $value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

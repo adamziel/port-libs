@@ -2879,4 +2879,81 @@ return [
         $t->true(!str_contains($encoded, 'normalized layout row needs positive image extent'));
         $t->true(!str_contains($encoded, 'normalized converter order row needs positive image extent'));
     },
+    'unwraps dictionary-output artifact envelopes before selected pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(4800, [
+                    ['text' => 'Dictionary-output artifact cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(4801, [
+                    ['text' => 'Second dictionary-output artifact column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First dictionary-output artifact column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+                $pdftextLinesPage(4802, [
+                    ['text' => 'Dictionary-output artifact appendix should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['source' => 'cached order dictionary_output envelope'],
+                    'dictionary_output' => [
+                        [
+                            'page' => 4800,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ],
+                            'raw_payload' => 'dictionary-output cover order payload must stay hidden',
+                        ],
+                        [
+                            'page' => 4801,
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ],
+                            'raw_payload' => 'dictionary-output selected order payload must stay hidden',
+                        ],
+                    ],
+                    'raw_payload' => 'dictionary-output order envelope payload must stay hidden',
+                ],
+            ],
+            orderImages: [
+                [
+                    'metadata' => ['source' => 'cached order image dictionary_output envelope'],
+                    'dictionary_output' => [
+                        ['page' => 4800, 'image' => 'dictionary-output-cover-order-render'],
+                        ['page' => 4801, 'image' => 'dictionary-output-selected-order-render'],
+                    ],
+                    'raw_payload' => 'dictionary-output order image envelope payload must stay hidden',
+                ],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(4801, $result['pages'][0]['pnum']);
+        $t->same(['First dictionary-output artifact column', 'Second dictionary-output artifact column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First dictionary-output artifact column Second dictionary-output artifact column', $blocks[0]['text']);
+        $t->same(4801, $order['page'] ?? null);
+        $t->true(!array_key_exists('dictionary_output', $order));
+        $t->true(!str_contains($encoded, 'Dictionary-output artifact cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'Dictionary-output artifact appendix should stay skipped'));
+        $t->true(!str_contains($encoded, 'dictionary-output cover order payload'));
+        $t->true(!str_contains($encoded, 'dictionary-output selected order payload'));
+        $t->true(!str_contains($encoded, 'dictionary-output order envelope payload'));
+        $t->true(!str_contains($encoded, 'dictionary-output order image envelope payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
 ];
