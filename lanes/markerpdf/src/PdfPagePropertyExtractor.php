@@ -1772,16 +1772,15 @@ final class PdfPagePropertyExtractor
         array $seen = [],
         array $preferredPrefix = []
     ): ?array {
+        $resolved = $this->resolvedPageTreeReference($objects, $objectNumber, $generation, $seen);
+        if ($resolved === null) {
+            return null;
+        }
+
+        $objectNumber = $resolved['objectNumber'];
+        $generation = $resolved['generation'];
+        $body = $resolved['body'];
         $referenceKey = $objectNumber . ':' . $generation;
-        if (isset($seen[$referenceKey])) {
-            return null;
-        }
-
-        $body = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
-        if ($body === null) {
-            return null;
-        }
-
         $seen[$referenceKey] = true;
         $type = $this->pdfObjectTypeName($body, $objects);
         if ($type === 'Page') {
@@ -1891,11 +1890,17 @@ final class PdfPagePropertyExtractor
 
         foreach ($this->arrayItemsFromValue($kids, $objects) as $kidValue) {
             $reference = $this->objectReferenceFromValue($kidValue);
+            $resolved = $reference === null
+                ? null
+                : $this->resolvedPageTreeReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
             if (
-                $reference !== null
-                && $reference['objectNumber'] === $childObjectNumber
-                && $reference['generation'] === $childGeneration
-                && $this->objectBodyForPageTreeReference($objects, $childObjectNumber, $childGeneration) !== null
+                $resolved !== null
+                && $resolved['objectNumber'] === $childObjectNumber
+                && $resolved['generation'] === $childGeneration
             ) {
                 return true;
             }
@@ -3271,16 +3276,15 @@ final class PdfPagePropertyExtractor
      */
     private function pageObjectNumbersFromTree(int $objectNumber, int $generation, array $objects, array $seen = []): array
     {
+        $resolved = $this->resolvedPageTreeReference($objects, $objectNumber, $generation, $seen);
+        if ($resolved === null) {
+            return [];
+        }
+
+        $objectNumber = $resolved['objectNumber'];
+        $generation = $resolved['generation'];
+        $body = $resolved['body'];
         $referenceKey = $objectNumber . ':' . $generation;
-        if (isset($seen[$referenceKey])) {
-            return [];
-        }
-
-        $body = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
-        if ($body === null) {
-            return [];
-        }
-
         $seen[$referenceKey] = true;
         if ($this->pdfObjectTypeName($body, $objects) === 'Page') {
             return [$objectNumber];
@@ -3328,16 +3332,46 @@ final class PdfPagePropertyExtractor
      */
     private function objectBodyForPageTreeReference(array $objects, int $objectNumber, int $generation): ?string
     {
+        $resolved = $this->resolvedPageTreeReference($objects, $objectNumber, $generation);
+
+        return $resolved['body'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{objectNumber: int, generation: int, body: string}|null
+     */
+    private function resolvedPageTreeReference(array $objects, int $objectNumber, int $generation, array $seen = []): ?array
+    {
+        $referenceKey = $objectNumber . ':' . $generation;
         if (
             $objectNumber <= 0
             || $generation < 0
+            || isset($seen[$referenceKey])
             || !isset($objects[$objectNumber])
             || ($this->currentObjectGenerations[$objectNumber] ?? null) !== $generation
         ) {
             return null;
         }
 
-        return $objects[$objectNumber];
+        $body = $objects[$objectNumber];
+        $seen[$referenceKey] = true;
+        $reference = $this->objectReferenceFromValue(trim($body));
+        if ($reference !== null) {
+            return $this->resolvedPageTreeReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $seen
+            );
+        }
+
+        return [
+            'objectNumber' => $objectNumber,
+            'generation' => $generation,
+            'body' => $body,
+        ];
     }
 
     /**

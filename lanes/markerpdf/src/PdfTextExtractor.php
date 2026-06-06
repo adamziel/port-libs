@@ -12764,16 +12764,15 @@ final class PdfTextExtractor
      */
     private function pageObjectNumbersFromTree(int $objectNumber, int $generation, array $objects, array $seen = []): array
     {
+        $resolved = $this->resolvedPageTreeReference($objects, $objectNumber, $generation, $seen);
+        if ($resolved === null) {
+            return [];
+        }
+
+        $objectNumber = $resolved['objectNumber'];
+        $generation = $resolved['generation'];
+        $body = $resolved['body'];
         $referenceKey = $objectNumber . ':' . $generation;
-        if (isset($seen[$referenceKey])) {
-            return [];
-        }
-
-        $body = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
-        if ($body === null) {
-            return [];
-        }
-
         $seen[$referenceKey] = true;
         if ($this->isPageObject($body)) {
             return [$objectNumber];
@@ -12865,7 +12864,16 @@ final class PdfTextExtractor
         }
 
         foreach ($this->pageTreeKidReferencesFromArray($kidsArray, $objects) as $reference) {
-            if ($reference['objectNumber'] === $childObjectNumber && $reference['generation'] === $childGeneration) {
+            $resolved = $this->resolvedPageTreeReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if (
+                $resolved !== null
+                && $resolved['objectNumber'] === $childObjectNumber
+                && $resolved['generation'] === $childGeneration
+            ) {
                 return true;
             }
         }
@@ -12898,20 +12906,56 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
+     * @param array<string, true> $seen
+     * @return array{objectNumber: int, generation: int, body: string}|null
      */
-    private function objectBodyForPageTreeReference(array $objects, int $objectNumber, int $generation): ?string
+    private function resolvedPageTreeReference(array $objects, int $objectNumber, int $generation, array $seen = []): ?array
     {
-        if ($objectNumber <= 0 || $generation < 0 || !isset($objects[$objectNumber])) {
+        $referenceKey = $objectNumber . ':' . $generation;
+        if ($objectNumber <= 0 || $generation < 0 || isset($seen[$referenceKey]) || !isset($objects[$objectNumber])) {
             return null;
         }
 
         $owner = $this->currentObjectReferenceOwners[$objectNumber] ?? null;
         if ($owner !== null && $objects[$objectNumber] === $owner['body']) {
-            return $owner['generation'] === $generation ? $owner['body'] : null;
+            if ($owner['generation'] !== $generation) {
+                return null;
+            }
+
+            $body = $owner['body'];
+        } else {
+            $body = $this->currentDirectObjectBodiesByGeneration[$objectNumber][$generation] ?? null;
+            if ($body === null || $objects[$objectNumber] !== $body) {
+                return null;
+            }
         }
 
-        $exactBody = $this->currentDirectObjectBodiesByGeneration[$objectNumber][$generation] ?? null;
-        return $exactBody !== null && $objects[$objectNumber] === $exactBody ? $exactBody : null;
+        $seen[$referenceKey] = true;
+        $reference = $this->pdfIndirectReferenceValue(trim($body));
+        if ($reference !== null) {
+            return $this->resolvedPageTreeReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation'],
+                $seen
+            );
+        }
+
+        return [
+            'objectNumber' => $objectNumber,
+            'generation' => $generation,
+            'body' => $body,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function objectBodyForPageTreeReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        $resolved = $this->resolvedPageTreeReference($objects, $objectNumber, $generation);
+
+        return $resolved['body'] ?? null;
     }
 
     private function isCatalogObject(string $body): bool
@@ -17118,16 +17162,15 @@ final class PdfTextExtractor
         array $seen = [],
         array $preferredPrefix = []
     ): ?array {
+        $resolved = $this->resolvedPageTreeReference($objects, $objectNumber, $generation, $seen);
+        if ($resolved === null) {
+            return null;
+        }
+
+        $objectNumber = $resolved['objectNumber'];
+        $generation = $resolved['generation'];
+        $body = $resolved['body'];
         $referenceKey = $objectNumber . ':' . $generation;
-        if (isset($seen[$referenceKey])) {
-            return null;
-        }
-
-        $body = $this->objectBodyForPageTreeReference($objects, $objectNumber, $generation);
-        if ($body === null) {
-            return null;
-        }
-
         $seen[$referenceKey] = true;
         if ($this->isPageObject($body)) {
             return $objectNumber === $targetPageObjectNumber ? [$objectNumber] : null;
