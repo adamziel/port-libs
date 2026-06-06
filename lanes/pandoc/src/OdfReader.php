@@ -20,6 +20,7 @@ final class OdfReader
     private const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const MATH_NS = 'http://www.w3.org/1998/Math/MathML';
+    private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -742,16 +743,21 @@ final class OdfReader
         $headingAnchor = $this->extractHeadingBookmarkAnchor($inlines);
         $inlines = $headingAnchor['inlines'];
         $text = $this->plainInlineText($inlines);
+        $attributeAnchor = $headingAnchor['anchor'] === null ? $this->headingAttributeAnchor($heading) : null;
         $attrs = [
             'level' => $level,
             'sourceFormat' => 'odt',
             'text' => $text,
             'id' => $headingAnchor['anchor'] === null
-                ? $this->uniqueHeadingAnchor($text)
+                ? ($attributeAnchor === null
+                    ? $this->uniqueHeadingAnchor($text)
+                    : $this->uniqueHeadingAnchorFromBase($attributeAnchor['sourceId']))
                 : $this->uniqueHeadingAnchorFromBase($headingAnchor['anchor']['id']),
         ];
         if ($headingAnchor['anchor'] !== null) {
             $this->addHeadingBookmarkAnchorAttrs($attrs, $headingAnchor['anchor']);
+        } elseif ($attributeAnchor !== null) {
+            $this->addHeadingAttributeAnchorAttrs($attrs, $attributeAnchor);
         }
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
@@ -802,12 +808,17 @@ final class OdfReader
             $headingAnchor = $this->extractHeadingBookmarkAnchor($inlines);
             $inlines = $headingAnchor['inlines'];
             $text = $this->plainInlineText($inlines);
+            $attributeAnchor = $headingAnchor['anchor'] === null ? $this->headingAttributeAnchor($paragraph) : null;
             $attrs['text'] = $text;
             $attrs['id'] = $headingAnchor['anchor'] === null
-                ? $this->uniqueHeadingAnchor($text)
+                ? ($attributeAnchor === null
+                    ? $this->uniqueHeadingAnchor($text)
+                    : $this->uniqueHeadingAnchorFromBase($attributeAnchor['sourceId']))
                 : $this->uniqueHeadingAnchorFromBase($headingAnchor['anchor']['id']);
             if ($headingAnchor['anchor'] !== null) {
                 $this->addHeadingBookmarkAnchorAttrs($attrs, $headingAnchor['anchor']);
+            } elseif ($attributeAnchor !== null) {
+                $this->addHeadingAttributeAnchorAttrs($attrs, $attributeAnchor);
             }
 
             return new AstNode('heading', $attrs, $inlines);
@@ -4903,6 +4914,48 @@ final class OdfReader
         ];
         $attrs['attributes']['data-odf-heading-anchor-source'] = 'bookmark';
         $attrs['attributes']['data-odf-heading-bookmark-name'] = $anchor['bookmarkName'];
+        $attrs['attributes']['data-odf-heading-anchor-id'] = $attrs['id'];
+    }
+
+    /**
+     * @return ?array{sourceId:string, attributeName:string}
+     */
+    private function headingAttributeAnchor(\DOMElement $heading): ?array
+    {
+        $textId = self::attr($heading, self::TEXT_NS, 'id');
+        if ($textId !== '') {
+            return [
+                'sourceId' => $textId,
+                'attributeName' => 'text:id',
+            ];
+        }
+
+        $xmlId = self::attr($heading, self::XML_NS, 'id');
+        if ($xmlId !== '') {
+            return [
+                'sourceId' => $xmlId,
+                'attributeName' => 'xml:id',
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array{sourceId:string, attributeName:string} $anchor
+     */
+    private function addHeadingAttributeAnchorAttrs(array &$attrs, array $anchor): void
+    {
+        $attrs['odfHeadingAnchor'] = [
+            'source' => 'attribute',
+            'attributeName' => $anchor['attributeName'],
+            'sourceId' => $anchor['sourceId'],
+            'id' => $attrs['id'],
+        ];
+        $attrs['attributes']['data-odf-heading-anchor-source'] = 'attribute';
+        $attrs['attributes']['data-odf-heading-source-attribute'] = $anchor['attributeName'];
+        $attrs['attributes']['data-odf-heading-source-id'] = $anchor['sourceId'];
         $attrs['attributes']['data-odf-heading-anchor-id'] = $attrs['id'];
     }
 

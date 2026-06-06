@@ -134,6 +134,7 @@ $contentXml = <<<'XML'
         <text:user-field-decl text:name="SourcePackage" office:value-type="string" office:string-value="package-42"/>
       </text:user-field-decls>
       <text:h text:outline-level="1" text:style-name="ImportHeading"><text:bookmark-start text:name="ODT source packet"/>ODT source packet<text:bookmark-end text:name="ODT source packet"/></text:h>
+      <text:p text:style-name="ImportHeading" xml:id="source-overview-id">Source overview heading</text:p>
       <text:table-of-content text:name="Source Navigation" text:style-name="Contents_20_1" text:protected="true" text:protection-key="toc-review-key" text:protection-key-digest-algorithm="urn:odf:sha1">
         <text:table-of-content-source text:outline-level="2" text:relative-tab-stop-position="true" text:use-index-source-styles="true">
           <text:index-source-styles text:outline-level="1">
@@ -301,8 +302,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['document']->children[0]->attr('odfHeadingAnchor')['bookmarkName'] ?? '') !== 'ODT source packet') {
         throw new RuntimeException('Expected ODT heading bookmark metadata to survive AST handoff');
     }
+    if (($result['document']->children[1]->attr('id') ?? '') !== 'source-overview-id') {
+        throw new RuntimeException('Expected ODT xml:id heading identifier to survive AST handoff');
+    }
+    if (($result['document']->children[1]->attr('odfHeadingAnchor')['attributeName'] ?? '') !== 'xml:id') {
+        throw new RuntimeException('Expected ODT xml:id heading provenance to survive AST handoff');
+    }
     if (!str_contains($blocks, '<h1 id="odt-source-packet">ODT source packet</h1>')) {
         throw new RuntimeException('Expected ODT heading to render as a WordPress heading block');
+    }
+    if (!str_contains($blocks, '<h1 id="source-overview-id">Source overview heading</h1>')) {
+        throw new RuntimeException('Expected ODT xml:id heading to render as a WordPress heading block');
+    }
+    if (!str_contains($markdown, '# Source overview heading {#source-overview-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="source-overview-id" data-odf-heading-anchor-id="source-overview-id"}')) {
+        throw new RuntimeException('Expected ODT xml:id heading provenance to render in Markdown handoff');
     }
     if (str_contains($blocks, '<h1 id="odt-source-packet"><span id="odt-source-packet"')) {
         throw new RuntimeException('Expected ODT heading bookmark to avoid nested empty anchor output');

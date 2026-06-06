@@ -689,6 +689,64 @@ XML;
         $t->contains('<h2 id="source-review-anchor-1">Source Review Anchor</h2>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'class="anchor odf-bookmark"'), 'Heading bookmarks should become heading ids, not nested empty anchors');
     },
+    'uses ODT text and XML heading ids as explicit source anchors' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithParagraphHeading = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="StyledHeading" style:family="paragraph" style:display-name="Styled Heading" style:default-outline-level="2"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithHeadingSourceIds = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1" text:id="source-review-id">Heading with text id</text:h>
+      <text:p text:style-name="StyledHeading" xml:id="styled-source-id">Styled heading with XML id</text:p>
+      <text:h text:outline-level="2" text:id="source-review-id">Duplicate source id</text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithHeadingSourceIds, null, $stylesWithParagraphHeading));
+        $headings = $result['document']->children;
+
+        $t->same(3, count($headings));
+        $t->same('heading', $headings[0]->type);
+        $t->same('source-review-id', $headings[0]->attr('id'));
+        $t->same('attribute', $headings[0]->attr('odfHeadingAnchor')['source']);
+        $t->same('text:id', $headings[0]->attr('odfHeadingAnchor')['attributeName']);
+        $t->same('source-review-id', $headings[0]->attr('odfHeadingAnchor')['sourceId']);
+        $t->same('source-review-id', $headings[0]->attr('attributes')['data-odf-heading-source-id']);
+        $t->same('text:id', $headings[0]->attr('attributes')['data-odf-heading-source-attribute']);
+        $t->same('Heading with text id', $headings[0]->attr('text'));
+
+        $t->same('heading', $headings[1]->type);
+        $t->same(2, $headings[1]->attr('level'));
+        $t->same('styled-source-id', $headings[1]->attr('id'));
+        $t->same('xml:id', $headings[1]->attr('odfHeadingAnchor')['attributeName']);
+        $t->same('StyledHeading', $headings[1]->attr('styleName'));
+        $t->same('Styled heading with XML id', $headings[1]->attr('text'));
+
+        $t->same('source-review-id-1', $headings[2]->attr('id'));
+        $t->same('source-review-id', $headings[2]->attr('odfHeadingAnchor')['sourceId']);
+        $t->same('Duplicate source id', $headings[2]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('# Heading with text id {#source-review-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id"}', $markdown);
+        $t->contains('## Styled heading with XML id {#styled-source-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="styled-source-id" data-odf-heading-anchor-id="styled-source-id"}', $markdown);
+        $t->contains('## Duplicate source id {#source-review-id-1 data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id-1"}', $markdown);
+        $t->contains('<h1 id="source-review-id">Heading with text id</h1>', $blocksHtml);
+        $t->contains('<h2 id="styled-source-id">Styled heading with XML id</h2>', $blocksHtml);
+        $t->contains('<h2 id="source-review-id-1">Duplicate source id</h2>', $blocksHtml);
+    },
     'maps ODT table names and protection metadata into review table handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedProtectedTable = <<<'XML'
 <office:document-content
