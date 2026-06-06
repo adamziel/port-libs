@@ -6622,6 +6622,11 @@ final class TableRecognizer
             'bbox_upper_right_lower_left_points' => ['upper_right', 'lower_left'],
             'bbox_tl_br_points' => ['tl', 'br'],
             'bbox_tr_bl_points' => ['tr', 'bl'],
+            'bbox_start_end_points' => ['start', 'end'],
+            'bbox_from_to_points' => ['from', 'to'],
+            'bbox_p1_p2_points' => ['p1', 'p2'],
+            'bbox_point1_point2_points' => ['point1', 'point2'],
+            'bbox_start_point_end_point_points' => ['start_point', 'end_point'],
         ];
     }
 
