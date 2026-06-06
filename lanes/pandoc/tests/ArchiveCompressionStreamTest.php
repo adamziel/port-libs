@@ -1026,6 +1026,10 @@ return [
         $t->same(['gnu-typeflag'], $policy['entries'][0]['sparseHeaderFamilies']);
         $t->same([], $policy['entries'][0]['sparseHeaderKeys']);
         $t->same(null, $policy['entries'][0]['realSize']);
+        $t->same(null, $policy['entries'][0]['sparseMapSource']);
+        $t->same([], $policy['entries'][0]['sparseMapSegments']);
+        $t->same(0, $policy['entries'][0]['sparseMapSegmentCount']);
+        $t->same(0, $policy['entries'][0]['sparseMapPayloadBytes']);
         $t->same(strlen($gnuTypePayload), $policy['entries'][0]['payloadSize']);
         $t->same(['tar-sparse-entry-not-extracted', 'gnu-typeflag'], $policy['entries'][0]['diagnostics']);
         $t->same('pax-sparse', $policy['entries'][1]['sparseType']);
@@ -1038,6 +1042,13 @@ return [
             'GNU.sparse.realsize',
         ], $policy['entries'][1]['sparseHeaderKeys']);
         $t->same(4096, $policy['entries'][1]['realSize']);
+        $t->same('GNU.sparse.map', $policy['entries'][1]['sparseMapSource']);
+        $t->same([
+            ['offset' => 0, 'length' => 12, 'endOffset' => 12],
+            ['offset' => 4090, 'length' => 6, 'endOffset' => 4096],
+        ], $policy['entries'][1]['sparseMapSegments']);
+        $t->same(2, $policy['entries'][1]['sparseMapSegmentCount']);
+        $t->same(18, $policy['entries'][1]['sparseMapPayloadBytes']);
         $t->same(strlen($gnuPaxPayload), $policy['entries'][1]['payloadSize']);
         $t->same('pax-path', $policy['entries'][1]['nameSource']);
         $t->same(['tar-sparse-entry-not-extracted', 'gnu-pax'], $policy['entries'][1]['diagnostics']);
@@ -1048,6 +1059,13 @@ return [
             'SCHILY.sparse.map',
         ], $policy['entries'][2]['sparseHeaderKeys']);
         $t->same(8192, $policy['entries'][2]['realSize']);
+        $t->same('SCHILY.sparse.map', $policy['entries'][2]['sparseMapSource']);
+        $t->same([
+            ['offset' => 0, 'length' => 16, 'endOffset' => 16],
+            ['offset' => 8176, 'length' => 16, 'endOffset' => 8192],
+        ], $policy['entries'][2]['sparseMapSegments']);
+        $t->same(2, $policy['entries'][2]['sparseMapSegmentCount']);
+        $t->same(32, $policy['entries'][2]['sparseMapPayloadBytes']);
         $t->same(strlen($schilyPaxPayload), $policy['entries'][2]['payloadSize']);
         $t->same('pax-path', $policy['entries'][2]['nameSource']);
         $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $streamPolicy['format']);
@@ -1056,12 +1074,50 @@ return [
         $t->same('wordpress-sparse-policy.tar', $streamPolicy['stream']['members'][0]['filename']);
         $t->same(3, $streamPolicy['sparseEntryCount']);
         $t->same('packet/schily-pax-sparse.bin', $streamPolicy['entries'][2]['name']);
+        $t->same(32, $streamPolicy['entries'][2]['sparseMapPayloadBytes']);
+        $t->same('SCHILY.sparse.map', $streamPolicy['entries'][2]['sparseMapSource']);
         $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($archiveBytes));
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarSparsePolicy(
             $gzip,
             ArchiveCompressionStream::FORMAT_GZIP_TAR,
             strlen($archiveBytes) - 1
         ));
+    },
+
+    'rejects malformed tar sparse maps before policy metadata is exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $sparseArchive = static function (array $headers) use ($rawTarHeader, $paxPayload): string {
+            return $rawTarHeader('PaxHeaders/sparse-map', 'x', $paxPayload($headers), 0, false)
+                . $rawTarHeader('placeholder.bin', '0', 'sparse payload fragment', 0, false)
+                . str_repeat("\0", 1024);
+        };
+
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::sparsePolicyPreflight($sparseArchive([
+            'path' => 'packet/odd-map.bin',
+            'GNU.sparse.realsize' => '4096',
+            'GNU.sparse.map' => '0,12,4090',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::sparsePolicyPreflight($sparseArchive([
+            'path' => 'packet/non-numeric-map.bin',
+            'SCHILY.filetype' => 'sparse',
+            'SCHILY.realsize' => '8192',
+            'SCHILY.sparse.map' => '0,16,not-a-number,16',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::sparsePolicyPreflight($sparseArchive([
+            'path' => 'packet/overlap-map.bin',
+            'GNU.sparse.realsize' => '4096',
+            'GNU.sparse.map' => '0,12,10,4',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::sparsePolicyPreflight($sparseArchive([
+            'path' => 'packet/beyond-realsize-map.bin',
+            'GNU.sparse.realsize' => '4096',
+            'GNU.sparse.map' => '4090,7',
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): array => TarArchive::sparsePolicyPreflight($sparseArchive([
+            'path' => 'packet/mixed-map.bin',
+            'GNU.sparse.realsize' => '4096',
+            'GNU.sparse.map' => '0,12',
+            'SCHILY.sparse.map' => '0,12',
+        ])));
     },
 
     'rejects tar pax linkpath metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {

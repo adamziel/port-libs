@@ -248,6 +248,21 @@ try {
 } catch (RuntimeException) {
     $sparsePolicyExtractionBlocked = true;
 }
+$sparseMalformedMapBlocked = false;
+try {
+    TarArchive::sparsePolicyPreflight(
+        $rawTarHeader('PaxHeaders/malformed-sparse-map', 'x', $paxPayload([
+            'path' => 'packet/malformed-sparse-map.bin',
+            'SCHILY.filetype' => 'sparse',
+            'SCHILY.realsize' => '8192',
+            'SCHILY.sparse.map' => '0,16,8176',
+        ]), 0, false)
+        . $rawTarHeader('placeholder-malformed.bin', '0', 'sparse payload fragment', 0, false)
+        . str_repeat("\0", 1024)
+    );
+} catch (RuntimeException) {
+    $sparseMalformedMapBlocked = true;
+}
 $signedChecksumArchiveBytes = $rewriteTarHeaderWithSignedChecksum($rawTarHeader(
     "packet/signed-\u{2603}-checksum.md",
     '0',
@@ -392,6 +407,9 @@ if (in_array('--self-test', $argv, true)) {
         'sparsePolicyGnuTypeName' => 'packet/gnu-type-sparse.bin',
         'sparsePolicySchilyName' => 'packet/schily-pax-sparse.bin',
         'sparsePolicyRealSize' => 8192,
+        'sparsePolicyMapSource' => 'SCHILY.sparse.map',
+        'sparsePolicyMapSegmentCount' => 2,
+        'sparsePolicyMapPayloadBytes' => 32,
         'signedChecksumFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'signedChecksumName' => "packet/signed-\u{2603}-checksum.md",
         'signedChecksumModifiedAt' => 1780479083,
@@ -465,7 +483,12 @@ if (in_array('--self-test', $argv, true)) {
         || ($sparsePolicyInspection['entries'][1]['name'] ?? null) !== $expected['sparsePolicySchilyName']
         || ($sparsePolicyInspection['entries'][1]['sparseHeaderFamilies'] ?? []) !== ['schily-pax']
         || ($sparsePolicyInspection['entries'][1]['realSize'] ?? null) !== $expected['sparsePolicyRealSize']
+        || ($sparsePolicyInspection['entries'][1]['sparseMapSource'] ?? null) !== $expected['sparsePolicyMapSource']
+        || ($sparsePolicyInspection['entries'][1]['sparseMapSegmentCount'] ?? null) !== $expected['sparsePolicyMapSegmentCount']
+        || ($sparsePolicyInspection['entries'][1]['sparseMapPayloadBytes'] ?? null) !== $expected['sparsePolicyMapPayloadBytes']
+        || ($sparsePolicyInspection['entries'][1]['sparseMapSegments'][1]['endOffset'] ?? null) !== $expected['sparsePolicyRealSize']
         || ($sparsePolicyInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-sparse-policy.tar'
+        || !$sparseMalformedMapBlocked
         || $signedChecksumInspection['format'] !== $expected['signedChecksumFormat']
         || ($signedChecksumInspection['entryNames'][0] ?? null) !== $expected['signedChecksumName']
         || ($signedChecksumInspection['entryLayouts'][0]['modifiedAt'] ?? null) !== $expected['signedChecksumModifiedAt']
@@ -539,6 +562,10 @@ echo 'sparsePolicy.extractionPolicy=' . $sparsePolicyInspection['extractionPolic
 echo 'sparsePolicy.sparseEntryCount=' . $sparsePolicyInspection['sparseEntryCount'] . "\n";
 echo 'sparsePolicy.gnuTypeName=' . $sparsePolicyInspection['entries'][0]['name'] . "\n";
 echo 'sparsePolicy.schilyName=' . $sparsePolicyInspection['entries'][1]['name'] . "\n";
+echo 'sparsePolicy.mapSource=' . $sparsePolicyInspection['entries'][1]['sparseMapSource'] . "\n";
+echo 'sparsePolicy.mapSegmentCount=' . $sparsePolicyInspection['entries'][1]['sparseMapSegmentCount'] . "\n";
+echo 'sparsePolicy.mapPayloadBytes=' . $sparsePolicyInspection['entries'][1]['sparseMapPayloadBytes'] . "\n";
+echo 'sparsePolicy.malformedMapBlocked=' . ($sparseMalformedMapBlocked ? 'yes' : 'no') . "\n";
 echo 'signedChecksum.format=' . $signedChecksumInspection['format'] . "\n";
 echo 'signedChecksum.entry=' . $signedChecksumInspection['entryNames'][0] . "\n";
 echo 'signedChecksum.modifiedAt=' . $signedChecksumInspection['entryLayouts'][0]['modifiedAt'] . "\n";

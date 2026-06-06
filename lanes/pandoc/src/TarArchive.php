@@ -426,6 +426,10 @@ final class TarArchive
      *         sparseHeaderFamilies:list<string>,
      *         sparseHeaderKeys:list<string>,
      *         realSize:?int,
+     *         sparseMapSource:?string,
+     *         sparseMapSegments:list<array{offset:int, length:int, endOffset:int}>,
+     *         sparseMapSegmentCount:int,
+     *         sparseMapPayloadBytes:int,
      *         payloadSize:int,
      *         nameSource:string,
      *         headerOffset:int,
@@ -567,6 +571,16 @@ final class TarArchive
             $sparseHeaderKeys = self::sparsePaxHeaderKeys($metadataHeaders);
             if ($isGnuSparseType || $sparseHeaderKeys !== []) {
                 $families = self::sparseHeaderFamilies($metadataHeaders, $isGnuSparseType);
+                $realSize = self::sparseRealSize($metadataHeaders);
+                $sparseMapSource = self::sparseMapSource($metadataHeaders);
+                $sparseMapSegments = self::sparseMapSegments($metadataHeaders, $realSize);
+                $sparseMapPayloadBytes = 0;
+                foreach ($sparseMapSegments as $segment) {
+                    if ($sparseMapPayloadBytes > PHP_INT_MAX - $segment['length']) {
+                        throw new \RuntimeException('TAR PAX sparse map payload byte count is too large for this PHP runtime');
+                    }
+                    $sparseMapPayloadBytes += $segment['length'];
+                }
                 $diagnostics = ['tar-sparse-entry-not-extracted'];
                 foreach ($families as $family) {
                     $diagnostics[] = $family;
@@ -577,7 +591,11 @@ final class TarArchive
                     'sparseType' => $isGnuSparseType ? 'gnu-sparse-typeflag' : 'pax-sparse',
                     'sparseHeaderFamilies' => $families,
                     'sparseHeaderKeys' => $sparseHeaderKeys,
-                    'realSize' => self::sparseRealSize($metadataHeaders),
+                    'realSize' => $realSize,
+                    'sparseMapSource' => $sparseMapSource,
+                    'sparseMapSegments' => $sparseMapSegments,
+                    'sparseMapSegmentCount' => count($sparseMapSegments),
+                    'sparseMapPayloadBytes' => $sparseMapPayloadBytes,
                     'payloadSize' => $entrySize,
                     'nameSource' => $nameSource,
                     'headerOffset' => $headerOffset,
@@ -1313,6 +1331,79 @@ final class TarArchive
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function sparseMapSource(array $headers): ?string
+    {
+        $sources = [];
+        foreach (['GNU.sparse.map', 'SCHILY.sparse.map'] as $key) {
+            if (isset($headers[$key])) {
+                $sources[] = $key;
+            }
+        }
+
+        if (count($sources) > 1) {
+            throw new \RuntimeException('TAR PAX sparse map metadata must not mix GNU and SCHILY map records');
+        }
+
+        return $sources[0] ?? null;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<array{offset:int, length:int, endOffset:int}>
+     */
+    private static function sparseMapSegments(array $headers, ?int $realSize): array
+    {
+        $source = self::sparseMapSource($headers);
+        if ($source === null) {
+            return [];
+        }
+
+        $value = $headers[$source];
+        if ($value === '') {
+            throw new \RuntimeException("TAR PAX {$source} sparse map must not be empty");
+        }
+
+        $tokens = explode(',', $value);
+        if (count($tokens) % 2 !== 0) {
+            throw new \RuntimeException("TAR PAX {$source} sparse map must contain offset,length pairs");
+        }
+
+        $segments = [];
+        $previousEndOffset = 0;
+        for ($index = 0; $index < count($tokens); $index += 2) {
+            $offset = self::parsePaxNonNegativeInteger($tokens[$index], "TAR PAX {$source} sparse map offset");
+            $length = self::parsePaxNonNegativeInteger($tokens[$index + 1], "TAR PAX {$source} sparse map length");
+            if ($length === 0) {
+                throw new \RuntimeException("TAR PAX {$source} sparse map contains a zero-length segment");
+            }
+
+            if ($offset < $previousEndOffset) {
+                throw new \RuntimeException("TAR PAX {$source} sparse map segments must be sorted and non-overlapping");
+            }
+
+            if ($offset > PHP_INT_MAX - $length) {
+                throw new \RuntimeException("TAR PAX {$source} sparse map segment is too large for this PHP runtime");
+            }
+
+            $endOffset = $offset + $length;
+            if ($realSize !== null && $endOffset > $realSize) {
+                throw new \RuntimeException("TAR PAX {$source} sparse map segment exceeds the declared real size");
+            }
+
+            $segments[] = [
+                'offset' => $offset,
+                'length' => $length,
+                'endOffset' => $endOffset,
+            ];
+            $previousEndOffset = $endOffset;
+        }
+
+        return $segments;
     }
 
     /**
