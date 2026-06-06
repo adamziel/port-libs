@@ -205,6 +205,21 @@ return [
         $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">[</mo><mi>x</mi><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">]</mo>', $sizedMathml);
         $t->contains('alttext="left ceiling x right ceiling plus left floor y right floor"', $accessibleMathml);
     },
+    'converts bounded tex arrow group and moustache delimiters to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $arrowFenceMathml = $converter->texToMathMl('\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow', true);
+        $groupMathml = $converter->texToMathMl('\\lgroup p_i \\rgroup + \\left\\lmoustache a \\right\\rmoustache + \\arrowvert q \\Arrowvert r \\bracevert');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\left\\uparrow x \\right\\downarrow');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $arrowFenceMathml);
+        $t->contains('<mo fence="true" stretchy="true">↑</mo><msub><mi>x</mi><mi>i</mi></msub><mo fence="true" stretchy="true" separator="true">⇕</mo><msub><mi>y</mi><mi>i</mi></msub><mo fence="true" stretchy="true">↓</mo>', $arrowFenceMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⇑</mo><mi>z</mi><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">⇓</mo>', $arrowFenceMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow</annotation>', $arrowFenceMathml);
+        $t->contains('<mo>⟮</mo><msub><mi>p</mi><mi>i</mi></msub><mo>⟯</mo>', $groupMathml);
+        $t->contains('<mo fence="true" stretchy="true">⎰</mo><mi>a</mi><mo fence="true" stretchy="true">⎱</mo>', $groupMathml);
+        $t->contains('<mo>|</mo><mi>q</mi><mo>‖</mo><mi>r</mi><mo>⎪</mo>', $groupMathml);
+        $t->contains('alttext="up arrow x down arrow"', $accessibleMathml);
+    },
     'converts bounded tex sized delimiter commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $sizedMathml = $converter->texToMathMl('\\bigl( p_i \\bigr) + \\Bigl\\langle m_i \\Bigr\\rangle + \\big|x\\big|', true);
