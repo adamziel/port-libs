@@ -165,12 +165,25 @@ return [
 
         $roundTrip = TarArchive::fromString($archive->bytes());
         $paxEntry = $roundTrip->entry($paxName);
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $archive->bytes(),
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archive->bytes())
+        );
 
         $t->true(strlen($ustarName) > 100);
         $t->true(strlen($paxName) > 100);
         $t->same($ustarName, $roundTrip->entry($ustarName)->name);
         $t->same($paxName, $paxEntry->name);
         $t->same($paxName, $paxEntry->paxHeaders['path'] ?? null);
+        $t->same('ustar-prefix', $roundTrip->entry($ustarName)->nameSource);
+        $t->same('pax-path', $paxEntry->nameSource);
+        $t->same([], $paxEntry->globalPaxHeaders);
+        $t->same(['path' => $paxName], $paxEntry->localPaxHeaders);
+        $t->same([], $paxEntry->deletedPaxHeaderKeys);
+        $t->same('ustar-prefix', $inspection['entryLayouts'][0]['nameSource']);
+        $t->same('pax-path', $inspection['entryLayouts'][1]['nameSource']);
+        $t->same(['path'], $inspection['entryLayouts'][1]['paxLocalHeaderKeys']);
         $t->same(1780479020, $paxEntry->modifiedAt);
         $t->same('<w:document><w:p>ustar prefix path</w:p></w:document>', $roundTrip->read($ustarName));
         $t->same('<w:document><w:p>pax path metadata</w:p></w:document>', $roundTrip->read('/' . $paxName));
@@ -504,21 +517,52 @@ return [
         $t->same(null, $local->paxHeaders['uname'] ?? null);
         $t->same('BINARY', $local->paxHeaders['hdrcharset'] ?? null);
         $t->same('local-clean', $local->paxHeaders['org.wordpress.import.review'] ?? null);
+        $t->same([
+            'comment' => 'global archive review',
+            'hdrcharset' => 'BINARY',
+            'mtime' => '1780479074',
+            'uname' => 'global-reviewer',
+        ], $local->globalPaxHeaders);
+        $t->same([
+            'comment' => '',
+            'mtime' => '',
+            'uname' => '',
+            'org.wordpress.import.review' => 'local-clean',
+        ], $local->localPaxHeaders);
+        $t->same(['comment', 'mtime', 'uname'], $local->deletedPaxHeaderKeys);
         $t->same($localDocument, $roundTrip->read('/packet/local-delete.xml'));
         $t->same(1780479074, $inherited->modifiedAt);
         $t->same('global-reviewer', $inherited->userName);
         $t->same('global archive review', $inherited->paxHeaders['comment'] ?? null);
         $t->same('BINARY', $inherited->paxHeaders['hdrcharset'] ?? null);
+        $t->same([
+            'comment' => 'global archive review',
+            'hdrcharset' => 'BINARY',
+            'mtime' => '1780479074',
+            'uname' => 'global-reviewer',
+        ], $inherited->globalPaxHeaders);
+        $t->same([], $inherited->localPaxHeaders);
+        $t->same([], $inherited->deletedPaxHeaderKeys);
         $t->same($inheritedDocument, $roundTrip->read('/packet/inherited.xml'));
         $t->same(1780479074, $afterGlobalDelete->modifiedAt);
         $t->same('', $afterGlobalDelete->userName);
         $t->same(null, $afterGlobalDelete->paxHeaders['comment'] ?? null);
         $t->same(null, $afterGlobalDelete->paxHeaders['hdrcharset'] ?? null);
         $t->same(null, $afterGlobalDelete->paxHeaders['uname'] ?? null);
+        $t->same(['mtime' => '1780479074'], $afterGlobalDelete->globalPaxHeaders);
         $t->same($globalDeletionDocument, $roundTrip->read('/packet/global-delete.xml'));
         $t->same(['hdrcharset', 'org.wordpress.import.review'], $inspection['entryLayouts'][0]['paxHeaderKeys']);
         $t->same(['comment', 'hdrcharset', 'mtime', 'uname'], $inspection['entryLayouts'][1]['paxHeaderKeys']);
         $t->same(['mtime'], $inspection['entryLayouts'][2]['paxHeaderKeys']);
+        $t->same(['comment', 'hdrcharset', 'mtime', 'uname'], $inspection['entryLayouts'][0]['paxGlobalHeaderKeys']);
+        $t->same(['comment', 'mtime', 'org.wordpress.import.review', 'uname'], $inspection['entryLayouts'][0]['paxLocalHeaderKeys']);
+        $t->same(['comment', 'mtime', 'uname'], $inspection['entryLayouts'][0]['paxDeletedHeaderKeys']);
+        $t->same(['comment', 'hdrcharset', 'mtime', 'uname'], $inspection['entryLayouts'][1]['paxGlobalHeaderKeys']);
+        $t->same([], $inspection['entryLayouts'][1]['paxLocalHeaderKeys']);
+        $t->same([], $inspection['entryLayouts'][1]['paxDeletedHeaderKeys']);
+        $t->same(['mtime'], $inspection['entryLayouts'][2]['paxGlobalHeaderKeys']);
+        $t->same([], $inspection['entryLayouts'][2]['paxLocalHeaderKeys']);
+        $t->same([], $inspection['entryLayouts'][2]['paxDeletedHeaderKeys']);
     },
 
     'rejects per-entry global pax metadata before package bytes are exposed' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
@@ -563,16 +607,31 @@ return [
         $roundTrip = TarArchive::fromString($archive);
         $documentEntry = $roundTrip->entry($longDocumentName);
         $directoryEntry = $roundTrip->entry($longDirectoryName);
+        $inspection = ArchiveCompressionStream::inspectTarStream(
+            $archive,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($archive)
+        );
 
         $t->true(strlen($longDocumentName) > 100);
         $t->true(strlen($longDirectoryName) > 100);
         $t->same([$longDocumentName, $longDirectoryName], $roundTrip->names());
         $t->true($documentEntry->isRegularFile());
+        $t->same('gnu-long-name', $documentEntry->nameSource);
+        $t->same($longDocumentName, $documentEntry->gnuLongName);
+        $t->same([], $documentEntry->globalPaxHeaders);
+        $t->same([], $documentEntry->localPaxHeaders);
         $t->same(1780479025, $documentEntry->modifiedAt);
         $t->same('<w:document><w:p>GNU long name source</w:p></w:document>', $roundTrip->read('/' . $longDocumentName));
         $t->true($directoryEntry->isDirectory());
+        $t->same('gnu-long-name', $directoryEntry->nameSource);
+        $t->same($longDirectoryName, $directoryEntry->gnuLongName);
         $t->same(1780479027, $directoryEntry->modifiedAt);
         $t->same('', $roundTrip->read($longDirectoryName));
+        $t->same('gnu-long-name', $inspection['entryLayouts'][0]['nameSource']);
+        $t->same($longDocumentName, $inspection['entryLayouts'][0]['gnuLongName']);
+        $t->same('gnu-long-name', $inspection['entryLayouts'][1]['nameSource']);
+        $t->same($longDirectoryName, $inspection['entryLayouts'][1]['gnuLongName']);
     },
 
     'reads base-256 tar numeric fields for package fixture entries' => static function (TestRunner $t) use ($rawTarHeader, $base256TarField, $rewriteTarHeaderFields): void {

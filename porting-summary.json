@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 09:14:09 UTC",
-    "sourceCommit": "e310d607a8ffcbd3258e4e125196a95d8853a159",
-    "sourceCommitShort": "e310d607a8ff",
+    "generated": "2026-06-06 09:14:18 UTC",
+    "sourceCommit": "91df5cfac25e5059db18a4cd91ae4b8b5c1ca015",
+    "sourceCommitShort": "91df5cfac25e",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e310d607a8ffcbd3258e4e125196a95d8853a159",
-    "dashboardCommitShort": "e310d607a8ff",
+    "dashboardCommit": "91df5cfac25e5059db18a4cd91ae4b8b5c1ca015",
+    "dashboardCommitShort": "91df5cfac25e",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1701",
-            "coverage": "1,701 / 2,276 (74.7%)",
-            "mapPercent": "74.7%",
-            "unmapped": "575",
-            "php": "1,257 pass / 0 fail",
+            "mapped": "1702",
+            "coverage": "1,702 / 2,276 (74.8%)",
+            "mapPercent": "74.8%",
+            "unmapped": "574",
+            "php": "1,258 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC Syntax highlighting HTML PHP island slice on accepted...",
+            "audit": "2026-06-06 UTC archive compression stream PAX provenance slice on acc...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For syntax-highlighting follow-up, keep full Skylighting XML...",
+            "nextTarget": "For archive/compression follow-up, keep nested archive discov...",
             "remainingGate": "No local blocker",
-            "commit": "pending pandoc-..."
+            "commit": "pending fast ac..."
         },
         {
             "lane": "quadrable",

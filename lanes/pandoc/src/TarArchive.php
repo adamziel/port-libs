@@ -124,6 +124,8 @@ final class TarArchive
 
             $metadataHeaders = self::mergePaxHeaderRecords($globalPaxHeaders, $pendingPaxHeaders);
             $name = self::resolvedNameFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $nameSource = self::resolvedNameSourceFromHeader($header, $metadataHeaders, $pendingGnuLongName);
+            $deletedPaxHeaderKeys = self::deletedPaxHeaderKeys($pendingPaxHeaders);
             self::assertSafePath($name, 'TAR entry name');
             $size = self::resolvedSizeFromHeader($header, $metadataHeaders);
             self::assertRange($bytes, $dataOffset, $size, 'entry payload');
@@ -186,7 +188,12 @@ final class TarArchive
                 self::resolvedUserNameFromHeader($header, $metadataHeaders),
                 self::resolvedGroupNameFromHeader($header, $metadataHeaders),
                 $metadataHeaders,
-                $dataOffset
+                $dataOffset,
+                $globalPaxHeaders,
+                $pendingPaxHeaders,
+                $deletedPaxHeaderKeys,
+                $nameSource,
+                $pendingGnuLongName
             );
 
             $entries[] = $entry;
@@ -478,6 +485,26 @@ final class TarArchive
     /**
      * @param array<string, string> $headers
      */
+    private static function resolvedNameSourceFromHeader(string $header, array $headers, ?string $gnuLongName): string
+    {
+        if (isset($headers['path'])) {
+            return TarArchiveEntry::NAME_SOURCE_PAX_PATH;
+        }
+
+        if ($gnuLongName !== null) {
+            return TarArchiveEntry::NAME_SOURCE_GNU_LONG_NAME;
+        }
+
+        $prefix = self::trimNullField(substr($header, 345, 155));
+
+        return $prefix === ''
+            ? TarArchiveEntry::NAME_SOURCE_HEADER
+            : TarArchiveEntry::NAME_SOURCE_USTAR_PREFIX;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
     private static function resolvedSizeFromHeader(string $header, array $headers): int
     {
         if (isset($headers['size'])) {
@@ -739,6 +766,24 @@ final class TarArchive
     private static function mergePaxHeaderRecords(array $globalHeaders, array $localHeaders): array
     {
         return self::applyPaxHeaderRecords($globalHeaders, $localHeaders);
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return list<string>
+     */
+    private static function deletedPaxHeaderKeys(array $headers): array
+    {
+        $keys = [];
+        foreach ($headers as $key => $value) {
+            if ($value === '') {
+                $keys[] = $key;
+            }
+        }
+
+        sort($keys);
+
+        return $keys;
     }
 
     /**
