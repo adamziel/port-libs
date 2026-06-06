@@ -31,6 +31,20 @@ $pdftextLinesPage = static function (int $page, array $lines): array {
     ];
 };
 
+$jsonDecodedList = static function (array $value): array {
+    $decoded = json_decode(
+        json_encode($value, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        false,
+        512,
+        JSON_THROW_ON_ERROR
+    );
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Expected JSON-decoded artifact fixture to remain a list.');
+    }
+
+    return $decoded;
+};
+
 return [
     'rescales normalized supplied order boxes before pdftext dictionary layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
@@ -2372,5 +2386,173 @@ return [
         $t->same(1, $result['metadata']['order_plan']['image_count']);
         $t->same(1, $result['metadata']['order_plan']['order_result_count']);
         $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'normalizes JSON decoded order artifacts before selected pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage, $jsonDecodedList): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            $jsonDecodedList([
+                $pdftextLinesPage(4300, [
+                    ['text' => 'JSON decoded cover should stay skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(4301, [
+                    ['text' => 'Second JSON decoded order column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First JSON decoded order column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ]),
+            $jsonDecodedList([
+                [
+                    'metadata' => ['document_page' => 4300],
+                    'order_result' => [
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                            ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                        ],
+                    ],
+                    'raw_payload' => 'json decoded cover order payload must stay hidden',
+                ],
+                [
+                    'metadata' => ['document_page' => 4301],
+                    'order_result' => [
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0], 'raw_payload' => 'json decoded left row payload must stay hidden'],
+                            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                        ],
+                    ],
+                    'raw_payload' => 'json decoded selected order payload must stay hidden',
+                ],
+            ]),
+            orderImages: $jsonDecodedList([
+                ['metadata' => ['document_page' => 4300], 'image' => 'json-decoded-cover-order-render'],
+                ['metadata' => ['document_page' => 4301], 'image' => 'json-decoded-selected-order-render'],
+            ]),
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(4301, $result['pages'][0]['pnum']);
+        $t->same(['First JSON decoded order column', 'Second JSON decoded order column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First JSON decoded order column Second JSON decoded order column', $blocks[0]['text']);
+        $t->same(4301, $order['document_page'] ?? null);
+        $t->true(!array_key_exists('order_result', $order));
+        $t->true(!str_contains($encoded, 'JSON decoded cover should stay skipped'));
+        $t->true(!str_contains($encoded, 'json decoded cover order payload'));
+        $t->true(!str_contains($encoded, 'json decoded selected order payload'));
+        $t->true(!str_contains($encoded, 'json decoded left row payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'normalizes JSON decoded layout and order artifacts before WordPress pdftext import' => static function (TestRunner $t) use ($pdftextLinesPage, $jsonDecodedList): void {
+        $path = sys_get_temp_dir() . '/markerpdf-json-decoded-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% json decoded pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $jsonDecodedList([
+                    $pdftextLinesPage(4400, [
+                        ['text' => 'JSON decoded converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(4401, [
+                        ['text' => 'Second converter JSON decoded column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter JSON decoded heading.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ]),
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => $jsonDecodedList([
+                        ['metadata' => ['document_page' => 4400], 'image' => 'json-decoded-cover-layout-render'],
+                        ['metadata' => ['document_page' => 4401], 'image' => 'json-decoded-selected-layout-render'],
+                    ]),
+                    'layout_results' => $jsonDecodedList([
+                        [
+                            'metadata' => ['document_page' => 4400],
+                            'layout_result' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Picture', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'json decoded cover layout payload must stay hidden',
+                        ],
+                        [
+                            'metadata' => ['document_page' => 4401],
+                            'layout_result' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0], 'raw_payload' => 'json decoded title layout payload must stay hidden'],
+                                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'json decoded selected layout payload must stay hidden',
+                        ],
+                    ]),
+                    'order_images' => $jsonDecodedList([
+                        ['metadata' => ['document_page' => 4400], 'image' => 'json-decoded-cover-order-render'],
+                        ['metadata' => ['document_page' => 4401], 'image' => 'json-decoded-selected-order-render'],
+                    ]),
+                    'order_results' => $jsonDecodedList([
+                        [
+                            'metadata' => ['document_page' => 4400],
+                            'order_result' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ],
+                            ],
+                            'raw_payload' => 'json decoded cover order payload must stay hidden',
+                        ],
+                        [
+                            'metadata' => ['document_page' => 4401],
+                            'order_result' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'json decoded right row payload must stay hidden'],
+                                ],
+                            ],
+                            'raw_payload' => 'json decoded selected order payload must stay hidden',
+                        ],
+                    ]),
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# First Converter Json Decoded Heading.', $text);
+        $t->contains('Second converter JSON decoded column.', $text);
+        $t->true(strpos($text, '# First Converter Json Decoded Heading.') < strpos($text, 'Second converter JSON decoded column.'));
+        $t->true(!str_contains($text, 'JSON decoded converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'json decoded cover layout payload'));
+        $t->true(!str_contains($encoded, 'json decoded selected layout payload'));
+        $t->true(!str_contains($encoded, 'json decoded title layout payload'));
+        $t->true(!str_contains($encoded, 'json decoded cover order payload'));
+        $t->true(!str_contains($encoded, 'json decoded selected order payload'));
+        $t->true(!str_contains($encoded, 'json decoded right row payload'));
     },
 ];

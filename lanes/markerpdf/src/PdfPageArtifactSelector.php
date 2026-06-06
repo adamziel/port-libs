@@ -60,7 +60,7 @@ final class PdfPageArtifactSelector
         int $selectedPageCount,
         array $selectedPageNumbers = []
     ): array {
-        $artifacts = array_values($artifacts);
+        $artifacts = self::normalizeSuppliedArtifacts($artifacts);
         if ($artifacts === [] || $pageRange === [] || $selectedPageCount === 0) {
             return $artifacts;
         }
@@ -178,6 +178,41 @@ final class PdfPageArtifactSelector
         }
 
         return $matched > 0 ? $selected : [];
+    }
+
+    /**
+     * Supplied marker/pdftext adapters are commonly JSON-decoded without the
+     * associative-array flag. Normalize plain JSON objects before page-marker
+     * matching while leaving non-data objects and scalar payloads untouched.
+     *
+     * @param list<mixed> $artifacts
+     * @return list<mixed>
+     */
+    public static function normalizeSuppliedArtifacts(array $artifacts): array
+    {
+        $normalized = [];
+        foreach (array_values($artifacts) as $artifact) {
+            $normalized[] = self::normalizeSuppliedArtifactValue($artifact);
+        }
+
+        return $normalized;
+    }
+
+    public static function normalizeSuppliedArtifactValue(mixed $value): mixed
+    {
+        if ($value instanceof \stdClass) {
+            $value = get_object_vars($value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $nestedValue) {
+            $value[$key] = self::normalizeSuppliedArtifactValue($nestedValue);
+        }
+
+        return $value;
     }
 
     /**

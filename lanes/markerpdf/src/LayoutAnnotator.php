@@ -106,7 +106,7 @@ final class LayoutAnnotator
      *
      * @param list<mixed> $images
      * @param list<array<string, mixed>> $pages
-     * @param list<array<string, mixed>> $layoutResults
+     * @param list<array<string, mixed>|\stdClass> $layoutResults
      * @return array{
      *     pages: list<array<string, mixed>>,
      *     plan: array{image_count: int, page_count: int, detection_result_count: int, layout_result_count: int, assigned_pages: int, batch_size: int}
@@ -119,8 +119,9 @@ final class LayoutAnnotator
         float $batchMultiplier = 1.0,
         array $pageRange = []
     ): array {
+        $images = PdfPageArtifactSelector::normalizeSuppliedArtifacts($images);
         $pages = array_values($pages);
-        $layoutResults = array_values($layoutResults);
+        $layoutResults = PdfPageArtifactSelector::normalizeSuppliedArtifacts($layoutResults);
         $assignedPages = 0;
         $assignmentSlots = min(count($pages), count($layoutResults));
 

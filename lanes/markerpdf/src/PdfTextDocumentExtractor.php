@@ -175,7 +175,7 @@ final class PdfTextDocumentExtractor
      * that already have pdftext dictionaries and supplied order-model output.
      *
      * @param list<array<string, mixed>|\stdClass>|array{pages?: array<mixed>, metadata?: array<string, mixed>} $pdftextPages
-     * @param list<array<string, mixed>> $orderResults
+     * @param list<array<string, mixed>|\stdClass> $orderResults
      * @param list<mixed> $orderImages
      * @param list<array<string, mixed>> $toc
      * @return array{

@@ -105,7 +105,7 @@ final class LayoutOrderer
      *
      * @param list<mixed> $images
      * @param list<array<string, mixed>> $pages
-     * @param list<array<string, mixed>> $orderResults
+     * @param list<array<string, mixed>|\stdClass> $orderResults
      * @return array{
      *     pages: list<array<string, mixed>>,
      *     plan: array{image_count: int, page_count: int, layout_bbox_counts: list<int>, requested_bboxes: list<list<list<float>>>, order_result_count: int, assigned_pages: int, batch_size: int, order_max_bboxes: int}
@@ -118,8 +118,9 @@ final class LayoutOrderer
         float $batchMultiplier = 1.0,
         array $pageRange = []
     ): array {
+        $images = PdfPageArtifactSelector::normalizeSuppliedArtifacts($images);
         $pages = array_values($pages);
-        $orderResults = array_values($orderResults);
+        $orderResults = PdfPageArtifactSelector::normalizeSuppliedArtifacts($orderResults);
         $maxBboxes = (int) $this->settings->get('ORDER_MAX_BBOXES');
         $requestedBboxes = [];
         $bboxCounts = [];
