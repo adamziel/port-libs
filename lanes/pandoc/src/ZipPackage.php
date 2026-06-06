@@ -1993,6 +1993,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
      *     size:array<string, mixed>,
+     *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
      *     comments:array<string, mixed>,
      *     modificationTimes:array<string, mixed>,
@@ -2024,6 +2025,7 @@ final class ZipPackage
 
         $archive = $this->archivePreflight();
         $size = $this->sizePreflight();
+        $generalPurposeFlags = $this->generalPurposeFlagPreflight();
         $compressionMethods = $this->compressionMethodPreflight();
         $comments = $this->commentPreflight();
         $modificationTimes = $this->modificationTimePreflight();
@@ -2056,6 +2058,18 @@ final class ZipPackage
 
         if ($compressionMethods['unsupportedCompressionMethodCount'] > 0) {
             $diagnostics[] = 'unsupported-compression-methods';
+        }
+
+        if ($generalPurposeFlags['unsupportedFlagEntryCount'] > 0) {
+            $diagnostics[] = 'unsupported-general-purpose-flags';
+        }
+
+        if ($generalPurposeFlags['dataDescriptorEntryCount'] > 0) {
+            $diagnostics[] = 'data-descriptor-entries';
+        }
+
+        if ($generalPurposeFlags['deflateOptionEntryCount'] > 0) {
+            $diagnostics[] = 'deflate-option-flag-entries';
         }
 
         if ($extraFields['duplicateExtraFieldEntryCount'] > 0) {
@@ -2124,6 +2138,7 @@ final class ZipPackage
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
             'size' => $size,
+            'generalPurposeFlags' => $generalPurposeFlags,
             'compressionMethods' => $compressionMethods,
             'comments' => $comments,
             'modificationTimes' => $modificationTimes,
@@ -2149,6 +2164,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
      *     size:array<string, mixed>,
+     *     generalPurposeFlags:array<string, mixed>,
      *     compressionMethods:array<string, mixed>,
      *     comments:array<string, mixed>,
      *     modificationTimes:array<string, mixed>,
@@ -2181,6 +2197,132 @@ final class ZipPackage
             'ZIP package failed strict native pandoc import preflight: '
             . implode(', ', $summary['diagnostics'])
         );
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     supportedEntryCount:int,
+     *     unsupportedFlagEntryCount:int,
+     *     utf8NameEntryCount:int,
+     *     dataDescriptorEntryCount:int,
+     *     deflateOptionEntryCount:int,
+     *     strictReviewEntryCount:int,
+     *     unsupportedEntries:list<array{name:string, generalPurposeFlags:int, flagNames:list<string>, unsupportedFlagBits:int, isSupportedByReader:bool, usesUtf8Names:bool, usesDataDescriptor:bool, deflateOptionFlags:int, deflateOptionName:?string, requiresStrictReview:bool, issues:list<string>}>,
+     *     strictReviewEntries:list<array{name:string, generalPurposeFlags:int, flagNames:list<string>, unsupportedFlagBits:int, isSupportedByReader:bool, usesUtf8Names:bool, usesDataDescriptor:bool, deflateOptionFlags:int, deflateOptionName:?string, requiresStrictReview:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, generalPurposeFlags:int, flagNames:list<string>, unsupportedFlagBits:int, isSupportedByReader:bool, usesUtf8Names:bool, usesDataDescriptor:bool, deflateOptionFlags:int, deflateOptionName:?string, requiresStrictReview:bool, issues:list<string>}>
+     * }
+     */
+    public function generalPurposeFlagPreflight(): array
+    {
+        $utf8NameEntryCount = 0;
+        $dataDescriptorEntryCount = 0;
+        $deflateOptionEntryCount = 0;
+        $unsupportedEntries = [];
+        $strictReviewEntries = [];
+        $entries = [];
+
+        foreach ($this->entries as $entry) {
+            $flags = $entry->generalPurposeFlags;
+            $unsupportedFlagBits = $flags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+            $usesUtf8Names = ($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0;
+            $usesDataDescriptor = ($flags & 0x0008) !== 0;
+            $deflateOptionFlags = $flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
+            $requiresStrictReview = $usesDataDescriptor || $deflateOptionFlags !== 0;
+            $issues = [];
+
+            if ($unsupportedFlagBits !== 0) {
+                $issues[] = 'unsupported-general-purpose-flags';
+            }
+            if ($usesDataDescriptor) {
+                $issues[] = 'data-descriptor-entry';
+            }
+            if ($deflateOptionFlags !== 0) {
+                $issues[] = 'deflate-option-flags';
+            }
+
+            if ($usesUtf8Names) {
+                $utf8NameEntryCount++;
+            }
+            if ($usesDataDescriptor) {
+                $dataDescriptorEntryCount++;
+            }
+            if ($deflateOptionFlags !== 0) {
+                $deflateOptionEntryCount++;
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'generalPurposeFlags' => $flags,
+                'flagNames' => self::generalPurposeFlagNames($flags),
+                'unsupportedFlagBits' => $unsupportedFlagBits,
+                'isSupportedByReader' => $unsupportedFlagBits === 0,
+                'usesUtf8Names' => $usesUtf8Names,
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'deflateOptionFlags' => $deflateOptionFlags,
+                'deflateOptionName' => self::deflateOptionFlagName($deflateOptionFlags),
+                'requiresStrictReview' => $requiresStrictReview,
+                'issues' => $issues,
+            ];
+
+            $entries[] = $summary;
+            if ($unsupportedFlagBits !== 0) {
+                $unsupportedEntries[] = $summary;
+            }
+            if ($requiresStrictReview) {
+                $strictReviewEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'supportedEntryCount' => count($this->entries) - count($unsupportedEntries),
+            'unsupportedFlagEntryCount' => count($unsupportedEntries),
+            'utf8NameEntryCount' => $utf8NameEntryCount,
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'deflateOptionEntryCount' => $deflateOptionEntryCount,
+            'strictReviewEntryCount' => count($strictReviewEntries),
+            'unsupportedEntries' => $unsupportedEntries,
+            'strictReviewEntries' => $strictReviewEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     supportedEntryCount:int,
+     *     unsupportedFlagEntryCount:int,
+     *     utf8NameEntryCount:int,
+     *     dataDescriptorEntryCount:int,
+     *     deflateOptionEntryCount:int,
+     *     strictReviewEntryCount:int,
+     *     unsupportedEntries:list<array{name:string, generalPurposeFlags:int, flagNames:list<string>, unsupportedFlagBits:int, isSupportedByReader:bool, usesUtf8Names:bool, usesDataDescriptor:bool, deflateOptionFlags:int, deflateOptionName:?string, requiresStrictReview:bool, issues:list<string>}>,
+     *     strictReviewEntries:list<array{name:string, generalPurposeFlags:int, flagNames:list<string>, unsupportedFlagBits:int, isSupportedByReader:bool, usesUtf8Names:bool, usesDataDescriptor:bool, deflateOptionFlags:int, deflateOptionName:?string, requiresStrictReview:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, generalPurposeFlags:int, flagNames:list<string>, unsupportedFlagBits:int, isSupportedByReader:bool, usesUtf8Names:bool, usesDataDescriptor:bool, deflateOptionFlags:int, deflateOptionName:?string, requiresStrictReview:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoStrictGeneralPurposeFlagReviewEntries(): array
+    {
+        $summary = $this->generalPurposeFlagPreflight();
+        if ($summary['unsupportedFlagEntryCount'] > 0 || $summary['strictReviewEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' flags '
+                        . sprintf('0x%04x', $entry['generalPurposeFlags'])
+                        . ' (' . implode('/', $entry['issues']) . ')',
+                    array_merge($summary['unsupportedEntries'], $summary['strictReviewEntries'])
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains general-purpose flag metadata that requires explicit strict import review: '
+                . $entries
+            );
+        }
+
+        return $summary;
     }
 
     /**
@@ -3126,6 +3268,44 @@ final class ZipPackage
             0 => 'stored',
             8 => 'deflated',
             default => 'unsupported',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function generalPurposeFlagNames(int $flags): array
+    {
+        $names = [];
+        $deflateOptionName = self::deflateOptionFlagName($flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS);
+        if ($deflateOptionName !== null) {
+            $names[] = $deflateOptionName;
+        }
+
+        if (($flags & 0x0008) !== 0) {
+            $names[] = 'data-descriptor';
+        }
+
+        if (($flags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0) {
+            $names[] = 'utf-8-names';
+        }
+
+        $unsupportedFlags = $flags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+        if ($unsupportedFlags !== 0) {
+            $names[] = sprintf('unsupported-0x%04x', $unsupportedFlags);
+        }
+
+        return $names;
+    }
+
+    private static function deflateOptionFlagName(int $flags): ?string
+    {
+        return match ($flags) {
+            0x0000 => null,
+            0x0002 => 'deflate-maximum-compression',
+            0x0004 => 'deflate-fast',
+            0x0006 => 'deflate-super-fast',
+            default => sprintf('deflate-options-0x%04x', $flags),
         };
     }
 

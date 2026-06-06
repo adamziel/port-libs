@@ -1285,6 +1285,55 @@ $buildStoredDeflateOptionFlagBackedPackage = static function () use ($crc32): st
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildStrictGeneralPurposeFlagReviewBackedPackage = static function () use ($crc32): string {
+    $name = 'word/document.xml';
+    $data = '<w:document><w:body><w:p>Flagged descriptor review</w:p></w:body></w:document>';
+    $compressed = gzdeflate($data);
+    $crc = $crc32($data);
+    $flags = 0x080e;
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        $flags,
+        8,
+        0,
+        0,
+        0,
+        0,
+        0,
+        strlen($name),
+        0
+    );
+    $body .= $name . $compressed . pack('VVVV', 0x08074b50, $crc, strlen($compressed), strlen($data));
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        $flags,
+        8,
+        0,
+        0,
+        $crc,
+        strlen($compressed),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildExtraFieldIdMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/split-extra-review.bin';
     $data = "Central and local ZIP extra-field ids should stay reviewable\n";
@@ -2016,6 +2065,25 @@ try {
     ZipPackage::fromString($buildStoredDeflateOptionFlagBackedPackage());
 } catch (RuntimeException $exception) {
     $deflateOptionFlagsRejected = str_contains($exception->getMessage(), 'deflate compression option flag bits');
+}
+$strictGeneralPurposeFlagReviewPackage = ZipPackage::fromString($buildStrictGeneralPurposeFlagReviewBackedPackage());
+$strictGeneralPurposeFlagPreflight = $strictGeneralPurposeFlagReviewPackage->generalPurposeFlagPreflight();
+$strictGeneralPurposeFlagImportPreflight = $strictGeneralPurposeFlagReviewPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictGeneralPurposeFlagReviewRejected = false;
+try {
+    $strictGeneralPurposeFlagReviewPackage->assertNoStrictGeneralPurposeFlagReviewEntries();
+} catch (RuntimeException $exception) {
+    $strictGeneralPurposeFlagReviewRejected = str_contains(
+        $exception->getMessage(),
+        'general-purpose flag metadata'
+    );
+}
+$strictGeneralPurposeFlagImportRejected = false;
+try {
+    $strictGeneralPurposeFlagReviewPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $strictGeneralPurposeFlagImportRejected = str_contains($exception->getMessage(), 'data-descriptor-entries')
+        && str_contains($exception->getMessage(), 'deflate-option-flag-entries');
 }
 $splitZipBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
     'diskNumber' => 1,
@@ -3059,6 +3127,24 @@ if (in_array('--self-test', $argv, true)) {
 
     if (!$deflateOptionFlagsRejected) {
         throw new RuntimeException('Expected deflate option flags on stored ZIP entries to be rejected before media import');
+    }
+
+    if (
+        !$strictGeneralPurposeFlagReviewRejected
+        || !$strictGeneralPurposeFlagImportRejected
+        || ($strictGeneralPurposeFlagPreflight['strictReviewEntryCount'] ?? null) !== 1
+        || ($strictGeneralPurposeFlagPreflight['dataDescriptorEntryCount'] ?? null) !== 1
+        || ($strictGeneralPurposeFlagPreflight['deflateOptionEntryCount'] ?? null) !== 1
+        || ($strictGeneralPurposeFlagPreflight['strictReviewEntries'][0]['deflateOptionName'] ?? null) !== 'deflate-super-fast'
+        || ($strictGeneralPurposeFlagPreflight['strictReviewEntries'][0]['issues'] ?? null) !== [
+            'data-descriptor-entry',
+            'deflate-option-flags',
+        ]
+        || ($strictGeneralPurposeFlagImportPreflight['isValid'] ?? null) !== false
+        || !in_array('data-descriptor-entries', $strictGeneralPurposeFlagImportPreflight['diagnostics'] ?? [], true)
+        || !in_array('deflate-option-flag-entries', $strictGeneralPurposeFlagImportPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP general-purpose flag review preflight to reject strict import handoff');
     }
 
     if (!$storedSizeMismatchRejected) {
@@ -4129,6 +4215,10 @@ echo 'zipUnicodeNameCollisionStrictPolicy=' . ($unicodeNameCollisionStrictReject
 echo 'zipUnicodeNameCollisionEntry=' . ($unicodeNameCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipUnicodeNameCollisionKey=' . ($unicodeNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipGeneralPurposeFlagReviewPolicy=' . ($strictGeneralPurposeFlagReviewRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipGeneralPurposeFlagStrictPolicy=' . ($strictGeneralPurposeFlagImportRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipGeneralPurposeFlagReviewEntry=' . ($strictGeneralPurposeFlagPreflight['strictReviewEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipGeneralPurposeFlagReviewIssues=' . implode(',', $strictGeneralPurposeFlagPreflight['strictReviewEntries'][0]['issues'] ?? []) . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPayloadIntegrityFailedEntry=' . ($corruptPayloadPreflight['failedEntries'][0]['name'] ?? 'none') . "\n";

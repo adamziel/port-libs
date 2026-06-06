@@ -3048,6 +3048,81 @@ return [
         $t->same(12, $package->entry('word/media/unsupported-method.bin')->compressionMethod);
     },
 
+    'preflights supported zip general purpose flags before strict package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>descriptor flag review</w:p></w:document>';
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'flags' => 0x080e,
+                'descriptor' => true,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "legacy CP437 metadata remains readable\n",
+                'method' => 0,
+                'flags' => 0,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 8,
+                'flags' => 0x0800,
+            ],
+        ]));
+        $summary = $package->generalPurposeFlagPreflight();
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['supportedEntryCount']);
+        $t->same(0, $summary['unsupportedFlagEntryCount']);
+        $t->same(2, $summary['utf8NameEntryCount']);
+        $t->same(1, $summary['dataDescriptorEntryCount']);
+        $t->same(1, $summary['deflateOptionEntryCount']);
+        $t->same(1, $summary['strictReviewEntryCount']);
+        $t->same('word/document.xml', $summary['strictReviewEntries'][0]['name']);
+        $t->same(0x080e, $summary['entries'][0]['generalPurposeFlags']);
+        $t->same(['deflate-super-fast', 'data-descriptor', 'utf-8-names'], $summary['entries'][0]['flagNames']);
+        $t->same(true, $summary['entries'][0]['usesDataDescriptor']);
+        $t->same(0x0006, $summary['entries'][0]['deflateOptionFlags']);
+        $t->same('deflate-super-fast', $summary['entries'][0]['deflateOptionName']);
+        $t->same(true, $summary['entries'][0]['requiresStrictReview']);
+        $t->same(['data-descriptor-entry', 'deflate-option-flags'], $summary['entries'][0]['issues']);
+        $t->same(false, $summary['entries'][1]['usesUtf8Names']);
+        $t->same('cp437', $package->entry('/word/media/review.txt')->nameEncoding);
+        $t->same(null, $summary['entries'][1]['deflateOptionName']);
+        $t->same([], $summary['entries'][1]['issues']);
+        $t->same(['utf-8-names'], $summary['entries'][2]['flagNames']);
+
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
+        $t->same(false, $strictSummary['isValid']);
+        $t->contains('data-descriptor-entries', implode(',', $strictSummary['diagnostics']));
+        $t->contains('deflate-option-flag-entries', implode(',', $strictSummary['diagnostics']));
+        $t->same(1, $strictSummary['generalPurposeFlags']['strictReviewEntryCount']);
+        $t->same($documentXml, $package->read('/word/document.xml'));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoStrictGeneralPurposeFlagReviewEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ordinary flags</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "ordinary media bytes\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoStrictGeneralPurposeFlagReviewEntries();
+        $t->same(2, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['dataDescriptorEntryCount']);
+        $t->same(0, $safeSummary['deflateOptionEntryCount']);
+        $t->same(0, $safeSummary['strictReviewEntryCount']);
+        $t->same([], $safeSummary['strictReviewEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(2048, 100.0, 2048)['isValid']);
+    },
+
     'rejects crc and local file header names before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
