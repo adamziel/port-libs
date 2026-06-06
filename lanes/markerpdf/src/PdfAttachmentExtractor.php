@@ -2825,7 +2825,12 @@ final class PdfAttachmentExtractor
             return [];
         }
 
-        $filterValue = $this->resolveValue($filterValue, $objects);
+        $resolvedFilter = $this->resolveStreamOperandValue($filterValue, $objects);
+        if ($resolvedFilter === null) {
+            return null;
+        }
+
+        $filterValue = $resolvedFilter['value'];
         if ($filterValue === null) {
             return [];
         }
@@ -2842,7 +2847,12 @@ final class PdfAttachmentExtractor
 
         $filters = [];
         foreach ($array as $value) {
-            $resolved = $this->resolveValue($value, $objects);
+            $resolvedFilter = $this->resolveStreamOperandValue($value, $objects);
+            if ($resolvedFilter === null) {
+                return null;
+            }
+
+            $resolved = $resolvedFilter['value'];
             if ($resolved === null) {
                 $filters[] = null;
                 continue;
@@ -2857,6 +2867,37 @@ final class PdfAttachmentExtractor
         }
 
         return $filters;
+    }
+
+    /**
+     * Stream filter operands may be stored through small indirect-object chains
+     * in real PDFs. Resolve only this stream-decoder surface recursively so
+     * cyclic or missing references fail closed instead of exposing attachment
+     * payload bytes.
+     *
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     * @param array<string, true> $seen
+     * @return array{value: mixed}|null
+     */
+    private function resolveStreamOperandValue(mixed $value, array $objects, array $seen = []): ?array
+    {
+        $reference = $this->refObjectReference($value);
+        if ($reference === null) {
+            return ['value' => $value];
+        }
+
+        $key = $reference['objectNumber'] . ':' . $reference['generation'];
+        if ($reference['objectNumber'] <= 0 || isset($seen[$key])) {
+            return null;
+        }
+
+        $object = $this->objectForReference($value, $objects);
+        if ($object === null) {
+            return null;
+        }
+
+        $seen[$key] = true;
+        return $this->resolveStreamOperandValue($object['value'], $objects, $seen);
     }
 
     /**
@@ -2886,10 +2927,21 @@ final class PdfAttachmentExtractor
      */
     private function decodeParmsSlots(mixed $decodeParmsValue, array $objects): ?array
     {
-        $resolved = $this->resolveValue($decodeParmsValue, $objects);
+        $resolvedValue = $this->resolveStreamOperandValue($decodeParmsValue, $objects);
+        $resolved = $resolvedValue === null ? $decodeParmsValue : $resolvedValue['value'];
         $array = $this->arrayValue($resolved);
 
-        return $array === null ? [$resolved] : $array;
+        if ($array === null) {
+            return [$resolved];
+        }
+
+        $items = [];
+        foreach ($array as $item) {
+            $resolvedItem = $this->resolveStreamOperandValue($item, $objects);
+            $items[] = $resolvedItem === null ? $item : $resolvedItem['value'];
+        }
+
+        return $items;
     }
 
     /**

@@ -174,6 +174,47 @@ $attachmentStreamFilterStackBoundaryCurrentBaseExtraDecodeParmsPdf = static func
         . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseIndirectOperandPdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Indirect Operand Review) Tj ET';
+    $payload = "Title,Status\nIndirect Filter Operand Attachment,Ready\n";
+    $predictedPayload = "\0" . $payload;
+    $compressed = gzcompress($predictedPayload);
+    if (!is_string($compressed)) {
+        throw new RuntimeException('Unable to compress focused indirect filter operand fixture.');
+    }
+    $encoded = $attachmentStreamFilterStackBoundaryCurrentBaseAscii85($compressed);
+
+    $cyclePayload = "Title,Status\nCyclic Filter Operand Attachment Leak,Blocked\n";
+
+    return [
+        'payload' => $payload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 50 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(indirect-filter-stack.csv) 10 0 R (cycle-filter-stack.csv) 12 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (indirect-filter-stack.csv) /Desc (Indirect filter operand attachment stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ 20 0 R 21 0 R ] /DecodeParms 30 0 R /Params << /Size " . strlen($payload) . " /CheckSum <" . md5($payload) . "> >> /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /F (cycle-filter-stack.csv) /Desc (Cyclic filter operand attachment stack) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter 40 0 R /Params << /Size " . strlen($cyclePayload) . " /CheckSum <" . md5($cyclePayload) . "> >> /Length " . strlen($cyclePayload) . " >>\nstream\n{$cyclePayload}\nendstream\nendobj\n"
+            . "20 0 obj\n22 0 R\nendobj\n"
+            . "21 0 obj\n23 0 R\nendobj\n"
+            . "22 0 obj\n/ASCII85Decode\nendobj\n"
+            . "23 0 obj\n/FlateDecode\nendobj\n"
+            . "30 0 obj\n31 0 R\nendobj\n"
+            . "31 0 obj\n[ null 32 0 R ]\nendobj\n"
+            . "32 0 obj\n33 0 R\nendobj\n"
+            . "33 0 obj\n<< /Predictor 12 /Columns " . strlen($payload) . " >>\nendobj\n"
+            . "40 0 obj\n41 0 R\nendobj\n"
+            . "41 0 obj\n40 0 R\nendobj\n"
+            . "50 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 return [
     'treats Identity Crypt as a byte-preserving attachment stream stack stage while rejecting private crypt filters' => static function (
         TestRunner $t
@@ -347,5 +388,51 @@ return [
         $t->true(!str_contains($plainText, 'Extra DecodeParms Attachment Leak'));
         $t->true(!str_contains($plainText, 'Valid Attachment After DecodeParms'));
         $t->true(!str_contains($plainText, 'DecodeParms'));
+    },
+    'resolves chained indirect Filter and DecodeParms operands while failing closed on filter cycles' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseIndirectOperandPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseIndirectOperandPdf();
+        $pdf = $fixture['pdf'];
+        $payload = $fixture['payload'];
+        $checksum = md5($payload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['indirect-filter-stack.csv'], $summary['filenames']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('indirect-filter-stack.csv', $attachment['filename'] ?? null);
+        $t->same('Indirect filter operand attachment stack', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($payload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('indirect-filter-stack.csv', $files[0]['filename'] ?? null);
+        $t->same($payload, $files[0]['content'] ?? null);
+        $t->same(['ASCII85Decode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Indirect Operand Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $payload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'cycle-filter-stack.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'Cyclic Filter Operand Attachment Leak'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'cycle-filter-stack.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Cyclic Filter Operand Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Indirect Filter Operand Attachment'));
+        $t->true(!str_contains($plainText, 'Cyclic Filter Operand Attachment Leak'));
     },
 ];

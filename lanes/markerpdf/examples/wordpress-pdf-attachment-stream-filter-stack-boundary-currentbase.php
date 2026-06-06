@@ -176,6 +176,47 @@ if ($extraDecodeParmsSummaryJson === false || $extraDecodeParmsFilesJson === fal
     throw new RuntimeException('Expected extra DecodeParms attachment summary JSON.');
 }
 
+$indirectOperandVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Indirect Operand Review) Tj ET';
+$indirectOperandPayload = "Title,Status\nIndirect Filter Operand Attachment,Ready\n";
+$indirectOperandPredicted = "\0" . $indirectOperandPayload;
+$indirectOperandCompressed = gzcompress($indirectOperandPredicted);
+if (!is_string($indirectOperandCompressed)) {
+    throw new RuntimeException('Unable to compress indirect filter operand attachment payload.');
+}
+$indirectOperandEncoded = $ascii85Encode($indirectOperandCompressed);
+$cyclicOperandPayload = "Title,Status\nCyclic Filter Operand Attachment Leak,Blocked\n";
+$indirectOperandPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 50 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($indirectOperandVisible) . " >>\nstream\n{$indirectOperandVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(indirect-filter-stack.csv) 10 0 R (cycle-filter-stack.csv) 12 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (indirect-filter-stack.csv) /Desc (Indirect filter operand attachment stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ 20 0 R 21 0 R ] /DecodeParms 30 0 R /Params << /Size " . strlen($indirectOperandPayload) . " /CheckSum <" . md5($indirectOperandPayload) . "> >> /Length " . strlen($indirectOperandEncoded) . " >>\nstream\n{$indirectOperandEncoded}\nendstream\nendobj\n"
+    . "12 0 obj\n<< /Type /Filespec /F (cycle-filter-stack.csv) /Desc (Cyclic filter operand attachment stack) /AFRelationship /Data /EF << /F 13 0 R >> >>\nendobj\n"
+    . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter 40 0 R /Params << /Size " . strlen($cyclicOperandPayload) . " /CheckSum <" . md5($cyclicOperandPayload) . "> >> /Length " . strlen($cyclicOperandPayload) . " >>\nstream\n{$cyclicOperandPayload}\nendstream\nendobj\n"
+    . "20 0 obj\n22 0 R\nendobj\n"
+    . "21 0 obj\n23 0 R\nendobj\n"
+    . "22 0 obj\n/ASCII85Decode\nendobj\n"
+    . "23 0 obj\n/FlateDecode\nendobj\n"
+    . "30 0 obj\n31 0 R\nendobj\n"
+    . "31 0 obj\n[ null 32 0 R ]\nendobj\n"
+    . "32 0 obj\n33 0 R\nendobj\n"
+    . "33 0 obj\n<< /Predictor 12 /Columns " . strlen($indirectOperandPayload) . " >>\nendobj\n"
+    . "40 0 obj\n41 0 R\nendobj\n"
+    . "41 0 obj\n40 0 R\nendobj\n"
+    . "50 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$indirectOperandSummary = (new PdfAttachmentExtractor())->attachmentSummary($indirectOperandPdf);
+$indirectOperandFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($indirectOperandPdf);
+$indirectOperandText = (new PdfTextExtractor())->extractPlainText($indirectOperandPdf);
+$indirectOperandSummaryJson = json_encode($indirectOperandSummary, JSON_UNESCAPED_SLASHES);
+$indirectOperandFilesJson = json_encode($indirectOperandFiles, JSON_UNESCAPED_SLASHES);
+if ($indirectOperandSummaryJson === false || $indirectOperandFilesJson === false) {
+    throw new RuntimeException('Expected indirect filter operand attachment summary JSON.');
+}
+
 $metadata = [
     'native_boundary' => 'WordPress attachment preflight stream-filter stack decoding',
     'attachment_count' => $summary['attachment_count'] ?? null,
@@ -221,6 +262,18 @@ $metadata = [
         && !str_contains($extraDecodeParmsText, 'Extra DecodeParms Attachment Leak'),
     'valid_attachment_after_extra_decodeparms_preserved' => ($extraDecodeParmsSummary['attachments'][0]['checksum_matches'] ?? false) === true
         && (($extraDecodeParmsFiles[0]['computed_checksum'] ?? null) === md5($validAfterDecodeParmsPayload)),
+    'indirect_operand_attachment_decoded' => ($indirectOperandSummary['attachment_count'] ?? null) === 1
+        && ($indirectOperandSummary['attachments'][0]['filename'] ?? null) === 'indirect-filter-stack.csv'
+        && ($indirectOperandSummary['attachments'][0]['checksum_matches'] ?? false) === true
+        && (($indirectOperandFiles[0]['content'] ?? null) === $indirectOperandPayload),
+    'indirect_operand_filters' => $indirectOperandSummary['attachments'][0]['filters'] ?? [],
+    'indirect_operand_payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $indirectOperandSummary['attachments'][0] ?? []),
+    'cyclic_filter_operand_rejected' => !str_contains($indirectOperandSummaryJson, 'cycle-filter-stack.csv')
+        && !str_contains($indirectOperandFilesJson, 'cycle-filter-stack.csv'),
+    'cyclic_filter_operand_payload_excluded' => !str_contains($indirectOperandSummaryJson, 'Cyclic Filter Operand Attachment Leak')
+        && !str_contains($indirectOperandFilesJson, 'Cyclic Filter Operand Attachment Leak')
+        && !str_contains($indirectOperandText, 'Cyclic Filter Operand Attachment Leak'),
+    'indirect_operand_visible_text_preserved' => $indirectOperandText === 'Visible Attachment Indirect Operand Review',
     'executes_python_or_models' => $summary['executes_python_or_models'] ?? null,
     'executes_external_pdf_tools' => $summary['executes_external_pdf_tools'] ?? null,
 ];
