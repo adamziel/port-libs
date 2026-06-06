@@ -608,3 +608,17 @@ server {
   }
 }
 ```
+
+``` {.twig #twig-template-review .numberLines startFrom=410}
+{# Timber theme template review #}
+{% extends "base.twig" %}
+{% set blocks = ["core/paragraph", "core/image"] %}
+{% for item in posts if item.status == "publish" %}
+<article class="wp-block-import-card">
+  <h2>{{ item.title|default("Untitled")|e }}</h2>
+  {{ function("wp_kses_post", item.content)|raw }}
+</article>
+{% else %}
+  {{ include("partials/empty.twig", { source: sourceId }) }}
+{% endfor %}
+```

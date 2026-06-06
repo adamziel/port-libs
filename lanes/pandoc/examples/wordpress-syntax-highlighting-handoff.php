@@ -274,6 +274,12 @@ if (!$nginxCodeBlock instanceof PortLibs\Pandoc\AstNode || $nginxCodeBlock->type
 }
 $nginx = $highlighter->highlightCodeBlock($nginxCodeBlock, 'tango');
 $nginxWordpressBlock = $highlighter->wordpressHtmlBlock($nginxCodeBlock, 'tango');
+$twigCodeBlock = $document->children[39] ?? null;
+if (!$twigCodeBlock instanceof PortLibs\Pandoc\AstNode || $twigCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Twig template code block');
+}
+$twig = $highlighter->highlightCodeBlock($twigCodeBlock, 'espresso');
+$twigWordpressBlock = $highlighter->wordpressHtmlBlock($twigCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1145,6 +1151,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($nginxWordpressBlock, '<span class="kw">rewrite</span> <span class="st">^</span> <span class="st">/index.php</span> <span class="cn">last</span>')) {
         throw new RuntimeException('Expected Nginx rewrite WordPress handoff');
     }
+    if (($twig['language'] ?? '') !== 'twig') {
+        throw new RuntimeException('Expected Twig fixture to normalize to Twig highlighting');
+    }
+    if (($twig['lineNumbering']['start'] ?? null) !== 410) {
+        throw new RuntimeException('Expected Twig source startFrom line-number handoff');
+    }
+    if (!str_contains($twig['html'], '<span class="co">{# Timber theme template review #}</span>')) {
+        throw new RuntimeException('Expected Twig comment token handoff');
+    }
+    if (!str_contains($twig['html'], '<span class="kw">for</span> <span class="va">item</span> <span class="kw">in</span> <span class="va">posts</span>')) {
+        throw new RuntimeException('Expected Twig for/in token handoff');
+    }
+    if (!str_contains($twig['html'], '<span class="fu">default</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">)|</span><span class="fu">e</span>')) {
+        throw new RuntimeException('Expected Twig filter token handoff');
+    }
+    if (!str_contains($twig['html'], '<span class="fu">function</span><span class="op">(</span><span class="st">&quot;wp_kses_post&quot;</span>')) {
+        throw new RuntimeException('Expected Twig function call token handoff');
+    }
+    if (!str_contains($twigWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected Twig WordPress style metadata');
+    }
+    if (!str_contains($twigWordpressBlock, '<span class="fu">include</span><span class="op">(</span><span class="st">&quot;partials/empty.twig&quot;</span>')) {
+        throw new RuntimeException('Expected Twig include fallback WordPress handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1208,6 +1238,7 @@ echo "rstHighlightedHtml:\n" . $rst['html'] . "\n";
 echo "tsxHighlightedHtml:\n" . $tsx['html'] . "\n";
 echo "cmakeHighlightedHtml:\n" . $cmake['html'] . "\n";
 echo "nginxHighlightedHtml:\n" . $nginx['html'] . "\n";
+echo "twigHighlightedHtml:\n" . $twig['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1242,4 +1273,5 @@ echo "rstWordpressBlock:\n" . $rstWordpressBlock . "\n";
 echo "tsxWordpressBlock:\n" . $tsxWordpressBlock . "\n";
 echo "cmakeWordpressBlock:\n" . $cmakeWordpressBlock . "\n";
 echo "nginxWordpressBlock:\n" . $nginxWordpressBlock . "\n";
+echo "twigWordpressBlock:\n" . $twigWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

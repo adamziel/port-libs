@@ -808,6 +808,49 @@ return [
         $t->same('nginxconf', $directNginx['requestedLanguage']);
         $t->contains('<span class="kw">location</span> <span class="op">~</span> <span class="st">\\.php$</span> <span class="op">{</span> <span class="kw">fastcgi_pass</span> <span class="st">unix:/run/php/php-fpm.sock</span><span class="op">;</span> <span class="op">}</span>', $directNginx['html']);
     },
+    'highlights twig timber template snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[39] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Twig template code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directTwig = $highlighter->highlight('{{ post.title|default("Untitled")|e }}', 'html+twig');
+
+        $t->same('twig', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('twig', SyntaxHighlighter::normalizeLanguage('twig'));
+        $t->same('twig', SyntaxHighlighter::normalizeLanguage('timber'));
+        $t->same('twig', SyntaxHighlighter::normalizeLanguage('html+twig'));
+        $t->same('twig', $highlighted['language']);
+        $t->same('twig', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(410, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource twig numberLines"><code class="sourceCode twig" style="counter-reset: source-line 409;">', $highlighted['html']);
+        $t->contains('<span id="twig-template-review-410"><a href="#twig-template-review-410"></a><span class="co">{# Timber theme template review #}</span></span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">extends</span> <span class="st">&quot;base.twig&quot;</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">set</span> <span class="va">blocks</span> <span class="op">=</span> <span class="op">[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">,</span> <span class="st">&quot;core/image&quot;</span><span class="op">]</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">for</span> <span class="va">item</span> <span class="kw">in</span> <span class="va">posts</span> <span class="kw">if</span> <span class="va">item</span><span class="op">.</span><span class="va">status</span> <span class="op">==</span> <span class="st">&quot;publish&quot;</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;article</span> <span class="ot">class</span><span class="op">=</span><span class="st">&quot;wp-block-import-card&quot;</span><span class="op">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">&lt;h2</span><span class="op">&gt;{{</span> <span class="va">item</span><span class="op">.</span><span class="va">title</span><span class="op">|</span><span class="fu">default</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">)|</span><span class="fu">e</span> <span class="op">}}</span><span class="kw">&lt;/h2</span>', $highlighted['html']);
+        $t->contains('<span class="op">{{</span> <span class="fu">function</span><span class="op">(</span><span class="st">&quot;wp_kses_post&quot;</span><span class="op">,</span> <span class="va">item</span><span class="op">.</span><span class="va">content</span><span class="op">)|</span><span class="fu">raw</span> <span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">else</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{{</span> <span class="fu">include</span><span class="op">(</span><span class="st">&quot;partials/empty.twig&quot;</span><span class="op">,</span> <span class="op">{</span> <span class="ot">source</span><span class="op">:</span> <span class="va">sourceId</span> <span class="op">})</span> <span class="op">}}</span>', $highlighted['html']);
+        $t->contains('<span class="op">{%</span> <span class="kw">endfor</span> <span class="op">%}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="st">&quot;wp_kses_post&quot;</span>', $wordpressBlock);
+        $t->same('twig', $directTwig['language']);
+        $t->same('html+twig', $directTwig['requestedLanguage']);
+        $t->contains('<span class="op">{{</span> <span class="va">post</span><span class="op">.</span><span class="va">title</span><span class="op">|</span><span class="fu">default</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">)|</span><span class="fu">e</span> <span class="op">}}</span>', $directTwig['html']);
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');

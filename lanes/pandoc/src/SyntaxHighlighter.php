@@ -178,6 +178,11 @@ final class SyntaxHighlighter
         'toml' => 'toml',
         'ts' => 'typescript',
         'tsx' => 'tsx',
+        'html+twig' => 'twig',
+        'html-twig' => 'twig',
+        'timber' => 'twig',
+        'twig' => 'twig',
+        'twig-html' => 'twig',
         'typescript' => 'typescript',
         'typescript-react' => 'tsx',
         'typescriptreact' => 'tsx',
@@ -632,6 +637,7 @@ final class SyntaxHighlighter
             'sql' => $this->tokenizeSql($code),
             'tex' => $this->tokenizeTex($code),
             'toml' => $this->tokenizeToml($code),
+            'twig' => $this->tokenizeTwig($code),
             'tsx' => $this->tokenizeTsx($code),
             'typescript' => $this->tokenizeTypeScript($code),
             'xml' => $this->tokenizeXml($code),
@@ -1305,6 +1311,30 @@ final class SyntaxHighlighter
             ['constant', '/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z_:][A-Za-z0-9_.:-]*);/'],
             ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
             ['operator', '/^(?:\\?>|\\/?>|=|\\[|\\])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeTwig(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\{#[\\s\\S]*?#\\}/'],
+            ['comment', '/^<!--[\\s\\S]*?-->/'],
+            ['operator', '/^\\{\\{[-~]?|^\\{%[-~]?|^[-~]?\\}\\}|^[-~]?%\\}/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['function', '/^\\b(?:abs|attribute|batch|block|capitalize|column|constant|convert_encoding|country_name|currency_name|cycle|date|date_modify|default|dump|escape|filter|first|format|function|include|join|json_encode|keys|last|length|lower|map|max|merge|min|nl2br|number_format|parent|random|range|reduce|replace|reverse|round|slice|sort|source|split|striptags|template_from_string|trim|upper|url_encode)(?=\\s*\\()/'],
+            ['function', '/^\\b(?:e|escape|raw)(?=\\s*(?:[|,)}\\]\\s]|$))/'],
+            ['keyword', '/^\\b(?:apply|autoescape|block|do|else|elseif|embed|endapply|endautoescape|endblock|endembed|endfilter|endfor|endif|endmacro|endsandbox|endset|endspaceless|endverbatim|extends|filter|flush|for|from|if|import|in|is|macro|only|sandbox|set|use|verbatim|with)\\b/'],
+            ['constant', '/^\\b(?:false|null|none|true)\\b/i'],
+            ['keyword', '/^<\\/?[A-Za-z][A-Za-z0-9:-]*/'],
+            ['attribute', '/^(?:aria-[A-Za-z0-9_.:-]+|data-[A-Za-z0-9_.:-]+|alt|class|for|href|id|name|rel|role|src|style|target|title|type|value)(?=\\s*=(?!=))/i'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['variable', '/^[A-Za-z_][A-Za-z0-9_]*/'],
+            ['operator', '/^(?:\\.\\.|==|!=|<=|>=|=>|\\?\\?|\\?:|\\bis\\s+not\\b|\\bnot\\s+in\\b|\\band\\b|\\bor\\b|\\bnot\\b|[{}()[\\].,:|=+*\\/%!<>?~-])/'],
         ]);
     }
 
