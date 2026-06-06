@@ -145,7 +145,7 @@ final class PdfMarkupAnnotationExtractor
                     continue;
                 }
 
-                $annotations[] = [
+                $annotation = [
                     'subtype' => $markup['subtype'],
                     'contents' => $markup['contents'],
                     'author' => $markup['author'],
@@ -170,6 +170,11 @@ final class PdfMarkupAnnotationExtractor
                     'structure_parent' => $markup['structure_parent'] ?? null,
                     'page_structparent_context' => $markup['page_structparent_context'] ?? null,
                 ];
+                if (array_key_exists('annotation_generation', $markup)) {
+                    $annotation['annotation_generation'] = $markup['annotation_generation'];
+                }
+
+                $annotations[] = $annotation;
             }
         }
 
@@ -347,7 +352,14 @@ final class PdfMarkupAnnotationExtractor
         $markups = [];
 
         foreach ($annotationBodies as $annotation) {
-            $markup = $this->markupFromAnnotationBody($annotation['body'], $objects, $annotation['object'], $pageGeometry, $actionReviewer);
+            $markup = $this->markupFromAnnotationBody(
+                $annotation['body'],
+                $objects,
+                $annotation['object'],
+                $annotation['generation'] ?? null,
+                $pageGeometry,
+                $actionReviewer
+            );
             if ($markup !== null) {
                 $markups[] = $markup;
             }
@@ -365,6 +377,7 @@ final class PdfMarkupAnnotationExtractor
         string $annotationBody,
         array $objects,
         ?int $annotationObject,
+        ?int $annotationGeneration,
         array $pageGeometry,
         PdfActionReviewExtractor $actionReviewer
     ): ?array {
@@ -386,7 +399,7 @@ final class PdfMarkupAnnotationExtractor
 
         $actionReview = $actionReviewer->reviewAnnotationActions($annotationBody);
 
-        return [
+        $row = [
             'subtype' => $match[1],
             'rect' => $rect,
             'quad_points' => $quadPoints,
@@ -414,10 +427,16 @@ final class PdfMarkupAnnotationExtractor
             'executes_actions_on_import' => $actionReview['executes_actions_on_import'],
             'annotation_object' => $annotationObject,
         ];
+
+        if ($annotationGeneration !== null) {
+            $row['annotation_generation'] = $annotationGeneration;
+        }
+
+        return $row;
     }
 
     /**
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      * @param array<int, string> $objects
      */
     private function annotationBodiesForPage(int $pageObjectNumber, ?int $pageGeneration, string $pageBody, array $objects): array
@@ -471,7 +490,7 @@ final class PdfMarkupAnnotationExtractor
     }
 
     /**
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      * @param array<int, string> $objects
      */
     private function annotationBodiesFromValue(string $value, array $objects, int $pageObjectNumber, ?int $pageGeneration): array
@@ -495,7 +514,7 @@ final class PdfMarkupAnnotationExtractor
             $dictionary = $this->dictionaryObjectBody($objectBody);
             return $dictionary === null || !$this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)
                 ? []
-                : [['body' => $dictionary, 'object' => $reference['object']]];
+                : [['body' => $dictionary, 'object' => $reference['object'], 'generation' => $reference['generation']]];
         }
 
         if (str_starts_with($value, '[')) {
@@ -513,7 +532,7 @@ final class PdfMarkupAnnotationExtractor
     }
 
     /**
-     * @return list<array{body: string, object: int|null}>
+     * @return list<array{body: string, object: int|null, generation?: int|null}>
      * @param array<int, string> $objects
      */
     private function annotationBodiesFromArray(?string $arrayBody, array $objects, int $pageObjectNumber, ?int $pageGeneration): array
@@ -554,7 +573,11 @@ final class PdfMarkupAnnotationExtractor
                 $objectBody = $this->objectBodyForReference($reference['object'], $reference['generation'], $objects);
                 $dictionary = $objectBody === null ? null : $this->dictionaryObjectBody($objectBody);
                 if ($dictionary !== null && $this->annotationBelongsToPage($dictionary, $pageObjectNumber, $pageGeneration)) {
-                    $annotations[] = ['body' => $dictionary, 'object' => $reference['object']];
+                    $annotations[] = [
+                        'body' => $dictionary,
+                        'object' => $reference['object'],
+                        'generation' => $reference['generation'],
+                    ];
                 }
                 $offset = $endOffset;
                 continue;
