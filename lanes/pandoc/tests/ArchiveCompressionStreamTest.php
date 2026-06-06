@@ -1103,6 +1103,97 @@ return [
         $t->same("# Split gzip provenance\n\nReady for archive review.\n", $inspection['archive']->read('/packet/content.md'));
     },
 
+    'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"tar-layout","target":"wordpress"}';
+        $documentBytes = '<w:document><w:body><w:p>Layout-aware tar source</w:p></w:body></w:document>';
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/',
+                'type' => TarArchiveEntry::TYPE_DIRECTORY,
+                'modifiedAt' => 1780479058,
+                'mode' => 0755,
+            ],
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+                'modifiedAt' => 1780479059,
+                'mode' => 0640,
+                'uid' => 1001,
+                'gid' => 1002,
+                'userName' => 'wp-reviewer',
+                'groupName' => 'import-team',
+            ],
+            [
+                'name' => 'packet/generated-timestamps.xml',
+                'data' => $documentBytes,
+                'modifiedAt' => 1780479060,
+                'accessedAt' => 1780479061,
+                'changedAt' => 1780479062,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $gzip = GzipStream::build($tarBytes, [
+            'filename' => 'wordpress-layout-review.tar',
+            'comment' => 'layout preflight',
+        ]);
+        $plainInspection = ArchiveCompressionStream::inspectTarStream(
+            $tarBytes,
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($documentBytes)
+        );
+        $gzipInspection = ArchiveCompressionStream::inspectPackageStreamAuto($gzip, strlen($tarBytes));
+        $layouts = $plainInspection['entryLayouts'];
+        $manifestLayout = $layouts[1];
+        $timestampLayout = $layouts[2];
+
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $plainInspection['format']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $gzipInspection['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $gzipInspection['format']);
+        $t->same(['packet/', 'packet/manifest.json', 'packet/generated-timestamps.xml'], $plainInspection['entryNames']);
+        $t->same($plainInspection['entryNames'], $gzipInspection['entryNames']);
+        $t->same(3, $plainInspection['entryCount']);
+        $t->same(2, $plainInspection['regularFileCount']);
+        $t->same(1, $plainInspection['directoryCount']);
+        $t->same(strlen($tarBytes), $plainInspection['uncompressedSize']);
+        $t->same(strlen($manifestBytes) + strlen($documentBytes), $plainInspection['unpackedSize']);
+        $t->same(1024, $plainInspection['trailingZeroBytes']);
+        $t->same($plainInspection['endMarkerOffset'] + $plainInspection['trailingZeroBytes'], strlen($tarBytes));
+        $t->same(0, $layouts[0]['headerOffset']);
+        $t->same(512, $layouts[0]['dataOffset']);
+        $t->same(512, $layouts[0]['dataEndOffset']);
+        $t->same(0, $layouts[0]['paddedDataSize']);
+        $t->same(512, $layouts[0]['recordSize']);
+        $t->same(TarArchiveEntry::TYPE_DIRECTORY, $layouts[0]['type']);
+        $t->same('packet/manifest.json', $manifestLayout['name']);
+        $t->same(TarArchiveEntry::TYPE_FILE, $manifestLayout['type']);
+        $t->same(0640, $manifestLayout['mode']);
+        $t->same(1001, $manifestLayout['uid']);
+        $t->same(1002, $manifestLayout['gid']);
+        $t->same('wp-reviewer', $manifestLayout['userName']);
+        $t->same('import-team', $manifestLayout['groupName']);
+        $t->same(strlen($manifestBytes), $manifestLayout['size']);
+        $t->same(512, $manifestLayout['headerOffset']);
+        $t->same(1024, $manifestLayout['dataOffset']);
+        $t->same(1024 + strlen($manifestBytes), $manifestLayout['dataEndOffset']);
+        $t->same(512, $manifestLayout['paddedDataSize']);
+        $t->same(1024, $manifestLayout['recordSize']);
+        $t->same([], $manifestLayout['paxHeaderKeys']);
+        $t->same('packet/generated-timestamps.xml', $timestampLayout['name']);
+        $t->same(['atime', 'ctime'], $timestampLayout['paxHeaderKeys']);
+        $t->same(2, $timestampLayout['paxHeaderCount']);
+        $t->same(1780479061, $timestampLayout['accessedAt']);
+        $t->same(1780479062, $timestampLayout['changedAt']);
+        $t->same($timestampLayout['dataOffset'] - 512, $timestampLayout['headerOffset']);
+        $t->same($timestampLayout['dataOffset'] + strlen($documentBytes), $timestampLayout['dataEndOffset']);
+        $t->same($timestampLayout['headerOffset'] + $timestampLayout['recordSize'], $plainInspection['endMarkerOffset']);
+        $t->same($plainInspection['entryLayouts'], $gzipInspection['entryLayouts']);
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-layout-review.tar', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('layout preflight', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same($documentBytes, $gzipInspection['archive']->read('/packet/generated-timestamps.xml'));
+    },
+
     'opens tar package fixtures through explicit compression stream formats' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

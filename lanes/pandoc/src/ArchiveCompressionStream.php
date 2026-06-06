@@ -159,8 +159,32 @@ final class ArchiveCompressionStream
      *     archive:TarArchive,
      *     entryNames:list<string>,
      *     entryCount:int,
+     *     regularFileCount:int,
+     *     directoryCount:int,
      *     uncompressedSize:int,
      *     unpackedSize:int,
+     *     endMarkerOffset:int,
+     *     trailingZeroBytes:int,
+     *     entryLayouts:list<array{
+     *         name:string,
+     *         type:string,
+     *         size:int,
+     *         mode:int,
+     *         modifiedAt:int,
+     *         accessedAt:?int,
+     *         changedAt:?int,
+     *         uid:int,
+     *         gid:int,
+     *         userName:string,
+     *         groupName:string,
+     *         paxHeaderCount:int,
+     *         paxHeaderKeys:list<string>,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         dataEndOffset:int,
+     *         paddedDataSize:int,
+     *         recordSize:int
+     *     }>,
      *     stream:array<string, mixed>
      * }
      */
@@ -186,8 +210,32 @@ final class ArchiveCompressionStream
      *     archive:TarArchive,
      *     entryNames:list<string>,
      *     entryCount:int,
+     *     regularFileCount:int,
+     *     directoryCount:int,
      *     uncompressedSize:int,
      *     unpackedSize:int,
+     *     endMarkerOffset:int,
+     *     trailingZeroBytes:int,
+     *     entryLayouts:list<array{
+     *         name:string,
+     *         type:string,
+     *         size:int,
+     *         mode:int,
+     *         modifiedAt:int,
+     *         accessedAt:?int,
+     *         changedAt:?int,
+     *         uid:int,
+     *         gid:int,
+     *         userName:string,
+     *         groupName:string,
+     *         paxHeaderCount:int,
+     *         paxHeaderKeys:list<string>,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         dataEndOffset:int,
+     *         paddedDataSize:int,
+     *         recordSize:int
+     *     }>,
      *     stream:array<string, mixed>
      * }
      */
@@ -439,8 +487,32 @@ final class ArchiveCompressionStream
      *     archive:TarArchive,
      *     entryNames:list<string>,
      *     entryCount:int,
+     *     regularFileCount:int,
+     *     directoryCount:int,
      *     uncompressedSize:int,
      *     unpackedSize:int,
+     *     endMarkerOffset:int,
+     *     trailingZeroBytes:int,
+     *     entryLayouts:list<array{
+     *         name:string,
+     *         type:string,
+     *         size:int,
+     *         mode:int,
+     *         modifiedAt:int,
+     *         accessedAt:?int,
+     *         changedAt:?int,
+     *         uid:int,
+     *         gid:int,
+     *         userName:string,
+     *         groupName:string,
+     *         paxHeaderCount:int,
+     *         paxHeaderKeys:list<string>,
+     *         headerOffset:int,
+     *         dataOffset:int,
+     *         dataEndOffset:int,
+     *         paddedDataSize:int,
+     *         recordSize:int
+     *     }>,
      *     stream:array<string, mixed>
      * }
      */
@@ -452,6 +524,8 @@ final class ArchiveCompressionStream
         ?int $maxUncompressedBytes
     ): array {
         $entryNames = $archive->names();
+        $endMarkerOffset = self::tarEndMarkerOffset($tarBytes);
+        $entryLayouts = self::tarEntryLayouts($archive);
 
         return [
             'format' => $format,
@@ -459,8 +533,19 @@ final class ArchiveCompressionStream
             'archive' => $archive,
             'entryNames' => $entryNames,
             'entryCount' => count($entryNames),
+            'regularFileCount' => count(array_filter(
+                $archive->entries(),
+                static fn (TarArchiveEntry $entry): bool => $entry->isRegularFile()
+            )),
+            'directoryCount' => count(array_filter(
+                $archive->entries(),
+                static fn (TarArchiveEntry $entry): bool => $entry->isDirectory()
+            )),
             'uncompressedSize' => strlen($tarBytes),
             'unpackedSize' => self::archiveUnpackedSize($archive),
+            'endMarkerOffset' => $endMarkerOffset,
+            'trailingZeroBytes' => strlen($tarBytes) - $endMarkerOffset,
+            'entryLayouts' => $entryLayouts,
             'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
         ];
     }
@@ -508,6 +593,84 @@ final class ArchiveCompressionStream
         }
 
         return $size;
+    }
+
+    /**
+     * @return list<array{
+     *     name:string,
+     *     type:string,
+     *     size:int,
+     *     mode:int,
+     *     modifiedAt:int,
+     *     accessedAt:?int,
+     *     changedAt:?int,
+     *     uid:int,
+     *     gid:int,
+     *     userName:string,
+     *     groupName:string,
+     *     paxHeaderCount:int,
+     *     paxHeaderKeys:list<string>,
+     *     headerOffset:int,
+     *     dataOffset:int,
+     *     dataEndOffset:int,
+     *     paddedDataSize:int,
+     *     recordSize:int
+     * }>
+     */
+    private static function tarEntryLayouts(TarArchive $archive): array
+    {
+        $layouts = [];
+        foreach ($archive->entries() as $entry) {
+            $headerOffset = $entry->dataOffset - 512;
+            $paddedDataSize = self::paddedTarPayloadSize($entry->size);
+            $paxHeaderKeys = array_keys($entry->paxHeaders);
+            sort($paxHeaderKeys);
+
+            $layouts[] = [
+                'name' => $entry->name,
+                'type' => $entry->type,
+                'size' => $entry->size,
+                'mode' => $entry->mode,
+                'modifiedAt' => $entry->modifiedAt,
+                'accessedAt' => $entry->accessedAt,
+                'changedAt' => $entry->changedAt,
+                'uid' => $entry->uid,
+                'gid' => $entry->gid,
+                'userName' => $entry->userName,
+                'groupName' => $entry->groupName,
+                'paxHeaderCount' => count($entry->paxHeaders),
+                'paxHeaderKeys' => $paxHeaderKeys,
+                'headerOffset' => $headerOffset,
+                'dataOffset' => $entry->dataOffset,
+                'dataEndOffset' => $entry->dataOffset + $entry->size,
+                'paddedDataSize' => $paddedDataSize,
+                'recordSize' => 512 + $paddedDataSize,
+            ];
+        }
+
+        return $layouts;
+    }
+
+    private static function paddedTarPayloadSize(int $size): int
+    {
+        $remainder = $size % 512;
+
+        return $remainder === 0 ? $size : $size + (512 - $remainder);
+    }
+
+    private static function tarEndMarkerOffset(string $tarBytes): int
+    {
+        $zeroBlock = str_repeat("\0", 512);
+        $length = strlen($tarBytes);
+        for ($offset = 0; $offset + 1024 <= $length; $offset += 512) {
+            if (substr($tarBytes, $offset, 512) === $zeroBlock
+                && substr($tarBytes, $offset + 512, 512) === $zeroBlock
+            ) {
+                return $offset;
+            }
+        }
+
+        throw new \RuntimeException('TAR archive is missing the required two-block end marker');
     }
 
     private static function zipPackageUncompressedSize(ZipPackage $package): int
