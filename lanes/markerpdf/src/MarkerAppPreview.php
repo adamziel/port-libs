@@ -1942,23 +1942,13 @@ final class MarkerAppPreview
      */
     private function pageLabelLimits(string $dict, array $objects, array $seen): ?array
     {
-        $limits = $this->valueAfterName($dict, 'Limits');
-        if ($limits === null) {
-            return null;
+        foreach ($this->pageLabelLimitCandidates($dict, $objects, $seen) as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return $candidate['limits'];
+            }
         }
 
-        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
-        if (count($elements) !== 2) {
-            return null;
-        }
-
-        $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
-        $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
-        if ($lower === null || $upper === null) {
-            return null;
-        }
-
-        return $lower <= $upper ? [$lower, $upper] : null;
+        return null;
     }
 
     /**
@@ -1967,23 +1957,19 @@ final class MarkerAppPreview
      */
     private function pageLabelLimitsReversed(string $dict, array $objects, array $seen): bool
     {
-        $limits = $this->valueAfterName($dict, 'Limits');
-        if ($limits === null) {
-            return false;
+        $candidates = $this->pageLabelLimitCandidates($dict, $objects, $seen);
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return false;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'reversed') {
+                return true;
+            }
         }
 
-        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
-        if (count($elements) !== 2) {
-            return false;
-        }
-
-        $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
-        $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
-        if ($lower === null || $upper === null) {
-            return false;
-        }
-
-        return $lower > $upper;
+        return false;
     }
 
     /**
@@ -1992,23 +1978,19 @@ final class MarkerAppPreview
      */
     private function pageLabelLimitsInvalidRange(string $dict, array $objects, array $seen): bool
     {
-        $limits = $this->valueAfterName($dict, 'Limits');
-        if ($limits === null) {
-            return false;
+        $candidates = $this->pageLabelLimitCandidates($dict, $objects, $seen);
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return false;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'negative' || $candidate['status'] === 'reversed') {
+                return true;
+            }
         }
 
-        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
-        if (count($elements) !== 2) {
-            return false;
-        }
-
-        $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
-        $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
-        if ($lower === null || $upper === null) {
-            return false;
-        }
-
-        return $lower < 0 || $upper < 0 || $lower > $upper;
+        return false;
     }
 
     /**
@@ -2017,18 +1999,60 @@ final class MarkerAppPreview
      */
     private function pageLabelLimitsMalformed(string $dict, array $objects, array $seen): bool
     {
-        $limits = $this->valueAfterName($dict, 'Limits');
-        if ($limits === null) {
-            return false;
+        $candidates = $this->pageLabelLimitCandidates($dict, $objects, $seen);
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return false;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'malformed') {
+                return true;
+            }
         }
 
-        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
-        if (count($elements) !== 2) {
-            return true;
+        return false;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     * @return list<array{status: string, limits?: array{0: int, 1: int}}>
+     */
+    private function pageLabelLimitCandidates(string $dict, array $objects, array $seen): array
+    {
+        $candidates = [];
+        foreach ($this->valuesAfterName($dict, 'Limits') as $limits) {
+            $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
+            if (count($elements) !== 2) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
+            $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
+            if ($lower === null || $upper === null) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            if ($lower < 0 || $upper < 0) {
+                $candidates[] = ['status' => 'negative'];
+                continue;
+            }
+
+            if ($lower > $upper) {
+                $candidates[] = ['status' => 'reversed'];
+                continue;
+            }
+
+            $candidates[] = [
+                'status' => 'valid',
+                'limits' => [$lower, $upper],
+            ];
         }
 
-        return $this->pageLabelLimitOperand($elements[0], $objects, $seen) === null
-            || $this->pageLabelLimitOperand($elements[1], $objects, $seen) === null;
+        return $candidates;
     }
 
     /**

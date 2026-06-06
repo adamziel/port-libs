@@ -12847,23 +12847,13 @@ final class PdfTextExtractor
      */
     private function pageLabelLimits(string $dictionary, array $objects): ?array
     {
-        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
-        if ($arrayBody === null) {
-            return null;
+        foreach ($this->pageLabelLimitCandidates($dictionary, $objects) as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return $candidate['limits'];
+            }
         }
 
-        $items = $this->pdfArrayItems($arrayBody);
-        if (count($items) !== 2) {
-            return null;
-        }
-
-        $lower = $this->pageLabelLimitOperand($items[0], $objects);
-        $upper = $this->pageLabelLimitOperand($items[1], $objects);
-        if ($lower === null || $upper === null) {
-            return null;
-        }
-
-        return $lower <= $upper ? [$lower, $upper] : null;
+        return null;
     }
 
     /**
@@ -12871,23 +12861,19 @@ final class PdfTextExtractor
      */
     private function pageLabelLimitsReversed(string $dictionary, array $objects): bool
     {
-        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
-        if ($arrayBody === null) {
-            return false;
+        $candidates = $this->pageLabelLimitCandidates($dictionary, $objects);
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return false;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'reversed') {
+                return true;
+            }
         }
 
-        $items = $this->pdfArrayItems($arrayBody);
-        if (count($items) !== 2) {
-            return false;
-        }
-
-        $lower = $this->pageLabelLimitOperand($items[0], $objects);
-        $upper = $this->pageLabelLimitOperand($items[1], $objects);
-        if ($lower === null || $upper === null) {
-            return false;
-        }
-
-        return $lower > $upper;
+        return false;
     }
 
     /**
@@ -12895,23 +12881,19 @@ final class PdfTextExtractor
      */
     private function pageLabelLimitsInvalidRange(string $dictionary, array $objects): bool
     {
-        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
-        if ($arrayBody === null) {
-            return false;
+        $candidates = $this->pageLabelLimitCandidates($dictionary, $objects);
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return false;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'negative' || $candidate['status'] === 'reversed') {
+                return true;
+            }
         }
 
-        $items = $this->pdfArrayItems($arrayBody);
-        if (count($items) !== 2) {
-            return false;
-        }
-
-        $lower = $this->pageLabelLimitOperand($items[0], $objects);
-        $upper = $this->pageLabelLimitOperand($items[1], $objects);
-        if ($lower === null || $upper === null) {
-            return false;
-        }
-
-        return $lower < 0 || $upper < 0 || $lower > $upper;
+        return false;
     }
 
     /**
@@ -12919,23 +12901,65 @@ final class PdfTextExtractor
      */
     private function pageLabelLimitsMalformed(string $dictionary, array $objects): bool
     {
-        $value = $this->pageLabelTopLevelValueAfterName($dictionary, 'Limits');
-        if ($value === null) {
-            return false;
+        $candidates = $this->pageLabelLimitCandidates($dictionary, $objects);
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'valid') {
+                return false;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            if ($candidate['status'] === 'malformed') {
+                return true;
+            }
         }
 
-        $arrayBody = $this->pageLabelArrayFromValue($value, $objects);
-        if ($arrayBody === null) {
-            return true;
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return list<array{status: string, limits?: array{0: int, 1: int}}>
+     */
+    private function pageLabelLimitCandidates(string $dictionary, array $objects): array
+    {
+        $candidates = [];
+        foreach ($this->pageLabelTopLevelValuesAfterName($dictionary, 'Limits') as $value) {
+            $arrayBody = $this->pageLabelArrayFromValue($value, $objects);
+            if ($arrayBody === null) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            $items = $this->pdfArrayItems($arrayBody);
+            if (count($items) !== 2) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            $lower = $this->pageLabelLimitOperand($items[0], $objects);
+            $upper = $this->pageLabelLimitOperand($items[1], $objects);
+            if ($lower === null || $upper === null) {
+                $candidates[] = ['status' => 'malformed'];
+                continue;
+            }
+
+            if ($lower < 0 || $upper < 0) {
+                $candidates[] = ['status' => 'negative'];
+                continue;
+            }
+
+            if ($lower > $upper) {
+                $candidates[] = ['status' => 'reversed'];
+                continue;
+            }
+
+            $candidates[] = [
+                'status' => 'valid',
+                'limits' => [$lower, $upper],
+            ];
         }
 
-        $items = $this->pdfArrayItems($arrayBody);
-        if (count($items) !== 2) {
-            return true;
-        }
-
-        return $this->pageLabelLimitOperand($items[0], $objects) === null
-            || $this->pageLabelLimitOperand($items[1], $objects) === null;
+        return $candidates;
     }
 
     /**
