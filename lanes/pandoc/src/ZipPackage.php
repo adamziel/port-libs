@@ -1113,6 +1113,94 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     collisionGroups:list<array{caseFoldKey:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function caseInsensitiveNamePreflight(): array
+    {
+        $entryNamesByCaseFoldKey = [];
+        foreach ($this->entries as $entry) {
+            $entryNamesByCaseFoldKey[self::caseFoldZipEntryName($entry->name)][] = $entry->name;
+        }
+
+        $collisionGroups = [];
+        foreach ($entryNamesByCaseFoldKey as $caseFoldKey => $entryNames) {
+            if (count($entryNames) > 1) {
+                $collisionGroups[] = [
+                    'caseFoldKey' => $caseFoldKey,
+                    'entryNames' => $entryNames,
+                ];
+            }
+        }
+
+        $entries = [];
+        $collisionEntries = [];
+        foreach ($this->entries as $entry) {
+            $caseFoldKey = self::caseFoldZipEntryName($entry->name);
+            $equivalentEntryNames = $entryNamesByCaseFoldKey[$caseFoldKey] ?? [];
+            $hasCollision = count($equivalentEntryNames) > 1;
+            $issues = $hasCollision ? ['case-insensitive-name-collision'] : [];
+            $summary = [
+                'name' => $entry->name,
+                'caseFoldKey' => $caseFoldKey,
+                'equivalentEntryNames' => $equivalentEntryNames,
+                'hasCaseInsensitiveNameCollision' => $hasCollision,
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($hasCollision) {
+                $collisionEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'collisionGroupCount' => count($collisionGroups),
+            'collisionEntryCount' => count($collisionEntries),
+            'collisionGroups' => $collisionGroups,
+            'collisionEntries' => $collisionEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     collisionGroupCount:int,
+     *     collisionEntryCount:int,
+     *     collisionGroups:list<array{caseFoldKey:string, entryNames:list<string>}>,
+     *     collisionEntries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, caseFoldKey:string, equivalentEntryNames:list<string>, hasCaseInsensitiveNameCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoCaseInsensitiveNameCollisions(): array
+    {
+        $summary = $this->caseInsensitiveNamePreflight();
+        if ($summary['collisionEntryCount'] > 0) {
+            $groups = implode(
+                ', ',
+                array_map(
+                    static fn (array $group): string => $group['caseFoldKey'] . ' (' . implode(', ', $group['entryNames']) . ')',
+                    $summary['collisionGroups']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains case-insensitive entry name collisions that require explicit import review: '
+                . $groups
+            );
+        }
+
+        return $summary;
+    }
+
     public function has(string $partName): bool
     {
         return isset($this->entriesByName[$this->normalizeLookupPartName($partName)]);
@@ -1685,6 +1773,7 @@ final class ZipPackage
      *     comments:array<string, mixed>,
      *     extraFields:array<string, mixed>,
      *     pathHierarchy:array<string, mixed>,
+     *     caseInsensitiveNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
@@ -1712,6 +1801,7 @@ final class ZipPackage
         $comments = $this->commentPreflight();
         $extraFields = $this->extraFieldPreflight();
         $pathHierarchy = $this->pathHierarchyPreflight();
+        $caseInsensitiveNames = $this->caseInsensitiveNamePreflight();
         $permissions = $this->permissionPreflight();
         $creatorHostSystems = $this->creatorHostSystemPreflight();
         $dataDescriptors = $this->dataDescriptorPreflight();
@@ -1744,6 +1834,10 @@ final class ZipPackage
 
         if ($pathHierarchy['collisionEntryCount'] > 0) {
             $diagnostics[] = 'path-hierarchy-collisions';
+        }
+
+        if ($caseInsensitiveNames['collisionEntryCount'] > 0) {
+            $diagnostics[] = 'case-insensitive-name-collisions';
         }
 
         if ($permissions['executableFileCount'] > 0) {
@@ -1792,6 +1886,7 @@ final class ZipPackage
             'comments' => $comments,
             'extraFields' => $extraFields,
             'pathHierarchy' => $pathHierarchy,
+            'caseInsensitiveNames' => $caseInsensitiveNames,
             'permissions' => $permissions,
             'creatorHostSystems' => $creatorHostSystems,
             'dataDescriptors' => $dataDescriptors,
@@ -1813,6 +1908,7 @@ final class ZipPackage
      *     comments:array<string, mixed>,
      *     extraFields:array<string, mixed>,
      *     pathHierarchy:array<string, mixed>,
+     *     caseInsensitiveNames:array<string, mixed>,
      *     permissions:array<string, mixed>,
      *     creatorHostSystems:array<string, mixed>,
      *     dataDescriptors:array<string, mixed>,
@@ -2740,6 +2836,11 @@ final class ZipPackage
         self::assertSafePartName($name);
 
         return $name;
+    }
+
+    private static function caseFoldZipEntryName(string $name): string
+    {
+        return strtolower($name);
     }
 
     /**

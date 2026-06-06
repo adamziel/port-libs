@@ -1313,6 +1313,71 @@ return [
         $t->same("PNG reviewer attachment placeholder\n", $safePackage->read('/word/media/review.png'));
     },
 
+    'preflights case-insensitive zip entry name collisions before media handoff' => static function (TestRunner $t): void {
+        $collisionPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>case collision preflight</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/Review.PNG',
+                'data' => "first reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "second reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $collisionPackage->caseInsensitiveNamePreflight();
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(1, $summary['collisionGroupCount']);
+        $t->same(2, $summary['collisionEntryCount']);
+        $t->same('word/media/review.png', $summary['collisionGroups'][0]['caseFoldKey']);
+        $t->same(['word/media/Review.PNG', 'word/media/review.png'], $summary['collisionGroups'][0]['entryNames']);
+        $t->same('word/document.xml', $summary['entries'][0]['name']);
+        $t->same(false, $summary['entries'][0]['hasCaseInsensitiveNameCollision']);
+        $t->same([], $summary['entries'][0]['issues']);
+        $t->same('word/media/Review.PNG', $summary['entries'][1]['name']);
+        $t->same('word/media/review.png', $summary['entries'][1]['caseFoldKey']);
+        $t->same(['word/media/Review.PNG', 'word/media/review.png'], $summary['entries'][1]['equivalentEntryNames']);
+        $t->same(true, $summary['entries'][1]['hasCaseInsensitiveNameCollision']);
+        $t->same(['case-insensitive-name-collision'], $summary['entries'][1]['issues']);
+        $t->same('word/media/review.png', $summary['entries'][2]['name']);
+        $t->same(['case-insensitive-name-collision'], $summary['entries'][2]['issues']);
+        $t->same('word/media/Review.PNG', $summary['collisionEntries'][0]['name']);
+        $t->same('word/media/review.png', $summary['collisionEntries'][1]['name']);
+        $t->same("first reviewer attachment placeholder\n", $collisionPackage->read('/word/media/Review.PNG'));
+        $t->same("second reviewer attachment placeholder\n", $collisionPackage->read('/word/media/review.png'));
+        $strictSummary = $collisionPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->contains('case-insensitive-name-collisions', implode(',', $strictSummary['diagnostics']));
+        $t->same(2, $strictSummary['caseInsensitiveNames']['collisionEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertNoCaseInsensitiveNameCollisions());
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe case names</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoCaseInsensitiveNameCollisions();
+        $t->same(2, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['collisionGroupCount']);
+        $t->same(0, $safeSummary['collisionEntryCount']);
+        $t->same([], $safeSummary['collisionGroups']);
+        $t->same([], $safeSummary['collisionEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([

@@ -1684,6 +1684,7 @@ $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
 $packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
+$packageCaseInsensitiveNamePreflight = $package->caseInsensitiveNamePreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
 $strictImportPackage = ZipPackage::fromParts([
     [
@@ -1848,6 +1849,36 @@ try {
     $pathHierarchyCollisionPackage->assertNoPathHierarchyCollisions();
 } catch (RuntimeException $exception) {
     $pathHierarchyCollisionRejected = str_contains($exception->getMessage(), 'file/directory path hierarchy collisions');
+}
+$caseInsensitiveNameCollisionPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Case-insensitive media collision review</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => 'word/media/Review.PNG',
+        'data' => "first reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/review.png',
+        'data' => "second reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+]);
+$caseInsensitiveNameCollisionPreflight = $caseInsensitiveNameCollisionPackage->caseInsensitiveNamePreflight();
+$caseInsensitiveNameCollisionStrictPreflight = $caseInsensitiveNameCollisionPackage->strictImportPreflight(4096, 100.0, 4096);
+$caseInsensitiveNameCollisionRejected = false;
+try {
+    $caseInsensitiveNameCollisionPackage->assertNoCaseInsensitiveNameCollisions();
+} catch (RuntimeException $exception) {
+    $caseInsensitiveNameCollisionRejected = str_contains($exception->getMessage(), 'case-insensitive entry name collisions');
+}
+$caseInsensitiveNameCollisionStrictRejected = false;
+try {
+    $caseInsensitiveNameCollisionPackage->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $caseInsensitiveNameCollisionStrictRejected = str_contains($exception->getMessage(), 'case-insensitive-name-collisions');
 }
 $deflateOptionFlagsRejected = false;
 try {
@@ -2838,6 +2869,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected generated ZIP package to avoid file/directory path hierarchy collisions');
     }
 
+    if ($package->assertNoCaseInsensitiveNameCollisions() !== $packageCaseInsensitiveNamePreflight) {
+        throw new RuntimeException('Expected generated ZIP package case-insensitive name preflight to return the accepted summary');
+    }
+
+    if (($packageCaseInsensitiveNamePreflight['collisionEntryCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected generated ZIP package to avoid case-insensitive entry name collisions');
+    }
+
     if (
         !$unknownCreatorHostRejected
         || ($unknownCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 1
@@ -2891,6 +2930,23 @@ if (in_array('--self-test', $argv, true)) {
         || ($pathHierarchyCollisionPreflight['collisionEntries'][2]['ancestorFileNames'][0] ?? null) !== 'word/media'
     ) {
         throw new RuntimeException('Expected ZIP file/directory path hierarchy collisions to stay blocked for strict media import');
+    }
+
+    if (
+        !$caseInsensitiveNameCollisionRejected
+        || !$caseInsensitiveNameCollisionStrictRejected
+        || ($caseInsensitiveNameCollisionPreflight['collisionGroupCount'] ?? null) !== 1
+        || ($caseInsensitiveNameCollisionPreflight['collisionEntryCount'] ?? null) !== 2
+        || ($caseInsensitiveNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? null) !== 'word/media/review.png'
+        || ($caseInsensitiveNameCollisionPreflight['collisionEntries'][0]['name'] ?? null) !== 'word/media/Review.PNG'
+        || ($caseInsensitiveNameCollisionPreflight['collisionEntries'][1]['name'] ?? null) !== 'word/media/review.png'
+        || ($caseInsensitiveNameCollisionStrictPreflight['diagnostics'] ?? null) !== ['case-insensitive-name-collisions']
+    ) {
+        throw new RuntimeException('Expected ZIP case-insensitive entry name collisions to stay blocked for strict media import');
+    }
+
+    if ($caseInsensitiveNameCollisionPackage->read('/word/media/Review.PNG') !== "first reviewer attachment placeholder\n") {
+        throw new RuntimeException('Expected exact-case ZIP media path to remain readable before case-insensitive handoff rejection');
     }
 
     if (!$packageSizeRejected) {
@@ -3647,6 +3703,7 @@ echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): st
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";
 echo 'packagePathHierarchy.collisionEntryCount=' . $packagePathHierarchyPreflight['collisionEntryCount'] . "\n";
+echo 'packageCaseInsensitiveNames.collisionEntryCount=' . $packageCaseInsensitiveNamePreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";
 echo 'packageArchive.centralDirectorySize=' . $packageArchivePreflight['centralDirectorySize'] . "\n";
@@ -3700,6 +3757,10 @@ echo 'zipExtraFieldValueMismatchPolicy=' . ($extraFieldValueMismatchRejected ? '
 echo 'zipExtraFieldValueMismatchEntry=' . ($extraFieldValueMismatchPreflight['valueMismatchedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipPathHierarchyCollisionPolicy=' . ($pathHierarchyCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPathHierarchyCollisionEntry=' . ($pathHierarchyCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipCaseInsensitiveNameCollisionPolicy=' . ($caseInsensitiveNameCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCaseInsensitiveNameStrictPolicy=' . ($caseInsensitiveNameCollisionStrictRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipCaseInsensitiveNameCollisionEntry=' . ($caseInsensitiveNameCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipCaseInsensitiveNameCollisionKey=' . ($caseInsensitiveNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
