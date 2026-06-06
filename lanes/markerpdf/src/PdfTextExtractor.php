@@ -27845,7 +27845,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}
+     * @return array{cidMap: array<string, int>, codeSpaceRanges: list<array{start: int, end: int, width: int}>, cidRanges?: list<array{start: int, end: int, width: int, cid: int, overwrite: bool, sequential?: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>, writingMode?: int}
      * @param array<string, string> $namedCMapBodies
      * @param list<string> $seenCMaps
      */
@@ -28487,7 +28487,7 @@ final class PdfTextExtractor
     /**
      * @param array<string, int> $cidMap
      * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
-     * @param list<array{start: int, end: int, width: int, cid: int, overwrite: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>|null $cidRanges
+     * @param list<array{start: int, end: int, width: int, cid: int, overwrite: bool, sequential?: bool, codeSpaceRanges?: list<array{start: int, end: int, width: int}>}>|null $cidRanges
      */
     private function parseCidRanges(
         string $block,
@@ -28532,6 +28532,7 @@ final class PdfTextExtractor
                     'width' => $sourceWidth,
                     'cid' => $cid,
                     'overwrite' => $overwrite,
+                    'sequential' => $overwrite,
                 ];
                 if ($sameWidthCodeSpaceRanges !== []) {
                     $cidRange['codeSpaceRanges'] = $sameWidthCodeSpaceRanges;
@@ -28553,7 +28554,7 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $currentCid = $cid + $mappedCount;
+                $currentCid = $overwrite ? $cid + $mappedCount : $cid;
                 if ($currentCid >= 0 && $currentCid <= 0xffff) {
                     if (!$overwrite && array_key_exists($sourceKey, $cidMap)) {
                         $source++;
@@ -34770,6 +34771,7 @@ final class PdfTextExtractor
             }
 
             $rangeCodeSpaceRanges = $range['codeSpaceRanges'] ?? [];
+            $sequential = ($range['sequential'] ?? true) !== false;
             if (is_array($rangeCodeSpaceRanges) && $rangeCodeSpaceRanges !== []) {
                 if (!$this->sourceKeyMatchesAnyCodeSpaceRange($sourceKey, $rangeCodeSpaceRanges)) {
                     continue;
@@ -34780,9 +34782,9 @@ final class PdfTextExtractor
                     continue;
                 }
 
-                $candidate = $rangeCid + $offset;
+                $candidate = $sequential ? $rangeCid + $offset : $rangeCid;
             } else {
-                $candidate = $rangeCid + ($source - $rangeStart);
+                $candidate = $sequential ? $rangeCid + ($source - $rangeStart) : $rangeCid;
             }
             if ($candidate >= 0 && $candidate <= 0xffff) {
                 $cid = $candidate;

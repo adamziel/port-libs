@@ -65,17 +65,18 @@ $spanBboxes = array_column($spans, 'bbox');
 if (
     $lines !== ['ABCD EFGH']
     || $runs !== ['ABCD', 'EFGH']
-    || $spanBboxes !== [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]]
+    || $spanBboxes !== [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 96.0, 12.0]]
 ) {
-    throw new RuntimeException('Expected Encoding CMap notdef ranges to drive CID widths before WordPress import.');
+    throw new RuntimeException('Expected Encoding CMap notdef ranges to use one CID width before WordPress import.');
 }
 
 echo '<!-- markerpdf-cmap-notdef-source-width-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-cmap-notdef-source-width-currentbase',
     'source' => 'native-pdf-cmap-notdef-range-source-width-fallback',
-    'notdef_range_cid_widths_applied' => $spanBboxes === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 60.0, 12.0]],
+    'notdef_range_constant_cid_widths_applied' => $spanBboxes === [[0.0, 0.0, 48.0, 12.0], [48.0, 0.0, 96.0, 12.0]],
     'word_gap_preserved' => $lines === ['ABCD EFGH'],
     'text_runs_preserved' => $runs === ['ABCD', 'EFGH'],
+    'sequential_notdef_widths_excluded' => ($spanBboxes[1] ?? null) !== [48.0, 0.0, 60.0, 12.0],
     'raw_source_default_width_excluded' => ($spanBboxes[0] ?? null) !== [0.0, 0.0, 24.0, 12.0],
     'raw_nul_bytes_excluded' => !str_contains(implode('', $lines), "\0"),
     'executes_python_or_models' => false,
