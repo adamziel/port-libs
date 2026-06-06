@@ -1738,10 +1738,10 @@ final class MarkerAppPreview
                 );
             }
 
-            $sameLowerKidLimits = [];
+            $claimedKidLimits = [];
             foreach ($kidNodes as $kidNode) {
                 $kidLimits = $kidNode['limits'];
-                $sameLowerLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
+                $claimableLimits = $kidNode['local_limits'] === null ? null : $kidLimits;
                 $kidContributed = false;
                 $seenPageIndexes = [];
                 foreach ($sections as $section) {
@@ -1750,9 +1750,19 @@ final class MarkerAppPreview
 
                 foreach ($this->pageLabelSections($kidNode['body'], $objects, $kidNode['seen'], $limits) as $section) {
                     $pageIndex = $section['page_index'];
-                    if ($sameLowerLimits !== null) {
-                        foreach ($sameLowerKidLimits[$sameLowerLimits[0]] ?? [] as $claimedLimits) {
-                            if ($pageIndex >= $claimedLimits[0] && $pageIndex <= $claimedLimits[1]) {
+                    if ($claimableLimits !== null) {
+                        foreach ($claimedKidLimits as $claimedLimits) {
+                            if (
+                                (
+                                    $claimableLimits[0] === $claimedLimits[0]
+                                    || (
+                                        $claimableLimits[0] > $claimedLimits[0]
+                                        && $claimableLimits[0] < $claimedLimits[1]
+                                    )
+                                )
+                                && $pageIndex >= $claimedLimits[0]
+                                && $pageIndex <= $claimedLimits[1]
+                            ) {
                                 continue 2;
                             }
                         }
@@ -1767,8 +1777,8 @@ final class MarkerAppPreview
                     $kidContributed = true;
                 }
 
-                if ($sameLowerLimits !== null && $kidContributed) {
-                    $sameLowerKidLimits[$sameLowerLimits[0]][] = $sameLowerLimits;
+                if ($claimableLimits !== null && $kidContributed) {
+                    $claimedKidLimits[] = $claimableLimits;
                 }
             }
         }
