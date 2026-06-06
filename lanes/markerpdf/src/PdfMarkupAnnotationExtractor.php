@@ -1109,11 +1109,19 @@ final class PdfMarkupAnnotationExtractor
 
     private function nameValueAfterName(string $body, string $name): ?string
     {
-        if (preg_match('/\/' . preg_quote($name, '/') . '\s*\/([^\s\[\]()<>{}\/%]+)/s', $body, $match) !== 1) {
+        $value = $this->pageDictionaryValueAfterName($body, $name);
+        if ($value === null) {
             return null;
         }
 
-        return $this->decodePdfName($match[1]);
+        $trimmed = trim($value);
+        if ($trimmed === '' || $trimmed[0] !== '/') {
+            return null;
+        }
+
+        $nameEnd = $this->skipPdfName($trimmed, 0);
+
+        return $this->decodePdfName(substr($trimmed, 1, $nameEnd - 1));
     }
 
     private function booleanAfterName(string $body, string $name): ?bool
@@ -1214,7 +1222,7 @@ final class PdfMarkupAnnotationExtractor
     private function orderedPageObjectReferences(array $objects): array
     {
         foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
+            if ($this->nameValueAfterName($body, 'Type') !== 'Catalog') {
                 continue;
             }
 
@@ -1231,7 +1239,7 @@ final class PdfMarkupAnnotationExtractor
 
         $pages = [];
         foreach ($objects as $objectNumber => $body) {
-            if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+            if ($this->nameValueAfterName($body, 'Type') === 'Page') {
                 $pages[] = ['object' => $objectNumber, 'generation' => 0];
             }
         }
@@ -1257,11 +1265,11 @@ final class PdfMarkupAnnotationExtractor
         }
 
         $seen[$key] = true;
-        if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+        if ($this->nameValueAfterName($body, 'Type') === 'Page') {
             return [['object' => $objectNumber, 'generation' => $generation]];
         }
 
-        $kids = $this->valueAfterName($body, 'Kids');
+        $kids = $this->pageDictionaryValueAfterName($body, 'Kids');
         if ($kids === null || !str_starts_with(trim($kids), '[')) {
             return [];
         }
@@ -1484,7 +1492,7 @@ final class PdfMarkupAnnotationExtractor
      */
     private function referenceValueAfterName(string $body, string $name): ?array
     {
-        $value = $this->valueAfterName($body, $name);
+        $value = $this->pageDictionaryValueAfterName($body, $name);
         return $value === null ? null : $this->objectReferenceFromValue($value);
     }
 

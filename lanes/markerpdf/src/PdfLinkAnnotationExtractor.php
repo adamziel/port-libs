@@ -2938,7 +2938,7 @@ final class PdfLinkAnnotationExtractor
     private function orderedPageObjectReferences(array $objects): array
     {
         foreach ($objects as $body) {
-            if (preg_match('/\/Type\s*\/Catalog\b/', $body) !== 1) {
+            if ($this->nameValueAfterName($body, 'Type') !== 'Catalog') {
                 continue;
             }
 
@@ -2955,7 +2955,7 @@ final class PdfLinkAnnotationExtractor
 
         $pages = [];
         foreach ($objects as $objectNumber => $body) {
-            if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+            if ($this->nameValueAfterName($body, 'Type') === 'Page') {
                 $pages[] = ['object' => $objectNumber, 'generation' => 0];
             }
         }
@@ -2981,7 +2981,7 @@ final class PdfLinkAnnotationExtractor
         }
 
         $seen[$key] = true;
-        if (preg_match('/\/Type\s*\/Page\b/', $body) === 1) {
+        if ($this->nameValueAfterName($body, 'Type') === 'Page') {
             return [['object' => $objectNumber, 'generation' => $generation]];
         }
 
