@@ -66,7 +66,7 @@ $opfXml = <<<'XML'
     <meta refines="#chapter" property="schema:name">Source chapter publication resource</meta>
     <meta refines="#source-spine" property="schema:position">primary reading order</meta>
     <meta refines="#chapter-spine" property="rendition:viewport">width=1024,height=768</meta>
-    <meta name="cover" content="cover-image"/>
+    <meta name="cover" content="legacy-cover"/>
     <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
     <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
@@ -83,6 +83,7 @@ $opfXml = <<<'XML'
     <item id="style" href="styles/review.css" media-type="text/css"/>
     <item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>
     <item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="legacy-cover" href="images/legacy-cover.jpg" media-type="image/jpeg"/>
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
   </manifest>
   <spine id="source-spine" toc="toc" page-progression-direction="rtl">
@@ -301,6 +302,7 @@ $packageParts = [
     ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
     ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
     ['name' => 'EPUB/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+    ['name' => 'EPUB/images/legacy-cover.jpg', 'data' => 'LEGACY-JPEG', 'compressionMethod' => 0],
     ['name' => 'EPUB/images/unmanifested-review.png', 'data' => 'UNMANIFESTED-PNG', 'compressionMethod' => 0],
     ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
 ];
@@ -845,6 +847,21 @@ XML;
     if (($result['importReport']['assets']['coverImage']['byteSha256'] ?? null) !== hash('sha256', 'PNGDATA')) {
         throw new RuntimeException('Expected EPUB cover image hash for import deduplication');
     }
+    if (($result['importReport']['assets']['coverImageCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB asset report to expose both manifest and legacy meta cover candidates');
+    }
+    if (($result['importReport']['assets']['coverImages'][1]['id'] ?? null) !== 'legacy-cover') {
+        throw new RuntimeException('Expected EPUB legacy meta cover candidate to stay visible for review');
+    }
+    if (($result['importReport']['assets']['coverImages'][1]['coverImageSources'] ?? null) !== ['meta-name-cover']) {
+        throw new RuntimeException('Expected EPUB legacy meta cover source provenance');
+    }
+    if (($result['importReport']['assets']['coverImageDiagnostics'][0]['type'] ?? null) !== 'multiple-cover-image-candidates') {
+        throw new RuntimeException('Expected conflicting EPUB cover-image candidates to produce a review diagnostic');
+    }
+    if (($result['importReport']['assets']['coverImageDiagnostics'][0]['metaCoverItemId'] ?? null) !== 'legacy-cover') {
+        throw new RuntimeException('Expected EPUB cover-image diagnostic to identify the legacy meta cover id');
+    }
     if (($result['importReport']['assets']['unmanifestedItems'][0]['part'] ?? null) !== '/EPUB/images/unmanifested-review.png') {
         throw new RuntimeException('Expected unmanifested EPUB package image to stay visible for review');
     }
@@ -973,6 +990,9 @@ echo 'assets=' . count($result['assets']) . "\n";
 echo 'assetFallbacks=' . ($result['importReport']['assets']['fallbackCount'] ?? 0) . "\n";
 echo 'coverAttachment=' . ($result['importReport']['assets']['coverImage']['part'] ?? '') . "\n";
 echo 'coverSha256=' . ($result['importReport']['assets']['coverImage']['byteSha256'] ?? '') . "\n";
+echo 'coverCandidates=' . ($result['importReport']['assets']['coverImageCount'] ?? 0) . "\n";
+echo 'coverDiagnostics=' . ($result['importReport']['assets']['coverImageDiagnosticCount'] ?? 0) . "\n";
+echo 'legacyCoverAttachment=' . ($result['importReport']['assets']['coverImages'][1]['part'] ?? '') . "\n";
 echo 'attachmentCandidates=' . ($result['importReport']['assets']['attachmentCandidateCount'] ?? 0) . "\n";
 echo 'unmanifestedAssets=' . ($result['importReport']['assets']['unmanifestedCount'] ?? 0) . "\n";
 echo "wordpressBlocks:\n" . $blocks . "\n";

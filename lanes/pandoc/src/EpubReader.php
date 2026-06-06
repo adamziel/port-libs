@@ -6208,12 +6208,16 @@ final class EpubReader
         }
 
         $coverImage = null;
+        $coverImages = [];
         foreach ($assets as $asset) {
             if (($asset['isCoverImage'] ?? false) === true) {
-                $coverImage = $asset;
-                break;
+                $coverImages[] = $asset;
+                if ($coverImage === null) {
+                    $coverImage = $asset;
+                }
             }
         }
+        $coverImageReport = self::coverImageReport($coverImages, $metadata, $coverImage);
 
         $attachmentCandidates = array_values(array_filter(
             $assets,
@@ -6241,7 +6245,7 @@ final class EpubReader
         }
 
         $unmanifestedItems = $this->unmanifestedPackageAssets($package, $manifestParts, $opfPart);
-        $diagnostics = [];
+        $diagnostics = $coverImageReport['diagnostics'];
         if ($unmanifestedItems !== []) {
             $diagnostics[] = [
                 'type' => 'unmanifested-package-assets',
@@ -6254,6 +6258,10 @@ final class EpubReader
             'count' => count($assets),
             'items' => $assets,
             'coverImage' => $coverImage,
+            'coverImageCount' => $coverImageReport['count'],
+            'coverImages' => $coverImageReport['items'],
+            'coverImageDiagnosticCount' => count($coverImageReport['diagnostics']),
+            'coverImageDiagnostics' => $coverImageReport['diagnostics'],
             'attachmentCandidateCount' => count($attachmentCandidates),
             'attachmentCandidates' => $attachmentCandidates,
             'fallbackCount' => count($fallbackItems),
@@ -6262,6 +6270,71 @@ final class EpubReader
             'fallbackDiagnostics' => $fallbackDiagnostics,
             'unmanifestedCount' => count($unmanifestedItems),
             'unmanifestedItems' => $unmanifestedItems,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverImages
+     *
+     * @return array{count:int, items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function coverImageReport(array $coverImages, array $metadata, ?array $selected): array
+    {
+        $ids = [];
+        $manifestCoverIds = [];
+        $metaCoverIds = [];
+        $sourcesById = [];
+        foreach ($coverImages as $asset) {
+            $id = (string) ($asset['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+
+            $ids[] = $id;
+            $sources = is_array($asset['coverImageSources'] ?? null) ? array_values($asset['coverImageSources']) : [];
+            $sourcesById[$id] = $sources;
+            if (in_array('manifest-property-cover-image', $sources, true)) {
+                $manifestCoverIds[] = $id;
+            }
+            if (in_array('meta-name-cover', $sources, true)) {
+                $metaCoverIds[] = $id;
+            }
+        }
+
+        $selectedId = is_array($selected) && is_string($selected['id'] ?? null) ? $selected['id'] : null;
+        $metaCoverItemId = self::nullableManifestId($metadata['coverItemId'] ?? null);
+        $diagnostics = [];
+
+        if (count($coverImages) > 1) {
+            $diagnostics[] = [
+                'type' => 'multiple-cover-image-candidates',
+                'selectedId' => $selectedId,
+                'coverImageIds' => $ids,
+                'manifestCoverImageIds' => $manifestCoverIds,
+                'metaCoverImageIds' => $metaCoverIds,
+                'metaCoverItemId' => $metaCoverItemId,
+                'sourcesById' => $sourcesById,
+                'message' => 'EPUB package exposes more than one cover image candidate; selected cover image remains the first package candidate for compatibility',
+            ];
+        }
+
+        if ($metaCoverItemId !== null && !in_array($metaCoverItemId, $ids, true)) {
+            $diagnostics[] = [
+                'type' => 'missing-meta-cover-image',
+                'selectedId' => $selectedId,
+                'coverImageIds' => $ids,
+                'manifestCoverImageIds' => $manifestCoverIds,
+                'metaCoverImageIds' => $metaCoverIds,
+                'metaCoverItemId' => $metaCoverItemId,
+                'sourcesById' => $sourcesById,
+                'message' => 'EPUB OPF legacy meta cover item id does not resolve to an importable cover image candidate',
+            ];
+        }
+
+        return [
+            'count' => count($coverImages),
+            'items' => $coverImages,
             'diagnostics' => $diagnostics,
         ];
     }

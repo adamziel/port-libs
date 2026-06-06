@@ -2249,6 +2249,67 @@ XML;
         $t->same($assets['unmanifestedItems'], $assets['diagnostics'][0]['items']);
         $t->same('unmanifested-package-assets', $assets['diagnostics'][0]['type']);
     },
+    'reports conflicting EPUB cover image candidates for import review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithCoverConflict = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="legacy-cover"/>',
+            $opfXml
+        );
+        $opfWithCoverConflict = str_replace(
+            '<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>'
+            . '<item id="legacy-cover" href="images/legacy-cover.jpg" media-type="image/jpeg"/>',
+            $opfWithCoverConflict
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithCoverConflict,
+            null,
+            [
+                ['name' => 'OEBPS/images/legacy-cover.jpg', 'data' => 'LEGACY-JPEG', 'compressionMethod' => 0],
+            ]
+        ));
+        $assets = $result['importReport']['assets'];
+
+        $t->same(2, $assets['coverImageCount']);
+        $t->same('cover-image', $assets['coverImage']['id']);
+        $t->same('/OEBPS/images/cover.png', $assets['coverImage']['part']);
+        $t->same(['cover-image', 'legacy-cover'], array_map(
+            static fn (array $asset): string => (string) $asset['id'],
+            $assets['coverImages']
+        ));
+        $t->same(['manifest-property-cover-image'], $assets['coverImages'][0]['coverImageSources']);
+        $t->same(['meta-name-cover'], $assets['coverImages'][1]['coverImageSources']);
+        $t->same(hash('sha256', 'LEGACY-JPEG'), $assets['coverImages'][1]['byteSha256']);
+        $t->same(1, $assets['coverImageDiagnosticCount']);
+        $t->same('multiple-cover-image-candidates', $assets['coverImageDiagnostics'][0]['type']);
+        $t->same('cover-image', $assets['coverImageDiagnostics'][0]['selectedId']);
+        $t->same('legacy-cover', $assets['coverImageDiagnostics'][0]['metaCoverItemId']);
+        $t->same(['cover-image'], $assets['coverImageDiagnostics'][0]['manifestCoverImageIds']);
+        $t->same(['legacy-cover'], $assets['coverImageDiagnostics'][0]['metaCoverImageIds']);
+        $t->same([
+            'cover-image' => ['manifest-property-cover-image'],
+            'legacy-cover' => ['meta-name-cover'],
+        ], $assets['coverImageDiagnostics'][0]['sourcesById']);
+        $t->same($assets['coverImageDiagnostics'][0], $assets['diagnostics'][0]);
+        $t->same($assets, $result['assetReport']);
+        $t->same($assets, $result['importReport']['assets']);
+
+        $opfWithMissingLegacyCover = str_replace(
+            '<meta name="cover" content="cover-image"/>',
+            '<meta name="cover" content="missing-cover"/>',
+            $opfXml
+        );
+        $missingResult = (new EpubReader())->readPackage($buildEpubPackage($opfWithMissingLegacyCover));
+        $missingAssets = $missingResult['importReport']['assets'];
+        $t->same(1, $missingAssets['coverImageCount']);
+        $t->same('cover-image', $missingAssets['coverImage']['id']);
+        $t->same(1, $missingAssets['coverImageDiagnosticCount']);
+        $t->same('missing-meta-cover-image', $missingAssets['coverImageDiagnostics'][0]['type']);
+        $t->same('missing-cover', $missingAssets['coverImageDiagnostics'][0]['metaCoverItemId']);
+        $t->same(['cover-image'], $missingAssets['coverImageDiagnostics'][0]['manifestCoverImageIds']);
+        $t->same('cover-image', $missingAssets['coverImageDiagnostics'][0]['selectedId']);
+    },
     'reports non-spine OPF asset fallback chains for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithAssetFallbacks = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
