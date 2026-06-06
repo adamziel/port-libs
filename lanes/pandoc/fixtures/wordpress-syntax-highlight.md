@@ -524,3 +524,22 @@ NOWDOC;
 
 echo $block . $raw;
 ```
+
+``` {.rst #rst-review .numberLines startFrom=330}
+.. WordPress import review note
+
+Import Review
+=============
+
+:source: legacy-doc
+:status: **needs review**
+
+.. _review queue: https://example.test/wp-admin/edit.php
+
+.. code-block:: php
+
+   echo esc_html($title);
+
+Preserve ``legacy_shortcode`` and :doc:`media map <uploads>` with `queue link`_.
+See https://example.test/review.
+```

@@ -42,6 +42,10 @@ return [
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('apache-config'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('htaccess'));
         $t->same('apache', SyntaxHighlighter::normalizeLanguage('httpd-conf'));
+        $t->same('rst', SyntaxHighlighter::normalizeLanguage('rst'));
+        $t->same('rst', SyntaxHighlighter::normalizeLanguage('rest'));
+        $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
+        $t->same('rst', SyntaxHighlighter::normalizeLanguage('language-restructured-text'));
         $t->same('html', SyntaxHighlighter::normalizeLanguage('HTML5'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('language-js'));
         $t->same('javascript', SyntaxHighlighter::normalizeLanguage('mjs'));
@@ -807,6 +811,50 @@ return [
         $t->same('apache', $directApache['language']);
         $t->same('apacheconf', $directApache['requestedLanguage']);
         $t->contains('<span class="kw">Header</span> <span class="kw">always</span> <span class="kw">set</span> <span class="va">X-Frame-Options</span> <span class="st">&quot;SAMEORIGIN&quot;</span>', $directApache['html']);
+    },
+    'highlights restructuredtext review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[35] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a reStructuredText code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directRest = $highlighter->highlight('See :ref:`review queue` and https://example.test/import', 'rest');
+
+        $t->same('rst', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('rst', SyntaxHighlighter::normalizeLanguage('rest'));
+        $t->same('rst', SyntaxHighlighter::normalizeLanguage('reStructuredText'));
+        $t->same('rst', $highlighted['language']);
+        $t->same('rst', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(330, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource rst numberLines"><code class="sourceCode rst" style="counter-reset: source-line 329;">', $highlighted['html']);
+        $t->contains('<span id="rst-review-330"><a href="#rst-review-330"></a><span class="co">.. WordPress import review note</span></span>', $highlighted['html']);
+        $t->contains('<span class="re">=============</span>', $highlighted['html']);
+        $t->contains('<span class="fu">:source:</span> legacy<span class="op">-</span>doc', $highlighted['html']);
+        $t->contains('<span class="fu">:status:</span> <span class="kw">**needs review**</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.. _review queue: https://example.test/wp-admin/edit.php</span>', $highlighted['html']);
+        $t->contains('<span class="dt">.. code-block:: php</span>', $highlighted['html']);
+        $t->contains('<span class="dt">   echo esc_html($title);</span>', $highlighted['html']);
+        $t->contains('<span class="dt">``legacy_shortcode``</span>', $highlighted['html']);
+        $t->contains('<span class="kw">:doc:</span><span class="cn">`media map &lt;uploads&gt;`</span>', $highlighted['html']);
+        $t->contains('<span class="ot">`queue link`_</span>', $highlighted['html']);
+        $t->contains('<span class="ot">https://example.test/review</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="dt">.. code-block:: php</span>', $wordpressBlock);
+        $t->same('rst', $directRest['language']);
+        $t->same('rest', $directRest['requestedLanguage']);
+        $t->contains('<span class="kw">:ref:</span><span class="cn">`review queue`</span>', $directRest['html']);
+        $t->contains('<span class="ot">https://example.test/import</span>', $directRest['html']);
     },
     'highlights haskell and literate haskell review snippets' => static function (TestRunner $t): void {
         $codeBlock = new AstNode('code_block', [

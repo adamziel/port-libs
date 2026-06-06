@@ -250,6 +250,12 @@ if (!$phpHeredocCodeBlock instanceof PortLibs\Pandoc\AstNode || $phpHeredocCodeB
 }
 $phpHeredoc = $highlighter->highlightCodeBlock($phpHeredocCodeBlock, 'pygments');
 $phpHeredocWordpressBlock = $highlighter->wordpressHtmlBlock($phpHeredocCodeBlock, 'pygments');
+$rstCodeBlock = $document->children[35] ?? null;
+if (!$rstCodeBlock instanceof PortLibs\Pandoc\AstNode || $rstCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a reStructuredText code block');
+}
+$rst = $highlighter->highlightCodeBlock($rstCodeBlock, 'haddock');
+$rstWordpressBlock = $highlighter->wordpressHtmlBlock($rstCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1034,6 +1040,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($phpHeredocWordpressBlock, '<span class="st">&lt;!-- wp:html --&gt;</span>')) {
         throw new RuntimeException('Expected PHP nowdoc WordPress block body token handoff');
     }
+    if (($rst['language'] ?? '') !== 'rst') {
+        throw new RuntimeException('Expected reStructuredText fixture to normalize to RST highlighting');
+    }
+    if (($rst['lineNumbering']['start'] ?? null) !== 330) {
+        throw new RuntimeException('Expected reStructuredText source startFrom line-number handoff');
+    }
+    if (!str_contains($rst['html'], '<span class="co">.. WordPress import review note</span>')) {
+        throw new RuntimeException('Expected reStructuredText comment token handoff');
+    }
+    if (!str_contains($rst['html'], '<span class="fu">:status:</span> <span class="kw">**needs review**</span>')) {
+        throw new RuntimeException('Expected reStructuredText field and bold token handoff');
+    }
+    if (!str_contains($rst['html'], '<span class="dt">.. code-block:: php</span>')) {
+        throw new RuntimeException('Expected reStructuredText code-block directive token handoff');
+    }
+    if (!str_contains($rst['html'], '<span class="dt">   echo esc_html($title);</span>')) {
+        throw new RuntimeException('Expected reStructuredText indented code token handoff');
+    }
+    if (!str_contains($rst['html'], '<span class="kw">:doc:</span><span class="cn">`media map &lt;uploads&gt;`</span>')) {
+        throw new RuntimeException('Expected reStructuredText role and interpreted-text token handoff');
+    }
+    if (!str_contains($rstWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected reStructuredText WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1093,6 +1123,7 @@ echo "postgresqlHighlightedHtml:\n" . $postgresql['html'] . "\n";
 echo "apacheHighlightedHtml:\n" . $apache['html'] . "\n";
 echo "luaLongBracketHighlightedHtml:\n" . $luaLongBracket['html'] . "\n";
 echo "phpHeredocHighlightedHtml:\n" . $phpHeredoc['html'] . "\n";
+echo "rstHighlightedHtml:\n" . $rst['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1123,4 +1154,5 @@ echo "postgresqlWordpressBlock:\n" . $postgresqlWordpressBlock . "\n";
 echo "apacheWordpressBlock:\n" . $apacheWordpressBlock . "\n";
 echo "luaLongBracketWordpressBlock:\n" . $luaLongBracketWordpressBlock . "\n";
 echo "phpHeredocWordpressBlock:\n" . $phpHeredocWordpressBlock . "\n";
+echo "rstWordpressBlock:\n" . $rstWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

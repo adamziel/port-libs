@@ -150,7 +150,11 @@ final class SyntaxHighlighter
         'rscript' => 'r',
         'rake' => 'ruby',
         'rb' => 'ruby',
+        'rest' => 'rst',
+        'restructured-text' => 'rst',
+        'restructuredtext' => 'rst',
         'ruby' => 'ruby',
+        'rst' => 'rst',
         'sass' => 'sass',
         'scss' => 'scss',
         'rs' => 'rust',
@@ -609,6 +613,7 @@ final class SyntaxHighlighter
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
             'ruby' => $this->tokenizeRuby($code),
+            'rst' => $this->tokenizeRest($code),
             'rust' => $this->tokenizeRust($code),
             'sass', 'scss' => $this->tokenizeScss($code),
             'sql' => $this->tokenizeSql($code),
@@ -1727,6 +1732,136 @@ final class SyntaxHighlighter
             ['variable', '/^(?:\\*[^*\\n]+\\*|_[^_\\n]+_)/'],
             ['operator', '/^[\\\\*_`{}\\[\\]()#+.!|>-]/'],
         ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeRest(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+        $pendingCodeBlock = false;
+        $codeBlockIndent = null;
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            if ($codeBlockIndent !== null) {
+                if (trim($line) === '') {
+                    $this->appendToken($tokens, 'text', $line);
+                } elseif (str_starts_with($line, $codeBlockIndent)) {
+                    $this->appendToken($tokens, 'datatype', $line);
+                } else {
+                    $codeBlockIndent = null;
+                    $this->tokenizeRestLine($line, $tokens);
+                    $pendingCodeBlock = self::restLineStartsCodeBlock($line);
+                }
+            } elseif ($pendingCodeBlock) {
+                if (trim($line) === '') {
+                    $this->appendToken($tokens, 'text', $line);
+                } elseif (preg_match('/^([ \t]+)\\S/', $line, $matches) === 1) {
+                    $codeBlockIndent = $matches[1];
+                    $this->appendToken($tokens, 'datatype', $line);
+                } else {
+                    $pendingCodeBlock = false;
+                    $this->tokenizeRestLine($line, $tokens);
+                    $pendingCodeBlock = self::restLineStartsCodeBlock($line);
+                }
+            } else {
+                $this->tokenizeRestLine($line, $tokens);
+                $pendingCodeBlock = self::restLineStartsCodeBlock($line);
+            }
+
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeRestLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(\\.\\.(?:[ \t].*|$))$/', $line, $matches) === 1
+            && preg_match('/^\\.\\.[ \t]+(?:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*::|__?:|_[A-Za-z0-9_.:+ -]+:)(?:[ \t]|$)/', $matches[2]) !== 1
+        ) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'comment', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(\\.\\.[ \t]+(?:\\[(?:\\d+|#|\\*|#[A-Za-z0-9_.:+-]+)\\]|\\|[A-Za-z0-9_.:+ -]+\\|[ \t]+[A-Za-z0-9_.:+-]+::|(?:__|_[A-Za-z0-9_.:+ -]+):|[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*::)(?:[ \t].*|$))$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'datatype', $matches[2]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(:{1}[^:\\n]+:)(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'function', $matches[2]);
+            $this->appendRestInline($matches[3], $tokens);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)([=\\-~`^"\'+#*]{3,})([ \t]*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'region', $matches[2]);
+            $this->appendToken($tokens, 'text', $matches[3]);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*)(?:([-+*])|([0-9]+[.)]))([ \t]+)(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'text', $matches[1]);
+            $this->appendToken($tokens, 'operator', ($matches[2] !== '' ? $matches[2] : $matches[3]) . $matches[4]);
+            $this->appendRestInline($matches[5], $tokens);
+            return;
+        }
+
+        $this->appendRestInline($line, $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function appendRestInline(string $text, array &$tokens): void
+    {
+        $this->scanInto($text, [
+            ['datatype', '/^``[^`\\n]+``/'],
+            ['function', '/^\\|[^|\\n]+\\|/'],
+            ['function', '/^_`[^`\\n]+`/'],
+            ['attribute', '/^\\[[A-Za-z0-9_.:+#*-]+\\]_/'],
+            ['keyword', '/^:[A-Za-z0-9_.+-]+:(?=`)/'],
+            ['constant', '/^`[^`\\n]+`(?=:[A-Za-z0-9_.+-]+:)/'],
+            ['attribute', '/^`[^`\\n]+`__?/'],
+            ['constant', '/^`[^`\\n]+`/'],
+            ['attribute', '/^(?:https?|ftp):\\/\\/[^\\s<>"\'`)]+[^\\s!"\'`(),.:;<>?~\\]\\}]/'],
+            ['keyword', '/^\\*\\*[^*\\n][^\\n]*?\\*\\*/'],
+            ['variable', '/^\\*[^*\\n][^\\n]*?\\*/'],
+            ['datatype', '/^::(?=\\s*$)/'],
+            ['operator', '/^[\\\\`*_{}\\[\\]():|<>-]/'],
+        ], $tokens);
+    }
+
+    private static function restLineStartsCodeBlock(string $line): bool
+    {
+        return preg_match('/^\\s*\\.\\.[ \t]+code(?:-block)?::(?:[ \t]|$)/', $line) === 1
+            || preg_match('/::\\s*$/', $line) === 1;
     }
 
     /**
