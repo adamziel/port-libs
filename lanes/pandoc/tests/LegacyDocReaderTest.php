@@ -1326,6 +1326,17 @@ return [
         $t->same(false, $compoundFile->hasStream('Notes'));
         $t->same('nested reviewer notes', $compoundFile->readStream('review/notes'));
     },
+    'rejects orphaned active CFB directory entries before exposing streams' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Reachable legacy body\r"),
+            'Review/Notes' => 'orphaned reviewer notes',
+        ]);
+        $directorySectorOffset = 512 + 512;
+        $wordDocumentLeftSiblingOffset = $directorySectorOffset + 128 + 68;
+        $orphanedReviewStorage = substr_replace($bytes, $u32(0xffffffff), $wordDocumentLeftSiblingOffset, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($orphanedReviewStorage));
+    },
     'rejects cyclic CFB directory child trees before exposing streams' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

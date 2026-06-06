@@ -622,6 +622,11 @@ final class CompoundFileBinary
         $entries = [$root];
         $visited = [$root['directoryId'] => true];
         self::collectDirectoryTree($root['childId'], '', $rawEntries, $entries, $byName, $visited, null, null, false, true);
+        foreach ($rawEntries as $directoryId => $entry) {
+            if ($entry !== null && !isset($visited[$directoryId])) {
+                throw new \RuntimeException('CFB directory contains an unreachable active entry: ' . $entry['name']);
+            }
+        }
 
         return [$entries, $byName];
     }

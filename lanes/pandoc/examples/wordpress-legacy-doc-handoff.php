@@ -1557,6 +1557,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if ($redDirectoryId === null) {
         throw new RuntimeException('Legacy DOC handoff self-test fixture did not produce a red CFB directory node');
     }
+    $orphanedActiveDirectoryEntry = substr_replace($docBytes, $u32($wordDocumentDirectoryId), $directoryFieldOffset(0, 76), 4);
+    $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 68), 4);
+    $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, $u32($free), $directoryFieldOffset($wordDocumentDirectoryId, 72), 4);
+    $orphanedActiveDirectoryEntry = substr_replace($orphanedActiveDirectoryEntry, "\x01", $directoryFieldOffset($wordDocumentDirectoryId, 67), 1);
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -1575,6 +1579,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'duplicate CFB FAT sector' => substr_replace(substr_replace($docBytes, $u32(2), 44, 4), $u32(0), 80, 4),
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
+        'CFB orphaned active directory entry' => $orphanedActiveDirectoryEntry,
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentMiniStreamOffset + 0x01a6, 4),
     ] as $label => $corruptDocBytes) {
