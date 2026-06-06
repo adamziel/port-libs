@@ -448,6 +448,37 @@ $astAttributeTable = new AstNode('table', [
     ]),
 ]);
 
+$abbreviatedHeaderTable = new AstNode('table', [
+    'caption' => 'Abbreviated header review',
+    'alignments' => ['left', 'right'],
+    'accessibilityHeaders' => true,
+    'accessibilityIdPrefix' => 'Abbr Grid',
+], [
+    new AstNode('table_head', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [
+                'text' => 'Document',
+                'htmlAttributes' => [
+                    'id' => 'abbr-document-source',
+                    'abbr' => 'Doc',
+                ],
+            ], [new AstNode('text', ['text' => 'Document'])]),
+            new AstNode('table_cell', [
+                'text' => 'Status',
+                'attributes' => [
+                    'abbr' => 'St',
+                ],
+            ], [new AstNode('text', ['text' => 'Status'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [], [
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', ['text' => 'Migration packet'], [new AstNode('text', ['text' => 'Migration packet'])]),
+            new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -751,6 +782,7 @@ $document = new AstNode('document', [], [
             ]),
         ]),
     ]),
+    $abbreviatedHeaderTable,
     new AstNode('table', [
         'caption' => 'Implicit source shift review',
         'id' => 'implicit-source-shift-grid',
@@ -1194,6 +1226,28 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Nested table packet review</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing nested table packet WordPress output');
     }
+
+    $abbreviatedHeaderPacket = TableGeometry::reviewPacket($abbreviatedHeaderTable, ['idPrefix' => 'Abbr Grid']);
+    if (
+        ($abbreviatedHeaderPacket['headerAssociations']['summary']['headerAbbreviationCount'] ?? null) !== 2
+        || ($abbreviatedHeaderPacket['summary']['headerAbbreviationCount'] ?? null) !== 2
+        || ($abbreviatedHeaderPacket['summary']['hasHeaderAbbreviations'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source header abbreviation summary');
+    }
+    if (
+        ($abbreviatedHeaderPacket['headerAssociations']['headerCells'][0]['abbr'] ?? null) !== 'Doc'
+        || ($abbreviatedHeaderPacket['headerAssociations']['headerCells'][1]['abbr'] ?? null) !== 'St'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source header abbreviation records');
+    }
+    if (!str_contains($blocks, '<th scope="col" id="abbr-document-source" abbr="Doc" style="text-align:left">Document</th>')) {
+        throw new RuntimeException('Table geometry self-test missing source HTML header abbreviation output');
+    }
+    if (!str_contains($blocks, '<th id="abbr-grid-head-r1c2" scope="col" abbr="St" style="text-align:right">Status</th>')) {
+        throw new RuntimeException('Table geometry self-test missing source AST header abbreviation output');
+    }
+    json_encode($abbreviatedHeaderPacket, JSON_THROW_ON_ERROR);
 
     $sourceShiftTable = null;
     foreach ($document->children as $node) {

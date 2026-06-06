@@ -488,6 +488,7 @@ final class TableGeometry
         $associationCount = 0;
         $associatedDataCellCount = 0;
         $sourceHeaderOverrideCount = 0;
+        $headerAbbreviationCount = 0;
 
         foreach (self::sectionGrids($table) as $sectionGrid) {
             $section = (string) $sectionGrid['section'];
@@ -516,6 +517,12 @@ final class TableGeometry
                         if ($scope !== '') {
                             $record['scope'] = $scope;
                             $headerScopes[] = $scope;
+                        }
+
+                        $abbr = self::cellSourceHtmlAbbr($slot['node'] ?? null);
+                        if ($abbr !== '') {
+                            $record['abbr'] = $abbr;
+                            $headerAbbreviationCount++;
                         }
 
                         $record['headers'] = self::stringList($attributes['headers'] ?? []);
@@ -553,6 +560,8 @@ final class TableGeometry
                 'headerScopes' => array_values(array_unique($headerScopes)),
                 'sourceHeaderOverrideCount' => $sourceHeaderOverrideCount,
                 'hasSourceHeaderOverrides' => $sourceHeaderOverrideCount > 0,
+                'headerAbbreviationCount' => $headerAbbreviationCount,
+                'hasHeaderAbbreviations' => $headerAbbreviationCount > 0,
             ],
         ];
     }
@@ -1396,6 +1405,8 @@ final class TableGeometry
                 'headerScopes' => [],
                 'sourceHeaderOverrideCount' => 0,
                 'hasSourceHeaderOverrides' => false,
+                'headerAbbreviationCount' => 0,
+                'hasHeaderAbbreviations' => false,
             ],
         ];
     }
@@ -1473,6 +1484,11 @@ final class TableGeometry
         $scope = strtolower(self::sourceHtmlAttribute($node, 'scope'));
 
         return in_array($scope, ['col', 'row', 'colgroup', 'rowgroup'], true) ? $scope : '';
+    }
+
+    private static function cellSourceHtmlAbbr(mixed $node): string
+    {
+        return self::sourceHtmlAttribute($node, 'abbr');
     }
 
     /**
@@ -2349,6 +2365,8 @@ final class TableGeometry
             'unassociatedDataCellCount' => (int) ($headerAssociationSummary['unassociatedDataCellCount'] ?? 0),
             'sourceHeaderOverrideCount' => (int) ($headerAssociationSummary['sourceHeaderOverrideCount'] ?? 0),
             'hasSourceHeaderOverrides' => (bool) ($headerAssociationSummary['hasSourceHeaderOverrides'] ?? false),
+            'headerAbbreviationCount' => (int) ($headerAssociationSummary['headerAbbreviationCount'] ?? 0),
+            'hasHeaderAbbreviations' => (bool) ($headerAssociationSummary['hasHeaderAbbreviations'] ?? false),
             'headerAssociationScopes' => array_values(array_map(
                 static fn (mixed $scope): string => (string) $scope,
                 $headerAssociationScopes

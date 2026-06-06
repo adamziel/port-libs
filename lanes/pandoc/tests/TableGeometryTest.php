@@ -439,6 +439,41 @@ $buildAttributedCellDocument = static function (): AstNode {
     ]);
 };
 
+$buildAbbreviatedHeaderDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Abbreviated header review grid',
+            'alignments' => ['left', 'right'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Abbr Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [
+                        'text' => 'Document',
+                        'htmlAttributes' => [
+                            'id' => 'source-document',
+                            'abbr' => 'Doc',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Status',
+                        'attributes' => [
+                            'abbr' => 'St',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Status'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Migration packet'], [new AstNode('text', ['text' => 'Migration packet'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildSourceScopedHeaderDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -1535,6 +1570,30 @@ return [
         $t->contains('<td headers="docx-source-scope" class="body-source" data-origin="docx" style="text-align:left">Posts</td>', $blocks);
         $t->contains('<td headers="legacy-status" data-origin="docx" style="text-align:right">Ready</td>', $blocks);
         $t->true(!str_contains($blocks, 'headers="source-grid-head-r1c2" data-origin="docx" headers="legacy-status"'), 'Source headers attribute must not be duplicated by computed accessibility headers');
+    },
+    'serializes source header abbreviations for accessibility review packets' => static function (TestRunner $t) use ($buildAbbreviatedHeaderDocument): void {
+        $document = $buildAbbreviatedHeaderDocument();
+        $table = $document->children[0];
+        $associations = TableGeometry::headerAssociations($table, 'Abbr Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Abbr Grid']);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(2, $associations['summary']['headerAbbreviationCount'] ?? null);
+        $t->same(true, $associations['summary']['hasHeaderAbbreviations'] ?? null);
+        $t->same('Doc', $associations['headerCells'][0]['abbr'] ?? null);
+        $t->same('St', $associations['headerCells'][1]['abbr'] ?? null);
+        $t->same('source-document', $associations['headerCells'][0]['id'] ?? null);
+        $t->same('abbr-grid-head-r1c2', $associations['headerCells'][1]['id'] ?? null);
+        $t->same(['source-document'], $associations['dataCells'][0]['headers'] ?? null);
+        $t->same(['abbr-grid-head-r1c2'], $associations['dataCells'][1]['headers'] ?? null);
+        $t->same($associations, $packet['headerAssociations'] ?? null);
+        $t->same(2, $packet['summary']['headerAbbreviationCount'] ?? null);
+        $t->same(true, $packet['summary']['hasHeaderAbbreviations'] ?? null);
+        $t->contains('<th scope="col" id="source-document" abbr="Doc" style="text-align:left">Document</th>', $blocks);
+        $t->contains('<th id="abbr-grid-head-r1c2" scope="col" abbr="St" style="text-align:right">Status</th>', $blocks);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'honors source scope and headers attributes in table accessibility packets' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
         $document = $buildSourceScopedHeaderDocument();
