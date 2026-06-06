@@ -17832,23 +17832,23 @@ final class PdfTextExtractor
 
         $maps = [];
         $namedCMapBodies = $this->namedCMapBodies($objects);
-        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+(\d+)\s+R\b/', $fontDictionary, $resourceMatches, PREG_SET_ORDER)) {
-            foreach ($resourceMatches as $resourceMatch) {
-                $fontObjectNumber = (int) $resourceMatch[2];
-                $fontGeneration = (int) $resourceMatch[3];
-                $resolved = $this->resolvedResourceObjectBody($objects, $fontObjectNumber, $fontGeneration);
-                if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
-                    continue;
-                }
+        foreach ($this->topLevelResourceReferenceEntries($fontDictionary) as $resourceName => $resource) {
+            $resolved = $this->resolvedResourceObjectBody(
+                $objects,
+                $resource['objectNumber'],
+                $resource['generation']
+            );
+            if ($resolved === null || $this->objectBodyIsStreamObject($resolved['body'])) {
+                continue;
+            }
 
-                $fontBody = $resolved['body'];
-                $resolvedObjectNumber = $resolved['object'];
-                $map = isset($objects[$resolvedObjectNumber], $fontObjectMaps[$resolvedObjectNumber]) && $objects[$resolvedObjectNumber] === $fontBody
-                    ? $fontObjectMaps[$resolvedObjectNumber]
-                    : $this->fontMapFromFontBody($fontBody, $objects, $namedCMapBodies);
-                if ($map !== null) {
-                    $maps[$this->decodePdfName($resourceMatch[1])] = $map;
-                }
+            $fontBody = $resolved['body'];
+            $resolvedObjectNumber = $resolved['object'];
+            $map = isset($objects[$resolvedObjectNumber], $fontObjectMaps[$resolvedObjectNumber]) && $objects[$resolvedObjectNumber] === $fontBody
+                ? $fontObjectMaps[$resolvedObjectNumber]
+                : $this->fontMapFromFontBody($fontBody, $objects, $namedCMapBodies);
+            if ($map !== null) {
+                $maps[$resourceName] = $map;
             }
         }
 
@@ -17956,36 +17956,65 @@ final class PdfTextExtractor
         }
 
         $properties = [];
-        if (preg_match_all(
-            '/\/([^\s\[\]()<>{}\/%]+)\s*(?:(\d+)\s+(\d+)\s+R|<<)/s',
-            $propertiesDictionary,
-            $matches,
-            PREG_SET_ORDER | PREG_OFFSET_CAPTURE
-        ) !== false) {
-            foreach ($matches as $match) {
-                $name = $this->decodePdfName($match[1][0]);
-                if (($match[2][0] ?? '') !== '') {
-                    $objectNumber = (int) $match[2][0];
-                    $generation = (int) ($match[3][0] ?? '0');
-                    $resolved = $this->resolvedResourceObjectBody($objects, $objectNumber, $generation);
-                    $dictionary = $resolved === null || $this->objectBodyIsStreamObject($resolved['body'])
-                        ? null
-                        : $this->dictionaryObjectBody($resolved['body']);
-                } else {
-                    $offset = strpos($propertiesDictionary, '<<', $match[0][1]);
-                    $dictionary = $offset === false ? null : $this->readPdfDictionaryAt($propertiesDictionary, $offset);
-                }
+        $offset = 0;
+        $length = strlen($propertiesDictionary);
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($propertiesDictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
 
-                if ($dictionary === null) {
-                    continue;
-                }
+            if (($propertiesDictionary[$offset] ?? '') !== '/') {
+                $next = $this->skipPdfValueAt($propertiesDictionary, $offset);
+                $offset = $next > $offset ? $next : $offset + 1;
+                continue;
+            }
 
+            $nameStart = $offset + 1;
+            $nameEnd = $nameStart;
+            while ($nameEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $propertiesDictionary[$nameEnd])) {
+                $nameEnd++;
+            }
+
+            if ($nameEnd === $nameStart) {
+                $offset++;
+                continue;
+            }
+
+            $name = $this->decodePdfName(substr($propertiesDictionary, $nameStart, $nameEnd - $nameStart));
+            $valueOffset = $nameEnd;
+            $this->skipContentWhitespaceAndComments($propertiesDictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $dictionary = null;
+            $referenceOffset = $valueOffset;
+            $reference = $this->readPdfIndirectReferenceToken($propertiesDictionary, $referenceOffset);
+            if ($reference !== null) {
+                $resolved = $this->resolvedResourceObjectBody(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                $dictionary = $resolved === null || $this->objectBodyIsStreamObject($resolved['body'])
+                    ? null
+                    : $this->dictionaryObjectBody($resolved['body']);
+            } elseif (substr($propertiesDictionary, $valueOffset, 2) === '<<') {
+                $dictionaryOffset = $valueOffset;
+                $dictionary = $this->readPdfDictionaryTokenAt($propertiesDictionary, $dictionaryOffset);
+            }
+
+            if ($dictionary !== null) {
                 $properties[$name] = [
                     'actualText' => $this->pdfOptionalStringValueAfterName($dictionary, 'ActualText', $objects),
                     'altText' => $this->pdfOptionalStringValueAfterName($dictionary, 'Alt', $objects),
                     'mcid' => $this->pdfIntegerValueAfterNameResolvingObjects($dictionary, 'MCID', $objects),
                 ];
             }
+
+            $next = $this->skipPdfValueAt($propertiesDictionary, $valueOffset);
+            $offset = $next > $valueOffset ? $next : $valueOffset + 1;
         }
 
         return $properties;
