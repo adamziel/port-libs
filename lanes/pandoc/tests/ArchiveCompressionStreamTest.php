@@ -1241,9 +1241,79 @@ return [
             (int) sprintf('%u', crc32(substr($tarBytes, 0, $splitOffset))),
             (int) sprintf('%u', crc32(substr($tarBytes, $splitOffset))),
         ], array_map(static fn (array $member): int => $member['crc32'], $members));
+        $firstHeaderSize = 10 + 2 + strlen($firstExtra)
+            + strlen('review-packet.part-1.tar') + 1
+            + strlen('split member one') + 1
+            + 2;
+        $secondHeaderSize = 10 + 2 + strlen($secondExtra)
+            + strlen('review-packet.part-2.tar') + 1
+            + strlen('split member two') + 1
+            + 2;
+        $t->same([0, $members[0]['memberSize']], array_map(static fn (array $member): int => $member['memberOffset'], $members));
+        $t->same([$firstHeaderSize, $secondHeaderSize], array_map(static fn (array $member): int => $member['headerSize'], $members));
+        $t->same([$firstHeaderSize, $members[0]['memberSize'] + $secondHeaderSize], array_map(static fn (array $member): int => $member['compressedDataOffset'], $members));
+        $t->same([$members[0]['memberSize'] - 8, $members[0]['memberSize'] + $members[1]['memberSize'] - 8], array_map(static fn (array $member): int => $member['trailerOffset'], $members));
+        $t->same([$members[0]['memberSize'], strlen($gzip)], array_map(static fn (array $member): int => $member['nextMemberOffset'], $members));
         $t->true($members[0]['headerCrc16'] !== null);
         $t->true($members[1]['headerCrc16'] !== null);
         $t->same("# Split gzip provenance\n\nReady for archive review.\n", $inspection['archive']->read('/packet/content.md'));
+    },
+
+    'inspects gzip member byte layout offsets for split package streams' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-byte-layout","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP byte layout\n\nReady for stream review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 512;
+        $firstExtra = pack('CCv', ord('B'), ord('L'), strlen('layout:1')) . 'layout:1';
+        $secondExtra = pack('CCv', ord('B'), ord('L'), strlen('layout:2')) . 'layout:2';
+        $firstMember = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => 'byte-layout-part-1.tar',
+            'comment' => 'byte layout one',
+            'extraFieldData' => $firstExtra,
+            'headerCrc' => true,
+        ]);
+        $secondMember = GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'byte-layout-part-2.tar',
+            'comment' => 'byte layout two',
+            'extraFieldData' => $secondExtra,
+            'headerCrc' => true,
+        ]);
+        $gzip = $firstMember . $secondMember;
+        $firstHeaderSize = 10 + 2 + strlen($firstExtra)
+            + strlen('byte-layout-part-1.tar') + 1
+            + strlen('byte layout one') + 1
+            + 2;
+        $secondHeaderSize = 10 + 2 + strlen($secondExtra)
+            + strlen('byte-layout-part-2.tar') + 1
+            + strlen('byte layout two') + 1
+            + 2;
+
+        $inspection = ArchiveCompressionStream::inspectTarStreamAuto(
+            $gzip,
+            strlen($tarBytes),
+            strlen($archive->read('/packet/manifest.json')) + strlen($archive->read('/packet/content.md'))
+        );
+        $members = $inspection['stream']['members'];
+        $directMembers = GzipStream::members($gzip);
+
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(2, $inspection['stream']['memberCount']);
+        $t->same([0, strlen($firstMember)], array_map(static fn (array $member): int => $member['memberOffset'], $members));
+        $t->same([$firstHeaderSize, $secondHeaderSize], array_map(static fn (array $member): int => $member['headerSize'], $members));
+        $t->same([$firstHeaderSize, strlen($firstMember) + $secondHeaderSize], array_map(static fn (array $member): int => $member['compressedDataOffset'], $members));
+        $t->same([strlen($firstMember) - 8, strlen($firstMember) + strlen($secondMember) - 8], array_map(static fn (array $member): int => $member['trailerOffset'], $members));
+        $t->same([strlen($firstMember), strlen($gzip)], array_map(static fn (array $member): int => $member['nextMemberOffset'], $members));
+        $t->same(array_map(static fn (array $member): int => $member['memberOffset'], $directMembers), array_map(static fn (array $member): int => $member['memberOffset'], $members));
+        $t->same(array_map(static fn (array $member): int => $member['trailerOffset'], $directMembers), array_map(static fn (array $member): int => $member['trailerOffset'], $members));
+        $t->same('{"source":"gzip-byte-layout","target":"wordpress"}', $inspection['archive']->read('/packet/manifest.json'));
     },
 
     'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {

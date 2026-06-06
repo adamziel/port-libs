@@ -179,6 +179,7 @@ if (in_array('--self-test', $argv, true)) {
         'directoryCount' => 1,
         'trailingZeroBytes' => 1024,
         'gzipFilename' => 'wordpress-archive-stream.tar',
+        'gzipMemberOffset' => 0,
         'content' => $contentBytes,
         'legacyFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'legacyEntryType' => TarArchiveEntry::TYPE_FILE,
@@ -197,6 +198,10 @@ if (in_array('--self-test', $argv, true)) {
         || $inspection['directoryCount'] !== $expected['directoryCount']
         || $inspection['trailingZeroBytes'] !== $expected['trailingZeroBytes']
         || ($inspection['stream']['members'][0]['filename'] ?? null) !== $expected['gzipFilename']
+        || ($inspection['stream']['members'][0]['memberOffset'] ?? null) !== $expected['gzipMemberOffset']
+        || ($inspection['stream']['members'][0]['compressedDataOffset'] ?? 0) <= ($inspection['stream']['members'][0]['memberOffset'] ?? 0)
+        || ($inspection['stream']['members'][0]['trailerOffset'] ?? 0) <= ($inspection['stream']['members'][0]['compressedDataOffset'] ?? 0)
+        || ($inspection['stream']['members'][0]['nextMemberOffset'] ?? null) !== ($inspection['stream']['members'][0]['memberSize'] ?? null)
         || $inspection['archive']->read('/packet/content.md') !== $expected['content']
         || ($inspection['entryLayouts'][2]['paxHeaderKeys'] ?? []) !== ['atime', 'ctime']
         || $legacyContiguousInspection['format'] !== $expected['legacyFormat']
@@ -230,6 +235,9 @@ echo 'unpackedSize=' . $inspection['unpackedSize'] . "\n";
 echo 'trailingZeroBytes=' . $inspection['trailingZeroBytes'] . "\n";
 echo 'gzip.filename=' . $inspection['stream']['members'][0]['filename'] . "\n";
 echo 'gzip.comment=' . $inspection['stream']['members'][0]['comment'] . "\n";
+echo 'gzip.memberOffset=' . $inspection['stream']['members'][0]['memberOffset'] . "\n";
+echo 'gzip.compressedDataOffset=' . $inspection['stream']['members'][0]['compressedDataOffset'] . "\n";
+echo 'gzip.trailerOffset=' . $inspection['stream']['members'][0]['trailerOffset'] . "\n";
 echo 'tar.layout=' . implode(',', $layoutSummary) . "\n";
 echo 'content.md=' . $inspection['archive']->read('/packet/content.md') . "\n";
 echo 'legacyContiguous.format=' . $legacyContiguousInspection['format'] . "\n";

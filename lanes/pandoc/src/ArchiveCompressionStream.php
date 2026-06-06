@@ -740,6 +740,11 @@ final class ArchiveCompressionStream
      *         uncompressedSize:int,
      *         compressedSize:int,
      *         memberSize:int,
+     *         memberOffset:int,
+     *         headerSize:int,
+     *         compressedDataOffset:int,
+     *         trailerOffset:int,
+     *         nextMemberOffset:int,
      *         extraFieldCount:int,
      *         headerCrc16:?int
      *     }>
@@ -771,6 +776,11 @@ final class ArchiveCompressionStream
                 'uncompressedSize' => $member['uncompressedSize'],
                 'compressedSize' => $member['compressedSize'],
                 'memberSize' => $member['memberSize'],
+                'memberOffset' => $member['memberOffset'],
+                'headerSize' => $member['headerSize'],
+                'compressedDataOffset' => $member['compressedDataOffset'],
+                'trailerOffset' => $member['trailerOffset'],
+                'nextMemberOffset' => $member['nextMemberOffset'],
                 'extraFieldCount' => count($member['extraFields']),
                 'headerCrc16' => $member['headerCrc16'],
             ],

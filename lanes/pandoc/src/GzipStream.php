@@ -157,6 +157,11 @@ final class GzipStream
      *         uncompressedSize:int,
      *         compressedSize:int,
      *         memberSize:int,
+     *         memberOffset:int,
+     *         headerSize:int,
+     *         compressedDataOffset:int,
+     *         trailerOffset:int,
+     *         nextMemberOffset:int,
      *         modifiedAtKnown:bool,
      *         modifiedAtText:?string,
      *         extraFlagsMeaning:string,
@@ -307,6 +312,11 @@ final class GzipStream
                 'uncompressedSize' => $uncompressedSize,
                 'compressedSize' => $compressedSize,
                 'memberSize' => $cursor - $memberStart,
+                'memberOffset' => $memberStart,
+                'headerSize' => $compressedStart - $memberStart,
+                'compressedDataOffset' => $compressedStart,
+                'trailerOffset' => $trailerOffset,
+                'nextMemberOffset' => $cursor,
             ];
         }
 
