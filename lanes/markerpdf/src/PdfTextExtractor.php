@@ -17570,7 +17570,12 @@ final class PdfTextExtractor
      */
     private function charProcsDictionaryBody(string $fontBody, array $objects): ?string
     {
-        $reference = $this->type3CharProcsDictionaryReference($fontBody);
+        $value = $this->topLevelPdfLastValueAfterName($fontBody, 'CharProcs');
+        if ($value === null) {
+            return null;
+        }
+
+        $reference = $this->pdfIndirectReferenceValue($value);
         if ($reference !== null) {
             $objectBody = $this->objectBodyForExactReference(
                 $objects,
@@ -17585,16 +17590,11 @@ final class PdfTextExtractor
             return $this->dictionaryObjectBody($objectBody);
         }
 
-        $offset = $this->topLevelNameValueOffset($fontBody, 'CharProcs');
-        if ($offset === null) {
-            return null;
-        }
+        $dictionaryOffset = 0;
+        $value = trim($value);
 
-        $dictionaryOffset = $offset;
-        $this->skipContentWhitespaceAndComments($fontBody, $dictionaryOffset);
-
-        return substr($fontBody, $dictionaryOffset, 2) === '<<'
-            ? $this->readPdfDictionaryAt($fontBody, $dictionaryOffset)
+        return substr($value, $dictionaryOffset, 2) === '<<'
+            ? $this->readPdfDictionaryAt($value, $dictionaryOffset)
             : null;
     }
 
@@ -17603,13 +17603,12 @@ final class PdfTextExtractor
      */
     private function type3CharProcsDictionaryReference(string $fontBody): ?array
     {
-        $offset = $this->topLevelNameValueOffset($fontBody, 'CharProcs');
-        if ($offset === null) {
+        $value = $this->topLevelPdfLastValueAfterName($fontBody, 'CharProcs');
+        if ($value === null) {
             return null;
         }
 
-        $referenceOffset = $offset;
-        return $this->readPdfIndirectReferenceToken($fontBody, $referenceOffset);
+        return $this->pdfIndirectReferenceValue($value);
     }
 
     /**
