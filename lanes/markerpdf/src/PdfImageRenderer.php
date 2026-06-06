@@ -4314,6 +4314,7 @@ final class PdfImageRenderer
                 'filter' => $filter,
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
                 'decode_parms' => $this->dctDecodeDuplicateDecodeParmsDeclarationReview($filter, $dictionary, $decodeParmsValue, $objects)
+                    ?? $this->dctDecodeUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
                     ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex)
@@ -4613,6 +4614,35 @@ final class PdfImageRenderer
             'valid_decode_parms' => false,
             'invalid_decode_parms_fields' => ['decode_parms_alignment'],
             'decode_parms_review' => 'unaligned_ccitt_decodeparms_fail_closed',
+            'decode_parms_alignment' => 'unapplied_filter_slot',
+            'filter_slot_count' => count($filters),
+            'decode_parms_slot_count' => count($decodeParms),
+            'unapplied_decode_parms_slots' => $unappliedSlots,
+        ];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|null|list<int>|list<string>>|null
+     */
+    private function dctDecodeUnappliedDecodeParmsReview(string $filter, array $filters, array $decodeParms): ?array
+    {
+        if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+            return null;
+        }
+
+        $unappliedSlots = $this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms);
+        if ($unappliedSlots === []) {
+            return null;
+        }
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => null,
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_dctdecode_decodeparms_fail_closed',
             'decode_parms_alignment' => 'unapplied_filter_slot',
             'filter_slot_count' => count($filters),
             'decode_parms_slot_count' => count($decodeParms),
@@ -5521,11 +5551,24 @@ final class PdfImageRenderer
             return false;
         }
 
+        $dctFilterIndexes = [];
         foreach ($filters as $index => $filter) {
             if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
                 continue;
             }
 
+            $dctFilterIndexes[] = $index;
+        }
+
+        if ($dctFilterIndexes === []) {
+            return false;
+        }
+
+        if ($this->unappliedNonNullDecodeParmsSlots($filters, $decodeParms) !== []) {
+            return true;
+        }
+
+        foreach ($dctFilterIndexes as $index) {
             return $this->decodeParmsIndexForImageFilterIndex($filters, $decodeParms, $index) === null;
         }
 

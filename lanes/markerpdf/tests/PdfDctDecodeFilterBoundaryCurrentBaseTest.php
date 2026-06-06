@@ -543,6 +543,85 @@ return [
         $t->same(false, $review['executes_python_or_models']);
         $t->same(false, $review['executes_external_pdf_tools']);
     },
+    'reviews extra DCTDecode DecodeParms slots fail closed before RGB preview' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before extra DCT DecodeParms slot) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After extra DCT DecodeParms slot) Tj ET';
+        $jpegPayload = "\xff\xd8"
+            . "\xff\xc0\x00\x11\x08\x00\x01\x00\x01\x04"
+            . "\x01\x11\x00\x02\x11\x00\x03\x11\x00\x04\x11\x00"
+            . 'BT /F1 12 Tf 72 700 Td (Extra DCT DecodeParms slot payload leak) Tj ET'
+            . "\xff\xd9";
+        $encodedPayload = $pdfDctDecodeFilterBoundaryCurrentBaseZlibStored($jpegPayload);
+        $decodeParms = '[<< /Predictor 12 /Columns 16 /Colors 1 /BitsPerComponent 8 >> << /ColorTransform 1 >> << /ColorTransform 2 >>]';
+        $imageDictionary = '<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceCMYK /BitsPerComponent 8 /Filter [/FlateDecode /DCTDecode] /DecodeParms ' . $decodeParms . ' /Length ' . strlen($encodedPayload) . ' >>';
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n{$imageDictionary}\nstream\n{$encodedPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+        $expectedDecodeParms = [
+            'type' => 'DCTDecode',
+            'color_transform' => null,
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_dctdecode_decodeparms_fail_closed',
+            'decode_parms_alignment' => 'unapplied_filter_slot',
+            'filter_slot_count' => 2,
+            'decode_parms_slot_count' => 3,
+            'unapplied_decode_parms_slots' => [2],
+        ];
+
+        $plan = $renderer->imageColorSpaceSoftMaskPlan($imageDictionary);
+        $colorPlan = $renderer->dctDecodeImageColorPlan($imageDictionary, $jpegPayload);
+        $plainText = $extractor->extractPlainText($pdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->same([
+            [
+                'filter' => 'FlateDecode',
+                'preview_only' => false,
+                'decode_parms' => [
+                    'type' => 'FlateDecode',
+                ],
+            ],
+            [
+                'filter' => 'DCTDecode',
+                'preview_only' => true,
+                'decode_parms' => $expectedDecodeParms,
+            ],
+        ], $plan['image_filter_details']);
+        $t->same('DCTDecode', $colorPlan['filter']);
+        $t->same(1, $colorPlan['decode_parms_color_transform']);
+        $t->same(false, $colorPlan['decode_parms_color_transform_valid']);
+        $t->same(true, $colorPlan['decode_parms_color_transform_ignored']);
+        $t->same(0, $colorPlan['effective_color_transform']);
+        $t->same(false, $colorPlan['uses_ycck_transform']);
+        $t->same([
+            'unaligned_dctdecode_decodeparms_fail_closed',
+            'render_rgb_preview_from_cmyk',
+        ], $colorPlan['notes']);
+        $t->same(['red' => 255, 'green' => 0, 'blue' => 0], $renderer->dctDecodeSampleToRgb([0, 255, 255, 0], $colorPlan));
+
+        $t->same(['Before extra DCT DecodeParms slot', 'After extra DCT DecodeParms slot'], $extractor->extractTextLines($pdf));
+        $t->same("Before extra DCT DecodeParms slot\nAfter extra DCT DecodeParms slot", $plainText);
+        $t->true(!str_contains($plainText, 'Extra DCT DecodeParms slot payload leak'));
+        $t->true(!str_contains($plainText, 'JFIF'));
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(['FlateDecode', 'DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same($expectedDecodeParms, $entry['filter_details'][1]['decode_parms'] ?? null);
+        $t->same(false, $entry['native_raster_decode'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(false, $entry['payload_in_visible_text'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
     'ignores invalid DCTDecode ColorTransform DecodeParms before RGB preview conversion' => static function (TestRunner $t): void {
         $renderer = new PdfImageRenderer();
         $segment = static fn (int $marker, string $payload): string => "\xff" . chr($marker) . pack('n', strlen($payload) + 2) . $payload;
