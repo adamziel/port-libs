@@ -30438,9 +30438,9 @@ final class PdfTextExtractor
             $cidRangeCodeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
         }
 
-        if (preg_match_all('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatches) > 0) {
-            $lastMode = end($wModeMatches[1]);
-            $writingMode = (int) $lastMode === 1 ? 1 : 0;
+        $localWritingMode = $this->cMapWritingMode($cmap);
+        if ($localWritingMode !== null) {
+            $writingMode = $localWritingMode;
         }
 
         foreach ($this->cMapToUnicodeMappingBlocks($cmap) as $mappingBlock) {
@@ -30549,9 +30549,9 @@ final class PdfTextExtractor
             }
         }
 
-        if (preg_match_all('/\/WMode\s+([01])\s+def\b/s', $cmap, $wModeMatches) > 0) {
-            $lastMode = end($wModeMatches[1]);
-            $writingMode = (int) $lastMode === 1 ? 1 : 0;
+        $localWritingMode = $this->cMapWritingMode($cmap);
+        if ($localWritingMode !== null) {
+            $writingMode = $localWritingMode;
         }
 
         $localCodeSpaceRanges = $this->parseCMapCodeSpaceRanges($cmap);
@@ -30840,6 +30840,67 @@ final class PdfTextExtractor
         }
 
         return $firstOffset;
+    }
+
+    private function cMapWritingMode(string $cmap): ?int
+    {
+        $mode = null;
+        $length = strlen($cmap);
+        for ($index = 0; $index < $length;) {
+            $char = $cmap[$index];
+            if ($char === '%') {
+                $this->skipPdfComment($cmap, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $skipped = $this->skipPdfLiteralStringAt($cmap, $index);
+                $index = $skipped === null ? $index + 1 : $skipped + 1;
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($cmap[$index + 1] ?? '') === '<') {
+                    $dictionaryEnd = $this->pdfDictionaryEndOffset($cmap, $index);
+                    $index = $dictionaryEnd === null ? $index + 1 : $dictionaryEnd + 1;
+                    continue;
+                }
+
+                $this->readHexToken($cmap, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $arrayBody = $this->readPdfArrayAt($cmap, $index);
+                $index = $arrayBody === null ? $index + 1 : $index + strlen($arrayBody) + 2;
+                continue;
+            }
+
+            if ($char !== '/') {
+                $index++;
+                continue;
+            }
+
+            $nameToken = $this->readNameToken($cmap, $index);
+            if ($this->decodePdfName(substr($nameToken, 1)) !== 'WMode') {
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($cmap, $index);
+            if (preg_match('/\G([01])\b/s', $cmap, $valueMatch, 0, $valueOffset) !== 1) {
+                continue;
+            }
+
+            $defOffset = $this->skipPdfWhitespace($cmap, $valueOffset + strlen($valueMatch[0]));
+            if (!$this->pdfKeywordAt($cmap, $defOffset, 'def')) {
+                continue;
+            }
+
+            $mode = (int) $valueMatch[1] === 1 ? 1 : 0;
+            $index = $defOffset + strlen('def');
+        }
+
+        return $mode;
     }
 
     /**
