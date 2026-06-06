@@ -9159,13 +9159,10 @@ final class PdfAcroFormExtractor
                 continue;
             }
 
-            $arrayObject = $this->validObjectReferenceFromValue($annotsValue, $objects);
-            if ($arrayObject === null || !isset($objects[$arrayObject])) {
-                continue;
-            }
-
-            $arrayBody = $this->arrayBodyFromValue(trim($objects[$arrayObject]));
-            if ($arrayBody === null) {
+            $arrayTarget = $this->arrayBodyTargetFromValueOrReference($annotsValue, $objects);
+            $arrayObject = $arrayTarget['object'] ?? null;
+            $arrayBody = $arrayTarget['body'] ?? null;
+            if (!is_int($arrayObject) || !is_string($arrayBody) || !isset($objects[$arrayObject])) {
                 continue;
             }
 
@@ -9664,13 +9661,30 @@ final class PdfAcroFormExtractor
      */
     private function arrayBodyFromValueOrReference(string $value, array $objects, array $seen = []): ?string
     {
+        $target = $this->arrayBodyTargetFromValueOrReference($value, $objects, $seen);
+
+        return $target['body'] ?? null;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seen
+     * @return array{body: string, object: int|null}|null
+     */
+    private function arrayBodyTargetFromValueOrReference(string $value, array $objects, array $seen = []): ?array
+    {
         $value = trim($value);
         if ($value === '') {
             return null;
         }
 
         if (str_starts_with($value, '[')) {
-            return $this->arrayBodyFromValue($value);
+            $body = $this->arrayBodyFromValue($value);
+
+            return $body === null ? null : [
+                'body' => $body,
+                'object' => null,
+            ];
         }
 
         $reference = $this->validObjectReferenceFromValue($value, $objects);
@@ -9679,7 +9693,17 @@ final class PdfAcroFormExtractor
         }
 
         $seen[$reference] = true;
-        return $this->arrayBodyFromValueOrReference(trim($objects[$reference]), $objects, $seen);
+        $objectValue = trim($objects[$reference]);
+        $target = $this->arrayBodyTargetFromValueOrReference($objectValue, $objects, $seen);
+        if ($target === null) {
+            return null;
+        }
+
+        if ($target['object'] === null && str_starts_with($objectValue, '[')) {
+            $target['object'] = $reference;
+        }
+
+        return $target;
     }
 
     private function isFieldWidgetDictionary(string $body): bool
@@ -9802,27 +9826,17 @@ final class PdfAcroFormExtractor
     private function annotationObjectReferences(string $annots, array $objects): array
     {
         $annots = trim($annots);
+        $arrayBody = $this->arrayBodyFromValueOrReference($annots, $objects);
+        if ($arrayBody !== null) {
+            return $this->validObjectReferences($arrayBody, $objects);
+        }
+
         $reference = $this->validObjectReferenceFromValue($annots, $objects);
         if ($reference !== null) {
-            if (!isset($objects[$reference])) {
-                return [];
-            }
-
-            $objectBody = trim($objects[$reference]);
-            if (str_starts_with($objectBody, '[')) {
-                $arrayBody = $this->arrayBodyFromValue($objectBody);
-                return $arrayBody === null ? [] : $this->validObjectReferences($arrayBody, $objects);
-            }
-
-            return [$reference];
+            return isset($objects[$reference]) ? [$reference] : [];
         }
 
-        if (!str_starts_with($annots, '[')) {
-            return [];
-        }
-
-        $arrayBody = $this->arrayBodyFromValue($annots);
-        return $arrayBody === null ? [] : $this->validObjectReferences($arrayBody, $objects);
+        return [];
     }
 
     private function acroFormDictionaryBody(string $catalog, array $objects): ?string
