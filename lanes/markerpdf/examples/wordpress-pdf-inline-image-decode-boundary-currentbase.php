@@ -204,6 +204,8 @@ $shortFlatePostStreamSurplusPayload = $shortFlateCompressed
     . 'ZZ EI BT /F1 12 Tf 72 638 Td (Flate Short Sample Inline Noise) Tj ET rawtail';
 $shortFlateDictionary = '/W 3 /H 1 /CS /G /BPC 8 /F /Fl /D [0 1]';
 $ascii85PostEodSurplusPayload = 'z~>ZZ EI BT /F1 12 Tf 72 652 Td (A85 Post EOD Inline Noise) Tj ET rawtail';
+$asciiHexPostEodSurplusDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]';
+$asciiHexPostEodSurplusPayload = 'F>ZZ EI BT /F1 12 Tf 72 651 Td (ASCIIHex Post EOD Inline Noise) Tj ET rawtail';
 $ascii85NulEodDictionary = '/W 4 /H 1 /CS /G /BPC 8 /F /A85 /D [0 1]';
 $ascii85NulEodPayload = "z~>\0";
 $asciiHexSurplusPayload = '414243 EI BT /F1 12 Tf 72 635 Td (ASCIIHex Surplus Inline Noise) Tj ET >';
@@ -345,6 +347,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI /W 4 /H 1 /CS /G /BPC 8 /F /A85 ID "
     . $ascii85PostEodSurplusPayload . "\nEI\n"
     . "BT /F1 12 Tf 72 652 Td (After A85 Post EOD Inline Image) Tj ET\n"
+    . "BT /F1 12 Tf 72 651 Td (Before AHx Post EOD Inline Image) Tj ET\n"
+    . "BI {$asciiHexPostEodSurplusDictionary} ID "
+    . $asciiHexPostEodSurplusPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 650 Td (After AHx Post EOD Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 650 Td (Before NUL Filter Boundary) Tj ET\n"
     . "BI {$ascii85NulEodDictionary} ID {$ascii85NulEodPayload}EI\n"
     . "BT /F1 12 Tf 72 648 Td (Between NUL Filter Boundary) Tj ET\n"
@@ -812,10 +818,10 @@ try {
 $asciiHexPostEodSurplusPreviewRejected = false;
 try {
     $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
-        '/W 4 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]',
-        '41424344> EI BT /F1 12 Tf 72 674 Td (AHx Post EOD Inline Noise) Tj ET',
+        $asciiHexPostEodSurplusDictionary,
+        $asciiHexPostEodSurplusPayload,
         [],
-        4
+        1
     );
 } catch (InvalidArgumentException) {
     $asciiHexPostEodSurplusPreviewRejected = true;
@@ -1052,6 +1058,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_png_predictor_sub_surplus_payload' => str_contains($pngPredictorSubSurplusPayload, ' EI '),
     'fake_ei_inside_short_flate_post_stream_surplus_payload' => str_contains($shortFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_ascii85_post_eod_surplus_payload' => str_contains($ascii85PostEodSurplusPayload, ' EI '),
+    'fake_ei_inside_asciihex_post_eod_surplus_payload' => str_contains($asciiHexPostEodSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_surplus_payload' => str_contains($asciiHexSurplusPayload, ' EI '),
     'fake_ei_inside_asciihex_eod_comment' => str_contains($asciiHexCommentEodPayload, '% fake EI BT'),
     'fake_ei_inside_wrapped_jpx_prefix_surplus_payload' => str_contains($wrappedJpxPrefixSurplusPayload, ' EI '),
@@ -1082,6 +1089,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After A85 Inline Image',
         'Before A85 Post EOD Inline Image',
         'After A85 Post EOD Inline Image',
+        'Before AHx Post EOD Inline Image',
+        'After AHx Post EOD Inline Image',
         'Before NUL Filter Boundary',
         'Between NUL Filter Boundary',
         'After NUL Filter Boundary',
@@ -1168,6 +1177,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'ascii85_post_eod_surplus_payload_excluded_until_real_ei' => in_array('After A85 Post EOD Inline Image', $lines, true)
         && str_contains($ascii85PostEodSurplusPayload, 'z~>ZZ EI')
         && !str_contains($plainText, 'A85 Post EOD Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'asciihex_post_eod_surplus_payload_excluded_until_real_ei' => in_array('After AHx Post EOD Inline Image', $lines, true)
+        && str_contains($asciiHexPostEodSurplusPayload, 'F>ZZ EI')
+        && !str_contains($plainText, 'ASCIIHex Post EOD Inline Noise')
         && !str_contains($plainText, 'rawtail'),
     'pdf_nul_whitespace_inline_filter_boundary' => in_array('After NUL Filter Boundary', $lines, true)
         && !str_contains($plainText, 'z~>')

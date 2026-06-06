@@ -265,6 +265,48 @@ return [
             )
         );
     },
+    'keeps ASCIIHex post-EOD inline image surplus closed until the real EI terminator' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $dictionary = '/W 1 /H 1 /CS /G /BPC 8 /F /AHx /D [0 1]';
+        $cleanPayload = 'F>';
+        $postEodSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (ASCIIHex Post EOD Inline Noise) Tj ET rawtail';
+        $payload = $cleanPayload . $postEodSurplus;
+        $content = "BT /F1 12 Tf 72 720 Td (Before AHx Post EOD Inline) Tj ET\n"
+            . "BI {$dictionary} ID {$payload}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After AHx Post EOD Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+
+        $expected = [
+            'Before AHx Post EOD Inline',
+            'After AHx Post EOD Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->true(str_contains($postEodSurplus, ' EI '));
+        $t->true(str_ends_with($cleanPayload, '>'));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->true(!str_contains($plainText, 'ASCIIHex Post EOD Inline Noise'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $payload, [], 1)
+        );
+
+        $preview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($dictionary, $cleanPayload, [], 1);
+        $t->same(['ASCIIHexDecode'], $preview['image_stream']['filters']);
+        $t->same(1, $preview['image_stream']['decoded_length']);
+        $t->same('F0', $preview['image_stream']['decoded_preview_hex']);
+        $t->same(true, $preview['image_stream']['decoded_with_current_filters']);
+        $t->same(false, $preview['image_stream']['decode_failed']);
+        $t->same([240.0], $preview['pixels'][0]['raw_sample']);
+    },
     'requires ASCII85 inline image review payload terminator before RGB preview decoding' => static function (TestRunner $t) use ($ascii85Encode): void {
         $renderer = new PdfImageRenderer();
         $objects = [

@@ -34466,7 +34466,7 @@ final class PdfTextExtractor
             return false;
         }
 
-        if (!$this->inlineAsciiHexPostEodCommentIsBounded($candidate, $rawCandidate ?? $candidate, $eodOffset + 1)) {
+        if (!$this->inlineAsciiHexPostEodSurplusCanCloseAtCurrentEi($rawCandidate ?? $candidate, $eodOffset + 1)) {
             return false;
         }
 
@@ -34491,30 +34491,31 @@ final class PdfTextExtractor
         return intdiv($hexDigitCount + 1, 2) >= $expectedLength;
     }
 
-    private function inlineAsciiHexPostEodCommentIsBounded(string $candidate, string $rawCandidate, int $postEodOffset): bool
+    private function inlineAsciiHexPostEodSurplusCanCloseAtCurrentEi(string $rawCandidate, int $postEodOffset): bool
     {
-        $index = $postEodOffset;
-        $length = strlen($candidate);
-        while ($index < $length && $this->isPdfWhitespace($candidate[$index])) {
-            $index++;
-        }
-
-        if ($index >= $length || $candidate[$index] !== '%') {
-            return true;
-        }
-
-        $rawIndex = $postEodOffset;
         $rawLength = strlen($rawCandidate);
-        while ($rawIndex < $rawLength && $this->isPdfWhitespace($rawCandidate[$rawIndex])) {
-            $rawIndex++;
+        $index = $postEodOffset;
+
+        while ($index < $rawLength) {
+            if ($this->isPdfWhitespace($rawCandidate[$index])) {
+                $index++;
+                continue;
+            }
+
+            if ($rawCandidate[$index] === '%') {
+                $lineLength = strcspn($rawCandidate, "\r\n", $index);
+                if ($index + $lineLength >= $rawLength) {
+                    return false;
+                }
+
+                $index += $lineLength;
+                continue;
+            }
+
+            return preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', substr($rawCandidate, $index)) === 1;
         }
 
-        if ($rawIndex >= $rawLength || $rawCandidate[$rawIndex] !== '%') {
-            return true;
-        }
-
-        $lineLength = strcspn($rawCandidate, "\r\n", $rawIndex);
-        return $rawIndex + $lineLength < $rawLength;
+        return true;
     }
 
     /**
