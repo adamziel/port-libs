@@ -1630,6 +1630,63 @@ return [
         $t->true(!str_contains($html, 'cover.png'), 'Expected preload resource link to be dropped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe link relation URL to be stripped');
     },
+    'converts editorial passive link relations into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<link rel="author" href="./authors/migration.html">'
+            . '<link rel="license" type="text/html" href="../license.html" title="Reuse terms">'
+            . '<link rel="help" href="?help=import">'
+            . '<link rel="bookmark" href="#chapter-1" title="Chapter anchor">'
+            . '<link rel="author preload" href="./active-author.html" title="Active author">'
+            . '<link rel="license" href="java&#10;script:alert(1)" title="Bad license">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/editorial-link-relation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/authors/migration.html" data-pandoc-link-rel="author">Author source</a>'
+            . '<a href="https://source.example.test/import/license.html" data-pandoc-link-rel="license" type="text/html" title="Reuse terms">Reuse terms</a>'
+            . '<a href="https://source.example.test/import/posts/post.html?help=import" data-pandoc-link-rel="help">Help source</a>'
+            . '<a href="https://source.example.test/import/posts/post.html#chapter-1" data-pandoc-link-rel="bookmark" title="Chapter anchor">Chapter anchor</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Author sourceReuse termsHelp sourceChapter anchorafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'link'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url'], $policyDiagnostics);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/authors/migration.html',
+            'data-pandoc-link-rel' => 'author',
+        ], $nodes[0]['attrs']);
+        $t->same('Author source', $nodes[0]['children'][0]['text']);
+        $t->same([
+            'href' => 'https://source.example.test/import/license.html',
+            'data-pandoc-link-rel' => 'license',
+            'type' => 'text/html',
+            'title' => 'Reuse terms',
+        ], $nodes[1]['attrs']);
+        $t->same('help', $nodes[2]['attrs']['data-pandoc-link-rel']);
+        $t->same('bookmark', $nodes[3]['attrs']['data-pandoc-link-rel']);
+        $t->same('/migration/editorial-link-relation-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<link'), 'Expected editorial link elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'active-author.html'), 'Expected mixed active author/preload relation to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe passive link target to be stripped');
+        $t->true(!str_contains($html, 'Bad license'), 'Expected unsafe passive link title to remain hidden');
+    },
     'filters active navigation target download and opener rel side effects before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html" target="_blank">'
