@@ -16855,7 +16855,7 @@ final class PdfTextExtractor
         $encodingFallback = $this->fontEncodingMap($body, $objects);
         $cidEncodingMap = $this->fontCidEncodingMap($body, $objects, $namedCMapBodies);
         $cMapWordSpacing = $cidEncodingMap !== null
-            && $cidEncodingMap['cidMap'] !== [];
+            && ($cidEncodingMap['cidMap'] !== [] || ($cidEncodingMap['cidRanges'] ?? []) !== []);
         $widthMetrics = $this->fontWidthMetrics($body, $objects);
         $descriptorInfo = $this->fontDescriptorInfo($body, $objects);
         $type3CharProcMap = $this->type3CharProcUnicodeMap($body, $objects, $cidEncodingMap);
@@ -36576,7 +36576,17 @@ final class PdfTextExtractor
             return null;
         }
 
-        $startKey = str_pad(strtolower(dechex($rangeStart)), $sourceWidth, '0', STR_PAD_LEFT);
+        $rangeCodeSpaceStart = $range['start'] ?? null;
+        if (!is_int($rangeCodeSpaceStart)) {
+            return null;
+        }
+
+        $effectiveStart = max($rangeStart, $rangeCodeSpaceStart);
+        if ($effectiveStart > $source) {
+            return null;
+        }
+
+        $startKey = str_pad(strtolower(dechex($effectiveStart)), $sourceWidth, '0', STR_PAD_LEFT);
         $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
         if (
             !$this->sourceKeyMatchesCodeSpaceRange($startKey, $range)
