@@ -951,6 +951,10 @@ final class PdfTextExtractor
      *     dictionary_filter_operand_count: int,
      *     malformed_filter_operand_count: int,
      *     escaped_filter_name_operand_count: int,
+     *     escaped_filter_key_count: int,
+     *     escaped_decodeparms_key_count: int,
+     *     escaped_length_key_count: int,
+     *     escaped_stream_dictionary_key_count: int,
      *     unsupported_filter_count: int,
      *     filter_end_marker_problem_count: int,
      *     filter_decode_error_count: int,
@@ -982,6 +986,10 @@ final class PdfTextExtractor
             'malformed_filter_operand_count' => 0,
             'duplicate_filter_declaration_count' => 0,
             'escaped_filter_name_operand_count' => 0,
+            'escaped_filter_key_count' => 0,
+            'escaped_decodeparms_key_count' => 0,
+            'escaped_length_key_count' => 0,
+            'escaped_stream_dictionary_key_count' => 0,
             'unsupported_filter_count' => 0,
             'filter_end_marker_problem_count' => 0,
             'filter_decode_error_count' => 0,
@@ -1037,6 +1045,12 @@ final class PdfTextExtractor
                     $definitions
                 );
             }
+            $escapedFilterKeyCount = $this->escapedTopLevelPdfNameDeclarationCount($dict, 'Filter');
+            $escapedDecodeParmsKeyCount = $this->escapedTopLevelPdfNameDeclarationCount($dict, 'DecodeParms');
+            $escapedLengthKeyCount = $this->escapedTopLevelPdfNameDeclarationCount($dict, 'Length');
+            $escapedStreamDictionaryKeyCount = $escapedFilterKeyCount
+                + $escapedDecodeParmsKeyCount
+                + $escapedLengthKeyCount;
 
             $filterIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Filter']);
             $lengthIndirectCount = $this->xrefStreamIndirectOperandCount($operandGroups['Length']);
@@ -1107,6 +1121,10 @@ final class PdfTextExtractor
             $review['malformed_filter_operand_count'] += $malformedFilterOperandCount;
             $review['duplicate_filter_declaration_count'] += $duplicateFilterDeclarationCount;
             $review['escaped_filter_name_operand_count'] += $escapedFilterNameOperandCount;
+            $review['escaped_filter_key_count'] += $escapedFilterKeyCount;
+            $review['escaped_decodeparms_key_count'] += $escapedDecodeParmsKeyCount;
+            $review['escaped_length_key_count'] += $escapedLengthKeyCount;
+            $review['escaped_stream_dictionary_key_count'] += $escapedStreamDictionaryKeyCount;
             $review['unsupported_filter_count'] += $unsupportedFilterCount;
             $review['filter_end_marker_problem_count'] += $filterEndMarkerProblemCount;
             $review['filter_decode_error_count'] += $filterDecodeErrorCount;
@@ -1131,6 +1149,10 @@ final class PdfTextExtractor
                 'malformed_filter_operand_count' => $malformedFilterOperandCount,
                 'duplicate_filter_declaration_count' => $duplicateFilterDeclarationCount,
                 'escaped_filter_name_operand_count' => $escapedFilterNameOperandCount,
+                'escaped_filter_key_count' => $escapedFilterKeyCount,
+                'escaped_decodeparms_key_count' => $escapedDecodeParmsKeyCount,
+                'escaped_length_key_count' => $escapedLengthKeyCount,
+                'escaped_stream_dictionary_key_count' => $escapedStreamDictionaryKeyCount,
                 'unsupported_filter_count' => $unsupportedFilterCount,
                 'filter_end_marker_problem_count' => $filterEndMarkerProblemCount,
                 'filter_decode_error_count' => $filterDecodeErrorCount,
@@ -21914,6 +21936,53 @@ final class PdfTextExtractor
     private function duplicateTopLevelPdfNameDeclarationCount(string $dictionary, string $name): int
     {
         return max(0, count($this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $name)) - 1);
+    }
+
+    private function escapedTopLevelPdfNameDeclarationCount(string $dictionary, string $name): int
+    {
+        $offset = 0;
+        $length = strlen($dictionary);
+        $count = 0;
+
+        while ($offset < $length) {
+            $this->skipContentWhitespaceAndComments($dictionary, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($dictionary[$offset] !== '/') {
+                $nextOffset = $this->skipPdfValueAt($dictionary, $offset);
+                $offset = $nextOffset > $offset ? $nextOffset : $offset + 1;
+                continue;
+            }
+
+            $keyStart = $offset + 1;
+            $keyEnd = $keyStart;
+            while ($keyEnd < $length && !str_contains(" \t\r\n\f[]()<>{}/%", $dictionary[$keyEnd])) {
+                $keyEnd++;
+            }
+
+            if ($keyEnd === $keyStart) {
+                $offset++;
+                continue;
+            }
+
+            $rawName = substr($dictionary, $keyStart, $keyEnd - $keyStart);
+            if ($this->decodePdfName($rawName) === $name && preg_match('/#[\da-fA-F]{2}/', $rawName) === 1) {
+                $count++;
+            }
+
+            $valueOffset = $keyEnd;
+            $this->skipContentWhitespaceAndComments($dictionary, $valueOffset);
+            if ($valueOffset >= $length) {
+                break;
+            }
+
+            $nextOffset = $this->skipPdfValueAt($dictionary, $valueOffset);
+            $offset = $nextOffset > $valueOffset ? $nextOffset : $valueOffset + 1;
+        }
+
+        return $count;
     }
 
     private function skipPdfValueAt(string $body, int $offset): int
