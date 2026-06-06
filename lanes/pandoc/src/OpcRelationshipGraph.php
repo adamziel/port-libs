@@ -2142,6 +2142,10 @@ final class OpcRelationshipGraph
             self::appendUniqueString($issues, 'internal-target-unsafe-percent-encoded-path-byte');
         }
 
+        if (str_contains($parseError, 'unsafe percent-encoded dot segment')) {
+            self::appendUniqueString($issues, 'internal-target-unsafe-percent-encoded-dot-segment');
+        }
+
         if (str_contains($parseError, 'traverse above the package root')) {
             self::appendUniqueString($issues, 'internal-target-package-root-traversal');
         }

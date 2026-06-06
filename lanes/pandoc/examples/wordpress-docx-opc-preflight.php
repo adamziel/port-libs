@@ -558,6 +558,7 @@ $internalTargetDiagnosticsDocumentRelationshipsXml = <<<'XML'
   <Relationship Id="rIdAbsoluteUri" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/review.png"/>
   <Relationship Id="rIdRawSpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/raw space.png"/>
   <Relationship Id="rIdEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%2Fhidden.png"/>
+  <Relationship Id="rIdEncodedDotSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="media/%2E%2E/styles.xml"/>
 </Relationships>
 XML;
 
@@ -566,6 +567,7 @@ $internalTargetDiagnosticsGraph = OpcRelationshipGraph::fromPackage(ZipPackage::
     ['name' => '_rels/.rels', 'data' => $internalTargetDiagnosticsRootRelationshipsXml],
     ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
     ['name' => 'word/_rels/document.xml.rels', 'data' => $internalTargetDiagnosticsDocumentRelationshipsXml],
+    ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
 ]));
 $internalTargetDiagnostics = [];
 foreach ($internalTargetDiagnosticsGraph->preflightTargetsForSource('/word/document.xml') as $target) {
@@ -1358,6 +1360,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['targetPart'] ?? null) !== null
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['valid'] ?? null) !== false
         || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedSlash']['issues'] ?? null) !== ['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte']
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedDotSegment']['targetPart'] ?? null) !== null
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedDotSegment']['valid'] ?? null) !== false
+        || ($summary['integrity']['internalTargetDiagnostics']['rIdEncodedDotSegment']['issues'] ?? null) !== ['invalid-target', 'internal-target-unsafe-percent-encoded-dot-segment']
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
             '/word/_rels/review source.xml.rels',

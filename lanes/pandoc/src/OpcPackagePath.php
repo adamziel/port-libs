@@ -144,6 +144,10 @@ final class OpcPackagePath
         $segments = [];
         foreach (explode('/', $path) as $segment) {
             $decoded = rawurldecode($segment);
+            if (($decoded === '.' || $decoded === '..') && $segment !== $decoded) {
+                throw new \InvalidArgumentException($label . ' contains unsafe percent-encoded dot segment');
+            }
+
             if (str_contains($decoded, "\0") || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
                 throw new \InvalidArgumentException($label . ' contains unsafe percent-encoded path bytes');
             }

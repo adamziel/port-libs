@@ -1120,6 +1120,7 @@ XML;
   <Relationship Id="rIdBadEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bad%ZZ.png"/>
   <Relationship Id="rIdRawSpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/raw space.png"/>
   <Relationship Id="rIdEncodedSlash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%2Fhidden.png"/>
+  <Relationship Id="rIdEncodedDotSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="media/%2E%2E/styles.xml"/>
   <Relationship Id="rIdEncodedBackslash" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%5Chidden.png"/>
   <Relationship Id="rIdEncodedNul" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media%00hidden.png"/>
 </Relationships>
@@ -1130,6 +1131,7 @@ XML;
             ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
             ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
         ]));
 
@@ -1145,6 +1147,7 @@ XML;
             'rIdBadEscape',
             'rIdRawSpace',
             'rIdEncodedSlash',
+            'rIdEncodedDotSegment',
             'rIdEncodedBackslash',
             'rIdEncodedNul',
         ], array_keys($preflight));
@@ -1154,13 +1157,69 @@ XML;
         $t->same(['invalid-target', 'internal-target-malformed-percent-escape'], $preflight['rIdBadEscape']['issues']);
         $t->same(['invalid-target', 'internal-target-invalid-uri-byte'], $preflight['rIdRawSpace']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedSlash']['issues']);
+        $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-dot-segment'], $preflight['rIdEncodedDotSegment']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedBackslash']['issues']);
         $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-path-byte'], $preflight['rIdEncodedNul']['issues']);
-        $t->same(array_fill(0, 8, null), array_column(array_filter(
+        $t->same(array_fill(0, 9, null), array_column(array_filter(
             $graph->preflightAllRelationshipTargets(),
             static fn (array $target): bool => $target['source'] === '/word/document.xml',
         ), 'targetPart'));
-        $t->same(array_fill(0, 8, false), array_column($preflight, 'valid'));
+        $t->same(array_fill(0, 9, false), array_column($preflight, 'valid'));
+    },
+    'rejects percent encoded OPC relationship target dot segments' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCurrentDirectory" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="./styles.xml"/>
+  <Relationship Id="rIdParentDirectory" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+  <Relationship Id="rIdEncodedCurrentDirectory" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="%2E/styles.xml"/>
+  <Relationship Id="rIdEncodedParentDirectory" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="media/%2E%2E/styles.xml"/>
+  <Relationship Id="rIdMixedEncodedParentDirectory" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="media/.%2e/styles.xml"/>
+</Relationships>
+XML;
+
+        $relationships = OpcRelationships::fromXml($documentRelationshipsXml, '/word/document.xml');
+        $t->same('/word/styles.xml', $relationships->resolveTarget('rIdCurrentDirectory'));
+        $t->same('/customXml/item1.xml', $relationships->resolveTarget('rIdParentDirectory'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedCurrentDirectory'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedParentDirectory'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdMixedEncodedParentDirectory'));
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('/word/styles.xml', $preflight['rIdCurrentDirectory']['target']);
+        $t->same(true, $preflight['rIdCurrentDirectory']['valid']);
+        $t->same('/customXml/item1.xml', $preflight['rIdParentDirectory']['target']);
+        $t->same(true, $preflight['rIdParentDirectory']['valid']);
+
+        foreach ([
+            'rIdEncodedCurrentDirectory',
+            'rIdEncodedParentDirectory',
+            'rIdMixedEncodedParentDirectory',
+        ] as $id) {
+            $t->same($id, $preflight[$id]['id']);
+            $t->same(false, $preflight[$id]['valid']);
+            $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-dot-segment'], $preflight[$id]['issues']);
+        }
+
+        $targetParts = array_column($graph->preflightAllRelationshipTargets(), 'targetPart', 'id');
+        $t->same('/word/styles.xml', $targetParts['rIdCurrentDirectory']);
+        $t->same('/customXml/item1.xml', $targetParts['rIdParentDirectory']);
+        $t->same(null, $targetParts['rIdEncodedCurrentDirectory']);
+        $t->same(null, $targetParts['rIdEncodedParentDirectory']);
+        $t->same(null, $targetParts['rIdMixedEncodedParentDirectory']);
     },
     'classifies and preflights external OPC relationship target policies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
