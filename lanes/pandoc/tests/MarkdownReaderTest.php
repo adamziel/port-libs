@@ -905,6 +905,59 @@ return [
         $t->same('imported-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="imported-body">Imported Body</h1>', $blocks);
     },
+    'maps pandoc yaml directive document start markers in metadata blocks' => static function (TestRunner $t): void {
+        $explicit = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '%TAG !wp! tag:example.test,2026:',
+            '---',
+            'title: Directive start **Packet**',
+            'review: !wp!review',
+            '  owner: !wp!reviewer Import Desk',
+            '  status: queued',
+            '  labels: [!wp!label directive, metadata]',
+            '...',
+            '',
+            '# Directive YAML body',
+        ]));
+        $explicitMeta = $explicit->attr('meta');
+        $explicitTags = $explicit->attr('yamlMetadataTagProvenance', []);
+        $explicitBlocks = (new WordPressBlockWriter())->write($explicit);
+
+        $implicit = (new MarkdownReader())->read(implode("\n", [
+            '%YAML 1.2',
+            '%TAG !wp! tag:example.test,2026:',
+            '---',
+            '{title: Implicit directive **Packet**, review: {owner: !wp!reviewer Flow Desk, priority: !!int "3"}, "no": quoted boolean-looking field}',
+            '...',
+            '',
+            '# Implicit directive YAML body',
+        ]));
+        $implicitMeta = $implicit->attr('meta');
+        $implicitTags = $implicit->attr('yamlMetadataTagProvenance', []);
+        $implicitDiagnostics = $implicit->attr('yamlMetadataDiagnostics', []);
+        $implicitBlocks = (new WordPressBlockWriter())->write($implicit);
+
+        $t->same('Directive start **Packet**', $explicitMeta['title']);
+        $t->same('Import Desk', $explicitMeta['review']['owner']);
+        $t->same('queued', $explicitMeta['review']['status']);
+        $t->same(['directive', 'metadata'], $explicitMeta['review']['labels']);
+        $t->same('heading', $explicit->children[0]->type);
+        $t->same('directive-yaml-body', $explicit->children[0]->attr('id'));
+        $t->contains('<h1 id="directive-yaml-body">Directive YAML body</h1>', $explicitBlocks);
+        $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($explicitTags, 'tag'), true));
+        $t->true(in_array('/review/owner', array_column($explicitTags, 'path'), true));
+        $t->same('Implicit directive **Packet**', $implicitMeta['title']);
+        $t->same('Flow Desk', $implicitMeta['review']['owner']);
+        $t->same(3, $implicitMeta['review']['priority']);
+        $t->same('quoted boolean-looking field', $implicitMeta['no']);
+        $t->same([], $implicitDiagnostics);
+        $t->same('heading', $implicit->children[0]->type);
+        $t->same('implicit-directive-yaml-body', $implicit->children[0]->attr('id'));
+        $t->contains('<h1 id="implicit-directive-yaml-body">Implicit directive YAML body</h1>', $implicitBlocks);
+        $t->true(in_array('!<tag:example.test,2026:reviewer>', array_column($implicitTags, 'tag'), true));
+        $t->true(in_array('/review/owner', array_column($implicitTags, 'path'), true));
+    },
     'maps pandoc yaml folded metadata and scalar author aliases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

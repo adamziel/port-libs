@@ -416,6 +416,11 @@ final class MarkdownReader
         $count = count($lines);
         for ($cursor = 0; $cursor < $count; $cursor++) {
             if ($cursor > 0 && preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
+                if (trim($lines[$cursor]) === '---' && $this->isYamlDirectiveDocumentStartMarker($yamlLines)) {
+                    $yamlLines[] = $lines[$cursor];
+                    continue;
+                }
+
                 $metadata = $this->parseIsolatedYamlMetadataBlock($yamlLines);
                 if ($metadata === []) {
                     return null;
@@ -473,6 +478,11 @@ final class MarkdownReader
         $count = count($lines);
         for ($cursor = $start + 1; $cursor < $count; $cursor++) {
             if (preg_match('/^(?:---|\.\.\.)[ \t]*$/', $lines[$cursor]) === 1) {
+                if (trim($lines[$cursor]) === '---' && $this->isYamlDirectiveDocumentStartMarker($yamlLines)) {
+                    $yamlLines[] = $lines[$cursor];
+                    continue;
+                }
+
                 $metadata = $this->parseIsolatedYamlMetadataBlock($yamlLines);
                 if ($metadata === []) {
                     return null;
@@ -681,6 +691,7 @@ final class MarkdownReader
      */
     private function parseYamlMetadataLines(array $lines, bool $topLevel = true): array
     {
+        $lines = $this->consumeYamlMetadataDocumentPreamble($lines);
         $jsonMetadata = $this->parseYamlJsonMetadataDocument($lines);
         if ($jsonMetadata !== null) {
             if ($topLevel) {
@@ -768,6 +779,84 @@ final class MarkdownReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param list<string> $yamlLines
+     */
+    private function isYamlDirectiveDocumentStartMarker(array $yamlLines): bool
+    {
+        $sawDirective = false;
+        foreach ($yamlLines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            if ($this->isYamlDirectiveLine($trimmed)) {
+                $sawDirective = true;
+                continue;
+            }
+
+            return false;
+        }
+
+        return $sawDirective;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function consumeYamlMetadataDocumentPreamble(array $lines): array
+    {
+        $count = count($lines);
+        $index = 0;
+        $sawDirective = false;
+
+        while ($index < $count) {
+            $trimmed = trim($lines[$index]);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                $index++;
+                continue;
+            }
+
+            if ($this->parseYamlDirectiveLine($trimmed)) {
+                $sawDirective = true;
+                $index++;
+                continue;
+            }
+
+            break;
+        }
+
+        if (!$sawDirective) {
+            return $lines;
+        }
+
+        while ($index < $count) {
+            $trimmed = trim($lines[$index]);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                $index++;
+                continue;
+            }
+
+            break;
+        }
+
+        if (preg_match('/^---[ \t]*$/', $lines[$index] ?? '') === 1) {
+            $index++;
+        }
+
+        return array_slice($lines, $index);
+    }
+
+    private function isYamlDirectiveLine(string $trimmed): bool
+    {
+        $directive = trim($this->stripYamlTrailingComment($trimmed));
+
+        return preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $directive) === 1
+            || preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+\S+$/', $directive) === 1;
     }
 
     private function parseYamlDirectiveLine(string $trimmed): bool

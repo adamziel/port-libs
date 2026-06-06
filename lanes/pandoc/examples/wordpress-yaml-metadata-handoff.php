@@ -15,6 +15,7 @@ The source export starts with a migration preface before metadata.
 %YAML 1.2
 %TAG !wpd! tag:directive.example,2026:
 %TAG !yaml! tag:yaml.org,2002:
+---
 title: "Migration **Packet**" # source export title
 author:
   - Data Liberation reviewer
