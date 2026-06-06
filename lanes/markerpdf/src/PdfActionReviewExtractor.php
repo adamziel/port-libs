@@ -1530,6 +1530,10 @@ final class PdfActionReviewExtractor
                 $fieldTwo = $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[1]);
                 $fieldThree = $this->xrefStreamFieldValue($decoded, $fieldOffset, $widths[2]);
 
+                if (isset($entries[$objectNumber])) {
+                    continue;
+                }
+
                 if ($type === 1) {
                     $entries[$objectNumber] = [
                         'type' => 1,

@@ -1077,6 +1077,100 @@ $xrefPrevChainStreamIndirectOperandsPdf = static function () use ($xrefPrevChain
     return $pdf;
 };
 
+$xrefPrevChainDuplicateAttachmentRowsPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
+    $previousContent = 'BT /F1 12 Tf 72 720 Td (Previous duplicate attachment row page) Tj ET';
+    $currentContent = 'BT /F1 12 Tf 72 720 Td (Current duplicate attachment row page) Tj T* (First xref row keeps attachments) Tj ET';
+    $previousPayload = '<wp-export><post id="previous-duplicate-attachment-row"/></wp-export>';
+    $currentPayload = '<wp-export><post id="current-duplicate-attachment-row"/></wp-export>';
+    $previousXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Previous Duplicate Attachment XMP Title',
+        'Previous duplicate attachment rows must not win'
+    ));
+    $currentXmp = gzcompress($xrefPrevChainIncrementalUpdateCurrentBaseXmp(
+        'Current Duplicate Attachment XMP Title',
+        'Current first duplicate xref rows preserve attachments'
+    ));
+    if (!is_string($previousXmp) || !is_string($currentXmp)) {
+        throw new RuntimeException('Unable to compress duplicate attachment row fixture streams.');
+    }
+
+    $pdf = "%PDF-1.7\n";
+    $addObject = static function (int $objectNumber, int $generation, string $body) use (&$pdf): int {
+        $offset = strlen($pdf);
+        $pdf .= "{$objectNumber} {$generation} obj\n{$body}\nendobj\n";
+
+        return $offset;
+    };
+    $xrefTableRow = static fn (int $offset, int $generation = 0, string $state = 'n'): string => sprintf("%010d %05d %s \n", $offset, $generation, $state);
+    $xrefStreamRow = static fn (int $type, int $fieldTwo, int $fieldThree): string => chr($type) . pack('N', $fieldTwo) . chr($fieldThree);
+
+    $previousCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (fr-FR) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $previousPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $previousPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $previousContentOffset = $addObject(4, 0, "<< /Length " . strlen($previousContent) . " >>\nstream\n{$previousContent}\nendstream");
+    $fontOffset = $addObject(5, 0, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+    $previousInfoOffset = $addObject(6, 0, '<< /Title (Previous Duplicate Attachment Info Title) /Author (Previous Duplicate Author) /Producer (Previous Duplicate Producer) >>');
+    $previousMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($previousXmp) . " >>\nstream\n{$previousXmp}\nendstream");
+    $previousNameTreeOffset = $addObject(8, 0, '<< /Names [(previous-duplicate-attachment-row.xml) 10 0 R] >>');
+    $previousFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (previous-duplicate-attachment-row.xml) /Desc (Previous duplicate attachment row) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $previousEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($previousPayload) . " >>\nstream\n{$previousPayload}\nendstream");
+
+    $previousXrefOffset = strlen($pdf);
+    $pdf .= "xref\n"
+        . "0 12\n"
+        . $xrefTableRow(0, 65535, 'f')
+        . $xrefTableRow($previousCatalogOffset)
+        . $xrefTableRow($previousPagesOffset)
+        . $xrefTableRow($previousPageOffset)
+        . $xrefTableRow($previousContentOffset)
+        . $xrefTableRow($fontOffset)
+        . $xrefTableRow($previousInfoOffset)
+        . $xrefTableRow($previousMetadataOffset)
+        . $xrefTableRow($previousNameTreeOffset)
+        . $xrefTableRow(0, 0, 'f')
+        . $xrefTableRow($previousFileSpecOffset)
+        . $xrefTableRow($previousEmbeddedFileOffset)
+        . "trailer\n<< /Size 12 /Root 1 0 R /Info 6 0 R >>\n"
+        . "startxref\n{$previousXrefOffset}\n%%EOF\n";
+
+    $currentCatalogOffset = $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R /Lang (en-US) /Metadata 7 0 R /Names << /EmbeddedFiles 8 0 R >> >>');
+    $currentPagesOffset = $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    $currentPageOffset = $addObject(3, 0, '<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>');
+    $currentContentOffset = $addObject(4, 0, "<< /Length " . strlen($currentContent) . " >>\nstream\n{$currentContent}\nendstream");
+    $currentInfoOffset = $addObject(6, 0, '<< /Title (Current Duplicate Attachment Info Title) /Author (Current Duplicate Author) /Producer (Current Duplicate Producer) >>');
+    $currentMetadataOffset = $addObject(7, 0, '<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length ' . strlen($currentXmp) . " >>\nstream\n{$currentXmp}\nendstream");
+    $currentNameTreeOffset = $addObject(8, 0, '<< /Names [(current-duplicate-attachment-row.xml) 10 0 R] >>');
+    $currentFileSpecOffset = $addObject(10, 0, '<< /Type /Filespec /F (current-duplicate-attachment-row.xml) /Desc (Current duplicate attachment row) /AFRelationship /Source /EF << /F 11 0 R >> >>');
+    $currentEmbeddedFileOffset = $addObject(11, 0, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+
+    $currentRows = ''
+        . $xrefStreamRow(1, $currentCatalogOffset, 0)
+        . $xrefStreamRow(1, $currentPagesOffset, 0)
+        . $xrefStreamRow(1, $currentPageOffset, 0)
+        . $xrefStreamRow(1, $currentContentOffset, 0)
+        . $xrefStreamRow(1, $fontOffset, 0)
+        . $xrefStreamRow(1, $currentInfoOffset, 0)
+        . $xrefStreamRow(1, $currentMetadataOffset, 0)
+        . $xrefStreamRow(1, $currentNameTreeOffset, 0)
+        . $xrefStreamRow(1, $currentFileSpecOffset, 0)
+        . $xrefStreamRow(1, $currentEmbeddedFileOffset, 0)
+        . $xrefStreamRow(1, $previousNameTreeOffset, 0)
+        . $xrefStreamRow(1, $previousFileSpecOffset, 0)
+        . $xrefStreamRow(1, $previousEmbeddedFileOffset, 0);
+    $compressedRows = gzcompress($currentRows);
+    if (!is_string($compressedRows)) {
+        throw new RuntimeException('Unable to compress duplicate attachment current xref rows.');
+    }
+
+    $currentXrefOffset = strlen($pdf);
+    $pdf .= "20 0 obj\n"
+        . '<< /Type /XRef /Size 21 /Root 1 0 R /Info 6 0 R /Prev ' . $previousXrefOffset . ' /Index [1 8 10 2 8 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
+        . "stream\n{$compressedRows}\nendstream\nendobj\n"
+        . "startxref\n{$currentXrefOffset}\n%%EOF";
+
+    return $pdf;
+};
+
 $xrefPrevChainCompressedPrevOperandPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $previousContent = 'BT /F1 12 Tf 72 720 Td (Previous compressed Prev metadata page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current compressed Prev metadata page) Tj T* (Compressed Prev helper repaired metadata) Tj ET';
@@ -2520,6 +2614,48 @@ return [
         $t->true(str_contains($pdf, '/Index 31 0 R'));
         $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'previous-indirect-operands'));
         $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-post-xref-decoy'));
+    },
+    'keeps first current xref-stream duplicate rows before stale attachment rows' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainDuplicateAttachmentRowsPdf): void {
+        $pdf = $xrefPrevChainDuplicateAttachmentRowsPdf();
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $extractor = new PdfTextExtractor();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $text = $extractor->extractPlainText($pdf);
+        $encodedMetadata = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $currentPayload = '<wp-export><post id="current-duplicate-attachment-row"/></wp-export>';
+
+        $t->same(['Current duplicate attachment row page', 'First xref row keeps attachments'], $extractor->extractTextLines($pdf));
+        $t->same("Current duplicate attachment row page\nFirst xref row keeps attachments", $text);
+        $t->same(['xmp', 'info', 'catalog'], $metadata['source']);
+        $t->same('Current Duplicate Attachment XMP Title', $metadata['title']);
+        $t->same('Current first duplicate xref rows preserve attachments', $metadata['description']);
+        $t->same('Current Duplicate Attachment Info Title', $metadata['info']['Title']);
+        $t->same(['Current Duplicate Author'], $metadata['authors']);
+        $t->same('Current Duplicate Producer', $metadata['producer']);
+        $t->same('en-US', $metadata['language']);
+        $t->same(1, count($files));
+        $t->same('current-duplicate-attachment-row.xml', $files[0]['filename']);
+        $t->same('Current duplicate attachment row', $files[0]['description']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same(hash('sha256', $currentPayload), $files[0]['content_sha256']);
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['current-duplicate-attachment-row.xml'], $summary['filenames']);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same('current-duplicate-attachment-row.xml', $summary['attachments'][0]['filename']);
+        $t->same('Current duplicate attachment row', $summary['attachments'][0]['description']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(str_contains($pdf, '/Index [1 8 10 2 8 1 10 2]'));
+        $t->true(is_string($encodedMetadata) && !str_contains($encodedMetadata, 'Previous Duplicate Attachment'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'previous-duplicate-attachment-row'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'previous-duplicate-attachment-row'));
+        $t->true(!str_contains($text, 'Previous duplicate attachment row page'));
+        $t->true(!str_contains($text, "\0"));
     },
     'repairs damaged middle Prev pointers to the earlier base xref before post-xref decoys' => static function (
         TestRunner $t

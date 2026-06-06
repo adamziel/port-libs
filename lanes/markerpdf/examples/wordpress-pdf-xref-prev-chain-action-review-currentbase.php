@@ -47,7 +47,6 @@ $pdf .= "xref\n"
     . $xrefTableRow($offsets['9:0'])
     . "trailer\n<< /Size 10 /Root 1 0 R >>\n"
     . "startxref\n{$previousXrefOffset}\n%%EOF\n";
-$previousOffsets = $offsets;
 
 $addObject(1, 0, '<< /Type /Catalog /Pages 2 0 R >>');
 $addObject(2, 0, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
@@ -64,8 +63,10 @@ $rows = ''
     . $xrefStreamRow(1, $offsets['4:0'], 0)
     . $xrefStreamRow(1, $offsets['5:0'], 0)
     . $xrefStreamRow(1, $offsets['7:0'], 0)
-    . $xrefStreamRow(1, $previousOffsets['8:0'], 0)
-    . $xrefStreamRow(1, $previousOffsets['9:0'], 0);
+    . $xrefStreamRow(1, $offsets['8:0'], 0)
+    . $xrefStreamRow(1, $offsets['9:0'], 0)
+    . $xrefStreamRow(0, 0, 0)
+    . $xrefStreamRow(0, 0, 0);
 $compressedRows = gzcompress($rows);
 if (!is_string($compressedRows)) {
     throw new RuntimeException('Unable to compress action-review xref-stream rows.');
@@ -73,7 +74,7 @@ if (!is_string($compressedRows)) {
 
 $currentXrefOffset = strlen($pdf);
 $pdf .= "20 0 obj\n"
-    . '<< /Type /XRef /Size 21 /Root 1 0 R /Prev ' . $previousXrefOffset . ' /Index [1 5 7 3] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
+    . '<< /Type /XRef /Size 21 /Root 1 0 R /Prev ' . $previousXrefOffset . ' /Index [1 5 7 3 8 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedRows) . " >>\n"
     . "stream\n{$compressedRows}\nendstream\nendobj\n"
     . "startxref\n{$currentXrefOffset}\n%%EOF";
 
@@ -103,13 +104,15 @@ $wordpressText = (string) ($blocks[0]['text'] ?? '');
 $encodedReview = json_encode([$annotations, $links, $linkedPages], JSON_UNESCAPED_SLASHES) ?: '';
 $summary = [
     'support_component' => 'native-pdf-xref-prev-chain-action-review',
-    'native_boundary' => 'xref-stream Prev incremental updates repair stale direct action rows before WordPress link promotion',
+    'native_boundary' => 'xref-stream Prev incremental updates keep first current action rows before duplicate free rows in WordPress link promotion',
     'previous_xref_offset' => $previousXrefOffset,
     'current_xref_offset' => $currentXrefOffset,
     'annotation_objects' => array_column($annotations[0]['annotations'] ?? [], 'annotation_object'),
     'promoted_link_objects' => array_column($links[0]['links'] ?? [], 'annotation_object'),
     'current_uri_promoted' => str_contains($wordpressText, 'https://example.com/current-prev-chain-action'),
     'current_additional_action_reviewed' => str_contains($encodedReview, 'mailto:current-prev-chain@example.test'),
+    'duplicate_free_rows_ignored' => str_contains($pdf, '/Index [1 5 7 3 8 2]')
+        && str_contains($encodedReview, 'https://example.com/current-prev-chain-action'),
     'stale_prev_action_excluded' => !str_contains($encodedReview, 'stale-prev-chain-action') && !str_contains($encodedReview, 'stalePrevChainHover'),
     'executes_pdf_actions' => false,
     'executes_python_or_models' => false,
@@ -119,6 +122,7 @@ $summary = [
 if (
     $wordpressText !== '[Current action docs](https://example.com/current-prev-chain-action)'
     || $summary['current_additional_action_reviewed'] !== true
+    || $summary['duplicate_free_rows_ignored'] !== true
     || $summary['stale_prev_action_excluded'] !== true
 ) {
     throw new RuntimeException('Expected current xref Prev action review to win before WordPress link promotion.');
