@@ -516,8 +516,13 @@ final class PdfSecurityPreflight
             'permission_digest_declared_entry_count' => (int) ($permissionDigest['declared_entry_count'] ?? 0),
             'permission_digest_duplicate_entries' => $permissionDigestDuplicateEntries,
             'permission_digest_selected_entry_index' => $permissionDigest['selected_entry_index'] ?? null,
+            'permission_digest_selected_entry_status' => $permissionDigest['selected_entry_status'] ?? null,
+            'permission_digest_selected_entry_operand_shape' => $permissionDigest['selected_entry_operand_shape'] ?? null,
             'permission_digest_entry_statuses' => is_array($permissionDigest['entry_statuses'] ?? null)
                 ? $permissionDigest['entry_statuses']
+                : [],
+            'permission_digest_entry_operand_shapes' => is_array($permissionDigest['entry_operand_shapes'] ?? null)
+                ? $permissionDigest['entry_operand_shapes']
                 : [],
             'ready_for_password_attempt' => $ready,
             'status' => $ready
@@ -592,6 +597,11 @@ final class PdfSecurityPreflight
             'permission_digest_expected_bytes' => $standardAuthenticationMaterialReview['permission_digest_expected_bytes'] ?? null,
             'permission_digest_length_valid' => $permissionDigestLengthValid,
             'permission_digest_status' => $permissionDigestStatus,
+            'permission_digest_selected_entry_status' => $standardAuthenticationMaterialReview['permission_digest_selected_entry_status'] ?? null,
+            'permission_digest_selected_entry_operand_shape' => $standardAuthenticationMaterialReview['permission_digest_selected_entry_operand_shape'] ?? null,
+            'permission_digest_entry_operand_shapes' => is_array($standardAuthenticationMaterialReview['permission_digest_entry_operand_shapes'] ?? null)
+                ? $standardAuthenticationMaterialReview['permission_digest_entry_operand_shapes']
+                : [],
             'authentication_material_ready_for_password_attempt' => $authenticationMaterialReady,
             'password_validation_performed' => false,
             'permissions_authenticated' => false,

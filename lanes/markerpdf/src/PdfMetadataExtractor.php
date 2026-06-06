@@ -7444,17 +7444,24 @@ final class PdfMetadataExtractor
 
         $entries = [];
         foreach ($values as $index => $value) {
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+            $operandShape = $this->standardPermissionDigestOperandShape($valueForReview);
             $bytes = $this->pdfStringBytesFromValue($value, $objects);
             $entries[] = [
                 'source' => 'standard_permissions_validation_ciphertext_entry',
                 'index' => $index,
                 'present' => true,
+                'operand_shape' => $operandShape,
                 'bytes_resolved' => $bytes !== null,
                 'bytes' => $bytes === null ? null : strlen($bytes),
                 'sha256' => $bytes === null ? null : hash('sha256', $bytes),
-                'status' => $bytes === null
-                    ? 'permission_digest_entry_unresolved'
-                    : 'permission_digest_ciphertext_review',
+                'status' => $this->standardPermissionDigestEntryStatus(
+                    $value,
+                    $operandShape,
+                    $bytes !== null,
+                    $resolved !== null
+                ),
                 'raw_bytes_exposed' => false,
             ];
         }
@@ -7470,6 +7477,7 @@ final class PdfMetadataExtractor
             'duplicate_entries' => count($values) > 1,
             'selected_entry_index' => $selectedIndex,
             'selected_entry_status' => $selected['status'] ?? null,
+            'selected_entry_operand_shape' => $selected['operand_shape'] ?? null,
             'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
                 array_map(
                     static fn (array $entry): mixed => $entry['status'] ?? null,
@@ -7477,8 +7485,68 @@ final class PdfMetadataExtractor
                 ),
                 static fn (mixed $status): bool => is_string($status)
             ))),
+            'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $shape): bool => is_string($shape)
+            ))),
             'entries' => $entries,
         ];
+    }
+
+    private function standardPermissionDigestOperandShape(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return 'empty';
+        }
+        if ($this->objectReferenceFromValue($trimmed) !== null) {
+            return 'indirect_reference';
+        }
+        if (str_starts_with($trimmed, '[')) {
+            return 'array';
+        }
+        if (str_starts_with($trimmed, '<<')) {
+            return 'dictionary';
+        }
+        if (str_starts_with($trimmed, '(')) {
+            return 'literal_string';
+        }
+        if (str_starts_with($trimmed, '<')) {
+            return 'hex_string';
+        }
+        if (str_starts_with($trimmed, '/')) {
+            return 'name';
+        }
+
+        return 'token';
+    }
+
+    private function standardPermissionDigestEntryStatus(
+        string $rawValue,
+        string $operandShape,
+        bool $bytesResolved,
+        bool $valueResolved
+    ): string {
+        if ($bytesResolved) {
+            return 'permission_digest_ciphertext_review';
+        }
+
+        if (!$valueResolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'permission_digest_entry_unresolved';
+        }
+
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'permission_digest_composite_operand_review';
+        }
+
+        if (!in_array($operandShape, ['literal_string', 'hex_string'], true)) {
+            return 'permission_digest_non_string_operand_review';
+        }
+
+        return 'permission_digest_entry_unresolved';
     }
 
     /**
@@ -7532,7 +7600,9 @@ final class PdfMetadataExtractor
             'duplicate_entries' => (bool) ($perms['duplicate_entries'] ?? false),
             'selected_entry_index' => $perms['selected_entry_index'] ?? null,
             'selected_entry_status' => $perms['selected_entry_status'] ?? null,
+            'selected_entry_operand_shape' => $perms['selected_entry_operand_shape'] ?? null,
             'entry_statuses' => is_array($perms['entry_statuses'] ?? null) ? $perms['entry_statuses'] : [],
+            'entry_operand_shapes' => is_array($perms['entry_operand_shapes'] ?? null) ? $perms['entry_operand_shapes'] : [],
             'entry_reviews' => is_array($perms['entries'] ?? null) ? $perms['entries'] : [],
             'expected_bytes' => $expectedLengths['Perms'] ?? null,
             'length_valid' => $perms !== null && isset($expectedLengths['Perms'])
@@ -7717,6 +7787,14 @@ final class PdfMetadataExtractor
 
         if (($perms['duplicate_entries'] ?? false) === true) {
             return 'permission_digest_duplicate_entries_review';
+        }
+
+        $selectedStatus = is_string($perms['selected_entry_status'] ?? null) ? $perms['selected_entry_status'] : null;
+        if (in_array($selectedStatus, [
+            'permission_digest_composite_operand_review',
+            'permission_digest_non_string_operand_review',
+        ], true)) {
+            return $selectedStatus;
         }
 
         if (($perms['bytes_resolved'] ?? true) !== true) {
