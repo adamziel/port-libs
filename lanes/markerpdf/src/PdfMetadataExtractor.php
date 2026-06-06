@@ -3341,6 +3341,10 @@ final class PdfMetadataExtractor
             $metadata['page_labels'] = $outlinePageLabels;
         }
 
+        foreach ($this->documentOutlineRootDuplicateKeySummary($catalog, $objects, $outlineRoot['object']) as $key => $value) {
+            $metadata[$key] = $value;
+        }
+
         foreach ($this->documentOutlineDuplicateKeySummary($items) as $key => $value) {
             $metadata[$key] = $value;
         }
@@ -3511,6 +3515,138 @@ final class PdfMetadataExtractor
             'duplicate_item_key_review_only' => true,
             'duplicate_item_key_payload_included' => false,
         ];
+    }
+
+    /**
+     * Catalog `/Outlines` can appear more than once in malformed PDFs. Keep the
+     * selected root behavior stable while exposing the duplicate-root boundary
+     * as payload-free review metadata.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootDuplicateKeySummary(
+        string $catalog,
+        array $objects,
+        ?int $selectedRootObject
+    ): array {
+        $values = $this->dictionaryTopLevelRawValues($catalog, 'Outlines');
+        if (count($values) < 2) {
+            return [];
+        }
+
+        $entries = [];
+        $objectNumbers = [];
+        foreach ($values as $index => $value) {
+            $entry = [
+                'index' => $index,
+            ];
+            $trimmed = $this->trimPdfWhitespaceAndComments($value);
+            if ($trimmed === 'null') {
+                $entry['kind'] = 'null';
+                $entries[] = $entry;
+                continue;
+            }
+
+            $reference = $this->objectReferenceFromValue($value);
+            if ($reference !== null) {
+                $entry['kind'] = 'indirect_reference';
+                $entry['object_number'] = $reference['objectNumber'];
+                $entry['object_generation'] = $reference['generation'];
+                $objectNumbers[] = $reference['objectNumber'];
+
+                $objectBody = $this->objectBodyForReference(
+                    $objects,
+                    $reference['objectNumber'],
+                    $reference['generation']
+                );
+                if ($objectBody !== null) {
+                    $entry['has_stream_keyword'] = $this->streamObjectHasStreamKeyword($objectBody);
+                    $dictionary = $this->dictionaryObjectBody($objectBody);
+                    if ($dictionary !== null) {
+                        foreach ($this->documentOutlineRootDictionaryReviewLabels($dictionary, $objects) as $key => $metadataValue) {
+                            $entry[$key] = $metadataValue;
+                        }
+                    }
+                }
+
+                $entries[] = $entry;
+                continue;
+            }
+
+            if (str_starts_with($trimmed, '<<')) {
+                $entry['kind'] = 'direct_dictionary';
+                $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+                if ($dictionary !== null) {
+                    foreach ($this->documentOutlineRootDictionaryReviewLabels($dictionary, $objects) as $key => $metadataValue) {
+                        $entry[$key] = $metadataValue;
+                    }
+                }
+                $entries[] = $entry;
+                continue;
+            }
+
+            $entry['kind'] = 'non_dictionary_outline_value';
+            $entries[] = $entry;
+        }
+
+        $selectedEntryIndex = array_key_last($values);
+        $review = [
+            'source' => 'catalog_outline_root_duplicate_key',
+            'review_only' => true,
+            'payload_included' => false,
+            'visible_text_source' => false,
+            'selected_entry_policy' => 'last_top_level_entry',
+            'declared_entry_count' => count($values),
+            'duplicate_entries' => true,
+            'selected_entry_index' => $selectedEntryIndex,
+            'selected_object_number' => $selectedRootObject,
+            'candidate_object_numbers' => $this->uniqueIntegers($objectNumbers),
+            'entries' => $entries,
+        ];
+
+        return [
+            'duplicate_outline_root_entry_count' => count($values),
+            'duplicate_outline_root_objects' => $review['candidate_object_numbers'],
+            'duplicate_outline_root_selected_object' => $selectedRootObject,
+            'duplicate_outline_root_selected_entry_index' => $selectedEntryIndex,
+            'duplicate_outline_root_review_only' => true,
+            'duplicate_outline_root_payload_included' => false,
+            'outline_root_duplicate_key_review' => $review,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootDictionaryReviewLabels(string $dictionary, array $objects): array
+    {
+        $labels = [
+            'is_outline_root' => $this->isDocumentOutlineRootDictionary($dictionary, $objects),
+        ];
+
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+        if ($type !== null) {
+            $labels['type'] = $type;
+        }
+
+        $first = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'First') ?? '');
+        if ($first !== null) {
+            $labels['first_item_object'] = $first;
+        }
+
+        $last = $this->objectNumberFromReference($this->dictionaryTopLevelRawValue($dictionary, 'Last') ?? '');
+        if ($last !== null) {
+            $labels['last_item_object'] = $last;
+        }
+
+        $count = $this->dictionaryIntegerValue($dictionary, 'Count', $objects);
+        if ($count !== null) {
+            $labels['outline_count'] = $count;
+        }
+
+        return $labels;
     }
 
     /**
