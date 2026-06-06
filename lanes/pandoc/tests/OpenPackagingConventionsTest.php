@@ -1353,6 +1353,48 @@ XML;
 
         $t->same([], $unsignedGraph->preflightDigitalSignatures());
     },
+    'flags OPC digital signature origins without signature relationships' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdSignatureOrigin" Type="http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin" Target="_xmlsignatures/origin.sigs"/>
+</Relationships>
+XML;
+
+        $emptySignatureOriginRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdOriginAudit" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="../docProps/thumbnail.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => $emptySignatureOriginRelationshipsXml],
+        ]));
+
+        $signatures = $graph->preflightDigitalSignatures();
+
+        $t->same(1, count($signatures));
+        $t->same('rIdSignatureOrigin', $signatures[0]['id']);
+        $t->same('/_xmlsignatures/origin.sigs', $signatures[0]['targetPart']);
+        $t->same('/_xmlsignatures/_rels/origin.sigs.rels', $signatures[0]['relationshipPartName']);
+        $t->same('application/vnd.openxmlformats-package.digital-signature-origin', $signatures[0]['contentType']);
+        $t->same([], $signatures[0]['signatures']);
+        $t->same(false, $signatures[0]['valid']);
+        $t->same(['missing-digital-signature-signature-relationships'], $signatures[0]['issues']);
+    },
     'preflights OPC embedded package and object relationships' => static function (TestRunner $t): void {
         $embeddedContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -1002,6 +1002,10 @@ final class OpcRelationshipGraph
                             'issues' => $signatureIssues,
                         ];
                     }
+
+                    if ($signatures === []) {
+                        $issues[] = 'missing-digital-signature-signature-relationships';
+                    }
                 } else {
                     $issues[] = 'missing-digital-signature-origin-relationships';
                 }

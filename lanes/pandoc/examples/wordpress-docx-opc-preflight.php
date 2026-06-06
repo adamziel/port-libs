@@ -756,6 +756,23 @@ foreach ($digitalSignatures as $origin) {
 }
 $digitalSignatureParts = array_values(array_unique($digitalSignatureParts));
 
+$emptySignatureOriginGraph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/_xmlsignatures/origin.sigs" ContentType="application/vnd.openxmlformats-package.digital-signature-origin"/></Types>'],
+    ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/><Relationship Id="rIdSignatureOrigin" Type="' . OpcRelationshipGraph::DIGITAL_SIGNATURE_ORIGIN_RELATIONSHIP_TYPE . '" Target="_xmlsignatures/origin.sigs"/></Relationships>'],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+    ['name' => '_xmlsignatures/_rels/origin.sigs.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>'],
+]));
+$emptySignatureOrigin = $emptySignatureOriginGraph->preflightDigitalSignatures()[0] ?? null;
+$emptySignatureOriginGuard = [
+    'id' => $emptySignatureOrigin['id'] ?? null,
+    'targetPart' => $emptySignatureOrigin['targetPart'] ?? null,
+    'relationshipPartName' => $emptySignatureOrigin['relationshipPartName'] ?? null,
+    'signatureCount' => isset($emptySignatureOrigin['signatures']) ? count($emptySignatureOrigin['signatures']) : null,
+    'valid' => $emptySignatureOrigin['valid'] ?? null,
+    'issues' => $emptySignatureOrigin['issues'] ?? null,
+];
+
 $corePropertiesPart = $graph->firstTargetOfType('http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties');
 $strictXmlShapeGuards = [
     'contentTypeUnexpectedAttributeRejected' => false,
@@ -904,6 +921,7 @@ $summary = [
         'caseEquivalentTargets' => $caseEquivalentTargets,
         'caseEquivalentSignatureTransforms' => $caseEquivalentSignatureTransforms,
         'internalTargetDiagnostics' => $internalTargetDiagnostics,
+        'emptySignatureOriginGuard' => $emptySignatureOriginGuard,
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
@@ -1008,6 +1026,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-origin'
         || ($summary['digitalSignatures'][0]['signatures'][0]['contentType'] ?? null) !== 'application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml'
         || ($summary['digitalSignatures'][0]['valid'] ?? null) !== true
+        || ($summary['integrity']['emptySignatureOriginGuard']['id'] ?? null) !== 'rIdSignatureOrigin'
+        || ($summary['integrity']['emptySignatureOriginGuard']['targetPart'] ?? null) !== '/_xmlsignatures/origin.sigs'
+        || ($summary['integrity']['emptySignatureOriginGuard']['relationshipPartName'] ?? null) !== '/_xmlsignatures/_rels/origin.sigs.rels'
+        || ($summary['integrity']['emptySignatureOriginGuard']['signatureCount'] ?? null) !== 0
+        || ($summary['integrity']['emptySignatureOriginGuard']['valid'] ?? null) !== false
+        || ($summary['integrity']['emptySignatureOriginGuard']['issues'] ?? null) !== ['missing-digital-signature-signature-relationships']
         || ($summary['relationships']['rIdInternalBookmark']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['relationships']['rIdInternalReviewState']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['wordpressImport']['internalSourceReferences'][0]['id'] ?? null) !== 'rIdInternalBookmark'
