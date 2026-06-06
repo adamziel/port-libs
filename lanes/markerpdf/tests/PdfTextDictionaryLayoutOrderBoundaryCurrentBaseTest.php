@@ -683,6 +683,159 @@ return [
         $t->true(!str_contains($encoded, 'named object left converter order payload'));
         $t->true(!str_contains($encoded, 'named object right converter order payload'));
     },
+    'uses point-pair order bboxes before selected pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(3800, [
+                    ['text' => 'Point-pair bbox cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(3801, [
+                    ['text' => 'Second point-pair column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First point-pair column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 3801,
+                    'image_bbox' => ['top_left' => ['x' => 0.0, 'y' => 0.0], 'bottom_right' => ['x' => 612.0, 'y' => 792.0]],
+                    'bboxes' => [
+                        [
+                            'position' => 1,
+                            'top_left' => ['x' => 60.0, 'y' => 96.0],
+                            'bottom_right' => ['x' => 290.0, 'y' => 144.0],
+                            'raw_payload' => 'point-pair left order payload must stay review-only',
+                        ],
+                        [
+                            'position' => 2,
+                            'tl' => [318.0, 96.0],
+                            'br' => [570.0, 144.0],
+                            'raw_payload' => 'point-pair right order payload must stay review-only',
+                        ],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 3801, 'image' => 'point-pair-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(3801, $result['pages'][0]['pnum']);
+        $t->same(['First point-pair column', 'Second point-pair column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First point-pair column Second point-pair column', $blocks[0]['text']);
+        $t->same([0.0, 0.0, 612.0, 792.0], $order['image_bbox'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!str_contains($encoded, 'point-pair left order payload'));
+        $t->true(!str_contains($encoded, 'point-pair right order payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'uses point-pair layout and order bboxes for WordPress supplied imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-point-pair-bbox-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% point-pair bbox pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(3900, [
+                        ['text' => 'Point-pair converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(3901, [
+                        ['text' => 'Second converter point-pair column.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter point-pair column.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 3901, 'image' => 'point-pair-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'page' => 3901,
+                        'image_bbox' => ['tl' => [0.0, 0.0], 'br' => [612.0, 792.0]],
+                        'bboxes' => [
+                            [
+                                'label' => 'Title',
+                                'top_left' => ['x' => 60.0, 'y' => 92.0],
+                                'bottom_right' => ['x' => 290.0, 'y' => 150.0],
+                                'raw_payload' => 'point-pair title layout payload must stay hidden',
+                            ],
+                            [
+                                'label' => 'Text',
+                                'tl' => [318.0, 92.0],
+                                'br' => [570.0, 150.0],
+                                'raw_payload' => 'point-pair body layout payload must stay hidden',
+                            ],
+                        ],
+                    ]],
+                    'order_images' => [
+                        ['page' => 3901, 'image' => 'point-pair-order-render'],
+                    ],
+                    'order_results' => [[
+                        'page' => 3901,
+                        'image_bbox' => ['tl' => [0.0, 0.0], 'br' => [612.0, 792.0]],
+                        'bboxes' => [
+                            [
+                                'position' => 1,
+                                'top_left' => ['x' => 60.0, 'y' => 96.0],
+                                'bottom_right' => ['x' => 290.0, 'y' => 144.0],
+                                'raw_payload' => 'point-pair left converter order payload must stay hidden',
+                            ],
+                            [
+                                'position' => 2,
+                                'tl' => [318.0, 96.0],
+                                'br' => [570.0, 144.0],
+                                'raw_payload' => 'point-pair right converter order payload must stay hidden',
+                            ],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->same([
+            [60.0, 92.0, 290.0, 150.0],
+            [318.0, 92.0, 570.0, 150.0],
+        ], $result['metadata']['order_plan']['requested_bboxes'][0] ?? null);
+        $t->contains('# First Converter Point-Pair Column.', $text);
+        $t->contains('Second converter point-pair column.', $text);
+        $t->true(strpos($text, '# First Converter Point-Pair Column.') < strpos($text, 'Second converter point-pair column.'));
+        $t->true(!str_contains($text, 'Point-pair converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'point-pair title layout payload'));
+        $t->true(!str_contains($encoded, 'point-pair body layout payload'));
+        $t->true(!str_contains($encoded, 'point-pair left converter order payload'));
+        $t->true(!str_contains($encoded, 'point-pair right converter order payload'));
+    },
     'prefers trusted metadata over copied source-page payload markers before pdftext layout order assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
         $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
             [
