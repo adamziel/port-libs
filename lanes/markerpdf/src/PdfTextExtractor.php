@@ -36816,7 +36816,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 2]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 2]));
     }
 
     /**
@@ -36828,7 +36828,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 1]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
     }
 
     /**
@@ -36892,7 +36892,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 2]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 2]));
     }
 
     /**
@@ -36904,7 +36904,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 1]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
     }
 
     /**
@@ -36916,7 +36916,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 6]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 6]));
     }
 
     /**
@@ -36928,13 +36928,13 @@ final class PdfTextExtractor
             return null;
         }
 
-        $a = $this->numericOperand($operands[count($operands) - 6]);
-        $b = $this->numericOperand($operands[count($operands) - 5]);
+        $a = $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 6]));
+        $b = $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 5]));
         if ($a === null || $b === null) {
             return null;
         }
 
-        return sqrt(($a * $a) + ($b * $b));
+        return $this->finiteFontAdvanceMetric(sqrt(($a * $a) + ($b * $b)));
     }
 
     private function textMatrixHorizontalAdvanceScale(float $horizontalScale, float $extentScale): float
@@ -36963,13 +36963,13 @@ final class PdfTextExtractor
             return null;
         }
 
-        $c = $this->numericOperand($operands[count($operands) - 4]);
-        $d = $this->numericOperand($operands[count($operands) - 3]);
+        $c = $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 4]));
+        $d = $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 3]));
         if ($c === null || $d === null) {
             return null;
         }
 
-        return sqrt(($c * $c) + ($d * $d));
+        return $this->finiteFontAdvanceMetric(sqrt(($c * $c) + ($d * $d)));
     }
 
     private function advanceTextYByLeading(?float $currentTextY, ?float $currentTextLeading): ?float
