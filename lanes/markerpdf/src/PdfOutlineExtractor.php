@@ -3341,7 +3341,7 @@ final class PdfOutlineExtractor
             return;
         }
 
-        foreach ($kids as $kid) {
+        foreach ($this->destinationNameTreeKidsSortedByLimits($kids, $objects, $activeLimits) as $kid) {
             $objectNumber = $this->validReferenceObjectNumber($kid, $objects);
             if ($objectNumber === null) {
                 continue;
@@ -3401,7 +3401,7 @@ final class PdfOutlineExtractor
             return;
         }
 
-        foreach ($kids as $kid) {
+        foreach ($this->destinationNameTreeKidsSortedByLimits($kids, $objects, $activeLimits) as $kid) {
             $objectNumber = $this->validReferenceObjectNumber($kid, $objects);
             if ($objectNumber === null) {
                 continue;
@@ -3417,6 +3417,74 @@ final class PdfOutlineExtractor
                 $this->collectNameTreeActionDestinations($child, $objects, $destinations, $seen, $activeLimits);
             }
         }
+    }
+
+    /**
+     * @param list<mixed> $kids
+     * @param array<int, mixed> $objects
+     * @param list<array{lower: string, upper: string, lower_bytes: string, upper_bytes: string}> $activeLimits
+     * @return list<mixed>
+     */
+    private function destinationNameTreeKidsSortedByLimits(array $kids, array $objects, array $activeLimits): array
+    {
+        if (count($kids) < 2) {
+            return $kids;
+        }
+
+        $kidNodes = [];
+        $boundedNodes = [];
+        foreach ($kids as $order => $kid) {
+            if ($this->validReferenceObjectNumber($kid, $objects) === null) {
+                return $kids;
+            }
+
+            $child = $this->resolveDictionary($kid, $objects);
+            if ($child === null) {
+                return $kids;
+            }
+
+            $localLimits = $this->nameTreeLimits($child, $objects);
+            $childLimitStack = $localLimits === null
+                ? $activeLimits
+                : $this->nameTreeEffectiveLimitStack($activeLimits, $localLimits);
+            $limits = $this->nameTreeMergedLimits($childLimitStack);
+            $node = [
+                'kid' => $kid,
+                'limits' => $limits,
+                'order' => $order,
+                'bounded' => $localLimits !== null && $limits !== null,
+            ];
+            $kidNodes[] = $node;
+            if ($node['bounded']) {
+                $boundedNodes[] = $node;
+            }
+        }
+
+        if (count($boundedNodes) < 2) {
+            return $kids;
+        }
+
+        usort(
+            $boundedNodes,
+            static function (array $left, array $right): int {
+                return strcmp($left['limits']['lower_bytes'], $right['limits']['lower_bytes'])
+                    ?: $left['order'] <=> $right['order'];
+            }
+        );
+
+        $sortedKids = [];
+        $boundedOffset = 0;
+        foreach ($kidNodes as $node) {
+            if (!$node['bounded']) {
+                $sortedKids[] = $node['kid'];
+                continue;
+            }
+
+            $sortedKids[] = $boundedNodes[$boundedOffset]['kid'];
+            ++$boundedOffset;
+        }
+
+        return $sortedKids;
     }
 
     /**
