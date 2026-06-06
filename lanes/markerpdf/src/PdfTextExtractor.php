@@ -411,6 +411,7 @@ final class PdfTextExtractor
      *     stream_member_rejection_count: int,
      *     duplicate_header_object_number_rejection_count: int,
      *     duplicate_member_offset_rejection_count: int,
+     *     out_of_range_member_index_rejection_count: int,
      *     invalid_member_offset_rejection_count: int,
      *     malformed_xref_stream_width_count: int,
      *     malformed_xref_stream_index_count: int,
@@ -447,6 +448,7 @@ final class PdfTextExtractor
             'stream_member_rejection_count' => 0,
             'duplicate_header_object_number_rejection_count' => 0,
             'duplicate_member_offset_rejection_count' => 0,
+            'out_of_range_member_index_rejection_count' => 0,
             'invalid_member_offset_rejection_count' => 0,
             'malformed_xref_stream_width_count' => 0,
             'malformed_xref_stream_index_count' => 0,
@@ -549,6 +551,9 @@ final class PdfTextExtractor
             $members = $memberTable['members'] ?? [];
             $memberOffsetCounts = $this->objectStreamMemberOffsetCounts($members);
             $memberAtDefaultIndex = $this->objectStreamMemberAtHeaderIndex($members, $defaultMemberIndex);
+            $memberIndexOutOfRange = $indexIsExplicit
+                && $memberTable !== null
+                && $defaultMemberIndex >= ($memberTable['headerSlotCount'] ?? count($members));
             $membersByObjectNumber = [];
             foreach ($members as $member) {
                 if ($member['objectNumber'] === $objectNumber) {
@@ -593,6 +598,9 @@ final class PdfTextExtractor
                 && (($memberOffsetCounts[$selectedMember['offset']] ?? 0) > 1);
             if ($selectedMemberDuplicateOffset) {
                 $review['duplicate_member_offset_rejection_count']++;
+            }
+            if ($memberIndexOutOfRange) {
+                $review['out_of_range_member_index_rejection_count']++;
             }
             $selectedMemberHasTokenBoundary = $memberTable !== null
                 && $selectedMember !== null
@@ -660,6 +668,7 @@ final class PdfTextExtractor
                     : ($memberOffsetCounts[$selectedMember['offset']] ?? 0),
                 'duplicate_header_object_number' => $duplicateHeaderObjectNumber,
                 'duplicate_member_offset' => $selectedMemberDuplicateOffset,
+                'member_index_out_of_range' => $memberIndexOutOfRange,
                 'member_offset_token_boundary' => $selectedMemberHasTokenBoundary,
                 'compressed_member_generation' => 0,
                 'selected_object_generation' => $selectedGeneration,
@@ -676,6 +685,7 @@ final class PdfTextExtractor
                 'stream_member_rejected' => $streamMemberRejected,
                 'duplicate_header_object_number_rejected' => $duplicateHeaderObjectNumber,
                 'duplicate_member_offset_rejected' => $selectedMemberDuplicateOffset,
+                'out_of_range_member_index_rejected' => $memberIndexOutOfRange,
                 'invalid_member_offset_rejected' => $selectedMemberInvalidOffset,
                 'direct_xref_stream_owner' => $directXrefStreamOwner !== null,
                 'owner_cycle_rejected' => $ownerCycleRejected,
@@ -688,6 +698,7 @@ final class PdfTextExtractor
                     $matchingHeaderObjectNumberCount > 0,
                     $ambiguousZeroWidthMember,
                     $selectedMemberDuplicateOffset,
+                    $memberIndexOutOfRange,
                     $selectedMemberInvalidOffset,
                     $duplicateHeaderObjectNumber
                 ),
@@ -25186,7 +25197,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberBody(array $memberTable, array $member): ?string
@@ -25214,7 +25225,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
+     * @param array{decoded: string, first: int, headerSlotCount?: int, members: list<array{objectNumber: int, offset: int, index: int}>} $memberTable
      * @param array{objectNumber: int, offset: int, index: int} $member
      */
     private function objectStreamMemberOffsetHasTokenBoundary(array $memberTable, array $member): bool
@@ -25324,6 +25335,7 @@ final class PdfTextExtractor
         bool $memberExists,
         bool $ambiguousZeroWidthMember = false,
         bool $duplicateMemberOffset = false,
+        bool $memberIndexOutOfRange = false,
         bool $invalidMemberOffset = false,
         bool $duplicateHeaderObjectNumber = false
     ): string
@@ -25334,6 +25346,10 @@ final class PdfTextExtractor
 
         if ($duplicateMemberOffset) {
             return 'duplicate_object_stream_member_offset';
+        }
+
+        if ($memberIndexOutOfRange) {
+            return 'out_of_range_object_stream_member_index';
         }
 
         if ($ambiguousZeroWidthMember) {
@@ -26308,7 +26324,7 @@ final class PdfTextExtractor
 
     /**
      * @param array<int, string> $objects
-     * @return array{decoded: string, first: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
+     * @return array{decoded: string, first: int, headerSlotCount: int, members: list<array{objectNumber: int, offset: int, index: int}>}|null
      */
     private function decodedObjectStreamMemberTable(string $body, array $objects): ?array
     {
@@ -26336,6 +26352,7 @@ final class PdfTextExtractor
         return [
             'decoded' => $decoded,
             'first' => $first,
+            'headerSlotCount' => $count,
             'members' => $members,
         ];
     }
