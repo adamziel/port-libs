@@ -803,6 +803,7 @@ CSS;
 
     private function findBracedDirectiveClosing(string $template, int $start): ?int
     {
+        $bracketDepth = 0;
         $inQuote = false;
         $escape = false;
         $length = strlen($template);
@@ -819,12 +820,22 @@ CSS;
                 continue;
             }
 
+            if (!$inQuote && $char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if (!$inQuote && $char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+
             if ($char === '"') {
                 $inQuote = !$inQuote;
                 continue;
             }
 
-            if (!$inQuote && $char === '}') {
+            if (!$inQuote && $bracketDepth === 0 && $char === '}') {
                 return $index;
             }
         }
