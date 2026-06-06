@@ -612,6 +612,18 @@ $sttbfAssoc = static function (array $values) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$plcfldMom = static function (array $records, int $finalCp) use ($u32): string {
+    $bytes = '';
+    foreach ($records as $record) {
+        $bytes .= $u32((int) $record['cp']);
+    }
+    $bytes .= $u32($finalCp);
+    foreach ($records as $record) {
+        $bytes .= chr((int) $record['character']) . chr((int) ($record['typeCode'] ?? 0));
+    }
+
+    return $bytes;
+};
 
 $buildSimpleWordDocument = static function (string $text, int $flags = 0, string $encoding = 'Windows-1252//TRANSLIT'): string {
     $textBytes = iconv('UTF-8', $encoding, $text);
@@ -2927,6 +2939,130 @@ return [
         foreach (['FORMTEXT', 'FORMCHECKBOX', 'FORMDROPDOWN'] as $instruction) {
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC form field instructions should not render as visible text');
         }
+    },
+    'extracts legacy DOC Plcfld field tables for form-field handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Survey '
+            . $fieldBegin . ' FORMTEXT \* MERGEFORMAT ' . $fieldSeparator . 'Alice Reviewer' . $fieldEnd
+            . ', checkbox '
+            . $fieldBegin . ' FORMCHECKBOX ' . $fieldSeparator . 'X' . $fieldEnd
+            . ', choice '
+            . $fieldBegin . ' FORMDROPDOWN ' . $fieldSeparator . 'Option B' . $fieldEnd
+            . ".\r";
+
+        $firstBegin = strpos($text, $fieldBegin);
+        $firstSeparator = strpos($text, $fieldSeparator, (int) $firstBegin);
+        $firstEnd = strpos($text, $fieldEnd, (int) $firstSeparator);
+        $secondBegin = strpos($text, $fieldBegin, (int) $firstEnd + 1);
+        $secondSeparator = strpos($text, $fieldSeparator, (int) $secondBegin);
+        $secondEnd = strpos($text, $fieldEnd, (int) $secondSeparator);
+        $thirdBegin = strpos($text, $fieldBegin, (int) $secondEnd + 1);
+        $thirdSeparator = strpos($text, $fieldSeparator, (int) $thirdBegin);
+        $thirdEnd = strpos($text, $fieldEnd, (int) $thirdSeparator);
+        foreach ([$firstBegin, $firstSeparator, $firstEnd, $secondBegin, $secondSeparator, $secondEnd, $thirdBegin, $thirdSeparator, $thirdEnd] as $cp) {
+            if (!is_int($cp)) {
+                throw new RuntimeException('Unable to locate legacy DOC field marker fixture');
+            }
+        }
+
+        $fieldTable = $plcfldMom([
+            ['cp' => $firstBegin, 'character' => 0x13, 'typeCode' => 0x46],
+            ['cp' => $firstSeparator, 'character' => 0x14],
+            ['cp' => $firstEnd, 'character' => 0x15],
+            ['cp' => $secondBegin, 'character' => 0x13, 'typeCode' => 0x47],
+            ['cp' => $secondSeparator, 'character' => 0x14],
+            ['cp' => $secondEnd, 'character' => 0x15],
+            ['cp' => $thirdBegin, 'character' => 0x13, 'typeCode' => 0x53],
+            ['cp' => $thirdSeparator, 'character' => 0x14],
+            ['cp' => $thirdEnd, 'character' => 0x15],
+        ], strlen($text));
+        $wordDocument = $buildSimpleWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $metadata = $result['metadata'];
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $fieldCharacters = $result['fieldCharacters'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(9, $metadata['fieldCharacterCount']);
+        $t->same(3, $metadata['fieldCount']);
+        $t->same($fields, $metadata['fields']);
+        $t->same($fields, $document->attr('fields'));
+        $t->same($fieldCharacters, $document->attr('fieldCharacters'));
+        $t->same('formtext', $fields[0]['type']);
+        $t->same(0x46, $fields[0]['typeCode']);
+        $t->same($firstBegin, $fields[0]['beginCp']);
+        $t->same($firstSeparator, $fields[0]['separatorCp']);
+        $t->same($firstEnd, $fields[0]['endCp']);
+        $t->same($firstBegin + 1, $fields[0]['instructionStartCp']);
+        $t->same($firstSeparator, $fields[0]['instructionEndCp']);
+        $t->same($firstSeparator + 1, $fields[0]['resultStartCp']);
+        $t->same($firstEnd, $fields[0]['resultEndCp']);
+        $t->same(true, $fields[0]['hasResult']);
+        $t->same('formcheckbox', $fields[1]['type']);
+        $t->same(0x47, $fields[1]['typeCode']);
+        $t->same('formdropdown', $fields[2]['type']);
+        $t->same(0x53, $fields[2]['typeCode']);
+        $t->same('begin', $fieldCharacters[0]['kind']);
+        $t->same($firstBegin, $fieldCharacters[0]['cp']);
+        $t->same(0x46, $fieldCharacters[0]['typeCode']);
+        $t->same('formtext', $fieldCharacters[0]['type']);
+        $t->same('separator', $fieldCharacters[1]['kind']);
+        $t->same($firstSeparator, $fieldCharacters[1]['cp']);
+        $t->same('end', $fieldCharacters[2]['kind']);
+        $t->same($firstEnd, $fieldCharacters[2]['cp']);
+        $t->contains('data-legacy-doc-form-field-type="text"', $blocks);
+        $t->contains('data-legacy-doc-form-field-type="checkbox"', $blocks);
+        $t->contains('data-legacy-doc-form-field-type="dropdown"', $blocks);
+    },
+    'rejects malformed legacy DOC Plcfld field tables before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
+        $text = "Broken \x13 PAGE \x147\x15\r";
+        $begin = strpos($text, "\x13");
+        $separator = strpos($text, "\x14");
+        $end = strpos($text, "\x15");
+        if (!is_int($begin) || !is_int($separator) || !is_int($end)) {
+            throw new RuntimeException('Unable to locate malformed field marker fixture');
+        }
+
+        $buildDocBytes = static function (string $fieldTable) use ($buildCfb, $buildSimpleWordDocument, $text, $u32): string {
+            $wordDocument = $buildSimpleWordDocument($text);
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $fieldTable,
+            ]);
+        };
+
+        $valid = $plcfldMom([
+            ['cp' => $begin, 'character' => 0x13, 'typeCode' => 0x21],
+            ['cp' => $separator, 'character' => 0x14],
+            ['cp' => $end, 'character' => 0x15],
+        ], strlen($text));
+        $mismatchedCharacter = substr_replace($valid, "\x14", 16, 1);
+        $unsortedCps = $plcfldMom([
+            ['cp' => $separator, 'character' => 0x14],
+            ['cp' => $begin, 'character' => 0x13, 'typeCode' => 0x21],
+            ['cp' => $end, 'character' => 0x15],
+        ], strlen($text));
+        $separatorOutsideField = $plcfldMom([
+            ['cp' => $separator, 'character' => 0x14],
+            ['cp' => $end, 'character' => 0x15],
+        ], strlen($text));
+
+        $reader = new LegacyDocReader();
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildDocBytes($mismatchedCharacter)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildDocBytes($unsortedCps)));
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildDocBytes($separatorOutsideField)));
     },
     'preserves legacy DOC cross-reference field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";

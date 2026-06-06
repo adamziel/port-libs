@@ -25,6 +25,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCF_BTE_CHPX = 0x00fe;
     private const FIB_FC_PLCF_BTE_PAPX = 0x0102;
     private const FIB_LCB_PLCF_BTE_PAPX = 0x0106;
+    private const FIB_FC_PLCF_FLD_MOM = 0x011a;
+    private const FIB_LCB_PLCF_FLD_MOM = 0x011e;
     private const FIB_FC_STTBF_BKMK = 0x0142;
     private const FIB_LCB_STTBF_BKMK = 0x0146;
     private const FIB_FC_PLCF_BKF = 0x014a;
@@ -60,9 +62,39 @@ final class LegacyDocReader
         'ccpTxbx' => 'textbox',
         'ccpHdrTxbx' => 'header-textbox',
     ];
+    private const FIELD_CHARACTER_BEGIN = 0x13;
+    private const FIELD_CHARACTER_SEPARATOR = 0x14;
+    private const FIELD_CHARACTER_END = 0x15;
+    private const FIELD_TYPE_NAMES = [
+        0x03 => 'ref',
+        0x05 => 'noteref',
+        0x0c => 'seq',
+        0x0d => 'toc',
+        0x15 => 'createdate',
+        0x16 => 'savedate',
+        0x17 => 'printdate',
+        0x1a => 'numpages',
+        0x1f => 'date',
+        0x20 => 'time',
+        0x21 => 'page',
+        0x25 => 'pageref',
+        0x39 => 'symbol',
+        0x3b => 'mergefield',
+        0x40 => 'docvariable',
+        0x41 => 'section',
+        0x42 => 'sectionpages',
+        0x43 => 'includepicture',
+        0x44 => 'includetext',
+        0x46 => 'formtext',
+        0x47 => 'formcheckbox',
+        0x48 => 'noteref',
+        0x53 => 'formdropdown',
+        0x58 => 'hyperlink',
+        0x5a => 'listnum',
+    ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -70,7 +102,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -203,6 +235,15 @@ final class LegacyDocReader
             $metadata['commentReferenceCount'] = count($comments);
             $metadata['comments'] = $comments;
         }
+        $fieldReport = $this->fieldCharacterReport($wordDocument, $tableStream, $textResult['text']);
+        $fieldCharacters = $fieldReport['characters'];
+        $fields = $fieldReport['fields'];
+        if ($fieldCharacters !== []) {
+            $metadata['fieldCharacterCount'] = count($fieldCharacters);
+            $metadata['fieldCount'] = count($fields);
+            $metadata['fieldCharacters'] = $fieldCharacters;
+            $metadata['fields'] = $fields;
+        }
         $embeddedObjects = $this->embeddedObjectReport($compoundFile);
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
@@ -232,6 +273,8 @@ final class LegacyDocReader
             'footnotes' => $footnotes,
             'endnotes' => $endnotes,
             'comments' => $comments,
+            'fieldCharacters' => $fieldCharacters,
+            'fields' => $fields,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
@@ -258,6 +301,8 @@ final class LegacyDocReader
             'footnotes' => $footnotes,
             'endnotes' => $endnotes,
             'comments' => $comments,
+            'fieldCharacters' => $fieldCharacters,
+            'fields' => $fields,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
@@ -3607,6 +3652,183 @@ final class LegacyDocReader
         }
 
         return $comments;
+    }
+
+    /**
+     * @return array{characters:list<array<string,mixed>>,fields:list<array<string,mixed>>}
+     */
+    private function fieldCharacterReport(string $wordDocument, ?string $tableStream, string $text): array
+    {
+        if ($tableStream === null || strlen($wordDocument) < self::FIB_LCB_PLCF_FLD_MOM + 4) {
+            return [
+                'characters' => [],
+                'fields' => [],
+            ];
+        }
+
+        $lcbPlcfFldMom = self::u32($wordDocument, self::FIB_LCB_PLCF_FLD_MOM);
+        if ($lcbPlcfFldMom === 0) {
+            return [
+                'characters' => [],
+                'fields' => [],
+            ];
+        }
+
+        $fcPlcfFldMom = self::u32($wordDocument, self::FIB_FC_PLCF_FLD_MOM);
+
+        return $this->parsePlcfld(
+            $this->tableStreamSlice($tableStream, $fcPlcfFldMom, $lcbPlcfFldMom, 'PlcfldMom field table'),
+            $text
+        );
+    }
+
+    /**
+     * @return array{characters:list<array<string,mixed>>,fields:list<array<string,mixed>>}
+     */
+    private function parsePlcfld(string $bytes, string $text): array
+    {
+        $length = strlen($bytes);
+        if ($length < 4 || (($length - 4) % 6) !== 0) {
+            throw new \RuntimeException('Legacy DOC Plcfld field table has an invalid length');
+        }
+
+        $fieldCharacterCount = intdiv($length - 4, 6);
+        if ($fieldCharacterCount === 0) {
+            return [
+                'characters' => [],
+                'fields' => [],
+            ];
+        }
+
+        $textCharacters = $this->unicodeCharacters($text);
+        $textLength = count($textCharacters);
+        $cps = [];
+        $previousCp = null;
+        for ($index = 0; $index <= $fieldCharacterCount; $index++) {
+            $cp = self::u32($bytes, $index * 4);
+            if ($previousCp !== null && $cp <= $previousCp) {
+                throw new \RuntimeException('Legacy DOC Plcfld field table contains duplicate or unsorted CPs');
+            }
+            if ($cp > $textLength) {
+                throw new \RuntimeException('Legacy DOC Plcfld field table points outside the extracted main text');
+            }
+            $previousCp = $cp;
+            $cps[] = $cp;
+        }
+
+        $fieldCharacters = [];
+        $fields = [];
+        $stack = [];
+        $dataOffset = ($fieldCharacterCount + 1) * 4;
+        for ($index = 0; $index < $fieldCharacterCount; $index++) {
+            $cp = $cps[$index];
+            if ($cp >= $textLength) {
+                throw new \RuntimeException('Legacy DOC Plcfld field character CP points outside the extracted main text');
+            }
+
+            $fldOffset = $dataOffset + ($index * 2);
+            $fieldCharacterCode = ord($bytes[$fldOffset]);
+            $flags = ord($bytes[$fldOffset + 1]);
+            $expectedCharacter = match ($fieldCharacterCode) {
+                self::FIELD_CHARACTER_BEGIN => "\x13",
+                self::FIELD_CHARACTER_SEPARATOR => "\x14",
+                self::FIELD_CHARACTER_END => "\x15",
+                default => null,
+            };
+            if ($expectedCharacter === null) {
+                throw new \RuntimeException('Legacy DOC Plcfld field table contains an unsupported field character code');
+            }
+            if (($textCharacters[$cp] ?? '') !== $expectedCharacter) {
+                throw new \RuntimeException('Legacy DOC Plcfld field table CP does not match the extracted field character');
+            }
+
+            if ($fieldCharacterCode === self::FIELD_CHARACTER_BEGIN) {
+                $type = $this->fieldTypeName($flags);
+                $nestingLevel = count($stack);
+                $fieldCharacters[] = [
+                    'index' => $index + 1,
+                    'cp' => $cp,
+                    'kind' => 'begin',
+                    'fieldCharacterCode' => $fieldCharacterCode,
+                    'typeCode' => $flags,
+                    'type' => $type,
+                    'nestingLevel' => $nestingLevel,
+                ];
+                $stack[] = [
+                    'beginCp' => $cp,
+                    'typeCode' => $flags,
+                    'type' => $type,
+                    'nestingLevel' => $nestingLevel,
+                ];
+                continue;
+            }
+
+            if ($fieldCharacterCode === self::FIELD_CHARACTER_SEPARATOR) {
+                if ($stack === []) {
+                    throw new \RuntimeException('Legacy DOC Plcfld field separator appears outside a field');
+                }
+                $openIndex = count($stack) - 1;
+                if (isset($stack[$openIndex]['separatorCp'])) {
+                    throw new \RuntimeException('Legacy DOC Plcfld field contains duplicate separators');
+                }
+                $stack[$openIndex]['separatorCp'] = $cp;
+                $fieldCharacters[] = [
+                    'index' => $index + 1,
+                    'cp' => $cp,
+                    'kind' => 'separator',
+                    'fieldCharacterCode' => $fieldCharacterCode,
+                    'nestingLevel' => (int) $stack[$openIndex]['nestingLevel'],
+                ];
+                continue;
+            }
+
+            if ($stack === []) {
+                throw new \RuntimeException('Legacy DOC Plcfld field end appears outside a field');
+            }
+
+            $open = array_pop($stack);
+            $fieldCharacters[] = [
+                'index' => $index + 1,
+                'cp' => $cp,
+                'kind' => 'end',
+                'fieldCharacterCode' => $fieldCharacterCode,
+                'nestingLevel' => (int) $open['nestingLevel'],
+            ];
+
+            $hasResult = isset($open['separatorCp']);
+            $field = [
+                'index' => count($fields) + 1,
+                'typeCode' => (int) $open['typeCode'],
+                'type' => (string) $open['type'],
+                'beginCp' => (int) $open['beginCp'],
+                'endCp' => $cp,
+                'instructionStartCp' => (int) $open['beginCp'] + 1,
+                'instructionEndCp' => $hasResult ? (int) $open['separatorCp'] : $cp,
+                'hasResult' => $hasResult,
+                'nestingLevel' => (int) $open['nestingLevel'],
+            ];
+            if ($hasResult) {
+                $field['separatorCp'] = (int) $open['separatorCp'];
+                $field['resultStartCp'] = (int) $open['separatorCp'] + 1;
+                $field['resultEndCp'] = $cp;
+            }
+
+            $fields[] = $field;
+        }
+
+        if ($stack !== []) {
+            throw new \RuntimeException('Legacy DOC Plcfld field table contains unterminated fields');
+        }
+
+        return [
+            'characters' => $fieldCharacters,
+            'fields' => $fields,
+        ];
+    }
+
+    private function fieldTypeName(int $typeCode): string
+    {
+        return self::FIELD_TYPE_NAMES[$typeCode] ?? 'unknown';
     }
 
     /**

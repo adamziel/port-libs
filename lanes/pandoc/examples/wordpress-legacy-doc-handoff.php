@@ -242,6 +242,18 @@ $sttbfAssoc = static function (array $values) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$buildPlcfldMom = static function (array $records, int $finalCp) use ($u32): string {
+    $bytes = '';
+    foreach ($records as $record) {
+        $bytes .= $u32((int) $record['cp']);
+    }
+    $bytes .= $u32($finalCp);
+    foreach ($records as $record) {
+        $bytes .= chr((int) $record['character']) . chr((int) ($record['typeCode'] ?? 0));
+    }
+
+    return $bytes;
+};
 $ole10NativeStream = static function (
     string $label,
     string $sourcePath,
@@ -462,6 +474,53 @@ $headerSubdocumentCpStart = $footnoteSubdocumentCpStart + $footnoteSubdocumentCh
 $commentSubdocumentCpStart = $headerSubdocumentCpStart + $headerSubdocumentCharacters;
 $endnoteSubdocumentCpStart = $commentSubdocumentCpStart + $commentSubdocumentCharacters;
 $pieceTableLastCp = $endnoteSubdocumentCpStart + $endnoteSubdocumentCharacters;
+$mainText = $firstPieceText . $secondPieceText;
+$mainTextCharacters = preg_split('//u', $mainText, -1, PREG_SPLIT_NO_EMPTY);
+if (!is_array($mainTextCharacters) || count($mainTextCharacters) !== $totalPieceCharacters) {
+    throw new RuntimeException('Unable to split legacy DOC main text into CP characters');
+}
+$fieldTypeCodes = [
+    'HYPERLINK' => 0x58,
+    'REF' => 0x03,
+    'PAGEREF' => 0x25,
+    'PAGE' => 0x21,
+    'FORMTEXT' => 0x46,
+    'SYMBOL' => 0x39,
+];
+$fieldRecords = [];
+for ($cp = 0, $count = count($mainTextCharacters); $cp < $count; $cp++) {
+    $character = $mainTextCharacters[$cp];
+    if ($character === $fieldBegin) {
+        $instruction = '';
+        for ($cursor = $cp + 1; $cursor < $count; $cursor++) {
+            if ($mainTextCharacters[$cursor] === $fieldSeparator || $mainTextCharacters[$cursor] === $fieldEnd) {
+                break;
+            }
+            $instruction .= $mainTextCharacters[$cursor];
+        }
+        $fieldName = strtoupper((string) (preg_split('/\s+/', trim($instruction))[0] ?? ''));
+        $fieldRecords[] = [
+            'cp' => $cp,
+            'character' => 0x13,
+            'typeCode' => $fieldTypeCodes[$fieldName] ?? 0x01,
+        ];
+        continue;
+    }
+    if ($character === $fieldSeparator) {
+        $fieldRecords[] = [
+            'cp' => $cp,
+            'character' => 0x14,
+        ];
+        continue;
+    }
+    if ($character === $fieldEnd) {
+        $fieldRecords[] = [
+            'cp' => $cp,
+            'character' => 0x15,
+        ];
+    }
+}
+$plcfldMom = $buildPlcfldMom($fieldRecords, $totalPieceCharacters);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($wordDocument)), 0x0040, 4);
 $wordDocument = substr_replace($wordDocument, $u32($totalPieceCharacters), 0x004c, 4);
 $wordDocument = substr_replace($wordDocument, $u32($footnoteSubdocumentCharacters), 0x0050, 4);
@@ -579,7 +638,8 @@ $associatedStringsTable = $sttbfAssoc([
     9 => 'C:\Data\legacy-header.doc',
     17 => 'review-lock',
 ]);
-$fcSttbfAssoc = strlen($clx);
+$fcPlcfFldMom = strlen($clx);
+$fcSttbfAssoc = $fcPlcfFldMom + strlen($plcfldMom);
 $fcSttbfBkmk = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
@@ -595,13 +655,15 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $plcfldMom . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBtePapx), 0x0102, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBtePapx)), 0x0106, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPlcfFldMom), 0x011a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($plcfldMom)), 0x011e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfSed), 0x00ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfSed)), 0x00ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndRef), 0x00aa, 4);
@@ -1027,6 +1089,8 @@ $summary = [
     'footnotes' => $result['footnotes'],
     'endnotes' => $result['endnotes'],
     'comments' => $result['comments'],
+    'fieldCharacters' => $result['fieldCharacters'],
+    'fields' => $result['fields'],
     'embeddedObjects' => $result['embeddedObjects'],
     'macroProjects' => $result['macroProjects'],
     'associatedStrings' => $result['associatedStrings'],
@@ -1388,6 +1452,32 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['textSource'] ?? '') !== 'piece-table' || ($summary['fib']['complex'] ?? null) !== true || ($summary['fib']['tableStream'] ?? '') !== '1Table') {
         throw new RuntimeException('Legacy DOC handoff self-test missing CLX piece-table preflight');
+    }
+    if (($summary['metadata']['fieldCharacterCount'] ?? null) !== count($fieldRecords) || count($summary['fieldCharacters'] ?? []) !== count($fieldRecords)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field-character inventory');
+    }
+    if (($summary['metadata']['fieldCount'] ?? null) !== 7 || count($summary['fields'] ?? []) !== 7) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field range inventory');
+    }
+    if (($summary['metadata']['fields'] ?? []) !== ($summary['fields'] ?? [])) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld fields in metadata');
+    }
+    if (array_column($summary['fields'] ?? [], 'type') !== [
+        'hyperlink',
+        'hyperlink',
+        'ref',
+        'pageref',
+        'page',
+        'formtext',
+        'symbol',
+    ]) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field type mapping');
+    }
+    if (($summary['fieldCharacters'][0]['kind'] ?? '') !== 'begin' || ($summary['fieldCharacters'][0]['type'] ?? '') !== 'hyperlink') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing first Plcfld begin record');
+    }
+    if (($summary['fields'][5]['typeCode'] ?? null) !== 0x46 || ($summary['fields'][5]['hasResult'] ?? null) !== true) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FORMTEXT Plcfld result range');
     }
     foreach ([
         '<p><span id="legacy_anchor" class="legacy-doc-bookmark" data-legacy-doc-bookmark="legacy_anchor" data-legacy-doc-bookmark-start-cp="0" data-legacy-doc-bookmark-end-cp="21">Legacy DOC import ΩЖ魚</span></p>',
