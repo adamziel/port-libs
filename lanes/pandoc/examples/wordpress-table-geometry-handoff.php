@@ -1095,6 +1095,32 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($astAttributePacket, JSON_THROW_ON_ERROR);
 
+    $astAttributeWriterPacket = TableGeometry::reviewPacket($astAttributeTable, [
+        'accessibility' => false,
+        'writers' => ['pipe-table', 'asciidoctor', 'xelatex'],
+    ]);
+    if (
+        ($astAttributeWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 3
+        || ($astAttributeWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== [
+            'markdown-table-source-attributes-require-raw-html',
+            'asciidoc-table-source-attributes-require-raw-html',
+            'latex-table-source-attributes-review-required',
+        ]
+        || ($astAttributeWriterPacket['summary']['writerDowngradeWriters'] ?? null) !== ['asciidoc', 'latex', 'markdown']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing native AST source attribute writer downgrade packet');
+    }
+    if (($astAttributeWriterPacket['writerDowngrades']['markdown'][0]['attributeCount'] ?? null) !== 13) {
+        throw new RuntimeException('Table geometry self-test missing native AST source attribute writer attribute count');
+    }
+    if (($astAttributeWriterPacket['writerDowngrades']['asciidoc'][0]['requiredFeature'] ?? null) !== 'raw-html-table-attributes') {
+        throw new RuntimeException('Table geometry self-test missing AsciiDoc source attribute writer requirement');
+    }
+    if (($astAttributeWriterPacket['writerDowngrades']['latex'][0]['requiredFeature'] ?? null) !== 'table-attribute-review-comments') {
+        throw new RuntimeException('Table geometry self-test missing LaTeX source attribute writer requirement');
+    }
+    json_encode($astAttributeWriterPacket, JSON_THROW_ON_ERROR);
+
     $sourceScopeAccessibility = TableGeometry::accessibilityAttributes($document->children[7], 'Source Scope Grid');
     if (($sourceScopeAccessibility['body:0:0:0']['scope'] ?? null) !== 'row') {
         throw new RuntimeException('Table geometry self-test missing source scope override in accessibility handoff');

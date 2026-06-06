@@ -1822,6 +1822,107 @@ return [
         $t->true(!str_contains($blocks, 'onmouseover='), 'Unsafe section event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'flags pandoc ast table key value attributes for non-html table writers' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Native writer attribute audit',
+            'alignments' => ['left', 'right'],
+            'attributes' => [
+                'data-pandoc-source' => 'native-ast',
+                'aria-label' => 'Native writer attributes',
+            ],
+        ], [
+            new AstNode('table_head', [
+                'attributes' => [
+                    'data-section-role' => 'head',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'attributes' => [
+                        'data-row-role' => 'head',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Scope',
+                        'attributes' => [
+                            'data-field' => 'scope',
+                            'aria-sort' => 'ascending',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'attributes' => [
+                            'data-field' => 'state',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'attributes' => [
+                    'data-section-role' => 'body',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'attributes' => [
+                        'data-row-role' => 'body',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'attributes' => [
+                            'data-field' => 'posts',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Ready',
+                        'attributes' => [
+                            'data-field' => 'ready',
+                            'aria-label' => 'Ready state',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex'],
+        ]);
+
+        $t->same(['markdown-table-source-attributes-require-raw-html'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same(['asciidoc-table-source-attributes-require-raw-html'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same(['latex-table-source-attributes-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same($asciidocDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'adoc'));
+        $t->same($latexDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+
+        $t->same('source-attributes', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('raw-html-table-attributes', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(9, $markdownDiagnostics[0]['attributeScopeCount'] ?? null);
+        $t->same(12, $markdownDiagnostics[0]['attributeCount'] ?? null);
+        $t->same(['table', 'section', 'row', 'cell'], $markdownDiagnostics[0]['scopes'] ?? null);
+        $t->same('native-ast', $markdownDiagnostics[0]['locations'][0]['attributes']['data-pandoc-source'] ?? null);
+        $t->same('head', $markdownDiagnostics[0]['locations'][1]['section'] ?? null);
+        $t->same('scope', $markdownDiagnostics[0]['locations'][5]['attributes']['data-field'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['locations'][5]['row'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['locations'][5]['column'] ?? null);
+        $t->same('posts', $markdownDiagnostics[0]['locations'][7]['attributes']['data-field'] ?? null);
+        $t->same('ready', $markdownDiagnostics[0]['locations'][8]['attributes']['data-field'] ?? null);
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-table-source-attributes-require-raw-html',
+            'asciidoc-table-source-attributes-require-raw-html',
+            'latex-table-source-attributes-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes long and short table caption metadata for importer review packets' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Long caption for reviewer',

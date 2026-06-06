@@ -2340,6 +2340,7 @@ final class TableGeometry
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
+                    array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                 }
                 foreach ($coverage as $record) {
                     $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -2402,6 +2403,7 @@ final class TableGeometry
                 $diagnostics = $table instanceof AstNode ? self::captionWriterDiagnostics($table, $writer) : [];
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                 }
                 foreach ($coverage as $record) {
                     $node = $record['node'] ?? null;
@@ -2464,6 +2466,7 @@ final class TableGeometry
         if ($table instanceof AstNode) {
             array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::markdownColumnWidthDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
         }
         foreach ($coverage as $record) {
             $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -2504,6 +2507,168 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function sourceAttributeWriterDiagnostics(AstNode $table, string $writer, array $coverage): array
+    {
+        $locations = self::nativeAttributeLocations($table, $coverage);
+        if ($locations === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-source-attributes-require-raw-html', 'raw-html-table-attributes'],
+            'asciidoc' => ['asciidoc-table-source-attributes-require-raw-html', 'raw-html-table-attributes'],
+            'latex' => ['latex-table-source-attributes-review-required', 'table-attribute-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+        $attributeCount = 0;
+        $scopes = [];
+        foreach ($locations as $location) {
+            $attributeCount += count($location['attributes'] ?? []);
+            $scope = trim((string) ($location['scope'] ?? ''));
+            if ($scope !== '') {
+                $scopes[] = $scope;
+            }
+        }
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'source-attributes',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'pandoc-table-attributes',
+            'caption' => (string) $table->attr('caption', ''),
+            'attributeScopeCount' => count($locations),
+            'attributeCount' => $attributeCount,
+            'scopes' => array_values(array_unique($scopes)),
+            'locations' => $locations,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function nativeAttributeLocations(AstNode $table, array $coverage): array
+    {
+        $locations = [];
+        self::appendNativeAttributeLocation($locations, 'table', $table);
+        foreach (self::sectionRowGroups($table, self::columnCount($table)) as $group) {
+            $section = (string) ($group['section'] ?? '');
+            $node = $group['node'] ?? null;
+            if ($node instanceof AstNode) {
+                self::appendNativeAttributeLocation($locations, 'section', $node, [
+                    'section' => $section,
+                ]);
+            }
+
+            foreach ($group['rowEntries'] as $rowIndex => $entry) {
+                $row = $entry['row'] ?? null;
+                if (!$row instanceof AstNode) {
+                    continue;
+                }
+
+                self::appendNativeAttributeLocation($locations, 'row', $row, [
+                    'section' => $section,
+                    'row' => (int) $rowIndex,
+                    'rowRole' => (string) ($entry['rowRole'] ?? ''),
+                ]);
+            }
+        }
+
+        foreach ($coverage as $record) {
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            self::appendNativeAttributeLocation($locations, 'cell', $node, [
+                'section' => (string) ($record['section'] ?? ''),
+                'row' => (int) ($record['row'] ?? 0),
+                'column' => (int) ($record['column'] ?? 0),
+                'sourceCell' => (int) ($record['sourceCell'] ?? 0),
+                'sourceColumn' => (int) ($record['sourceColumn'] ?? 0),
+                'columns' => self::intList($record['columns'] ?? []),
+            ]);
+        }
+
+        return $locations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $locations
+     * @param array<string, mixed> $context
+     */
+    private static function appendNativeAttributeLocation(array &$locations, string $scope, AstNode $node, array $context = []): void
+    {
+        $attributes = self::nativeAttributeMap($node);
+        if ($attributes === []) {
+            return;
+        }
+
+        $locations[] = array_replace([
+            'scope' => $scope,
+            'attributeCount' => count($attributes),
+            'attributes' => $attributes,
+        ], $context);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function nativeAttributeMap(AstNode $node): array
+    {
+        $attributes = self::stringAttributeMap($node->attr('attributes', []), false);
+        if ($attributes === []) {
+            return [];
+        }
+
+        $htmlAttributes = self::stringAttributeMap($node->attr('htmlAttributes', []), true);
+        if ($htmlAttributes === []) {
+            return $attributes;
+        }
+
+        $nativeAttributes = [];
+        foreach ($attributes as $name => $value) {
+            if (!self::isHtmlBackedAttribute($name, $value, $htmlAttributes)) {
+                $nativeAttributes[$name] = $value;
+            }
+        }
+
+        return $nativeAttributes === [] ? [] : $attributes;
+    }
+
+    /**
+     * @param array<string, string> $htmlAttributes
+     */
+    private static function isHtmlBackedAttribute(string $name, string $value, array $htmlAttributes): bool
+    {
+        $name = strtolower(trim($name));
+        if ($name === '') {
+            return false;
+        }
+
+        $candidates = [$name];
+        if (!str_starts_with($name, 'data-')) {
+            $candidates[] = 'data-' . $name;
+        }
+
+        foreach (array_values(array_unique($candidates)) as $candidate) {
+            if (array_key_exists($candidate, $htmlAttributes) && $htmlAttributes[$candidate] === $value) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

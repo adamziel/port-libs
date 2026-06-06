@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 04:48:20 UTC",
-    "sourceCommit": "2980480a187292126b444c5616fca41e64c09989",
-    "sourceCommitShort": "2980480a1872",
+    "generated": "2026-06-06 04:48:31 UTC",
+    "sourceCommit": "4ff7a11fbc61789c367ad88f9dc7b115b75464ec",
+    "sourceCommitShort": "4ff7a11fbc61",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2980480a187292126b444c5616fca41e64c09989",
-    "dashboardCommitShort": "2980480a1872",
+    "dashboardCommit": "4ff7a11fbc61789c367ad88f9dc7b115b75464ec",
+    "dashboardCommitShort": "4ff7a11fbc61",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "1,644 / 2,276 (72.2%)",
             "mapPercent": "72.2%",
             "unmapped": "632",
-            "php": "1,197 pass / 0 fail",
+            "php": "1,198 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC archive compression legacy trailing-slash directory sl...",
+            "audit": "2026-06-06 UTC table geometry source-attribute writer diagnostics sli...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For archive compression follow-up, keep hardlink/symlink extr...",
+            "nextTarget": "For table-geometry follow-up, keep full upstream Pandoc write...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ac..."
         },
