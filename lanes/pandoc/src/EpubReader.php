@@ -4789,6 +4789,9 @@ final class EpubReader
                 'docAuthorDetails' => [],
                 'items' => [],
                 'pageList' => [],
+                'navListCount' => 0,
+                'navLists' => [],
+                'navListDiagnostics' => [],
                 'encrypted' => true,
                 'encryption' => $item['encryption'] ?? null,
             ];
@@ -4802,6 +4805,7 @@ final class EpubReader
 
         $navMap = self::firstChildElement($root, 'navMap', self::NCX_NS);
         $pageList = self::firstChildElement($root, 'pageList', self::NCX_NS);
+        $navLists = $this->readNcxNavLists($package, $root, (string) $item['part']);
         $docTitleEntries = self::readNcxTextElementEntries($root, 'docTitle');
         $docAuthorDetails = self::readNcxTextElementEntries($root, 'docAuthor');
 
@@ -4819,6 +4823,9 @@ final class EpubReader
             'docAuthorDetails' => $docAuthorDetails,
             'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part']) : [],
             'pageList' => $pageList instanceof \DOMElement ? $this->readNcxPageTargets($package, $pageList, (string) $item['part']) : [],
+            'navListCount' => count($navLists['items']),
+            'navLists' => $navLists['items'],
+            'navListDiagnostics' => $navLists['diagnostics'],
         ];
     }
 
@@ -4993,6 +5000,106 @@ final class EpubReader
                 'epubCfi' => $reference['epubCfi'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
+                'diagnostics' => $reference['diagnostics'],
+                'children' => [],
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array{items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     */
+    private function readNcxNavLists(ZipPackage $package, \DOMElement $root, string $ncxPart): array
+    {
+        $lists = [];
+        $diagnostics = [];
+
+        foreach (self::childElements($root, 'navList', self::NCX_NS) as $listIndex => $navList) {
+            $navLabel = self::firstChildElement($navList, 'navLabel', self::NCX_NS);
+            $label = $navLabel instanceof \DOMElement
+                ? self::firstDescendantElement($navLabel, 'text', self::NCX_NS)
+                : null;
+            $targets = $this->readNcxNavTargets($package, $navList, $ncxPart);
+            $listDiagnostics = [];
+            $listId = self::nullableAttribute($navList, 'id');
+
+            foreach ($targets as $targetIndex => $target) {
+                foreach (($target['diagnostics'] ?? []) as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $entry = [
+                        'listIndex' => $listIndex,
+                        'listId' => $listId,
+                        'targetIndex' => $targetIndex,
+                        'targetId' => is_string($target['id'] ?? null) ? $target['id'] : null,
+                    ] + $diagnostic;
+                    $listDiagnostics[] = $entry;
+                    $diagnostics[] = $entry;
+                }
+            }
+
+            $lists[] = [
+                'index' => $listIndex,
+                'id' => $listId,
+                'class' => self::nullableAttribute($navList, 'class'),
+                'classes' => self::spaceDelimited($navList->getAttribute('class')),
+                'language' => self::xmlLang($navList),
+                'direction' => self::direction($navList),
+                'title' => $label instanceof \DOMElement ? self::normalizedText($label) : '',
+                'attributes' => self::elementAttributes($navList),
+                'itemCount' => count($targets),
+                'items' => $targets,
+                'diagnostics' => $listDiagnostics,
+            ];
+        }
+
+        return [
+            'items' => $lists,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function readNcxNavTargets(ZipPackage $package, \DOMElement $parent, string $ncxPart): array
+    {
+        $items = [];
+
+        foreach (self::childElements($parent, 'navTarget', self::NCX_NS) as $target) {
+            $navLabel = self::firstChildElement($target, 'navLabel', self::NCX_NS);
+            $label = $navLabel instanceof \DOMElement
+                ? self::firstDescendantElement($navLabel, 'text', self::NCX_NS)
+                : null;
+            $content = self::firstChildElement($target, 'content', self::NCX_NS);
+            $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
+            $reference = $this->packageReference($package, $ncxPart, $src, [], 'ncx-nav-list');
+
+            $items[] = [
+                'id' => self::nullableAttribute($target, 'id'),
+                'playOrder' => self::nullableAttribute($target, 'playOrder'),
+                'class' => self::nullableAttribute($target, 'class'),
+                'classes' => self::spaceDelimited($target->getAttribute('class')),
+                'language' => self::xmlLang($target),
+                'direction' => self::direction($target),
+                'title' => $label instanceof \DOMElement ? self::normalizedText($label) : '',
+                'href' => $src === '' ? null : $src,
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'fragment' => $reference['fragment'],
+                'fragmentKind' => $reference['fragmentKind'],
+                'epubCfi' => $reference['epubCfi'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'attributes' => self::elementAttributes($target),
+                'labelAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+                'contentAttributes' => $content instanceof \DOMElement ? self::elementAttributes($content) : [],
                 'diagnostics' => $reference['diagnostics'],
                 'children' => [],
             ];

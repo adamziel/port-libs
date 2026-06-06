@@ -235,6 +235,17 @@ $ncxXml = <<<'XML'
       <content src="https://cdn.example.test/epub/source-note.html"/>
     </navPoint>
   </navMap>
+  <navList id="review-references" class="review-links">
+    <navLabel><text>Reviewer reference list</text></navLabel>
+    <navTarget id="review-glossary" class="glossary" playOrder="10">
+      <navLabel><text>Source glossary entry</text></navLabel>
+      <content src="text/chapter.xhtml#source"/>
+    </navTarget>
+    <navTarget id="remote-review-record" playOrder="11">
+      <navLabel><text>Remote review record</text></navLabel>
+      <content src="https://cdn.example.test/epub/review-record.xhtml"/>
+    </navTarget>
+  </navList>
 </ncx>
 XML;
 
@@ -514,6 +525,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['ncx']['items'][1]['external'] ?? null) !== true || ($result['ncx']['items'][1]['diagnostics'][0]['type'] ?? null) !== 'external-ncx-reference') {
         throw new RuntimeException('Expected remote NCX reference to stay unfetched for review');
+    }
+    if (($result['ncx']['navListCount'] ?? null) !== 1 || ($result['ncx']['navLists'][0]['title'] ?? null) !== 'Reviewer reference list') {
+        throw new RuntimeException('Expected NCX navList reviewer references to stay visible in the import report');
+    }
+    if (($result['ncx']['navLists'][0]['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
+        throw new RuntimeException('Expected local NCX navTarget to resolve to the source chapter fragment');
+    }
+    if (($result['importReport']['ncx']['navListDiagnostics'][0]['type'] ?? null) !== 'external-ncx-nav-list-reference') {
+        throw new RuntimeException('Expected remote NCX navTarget to stay unfetched with a review diagnostic');
     }
     if (($result['navigation']['targetCount'] ?? null) !== 5 || ($result['navigation']['mappedSpineTargetCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected EPUB nav/NCX targets to reconcile with resolved spine coverage');
@@ -975,6 +995,9 @@ echo 'ncxAuthors=' . implode(',', $result['ncx']['docAuthors'] ?? []) . "\n";
 echo 'ncxUid=' . ($result['ncx']['head']['uid'] ?? '') . "\n";
 echo 'ncxDepth=' . ($result['ncx']['head']['depth'] ?? '') . "\n";
 echo 'ncxHeadMeta=' . ($result['ncx']['head']['metaCount'] ?? 0) . "\n";
+echo 'ncxNavLists=' . ($result['ncx']['navListCount'] ?? 0) . "\n";
+echo 'ncxNavListFirstTarget=' . ($result['ncx']['navLists'][0]['items'][0]['target'] ?? '') . "\n";
+echo 'ncxNavListDiagnostics=' . count($result['ncx']['navListDiagnostics'] ?? []) . "\n";
 echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";
 echo 'navigationMappedTargets=' . ($result['navigation']['mappedSpineTargetCount'] ?? 0) . "\n";
 echo 'navigationCfiTargets=' . ($result['navigation']['cfiTargetCount'] ?? 0) . "\n";

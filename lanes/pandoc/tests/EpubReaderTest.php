@@ -924,6 +924,90 @@ XML;
 
         $t->same($ncx, $result['importReport']['ncx']);
     },
+    'reports NCX navList targets for legacy package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $ncxWithNavList = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+  <navMap>
+    <navPoint id="navpoint-1" playOrder="1">
+      <navLabel><text>Imported packet</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+  </navMap>
+  <navList id="review-nav-list" class="review-list" xml:lang="en">
+    <navLabel><text>Reviewer reference list</text></navLabel>
+    <navTarget id="glossary-target" class="glossary entry" playOrder="10">
+      <navLabel><text>Media glossary</text></navLabel>
+      <content src="text/chapter2.xhtml#media"/>
+    </navTarget>
+    <navTarget id="remote-target" playOrder="11">
+      <navLabel><text>Remote source record</text></navLabel>
+      <content src="https://cdn.example.test/epub/review-record.xhtml"/>
+    </navTarget>
+    <navTarget id="missing-target" playOrder="12">
+      <navLabel><text>Missing source note</text></navLabel>
+      <content src="text/missing.xhtml#note"/>
+    </navTarget>
+  </navList>
+  <navList id="empty-nav-list">
+    <navLabel><text>Empty reviewer list</text></navLabel>
+  </navList>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNcxXml: $ncxWithNavList,
+        ));
+
+        $ncx = $result['ncx'];
+        $t->same(2, $ncx['navListCount']);
+        $t->same(2, count($ncx['navLists']));
+        $t->same(2, count($ncx['navListDiagnostics']));
+        $t->same($ncx, $result['importReport']['ncx']);
+
+        $list = $ncx['navLists'][0];
+        $t->same('review-nav-list', $list['id']);
+        $t->same('review-list', $list['class']);
+        $t->same(['review-list'], $list['classes']);
+        $t->same('en', $list['language']);
+        $t->same('Reviewer reference list', $list['title']);
+        $t->same(3, $list['itemCount']);
+        $t->same(2, count($list['diagnostics']));
+
+        $local = $list['items'][0];
+        $t->same('glossary-target', $local['id']);
+        $t->same('glossary entry', $local['class']);
+        $t->same(['glossary', 'entry'], $local['classes']);
+        $t->same('10', $local['playOrder']);
+        $t->same('Media glossary', $local['title']);
+        $t->same('text/chapter2.xhtml#media', $local['href']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $local['target']);
+        $t->same('/OEBPS/text/chapter2.xhtml', $local['part']);
+        $t->same('media', $local['fragment']);
+        $t->same('id', $local['fragmentKind']);
+        $t->same(false, $local['external']);
+        $t->same(true, $local['exists']);
+        $t->same([], $local['diagnostics']);
+
+        $remote = $list['items'][1];
+        $t->same('remote-target', $remote['id']);
+        $t->same('Remote source record', $remote['title']);
+        $t->same(true, $remote['external']);
+        $t->same(null, $remote['part']);
+        $t->same('external-ncx-nav-list-reference', $remote['diagnostics'][0]['type']);
+
+        $missing = $list['items'][2];
+        $t->same('missing-target', $missing['id']);
+        $t->same('/OEBPS/text/missing.xhtml#note', $missing['target']);
+        $t->same('/OEBPS/text/missing.xhtml', $missing['part']);
+        $t->same('note', $missing['fragment']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing-ncx-nav-list-reference', $missing['diagnostics'][0]['type']);
+
+        $t->same('Empty reviewer list', $ncx['navLists'][1]['title']);
+        $t->same(0, $ncx['navLists'][1]['itemCount']);
+        $t->same(1, $result['navigation']['ncxCount']);
+        $t->same(4, $result['navigation']['mappedSpineTargetCount']);
+    },
     'preserves EPUB3 nav section and item provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $navWithProvenance = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
