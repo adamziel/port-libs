@@ -1819,6 +1819,43 @@ return [
         $t->same('integer-base-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="integer-base-yaml-body">Integer base YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml explicit sexagesimal integer metadata scalars' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sexagesimal integer **Packet**',
+            'review:',
+            '  elapsed-seconds: !!int 1:20:30',
+            '  signed-elapsed: !!int -0:02:03',
+            '  single-pair: !!int 12:34',
+            '  underscore-pair: !!int 1:02:0_3',
+            '  invalid-minute: !!int 1:60',
+            '  invalid-token: !!int 1:2x:3',
+            'flow-review: {elapsed: !!int 0:01:05, status: queued}',
+            'references:',
+            '  - id: sexagesimal-integer-ref',
+            '    metadata: {duration: !!int 2:03}',
+            '...',
+            '',
+            '# Sexagesimal integer YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sexagesimal integer **Packet**', $meta['title']);
+        $t->same(4830, $meta['review']['elapsed-seconds']);
+        $t->same(-123, $meta['review']['signed-elapsed']);
+        $t->same(754, $meta['review']['single-pair']);
+        $t->same(3723, $meta['review']['underscore-pair']);
+        $t->same('1:60', $meta['review']['invalid-minute']);
+        $t->same('1:2x:3', $meta['review']['invalid-token']);
+        $t->same(65, $meta['flow-review']['elapsed']);
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same('sexagesimal-integer-ref', $meta['references'][0]['id']);
+        $t->same(123, $meta['references'][0]['metadata']['duration']);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('sexagesimal-integer-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sexagesimal-integer-yaml-body">Sexagesimal integer YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml non-specific tag metadata scalars' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

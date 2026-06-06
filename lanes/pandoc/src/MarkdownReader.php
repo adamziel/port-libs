@@ -2921,6 +2921,11 @@ final class MarkdownReader
             return $value;
         }
 
+        $sexagesimal = $this->parseYamlSexagesimalIntegerScalar($normalized);
+        if ($sexagesimal !== null) {
+            return $sexagesimal;
+        }
+
         $sign = 1;
         if ($normalized[0] === '+' || $normalized[0] === '-') {
             $sign = $normalized[0] === '-' ? -1 : 1;
@@ -2949,6 +2954,48 @@ final class MarkdownReader
         }
 
         return $sign * intval($digits, $base);
+    }
+
+    private function parseYamlSexagesimalIntegerScalar(string $normalized): ?int
+    {
+        if (!str_contains($normalized, ':')) {
+            return null;
+        }
+
+        $sign = 1;
+        if ($normalized[0] === '+' || $normalized[0] === '-') {
+            $sign = $normalized[0] === '-' ? -1 : 1;
+            $normalized = substr($normalized, 1);
+        }
+
+        if ($normalized === '' || !str_contains($normalized, ':')) {
+            return null;
+        }
+
+        $parts = explode(':', $normalized);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $value = 0;
+        foreach ($parts as $index => $part) {
+            if ($part === '' || preg_match('/^\d+$/', $part) !== 1) {
+                return null;
+            }
+
+            $component = (int) $part;
+            if ($index > 0 && $component > 59) {
+                return null;
+            }
+
+            if ($value > intdiv(PHP_INT_MAX - $component, 60)) {
+                return null;
+            }
+
+            $value = ($value * 60) + $component;
+        }
+
+        return $sign * $value;
     }
 
     private function parseYamlExplicitFloatScalar(string $value): float|string

@@ -43,6 +43,8 @@ typed-review:
   binary-flags: !!int 0b101010
   octal-batch: !!int 0o52
   legacy-octal-batch: !!int "052"
+  review-duration-seconds: !!int 1:20:30
+  invalid-review-duration: !!int 1:60
   confidence: !!float "0.75"
   approved: !!bool "true"
   withdrawn: !!null "not carried"
@@ -56,7 +58,7 @@ optional-deadline:
 blank-note: # intentionally blank in source packet
 explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
-typed-flow-review: {priority: !!int "4", enabled: !!bool "false", ticket: !!str 009}
+typed-flow-review: {priority: !!int "4", elapsed: !!int 0:01:05, enabled: !!bool "false", ticket: !!str 009}
 tag-directive-review:
   owner: !wpd!reviewer Directive Desk
   ticket: !yaml!str 010
@@ -388,6 +390,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['typed-review']['binary-flags'] ?? null) !== 42) {
         throw new RuntimeException('YAML metadata self-test missing explicit binary integer coercion');
     }
+    if (($meta['typed-review']['review-duration-seconds'] ?? null) !== 4830) {
+        throw new RuntimeException('YAML metadata self-test missing explicit sexagesimal integer coercion');
+    }
+    if (($meta['typed-review']['invalid-review-duration'] ?? null) !== '1:60') {
+        throw new RuntimeException('YAML metadata self-test did not preserve invalid sexagesimal source text');
+    }
     if (($meta['typed-review']['octal-batch'] ?? null) !== 42) {
         throw new RuntimeException('YAML metadata self-test missing explicit octal integer coercion');
     }
@@ -432,6 +440,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($meta['typed-flow-review']['priority'] ?? null) !== 4) {
         throw new RuntimeException('YAML metadata self-test missing flow explicit integer tag coercion');
+    }
+    if (($meta['typed-flow-review']['elapsed'] ?? null) !== 65) {
+        throw new RuntimeException('YAML metadata self-test missing flow sexagesimal integer coercion');
     }
     if (($meta['typed-flow-review']['enabled'] ?? null) !== false) {
         throw new RuntimeException('YAML metadata self-test missing flow explicit bool tag coercion');
@@ -962,6 +973,7 @@ echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
+echo 'Typed review duration seconds: ' . ($meta['typed-review']['review-duration-seconds'] ?? '') . ' / flow ' . ($meta['typed-flow-review']['elapsed'] ?? '') . "\n";
 echo 'Tag directive review: ' . ($meta['tag-directive-review']['owner'] ?? '') . ' / priority ' . ($meta['tag-directive-review']['priority'] ?? '') . "\n";
 echo 'Non-specific tag review: ' . ($meta['non-specific-review']['owner'] ?? '') . ' / ' . implode(', ', $meta['non-specific-review']['labels'] ?? []) . "\n";
 echo 'Source captured at: ' . ($meta['source-captured-at'] ?? '') . "\n";
