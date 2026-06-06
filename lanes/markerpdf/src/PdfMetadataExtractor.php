@@ -5942,6 +5942,11 @@ final class PdfMetadataExtractor
             $metadata['filter'] = $filter;
         }
 
+        $securityHandlerDeclarationReview = $this->securityHandlerDeclarationReview($dictionary, $objects);
+        if ($securityHandlerDeclarationReview !== []) {
+            $metadata['security_handler_declaration_review'] = $securityHandlerDeclarationReview;
+        }
+
         $subfilter = $this->dictionaryNameValue($dictionary, 'SubFilter', $objects)
             ?? $this->dictionaryStringValue($dictionary, 'SubFilter');
         if ($subfilter !== null) {
@@ -6921,6 +6926,113 @@ final class PdfMetadataExtractor
             5 => 'aes_256',
             default => 'unknown',
         };
+    }
+
+    /**
+     * The top-level security-handler /Filter names the encryption handler.
+     * Duplicate declarations are ambiguous even when the selected value is an
+     * unsupported handler, because another parser may choose the earlier value.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function securityHandlerDeclarationReview(string $dictionary, array $objects): array
+    {
+        $values = $this->dictionaryTopLevelRawValues($dictionary, 'Filter');
+        if ($values === []) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($values as $index => $value) {
+            $resolved = $this->resolvePdfValue($value, $objects);
+            $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+            $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
+            $filterName = null;
+            if ($valueForReview !== '' && $valueForReview[0] === '/' && preg_match('/^\/([^\s\[\]()<>{}\/%]+)/', $valueForReview, $match) === 1) {
+                $filterName = $this->decodePdfName($match[1]);
+            }
+
+            $entries[] = [
+                'source' => 'security_handler_filter_entry_review',
+                'index' => $index,
+                'pdf_name' => 'Filter',
+                'resolved' => $resolved !== null,
+                'operand_shape' => $operandShape,
+                'filter_name' => $filterName,
+                'status' => $filterName !== null
+                    ? 'security_handler_filter_name'
+                    : $this->securityHandlerFilterEntryStatus($value, $operandShape, $resolved !== null),
+                'review_only' => true,
+                'executes_decryption' => false,
+                'executes_permission_enforcement' => false,
+            ];
+        }
+
+        $duplicate = count($values) > 1;
+        $malformedEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => ($entry['status'] ?? null) !== 'security_handler_filter_name'
+        ));
+        if (!$duplicate) {
+            return [];
+        }
+
+        $selectedIndex = count($entries) - 1;
+        $selectedEntry = $entries[$selectedIndex] ?? [];
+        $ambiguous = true;
+
+        return [
+            'source' => 'security_handler_declaration_review',
+            'pdf_name' => 'Filter',
+            'declared_entry_count' => count($values),
+            'duplicate_entries' => $duplicate,
+            'malformed_entries' => $malformedEntries !== [],
+            'malformed_entry_count' => count($malformedEntries),
+            'ambiguous' => $ambiguous,
+            'fail_closed' => $ambiguous,
+            'selected_entry_index' => $selectedIndex,
+            'selected_filter_name' => is_string($selectedEntry['filter_name'] ?? null) ? $selectedEntry['filter_name'] : null,
+            'filter_names' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['filter_name'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $name): bool => is_string($name) && $name !== ''
+            ))),
+            'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['status'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $status): bool => is_string($status)
+            ))),
+            'entry_operand_shapes' => $this->uniqueStrings(array_values(array_filter(
+                array_map(
+                    static fn (array $entry): mixed => $entry['operand_shape'] ?? null,
+                    $entries
+                ),
+                static fn (mixed $shape): bool => is_string($shape)
+            ))),
+            'status' => 'duplicate_security_handler_filter_entries_review',
+            'entries' => $entries,
+            'review_only' => true,
+            'executes_decryption' => false,
+            'executes_permission_enforcement' => false,
+        ];
+    }
+
+    private function securityHandlerFilterEntryStatus(string $rawValue, string $operandShape, bool $resolved): string
+    {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'security_handler_filter_unresolved_reference';
+        }
+
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'security_handler_filter_composite_operand_review';
+        }
+
+        return 'security_handler_filter_non_name_operand_review';
     }
 
     private function standardRevisionLabel(int $revision): string
