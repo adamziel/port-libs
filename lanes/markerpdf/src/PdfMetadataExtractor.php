@@ -3923,7 +3923,20 @@ final class PdfMetadataExtractor
             $row['text_color_hex'] = $this->rgbUnitColorToHex($textColor);
         }
 
-        $duplicateKeyReview = $this->documentOutlineItemDuplicateKeyReview($dictionary, ['Title', 'Dest', 'A']);
+        $duplicateKeyReview = $this->documentOutlineItemDuplicateKeyReview($dictionary, [
+            'Title',
+            'Dest',
+            'A',
+            'Count',
+            'First',
+            'Last',
+            'Parent',
+            'Prev',
+            'Next',
+            'F',
+            'C',
+            'SE',
+        ]);
         if ($duplicateKeyReview !== []) {
             $row['duplicate_key_review'] = $duplicateKeyReview;
         }
