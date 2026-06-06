@@ -359,6 +359,61 @@ return [
         $t->true(!str_contains($html, '<script'), 'Expected nested srcdoc script to be dropped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected nested unsafe srcdoc URL to be stripped');
     },
+    'converts safe iframe sources into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<iframe src="./frames/review.html#packet" title="Source frame"></iframe>'
+            . '<iframe src=" h&#9;ttps://frames.example.test/embed?id=42 " title="External frame"></iframe>'
+            . '<iframe src="java&#10;script:alert(1)" title="Bad frame"></iframe>'
+            . '<iframe title="No source"></iframe>'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/iframe-src-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/frames/review.html#packet" data-pandoc-iframe-src="true" title="Source frame">Source frame</a>'
+            . '<a href="https://frames.example.test/embed?id=42" data-pandoc-iframe-src="true" title="External frame">External frame</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Source frameExternal frameafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'iframe'], $summary['blockedTags']);
+        $t->same(['src'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'normalized-url', 'blocked-tag', 'unsafe-url', 'blocked-tag'], $policyDiagnostics);
+        $t->same('a', $nodes[0]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/frames/review.html#packet',
+            'data-pandoc-iframe-src' => 'true',
+            'title' => 'Source frame',
+        ], $nodes[0]['attrs']);
+        $t->same('Source frame', $nodes[0]['children'][0]['text']);
+        $t->same([
+            'href' => 'https://frames.example.test/embed?id=42',
+            'data-pandoc-iframe-src' => 'true',
+            'title' => 'External frame',
+        ], $nodes[1]['attrs']);
+        $t->same('External frame', $nodes[1]['children'][0]['text']);
+        $t->same('p', $nodes[2]['name']);
+        $t->same('/migration/iframe-src-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<iframe'), 'Expected iframe wrappers to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe iframe source URL to be stripped');
+        $t->true(!str_contains($html, 'Bad frame'), 'Expected unsafe iframe title to stay hidden with its source');
+        $t->true(!str_contains($html, 'No source'), 'Expected sourceless iframe title to stay hidden');
+        $t->true(!str_contains($blocks, '<iframe'), 'Expected WordPress blocks to omit iframe wrappers');
+    },
     'unwraps noscript fallback content while dropping unsafe container before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<noscript><p>Script-disabled fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p>'

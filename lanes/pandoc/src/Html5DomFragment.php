@@ -430,6 +430,16 @@ final class Html5DomFragment
                 $baseUrl
             );
 
+            if ($name === 'iframe') {
+                if ($children !== []) {
+                    return $children;
+                }
+
+                $iframeSource = self::normalizeHtmlIframeSourceElement($node, $diagnostics, $baseUrl);
+
+                return $iframeSource === null ? [] : [$iframeSource];
+            }
+
             return self::withVisibleFormChoiceLabel($node, $name, $children);
         }
 
@@ -544,6 +554,61 @@ final class Html5DomFragment
         $srcdocBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
 
         return self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $srcdocBaseUrl);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function normalizeHtmlIframeSourceElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
+    {
+        if (!$element->hasAttribute('src')) {
+            return null;
+        }
+
+        $target = $element->getAttribute('src');
+        $normalizedTarget = self::normalizeUrlAttributeValue($target);
+        if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => 'iframe',
+                'attribute' => 'src',
+            ];
+
+            return null;
+        }
+
+        if ($normalizedTarget !== $target) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => 'iframe',
+                'attribute' => 'src',
+            ];
+        }
+
+        $href = $baseUrl !== null
+            ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+            : $normalizedTarget;
+        $title = $element->hasAttribute('title')
+            ? self::cleanHtmlMetadataAttribute($element->getAttribute('title'))
+            : '';
+        $attrs = [
+            'href' => $href,
+            'data-pandoc-iframe-src' => 'true',
+        ];
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        return [
+            'type' => 'element',
+            'name' => 'a',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $title !== '' ? $title : 'Embedded frame source',
+            ]],
+        ];
     }
 
     /**
