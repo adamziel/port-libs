@@ -252,6 +252,10 @@ final class PdfEngineHandoff
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
+     *     pdfHeaderVersion: string|null,
+     *     pdfCatalogVersion: string|null,
+     *     pdfEffectiveVersion: string|null,
+     *     pdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
      *     pdfTrailerComplete: bool,
      *     pdfTrailerCount: int,
      *     pdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
@@ -659,6 +663,10 @@ final class PdfEngineHandoff
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
+        $pdfHeaderVersion = null;
+        $pdfCatalogVersion = null;
+        $pdfEffectiveVersion = null;
+        $pdfExtensionMetadata = [];
         $pdfTrailerCount = 0;
         $pdfTrailerRevisions = [];
         $pdfStartXrefOffsets = [];
@@ -723,6 +731,10 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
             } else {
                 $pdfInspection = $this->inspectPdfOutput($pdfBytes);
+                $pdfHeaderVersion = $pdfInspection['headerVersion'];
+                $pdfCatalogVersion = $pdfInspection['catalogVersion'];
+                $pdfEffectiveVersion = $pdfInspection['effectiveVersion'];
+                $pdfExtensionMetadata = $pdfInspection['extensionMetadata'];
                 $pdfTrailerCount = $pdfInspection['trailerCount'];
                 $pdfTrailerRevisions = $pdfInspection['trailerRevisions'];
                 $pdfStartXrefOffsets = $pdfInspection['startXrefOffsets'];
@@ -783,6 +795,18 @@ final class PdfEngineHandoff
                 $pdfPermissionInteger = $pdfEncryption['permissions'];
                 $pdfPermissionFlags = $pdfEncryption['permissionFlags'];
                 $pdfEncryptMetadata = $pdfEncryption['encryptMetadata'];
+                if ($pdfHeaderVersion !== null) {
+                    $diagnostics[] = 'pdf-byte-header-version:' . $pdfHeaderVersion;
+                }
+                if ($pdfCatalogVersion !== null) {
+                    $diagnostics[] = 'pdf-byte-catalog-version:' . $pdfCatalogVersion;
+                }
+                if ($pdfEffectiveVersion !== null) {
+                    $diagnostics[] = 'pdf-byte-effective-version:' . $pdfEffectiveVersion;
+                }
+                if ($pdfExtensionMetadata !== []) {
+                    $diagnostics[] = 'pdf-byte-extension-metadata:' . count($pdfExtensionMetadata);
+                }
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
                 }
@@ -1487,6 +1511,10 @@ final class PdfEngineHandoff
             'declaredOutputFile' => $declaredOutput['file'],
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],
+            'pdfHeaderVersion' => $pdfHeaderVersion,
+            'pdfCatalogVersion' => $pdfCatalogVersion,
+            'pdfEffectiveVersion' => $pdfEffectiveVersion,
+            'pdfExtensionMetadata' => $pdfExtensionMetadata,
             'pdfTrailerComplete' => $pdfTrailerComplete,
             'pdfTrailerCount' => $pdfTrailerCount,
             'pdfTrailerRevisions' => $pdfTrailerRevisions,
@@ -1573,6 +1601,10 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputFile: string|null,
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
+     *     finalPdfHeaderVersion: string|null,
+     *     finalPdfCatalogVersion: string|null,
+     *     finalPdfEffectiveVersion: string|null,
+     *     finalPdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
      *     finalPdfPageCount: int|null,
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
@@ -1772,6 +1804,10 @@ final class PdfEngineHandoff
             'finalDeclaredOutputFile' => is_array($finalRun) && is_string($finalRun['declaredOutputFile'] ?? null) ? $finalRun['declaredOutputFile'] : null,
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
+            'finalPdfHeaderVersion' => is_array($finalRun) && is_string($finalRun['pdfHeaderVersion'] ?? null) ? $finalRun['pdfHeaderVersion'] : null,
+            'finalPdfCatalogVersion' => is_array($finalRun) && is_string($finalRun['pdfCatalogVersion'] ?? null) ? $finalRun['pdfCatalogVersion'] : null,
+            'finalPdfEffectiveVersion' => is_array($finalRun) && is_string($finalRun['pdfEffectiveVersion'] ?? null) ? $finalRun['pdfEffectiveVersion'] : null,
+            'finalPdfExtensionMetadata' => is_array($finalRun) && is_array($finalRun['pdfExtensionMetadata'] ?? null) ? $finalRun['pdfExtensionMetadata'] : [],
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
@@ -2920,12 +2956,18 @@ final class PdfEngineHandoff
      *         permissions:int|null,
      *         permissionFlags:array<string, bool>,
      *         encryptMetadata:bool|null
-     *     }
+     *     },
+     *     headerVersion:string|null,
+     *     catalogVersion:string|null,
+     *     effectiveVersion:string|null,
+     *     extensionMetadata:list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>
      * }
      */
     private function inspectPdfOutput(string $pdfBytes): array
     {
         $catalog = $this->extractPdfCatalogDictionary($pdfBytes);
+        $headerVersion = $this->extractPdfHeaderVersion($pdfBytes);
+        $catalogVersion = $this->extractPdfCatalogName($catalog, 'Version');
         $formFields = $this->extractPdfFormFields($pdfBytes, $catalog);
         $trailerRevisions = $this->extractPdfTrailerRevisions($pdfBytes);
         $xrefStreams = $this->extractPdfXrefStreams($pdfBytes);
@@ -3004,7 +3046,72 @@ final class PdfEngineHandoff
             'formFields' => $formFields,
             'formFieldTypes' => $this->summarizePdfFormFieldTypes($formFields),
             'encryption' => $this->extractPdfEncryptionInfo($pdfBytes),
+            'headerVersion' => $headerVersion,
+            'catalogVersion' => $catalogVersion,
+            'effectiveVersion' => $this->effectivePdfVersion($headerVersion, $catalogVersion),
+            'extensionMetadata' => $this->extractPdfExtensionMetadata($pdfBytes, $catalog),
         ];
+    }
+
+    private function extractPdfHeaderVersion(string $pdfBytes): ?string
+    {
+        if (preg_match('/\A%PDF-(\d+\.\d+)\b/', $pdfBytes, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function effectivePdfVersion(?string $headerVersion, ?string $catalogVersion): ?string
+    {
+        if ($headerVersion === null) {
+            return $catalogVersion;
+        }
+        if ($catalogVersion === null) {
+            return $headerVersion;
+        }
+
+        return version_compare($catalogVersion, $headerVersion, '>') ? $catalogVersion : $headerVersion;
+    }
+
+    /**
+     * @return list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>
+     */
+    private function extractPdfExtensionMetadata(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Extensions')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $extensions = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Extensions', $objects);
+        if ($extensions === null) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($extensions) as $entry) {
+            $dictionary = null;
+            if ($entry['value']['kind'] === 'dictionary') {
+                $dictionary = $entry['value']['value'];
+            } elseif ($entry['value']['kind'] === 'reference') {
+                $dictionary = $objects[$this->pdfReferenceKey($entry['value']['value'])] ?? null;
+            }
+
+            if ($dictionary === null) {
+                continue;
+            }
+
+            $metadata[] = [
+                'prefix' => $entry['key'],
+                'baseVersion' => $this->extractPdfNameToken($dictionary, 'BaseVersion'),
+                'extensionLevel' => $this->extractPdfIntegerToken($dictionary, 'ExtensionLevel'),
+            ];
+        }
+
+        usort($metadata, static fn (array $a, array $b): int => $a['prefix'] <=> $b['prefix']);
+
+        return $metadata;
     }
 
     /**
