@@ -78,8 +78,14 @@ final class ChunkConversionPlanner
         $inputFolder = $positionals[0];
         $outputFolder = $positionals[1];
         $command = $scriptPath . ' ' . $inputFolder . ' ' . $outputFolder;
-        $whitespacePaths = $this->containsShellWhitespace($inputFolder) || $this->containsShellWhitespace($outputFolder);
-        $metacharacterPaths = $this->containsShellMetacharacter($inputFolder) || $this->containsShellMetacharacter($outputFolder);
+        $scriptPathWhitespace = $this->containsShellWhitespace($scriptPath);
+        $scriptPathMetacharacter = $this->containsShellMetacharacter($scriptPath);
+        $whitespacePaths = $scriptPathWhitespace
+            || $this->containsShellWhitespace($inputFolder)
+            || $this->containsShellWhitespace($outputFolder);
+        $metacharacterPaths = $scriptPathMetacharacter
+            || $this->containsShellMetacharacter($inputFolder)
+            || $this->containsShellMetacharacter($outputFolder);
 
         return [
             'schema' => 'markerpdf.chunk_convert_wrapper_preflight.v1',
@@ -129,6 +135,7 @@ final class ChunkConversionPlanner
                 'argv_list_used' => false,
                 'argument_escaping_applied' => false,
                 'quotes_positionals' => false,
+                'raw_script_path_fragment' => $scriptPath,
                 'raw_in_folder_fragment' => $inputFolder,
                 'raw_out_folder_fragment' => $outputFolder,
                 'blocks_on_nonzero_exit' => true,
@@ -139,6 +146,9 @@ final class ChunkConversionPlanner
                 'env_validation_before_subprocess' => false,
                 'chunk_convert_sh_validates_environment_after_subprocess_launch' => true,
                 'raw_command_source' => 'f"{script_path} {args.in_folder} {args.out_folder}"',
+                'resource_script_contains_shell_whitespace' => $scriptPathWhitespace,
+                'resource_script_contains_shell_metacharacters' => $scriptPathMetacharacter,
+                'raw_script_path_fragment' => $scriptPath,
                 'positionals_contain_shell_whitespace' => $whitespacePaths,
                 'positionals_contain_shell_metacharacters' => $metacharacterPaths,
                 'argv_separator_used' => $argparse['argv_separator_used'],

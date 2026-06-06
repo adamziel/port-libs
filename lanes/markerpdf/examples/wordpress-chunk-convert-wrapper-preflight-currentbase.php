@@ -29,6 +29,14 @@ $optionPathAllowed = $planner->wrapperRuntimePreflightPlan(
     ],
     '/opt/marker/chunk_convert.sh'
 );
+$pluginPath = '/var/www/html/wp content/plugins/markerPDF tools/chunk_convert.sh';
+$scriptPathPlan = $planner->wrapperRuntimePreflightPlan(
+    [
+        '/var/www/html/wp-content/uploads/pdf-import',
+        '/var/www/html/wp-content/uploads/marker-output',
+    ],
+    $pluginPath
+);
 
 if ($plan['executes_subprocess'] !== false || $plan['executes_python_or_models'] !== false) {
     throw new RuntimeException('Chunk wrapper preflight smoke must not execute subprocesses, Python, or model workers.');
@@ -45,6 +53,12 @@ if ($plan['shell_boundary']['raw_shell_command_path_hazard'] !== true) {
 if ($plan['subprocess']['argument_escaping_applied'] !== false || $plan['subprocess']['shell'] !== true) {
     throw new RuntimeException('Expected chunk_convert.py wrapper to preserve shell=True raw command semantics.');
 }
+if ($scriptPathPlan['shell_boundary']['resource_script_contains_shell_whitespace'] !== true) {
+    throw new RuntimeException('Expected packaged chunk_convert.sh path whitespace to be recorded as shell boundary metadata.');
+}
+if ($scriptPathPlan['shell_boundary']['raw_shell_command_path_hazard'] !== true) {
+    throw new RuntimeException('Expected packaged chunk_convert.sh path to participate in raw shell command hazard review.');
+}
 
 echo json_encode([
     'scenario' => 'wordpress-chunk-convert-wrapper-preflight-currentbase',
@@ -57,8 +71,14 @@ echo json_encode([
     'option_like_path_with_separator_parse_args_success' => $optionPathAllowed['parse_args']['parse_args_success'],
     'option_like_path_with_separator_command' => $optionPathAllowed['subprocess']['command'],
     'script_path' => $plan['resource_script']['script_path'],
+    'plugin_script_path' => $scriptPathPlan['resource_script']['script_path'],
+    'plugin_script_path_raw_fragment' => $scriptPathPlan['subprocess']['raw_script_path_fragment'],
+    'plugin_script_path_contains_shell_whitespace' => $scriptPathPlan['shell_boundary']['resource_script_contains_shell_whitespace'],
+    'plugin_script_path_contains_shell_metacharacters' => $scriptPathPlan['shell_boundary']['resource_script_contains_shell_metacharacters'],
+    'plugin_script_path_raw_shell_hazard' => $scriptPathPlan['shell_boundary']['raw_shell_command_path_hazard'],
     'subprocess_call' => $plan['subprocess']['call'],
     'raw_command' => $plan['subprocess']['command'],
+    'plugin_script_path_raw_command' => $scriptPathPlan['subprocess']['command'],
     'shell_true' => $plan['subprocess']['shell'],
     'check_true' => $plan['subprocess']['check'],
     'argv_list_used' => $plan['subprocess']['argv_list_used'],
