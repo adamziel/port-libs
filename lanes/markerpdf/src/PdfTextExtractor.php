@@ -32334,6 +32334,7 @@ final class PdfTextExtractor
                     if (
                         $compatibilityDepth <= 0
                         && !$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)
+                        && !$this->queueGraphicsColorNameOperand($outsideTextOperands, $token)
                     ) {
                         return false;
                     }
@@ -32661,6 +32662,25 @@ final class PdfTextExtractor
     private function markedContentPropertyOperand(string $token): bool
     {
         return str_starts_with($token, '<<') || $this->markedContentTagOperand($token);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function queueGraphicsColorNameOperand(array &$operands, string $token): bool
+    {
+        if (!$this->markedContentTagOperand($token) || $operands === [] || count($operands) >= 9) {
+            return false;
+        }
+
+        foreach ($operands as $operand) {
+            if ($this->numericOperand($operand) === null) {
+                return false;
+            }
+        }
+
+        $operands[] = $token;
+        return true;
     }
 
     private function contentSegmentContainsInlineImagePreamble(string $segment): bool
