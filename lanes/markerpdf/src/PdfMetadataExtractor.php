@@ -4344,6 +4344,30 @@ final class PdfMetadataExtractor
             ];
         }
 
+        if (!$this->streamObjectHasStreamKeyword($objectBody)) {
+            $review = $base + [
+                'status' => 'rejected_non_stream_outline_item_metadata',
+                'object_number' => $objectNumber,
+                'operand_shape' => $this->outlineMetadataReferenceOperandShape($value),
+                'metadata_reference_resolved' => true,
+                'has_stream' => false,
+            ];
+
+            $dictionary = $this->dictionaryObjectBody($objectBody);
+            if ($dictionary !== null) {
+                foreach ($this->metadataStreamDictionaryLabels($dictionary, $objects) as $key => $metadataValue) {
+                    $review[$key] = $metadataValue;
+                }
+
+                $declaredLength = $this->streamLength($dictionary, $objects);
+                if ($declaredLength !== null) {
+                    $review['declared_length'] = $declaredLength;
+                }
+            }
+
+            return $review;
+        }
+
         $stream = $this->decodeStreamEntryObject($objectBody, $objects);
         if ($stream === null) {
             $review = $base + [
