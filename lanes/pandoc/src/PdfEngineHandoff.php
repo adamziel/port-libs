@@ -13,6 +13,7 @@ final class PdfEngineHandoff
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
     private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
     private const MAX_SIGNATURE_CONTENTS_BYTES = 262144;
+    private const MAX_PIECE_INFO_PRIVATE_STREAM_BYTES = 262144;
     private const MAX_EMBEDDED_FONT_STREAM_BYTES = 262144;
     private const MAX_IMAGE_STREAM_BYTES = 262144;
     private const MAX_FORM_XOBJECT_STREAM_BYTES = 262144;
@@ -277,6 +278,7 @@ final class PdfEngineHandoff
      *     pdfDocumentInfo: array<string, string>,
      *     pdfXmpMetadata: array<string, mixed>,
      *     pdfPageMetadata: list<array<string, mixed>>,
+     *     pdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     pdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     pdfLanguage: string|null,
      *     pdfPageLayout: string|null,
@@ -681,6 +683,7 @@ final class PdfEngineHandoff
         $pdfDocumentInfo = [];
         $pdfXmpMetadata = [];
         $pdfPageMetadata = [];
+        $pdfPieceInfo = [];
         $pdfOutputIntents = [];
         $pdfLanguage = null;
         $pdfPageLayout = null;
@@ -743,6 +746,7 @@ final class PdfEngineHandoff
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfXmpMetadata = $pdfInspection['xmpMetadata'];
                 $pdfPageMetadata = $pdfInspection['pageMetadata'];
+                $pdfPieceInfo = $pdfInspection['pieceInfo'];
                 $pdfOutputIntents = $pdfInspection['outputIntents'];
                 $pdfLanguage = $pdfInspection['language'];
                 $pdfPageLayout = $pdfInspection['pageLayout'];
@@ -1024,6 +1028,32 @@ final class PdfEngineHandoff
                     }
                     if ($pageMetadataTitleCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-metadata-titles:' . $pageMetadataTitleCount;
+                    }
+                }
+                if ($pdfPieceInfo !== []) {
+                    $diagnostics[] = 'pdf-byte-piece-info:' . count($pdfPieceInfo);
+                    $pieceInfoPageCount = 0;
+                    $pieceInfoPrivateStreamCount = 0;
+                    $pieceInfoStreamSkips = [];
+                    foreach ($pdfPieceInfo as $pieceInfo) {
+                        if (($pieceInfo['page'] ?? null) !== null) {
+                            $pieceInfoPageCount++;
+                        }
+                        if (($pieceInfo['privateStreamBytes'] ?? null) !== null) {
+                            $pieceInfoPrivateStreamCount++;
+                        }
+                        if (is_string($pieceInfo['privateStreamSkipped'] ?? null) && $pieceInfo['privateStreamSkipped'] !== '') {
+                            $pieceInfoStreamSkips[$pieceInfo['privateStreamSkipped']] = true;
+                        }
+                    }
+                    if ($pieceInfoPageCount > 0) {
+                        $diagnostics[] = 'pdf-byte-piece-info-pages:' . $pieceInfoPageCount;
+                    }
+                    if ($pieceInfoPrivateStreamCount > 0) {
+                        $diagnostics[] = 'pdf-byte-piece-info-private-streams:' . $pieceInfoPrivateStreamCount;
+                    }
+                    foreach (array_keys($pieceInfoStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-piece-info-private-stream-skipped:' . $skipReason;
                     }
                 }
                 if ($pdfOutputIntents !== []) {
@@ -1443,6 +1473,7 @@ final class PdfEngineHandoff
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfXmpMetadata' => $pdfXmpMetadata,
             'pdfPageMetadata' => $pdfPageMetadata,
+            'pdfPieceInfo' => $pdfPieceInfo,
             'pdfOutputIntents' => $pdfOutputIntents,
             'pdfLanguage' => $pdfLanguage,
             'pdfPageLayout' => $pdfPageLayout,
@@ -1526,6 +1557,7 @@ final class PdfEngineHandoff
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfXmpMetadata: array<string, mixed>,
      *     finalPdfPageMetadata: list<array<string, mixed>>,
+     *     finalPdfPieceInfo: list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     finalPdfOutputIntents: list<array{type:string|null, subtype:string|null, outputConditionIdentifier:string|null, outputCondition:string|null, registryName:string|null, info:string|null, destOutputProfile:string|null, profileComponents:int|null, profileAlternate:string|null, profileBytes:int|null, profileSha256:string|null, profileSkipped:string|null}>,
      *     finalPdfLanguage: string|null,
      *     finalPdfPageLayout: string|null,
@@ -1723,6 +1755,7 @@ final class PdfEngineHandoff
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfXmpMetadata' => is_array($finalRun) && is_array($finalRun['pdfXmpMetadata'] ?? null) ? $finalRun['pdfXmpMetadata'] : [],
             'finalPdfPageMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageMetadata'] ?? null) ? $finalRun['pdfPageMetadata'] : [],
+            'finalPdfPieceInfo' => is_array($finalRun) && is_array($finalRun['pdfPieceInfo'] ?? null) ? $finalRun['pdfPieceInfo'] : [],
             'finalPdfOutputIntents' => is_array($finalRun) && is_array($finalRun['pdfOutputIntents'] ?? null) ? $finalRun['pdfOutputIntents'] : [],
             'finalPdfLanguage' => is_array($finalRun) && is_string($finalRun['pdfLanguage'] ?? null) ? $finalRun['pdfLanguage'] : null,
             'finalPdfPageLayout' => is_array($finalRun) && is_string($finalRun['pdfPageLayout'] ?? null) ? $finalRun['pdfPageLayout'] : null,
@@ -2813,6 +2846,7 @@ final class PdfEngineHandoff
      *     documentInfo:array<string, string>,
      *     xmpMetadata:array<string, mixed>,
      *     pageMetadata:list<array<string, mixed>>,
+     *     pieceInfo:list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>,
      *     language:string|null,
      *     pageLayout:string|null,
      *     pageMode:string|null,
@@ -2899,6 +2933,7 @@ final class PdfEngineHandoff
             'documentInfo' => $this->extractPdfDocumentInfo($pdfBytes),
             'xmpMetadata' => $this->extractPdfXmpMetadata($pdfBytes, $catalog),
             'pageMetadata' => $this->extractPdfPageMetadata($pdfBytes, $catalog),
+            'pieceInfo' => $this->extractPdfPieceInfo($pdfBytes, $catalog),
             'outputIntents' => $this->extractPdfOutputIntents($pdfBytes, $catalog),
             'language' => $this->extractPdfCatalogLanguage($pdfBytes, $catalog),
             'pageLayout' => $this->extractPdfCatalogName($catalog, 'PageLayout'),
@@ -3510,6 +3545,293 @@ final class PdfEngineHandoff
             'pageObject' => $pageReference . ' R',
             'metadataObject' => $metadataReference,
         ], $metadata);
+    }
+
+    /**
+     * @return list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>
+     */
+    private function extractPdfPieceInfo(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $entries = [];
+        $pageEntries = [];
+
+        if ($catalog !== null) {
+            $pieceInfo = $this->extractPdfDictionaryOrReferenceValue($catalog, 'PieceInfo', $objects);
+            if ($pieceInfo !== null) {
+                array_push(
+                    $entries,
+                    ...$this->summarizePdfPieceInfoDictionary(
+                        $pieceInfo,
+                        'catalog.PieceInfo',
+                        null,
+                        null,
+                        $objects
+                    )
+                );
+            }
+        }
+
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+        if ($pagesReference !== null) {
+            $this->collectPdfPieceInfoFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $pageEntries,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($pageEntries === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                array_push(
+                    $pageEntries,
+                    ...$this->summarizePdfPagePieceInfo(
+                        $body,
+                        $reference,
+                        $objects,
+                        $pageNumber
+                    )
+                );
+            }
+        }
+
+        array_push($entries, ...$pageEntries);
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}> $entries
+     */
+    private function collectPdfPieceInfoFromPageTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$entries,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            array_push(
+                $entries,
+                ...$this->summarizePdfPagePieceInfo(
+                    $body,
+                    $reference,
+                    $objects,
+                    $pageNumber
+                )
+            );
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPieceInfoFromPageTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $entries,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>
+     */
+    private function summarizePdfPagePieceInfo(string $pageDictionary, string $pageReference, array $objects, int $pageNumber): array
+    {
+        $pieceInfo = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'PieceInfo', $objects);
+        if ($pieceInfo === null) {
+            return [];
+        }
+
+        return $this->summarizePdfPieceInfoDictionary(
+            $pieceInfo,
+            'page:' . $pageReference . ' R.PieceInfo',
+            $pageNumber,
+            $pageReference . ' R',
+            $objects
+        );
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{source:string, page:int|null, pageObject:string|null, application:string, pieceObject:string|null, lastModified:string|null, privateObject:string|null, privateKeys:list<string>, privateValues:array<string, bool|float|int|string|null>, privateStreamBytes:int|null, privateStreamSha256:string|null, privateStreamSkipped:string|null}>
+     */
+    private function summarizePdfPieceInfoDictionary(
+        string $pieceInfo,
+        string $source,
+        ?int $page,
+        ?string $pageObject,
+        array $objects
+    ): array {
+        $entries = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($pieceInfo) as $entry) {
+            if ($entry['key'] === 'Type') {
+                continue;
+            }
+
+            $pieceObject = null;
+            $pieceDictionary = null;
+            if ($entry['value']['kind'] === 'reference') {
+                $pieceObject = $entry['value']['value'];
+                $pieceDictionary = $objects[$this->pdfReferenceKey($entry['value']['value'])] ?? null;
+            } elseif ($entry['value']['kind'] === 'dictionary') {
+                $pieceObject = 'inline';
+                $pieceDictionary = $entry['value']['value'];
+            }
+
+            if ($pieceDictionary === null) {
+                continue;
+            }
+
+            $private = $this->summarizePdfPieceInfoPrivateObject($pieceDictionary, $objects);
+            $entries[] = [
+                'source' => $source,
+                'page' => $page,
+                'pageObject' => $pageObject,
+                'application' => $entry['key'],
+                'pieceObject' => $pieceObject,
+                'lastModified' => $this->extractPdfStringOrNameValue($pieceDictionary, 'LastModified'),
+                'privateObject' => $private['object'],
+                'privateKeys' => $private['keys'],
+                'privateValues' => $private['values'],
+                'privateStreamBytes' => $private['streamBytes'],
+                'privateStreamSha256' => $private['streamSha256'],
+                'privateStreamSkipped' => $private['streamSkipped'],
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{object:string|null, keys:list<string>, values:array<string, bool|float|int|string|null>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}
+     */
+    private function summarizePdfPieceInfoPrivateObject(string $pieceDictionary, array $objects): array
+    {
+        $summary = [
+            'object' => null,
+            'keys' => [],
+            'values' => [],
+            'streamBytes' => null,
+            'streamSha256' => null,
+            'streamSkipped' => null,
+        ];
+
+        $value = $this->extractPdfValueForName($pieceDictionary, 'Private');
+        if ($value === null) {
+            return $summary;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $summary['object'] = $value['value'];
+            $privateObject = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($privateObject === null) {
+                return $summary;
+            }
+        } elseif ($value['kind'] === 'dictionary') {
+            $summary['object'] = 'inline';
+            $privateObject = $value['value'];
+        } else {
+            $scalar = $this->pdfPieceInfoScalarValue($value);
+            if ($scalar['ok']) {
+                $summary['keys'] = ['value'];
+                $summary['values'] = ['value' => $scalar['value']];
+            }
+
+            return $summary;
+        }
+
+        foreach ($this->extractPdfTopLevelDictionaryEntries($privateObject) as $entry) {
+            if ($this->isPdfPieceInfoPrivateTechnicalKey($entry['key'])) {
+                continue;
+            }
+
+            $summary['keys'][] = $entry['key'];
+            $scalar = $this->pdfPieceInfoScalarValue($entry['value']);
+            if ($scalar['ok']) {
+                $summary['values'][$entry['key']] = $scalar['value'];
+            }
+        }
+        $summary['keys'] = array_values(array_unique($summary['keys']));
+        sort($summary['keys']);
+        ksort($summary['values']);
+
+        $streamBytes = $this->extractPdfStreamBytes($privateObject);
+        if ($streamBytes !== null) {
+            $summary['streamBytes'] = strlen($streamBytes);
+            if (preg_match('/\/Filter\b/s', $privateObject) === 1) {
+                $summary['streamSkipped'] = 'filtered';
+            } elseif (strlen($streamBytes) > self::MAX_PIECE_INFO_PRIVATE_STREAM_BYTES) {
+                $summary['streamSkipped'] = 'too-large';
+            } else {
+                $summary['streamSha256'] = hash('sha256', $streamBytes);
+            }
+        }
+
+        return $summary;
+    }
+
+    private function isPdfPieceInfoPrivateTechnicalKey(string $key): bool
+    {
+        return in_array($key, ['DecodeParms', 'DL', 'Filter', 'Length', 'Subtype', 'Type'], true);
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @return array{ok:bool, value:bool|float|int|string|null}
+     */
+    private function pdfPieceInfoScalarValue(array $value): array
+    {
+        if (in_array($value['kind'], ['literal', 'hex', 'name', 'reference'], true)) {
+            return ['ok' => true, 'value' => $value['value']];
+        }
+
+        if ($value['kind'] === 'number') {
+            $number = $value['value'];
+            if (preg_match('/[.Ee]/', $number) === 1) {
+                return ['ok' => true, 'value' => (float) $number];
+            }
+
+            return ['ok' => true, 'value' => (int) $number];
+        }
+
+        if ($value['kind'] === 'keyword') {
+            if ($value['value'] === 'true' || $value['value'] === 'false') {
+                return ['ok' => true, 'value' => $value['value'] === 'true'];
+            }
+            if ($value['value'] === 'null') {
+                return ['ok' => true, 'value' => null];
+            }
+        }
+
+        return ['ok' => false, 'value' => null];
     }
 
     /**

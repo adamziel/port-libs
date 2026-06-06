@@ -1862,6 +1862,127 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageMetadata']);
     },
 
+    'fake runner extracts bounded pdf page piece info private metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/piece-info.pdf']);
+        $privateStream = "review source path=handoff/piece-info.tex\n";
+        $filteredPrivateStream = "compressed private page metadata\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /PieceInfo << /PandocHandoff 8 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /PieceInfo << /TeXSource << /LastModified (D:20260605123500Z) /Private 9 0 R >> >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /PieceInfo << /FilteredProducer << /Private 10 0 R >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /LastModified (D:20260605123000Z) /Private << /Source (pandoc-native) /Pipeline /pdf-engine-handoff /Revision 2 /Imported true /Cleared null >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Producer (XeTeX) /SourceFile (handoff/piece-info.tex) /Review true /Pass 2 /Length ' . strlen($privateStream) . ' >>',
+            'stream',
+            $privateStream,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Filter /FlateDecode /Stage (compressed) /Length ' . strlen($filteredPrivateStream) . ' >>',
+            'stream',
+            $filteredPrivateStream,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/piece-info.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/piece-info.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'catalog.PieceInfo',
+                'page' => null,
+                'pageObject' => null,
+                'application' => 'PandocHandoff',
+                'pieceObject' => '8 0 R',
+                'lastModified' => 'D:20260605123000Z',
+                'privateObject' => 'inline',
+                'privateKeys' => ['Cleared', 'Imported', 'Pipeline', 'Revision', 'Source'],
+                'privateValues' => [
+                    'Cleared' => null,
+                    'Imported' => true,
+                    'Pipeline' => 'pdf-engine-handoff',
+                    'Revision' => 2,
+                    'Source' => 'pandoc-native',
+                ],
+                'privateStreamBytes' => null,
+                'privateStreamSha256' => null,
+                'privateStreamSkipped' => null,
+            ],
+            [
+                'source' => 'page:3 0 R.PieceInfo',
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'application' => 'TeXSource',
+                'pieceObject' => 'inline',
+                'lastModified' => 'D:20260605123500Z',
+                'privateObject' => '9 0 R',
+                'privateKeys' => ['Pass', 'Producer', 'Review', 'SourceFile'],
+                'privateValues' => [
+                    'Pass' => 2,
+                    'Producer' => 'XeTeX',
+                    'Review' => true,
+                    'SourceFile' => 'handoff/piece-info.tex',
+                ],
+                'privateStreamBytes' => strlen($privateStream),
+                'privateStreamSha256' => hash('sha256', $privateStream),
+                'privateStreamSkipped' => null,
+            ],
+            [
+                'source' => 'page:4 0 R.PieceInfo',
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'application' => 'FilteredProducer',
+                'pieceObject' => 'inline',
+                'lastModified' => null,
+                'privateObject' => '10 0 R',
+                'privateKeys' => ['Stage'],
+                'privateValues' => [
+                    'Stage' => 'compressed',
+                ],
+                'privateStreamBytes' => strlen($filteredPrivateStream),
+                'privateStreamSha256' => null,
+                'privateStreamSkipped' => 'filtered',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPieceInfo']);
+        $t->contains('pdf-byte-piece-info:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-piece-info-pages:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-piece-info-private-streams:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-piece-info-private-stream-skipped:filtered', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfPieceInfo']);
+    },
+
     'fake runner extracts bounded pdf output intent and profile metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/output-intent.pdf']);
