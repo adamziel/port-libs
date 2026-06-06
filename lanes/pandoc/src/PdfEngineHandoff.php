@@ -301,6 +301,7 @@ final class PdfEngineHandoff
      *     pdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     pdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     pdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
@@ -720,6 +721,7 @@ final class PdfEngineHandoff
         $pdfMarkedContentProperties = [];
         $pdfOptionalContentGroups = [];
         $pdfOptionalContentConfig = [];
+        $pdfOptionalContentMemberships = [];
         $pdfCollectionMetadata = [];
         $pdfAcroFormMetadata = [];
         $pdfThreads = [];
@@ -797,6 +799,7 @@ final class PdfEngineHandoff
                 $pdfMarkedContentProperties = $pdfInspection['markedContentProperties'];
                 $pdfOptionalContentGroups = $pdfInspection['optionalContentGroups'];
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
+                $pdfOptionalContentMemberships = $pdfInspection['optionalContentMemberships'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfThreads = $pdfInspection['threads'];
@@ -1340,6 +1343,35 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-optional-content-order:' . count($pdfOptionalContentConfig['order']);
                     }
                 }
+                if ($pdfOptionalContentMemberships !== []) {
+                    $diagnostics[] = 'pdf-byte-optional-content-memberships:' . count($pdfOptionalContentMemberships);
+                    $membershipGroupCount = 0;
+                    $membershipExpressionCount = 0;
+                    $membershipInheritedCount = 0;
+                    foreach ($pdfOptionalContentMemberships as $membership) {
+                        if (isset($membership['groups']) && is_array($membership['groups'])) {
+                            $membershipGroupCount += count($membership['groups']);
+                        }
+                        if (
+                            (isset($membership['visibilityExpressionOperators']) && is_array($membership['visibilityExpressionOperators']) && $membership['visibilityExpressionOperators'] !== [])
+                            || (isset($membership['visibilityExpressionGroups']) && is_array($membership['visibilityExpressionGroups']) && $membership['visibilityExpressionGroups'] !== [])
+                        ) {
+                            $membershipExpressionCount++;
+                        }
+                        if (($membership['inherited'] ?? false) === true) {
+                            $membershipInheritedCount++;
+                        }
+                    }
+                    if ($membershipGroupCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-membership-groups:' . $membershipGroupCount;
+                    }
+                    if ($membershipExpressionCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-membership-expressions:' . $membershipExpressionCount;
+                    }
+                    if ($membershipInheritedCount > 0) {
+                        $diagnostics[] = 'pdf-byte-optional-content-membership-inherited:' . $membershipInheritedCount;
+                    }
+                }
                 if ($pdfCollectionMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-collection';
                     if (is_string($pdfCollectionMetadata['view'] ?? null) && $pdfCollectionMetadata['view'] !== '') {
@@ -1780,6 +1812,7 @@ final class PdfEngineHandoff
             'pdfMarkedContentProperties' => $pdfMarkedContentProperties,
             'pdfOptionalContentGroups' => $pdfOptionalContentGroups,
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
+            'pdfOptionalContentMemberships' => $pdfOptionalContentMemberships,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfThreads' => $pdfThreads,
@@ -1878,6 +1911,7 @@ final class PdfEngineHandoff
      *     finalPdfMarkedContentProperties: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     finalPdfOptionalContentGroups: list<array{object:string, name:string|null, intent:list<string>, usageViewState:string|null, usagePrintState:string|null, usageExportState:string|null, usageCreator:string|null, usageCreatorSubtype:string|null, usageLanguage:string|null, usageLanguagePreferred:bool|null, usageZoomMin:float|null, usageZoomMax:float|null}>,
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>}|array{},
+     *     finalPdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
@@ -2090,6 +2124,7 @@ final class PdfEngineHandoff
             'finalPdfMarkedContentProperties' => is_array($finalRun) && is_array($finalRun['pdfMarkedContentProperties'] ?? null) ? $finalRun['pdfMarkedContentProperties'] : [],
             'finalPdfOptionalContentGroups' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentGroups'] ?? null) ? $finalRun['pdfOptionalContentGroups'] : [],
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
+            'finalPdfOptionalContentMemberships' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentMemberships'] ?? null) ? $finalRun['pdfOptionalContentMemberships'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
@@ -3295,6 +3330,7 @@ final class PdfEngineHandoff
             'markedContentProperties' => $this->extractPdfMarkedContentProperties($pdfBytes, $catalog),
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
+            'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
             'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'threads' => $this->extractPdfThreads($pdfBytes, $catalog),
@@ -6281,6 +6317,9 @@ final class PdfEngineHandoff
         if ($dictionary === null) {
             return null;
         }
+        if ($this->extractPdfNameToken($dictionary, 'Type') === 'OCMD') {
+            return null;
+        }
 
         $associatedFiles = [];
         foreach ($this->extractPdfReferenceArray($dictionary, 'AF') as $reference) {
@@ -6299,6 +6338,181 @@ final class PdfEngineHandoff
             'actualText' => $this->extractPdfStringOrNameValue($dictionary, 'ActualText'),
             'expanded' => $this->extractPdfStringOrNameValue($dictionary, 'E'),
             'associatedFiles' => $associatedFiles,
+        ];
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>
+     */
+    private function extractPdfOptionalContentMemberships(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $memberships = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfOptionalContentMembershipsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                null,
+                $visited,
+                $memberships,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($memberships === []) {
+            $pageNumber = 0;
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $pageMemberships = $this->summarizePdfPageOptionalContentMemberships($body, $reference, null, $objects);
+                foreach ($pageMemberships as &$membership) {
+                    $membership['page'] = $pageNumber;
+                }
+                unset($membership);
+                array_push($memberships, ...$pageMemberships);
+            }
+        }
+
+        $memberships = array_values($memberships);
+        usort(
+            $memberships,
+            static fn (array $a, array $b): int => [
+                $a['page'],
+                $a['propertyName'],
+                $a['propertyObject'] ?? '',
+            ] <=> [
+                $b['page'],
+                $b['propertyName'],
+                $b['propertyObject'] ?? '',
+            ]
+        );
+
+        return $memberships;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}> $memberships
+     */
+    private function collectPdfOptionalContentMembershipsFromPageTree(
+        array $objects,
+        string $reference,
+        ?string $inheritedResources,
+        array &$visited,
+        array &$memberships,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($body, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $pageMemberships = $this->summarizePdfPageOptionalContentMemberships($body, $reference, $ownResources === null ? $inheritedResources : null, $objects);
+            foreach ($pageMemberships as &$membership) {
+                $membership['page'] = $pageNumber;
+            }
+            unset($membership);
+            array_push($memberships, ...$pageMemberships);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfOptionalContentMembershipsFromPageTree(
+                $objects,
+                $kidReference,
+                $resources,
+                $visited,
+                $memberships,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>
+     */
+    private function summarizePdfPageOptionalContentMemberships(string $pageDictionary, string $pageReference, ?string $inheritedResources, array $objects): array
+    {
+        $ownResources = $this->extractPdfDictionaryOrReferenceValue($pageDictionary, 'Resources', $objects);
+        $resources = $ownResources ?? $inheritedResources;
+        if ($resources === null) {
+            return [];
+        }
+
+        $propertyDictionary = $this->extractPdfDictionaryOrReferenceValue($resources, 'Properties', $objects);
+        if ($propertyDictionary === null) {
+            return [];
+        }
+
+        $memberships = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($propertyDictionary) as $entry) {
+            $membership = $this->summarizePdfOptionalContentMembership(
+                $entry['key'],
+                $entry['value'],
+                $objects,
+                $pageReference,
+                $ownResources === null
+            );
+            if ($membership !== null) {
+                $memberships[] = $membership;
+            }
+        }
+
+        return $memberships;
+    }
+
+    /**
+     * @param array{kind:string, value:string} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}|null
+     */
+    private function summarizePdfOptionalContentMembership(string $propertyName, array $value, array $objects, string $pageReference, bool $inherited): ?array
+    {
+        $dictionary = null;
+        $propertyObject = null;
+        if ($value['kind'] === 'reference') {
+            $propertyObject = $value['value'];
+            $dictionary = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        } elseif ($value['kind'] === 'dictionary') {
+            $propertyObject = 'inline';
+            $dictionary = $value['value'];
+        }
+
+        if ($dictionary === null || $this->extractPdfNameToken($dictionary, 'Type') !== 'OCMD') {
+            return null;
+        }
+
+        $visibilityExpression = $this->extractPdfValueForName($dictionary, 'VE');
+
+        return [
+            'page' => 0,
+            'pageObject' => $pageReference . ' R',
+            'propertyName' => $propertyName,
+            'propertyObject' => $propertyObject,
+            'inherited' => $inherited,
+            'type' => $this->extractPdfNameToken($dictionary, 'Type'),
+            'groups' => $this->collectPdfReferencesFromValue($this->extractPdfValueForName($dictionary, 'OCGs'), $objects),
+            'policy' => $this->extractPdfNameToken($dictionary, 'P'),
+            'visibilityExpressionOperators' => $this->collectPdfNamesFromValue($visibilityExpression, $objects),
+            'visibilityExpressionGroups' => $this->collectPdfReferencesFromValue($visibilityExpression, $objects),
         ];
     }
 
@@ -7233,6 +7447,36 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function collectPdfReferencesFromValue(?array $value, array $objects, int $depth = 0): array
+    {
+        if ($value === null || $depth > 8) {
+            return [];
+        }
+
+        if ($value['kind'] === 'array') {
+            return $this->collectPdfReferencesFromArray($value['value']);
+        }
+
+        if ($value['kind'] !== 'reference') {
+            return [];
+        }
+
+        $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+        if ($body !== '') {
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null && $resolved['kind'] === 'array') {
+                return $this->collectPdfReferencesFromValue($resolved, $objects, $depth + 1);
+            }
+        }
+
+        return [$value['value']];
+    }
+
+    /**
      * @return list<string>
      */
     private function collectPdfNamesFromArray(string $array): array
@@ -7250,6 +7494,41 @@ final class PdfEngineHandoff
         });
 
         return $this->uniqueStrings($names);
+    }
+
+    /**
+     * @param array{kind:string, value:string, next?:int}|null $value
+     * @param array<string, string> $objects
+     * @return list<string>
+     */
+    private function collectPdfNamesFromValue(?array $value, array $objects, int $depth = 0): array
+    {
+        if ($value === null || $depth > 8) {
+            return [];
+        }
+
+        if (in_array($value['kind'], ['name', 'literal', 'hex'], true)) {
+            $name = trim($value['value']);
+
+            return $name === '' ? [] : [$name];
+        }
+
+        if ($value['kind'] === 'array') {
+            return $this->collectPdfNamesFromArray($value['value']);
+        }
+
+        if ($value['kind'] === 'reference') {
+            $body = trim($objects[$this->pdfReferenceKey($value['value'])] ?? '');
+            if ($body === '') {
+                return [];
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+
+            return $resolved === null ? [] : $this->collectPdfNamesFromValue($resolved, $objects, $depth + 1);
+        }
+
+        return [];
     }
 
     /**

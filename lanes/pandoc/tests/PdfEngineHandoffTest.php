@@ -4198,6 +4198,102 @@ MARKDOWN);
         $t->same($expectedConfig, $sequence['finalPdfOptionalContentConfig']);
     },
 
+    'fake runner extracts bounded pdf optional content membership metadata from page resources' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layer-membership.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [10 0 R 11 0 R] >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Resources << /Properties << /InheritedLayer 13 0 R >> >> /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Resources << /Properties << /ReviewLayer 12 0 R /InlineLayer << /Type /OCMD /OCGs 10 0 R /P /AllOn >> >> >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /OCG /Name (Reviewer notes) >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /OCG /Name (Print marks) >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /OCMD /OCGs [10 0 R 11 0 R] /P /AnyOn /VE [/And 10 0 R [/Not 11 0 R]] >>',
+            'endobj',
+            '13 0 obj',
+            '<< /Type /OCMD /OCGs [11 0 R] /P /AllOff /VE [/Or 11 0 R] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/layer-membership.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/layer-membership.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'propertyName' => 'InlineLayer',
+                'propertyObject' => 'inline',
+                'inherited' => false,
+                'type' => 'OCMD',
+                'groups' => ['10 0 R'],
+                'policy' => 'AllOn',
+                'visibilityExpressionOperators' => [],
+                'visibilityExpressionGroups' => [],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'propertyName' => 'ReviewLayer',
+                'propertyObject' => '12 0 R',
+                'inherited' => false,
+                'type' => 'OCMD',
+                'groups' => ['10 0 R', '11 0 R'],
+                'policy' => 'AnyOn',
+                'visibilityExpressionOperators' => ['And', 'Not'],
+                'visibilityExpressionGroups' => ['10 0 R', '11 0 R'],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'propertyName' => 'InheritedLayer',
+                'propertyObject' => '13 0 R',
+                'inherited' => true,
+                'type' => 'OCMD',
+                'groups' => ['11 0 R'],
+                'policy' => 'AllOff',
+                'visibilityExpressionOperators' => ['Or'],
+                'visibilityExpressionGroups' => ['11 0 R'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same([], $result['pdfMarkedContentProperties']);
+        $t->same($expected, $result['pdfOptionalContentMemberships'] ?? null);
+        $t->contains('pdf-byte-optional-content-memberships:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-membership-groups:4', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-optional-content-membership-expressions:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfOptionalContentMemberships'] ?? null);
+    },
+
     'fake runner flags encrypted pdf output permission dictionaries without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/protected.pdf']);
