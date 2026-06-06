@@ -3752,6 +3752,108 @@ XML
 XML
         ));
     },
+    'applies bounded csl institution formatting for literal names' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'institution-source',
+                'type' => 'webpage',
+                'title' => 'Institutional Reviewer Packet',
+                'author' => [
+                    ['literal' => 'W.P. Migration Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/institution-source',
+            ],
+            [
+                'id' => 'person-source',
+                'type' => 'report',
+                'title' => 'Personal Reviewer Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/person-source',
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Institution Name Review Style</title>
+    <id>https://example.test/styles/bounded-institution-name-review</id>
+    <updated>2026-06-06T03:14:52+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author" delimiter=", ">
+          <name initialize-with=". "/>
+          <institution>
+            <institution-part name="long" prefix="org " strip-periods="true" text-case="uppercase"/>
+          </institution>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="author" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <institution>
+          <institution-part name="long" prefix="Institution: " strip-periods="true" text-case="capitalize-all"/>
+        </institution>
+      </names>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationInstitution = $summary['citationRendering'][0]['children'][0]['nameRendering']['institution'] ?? [];
+        $bibliographyInstitution = $summary['bibliographyRendering'][0]['nameRendering']['institution'] ?? [];
+        $t->same('Bounded Institution Name Review Style', $summary['title'] ?? null);
+        $t->same('long', $citationInstitution['institutionParts'] ?? null);
+        $t->same('org ', $citationInstitution['parts']['long']['prefix'] ?? null);
+        $t->same(true, $citationInstitution['parts']['long']['stripPeriods'] ?? null);
+        $t->same('uppercase', $citationInstitution['parts']['long']['textCase'] ?? null);
+        $t->same('Institution: ', $bibliographyInstitution['parts']['long']['prefix'] ?? null);
+        $t->same('capitalize-all', $summary['nameRendering']['bibliography']['institution']['parts']['long']['textCase'] ?? null);
+
+        $t->same('(org WP MIGRATION DESK 2026; Cruz 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'institution-source', 'text' => '[@institution-source]']),
+            new AstNode('citation', ['id' => 'person-source', 'text' => '[@person-source]']),
+        ]));
+        $t->same('Institution: WP Migration Desk :: Institutional Reviewer Packet :: https://example.test/institution-source', $processor->renderBibliographyEntry('institution-source'));
+        $t->same('Cruz, A. :: Personal Reviewer Packet :: https://example.test/person-source', $processor->renderBibliographyEntry('person-source'));
+
+        $document = (new MarkdownReader())->read('Institution source [@institution-source; @person-source] keeps organization authors readable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Institution source (org WP MIGRATION DESK 2026; Cruz 2025) keeps organization authors readable.</p>', $blocks);
+        $t->contains('<dt>org WP MIGRATION DESK 2026</dt><dd>Institution: WP Migration Desk :: Institutional Reviewer Packet :: https://example.test/institution-source</dd>', $blocks);
+        $t->contains('<dt>Cruz 2025</dt><dd>Cruz, A. :: Personal Reviewer Packet :: https://example.test/person-source</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><institution institution-parts="short"/></names></layout></citation>
+</style>
+XML
+        ));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><names variable="author"><institution><institution-part name="short"/></institution></names></layout></citation>
+</style>
+XML
+        ));
+    },
     'applies bounded csl names substitutes for missing primary creators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -122,6 +122,7 @@ final class CslStyle
             'sortSeparator' => ', ',
             'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
+            'institution' => null,
         ],
         'bibliography' => [
             'delimiter' => '; ',
@@ -149,6 +150,7 @@ final class CslStyle
             'sortSeparator' => ', ',
             'demoteNonDroppingParticle' => 'never',
             'nameParts' => [],
+            'institution' => null,
         ],
     ];
 
@@ -787,6 +789,7 @@ final class CslStyle
             'sortSeparator' => is_string($overrides['sortSeparator'] ?? null) ? $overrides['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
             'demoteNonDroppingParticle' => is_string($overrides['demoteNonDroppingParticle'] ?? null) ? $overrides['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => is_array($overrides['nameParts'] ?? null) ? $overrides['nameParts'] : ($defaults['nameParts'] ?? []),
+            'institution' => is_array($overrides['institution'] ?? null) ? $overrides['institution'] : ($defaults['institution'] ?? null),
         ];
     }
 
@@ -928,8 +931,62 @@ final class CslStyle
                 $overrides['nameParts'] = $nameParts;
             }
         }
+        $institution = self::institutionRenderingOptions($names, $scope);
+        if ($institution !== []) {
+            $overrides['institution'] = $institution;
+        }
 
         return $overrides;
+    }
+
+    /**
+     * @return array{institutionParts:string, delimiter:string, parts:array<string, array{prefix:string, suffix:string, textCase:string, stripPeriods:bool, quotes:bool}>}|array{}
+     */
+    private static function institutionRenderingOptions(\DOMElement $names, string $scope): array
+    {
+        $institutions = self::directChildren($names, 'institution');
+        if ($institutions === []) {
+            return [];
+        }
+
+        if (count($institutions) > 1) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' names element may contain at most one institution element');
+        }
+
+        $institution = $institutions[0];
+        $institutionParts = strtolower(trim($institution->getAttribute('institution-parts')));
+        if ($institutionParts === '') {
+            $institutionParts = 'long';
+        }
+        if (!in_array($institutionParts, ['long'], true)) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' institution-parts currently supports long');
+        }
+
+        $parts = [];
+        foreach (self::directChildren($institution, 'institution-part') as $part) {
+            $partName = strtolower(trim($part->getAttribute('name')));
+            if ($partName !== 'long') {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' institution-part name currently supports long');
+            }
+
+            if (array_key_exists($partName, $parts)) {
+                throw new \InvalidArgumentException('Duplicate CSL ' . $scope . ' institution-part formatter: ' . $partName);
+            }
+
+            $parts[$partName] = [
+                'prefix' => self::optionalAttribute($part, 'prefix'),
+                'suffix' => self::optionalAttribute($part, 'suffix'),
+                'textCase' => self::textCaseAttribute($part, $scope),
+                'stripPeriods' => self::booleanRenderingAttribute($part, 'strip-periods', false, $scope),
+                'quotes' => self::booleanRenderingAttribute($part, 'quotes', false, $scope),
+            ];
+        }
+
+        return [
+            'institutionParts' => $institutionParts,
+            'delimiter' => self::optionalAttribute($institution, 'delimiter'),
+            'parts' => $parts,
+        ];
     }
 
     /**

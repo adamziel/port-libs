@@ -4583,6 +4583,7 @@ final class CitationCslProcessor
             'sortSeparator' => is_string($options['sortSeparator'] ?? null) ? $options['sortSeparator'] : ($defaults['sortSeparator'] ?? ', '),
             'demoteNonDroppingParticle' => is_string($options['demoteNonDroppingParticle'] ?? null) ? $options['demoteNonDroppingParticle'] : ($defaults['demoteNonDroppingParticle'] ?? 'never'),
             'nameParts' => array_key_exists('nameParts', $options) && is_array($options['nameParts']) ? $options['nameParts'] : [],
+            'institution' => is_array($options['institution'] ?? null) ? $options['institution'] : ($defaults['institution'] ?? null),
         ];
     }
 
@@ -5716,7 +5717,7 @@ final class CitationCslProcessor
     private function renderCitationName(array $name, array $options): string
     {
         if ($name['literal'] !== '') {
-            return $name['literal'];
+            return $this->renderInstitutionName($name, $options);
         }
 
         $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
@@ -5734,7 +5735,7 @@ final class CitationCslProcessor
     private function renderBibliographyName(array $name, array $options, int $index): string
     {
         if ($name['literal'] !== '') {
-            return $name['literal'];
+            return $this->renderInstitutionName($name, $options);
         }
 
         $nonDroppingParticle = (string) $name['nonDroppingParticle'];
@@ -5797,6 +5798,51 @@ final class CitationCslProcessor
         }
 
         return $entry;
+    }
+
+    /**
+     * @param array<string, mixed> $name
+     * @param array<string, mixed> $options
+     */
+    private function renderInstitutionName(array $name, array $options): string
+    {
+        $literal = trim((string) ($name['literal'] ?? ''));
+        if ($literal === '') {
+            return '';
+        }
+
+        $institution = $options['institution'] ?? null;
+        if (!is_array($institution)) {
+            return $literal;
+        }
+
+        $parts = $institution['parts'] ?? [];
+        $longPart = is_array($parts) && is_array($parts['long'] ?? null) ? $parts['long'] : null;
+
+        return $this->formatInstitutionPart($literal, $longPart);
+    }
+
+    /**
+     * @param array<string, mixed>|null $format
+     */
+    private function formatInstitutionPart(string $value, ?array $format): string
+    {
+        $value = trim($value);
+        if ($value === '' || $format === null) {
+            return $value;
+        }
+
+        if (($format['stripPeriods'] ?? false) === true) {
+            $value = str_replace('.', '', $value);
+        }
+
+        $value = $this->applyNamePartTextCase($value, $format);
+
+        if (($format['quotes'] ?? false) === true) {
+            $value = $this->style->term('open-quote') . $value . $this->style->term('close-quote');
+        }
+
+        return (string) ($format['prefix'] ?? '') . $value . (string) ($format['suffix'] ?? '');
     }
 
     /**
