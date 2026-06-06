@@ -2375,6 +2375,20 @@ try {
 } catch (RuntimeException $exception) {
     $compressedPatchedDataRejected = str_contains($exception->getMessage(), 'Compressed-patched ZIP entries');
 }
+$aesExtraFieldRejected = false;
+$aesExtraField = pack('vva*', 0x9901, strlen('AE' . "\x02\x00" . 'vendor' . "\x08\x00"), 'AE' . "\x02\x00" . 'vendor' . "\x08\x00");
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/aes-review.bin',
+            'data' => 'AES extra field metadata must not become import media bytes',
+            'compressionMethod' => 0,
+            'extraFieldData' => $aesExtraField,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $aesExtraFieldRejected = str_contains($exception->getMessage(), 'WinZip AES extra field');
+}
 $versionNeededMismatchRejected = false;
 try {
     ZipPackage::fromString($buildVersionNeededMismatchBackedPackage());
@@ -3536,6 +3550,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP compressed-patched data metadata to be rejected before media import');
     }
 
+    if (!$aesExtraFieldRejected) {
+        throw new RuntimeException('Expected ZIP AES extra field metadata to be rejected before media import');
+    }
+
     if ($package->entry('/word/document.xml')->neededToExtractVersion() !== 20) {
         throw new RuntimeException('Expected ZIP version-needed metadata to be exposed for package preflight');
     }
@@ -3745,6 +3763,7 @@ echo 'zipCentralDirectorySignatureVerification=' . $centralDirectorySignaturePre
 echo 'strongEncryptionPolicy=' . ($strongEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'centralDirectoryEncryptionPolicy=' . ($centralDirectoryEncryptionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'compressedPatchedDataPolicy=' . ($compressedPatchedDataRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipAesExtraFieldPolicy=' . ($aesExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodPolicy=' . ($unsupportedCompressionMethodRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnsupportedCompressionMethodEntry=' . ($unsupportedCompressionMethodPreflight['unsupportedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipUnknownCreatorHostPolicy=' . ($unknownCreatorHostRejected ? 'rejected' : 'not-rejected') . "\n";

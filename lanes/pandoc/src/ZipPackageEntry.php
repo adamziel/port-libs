@@ -20,6 +20,7 @@ final class ZipPackageEntry
     private const UNIX_SOCKET_TYPE = 0xc000;
     private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
     private const ZIP64_EXTENDED_INFORMATION_EXTRA_ID = 0x0001;
+    private const WINZIP_AES_EXTRA_ID = 0x9901;
 
     public function __construct(
         public readonly string $name,
@@ -348,6 +349,9 @@ final class ZipPackageEntry
             $data = substr($bytes, $dataStart, $size);
             if ($id === self::ZIP64_EXTENDED_INFORMATION_EXTRA_ID) {
                 throw new \RuntimeException("ZIP64 extra field for {$label} is not supported by this bounded package reader");
+            }
+            if ($id === self::WINZIP_AES_EXTRA_ID) {
+                throw new \RuntimeException("WinZip AES extra field for {$label} is not supported by this bounded package reader");
             }
             if ($id === 0x5455) {
                 self::parseExtendedTimestamps($data, $label);

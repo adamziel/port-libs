@@ -2489,6 +2489,36 @@ return [
         ])));
     },
 
+    'rejects winzip aes extra fields before package import handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $aesExtra = pack('vva*', 0x9901, strlen('AE' . "\x02\x00" . 'vendor' . "\x08\x00"), 'AE' . "\x02\x00" . 'vendor' . "\x08\x00");
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/aes-central.bin',
+                'data' => 'AES extra metadata should stay blocked from central entries',
+                'method' => 0,
+                'centralExtra' => $aesExtra,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/aes-local.bin',
+                'data' => 'AES extra metadata should stay blocked from local headers',
+                'method' => 0,
+                'localExtra' => $aesExtra,
+                'centralExtra' => '',
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/aes-generated.bin',
+                'data' => 'AES extra metadata should stay blocked in generated packages',
+                'compressionMethod' => 0,
+                'extraFieldData' => $aesExtra,
+            ],
+        ]));
+    },
+
     'rejects unsupported zip general purpose flag bits before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
