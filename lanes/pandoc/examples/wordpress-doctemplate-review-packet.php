@@ -275,6 +275,35 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    $markdownFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'titleblock' => "# Markdown Review Packet\n\nNative default handoff",
+        'header-includes' => ['<!-- wp:html --><aside>Header audit</aside><!-- /wp:html -->'],
+        'include-before' => ['<!-- wp:paragraph --><p>Before Markdown body.</p><!-- /wp:paragraph -->'],
+        'toc' => true,
+        'table-of-contents' => '- [Body](#body)',
+        'body' => "## Body\n\n<!-- wp:paragraph --><p>Markdown body.</p><!-- /wp:paragraph -->",
+        'include-after' => ['<!-- wp:paragraph --><p>After Markdown body.</p><!-- /wp:paragraph -->'],
+    ], null, 'gfm');
+    foreach ([
+        "# Markdown Review Packet\n\nNative default handoff",
+        "<!-- wp:html --><aside>Header audit</aside><!-- /wp:html -->\n\n<!-- wp:paragraph --><p>Before Markdown body.</p><!-- /wp:paragraph -->",
+        "- [Body](#body)\n\n## Body",
+        "<!-- wp:paragraph --><p>Markdown body.</p><!-- /wp:paragraph -->\n\n<!-- wp:paragraph --><p>After Markdown body.</p><!-- /wp:paragraph -->",
+    ] as $needle) {
+        if (!str_contains($markdownFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate markdown default fallback: {$needle}\n");
+            exit(1);
+        }
+    }
+
+    $commonmarkFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'body' => 'CommonMark review body',
+    ], null, 'commonmark_x');
+    if ($commonmarkFallback !== "CommonMark review body\n") {
+        fwrite(STDERR, "Missing expected doctemplate commonmark_x default fallback\n");
+        exit(1);
+    }
+
     $loopGuard = (new DocTemplate())->render('${ loop() }', [], [
         'loop' => '${ loop() }',
     ]);

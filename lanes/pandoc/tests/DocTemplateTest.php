@@ -1171,6 +1171,42 @@ HTML,
         $t->same(false, str_contains($output, '<meta name="robots" content="noindex" />'));
     },
 
+    'renders bounded pandoc default markdown and commonmark template resources' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $markdown = $renderer->renderResource('templates/default', [], [
+            'titleblock' => "# Batch 42 Review\n\nMigration handoff",
+            'header-includes' => ['<!-- wp:html --><aside>Header note</aside><!-- /wp:html -->'],
+            'include-before' => ['<!-- wp:paragraph --><p>Before import.</p><!-- /wp:paragraph -->'],
+            'toc' => true,
+            'table-of-contents' => '- [Body](#body)',
+            'body' => "## Body\n\nImported content.",
+            'include-after' => ['<!-- wp:paragraph --><p>After import.</p><!-- /wp:paragraph -->'],
+        ], null, 'markdown_strict');
+
+        $t->contains("# Batch 42 Review\n\nMigration handoff", $markdown);
+        $t->contains("<!-- wp:html --><aside>Header note</aside><!-- /wp:html -->\n\n<!-- wp:paragraph --><p>Before import.</p><!-- /wp:paragraph -->", $markdown);
+        $t->contains("- [Body](#body)\n\n## Body\n\nImported content.", $markdown);
+        $t->contains("Imported content.\n\n<!-- wp:paragraph --><p>After import.</p><!-- /wp:paragraph -->", $markdown);
+
+        $t->same("GFM body\n", $renderer->renderResource('templates/default', [], [
+            'body' => 'GFM body',
+        ], null, 'gfm'));
+        $t->same("CommonMark body\n", $renderer->renderResource('templates/default.commonmark', [], [
+            'body' => 'CommonMark body',
+        ]));
+        $t->same('custom markdown', $renderer->renderResource('templates/default', [
+            'templates/default.markdown' => 'custom $body$',
+        ], [
+            'body' => 'markdown',
+        ], null, 'markdown'));
+        $t->same('custom commonmark', $renderer->renderResource('templates/default', [
+            'templates/default.commonmark' => 'custom $body$',
+        ], [
+            'body' => 'commonmark',
+        ], null, 'commonmark_x'));
+    },
+
     'renders pandoc doctemplate path partials and piped variables applied to partials' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->renderResource('review-packets/review.html', [
             'review-packets/review.html' => <<<'HTML'

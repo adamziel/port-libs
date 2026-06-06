@@ -195,6 +195,8 @@ final class DocTemplate
     {
         return match ($format) {
             'html' => 'html5',
+            'markdown_strict', 'multimarkdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra' => 'markdown',
+            'gfm', 'commonmark_x' => 'commonmark',
             'native', 'csljson', 'json', 'xml', 'fb2', 'pptx', 'ipynb' => '',
             default => $format,
         };
@@ -204,8 +206,36 @@ final class DocTemplate
     {
         return match ($path) {
             'templates/default.html5' => $this->defaultHtml5Template(),
+            'templates/default.markdown', 'templates/default.commonmark' => $this->defaultMarkdownTemplate(),
             default => null,
         };
+    }
+
+    private function defaultMarkdownTemplate(): string
+    {
+        return <<<'MD'
+$if(titleblock)$
+$titleblock$
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+$table-of-contents$
+
+$endif$
+$body$
+$for(include-after)$
+
+$include-after$
+$endfor$
+MD;
     }
 
     private function defaultHtml5Template(): string
