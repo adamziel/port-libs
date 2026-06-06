@@ -410,7 +410,7 @@ final class PdfImageRenderer
      * and matte decisions a review UI needs before handing the crop to a future
      * raster backend.
      *
-     * @param array<int, string> $objects
+     * @param array<int|string, mixed> $objects
      * @return array{
      *     image_filters: list<string>,
      *     image_filter_details: list<array{filter: string, preview_only: bool, decode_parms: array<string, int|bool|string|null|list<string>>|null}>,
@@ -793,7 +793,7 @@ final class PdfImageRenderer
      * The native port keeps JPX raster data review-only, while preserving the
      * document PDF/A profile context that should govern device color spaces.
      *
-     * @param array<int, string> $objects
+     * @param array<int|string, mixed> $objects
      * @param array<string, mixed> $documentMetadata Pass PdfMetadataExtractor output or its `pdfa` subarray.
      * @return array<string, mixed>
      */
@@ -1057,7 +1057,7 @@ final class PdfImageRenderer
      * keeps the payload excluded from visible text while making stencil alpha
      * reviewable without pypdfium/PIL raster execution.
      *
-     * @param array<int, string> $objects
+     * @param array<int|string, mixed> $objects
      * @return array<string, mixed>
      */
     public function inlineImageMaskPreviewRows(string $inlineImageDictionary, string $payload, array $objects = [], int $maxPixels = 16): array
@@ -1207,7 +1207,7 @@ final class PdfImageRenderer
      * native, expands palette rows, and attaches ColorKey or soft-mask alpha
      * metadata before the Marker RGB preview handoff.
      *
-     * @param array<int, string> $objects
+     * @param array<int|string, mixed> $objects
      * @return array<string, mixed>
      */
     public function inlineIndexedImageStreamPreviewRows(string $inlineImageDictionary, string $payload, array $objects = [], int $maxPixels = 16): array
@@ -5565,7 +5565,7 @@ final class PdfImageRenderer
     }
 
     /**
-     * @param array<int, string> $objects
+     * @param array<int|string, mixed> $objects
      * @return array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null
      */
     private function imageDecodeDetails(string $dictionary, array $objects, ?int $expectedComponents, bool $defaultIfMissing = false): ?array
@@ -5639,7 +5639,7 @@ final class PdfImageRenderer
     }
 
     /**
-     * @param array<int, string> $objects
+     * @param array<int|string, mixed> $objects
      * @param array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}|null $decodePlan
      * @return array{present: bool, width: int|null, height: int|null, bits_per_component: int, decode: array{ranges: list<array{min: float, max: float}>, component_count: int, expected_components: int|null, valid_for_components: bool, identity: bool, inverted_components: list<int>, source: string}, opacity_for_zero: float, opacity_for_one: float, inverted: bool}|null
      */
@@ -9231,8 +9231,8 @@ final class PdfImageRenderer
     }
 
     /**
-     * @param array<int, string> $objects
-     * @param array<int, true> $seenObjects
+     * @param array<int|string, mixed> $objects
+     * @param array<string, true> $seenObjects
      */
     private function resolvePdfValue(string $value, array $objects, array $seenObjects = []): string
     {
@@ -9240,9 +9240,9 @@ final class PdfImageRenderer
     }
 
     /**
-     * @param array<int, string> $objects
-     * @param array<int, true> $seenObjects
-     * @return array{value: string, seen: array<int, true>}
+     * @param array<int|string, mixed> $objects
+     * @param array<string, true> $seenObjects
+     * @return array{value: string, seen: array<string, true>}
      */
     private function resolvePdfValueWithSeen(string $value, array $objects, array $seenObjects = []): array
     {
@@ -9253,13 +9253,43 @@ final class PdfImageRenderer
         }
 
         $objectNumber = $reference['objectNumber'];
-        if (isset($seenObjects[$objectNumber]) || !isset($objects[$objectNumber])) {
+        $generation = $reference['generation'];
+        $seenKey = $objectNumber . ':' . $generation;
+        $objectBody = $this->pdfObjectMapValueForReference($objects, $objectNumber, $generation);
+        if (isset($seenObjects[$seenKey]) || $objectBody === null) {
             return ['value' => $trimmed, 'seen' => $seenObjects];
         }
 
-        $seenObjects[$objectNumber] = true;
+        $seenObjects[$seenKey] = true;
 
-        return $this->resolvePdfValueWithSeen(trim($objects[$objectNumber]), $objects, $seenObjects);
+        return $this->resolvePdfValueWithSeen(trim($objectBody), $objects, $seenObjects);
+    }
+
+    /**
+     * @param array<int|string, mixed> $objects
+     */
+    private function pdfObjectMapValueForReference(array $objects, int $objectNumber, int $generation): ?string
+    {
+        foreach ([$objectNumber . ':' . $generation, $objectNumber . ' ' . $generation] as $key) {
+            if (array_key_exists($key, $objects)) {
+                return $this->pdfObjectMapScalarString($objects[$key]);
+            }
+        }
+
+        if ($generation === 0 && array_key_exists($objectNumber, $objects)) {
+            return $this->pdfObjectMapScalarString($objects[$objectNumber]);
+        }
+
+        return null;
+    }
+
+    private function pdfObjectMapScalarString(mixed $value): ?string
+    {
+        if (is_string($value) || is_int($value) || is_float($value) || is_bool($value)) {
+            return (string) $value;
+        }
+
+        return null;
     }
 
     /**

@@ -244,6 +244,8 @@ $commentInlineMaskDictionary = "/W 2 /H 1 /IM true /D [1 0 % decoy 0 1\n]";
 $nullInlineDecodePayload = "\x80BT /F1 12 Tf 72 478 Td (Null Decode Inline Noise) Tj ET";
 $nullInlineDecodeDictionary = '/W 1 /H 1 /CS /G /BPC 8 /D null';
 $nullInlineMaskDecodeDictionary = '/W 1 /H 1 /IM true /D null';
+$generationExactInlineDecodePayload = "\x80BT /F1 12 Tf 72 477 Td (Generation Decode Inline Noise) Tj ET";
+$generationExactInlineDecodeDictionary = '/W 1 /H 1 /CS /G /BPC 8 /D 104 1 R';
 $overlargeInlineGeometryInteger = '9' . str_repeat('0', 40);
 $overlargeInlineGeometryPayload = 'abc EI BT /F1 12 Tf 72 476 Td (Overlarge Geometry Inline Noise) Tj ET rawtail';
 $overlargeInlineGeometryDictionary = "/W {$overlargeInlineGeometryInteger} /H 1 /CS /G /BPC 8 /D [0 1]";
@@ -486,6 +488,10 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BI {$nullInlineMaskDecodeDictionary} ID\n"
     . "\x80\nEI\n"
     . "BT /F1 12 Tf 72 490 Td (After Null Decode Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 489 Td (Before Generation Decode Inline) Tj ET\n"
+    . "BI {$generationExactInlineDecodeDictionary} ID\n"
+    . $generationExactInlineDecodePayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 489 Td (After Generation Decode Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 490 Td (Before Overlarge Geometry Inline) Tj ET\n"
     . "BI {$overlargeInlineGeometryDictionary} ID\n"
     . $overlargeInlineGeometryPayload . "\nEI\n"
@@ -568,6 +574,21 @@ $indirectMaskReview = $renderer->inlineImageMaskPreviewRows(
         104 => '1',
     ],
     4
+);
+$generationExactInlineObjects = [
+    104 => '[0 3]',
+    '104:1' => '[1 0]',
+];
+$generationExactInlineReview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+    $generationExactInlineDecodeDictionary,
+    "\x80",
+    $generationExactInlineObjects,
+    1
+);
+$missingGenerationInlineReview = $renderer->inlineImageReviewPlan(
+    '/W 1 /H 1 /CS /G /BPC 8 /D 104 2 R',
+    "\x80",
+    $generationExactInlineObjects
 );
 $lzwDecodedImageBytes = "\x00\x55\xff";
 $lzwIndexedReview = $renderer->inlineIndexedImageStreamPreviewRows(
@@ -1120,6 +1141,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_identity_crypt_jpx_post_eoc_surplus_payload' => str_contains($identityCryptJpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_direct_null_filter_samples' => str_contains($directNullFilterSamples, ' EI '),
     'fake_ei_inside_indirect_geometry_inline_payload' => str_contains($indirectGeometryInlinePayload, ' EI '),
+    'fake_ei_inside_generation_exact_inline_decode_payload' => str_contains($generationExactInlineDecodePayload, 'BT /F1'),
     'fake_ei_inside_no_floor_native_filter_payloads' => $noFloorNativePayloadsHaveFakeEi,
     'fake_ei_inside_wrapped_no_floor_terminal_flate_decoded_surplus_payload' => str_contains($wrappedNoFloorTerminalFlateDecodedSurplus, ' EI '),
     'wrapped_no_floor_terminal_flate_raw_payload_has_no_fake_ei' => !str_contains($wrappedNoFloorTerminalFlatePayload, ' EI ')
@@ -1207,6 +1229,8 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Comment Inline Decode',
         'Before Null Decode Inline',
         'After Null Decode Inline',
+        'Before Generation Decode Inline',
+        'After Generation Decode Inline',
         'Before Overlarge Geometry Inline',
         'After Overlarge Geometry Inline',
         'Before A85 No Floor Inline Image',
@@ -1486,6 +1510,16 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'null_inline_imagemask_opacity' => array_column($nullInlineMaskDecodePreview['pixels'] ?? [], 'opacity'),
     'null_inline_decode_payload_excluded' => in_array('After Null Decode Inline', $lines, true)
         && !str_contains($plainText, 'Null Decode Inline Noise'),
+    'generation_exact_inline_decode_selected' => ($generationExactInlineReview['image_decode']['source'] ?? null) === 'explicit'
+        && ($generationExactInlineReview['image_decode']['inverted_components'] ?? []) === [0]
+        && ($generationExactInlineReview['image_decode']['ranges'][0]['min'] ?? null) === 1.0
+        && ($generationExactInlineReview['image_decode']['ranges'][0]['max'] ?? null) === 0.0,
+    'generation_exact_inline_decode_decoded_gray' => $generationExactInlineReview['pixels'][0]['decoded_gray'] ?? null,
+    'generation_zero_inline_decode_not_used_for_nonzero_ref' => ($missingGenerationInlineReview['image_decode']['source'] ?? null) === 'invalid'
+        && ($missingGenerationInlineReview['inline_image']['native_raster_decode'] ?? true) === false
+        && ($missingGenerationInlineReview['inline_image_review_only'] ?? false) === true,
+    'generation_exact_inline_decode_payload_excluded' => in_array('After Generation Decode Inline', $lines, true)
+        && !str_contains($plainText, 'Generation Decode Inline Noise'),
     'literal_inline_decode_decoy_fails_closed' => ($literalInlineDecodeReview['image_decode_component_mismatch'] ?? false) === true
         && ($literalInlineDecodeReview['image_decode']['component_count'] ?? null) === 0
         && ($literalInlineDecodeReview['inline_image_review_only'] ?? false) === true,
@@ -1550,6 +1584,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
         && !str_contains($plainText, 'Duplicate Inline Decode Noise')
         && !str_contains($plainText, 'Null Decode Inline Noise')
+        && !str_contains($plainText, 'Generation Decode Inline Noise')
         && !str_contains($plainText, 'Overlarge Geometry Inline Noise')
         && !str_contains($plainText, 'decoy 0 1')
         && !str_contains($plainText, 'A85 No Floor Inline Noise')

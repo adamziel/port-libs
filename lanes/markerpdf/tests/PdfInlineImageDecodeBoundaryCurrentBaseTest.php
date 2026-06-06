@@ -1974,6 +1974,66 @@ return [
         $t->same([0.0, 1.0, 0.0, 1.0], array_column($preview['pixels'], 'opacity'));
         $t->contains('image_mask_decode_inverts_stencil', implode(',', $preview['notes']));
     },
+    'resolves generation-exact inline image Decode operands before preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $renderer = new PdfImageRenderer();
+        $extractor = new PdfTextExtractor();
+        $objects = [
+            103 => '[0 3]',
+            '103 1' => '[1 0]',
+            104 => '[0 1]',
+            '104:1' => '[1 0]',
+        ];
+        $grayDictionary = '/W 1 /H 1 /CS /G /BPC 8 /D 103 1 R';
+        $missingGenerationDictionary = '/W 1 /H 1 /CS /G /BPC 8 /D 103 2 R';
+        $maskDictionary = '/W 1 /H 1 /IM true /D 104 1 R';
+        $payload = "\x80BT /F1 12 Tf 72 690 Td (Generation Decode Payload Noise) Tj ET";
+        $content = "BT /F1 12 Tf 72 720 Td (Before Generation Decode Inline) Tj ET\n"
+            . "BI {$grayDictionary} ID\n"
+            . $payload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Generation Decode Inline) Tj ET";
+        $plainText = $extractor->extractPlainText($inlineImageDecodeBoundaryPdf($content));
+
+        $grayReview = $renderer->inlineImageReviewPlan($grayDictionary, "\x80", $objects);
+        $grayPreview = $renderer->inlineImageColorSpaceMaskOutputPreviewRows($grayDictionary, "\x80", $objects, 1);
+        $maskPreview = $renderer->inlineImageMaskPreviewRows($maskDictionary, "\x80", $objects, 1);
+        $missingGenerationReview = $renderer->inlineImageReviewPlan($missingGenerationDictionary, "\x80", $objects);
+
+        $expectedDecode = [
+            'ranges' => [
+                ['min' => 1.0, 'max' => 0.0],
+            ],
+            'component_count' => 1,
+            'expected_components' => 1,
+            'valid_for_components' => true,
+            'identity' => false,
+            'inverted_components' => [0],
+            'source' => 'explicit',
+        ];
+        $t->same("Before Generation Decode Inline\nAfter Generation Decode Inline", $plainText);
+        $t->true(!str_contains($plainText, 'Generation Decode Payload Noise'));
+        $t->true(str_contains($payload, 'BT /F1'));
+        $t->same($expectedDecode, $grayReview['image_decode']);
+        $t->same($expectedDecode, $grayPreview['image_decode']);
+        $t->same(1, $grayPreview['preview_pixel_count']);
+        $t->same([128.0], $grayPreview['pixels'][0]['raw_sample']);
+        $t->same(1 - (128 / 255), $grayPreview['pixels'][0]['decoded_gray']);
+        $t->contains('image_decode_inverts_components_before_rgb', implode(',', $grayPreview['notes']));
+        $t->same($expectedDecode, $maskPreview['image_mask']['decode']);
+        $t->same([1.0], array_column($maskPreview['pixels'], 'raw_sample'));
+        $t->same([0.0], array_column($maskPreview['pixels'], 'opacity'));
+        $t->contains('image_mask_decode_inverts_stencil', implode(',', $maskPreview['notes']));
+        $t->same(true, str_contains($grayReview['inline_image']['canonical_dictionary'], '/Decode 103 1 R'));
+        $t->same('invalid', $missingGenerationReview['image_decode']['source']);
+        $t->same(0, $missingGenerationReview['image_decode']['component_count']);
+        $t->same(false, $missingGenerationReview['image_decode']['valid_for_components']);
+        $t->same(true, $missingGenerationReview['image_decode_component_mismatch']);
+        $t->same(true, $missingGenerationReview['inline_image_review_only']);
+        $t->same(false, $missingGenerationReview['inline_image']['native_raster_decode']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows($missingGenerationDictionary, "\x80", $objects, 1)
+        );
+    },
     'ignores PDF comment numbers inside inline image Decode arrays before preview rows' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
         $renderer = new PdfImageRenderer();
         $extractor = new PdfTextExtractor();
