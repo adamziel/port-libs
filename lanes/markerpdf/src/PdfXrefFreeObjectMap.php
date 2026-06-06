@@ -144,7 +144,7 @@ final class PdfXrefFreeObjectMap
                 continue;
             }
 
-            if (preg_match('/^(\d+)\s+(\d+)$/', $line, $header) !== 1) {
+            if (preg_match('/^(\+?\d+)\s+(\+?\d+)$/', $line, $header) !== 1) {
                 $index++;
                 continue;
             }

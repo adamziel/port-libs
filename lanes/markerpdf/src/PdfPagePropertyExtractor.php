@@ -2900,7 +2900,7 @@ final class PdfPagePropertyExtractor
                 continue;
             }
 
-            if (preg_match('/^(\d+)\s+(\d+)(?:\s*(?:%.*)?)$/', $line, $section) !== 1) {
+            if (preg_match('/^(\+?\d+)\s+(\+?\d+)(?:\s*(?:%.*)?)$/', $line, $section) !== 1) {
                 continue;
             }
 

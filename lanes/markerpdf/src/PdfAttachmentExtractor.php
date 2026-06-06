@@ -5652,7 +5652,7 @@ final class PdfAttachmentExtractor
                 continue;
             }
 
-            if (preg_match('/^(\d+)\s+(\d+)(?:\s*(?:%.*)?)$/', $line, $section) !== 1) {
+            if (preg_match('/^(\+?\d+)\s+(\+?\d+)(?:\s*(?:%.*)?)$/', $line, $section) !== 1) {
                 if (!$foundSection) {
                     return null;
                 }
