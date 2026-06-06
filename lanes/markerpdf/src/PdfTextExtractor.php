@@ -16933,7 +16933,7 @@ final class PdfTextExtractor
                 return ['state' => 'inherit'];
             }
 
-            $body = $this->dictionaryObjectBody($objectBody);
+            $body = $this->singleDictionaryObjectBody($objectBody);
             return $body === null
                 ? ['state' => 'blocked']
                 : [
@@ -16994,7 +16994,7 @@ final class PdfTextExtractor
                 return null;
             }
 
-            return $this->dictionaryObjectBody($resolved['body']);
+            return $this->singleDictionaryObjectBody($resolved['body']);
         }
 
         return str_starts_with($value, '<<') ? $this->readPdfDictionaryAt($value, 0) : null;

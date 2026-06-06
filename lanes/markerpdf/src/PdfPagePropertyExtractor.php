@@ -1341,7 +1341,7 @@ final class PdfPagePropertyExtractor
                 );
             }
 
-            $resources = $this->resolveDictionaryFromValue($resourceValue, $objects);
+            $resources = $this->resolvePageResourceDictionaryFromValue($resourceValue, $objects);
             if ($resources === null) {
                 return $this->malformedPageResourcesMetadata(
                     $pageObjectNumber,
@@ -1386,6 +1386,58 @@ final class PdfPagePropertyExtractor
         }
 
         return null;
+    }
+
+    /**
+     * Page /Resources references are parser lookup roots. Accept reference
+     * wrappers, null wrappers, and one dictionary object; reject trailing tokens.
+     *
+     * @param array<int, string> $objects
+     * @return array{body: string, object: int|null, generation: int|null}|null
+     */
+    private function resolvePageResourceDictionaryFromValue(?string $value, array $objects): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $reference = $this->objectReferenceFromValue($value);
+        if ($reference !== null) {
+            $resolved = $this->resolvedObjectValueFromReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            if ($resolved === null) {
+                return null;
+            }
+
+            $body = $this->singleDictionaryObjectBody($resolved['body']);
+            return $body === null
+                ? null
+                : [
+                    'body' => $body,
+                    'object' => $resolved['object'],
+                    'generation' => $resolved['generation'],
+                ];
+        }
+
+        $resolved = $this->resolveRawValue($value, $objects);
+        if ($resolved === null) {
+            return null;
+        }
+
+        $trimmed = trim($resolved);
+        if (!str_starts_with($trimmed, '<<')) {
+            return null;
+        }
+
+        $dictionary = $this->readPdfDictionaryAt($trimmed, 0);
+        if ($dictionary === null || $this->skipWhitespace($trimmed, $dictionary['end']) < strlen($trimmed)) {
+            return null;
+        }
+
+        return ['body' => $dictionary['body'], 'object' => null, 'generation' => null];
     }
 
     /**
@@ -3374,6 +3426,19 @@ final class PdfPagePropertyExtractor
 
         $dictionary = $this->readPdfDictionaryAt($objectBody, $offset);
         return $dictionary === null ? null : $dictionary['body'];
+    }
+
+    private function singleDictionaryObjectBody(string $objectBody): ?string
+    {
+        $offset = $this->skipWhitespace($objectBody, 0);
+        $dictionary = $this->readPdfDictionaryAt($objectBody, $offset);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        return $this->skipWhitespace($objectBody, $dictionary['end']) >= strlen($objectBody)
+            ? $dictionary['body']
+            : null;
     }
 
     private function objectBodyIsStreamObject(string $objectBody): bool

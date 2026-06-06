@@ -464,6 +464,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdf-dctdecode-renderer-stream-boundary-currentbase.php` maps DCTDecode renderer image stream marker-boundary metadata into WordPress media review. It records renderer-side JPEG SOI/EOI, SOS, byte-stuffed `0xff00`, and restart-marker evidence while excluding JPEG payload bytes from Gutenberg paragraphs and avoiding Python, pypdfium/PDFium, PIL, Poppler, Ghostscript, models, OCR, or external PDF tools.
 
+`examples/wordpress-pdf-page-resource-object-tail-currentbase.php` maps malformed indirect page `/Resources` objects with trailing non-comment tokens into a WordPress-safe import boundary. It rejects the resource dictionary prefix before inherited font/Form XObject lookup, emits only safe fallback text, and excludes stale resource font text, Form XObject payload text, and resource names without Python, pdftext, pypdfium/PDFium execution, models, OCR, or external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
