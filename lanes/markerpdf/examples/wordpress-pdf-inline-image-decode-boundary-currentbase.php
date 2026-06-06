@@ -241,6 +241,9 @@ $duplicateInlineDecodeDictionary = '/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [
 $commentInlineDecodePayload = "\x00";
 $commentInlineDecodeDictionary = "/W 1 /H 1 /CS [/I /RGB 3 91 0 R] /BPC 8 /D [0 3 % decoy 0 1 0 1\n]";
 $commentInlineMaskDictionary = "/W 2 /H 1 /IM true /D [1 0 % decoy 0 1\n]";
+$overlargeInlineGeometryInteger = '9' . str_repeat('0', 40);
+$overlargeInlineGeometryPayload = 'abc EI BT /F1 12 Tf 72 476 Td (Overlarge Geometry Inline Noise) Tj ET rawtail';
+$overlargeInlineGeometryDictionary = "/W {$overlargeInlineGeometryInteger} /H 1 /CS /G /BPC 8 /D [0 1]";
 $directNullFilterSamples = 'A EI BT Z';
 $directNullFilterDictionary = '/W ' . strlen($directNullFilterSamples) . ' /H 1 /CS /G /BPC 8 /F null /DP << /Predictor 12 /Columns 0 >> /D [0 1]';
 $indirectGeometryInlinePayload = 'abc EI BT /F1 12 Tf 72 506 Td (Indirect Geometry Inline Noise) Tj ET rawtail';
@@ -473,7 +476,11 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . $commentInlineDecodePayload . "\nEI\n"
     . "BI {$commentInlineMaskDictionary} ID\n"
     . "\x80\nEI\n"
-    . "BT /F1 12 Tf 72 492 Td (After Comment Inline Decode) Tj ET";
+    . "BT /F1 12 Tf 72 492 Td (After Comment Inline Decode) Tj ET\n"
+    . "BT /F1 12 Tf 72 490 Td (Before Overlarge Geometry Inline) Tj ET\n"
+    . "BI {$overlargeInlineGeometryDictionary} ID\n"
+    . $overlargeInlineGeometryPayload . "\nEI\n"
+    . "BT /F1 12 Tf 72 488 Td (After Overlarge Geometry Inline) Tj ET";
 
 foreach ($noFloorNativeInlineCases as $case) {
     $payload = $case['payload_prefix']
@@ -1033,6 +1040,21 @@ try {
 } catch (InvalidArgumentException) {
     $malformedInlineJpxDecodeRejected = true;
 }
+$overlargeInlineGeometryReview = $renderer->inlineImageReviewPlan(
+    $overlargeInlineGeometryDictionary,
+    $overlargeInlineGeometryPayload
+);
+$overlargeInlineGeometryPreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $overlargeInlineGeometryDictionary,
+        $overlargeInlineGeometryPayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $overlargeInlineGeometryPreviewRejected = true;
+}
 
 $noFloorNativePayloadsExcluded = true;
 $noFloorNativePayloadsHaveFakeEi = true;
@@ -1431,6 +1453,13 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && ($hexInlineDecodeReview['image_decode']['component_count'] ?? null) === 0
         && ($hexInlineDecodeReview['inline_image_review_only'] ?? false) === true,
     'comment_inline_decode_payload_excluded' => in_array('After Comment Inline Decode', $lines, true),
+    'overlarge_inline_geometry_payload_excluded' => in_array('After Overlarge Geometry Inline', $lines, true)
+        && !str_contains($plainText, 'Overlarge Geometry Inline Noise')
+        && !str_contains($plainText, 'abc EI'),
+    'overlarge_inline_geometry_review_only' => ($overlargeInlineGeometryReview['inline_image_geometry_operand_invalid'] ?? false) === true
+        && ($overlargeInlineGeometryReview['inline_image']['native_raster_decode'] ?? true) === false
+        && ($overlargeInlineGeometryReview['inline_image_review_only'] ?? false) === true,
+    'overlarge_inline_geometry_preview_rejected' => $overlargeInlineGeometryPreviewRejected,
     'unresolved_inline_decode_review_only' => $unresolvedInlineDecodeReview['inline_image_review_only'] ?? null,
     'unresolved_inline_decode_native_raster_decode' => $unresolvedInlineDecodeReview['inline_image']['native_raster_decode'] ?? null,
     'unresolved_inline_decode_preview_rejected' => $unresolvedInlineDecodeRejected,
@@ -1480,6 +1509,7 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Identity Crypt Flate Inline Noise')
         && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
         && !str_contains($plainText, 'Duplicate Inline Decode Noise')
+        && !str_contains($plainText, 'Overlarge Geometry Inline Noise')
         && !str_contains($plainText, 'decoy 0 1')
         && !str_contains($plainText, 'A85 No Floor Inline Noise')
         && !str_contains($plainText, 'AHx No Floor Inline Noise')

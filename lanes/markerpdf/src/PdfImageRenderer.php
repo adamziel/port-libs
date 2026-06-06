@@ -901,8 +901,12 @@ final class PdfImageRenderer
         $operandBoundaryFilters = $this->imageFilterOperandBoundaryFilters($filters);
         $unsupportedFilters = $this->unsupportedInlineImageFilters($filters, $canonical, $objects);
         $decodeOperandInvalid = ($plan['image_decode_component_mismatch'] ?? false) === true;
+        $geometryOperandInvalid = $this->inlineImageGeometryOperandInvalid($canonical, $objects);
         if ($unsupportedFilters !== []) {
             $plan['image_filter_boundary']['unsupported_filters'] = $unsupportedFilters;
+            $plan['image_filter_boundary']['native_raster_decode'] = false;
+        }
+        if ($geometryOperandInvalid) {
             $plan['image_filter_boundary']['native_raster_decode'] = false;
         }
         $softMask = is_array($plan['soft_mask'] ?? null) ? $plan['soft_mask'] : null;
@@ -923,7 +927,9 @@ final class PdfImageRenderer
             'native_raster_decode' => $previewOnlyFilters === []
                 && $operandBoundaryFilters === []
                 && $unsupportedFilters === []
-                && !$decodeOperandInvalid,
+                && !$decodeOperandInvalid
+                && !$geometryOperandInvalid,
+            'geometry_operand_invalid' => $geometryOperandInvalid,
             'soft_mask_present' => $softMask !== null && ($softMask['present'] ?? false) === true,
             'soft_mask_source_object' => $softMaskBoundary['source_object'] ?? null,
             'soft_mask_uses_current_object_map' => $softMaskBoundary['uses_current_object_map'] ?? null,
@@ -935,13 +941,18 @@ final class PdfImageRenderer
         ];
         $plan['inline_image_abbreviations_expanded'] = $plan['inline_image']['uses_abbreviations'];
         $plan['inline_image_payload_excluded_from_text'] = true;
+        $plan['inline_image_geometry_operand_invalid'] = $geometryOperandInvalid;
         $plan['inline_image_review_only'] = $previewOnlyFilters !== []
             || $unsupportedFilters !== []
-            || $decodeOperandInvalid;
+            || $decodeOperandInvalid
+            || $geometryOperandInvalid;
         $plan['notes'][] = 'inline_image_dictionary_abbreviations_expanded';
         $plan['notes'][] = 'inline_image_payload_excluded_from_visible_text';
         if ($decodeOperandInvalid) {
             $plan['notes'][] = 'inline_image_decode_operand_review_only';
+        }
+        if ($geometryOperandInvalid) {
+            $plan['notes'][] = 'inline_image_geometry_operand_review_only';
         }
         if (in_array('JBIG2Decode', $filters, true)) {
             $plan['notes'][] = 'inline_jbig2_image_filter_review_only';
@@ -991,6 +1002,48 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param array<string, mixed> $plan
+     */
+    private function assertInlineImageGeometryValidForPreview(array $plan, string $context): void
+    {
+        if (($plan['inline_image_geometry_operand_invalid'] ?? false) !== true) {
+            return;
+        }
+
+        throw new InvalidArgumentException($context . ' geometry operands must be bounded positive integers before RGB preview.');
+    }
+
+    /**
+     * @param array<int|string, mixed> $objects
+     */
+    private function inlineImageGeometryOperandInvalid(string $dictionary, array $objects): bool
+    {
+        foreach (['Width', 'Height'] as $name) {
+            if ($this->extractPdfNameValue($dictionary, $name) !== null) {
+                $value = $this->integerNameValue($dictionary, $name, $objects);
+                if ($value === null || $value < 1) {
+                    return true;
+                }
+            }
+        }
+
+        if ($this->extractPdfNameValue($dictionary, 'BitsPerComponent') !== null) {
+            $value = $this->integerNameValue($dictionary, 'BitsPerComponent', $objects);
+            if ($value === null || $value < 1 || $value > 30) {
+                return true;
+            }
+        }
+
+        $width = $this->integerNameValue($dictionary, 'Width', $objects);
+        $height = $this->integerNameValue($dictionary, 'Height', $objects);
+        return is_int($width)
+            && is_int($height)
+            && $width > 0
+            && $height > 0
+            && $width > intdiv(PHP_INT_MAX, $height);
+    }
+
+    /**
      * Decodes bounded inline `/ImageMask` samples into opacity preview rows.
      *
      * Inline image masks have no indirect stream object, but they still follow
@@ -1008,6 +1061,7 @@ final class PdfImageRenderer
         }
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
+        $this->assertInlineImageGeometryValidForPreview($plan, 'Inline ImageMask');
         $imageMask = $plan['image_mask'] ?? null;
         if (!is_array($imageMask) || ($imageMask['present'] ?? false) !== true) {
             throw new InvalidArgumentException('Inline ImageMask preview requires /ImageMask true.');
@@ -1157,6 +1211,7 @@ final class PdfImageRenderer
         }
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
+        $this->assertInlineImageGeometryValidForPreview($plan, 'Inline Indexed image');
         if (($plan['uses_indexed_color_space'] ?? false) !== true) {
             throw new InvalidArgumentException('Inline Indexed image preview requires an Indexed color-space image.');
         }
@@ -1660,6 +1715,7 @@ final class PdfImageRenderer
         }
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
+        $this->assertInlineImageGeometryValidForPreview($plan, 'Inline JPX ColorKey preview');
         if (!in_array('JPXDecode', $plan['image_filters'], true)) {
             throw new InvalidArgumentException('Inline JPX ColorKey preview requires a JPXDecode inline image.');
         }
@@ -1787,6 +1843,7 @@ final class PdfImageRenderer
         }
 
         $plan = $this->inlineImageReviewPlan($inlineImageDictionary, $payload, $objects);
+        $this->assertInlineImageGeometryValidForPreview($plan, 'Inline image output preview');
         if (($plan['image_mask_applied_before_rgb'] ?? false) === true) {
             throw new InvalidArgumentException('Inline image output preview uses inlineImageMaskPreviewRows for /ImageMask stencil previews.');
         }
@@ -6787,9 +6844,12 @@ final class PdfImageRenderer
             }
         }
 
+        $filterDetails = $this->imageFilterDetails($dictionary, $objects);
         $boundary = [
             'filters' => $filters,
-            'filter_details' => $this->imageFilterDetails($dictionary, $objects),
+            'filter_details' => $filterDetails,
+            'public_filter_details' => $requireExplicitFilterEndMarkers
+                && $this->filterDetailsContainDecodeParms($filterDetails),
             'preview_only_filters' => $previewOnlyFilters,
             'unsupported_filters' => array_values($unsupportedFilters),
             'raw_length' => $stream === null ? null : strlen($stream),
@@ -6810,6 +6870,20 @@ final class PdfImageRenderer
         }
 
         return $boundary;
+    }
+
+    /**
+     * @param list<array{filter: string, preview_only: bool, decode_parms: mixed}> $filterDetails
+     */
+    private function filterDetailsContainDecodeParms(array $filterDetails): bool
+    {
+        foreach ($filterDetails as $detail) {
+            if (($detail['decode_parms'] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -6847,7 +6921,7 @@ final class PdfImageRenderer
             'decode_failed' => $boundary['decode_failed'],
         ];
 
-        if (is_array($boundary['filter_details'] ?? null)) {
+        if (($boundary['public_filter_details'] ?? false) === true && is_array($boundary['filter_details'] ?? null)) {
             $metadata['filter_details'] = $boundary['filter_details'];
         }
 
@@ -7889,7 +7963,35 @@ final class PdfImageRenderer
             return null;
         }
 
-        return (int) $match[0];
+        return $this->boundedPdfIntegerToken($match[0]);
+    }
+
+    private function boundedPdfIntegerToken(string $token): ?int
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?\d+$/', $token) !== 1) {
+            return null;
+        }
+
+        $digits = $token;
+        if ($digits[0] === '+' || $digits[0] === '-') {
+            $digits = substr($digits, 1);
+        }
+
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $max = $token[0] === '-' ? substr((string) PHP_INT_MIN, 1) : (string) PHP_INT_MAX;
+        if (
+            strlen($digits) > strlen($max)
+            || (strlen($digits) === strlen($max) && strcmp($digits, $max) > 0)
+        ) {
+            return null;
+        }
+
+        return (int) $token;
     }
 
     /**

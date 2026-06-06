@@ -2218,4 +2218,111 @@ return [
         $t->same('explicit', $explicitMismatch['image_decode']['source']);
         $t->same('invalid', $unresolvedDecode['image_decode']['source']);
     },
+    'rejects overlarge inline image geometry operands before text extraction and native preview' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $renderer = new PdfImageRenderer();
+        $hugeInteger = '9' . str_repeat('0', 40);
+        $maxInteger = (string) PHP_INT_MAX;
+        $widthPayload = 'abc EI BT /F1 12 Tf 72 660 Td (Overlarge Width Inline Noise) Tj ET rawtail';
+        $heightPayload = 'def EI BT /F1 12 Tf 72 640 Td (Overlarge Height Inline Noise) Tj ET rawtail';
+        $bpcPayload = 'ghi EI BT /F1 12 Tf 72 620 Td (Overlarge BPC Inline Noise) Tj ET rawtail';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Overlarge Geometry Inline) Tj ET\n"
+            . "BI /W {$hugeInteger} /H 1 /CS /G /BPC 8 ID\n"
+            . $widthPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (Between Overlarge Geometry Inline) Tj ET\n"
+            . "BI /W 1 /H {$hugeInteger} /CS /G /BPC 8 ID\n"
+            . $heightPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 688 Td (Between Overlarge BPC Inline) Tj ET\n"
+            . "BI /W 1 /H 1 /CS /G /BPC {$hugeInteger} ID\n"
+            . $bpcPayload . "\nEI\n"
+            . "BT /F1 12 Tf 72 672 Td (After Overlarge Geometry Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $expected = [
+            'Before Overlarge Geometry Inline',
+            'Between Overlarge Geometry Inline',
+            'Between Overlarge BPC Inline',
+            'After Overlarge Geometry Inline',
+        ];
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        foreach (['Overlarge Width Inline Noise', 'Overlarge Height Inline Noise', 'Overlarge BPC Inline Noise', 'rawtail', 'abc EI', 'def EI', 'ghi EI'] as $excludedText) {
+            $t->true(!str_contains($plainText, $excludedText));
+        }
+
+        $overlargeWidthReview = $renderer->inlineImageReviewPlan(
+            "/W {$hugeInteger} /H 1 /CS /G /BPC 8 /D [0 1]",
+            "abc"
+        );
+        $overlargeBpcReview = $renderer->inlineImageReviewPlan(
+            "/W 1 /H 1 /CS /G /BPC {$hugeInteger} /D [0 1]",
+            "g"
+        );
+        $overlargeInRangeBpcReview = $renderer->inlineImageReviewPlan(
+            "/W 1 /H 1 /CS /G /BPC {$maxInteger} /D [0 1]",
+            "g"
+        );
+
+        foreach ([$overlargeWidthReview, $overlargeBpcReview, $overlargeInRangeBpcReview] as $review) {
+            $t->same(true, $review['inline_image_geometry_operand_invalid']);
+            $t->same(true, $review['inline_image']['geometry_operand_invalid']);
+            $t->same(true, $review['inline_image_review_only']);
+            $t->same(false, $review['inline_image']['native_raster_decode']);
+            $t->same(false, $review['image_filter_boundary']['native_raster_decode']);
+            $t->contains('inline_image_geometry_operand_review_only', implode(',', $review['notes']));
+            $t->same(true, $review['inline_image_payload_excluded_from_text']);
+        }
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                "/W {$hugeInteger} /H 1 /CS /G /BPC 8 /D [0 1]",
+                "abc",
+                [],
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineIndexedImageStreamPreviewRows(
+                "/W {$hugeInteger} /H 1 /CS [/I /RGB 1 91 0 R] /BPC 8 /D [0 1]",
+                "\x00",
+                [91 => '<000000FFFFFF>'],
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageMaskPreviewRows(
+                "/W 1 /H {$hugeInteger} /IM true /D [0 1]",
+                "\x80",
+                [],
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineJpxColorKeyOutputPreviewRows(
+                "/W 1 /H 1 /CS /RGB /BPC {$hugeInteger} /F /JPXDecode /D [0 1 0 1 0 1] /Mask [0 0 0 0 0 0]",
+                "\xff\x4f\xff\xd9",
+                [[0, 0, 0]],
+                [],
+                1
+            )
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                "/W 1 /H 1 /CS /G /BPC {$maxInteger} /D [0 1]",
+                "\x00",
+                [],
+                1
+            )
+        );
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+    },
 ];

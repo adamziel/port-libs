@@ -3774,7 +3774,35 @@ final class PdfTextExtractor
             return null;
         }
 
-        return (int) $match[1];
+        return $this->pdfBoundedIntegerToken($match[1]);
+    }
+
+    private function pdfBoundedIntegerToken(string $token): ?int
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?\d+$/', $token) !== 1) {
+            return null;
+        }
+
+        $digits = $token;
+        if ($digits[0] === '+' || $digits[0] === '-') {
+            $digits = substr($digits, 1);
+        }
+
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $max = $token[0] === '-' ? substr((string) PHP_INT_MIN, 1) : (string) PHP_INT_MAX;
+        if (
+            strlen($digits) > strlen($max)
+            || (strlen($digits) === strlen($max) && strcmp($digits, $max) > 0)
+        ) {
+            return null;
+        }
+
+        return (int) $token;
     }
 
     /**
@@ -34825,7 +34853,7 @@ final class PdfTextExtractor
                 $candidate,
                 $decodeParms,
                 [],
-                $this->pdfIntegerValueAfterName($dictionary, 'Height')
+                $this->inlineImageDirectIntegerValueAfterName($dictionary, 'Height')
             ),
             default => 'unknown',
         };
@@ -36151,7 +36179,12 @@ final class PdfTextExtractor
             return null;
         }
 
-        return intdiv(($width * $height * $components * $bitsPerComponent) + 7, 8);
+        $totalBits = $this->inlineImagePositiveProduct([$width, $height, $components, $bitsPerComponent]);
+        if ($totalBits === null) {
+            return null;
+        }
+
+        return intdiv($totalBits, 8) + ($totalBits % 8 === 0 ? 0 : 1);
     }
 
     private function inlineImageMinimumUnfilteredLength(string $dictionary): ?int
@@ -36176,7 +36209,12 @@ final class PdfTextExtractor
             return null;
         }
 
-        return intdiv(($width * $height * $bitsPerComponent) + 7, 8);
+        $totalBits = $this->inlineImagePositiveProduct([$width, $height, $bitsPerComponent]);
+        if ($totalBits === null) {
+            return null;
+        }
+
+        return intdiv($totalBits, 8) + ($totalBits % 8 === 0 ? 0 : 1);
     }
 
     private function inlineImageDirectIntegerValueAfterName(string $dictionary, string $name): ?int
@@ -36192,7 +36230,24 @@ final class PdfTextExtractor
             return null;
         }
 
-        return (int) $match[1];
+        return $this->pdfBoundedIntegerToken($match[1]);
+    }
+
+    /**
+     * @param list<int> $values
+     */
+    private function inlineImagePositiveProduct(array $values): ?int
+    {
+        $product = 1;
+        foreach ($values as $value) {
+            if ($value < 1 || $product > intdiv(PHP_INT_MAX, $value)) {
+                return null;
+            }
+
+            $product *= $value;
+        }
+
+        return $product;
     }
 
     private function inlineImageColorComponents(string $dictionary): ?int
