@@ -180,6 +180,11 @@ final class UpstreamRunnerDependencyAudit
         'test:test-pandoc-lua-engine' => [],
     ];
 
+    private const RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS = [
+        'test:test-pandoc' => [],
+        'test:test-pandoc-lua-engine' => [],
+    ];
+
     private const BENCHMARK_ENTRY_POINTS = [
         'benchmark:benchmark-pandoc' => [
             'packageFile' => 'pandoc.cabal',
@@ -248,6 +253,28 @@ final class UpstreamRunnerDependencyAudit
 
     private const BENCHMARK_EXPECTED_REEXPORTED_MODULES = [
         'benchmark:benchmark-pandoc' => [],
+    ];
+
+    private const BENCHMARK_EXPECTED_NATIVE_SYSTEM_FIELDS = [
+        'benchmark:benchmark-pandoc' => [],
+    ];
+
+    private const CABAL_NATIVE_SYSTEM_FIELDS = [
+        'c-sources',
+        'cxx-sources',
+        'js-sources',
+        'asm-sources',
+        'cmm-sources',
+        'extra-libraries',
+        'extra-lib-dirs',
+        'include-dirs',
+        'install-includes',
+        'pkgconfig-depends',
+        'frameworks',
+        'extra-framework-dirs',
+        'ld-options',
+        'cc-options',
+        'cxx-options',
     ];
 
     private const BENCHMARK_ARTIFACTS = [
@@ -675,6 +702,9 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerDependencyClosure['unexpectedReexportedModules'] !== []) {
             $blockedReasons[] = 'unexpected Cabal runner reexported-modules: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedReexportedModules']);
         }
+        if ($runnerDependencyClosure['unexpectedNativeSystemFields'] !== []) {
+            $blockedReasons[] = 'unexpected Cabal runner native/system dependencies: ' . self::formatTargetFailures($runnerDependencyClosure['unexpectedNativeSystemFields']);
+        }
         if ($runnerDependencyClosure['missingOtherModules'] !== []) {
             $blockedReasons[] = 'missing Cabal runner other-modules: ' . self::formatTargetFailures($runnerDependencyClosure['missingOtherModules']);
         }
@@ -716,6 +746,9 @@ final class UpstreamRunnerDependencyAudit
         }
         if ($benchmarkDependencyClosure['unexpectedReexportedModules'] !== []) {
             $blockedReasons[] = 'unexpected Cabal benchmark reexported-modules: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedReexportedModules']);
+        }
+        if ($benchmarkDependencyClosure['unexpectedNativeSystemFields'] !== []) {
+            $blockedReasons[] = 'unexpected Cabal benchmark native/system dependencies: ' . self::formatTargetFailures($benchmarkDependencyClosure['unexpectedNativeSystemFields']);
         }
         if ($luaEngineLibraryClosure['missingDependencies'] !== []) {
             $blockedReasons[] = 'missing pandoc-lua-engine library build-depends: ' . implode(', ', $luaEngineLibraryClosure['missingDependencies']);
@@ -784,8 +817,8 @@ final class UpstreamRunnerDependencyAudit
             'nonMutatingPlan' => $ready ? [
                 'record Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package/flag closure plus source-repository type/location/tag closure, non-empty runner source/golden fixture artifacts, runner entry-point semantics including command-emulation parser/error handling plus full Tasty group dispatch, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
-                'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, or reexported-modules, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
-                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, or reexported-modules, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
+                'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, or reexported-modules, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus no unexpected native/system dependency fields and pandoc-lua-engine library HsLua module dependency closure',
+                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, no unexpected Cabal mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, or reexported-modules, plus no unexpected native/system dependency fields, executable options, non-empty source/data artifact closure, and entry-source semantics before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
@@ -938,6 +971,14 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array<string, array<string, list<string>>>
+     */
+    public static function expectedRunnerNativeSystemFields(): array
+    {
+        return self::RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS;
+    }
+
+    /**
      * @return array<string, list<string>>
      */
     public static function expectedBenchmarkDependencies(): array
@@ -1023,6 +1064,14 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedBenchmarkReexportedModules(): array
     {
         return self::BENCHMARK_EXPECTED_REEXPORTED_MODULES;
+    }
+
+    /**
+     * @return array<string, array<string, list<string>>>
+     */
+    public static function expectedBenchmarkNativeSystemFields(): array
+    {
+        return self::BENCHMARK_EXPECTED_NATIVE_SYSTEM_FIELDS;
     }
 
     /**
@@ -1442,6 +1491,7 @@ final class UpstreamRunnerDependencyAudit
             $defaultExtensions = self::extractCabalDefaultExtensions($fields['default-extensions'] ?? '');
             $otherExtensions = self::extractCabalDefaultExtensions($fields['other-extensions'] ?? '');
             $otherModules = self::extractCabalModuleNames($fields['other-modules'] ?? '');
+            $nativeSystemFields = self::extractCabalNativeSystemFields($fields);
 
             $suites[$stanza['name']] = [
                 'type' => self::firstFieldValue($fields['type'] ?? null),
@@ -1461,6 +1511,7 @@ final class UpstreamRunnerDependencyAudit
                 'defaultExtensions' => $defaultExtensions,
                 'otherExtensions' => $otherExtensions,
                 'otherModules' => $otherModules,
+                'nativeSystemFields' => $nativeSystemFields,
             ];
         }
 
@@ -1499,6 +1550,7 @@ final class UpstreamRunnerDependencyAudit
                 'buildTools' => self::extractCabalBuildTools($fields['build-tools'] ?? ''),
                 'defaultExtensions' => self::extractCabalDefaultExtensions($fields['default-extensions'] ?? ''),
                 'otherExtensions' => self::extractCabalDefaultExtensions($fields['other-extensions'] ?? ''),
+                'nativeSystemFields' => self::extractCabalNativeSystemFields($fields),
             ];
         }
 
@@ -1805,6 +1857,7 @@ final class UpstreamRunnerDependencyAudit
                 'defaultExtensions' => $suites[$suiteName]['defaultExtensions'],
                 'otherExtensions' => $suites[$suiteName]['otherExtensions'],
                 'otherModules' => $suites[$suiteName]['otherModules'],
+                'nativeSystemFields' => $suites[$suiteName]['nativeSystemFields'],
             ];
         }
 
@@ -1821,6 +1874,7 @@ final class UpstreamRunnerDependencyAudit
         $unexpectedCppOptions = [];
         $unexpectedAutogenModules = [];
         $unexpectedReexportedModules = [];
+        $unexpectedNativeSystemFields = [];
         $missingOtherModules = [];
 
         foreach (self::RUNNER_ENTRY_POINTS as $target => $entryPoint) {
@@ -1926,6 +1980,14 @@ final class UpstreamRunnerDependencyAudit
                 }
             }
 
+            $unexpectedNativeSystemFields[$target] = self::unexpectedCabalNativeSystemFields(
+                $present[$target]['nativeSystemFields'],
+                self::RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS[$target] ?? []
+            );
+            if ($unexpectedNativeSystemFields[$target] === []) {
+                unset($unexpectedNativeSystemFields[$target]);
+            }
+
             foreach (self::RUNNER_OTHER_MODULES[$target] as $module) {
                 if (!in_array($module, $present[$target]['otherModules'], true)) {
                     $missingOtherModules[$target][] = $module;
@@ -1945,6 +2007,7 @@ final class UpstreamRunnerDependencyAudit
             'expectedCppOptions' => self::RUNNER_EXPECTED_CPP_OPTIONS,
             'expectedAutogenModules' => self::RUNNER_EXPECTED_AUTOGEN_MODULES,
             'expectedReexportedModules' => self::RUNNER_EXPECTED_REEXPORTED_MODULES,
+            'expectedNativeSystemFields' => self::RUNNER_EXPECTED_NATIVE_SYSTEM_FIELDS,
             'expectedOtherModules' => self::RUNNER_OTHER_MODULES,
             'present' => $present,
             'missingTargets' => $missingTargets,
@@ -1960,6 +2023,7 @@ final class UpstreamRunnerDependencyAudit
             'unexpectedCppOptions' => $unexpectedCppOptions,
             'unexpectedAutogenModules' => $unexpectedAutogenModules,
             'unexpectedReexportedModules' => $unexpectedReexportedModules,
+            'unexpectedNativeSystemFields' => $unexpectedNativeSystemFields,
             'missingOtherModules' => $missingOtherModules,
         ];
     }
@@ -2000,6 +2064,7 @@ final class UpstreamRunnerDependencyAudit
                 'buildTools' => $benchmarks[$benchmarkName]['buildTools'],
                 'defaultExtensions' => $benchmarks[$benchmarkName]['defaultExtensions'],
                 'otherExtensions' => $benchmarks[$benchmarkName]['otherExtensions'],
+                'nativeSystemFields' => $benchmarks[$benchmarkName]['nativeSystemFields'],
             ];
         }
 
@@ -2016,6 +2081,7 @@ final class UpstreamRunnerDependencyAudit
         $unexpectedCppOptions = [];
         $unexpectedAutogenModules = [];
         $unexpectedReexportedModules = [];
+        $unexpectedNativeSystemFields = [];
 
         foreach (self::BENCHMARK_ENTRY_POINTS as $target => $entryPoint) {
             if (!array_key_exists($target, $present)) {
@@ -2119,6 +2185,14 @@ final class UpstreamRunnerDependencyAudit
                     $unexpectedReexportedModules[$target][] = $module;
                 }
             }
+
+            $unexpectedNativeSystemFields[$target] = self::unexpectedCabalNativeSystemFields(
+                $present[$target]['nativeSystemFields'],
+                self::BENCHMARK_EXPECTED_NATIVE_SYSTEM_FIELDS[$target] ?? []
+            );
+            if ($unexpectedNativeSystemFields[$target] === []) {
+                unset($unexpectedNativeSystemFields[$target]);
+            }
         }
 
         return [
@@ -2133,6 +2207,7 @@ final class UpstreamRunnerDependencyAudit
             'expectedCppOptions' => self::BENCHMARK_EXPECTED_CPP_OPTIONS,
             'expectedAutogenModules' => self::BENCHMARK_EXPECTED_AUTOGEN_MODULES,
             'expectedReexportedModules' => self::BENCHMARK_EXPECTED_REEXPORTED_MODULES,
+            'expectedNativeSystemFields' => self::BENCHMARK_EXPECTED_NATIVE_SYSTEM_FIELDS,
             'present' => $present,
             'missingTargets' => $missingTargets,
             'mismatchedEntryPoints' => $mismatchedEntryPoints,
@@ -2147,6 +2222,7 @@ final class UpstreamRunnerDependencyAudit
             'unexpectedCppOptions' => $unexpectedCppOptions,
             'unexpectedAutogenModules' => $unexpectedAutogenModules,
             'unexpectedReexportedModules' => $unexpectedReexportedModules,
+            'unexpectedNativeSystemFields' => $unexpectedNativeSystemFields,
         ];
     }
 
@@ -2569,7 +2645,7 @@ final class UpstreamRunnerDependencyAudit
     private static function mergeCabalFields(array $base, array $next): array
     {
         foreach ($next as $field => $value) {
-            if (in_array($field, ['build-depends', 'build-tool-depends', 'build-tools', 'default-extensions', 'other-extensions', 'other-modules', 'autogen-modules', 'reexported-modules', 'mixins'], true) && array_key_exists($field, $base) && $base[$field] !== '') {
+            if (in_array($field, array_merge(['build-depends', 'build-tool-depends', 'build-tools', 'default-extensions', 'other-extensions', 'other-modules', 'autogen-modules', 'reexported-modules', 'mixins'], self::CABAL_NATIVE_SYSTEM_FIELDS), true) && array_key_exists($field, $base) && $base[$field] !== '') {
                 $base[$field] .= ",\n" . $value;
                 continue;
             }
@@ -2589,7 +2665,7 @@ final class UpstreamRunnerDependencyAudit
     {
         $lines = [];
         foreach (preg_split('/\R/', $raw) ?: [] as $line) {
-            $lines[] = preg_replace('/--.*$/', '', $line) ?? $line;
+            $lines[] = preg_replace('/(^|\s)--.*$/', '$1', $line) ?? $line;
         }
 
         return implode("\n", $lines);
@@ -2881,6 +2957,82 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @param array<string, string> $fields
+     * @return array<string, list<string>>
+     */
+    private static function extractCabalNativeSystemFields(array $fields): array
+    {
+        $nativeFields = [];
+        foreach (self::CABAL_NATIVE_SYSTEM_FIELDS as $field) {
+            $items = self::extractCabalNativeSystemFieldItems($field, $fields[$field] ?? '');
+            if ($items !== []) {
+                $nativeFields[$field] = $items;
+            }
+        }
+
+        ksort($nativeFields);
+        return $nativeFields;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function extractCabalNativeSystemFieldItems(string $field, string $raw): array
+    {
+        $raw = self::stripCabalLineComments($raw);
+        if (trim($raw) === '') {
+            return [];
+        }
+
+        $items = [];
+        if ($field === 'pkgconfig-depends') {
+            foreach (self::splitCabalCommaList($raw) as $item) {
+                if ($item !== '' && !in_array($item, $items, true)) {
+                    $items[] = $item;
+                }
+            }
+        } elseif (in_array($field, ['ld-options', 'cc-options', 'cxx-options'], true)) {
+            foreach (self::splitWords($raw) as $item) {
+                if ($item !== '' && !in_array($item, $items, true)) {
+                    $items[] = $item;
+                }
+            }
+        } else {
+            foreach (self::splitCabalCommaList($raw) as $part) {
+                foreach (self::splitWords($part) as $item) {
+                    if ($item !== '' && !in_array($item, $items, true)) {
+                        $items[] = $item;
+                    }
+                }
+            }
+        }
+
+        sort($items);
+        return $items;
+    }
+
+    /**
+     * @param array<string, list<string>> $present
+     * @param array<string, list<string>> $expected
+     * @return list<string>
+     */
+    private static function unexpectedCabalNativeSystemFields(array $present, array $expected): array
+    {
+        $unexpected = [];
+        foreach ($present as $field => $items) {
+            $expectedItems = $expected[$field] ?? [];
+            foreach ($items as $item) {
+                if (!in_array($item, $expectedItems, true)) {
+                    $unexpected[] = $field . ': ' . $item;
+                }
+            }
+        }
+
+        sort($unexpected);
+        return $unexpected;
+    }
+
+    /**
      * @return list<string>
      */
     private static function splitSimpleCabalModuleList(string $raw): array
@@ -3109,8 +3261,8 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>} $projectSourceRepositoryClosure
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
      * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
-     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
-     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>} $benchmarkDependencyClosure
+     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
+     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>} $benchmarkDependencyClosure
      * @param array{missingDependencies:list<string>} $luaEngineLibraryClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $runnerEntrySourceClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $runnerArtifactClosure
@@ -3148,6 +3300,7 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['unexpectedCppOptions'] === []
             && $runnerDependencyClosure['unexpectedAutogenModules'] === []
             && $runnerDependencyClosure['unexpectedReexportedModules'] === []
+            && $runnerDependencyClosure['unexpectedNativeSystemFields'] === []
             && $runnerDependencyClosure['missingOtherModules'] === []
             && $benchmarkDependencyClosure['missingTargets'] === []
             && $benchmarkDependencyClosure['mismatchedEntryPoints'] === []
@@ -3162,6 +3315,7 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkDependencyClosure['unexpectedCppOptions'] === []
             && $benchmarkDependencyClosure['unexpectedAutogenModules'] === []
             && $benchmarkDependencyClosure['unexpectedReexportedModules'] === []
+            && $benchmarkDependencyClosure['unexpectedNativeSystemFields'] === []
             && $luaEngineLibraryClosure['missingDependencies'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
             && $runnerEntrySourceClosure['missingSemantics'] === []
@@ -3174,10 +3328,10 @@ final class UpstreamRunnerDependencyAudit
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, non-empty runner source/golden fixtures, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, non-empty benchmark component dependency/artifact closure, benchmark entry-point source semantics, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures, non-empty benchmark source/data artifacts, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }
