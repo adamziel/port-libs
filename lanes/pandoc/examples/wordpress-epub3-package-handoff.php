@@ -325,6 +325,11 @@ $signaturesXml = <<<'XML'
 </signatures>
 XML;
 
+$reviewCss = <<<'CSS'
+@font-face { font-family: "Source Review"; src: url("../fonts/source.otf") format("opentype"); }
+body { color: #222; background-image: url("../images/cover.png"); }
+CSS;
+
 $packageParts = [
     ['name' => 'mimetype', 'data' => EpubReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
@@ -347,7 +352,7 @@ $packageParts = [
     ['name' => 'EPUB/interactive/tour.bin', 'data' => 'BOUND-TOUR'],
     ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smilXml],
     ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3-DATA'],
-    ['name' => 'EPUB/styles/review.css', 'data' => 'body { color: #222; }'],
+    ['name' => 'EPUB/styles/review.css', 'data' => $reviewCss],
     ['name' => 'EPUB/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
     ['name' => 'EPUB/images/cover.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
     ['name' => 'EPUB/images/legacy-cover.jpg', 'data' => 'LEGACY-JPEG', 'compressionMethod' => 0],
@@ -829,6 +834,33 @@ XML;
     if (($result['document']->children[0]->attr('contentTriggers')[0]['id'] ?? null) !== 'source-audio-trigger') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB trigger metadata');
     }
+    if (($result['cssResourceReport']['assetCount'] ?? null) !== 1 || ($result['cssResourceReport']['referenceCount'] ?? null) !== 2) {
+        throw new RuntimeException('Expected EPUB CSS resource report to scan the package stylesheet');
+    }
+    if (($result['cssResourceReport']['fontFaceCount'] ?? null) !== 1 || ($result['cssResourceReport']['encryptedReferenceCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB CSS report to preserve font-face and encrypted font references');
+    }
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references']) {
+        throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted stylesheet dependencies');
+    }
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['references'][0]['part'] ?? null) !== '/EPUB/fonts/source.otf') {
+        throw new RuntimeException('Expected EPUB CSS report to resolve font package dependency');
+    }
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['references'][0]['encrypted'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB CSS font dependency to inherit OCF encryption metadata');
+    }
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['references'][0]['diagnostics'][0]['type'] ?? null) !== 'encrypted-css-resource-reference') {
+        throw new RuntimeException('Expected EPUB CSS encrypted font dependency diagnostic');
+    }
+    if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['references'][1]['part'] ?? null) !== '/EPUB/images/cover.png') {
+        throw new RuntimeException('Expected EPUB CSS report to resolve local cover image dependency');
+    }
+    if (($result['importReport']['cssResourceReport'] ?? null) !== $result['cssResourceReport']) {
+        throw new RuntimeException('Expected import report to include EPUB CSS resource report');
+    }
+    if (($result['document']->attr('cssResourceReport') ?? null) !== $result['cssResourceReport']) {
+        throw new RuntimeException('Expected WordPress document handoff to expose EPUB CSS resource report');
+    }
     if (($result['document']->children[0]->attr('contentReferences')[0]['target'] ?? null) !== 'https://cdn.example.test/images/source.png') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose remote XHTML content reference diagnostics');
     }
@@ -1163,6 +1195,10 @@ echo 'xhtmlContentTriggerAssets=' . ($result['xhtmlResourceReport']['triggerAsse
 echo 'xhtmlContentTriggers=' . ($result['xhtmlResourceReport']['triggerCount'] ?? 0) . "\n";
 echo 'chapterContentReviewFlags=' . implode(',', $result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['reviewFlags'] ?? []) . "\n";
 echo 'chapterTriggerAction=' . ($result['xhtmlResourceReport']['itemsByPart']['/EPUB/text/chapter.xhtml']['triggers'][0]['action'] ?? '') . "\n";
+echo 'cssResourceAssets=' . ($result['cssResourceReport']['assetCount'] ?? 0) . "\n";
+echo 'cssResourceReferences=' . ($result['cssResourceReport']['referenceCount'] ?? 0) . "\n";
+echo 'cssFontFaces=' . ($result['cssResourceReport']['fontFaceCount'] ?? 0) . "\n";
+echo 'cssEncryptedReferences=' . ($result['cssResourceReport']['encryptedReferenceCount'] ?? 0) . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";
 echo 'remoteResourceReferences=' . ($result['remoteResources']['remoteReferenceCount'] ?? 0) . "\n";

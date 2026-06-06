@@ -2583,6 +2583,88 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithCssAssets = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/review.css" media-type="text/css" properties="remote-resources"/>'
+            . '<item id="reset-style" href="styles/reset.css" media-type="text/css"/>'
+            . '<item id="theme-style" href="styles/theme.css" media-type="text/css"/>'
+            . '<item id="font-main" href="fonts/source.woff2" media-type="font/woff2"/>',
+            $opfXml
+        );
+        $reviewCss = <<<'CSS'
+@import url("../styles/reset.css") screen;
+@font-face { font-family: Review; src: url("../fonts/source.woff2") format("woff2"); }
+body { background-image: url("../images/cover.png"); }
+.remote { background: url("https://cdn.example.test/epub/paper.png"); }
+.missing { background: url("../images/missing-css.png"); }
+.inline { background: url(data:image/png;base64,AAAA); }
+CSS;
+        $themeCss = '.theme { background-image: url("https://widgets.example.test/theme.png"); }';
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithCssAssets,
+            null,
+            [
+                ['name' => 'OEBPS/styles/review.css', 'data' => $reviewCss],
+                ['name' => 'OEBPS/styles/reset.css', 'data' => 'html { box-sizing: border-box; }'],
+                ['name' => 'OEBPS/styles/theme.css', 'data' => $themeCss],
+                ['name' => 'OEBPS/fonts/source.woff2', 'data' => 'WOFF2DATA'],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $t->same(true, $css['present']);
+        $t->same(3, $css['assetCount']);
+        $t->same(6, $css['referenceCount']);
+        $t->same(1, $css['importReferenceCount']);
+        $t->same(5, $css['urlReferenceCount']);
+        $t->same(1, $css['fontFaceCount']);
+        $t->same(2, $css['externalReferenceCount']);
+        $t->same(1, $css['missingReferenceCount']);
+        $t->same(2, $css['reviewRequiredCount']);
+        $t->same($css, $result['importReport']['cssResourceReport']);
+        $t->same($css, $result['document']->attr('cssResourceReport'));
+
+        $style = $css['itemsByPart']['/OEBPS/styles/review.css'];
+        $t->same('style', $style['id']);
+        $t->same(['remote-resources'], $style['manifestProperties']);
+        $t->same(5, $style['referenceCount']);
+        $t->same(['remote-resources', 'missing-references'], $style['reviewFlags']);
+        $t->same('import', $style['references'][0]['kind']);
+        $t->same('../styles/reset.css', $style['references'][0]['href']);
+        $t->same('/OEBPS/styles/reset.css', $style['references'][0]['target']);
+        $t->same('reset-style', $style['references'][0]['manifestId']);
+        $t->same('url', $style['references'][1]['kind']);
+        $t->same('/OEBPS/fonts/source.woff2', $style['references'][1]['part']);
+        $t->same('font-main', $style['references'][1]['manifestId']);
+        $t->same('font/woff2', $style['references'][1]['mediaType']);
+        $t->same('/OEBPS/images/cover.png', $style['references'][2]['part']);
+        $t->same('cover-image', $style['references'][2]['manifestId']);
+        $t->same(true, $style['references'][3]['external']);
+        $t->same('external-css-resource-reference', $style['references'][3]['diagnostics'][0]['type']);
+        $t->same('/OEBPS/images/missing-css.png', $style['references'][4]['part']);
+        $t->same(false, $style['references'][4]['exists']);
+        $t->same('missing-css-resource-reference', $style['references'][4]['diagnostics'][0]['type']);
+
+        $theme = $css['itemsByPart']['/OEBPS/styles/theme.css'];
+        $t->same(['remote-resources'], $theme['reviewFlags']);
+        $t->same(true, $theme['references'][0]['external']);
+        $t->same('https://widgets.example.test/theme.png', $theme['references'][0]['target']);
+
+        $remoteResources = $result['remoteResources'];
+        $t->same(1, $remoteResources['declaredCount']);
+        $t->same(2, $remoteResources['observedAssetCount']);
+        $t->same(2, $remoteResources['remoteReferenceCount']);
+        $t->same(0, $remoteResources['xhtmlExternalReferenceCount']);
+        $t->same(2, $remoteResources['cssExternalReferenceCount']);
+        $t->same(1, $remoteResources['undeclaredAssetCount']);
+        $t->same(0, $remoteResources['declaredButUnobservedCount']);
+        $t->same('css', $remoteResources['observedItemsByPart']['/OEBPS/styles/review.css']['source']);
+        $t->same(true, $remoteResources['observedItemsByPart']['/OEBPS/styles/review.css']['manifestDeclared']);
+        $t->same(false, $remoteResources['observedItemsByPart']['/OEBPS/styles/theme.css']['manifestDeclared']);
+        $t->same('undeclared-css-remote-resources', $remoteResources['diagnostics'][0]['type']);
+    },
     'flags EPUB switch XHTML content for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $switchXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

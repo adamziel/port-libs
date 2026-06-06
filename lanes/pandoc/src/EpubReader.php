@@ -60,6 +60,7 @@ final class EpubReader
      *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     xhtmlResourceReport:array<string, mixed>,
+     *     cssResourceReport:array<string, mixed>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>,
      *     importReport:array<string, mixed>
@@ -90,6 +91,7 @@ final class EpubReader
             $opf['pageBreaks'],
             $opf['navigation'],
             $opf['xhtmlResourceReport'],
+            $opf['cssResourceReport'],
             $renditions,
             $ocf
         );
@@ -120,6 +122,7 @@ final class EpubReader
             'pageBreaks' => $opf['pageBreaks'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
+            'cssResourceReport' => $opf['cssResourceReport'],
             'assets' => $opf['assets'],
             'assetReport' => $opf['assetReport'],
             'importReport' => [
@@ -155,6 +158,7 @@ final class EpubReader
                 'resourceProperties' => $opf['resourceProperties'],
                 'remoteResources' => $opf['remoteResources'],
                 'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
+                'cssResourceReport' => $opf['cssResourceReport'],
                 'encryption' => $opf['encryption'],
                 'ocf' => $ocf,
                 'mediaOverlays' => $opf['mediaOverlays'],
@@ -450,6 +454,7 @@ final class EpubReader
      *     pageBreaks:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     xhtmlResourceReport:array<string, mixed>,
+     *     cssResourceReport:array<string, mixed>,
      *     assets:list<array<string, mixed>>,
      *     assetReport:array<string, mixed>
      * }
@@ -513,9 +518,11 @@ final class EpubReader
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
         $navigation = self::navigationReport($nav, $ncx, $spine);
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine);
-        $xhtmlAssets = $this->xhtmlAssets($package, $manifest, self::manifestByPart($manifestById));
+        $manifestByPart = self::manifestByPart($manifestById);
+        $xhtmlAssets = $this->xhtmlAssets($package, $manifest, $manifestByPart);
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
-        $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport);
+        $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
+        $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport, $cssResourceReport);
 
         return [
             'metadata' => $metadata,
@@ -551,6 +558,7 @@ final class EpubReader
             'pageBreaks' => $pageBreaks,
             'xhtmlAssets' => $xhtmlAssets,
             'xhtmlResourceReport' => $xhtmlResourceReport,
+            'cssResourceReport' => $cssResourceReport,
             'assets' => $assetReport['items'],
             'assetReport' => $assetReport,
         ];
@@ -6515,10 +6523,16 @@ final class EpubReader
      * @param list<array<string, mixed>> $manifest
      * @param list<array<string, mixed>> $xhtmlAssets
      * @param array<string, mixed> $xhtmlResourceReport
+     * @param array<string, mixed> $cssResourceReport
      *
      * @return array<string, mixed>
      */
-    private static function remoteResourceReport(array $manifest, array $xhtmlAssets, array $xhtmlResourceReport): array
+    private static function remoteResourceReport(
+        array $manifest,
+        array $xhtmlAssets,
+        array $xhtmlResourceReport,
+        array $cssResourceReport = []
+    ): array
     {
         $declaredItems = [];
         $declaredByPart = [];
@@ -6587,6 +6601,60 @@ final class EpubReader
             }
         }
 
+        $cssRemoteReferences = [];
+        foreach (is_array($cssResourceReport['items'] ?? null) ? $cssResourceReport['items'] : [] as $asset) {
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $references = array_values(array_filter(
+                is_array($asset['references'] ?? null) ? $asset['references'] : [],
+                static fn (array $reference): bool => ($reference['external'] ?? false) === true,
+            ));
+            if ($references === []) {
+                continue;
+            }
+
+            array_push($remoteReferences, ...$references);
+            array_push($cssRemoteReferences, ...$references);
+            $part = is_string($asset['part'] ?? null) ? $asset['part'] : '';
+            $manifestProperties = is_array($asset['manifestProperties'] ?? null) ? array_values($asset['manifestProperties']) : [];
+            $manifestDeclared = isset($declaredByPart[$part])
+                || in_array('remote-resources', $manifestProperties, true);
+            $observed = [
+                'id' => (string) ($asset['id'] ?? ''),
+                'href' => (string) ($asset['href'] ?? ''),
+                'part' => $part,
+                'source' => 'css',
+                'manifestDeclared' => $manifestDeclared,
+                'manifestProperties' => $manifestProperties,
+                'remoteReferenceCount' => count($references),
+                'remoteReferences' => $references,
+                'reviewFlags' => is_array($asset['reviewFlags'] ?? null)
+                    ? array_values($asset['reviewFlags'])
+                    : [],
+                'diagnostics' => [],
+            ];
+
+            if (!$manifestDeclared) {
+                $diagnostic = [
+                    'type' => 'undeclared-css-remote-resources',
+                    'id' => $observed['id'],
+                    'part' => $part === '' ? null : $part,
+                    'remoteReferenceCount' => count($references),
+                    'message' => 'EPUB CSS content references remote resources but the OPF manifest item does not declare remote-resources',
+                ];
+                $observed['diagnostics'][] = $diagnostic;
+                $undeclaredItems[] = $observed;
+                $diagnostics[] = $diagnostic;
+            }
+
+            $observedItems[] = $observed;
+            if ($part !== '') {
+                $observedItemsByPart[$part] = $observed;
+            }
+        }
+
         foreach ($declaredItems as $declared) {
             $part = is_string($declared['part'] ?? null) ? $declared['part'] : null;
             if ($part !== null && isset($observedItemsByPart[$part])) {
@@ -6618,6 +6686,7 @@ final class EpubReader
             'xhtmlExternalReferenceCount' => is_int($xhtmlResourceReport['externalReferenceCount'] ?? null)
                 ? $xhtmlResourceReport['externalReferenceCount']
                 : 0,
+            'cssExternalReferenceCount' => count($cssRemoteReferences),
             'undeclaredAssetCount' => count($undeclaredItems),
             'declaredButUnobservedCount' => count($declaredButUnobservedItems),
             'declaredItems' => $declaredItems,
@@ -6649,6 +6718,295 @@ final class EpubReader
             'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
             'diagnostics' => [],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private function cssResourceReport(ZipPackage $package, array $manifest, array $manifestByPart): array
+    {
+        $items = [];
+        $itemsByPart = [];
+        $externalReferences = [];
+        $missingReferences = [];
+        $encryptedReferences = [];
+        $diagnostics = [];
+        $referenceCount = 0;
+        $importReferenceCount = 0;
+        $urlReferenceCount = 0;
+        $fontFaceCount = 0;
+        $reviewRequiredCount = 0;
+
+        foreach ($manifest as $asset) {
+            if (
+                ($asset['mediaType'] ?? null) !== 'text/css'
+                || ($asset['exists'] ?? false) !== true
+                || self::isEncryptedManifestItem($asset)
+                || !is_string($asset['part'] ?? null)
+                || (string) $asset['part'] === ''
+            ) {
+                continue;
+            }
+
+            $part = (string) $asset['part'];
+            try {
+                $css = $package->read($part);
+            } catch (\Throwable $exception) {
+                $assetDiagnostics = [[
+                    'type' => 'css-resource-bytes-unavailable',
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ]];
+                $diagnostics[] = $assetDiagnostics[0];
+                $item = [
+                    'id' => (string) ($asset['id'] ?? ''),
+                    'href' => (string) ($asset['href'] ?? ''),
+                    'part' => $part,
+                    'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
+                    'referenceCount' => 0,
+                    'importReferenceCount' => 0,
+                    'urlReferenceCount' => 0,
+                    'fontFaceCount' => 0,
+                    'reviewFlags' => ['missing-references'],
+                    'references' => [],
+                    'diagnostics' => $assetDiagnostics,
+                ];
+                $items[] = $item;
+                $itemsByPart[$part] = $item;
+                ++$reviewRequiredCount;
+                continue;
+            }
+
+            $references = $this->cssContentReferences($package, $part, $css, $manifestByPart);
+            $assetDiagnostics = [];
+            $assetImportCount = 0;
+            $assetUrlCount = 0;
+            foreach ($references as $reference) {
+                if (($reference['kind'] ?? null) === 'import') {
+                    ++$assetImportCount;
+                } else {
+                    ++$assetUrlCount;
+                }
+
+                if (($reference['external'] ?? false) === true) {
+                    $externalReferences[] = $reference;
+                }
+                if (($reference['exists'] ?? true) !== true && ($reference['external'] ?? false) !== true) {
+                    $missingReferences[] = $reference;
+                }
+                if (($reference['encrypted'] ?? false) === true) {
+                    $encryptedReferences[] = $reference;
+                }
+                foreach ($reference['diagnostics'] as $diagnostic) {
+                    $assetDiagnostics[] = [
+                        'index' => $reference['index'],
+                        'kind' => $reference['kind'],
+                        'href' => $reference['href'],
+                    ] + $diagnostic;
+                }
+            }
+
+            $assetFontFaceCount = preg_match_all('/@font-face\b/i', $css);
+            $assetFontFaceCount = is_int($assetFontFaceCount) ? $assetFontFaceCount : 0;
+            $reviewFlags = self::cssResourceReviewFlags($references);
+            if ($reviewFlags !== []) {
+                ++$reviewRequiredCount;
+            }
+
+            $item = [
+                'id' => (string) ($asset['id'] ?? ''),
+                'href' => (string) ($asset['href'] ?? ''),
+                'part' => $part,
+                'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
+                'referenceCount' => count($references),
+                'importReferenceCount' => $assetImportCount,
+                'urlReferenceCount' => $assetUrlCount,
+                'fontFaceCount' => $assetFontFaceCount,
+                'reviewFlags' => $reviewFlags,
+                'references' => $references,
+                'diagnostics' => $assetDiagnostics,
+            ];
+
+            $referenceCount += $item['referenceCount'];
+            $importReferenceCount += $assetImportCount;
+            $urlReferenceCount += $assetUrlCount;
+            $fontFaceCount += $assetFontFaceCount;
+            foreach ($assetDiagnostics as $diagnostic) {
+                $diagnostics[] = ['part' => $part] + $diagnostic;
+            }
+
+            $items[] = $item;
+            $itemsByPart[$part] = $item;
+        }
+
+        return [
+            'present' => $items !== [],
+            'assetCount' => count($items),
+            'referenceCount' => $referenceCount,
+            'importReferenceCount' => $importReferenceCount,
+            'urlReferenceCount' => $urlReferenceCount,
+            'fontFaceCount' => $fontFaceCount,
+            'externalReferenceCount' => count($externalReferences),
+            'missingReferenceCount' => count($missingReferences),
+            'encryptedReferenceCount' => count($encryptedReferences),
+            'reviewRequiredCount' => $reviewRequiredCount,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'externalReferences' => $externalReferences,
+            'missingReferences' => $missingReferences,
+            'encryptedReferences' => $encryptedReferences,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function cssContentReferences(
+        ZipPackage $package,
+        string $part,
+        string $css,
+        array $manifestByPart
+    ): array {
+        $references = [];
+        foreach (self::cssReferenceTokens($css) as $token) {
+            $reference = $this->packageReference(
+                $package,
+                $part,
+                (string) $token['href'],
+                $manifestByPart,
+                'css-resource'
+            );
+            $diagnostics = $reference['diagnostics'];
+            if (($reference['encrypted'] ?? false) === true) {
+                $diagnostics[] = [
+                    'type' => 'encrypted-css-resource-reference',
+                    'part' => $reference['part'],
+                    'message' => 'EPUB CSS references an encrypted package part that cannot be exposed directly',
+                ];
+            }
+
+            $references[] = [
+                'index' => count($references),
+                'kind' => (string) $token['kind'],
+                'href' => (string) $token['href'],
+                'raw' => (string) $token['raw'],
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'fragment' => $reference['fragment'],
+                'fragmentKind' => $reference['fragmentKind'],
+                'epubCfi' => $reference['epubCfi'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return list<array{kind:string, href:string, raw:string}>
+     */
+    private static function cssReferenceTokens(string $css): array
+    {
+        $tokens = [];
+        $stripped = self::stripCssComments($css);
+        $importSpans = [];
+        $importMatchCount = preg_match_all(
+            '/@import\s+(?:url\(\s*)?(["\']?)([^"\'\)\s;]+)\1\s*\)?/i',
+            $stripped,
+            $imports,
+            \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE
+        );
+        if (is_int($importMatchCount) && $importMatchCount > 0) {
+            foreach ($imports as $match) {
+                $raw = (string) ($match[0][0] ?? '');
+                $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+                if ($start !== null) {
+                    $importSpans[] = [$start, $start + strlen($raw)];
+                }
+
+                $href = trim((string) ($match[2][0] ?? ''));
+                if ($href === '') {
+                    continue;
+                }
+
+                $tokens[] = [
+                    'kind' => 'import',
+                    'href' => $href,
+                    'raw' => $raw === '' ? $href : $raw,
+                ];
+            }
+        }
+
+        $urlMatchCount = preg_match_all('/url\(\s*(["\']?)(.*?)\1\s*\)/is', $stripped, $urls, \PREG_SET_ORDER | \PREG_OFFSET_CAPTURE);
+        if (is_int($urlMatchCount) && $urlMatchCount > 0) {
+            foreach ($urls as $match) {
+                $start = is_int($match[0][1] ?? null) ? $match[0][1] : null;
+                if ($start !== null) {
+                    foreach ($importSpans as [$importStart, $importEnd]) {
+                        if ($start >= $importStart && $start < $importEnd) {
+                            continue 2;
+                        }
+                    }
+                }
+
+                $href = trim((string) ($match[2][0] ?? ''));
+                if ($href === '' || preg_match('/^data:/i', $href) === 1) {
+                    continue;
+                }
+
+                $tokens[] = [
+                    'kind' => 'url',
+                    'href' => $href,
+                    'raw' => (string) ($match[0][0] ?? $href),
+                ];
+            }
+        }
+
+        return $tokens;
+    }
+
+    private static function stripCssComments(string $css): string
+    {
+        $stripped = preg_replace('/\/\*.*?\*\//s', '', $css);
+
+        return is_string($stripped) ? $stripped : $css;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     *
+     * @return list<string>
+     */
+    private static function cssResourceReviewFlags(array $references): array
+    {
+        $flags = [];
+        foreach ($references as $reference) {
+            if (($reference['external'] ?? false) === true) {
+                $flags['remote-resources'] = true;
+            }
+            if (($reference['exists'] ?? true) !== true && ($reference['external'] ?? false) !== true) {
+                $flags['missing-references'] = true;
+            }
+            if (($reference['encrypted'] ?? false) === true) {
+                $flags['encrypted-references'] = true;
+            }
+        }
+
+        return array_keys($flags);
     }
 
     /**
@@ -7987,6 +8345,7 @@ final class EpubReader
      * @param array<string, mixed> $pageBreaks
      * @param array<string, mixed> $navigation
      * @param array<string, mixed> $xhtmlResourceReport
+     * @param array<string, mixed> $cssResourceReport
      * @param array<string, mixed> $renditions
      * @param array<string, mixed> $ocf
      */
@@ -8006,6 +8365,7 @@ final class EpubReader
         array $pageBreaks,
         array $navigation,
         array $xhtmlResourceReport,
+        array $cssResourceReport,
         array $renditions,
         array $ocf
     ): AstNode {
@@ -8091,6 +8451,7 @@ final class EpubReader
             'remoteResources' => $remoteResources,
             'navigation' => $navigation,
             'xhtmlResourceReport' => $xhtmlResourceReport,
+            'cssResourceReport' => $cssResourceReport,
             'mediaDurations' => $mediaDurations,
             'pageBreaks' => $pageBreaks,
             'renditions' => $renditions,
