@@ -670,6 +670,48 @@ return [
         $t->same([], $flatePreview['pixels']);
         $t->contains('iccbased_image_stream_preview_only_before_rgb_conversion', implode(',', $flatePreview['notes']));
     },
+    'keeps extractor native-prefix unsupported DCTDecode XObject review at decoded JPEG boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
+        $extractor = new PortLibs\MarkerPDF\PdfTextExtractor();
+        $before = 'BT /F1 12 Tf 72 720 Td (Before extractor native-prefix DCT stream) Tj ET';
+        $after = 'BT /F1 12 Tf 72 680 Td (After extractor native-prefix DCT stream) Tj ET';
+        $fakeObject = 'BT /F1 12 Tf 72 700 Td (Extractor native-prefix unsupported DCT payload leak) Tj ET';
+        $jpegPayload = "\xff\xd8\xff\xe0JFIF\0JPEG bytes\n"
+            . "endstream\nendobj\n"
+            . "9 0 obj\n<< /Length " . strlen($fakeObject) . " >>\nstream\n{$fakeObject}\nendstream\nendobj\n"
+            . "\xff\xd9";
+        $compressedPayload = $pdfDctDecodeFilterBoundaryCurrentBaseZlibStored($jpegPayload);
+        $fakeCompressedTerminatorOffset = strpos($compressedPayload, "\nendstream\n");
+        if ($fakeCompressedTerminatorOffset === false) {
+            throw new RuntimeException('Focused extractor native-prefix unsupported DCT fixture must expose a fake compressed endstream marker.');
+        }
+
+        $pageContent = $before . "\nq 24 0 0 24 72 680 cm /Photo Do Q\n" . $after;
+        $pagePdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Photo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/FlateDecode /Crypt /DCTDecode] /DecodeParms [null null null] /Length {$fakeCompressedTerminatorOffset} >>\nstream\n{$compressedPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $plainText = $extractor->extractPlainText($pagePdf);
+        $review = $extractor->extractImageXObjectBoundaryReview($pagePdf);
+        $entry = $review['entries'][0] ?? null;
+
+        $t->same(['Before extractor native-prefix DCT stream', 'After extractor native-prefix DCT stream'], $extractor->extractTextLines($pagePdf));
+        $t->same("Before extractor native-prefix DCT stream\nAfter extractor native-prefix DCT stream", $plainText);
+        $t->true(!str_contains($plainText, 'Extractor native-prefix unsupported DCT payload leak'));
+        $t->true(is_array($entry), 'Image XObject review row should be present.');
+        $t->same(['FlateDecode', 'Crypt', 'DCTDecode'], $entry['filters'] ?? null);
+        $t->same(['DCTDecode'], $entry['preview_only_filters'] ?? null);
+        $t->same(false, $entry['decoded_with_current_filters'] ?? null);
+        $t->same(true, $entry['native_prefix_decoded'] ?? null);
+        $t->same(strlen($jpegPayload), $entry['native_prefix_decoded_length'] ?? null);
+        $t->same(strtoupper(bin2hex(substr($jpegPayload, 0, 16))), $entry['native_prefix_decoded_preview_hex'] ?? null);
+        $t->same('Crypt', $entry['stopped_before_filter'] ?? null);
+        $t->same(false, $review['executes_python_or_models']);
+        $t->same(false, $review['executes_external_pdf_tools']);
+    },
     'keeps direct renderer native-prefix unsupported DCTDecode streams review-only at decoded JPEG boundaries' => static function (TestRunner $t) use ($pdfDctDecodeFilterBoundaryCurrentBaseZlibStored): void {
         $renderer = new PdfImageRenderer();
         $fakeObject = 'BT /F1 12 Tf 72 700 Td (Renderer native-prefix unsupported DCT payload leak) Tj ET';
@@ -688,7 +730,6 @@ return [
             31 => "<< /N 3 /Alternate /DeviceRGB /Length 7 >>\nstream\nPROFILE\nendstream",
         ];
         $imageObject = "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace 30 0 R /BitsPerComponent 8 /Filter [/FlateDecode /Crypt /DCTDecode] /DecodeParms [null null null] /Length {$fakeCompressedTerminatorOffset} >>\nstream\n{$compressedPayload}\nendstream";
-
         $preview = $renderer->iccBasedImageStreamPreviewRows($imageObject, $objects);
 
         $t->same(true, $preview['review_only_image_stream']);

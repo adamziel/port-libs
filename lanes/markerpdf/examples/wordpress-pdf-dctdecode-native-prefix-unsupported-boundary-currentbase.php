@@ -80,6 +80,9 @@ $unsupportedFailClosed = ($preview['image_stream']['unsupported_filters'] ?? [])
     && ($preview['image_stream']['stopped_before_filter'] ?? null) === 'Crypt'
     && ($preview['review_only_image_stream'] ?? false) === true
     && ($preview['pixels'] ?? []) === [];
+$xobjectNativePrefixDecoded = ($entry['native_prefix_decoded'] ?? false) === true
+    && ($entry['native_prefix_decoded_length'] ?? null) === strlen($jpegPayload)
+    && ($entry['stopped_before_filter'] ?? null) === 'Crypt';
 
 if (
     $lines !== $expected
@@ -87,6 +90,7 @@ if (
     || !$xobjectRecovered
     || !$rendererRecovered
     || !$unsupportedFailClosed
+    || !$xobjectNativePrefixDecoded
     || ($preview['image_stream']['native_prefix_decoded'] ?? false) !== true
     || ($preview['image_stream']['native_prefix_decoded_length'] ?? null) !== strlen($jpegPayload)
 ) {
@@ -99,6 +103,9 @@ echo '<!-- markerpdf:pdf-dctdecode-native-prefix-unsupported-boundary-currentbas
     'stream_filters' => ['FlateDecode', 'Crypt', 'DCTDecode'],
     'text_paragraphs' => $lines,
     'xobject_raw_length_recovered' => $xobjectRecovered,
+    'xobject_native_prefix_decoded' => $xobjectNativePrefixDecoded,
+    'xobject_native_prefix_length' => $entry['native_prefix_decoded_length'] ?? null,
+    'xobject_stopped_before_filter' => $entry['stopped_before_filter'] ?? null,
     'renderer_raw_length_recovered' => $rendererRecovered,
     'native_prefix_decoded_before_unsupported_filter' => true,
     'unsupported_middle_filter_fail_closed' => $unsupportedFailClosed,

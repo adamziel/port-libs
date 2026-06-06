@@ -6922,6 +6922,12 @@ final class PdfTextExtractor
         );
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects, $reviewFilters);
         $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
+        $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $reviewFilters
+        );
         $ccittNativePrefixBoundary = $this->ccittFaxNativePrefixStreamBoundaryReview(
             $stream['dict'],
             $stream['stream'],
@@ -7071,6 +7077,7 @@ final class PdfTextExtractor
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            ...$dctNativePrefixBoundary,
             ...$ccittNativePrefixBoundary,
             'payload_in_visible_text' => false,
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
@@ -7359,6 +7366,12 @@ final class PdfTextExtractor
         );
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
+        $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $filters
+        );
         $maxSample = (2 ** min($effectiveBits ?? 1, 30)) - 1;
         $matteReview = $this->imageXObjectSoftMaskMatteReview($stream['dict'], $objects, $parentColorSpace);
 
@@ -7390,6 +7403,7 @@ final class PdfTextExtractor
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            ...$dctNativePrefixBoundary,
             'payload_in_visible_text' => false,
             'review_only' => true,
         ];
@@ -7535,6 +7549,12 @@ final class PdfTextExtractor
         $dctFilterReview = $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects);
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects);
         $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
+        $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $filters
+        );
 
         return [
             'type' => $imageMask ? 'image_mask_stream' : 'explicit_mask_stream',
@@ -7559,6 +7579,7 @@ final class PdfTextExtractor
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            ...$dctNativePrefixBoundary,
             'payload_in_visible_text' => false,
             'review_only' => true,
         ];
@@ -7773,6 +7794,12 @@ final class PdfTextExtractor
             ? $this->nestedImageXObjectDctFilterReview($filters, $stream['dict'], $objects)
             : $this->imageXObjectDctFilterReview($filterDetails);
         $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
+        $dctNativePrefixBoundary = $this->dctDecodeNativePrefixStreamBoundaryReview(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $filters
+        );
 
         return [
             'object_number' => $objectNumber,
@@ -7795,6 +7822,7 @@ final class PdfTextExtractor
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            ...$dctNativePrefixBoundary,
             'payload_in_visible_text' => false,
             'review_only' => true,
         ];
@@ -7890,6 +7918,132 @@ final class PdfTextExtractor
      * @param list<string|null>|null $filters
      * @return array{native_prefix_decoded: true, native_prefix_decoded_length: int, native_prefix_decoded_sha256: string, native_prefix_decoded_preview_hex: string, stopped_before_filter: string}|array{}
      */
+    private function dctDecodeNativePrefixStreamBoundaryReview(
+        string $dictionary,
+        string $stream,
+        array $objects,
+        ?array $filters
+    ): array {
+        if ($filters === null) {
+            return [];
+        }
+
+        $dctFilterIndex = null;
+        $dctFilter = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter === 'DCTDecode' || $filter === 'DCT') {
+                $dctFilterIndex = $index;
+                $dctFilter = $filter;
+                break;
+            }
+        }
+        if (!is_int($dctFilterIndex) || !is_string($dctFilter) || $dctFilterIndex === 0) {
+            return [];
+        }
+
+        $decodeParms = $this->streamDecodeParmsForFilters($dictionary, $objects, $filters);
+        if ($decodeParms === null) {
+            return [];
+        }
+
+        $decodedPrefix = $stream;
+        $decodedNativeFilterCount = 0;
+        for ($index = 0; $index < $dctFilterIndex; $index++) {
+            $filter = $filters[$index] ?? null;
+            if ($filter === null) {
+                continue;
+            }
+
+            $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $index);
+            if (!$this->dctDecodeCanApplyNativePrefixFilter($filter, $filterDecodeParms, $objects)) {
+                return $decodedNativeFilterCount === 0
+                    ? []
+                    : $this->nativePrefixStreamBoundaryMetadata($decodedPrefix, $filter);
+            }
+
+            if (!$this->streamFilterInputHasExplicitEndMarker($filter, $decodedPrefix)) {
+                return $decodedNativeFilterCount === 0
+                    ? []
+                    : $this->nativePrefixStreamBoundaryMetadata($decodedPrefix, $filter);
+            }
+
+            $decoded = $this->decodeDctNativePrefixFilter($filter, $decodedPrefix, $filterDecodeParms, $objects);
+            if ($decoded === null) {
+                return $decodedNativeFilterCount === 0
+                    ? []
+                    : $this->nativePrefixStreamBoundaryMetadata($decodedPrefix, $filter);
+            }
+
+            $decodedPrefix = $decoded;
+            $decodedNativeFilterCount++;
+        }
+
+        return $decodedNativeFilterCount === 0
+            ? []
+            : $this->nativePrefixStreamBoundaryMetadata($decodedPrefix, $dctFilter);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeCanApplyNativePrefixFilter(string $filter, ?string $decodeParms, array $objects): bool
+    {
+        if ($filter === 'Crypt') {
+            return $this->cryptIdentityDecodeParmsSupported($decodeParms, $objects);
+        }
+
+        return in_array($filter, ['ASCIIHexDecode', 'AHx', 'ASCII85Decode', 'A85', 'RunLengthDecode', 'RL', 'LZWDecode', 'LZW', 'FlateDecode', 'Fl'], true)
+            && $this->canApplyDecodeParms($filter, $decodeParms, $objects);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeDctNativePrefixFilter(string $filter, string $stream, ?string $decodeParms, array $objects): ?string
+    {
+        return match ($filter) {
+            'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+            'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+            'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
+            'LZWDecode', 'LZW' => $this->decodeLzwStream($stream, $decodeParms, $objects),
+            'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $decodeParms, $objects),
+            'Crypt' => $this->cryptIdentityDecodeParmsSupported($decodeParms, $objects) ? $stream : null,
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function cryptIdentityDecodeParmsSupported(?string $decodeParms, array $objects): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return false;
+        }
+
+        $nameOffset = $this->topLevelNameValueOffset($decodeParms, 'Name');
+
+        return $nameOffset !== null && $this->pdfNameValueAt($decodeParms, $nameOffset, $objects) === 'Identity';
+    }
+
+    /**
+     * @return array{native_prefix_decoded: true, native_prefix_decoded_length: int, native_prefix_decoded_sha256: string, native_prefix_decoded_preview_hex: string, stopped_before_filter: string}
+     */
+    private function nativePrefixStreamBoundaryMetadata(string $decodedPrefix, string $stoppedBeforeFilter): array
+    {
+        return [
+            'native_prefix_decoded' => true,
+            'native_prefix_decoded_length' => strlen($decodedPrefix),
+            'native_prefix_decoded_sha256' => hash('sha256', $decodedPrefix),
+            'native_prefix_decoded_preview_hex' => strtoupper(bin2hex(substr($decodedPrefix, 0, 16))),
+            'stopped_before_filter' => $stoppedBeforeFilter,
+        ];
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @return array{native_prefix_decoded: true, native_prefix_decoded_length: int, native_prefix_decoded_sha256: string, native_prefix_decoded_preview_hex: string, stopped_before_filter: string}|array{}
+     */
     private function ccittFaxNativePrefixStreamBoundaryReview(
         string $dictionary,
         string $stream,
@@ -7925,13 +8079,7 @@ final class PdfTextExtractor
             return [];
         }
 
-        return [
-            'native_prefix_decoded' => true,
-            'native_prefix_decoded_length' => strlen($decodedPrefix),
-            'native_prefix_decoded_sha256' => hash('sha256', $decodedPrefix),
-            'native_prefix_decoded_preview_hex' => strtoupper(bin2hex(substr($decodedPrefix, 0, 16))),
-            'stopped_before_filter' => $ccittFilter,
-        ];
+        return $this->nativePrefixStreamBoundaryMetadata($decodedPrefix, $ccittFilter);
     }
 
     /**
