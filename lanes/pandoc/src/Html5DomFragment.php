@@ -1014,7 +1014,25 @@ final class Html5DomFragment
 
         $target = self::htmlMetaRefreshTarget($element);
         if ($target === null) {
-            return null;
+            $reviewMetadata = self::htmlMetaReviewMetadata($element);
+            if ($reviewMetadata === null) {
+                return null;
+            }
+
+            [$name, $content] = $reviewMetadata;
+
+            return [[
+                'type' => 'element',
+                'name' => 'span',
+                'attrs' => [
+                    'data-pandoc-meta-name' => $name,
+                    'data-pandoc-meta-content' => $content,
+                ],
+                'children' => [[
+                    'type' => 'text',
+                    'text' => self::htmlMetaReviewLabel($name) . ': ' . $content,
+                ]],
+            ]];
         }
 
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
@@ -1079,6 +1097,47 @@ final class Html5DomFragment
         }
 
         return $target;
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private static function htmlMetaReviewMetadata(\DOMElement $element): ?array
+    {
+        if (!$element->hasAttribute('name') || !$element->hasAttribute('content')) {
+            return null;
+        }
+
+        $name = self::normalizeHtmlMetaName($element->getAttribute('name'));
+        if (!in_array($name, ['author', 'description', 'generator', 'keywords'], true)) {
+            return null;
+        }
+
+        $content = self::cleanHtmlMetadataAttribute($element->getAttribute('content'));
+        if ($content === '') {
+            return null;
+        }
+
+        return [$name, $content];
+    }
+
+    private static function normalizeHtmlMetaName(string $name): string
+    {
+        $name = str_replace("\0", '', $name);
+        $name = preg_replace('/[\t\r\n\f ]+/u', ' ', $name) ?? $name;
+
+        return strtolower(trim($name));
+    }
+
+    private static function htmlMetaReviewLabel(string $name): string
+    {
+        return match ($name) {
+            'author' => 'Author',
+            'description' => 'Description',
+            'generator' => 'Generator',
+            'keywords' => 'Keywords',
+            default => 'Metadata',
+        };
     }
 
     /**

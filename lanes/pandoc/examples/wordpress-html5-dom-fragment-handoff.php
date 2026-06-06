@@ -17,6 +17,11 @@ $srcdoc = htmlspecialchars(
 $source = <<<HTML
 <template><base href="https://inactive.example/assets/"><a href="template-note.html">Template fallback note</a></template>
 <base href="https://source.example.test/import/posts/post-42.html?draft=1">
+<meta name="description" content="Legacy import packet for reviewer handoff">
+<meta name="author" content="Migration Desk">
+<meta name="keywords" content="wordpress, html import">
+<meta name="generator" content="Legacy CMS">
+<meta name="viewport" content="width=device-width">
 <link rel="canonical" href="../canonical/post-42.html" title="Canonical source">
 <link rel="alternate" hreflang="es" type="text/html" href="./es/post-42.html" title="Spanish source">
 <link rel="shortlink" href="?p=42">
@@ -45,7 +50,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -55,6 +60,10 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<a href="https://source.example.test/import/posts/template-note.html">Template fallback note</a>',
+        '<span data-pandoc-meta-name="description" data-pandoc-meta-content="Legacy import packet for reviewer handoff">Description: Legacy import packet for reviewer handoff</span>',
+        '<span data-pandoc-meta-name="author" data-pandoc-meta-content="Migration Desk">Author: Migration Desk</span>',
+        '<span data-pandoc-meta-name="keywords" data-pandoc-meta-content="wordpress, html import">Keywords: wordpress, html import</span>',
+        '<span data-pandoc-meta-name="generator" data-pandoc-meta-content="Legacy CMS">Generator: Legacy CMS</span>',
         '<a href="https://source.example.test/import/canonical/post-42.html" data-pandoc-link-rel="canonical" title="Canonical source">Canonical source</a>',
         '<a href="https://source.example.test/import/posts/es/post-42.html" data-pandoc-link-rel="alternate" hreflang="es" type="text/html" title="Spanish source">Spanish source</a>',
         '<a href="https://source.example.test/import/posts/post-42.html?p=42" data-pandoc-link-rel="shortlink">Shortlink</a>',

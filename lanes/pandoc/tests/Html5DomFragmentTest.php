@@ -1252,6 +1252,63 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe meta refresh URL to be stripped');
         $t->true(!str_contains($html, 'width=device-width'), 'Expected passive viewport metadata to stay out of review HTML');
     },
+    'converts passive named metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<meta name="description" content="Legacy &amp; import&#10; summary">'
+            . '<meta name="Author" content=" Migration Desk ">'
+            . '<meta name="keywords" content="wordpress, migration, html">'
+            . '<meta name="generator" content="&lt;Legacy CMS&gt;">'
+            . '<meta name="viewport" content="width=device-width">'
+            . '<meta property="og:title" content="Open graph title">'
+            . '<meta name="description" content="   ">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-name-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-name="description" data-pandoc-meta-content="Legacy &amp; import summary">Description: Legacy &amp; import summary</span>'
+            . '<span data-pandoc-meta-name="author" data-pandoc-meta-content="Migration Desk">Author: Migration Desk</span>'
+            . '<span data-pandoc-meta-name="keywords" data-pandoc-meta-content="wordpress, migration, html">Keywords: wordpress, migration, html</span>'
+            . '<span data-pandoc-meta-name="generator" data-pandoc-meta-content="&lt;Legacy CMS&gt;">Generator: &lt;Legacy CMS&gt;</span>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Description: Legacy & import summaryAuthor: Migration DeskKeywords: wordpress, migration, htmlGenerator: <Legacy CMS>after', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['base', 'meta'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same('span', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-meta-name' => 'description',
+            'data-pandoc-meta-content' => 'Legacy & import summary',
+        ], $nodes[0]['attrs']);
+        $t->same('Description: Legacy & import summary', $nodes[0]['children'][0]['text']);
+        $t->same('author', $nodes[1]['attrs']['data-pandoc-meta-name']);
+        $t->same('Migration Desk', $nodes[1]['attrs']['data-pandoc-meta-content']);
+        $t->same('keywords', $nodes[2]['attrs']['data-pandoc-meta-name']);
+        $t->same('generator', $nodes[3]['attrs']['data-pandoc-meta-name']);
+        $t->same('<Legacy CMS>', $nodes[3]['attrs']['data-pandoc-meta-content']);
+        $t->same('p', $nodes[4]['name']);
+        $t->same('/migration/meta-name-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<meta'), 'Expected original meta elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'width=device-width'), 'Expected viewport metadata to stay out of review HTML');
+        $t->true(!str_contains($html, 'Open graph title'), 'Expected unsupported property metadata to remain hidden');
+        $t->true(!str_contains($html, '<Legacy CMS>'), 'Expected tag-looking metadata text to remain escaped');
+    },
     'converts passive link relations into reviewer links while dropping active resources' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
