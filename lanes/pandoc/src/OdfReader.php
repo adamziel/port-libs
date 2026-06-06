@@ -2413,7 +2413,7 @@ final class OdfReader
     private function linkNode(\DOMElement $link, array $catalog, ?ZipPackage $package): AstNode
     {
         $attrs = [
-            'url' => self::attr($link, self::XLINK_NS, 'href'),
+            'url' => self::fixRelativeLink(self::attr($link, self::XLINK_NS, 'href')),
         ];
         $title = self::attr($link, self::OFFICE_NS, 'title');
         if ($title !== '') {
@@ -2440,6 +2440,15 @@ final class OdfReader
         }
 
         return new AstNode('link', $attrs, $this->coalesceTextNodes($this->inlineNodes($link, $catalog, $package)));
+    }
+
+    private static function fixRelativeLink(string $uri): string
+    {
+        if (!str_starts_with($uri, '../')) {
+            return $uri;
+        }
+
+        return substr($uri, 3);
     }
 
     private function softPageBreakNode(): AstNode

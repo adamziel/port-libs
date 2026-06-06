@@ -1130,6 +1130,42 @@ XML;
         $t->contains('[review link](https://example.test/source.odt#review "Source ODT review"){.odf-link data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest"}', $markdown);
         $t->contains('<a href="https://example.test/source.odt#review" title="Source ODT review" class="odf-link" data-odf-link-name="Source Link" data-odf-link-style-name="SourceLink" data-odf-link-visited-style-name="VisitedSourceLink" data-odf-link-target-frame-name="_blank" data-odf-link-type="simple" data-odf-link-show="new" data-odf-link-actuate="onRequest">review link</a>', $blocksHtml);
     },
+    'normalizes ODT parent relative text links like upstream fixRelativeLink' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithParentRelativeLinks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Parent <text:a xlink:href="../media/source.odt?download=1#review" office:title="Parent source">review packet</text:a> and local <text:a xlink:href="./local.odt">local packet</text:a>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithParentRelativeLinks));
+        $paragraph = $result['document']->children[0];
+        $parentLink = $paragraph->children[1];
+        $localLink = $paragraph->children[3];
+
+        $t->same('Parent review packet and local local packet.', $paragraph->attr('text'));
+        $t->same('link', $parentLink->type);
+        $t->same('media/source.odt?download=1#review', $parentLink->attr('url'));
+        $t->same('Parent source', $parentLink->attr('title'));
+        $t->same('review packet', $parentLink->children[0]->attr('text'));
+        $t->same('link', $localLink->type);
+        $t->same('./local.odt', $localLink->attr('url'));
+        $t->same('local packet', $localLink->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->contains('[review packet](media/source.odt?download=1#review "Parent source")', $markdown);
+        $t->contains('[local packet](./local.odt)', $markdown);
+        $t->contains('<a href="media/source.odt?download=1#review" title="Parent source">review packet</a>', $blocksHtml);
+        $t->contains('<a href="./local.odt">local packet</a>', $blocksHtml);
+    },
     'maps ODT annotation ranges into review spans and note handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnnotationRange = <<<'XML'
 <office:document-content
