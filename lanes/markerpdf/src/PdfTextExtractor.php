@@ -15780,7 +15780,13 @@ final class PdfTextExtractor
 
     private function bodyMayContainFontDictionary(string $body): bool
     {
-        return str_contains($body, '/Type /Font') || str_contains($body, '/Type/Font');
+        if (str_contains($body, '/Type /Font') || str_contains($body, '/Type/Font')) {
+            return true;
+        }
+
+        $typeValue = $this->topLevelPdfValueAfterName($body, 'Type');
+
+        return $typeValue !== null && $this->pdfNameValueAt($typeValue, 0, []) === 'Font';
     }
 
     /**
