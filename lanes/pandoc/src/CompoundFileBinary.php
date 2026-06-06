@@ -772,7 +772,12 @@ final class CompoundFileBinary
 
     private static function normalizeName(string $name): string
     {
-        return strtolower(ltrim($name, '/'));
+        $name = ltrim($name, '/');
+        if (function_exists('mb_strtolower')) {
+            return mb_strtolower($name, 'UTF-8');
+        }
+
+        return strtolower($name);
     }
 
     private static function isRegularSector(int $sector): bool

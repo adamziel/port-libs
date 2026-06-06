@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+use PortLibs\Pandoc\CompoundFileBinary;
 use PortLibs\Pandoc\LegacyDocReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -700,10 +701,13 @@ if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
 }
 $sourceGuid = 'f0e1d2c3-b4a5-9687-1020-304050607080';
 $archiveBytes = 6000000000;
+$unicodeReviewStreamPath = 'Résumé/Σύνοψη';
+$unicodeReviewStreamBytes = 'unicode CFB review packet';
 
 $streams = [
     'WordDocument' => $wordDocument,
     '1Table' => $tableStream,
+    $unicodeReviewStreamPath => $unicodeReviewStreamBytes,
     "\x05SummaryInformation" => $typedPropertySet([
         2 => $typedLpstr('Legacy DOC import packet'),
         4 => $typedLpstr('Migration Desk'),
@@ -1263,8 +1267,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['listFormats'][0]['levels'][0]['canApplyNumbering'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test should keep legacy numbering application disabled');
     }
-    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 14 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
+    if (($summary['metadata']['cfbStreamCount'] ?? null) !== 15 || ($summary['metadata']['cfbTimestampedDirectoryEntryCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing CFB directory counts');
+    }
+    $compoundFile = CompoundFileBinary::fromBytes($docBytes);
+    if (!in_array($unicodeReviewStreamPath, $summary['streams'], true) || !$compoundFile->hasStream('résumé/σύνοψη') || $compoundFile->readStream('RÉSUMÉ/ΣΎΝΟΨΗ') !== $unicodeReviewStreamBytes) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Unicode CFB stream lookup');
     }
     $directoryByPath = [];
     foreach ($summary['directoryEntries'] as $directoryEntry) {
@@ -1540,8 +1548,20 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
     }
 
-    $directorySectorOffset = 512 + 512;
-    $directoryFieldOffset = static fn (int $directoryId, int $fieldOffset): int => $directorySectorOffset + ($directoryId * 128) + $fieldOffset;
+    $directoryFieldOffset = static function (int $directoryId, int $fieldOffset) use ($fat, $sectorSize, $end): int {
+        $entryOffset = ($directoryId * 128) + $fieldOffset;
+        $directorySectorIndex = intdiv($entryOffset, $sectorSize);
+        $offsetInSector = $entryOffset % $sectorSize;
+        $sector = 1;
+        for ($index = 0; $index < $directorySectorIndex; $index++) {
+            $sector = (int) ($fat[$sector] ?? $end);
+            if ($sector === $end) {
+                throw new RuntimeException('Legacy DOC handoff fixture directory chain is shorter than expected');
+            }
+        }
+
+        return 512 + ($sector * $sectorSize) + $offsetInSector;
+    };
     $wordDocumentDirectoryId = (int) $nodeByPath['WordDocument'];
     $objectPoolDirectoryId = (int) $nodeByPath['ObjectPool'];
     $wordDocumentMiniStreamOffset = 512
@@ -1580,7 +1600,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'misclassified CFB FAT sector' => substr_replace($docBytes, $u32($end), 512, 4),
         'CFB root mini stream reuses directory sector' => substr_replace($docBytes, $u32(1), $directoryFieldOffset(0, 116), 4),
         'CFB orphaned active directory entry' => $orphanedActiveDirectoryEntry,
-        'invalid CFB root storage name' => substr_replace($docBytes, "X\0", 1024, 2),
+        'invalid CFB root storage name' => substr_replace($docBytes, "X\0", $directoryFieldOffset(0, 0), 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentMiniStreamOffset + 0x01a6, 4),
     ] as $label => $corruptDocBytes) {
         try {

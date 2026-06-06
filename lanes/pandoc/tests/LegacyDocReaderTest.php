@@ -1326,6 +1326,21 @@ return [
         $t->same(false, $compoundFile->hasStream('Notes'));
         $t->same('nested reviewer notes', $compoundFile->readStream('review/notes'));
     },
+    'looks up CFB Unicode stream paths case-insensitively for legacy DOC review' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            'Résumé/Σύνοψη' => 'unicode reviewer notes',
+        ]);
+        $compoundFile = CompoundFileBinary::fromBytes($bytes);
+
+        $t->same([
+            'Résumé/Σύνοψη',
+            'WordDocument',
+        ], $compoundFile->streamNames());
+        $t->true($compoundFile->hasStream('résumé/σύνοψη'));
+        $t->same(22, $compoundFile->streamSize('RÉSUMÉ/ΣΎΝΟΨΗ'));
+        $t->same('unicode reviewer notes', $compoundFile->readStream('résumé/σύνοψη'));
+    },
     'rejects orphaned active CFB directory entries before exposing streams' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("Reachable legacy body\r"),
