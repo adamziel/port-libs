@@ -653,6 +653,36 @@ $parserStreamFilterStackBoundaryCurrentBaseNestedDecodeParmsArrayPdf = static fu
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseIndirectDecodeParmsSingleValuePdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor,
+    $parserStreamFilterStackBoundaryCurrentBaseZlibStored
+): string {
+    $scalarLeak = 'BT /F1 12 Tf 72 720 Td (Indirect Scalar DecodeParms Leak) Tj ET';
+    $scalarCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($scalarLeak);
+    $arrayLeak = 'BT /F1 12 Tf 72 704 Td (Indirect Array DecodeParms Leak) Tj ET';
+    $arrayCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($arrayLeak);
+
+    $rowOne = 'BT /F1 12 Tf 72 688 Td (Valid Indirect DecodeParms Predictor) Tj T* ';
+    $rowTwo = str_pad('(Valid Helper Still Decodes) Tj ET', strlen($rowOne));
+    $encodedRows = $parserStreamFilterStackBoundaryCurrentBasePngSubPredictor($rowOne . $rowTwo, strlen($rowOne));
+    $validCompressed = $parserStreamFilterStackBoundaryCurrentBaseZlibStored($encodedRows);
+    $visibleAfter = 'BT /F1 12 Tf 72 652 Td (Visible After Indirect DecodeParms Boundary) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R 8 0 R 12 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /FlateDecode /DecodeParms 10 0 R /Length " . strlen($scalarCompressed) . " >>\nstream\n{$scalarCompressed}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Filter /FlateDecode /DecodeParms [ 11 0 R ] /Length " . strlen($arrayCompressed) . " >>\nstream\n{$arrayCompressed}\nendstream\nendobj\n"
+        . "8 0 obj\n<< /Filter /FlateDecode /DecodeParms 14 0 R /Length " . strlen($validCompressed) . " >>\nstream\n{$validCompressed}\nendstream\nendobj\n"
+        . "10 0 obj\n<< /Predictor 1 >> << /Predictor 12 /Columns 64 >>\nendobj\n"
+        . "11 0 obj\n<< /Predictor 1 >> null\nendobj\n"
+        . "12 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "14 0 obj\n<< /Predictor 12 /Columns " . strlen($rowOne) . " >>\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf = static function () use (
     $parserStreamFilterStackBoundaryCurrentBaseZlibStored
 ): string {
@@ -1186,6 +1216,29 @@ return [
         $t->true(!str_contains($text, 'Indirect Nested DecodeParms Leak'));
         $t->true(!str_contains($text, 'Predictor'));
         $t->true(!str_contains($text, '10 0 obj'));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects indirect DecodeParms helpers with trailing top-level operands before page text import' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseIndirectDecodeParmsSingleValuePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseIndirectDecodeParmsSingleValuePdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = [
+            'Valid Indirect DecodeParms Predictor',
+            'Valid Helper Still Decodes',
+            'Visible After Indirect DecodeParms Boundary',
+        ];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $text);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Indirect Scalar DecodeParms Leak'));
+        $t->true(!str_contains($text, 'Indirect Array DecodeParms Leak'));
+        $t->true(!str_contains($text, 'Predictor 12'));
+        $t->true(!str_contains($text, '10 0 obj'));
+        $t->true(!str_contains($text, '11 0 obj'));
         $t->true(!str_contains($text, "\0"));
     },
     'ignores unresolved DecodeParms entries aligned to trailing null filters in fallback stream scans' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseFallbackTrailingNullDecodeParmsPdf): void {

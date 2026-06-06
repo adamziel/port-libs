@@ -15003,7 +15003,8 @@ final class PdfTextExtractor
         int $offset,
         array $objects,
         array $filters,
-        array $seen = []
+        array $seen = [],
+        bool $requireSingleValueOnly = false
     ): ?array {
         $offset = $this->skipPdfWhitespace($value, $offset);
         if ($offset >= strlen($value)) {
@@ -15025,15 +15026,21 @@ final class PdfTextExtractor
             }
 
             $seen[$objectKey] = true;
-            return $this->decodeParmsValueListForFilters(trim($body), 0, $objects, $filters, $seen);
+            return $this->decodeParmsValueListForFilters(trim($body), 0, $objects, $filters, $seen, true);
         }
 
         if ($value[$offset] !== '[') {
-            return $this->decodeParmsValueList($value, $offset, $objects, $seen);
+            return $this->decodeParmsValueList($value, $offset, $objects, $seen, $requireSingleValueOnly);
         }
 
         $arrayBody = $this->readPdfArrayAt($value, $offset);
         if ($arrayBody === null) {
+            return null;
+        }
+        if (
+            $requireSingleValueOnly
+            && $this->skipPdfWhitespace($value, $offset + strlen($arrayBody) + 2) !== strlen($value)
+        ) {
             return null;
         }
 
@@ -15229,7 +15236,13 @@ final class PdfTextExtractor
      * @param array<int, string> $objects
      * @param array<int, true> $seen
      */
-    private function decodeParmsValueList(string $value, int $offset, array $objects, array $seen = []): ?array
+    private function decodeParmsValueList(
+        string $value,
+        int $offset,
+        array $objects,
+        array $seen = [],
+        bool $requireSingleValueOnly = false
+    ): ?array
     {
         $offset = $this->skipPdfWhitespace($value, $offset);
         if ($offset >= strlen($value)) {
@@ -15238,20 +15251,47 @@ final class PdfTextExtractor
 
         if ($value[$offset] === '[') {
             $arrayBody = $this->readPdfArrayAt($value, $offset);
+            if (
+                $arrayBody !== null
+                && $requireSingleValueOnly
+                && $this->skipPdfWhitespace($value, $offset + strlen($arrayBody) + 2) !== strlen($value)
+            ) {
+                return null;
+            }
             return $arrayBody === null ? null : $this->decodeParmsArrayItems($arrayBody, $objects, $seen);
         }
 
         if (substr($value, $offset, 2) === '<<') {
-            $dictionary = $this->readPdfDictionaryTokenAt($value, $offset);
+            $dictionaryOffset = $offset;
+            $dictionary = $this->readPdfDictionaryTokenAt($value, $dictionaryOffset);
+            if (
+                $dictionary !== null
+                && $requireSingleValueOnly
+                && $this->skipPdfWhitespace($value, $dictionaryOffset) !== strlen($value)
+            ) {
+                return null;
+            }
             return $dictionary === null ? null : [$dictionary];
         }
 
         if (preg_match('/\Gnull\b/s', $value, $match, 0, $offset) === 1) {
+            if (
+                $requireSingleValueOnly
+                && $this->skipPdfWhitespace($value, $offset + strlen($match[0])) !== strlen($value)
+            ) {
+                return null;
+            }
             return [null];
         }
 
         $reference = $this->pdfIndirectReferenceTokenAt($value, $offset);
         if ($reference !== null) {
+            if (
+                $requireSingleValueOnly
+                && $this->skipPdfWhitespace($value, $reference['endOffset']) !== strlen($value)
+            ) {
+                return null;
+            }
             $objectNumber = $reference['objectNumber'];
             $generation = $reference['generation'];
             $objectKey = $objectNumber . ':' . $generation;
@@ -15265,7 +15305,7 @@ final class PdfTextExtractor
             }
 
             $seen[$objectKey] = true;
-            return $this->decodeParmsValueList(trim($body), 0, $objects, $seen);
+            return $this->decodeParmsValueList(trim($body), 0, $objects, $seen, true);
         }
 
         return null;
@@ -15324,7 +15364,7 @@ final class PdfTextExtractor
 
                 $nextSeen = $seen;
                 $nextSeen[$objectKey] = true;
-                $resolved = $this->decodeParmsValueList(trim($body), 0, $objects, $nextSeen);
+                $resolved = $this->decodeParmsValueList(trim($body), 0, $objects, $nextSeen, true);
                 if ($resolved === null || count($resolved) !== 1) {
                     return null;
                 }
@@ -25635,7 +25675,7 @@ final class PdfTextExtractor
      */
     private function decodeParmsOperandBodyIsValid(string $body, array $objects, array $seen = []): bool
     {
-        return $this->decodeParmsValueList(trim($body), 0, $objects, $seen) !== null;
+        return $this->decodeParmsValueList(trim($body), 0, $objects, $seen, true) !== null;
     }
 
     /**
