@@ -735,7 +735,18 @@ return [
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $arrayMathml);
         $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>p</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mfrac><msub><mi>a</mi><mi>i</mi></msub><msub><mi>b</mi><mi>i</mi></msub></mfrac></mtd></mtr></mtable>', $arrayMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{rl}x_i &amp;= p_i \\\\ y_i &amp;= \\frac{a_i}{b_i}\\end{array}</annotation>', $arrayMathml);
-        $t->contains('<mtable columnalign="left center right"><mtr><mtd><mi>α</mi></mtd><mtd><mi>β</mi></mtd><mtd><mi>ω</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $ruledArrayMathml);
+        $t->contains('<mtable columnalign="left center right" columnlines="solid solid"><mtr><mtd><mi>α</mi></mtd><mtd><mi>β</mi></mtd><mtd><mi>ω</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr></mtable>', $ruledArrayMathml);
+    },
+    'converts bounded tex array rule commands to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $ruleMathml = $converter->texToMathMl('\\begin{array}{l|c|r}\\hline p_i & m_i & 1 \\\\ \\hline q_i & n_i & 2 \\\\ \\hline\\end{array}', true);
+        $sparseRulesMathml = $converter->texToMathMl('\\begin{array}{lc|r}a & b & c \\\\ x & y & z\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $ruleMathml);
+        $t->contains('<mtable columnalign="left center right" columnlines="solid solid" data-tex-topline="solid" rowlines="solid" data-tex-bottomline="solid"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd><mtd><mn>2</mn></mtd></mtr></mtable>', $ruleMathml);
+        $t->true(!str_contains($ruleMathml, '<mi>\\hline</mi>'), 'Expected TeX \\hline to become array rule metadata');
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|c|r}\\hline p_i &amp; m_i &amp; 1 \\\\ \\hline q_i &amp; n_i &amp; 2 \\\\ \\hline\\end{array}</annotation>', $ruleMathml);
+        $t->contains('<mtable columnalign="left center right" columnlines="none solid"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd><mtd><mi>c</mi></mtd></mtr><mtr><mtd><mi>x</mi></mtd><mtd><mi>y</mi></mtd><mtd><mi>z</mi></mtd></mtr></mtable>', $sparseRulesMathml);
     },
     'converts bounded tex compact matrix and subarray environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

@@ -1824,10 +1824,11 @@ final class MathTexConverter
 
     private function parseArrayEnvironment(string $source, int &$offset): string
     {
-        $columnAlign = $this->arrayColumnAlign($this->readRequiredGroupText($source, $offset));
+        $columnAttributes = $this->arrayColumnAttributes($this->readRequiredGroupText($source, $offset));
         $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
+        $rowRules = $this->stripArrayRowRules($rows);
 
-        return $this->environmentTable($rows, ' columnalign="' . $this->esc($columnAlign) . '"');
+        return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes']);
     }
 
     private function parseSmallMatrixEnvironment(string $source, int &$offset): string
@@ -2509,26 +2510,66 @@ final class MathTexConverter
 
     private function arrayColumnAlign(string $columnSpec): string
     {
+        return $this->arrayColumnSpec($columnSpec)['columnalign'];
+    }
+
+    private function arrayColumnAttributes(string $columnSpec): string
+    {
+        $spec = $this->arrayColumnSpec($columnSpec);
+        $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
+        if ($spec['columnlines'] !== []) {
+            $attributes .= ' columnlines="' . $this->esc(implode(' ', $spec['columnlines'])) . '"';
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return array{columnalign:string, columnlines:list<string>}
+     */
+    private function arrayColumnSpec(string $columnSpec): array
+    {
         $alignments = [];
+        $columnLines = [];
+        $lineBeforeNextColumn = false;
         $length = strlen($columnSpec);
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $columnSpec[$offset];
-            if ($char === '|' || ctype_space($char)) {
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === '|') {
+                if ($alignments !== []) {
+                    $lineBeforeNextColumn = true;
+                }
                 continue;
             }
 
             if ($char === 'l') {
+                if ($alignments !== []) {
+                    $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
+                }
                 $alignments[] = 'left';
+                $lineBeforeNextColumn = false;
                 continue;
             }
 
             if ($char === 'c') {
+                if ($alignments !== []) {
+                    $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
+                }
                 $alignments[] = 'center';
+                $lineBeforeNextColumn = false;
                 continue;
             }
 
             if ($char === 'r') {
+                if ($alignments !== []) {
+                    $columnLines[] = $lineBeforeNextColumn ? 'solid' : 'none';
+                }
                 $alignments[] = 'right';
+                $lineBeforeNextColumn = false;
                 continue;
             }
 
@@ -2539,7 +2580,119 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX array column specifier');
         }
 
-        return implode(' ', $alignments);
+        if (!in_array('solid', $columnLines, true)) {
+            $columnLines = [];
+        }
+
+        return [
+            'columnalign' => implode(' ', $alignments),
+            'columnlines' => $columnLines,
+        ];
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @return array{rows:list<list<string>>, attributes:string}
+     */
+    private function stripArrayRowRules(array $rows): array
+    {
+        $strippedRows = [];
+        $lineBeforeRow = [];
+        $topLine = false;
+        $bottomLine = false;
+        $lastRowIndex = count($rows) - 1;
+
+        foreach ($rows as $rowIndex => $row) {
+            if ($row === []) {
+                continue;
+            }
+
+            $hlineCount = 0;
+            $row[0] = $this->stripLeadingArrayHlines($row[0], $hlineCount);
+            if ($hlineCount > 0) {
+                if ($rowIndex === 0) {
+                    $topLine = true;
+                } else {
+                    $lineBeforeRow[count($strippedRows)] = true;
+                }
+            }
+
+            if ($this->arrayRowIsEmpty($row)) {
+                if ($hlineCount > 0 && $rowIndex === $lastRowIndex) {
+                    $bottomLine = true;
+                    continue;
+                }
+
+                throw new \InvalidArgumentException('Expected TeX array row content at row ' . ($rowIndex + 1));
+            }
+
+            $strippedRows[] = $row;
+        }
+
+        if ($strippedRows === []) {
+            throw new \InvalidArgumentException('Empty TeX environment array');
+        }
+
+        $attributes = '';
+        if ($topLine) {
+            $attributes .= ' data-tex-topline="solid"';
+        }
+
+        $rowLines = [];
+        for ($rowIndex = 1; $rowIndex < count($strippedRows); $rowIndex++) {
+            $rowLines[] = ($lineBeforeRow[$rowIndex] ?? false) ? 'solid' : 'none';
+        }
+        if (in_array('solid', $rowLines, true)) {
+            $attributes .= ' rowlines="' . $this->esc(implode(' ', $rowLines)) . '"';
+        }
+
+        if ($bottomLine) {
+            $attributes .= ' data-tex-bottomline="solid"';
+        }
+
+        return [
+            'rows' => $strippedRows,
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function stripLeadingArrayHlines(string $cell, int &$hlineCount): string
+    {
+        $hlineCount = 0;
+        $offset = 0;
+        $length = strlen($cell);
+
+        while ($offset < $length) {
+            $this->skipWhitespace($cell, $offset);
+            if (($cell[$offset] ?? '') !== '\\') {
+                break;
+            }
+
+            $commandOffset = $offset + 1;
+            $command = $this->readCommandName($cell, $commandOffset);
+            if ($command !== 'hline') {
+                break;
+            }
+
+            $hlineCount++;
+            $offset = $commandOffset;
+        }
+
+        return ltrim(substr($cell, $offset));
+    }
+
+    /**
+     * @param list<string> $row
+     */
+    private function arrayRowIsEmpty(array $row): bool
+    {
+        foreach ($row as $cell) {
+            if (trim($cell) !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
