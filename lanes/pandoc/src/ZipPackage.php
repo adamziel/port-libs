@@ -1674,6 +1674,174 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     isValid:bool,
+     *     diagnostics:list<string>,
+     *     maxTotalUncompressedBytes:?int,
+     *     maxExpansionRatio:?float,
+     *     maxEntryUncompressedBytes:?int,
+     *     archive:array<string, mixed>,
+     *     size:array<string, mixed>,
+     *     compressionMethods:array<string, mixed>,
+     *     comments:array<string, mixed>,
+     *     extraFields:array<string, mixed>,
+     *     pathHierarchy:array<string, mixed>,
+     *     permissions:array<string, mixed>,
+     *     creatorHostSystems:array<string, mixed>,
+     *     dataDescriptors:array<string, mixed>,
+     *     readIntegrity:array<string, mixed>
+     * }
+     */
+    public function strictImportPreflight(
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        if ($maxTotalUncompressedBytes !== null && $maxTotalUncompressedBytes < 0) {
+            throw new \InvalidArgumentException('ZIP package maximum total uncompressed size must be non-negative');
+        }
+
+        if ($maxExpansionRatio !== null && $maxExpansionRatio < 0.0) {
+            throw new \InvalidArgumentException('ZIP package maximum expansion ratio must be non-negative');
+        }
+
+        self::assertReadLimit($maxEntryUncompressedBytes, 'strict package import preflight');
+
+        $archive = $this->archivePreflight();
+        $size = $this->sizePreflight();
+        $compressionMethods = $this->compressionMethodPreflight();
+        $comments = $this->commentPreflight();
+        $extraFields = $this->extraFieldPreflight();
+        $pathHierarchy = $this->pathHierarchyPreflight();
+        $permissions = $this->permissionPreflight();
+        $creatorHostSystems = $this->creatorHostSystemPreflight();
+        $dataDescriptors = $this->dataDescriptorPreflight();
+        $readIntegrity = $this->readIntegrityPreflight($maxEntryUncompressedBytes);
+        $diagnostics = [];
+
+        if (!$archive['isArchiveLayoutSupported']) {
+            $diagnostics[] = 'unsupported-archive-layout';
+        }
+
+        if ($comments['hasComments']) {
+            $diagnostics[] = 'package-or-entry-comments';
+        }
+
+        if ($compressionMethods['unsupportedCompressionMethodCount'] > 0) {
+            $diagnostics[] = 'unsupported-compression-methods';
+        }
+
+        if ($extraFields['duplicateExtraFieldEntryCount'] > 0) {
+            $diagnostics[] = 'duplicate-extra-field-ids';
+        }
+
+        if ($extraFields['mismatchedExtraFieldEntryCount'] > 0) {
+            $diagnostics[] = 'central-local-extra-field-id-mismatch';
+        }
+
+        if ($extraFields['mismatchedExtraFieldValueEntryCount'] > 0) {
+            $diagnostics[] = 'central-local-extra-field-value-mismatch';
+        }
+
+        if ($pathHierarchy['collisionEntryCount'] > 0) {
+            $diagnostics[] = 'path-hierarchy-collisions';
+        }
+
+        if ($permissions['executableFileCount'] > 0) {
+            $diagnostics[] = 'executable-file-entries';
+        }
+
+        if ($creatorHostSystems['unknownHostSystemEntryCount'] > 0) {
+            $diagnostics[] = 'unknown-creator-host-systems';
+        }
+
+        if (
+            $maxTotalUncompressedBytes !== null
+            && $size['uncompressedBytes'] > $maxTotalUncompressedBytes
+        ) {
+            $diagnostics[] = 'total-uncompressed-size-exceeds-limit';
+        }
+
+        if (
+            $maxExpansionRatio !== null
+            && $size['expansionRatio'] === null
+            && $size['uncompressedBytes'] > 0
+        ) {
+            $diagnostics[] = 'expansion-ratio-unknown';
+        } elseif (
+            $maxExpansionRatio !== null
+            && $size['expansionRatio'] !== null
+            && $size['expansionRatio'] > $maxExpansionRatio
+        ) {
+            $diagnostics[] = 'expansion-ratio-exceeds-limit';
+        }
+
+        if ($readIntegrity['failedEntryCount'] > 0) {
+            $diagnostics[] = 'unreadable-entries';
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'isValid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+            'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
+            'maxExpansionRatio' => $maxExpansionRatio,
+            'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
+            'archive' => $archive,
+            'size' => $size,
+            'compressionMethods' => $compressionMethods,
+            'comments' => $comments,
+            'extraFields' => $extraFields,
+            'pathHierarchy' => $pathHierarchy,
+            'permissions' => $permissions,
+            'creatorHostSystems' => $creatorHostSystems,
+            'dataDescriptors' => $dataDescriptors,
+            'readIntegrity' => $readIntegrity,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     isValid:bool,
+     *     diagnostics:list<string>,
+     *     maxTotalUncompressedBytes:?int,
+     *     maxExpansionRatio:?float,
+     *     maxEntryUncompressedBytes:?int,
+     *     archive:array<string, mixed>,
+     *     size:array<string, mixed>,
+     *     compressionMethods:array<string, mixed>,
+     *     comments:array<string, mixed>,
+     *     extraFields:array<string, mixed>,
+     *     pathHierarchy:array<string, mixed>,
+     *     permissions:array<string, mixed>,
+     *     creatorHostSystems:array<string, mixed>,
+     *     dataDescriptors:array<string, mixed>,
+     *     readIntegrity:array<string, mixed>
+     * }
+     */
+    public function assertStrictImportable(
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        $summary = $this->strictImportPreflight(
+            $maxTotalUncompressedBytes,
+            $maxExpansionRatio,
+            $maxEntryUncompressedBytes
+        );
+        if ($summary['isValid']) {
+            return $summary;
+        }
+
+        throw new \RuntimeException(
+            'ZIP package failed strict native pandoc import preflight: '
+            . implode(', ', $summary['diagnostics'])
+        );
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     supportedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
      *     storedEntryCount:int,

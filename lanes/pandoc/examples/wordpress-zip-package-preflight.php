@@ -1685,6 +1685,32 @@ $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
 $packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
+$strictImportPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Strict import source</w:p></w:body></w:document>',
+        'modifiedAt' => $documentModifiedAt,
+        'externalAttributes' => 0x81a40000,
+    ],
+    [
+        'name' => 'word/media/',
+        'externalAttributes' => 0x41ed0000,
+    ],
+    [
+        'name' => 'word/media/review.txt',
+        'data' => "review media bytes\n",
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81a40000,
+    ],
+]);
+$strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
+$strictCommentImportPreflight = $package->strictImportPreflight(4096, 100.0, 4096);
+$strictCommentImportRejected = false;
+try {
+    $package->assertStrictImportable(4096, 100.0, 4096);
+} catch (RuntimeException $exception) {
+    $strictCommentImportRejected = str_contains($exception->getMessage(), 'package-or-entry-comments');
+}
 $odtMimetype = 'application/vnd.oasis.opendocument.text';
 $odtMimetypePackage = ZipPackage::fromParts([
     [
@@ -2682,6 +2708,32 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($strictImportPreflight['isValid'] ?? null) !== true
+        || ($strictImportPreflight['diagnostics'] ?? null) !== []
+        || ($strictImportPreflight['entryCount'] ?? null) !== 3
+        || ($strictImportPreflight['compressionMethods']['supportedEntryCount'] ?? null) !== 3
+        || ($strictImportPreflight['readIntegrity']['failedEntryCount'] ?? null) !== 0
+    ) {
+        throw new RuntimeException('Expected strict ZIP import preflight to accept the clean WordPress package');
+    }
+
+    if ($strictImportPackage->assertStrictImportable(4096, 100.0, 4096) !== $strictImportPreflight) {
+        throw new RuntimeException('Expected strict ZIP import assertion to return the accepted summary');
+    }
+
+    if ($strictImportPackage->read('/word/media/review.txt') !== "review media bytes\n") {
+        throw new RuntimeException('Expected strict ZIP import package media bytes to remain readable after preflight');
+    }
+
+    if (
+        ($strictCommentImportPreflight['isValid'] ?? null) !== false
+        || ($strictCommentImportPreflight['diagnostics'] ?? null) !== ['package-or-entry-comments']
+        || !$strictCommentImportRejected
+    ) {
+        throw new RuntimeException('Expected strict ZIP import preflight to reject package and entry comments');
+    }
+
+    if (
         ($odtMimetypePreflight['entryName'] ?? null) !== 'mimetype'
         || ($odtMimetypePreflight['firstLocalEntryName'] ?? null) !== 'mimetype'
         || ($odtMimetypePreflight['isStored'] ?? null) !== true
@@ -3581,6 +3633,10 @@ echo 'packageCompression.supportedEntryCount=' . $packageCompressionPreflight['s
 echo 'packageCompression.unsupportedMethodCount=' . $packageCompressionPreflight['unsupportedCompressionMethodCount'] . "\n";
 echo 'packageReadIntegrity.readableEntryCount=' . $packageReadIntegrityPreflight['readableEntryCount'] . "\n";
 echo 'packageReadIntegrity.failedEntryCount=' . $packageReadIntegrityPreflight['failedEntryCount'] . "\n";
+echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
+echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipStrictImportCommentDiagnostics=' . implode(',', $strictCommentImportPreflight['diagnostics']) . "\n";
 echo 'zipTrailingDeflatePolicy=' . ($trailingDeflateRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipTrailingDeflateError=' . ($trailingDeflatePreflight['failedEntries'][0]['error'] ?? 'none') . "\n";
 echo 'packageExtraField.mismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] . "\n";

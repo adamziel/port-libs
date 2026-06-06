@@ -2682,6 +2682,138 @@ return [
         $t->same([], $safeSummary['unsupportedEntries']);
     },
 
+    'aggregates strict zip import preflight policy before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>strict package import</w:p></w:document>',
+                'modifiedAt' => 1780479017,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "review media bytes\n",
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]);
+        $safeSummary = $safePackage->strictImportPreflight(512, 20.0, 512);
+
+        $t->same(true, $safeSummary['isValid']);
+        $t->same([], $safeSummary['diagnostics']);
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(512, $safeSummary['maxTotalUncompressedBytes']);
+        $t->same(20.0, $safeSummary['maxExpansionRatio']);
+        $t->same(512, $safeSummary['maxEntryUncompressedBytes']);
+        $t->same(3, $safeSummary['compressionMethods']['supportedEntryCount']);
+        $t->same(0, $safeSummary['comments']['entryCommentCount']);
+        $t->same(0, $safeSummary['extraFields']['duplicateExtraFieldEntryCount']);
+        $t->same(0, $safeSummary['pathHierarchy']['collisionEntryCount']);
+        $t->same(0, $safeSummary['permissions']['executableFileCount']);
+        $t->same(0, $safeSummary['creatorHostSystems']['unknownHostSystemEntryCount']);
+        $t->same(3, $safeSummary['readIntegrity']['readableEntryCount']);
+        $t->same(0, $safeSummary['readIntegrity']['failedEntryCount']);
+        $t->same($safeSummary, $safePackage->assertStrictImportable(512, 20.0, 512));
+        $t->same("review media bytes\n", $safePackage->read('/word/media/review.txt'));
+
+        $duplicateExtra = pack('vva*', 0xbeef, strlen('first'), 'first')
+            . pack('vva*', 0xbeef, strlen('second'), 'second');
+        $badPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => str_repeat('A', 512),
+                'method' => 8,
+                'comment' => 'document comment must be reviewed',
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/unsupported.bin',
+                'data' => 'unsupported package media',
+                'method' => 12,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media',
+                'data' => 'file shadows media directory',
+                'method' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/reviewer-script.sh',
+                'data' => "#!/bin/sh\necho review\n",
+                'method' => 0,
+                'externalAttributes' => 0x81ed0000,
+            ],
+            [
+                'name' => 'word/media/unknown-host.bin',
+                'data' => 'unknown creator host metadata',
+                'method' => 0,
+                'versionMadeBy' => 0x3f14,
+                'externalAttributes' => 0,
+            ],
+            [
+                'name' => 'word/media/duplicate-extra.bin',
+                'data' => 'duplicate extra field metadata',
+                'method' => 0,
+                'localExtra' => $duplicateExtra,
+                'centralExtra' => $duplicateExtra,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/split-extra.bin',
+                'data' => 'split extra field metadata',
+                'method' => 0,
+                'localExtra' => pack('vva*', 0xcafe, strlen('local'), 'local'),
+                'centralExtra' => pack('vva*', 0xcafe, strlen('central'), 'central'),
+                'externalAttributes' => 0x81a40000,
+            ],
+        ], 'package comment must be reviewed'));
+        $badSummary = $badPackage->strictImportPreflight(256, 2.0, 256);
+
+        $t->same(false, $badSummary['isValid']);
+        $t->same([
+            'package-or-entry-comments',
+            'unsupported-compression-methods',
+            'duplicate-extra-field-ids',
+            'central-local-extra-field-value-mismatch',
+            'path-hierarchy-collisions',
+            'executable-file-entries',
+            'unknown-creator-host-systems',
+            'total-uncompressed-size-exceeds-limit',
+            'expansion-ratio-exceeds-limit',
+            'unreadable-entries',
+        ], $badSummary['diagnostics']);
+        $t->same(9, $badSummary['entryCount']);
+        $t->same(1, $badSummary['compressionMethods']['unsupportedCompressionMethodCount']);
+        $t->same(1, $badSummary['extraFields']['duplicateExtraFieldEntryCount']);
+        $t->same(1, $badSummary['extraFields']['mismatchedExtraFieldValueEntryCount']);
+        $t->same(8, $badSummary['pathHierarchy']['collisionEntryCount']);
+        $t->same(1, $badSummary['permissions']['executableFileCount']);
+        $t->same(1, $badSummary['creatorHostSystems']['unknownHostSystemEntryCount']);
+        $t->same(true, $badSummary['size']['uncompressedBytes'] > 256);
+        $t->same(true, ($badSummary['size']['expansionRatio'] ?? 0.0) > 2.0);
+        $t->same(2, $badSummary['readIntegrity']['failedEntryCount']);
+        $t->same('word/document.xml', $badSummary['readIntegrity']['failedEntries'][0]['name']);
+        $t->same('word/media/unsupported.bin', $badSummary['readIntegrity']['failedEntries'][1]['name']);
+        $t->throws(\RuntimeException::class, static fn (): array => $badPackage->assertStrictImportable(256, 2.0, 256));
+    },
+
     'rejects zip64 extra field metadata before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip64Extra = pack('vv', 0x0001, 8) . str_repeat("\0", 8);
 
