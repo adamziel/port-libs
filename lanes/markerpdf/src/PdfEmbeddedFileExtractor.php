@@ -3756,6 +3756,13 @@ final class PdfEmbeddedFileExtractor
                         'index' => $fieldThree,
                         'indexIsExplicit' => $widths[2] > 0,
                     ];
+                } elseif ($type > 2 && $objectNumber > 0) {
+                    $entries[$objectNumber] = [
+                        'type' => 0,
+                        'generation' => $fieldThree,
+                        'offset' => $fieldTwo,
+                        'offsetIsExplicit' => $widths[1] > 0,
+                    ];
                 }
 
                 $offset += $entryWidth;
@@ -4436,9 +4443,17 @@ final class PdfEmbeddedFileExtractor
         if ($tableSection !== null) {
             $rootValue = $this->dictionaryRawValue($tableSection['trailer'], 'Root');
             if ($rootValue !== null) {
+                $reference = $this->objectReferenceFromValue($rootValue);
+                if ($reference !== null && $this->xrefEntriesSuppressObjectReference($tableSection['entries'], $reference)) {
+                    return [
+                        'present' => true,
+                        'reference' => null,
+                    ];
+                }
+
                 return [
                     'present' => true,
-                    'reference' => $this->objectReferenceFromValue($rootValue),
+                    'reference' => $reference,
                 ];
             }
 
@@ -4479,9 +4494,21 @@ final class PdfEmbeddedFileExtractor
 
         $rootValue = $this->dictionaryRawValue($streamDictionary, 'Root');
         if ($rootValue !== null) {
+            $reference = $this->objectReferenceFromValue($rootValue);
+            $streamSection = $this->xrefStreamSectionAtOffset($offset, $definitions);
+            $entries = $streamSection === null
+                ? []
+                : $this->xrefStreamEntriesFromDefinition($streamSection['definition'], $objects, $definitions);
+            if ($reference !== null && $this->xrefEntriesSuppressObjectReference($entries, $reference)) {
+                return [
+                    'present' => true,
+                    'reference' => null,
+                ];
+            }
+
             return [
                 'present' => true,
-                'reference' => $this->objectReferenceFromValue($rootValue),
+                'reference' => $reference,
             ];
         }
 
@@ -4496,6 +4523,18 @@ final class PdfEmbeddedFileExtractor
         return $previousOffset === null
             ? ['present' => false, 'reference' => null]
             : $this->trailerRootReferenceResolutionAtOffset($pdfBytes, $previousOffset, $definitions, $objects, $seenOffsets);
+    }
+
+    /**
+     * @param array<int, array{type: int, generation?: int, offset?: int, offsetIsExplicit?: bool, objectStream?: int, index?: int, indexIsExplicit?: bool}> $entries
+     * @param array{objectNumber: int, generation: int} $reference
+     */
+    private function xrefEntriesSuppressObjectReference(array $entries, array $reference): bool
+    {
+        $entry = $entries[$reference['objectNumber']] ?? null;
+        $type = $entry['type'] ?? null;
+
+        return $type === 0 || (is_int($type) && $type > 2);
     }
 
     private function trailerDictionaryBody(string $pdfBytes): ?string

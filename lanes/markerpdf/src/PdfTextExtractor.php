@@ -20543,6 +20543,13 @@ final class PdfTextExtractor
         $reference = $this->trailerRootReferenceFromStartxrefChain($pdfBytes, $definitions)
             ?? $this->trailerRootReferenceFromLatestClassicXrefTable($pdfBytes, $definitions);
         if ($reference !== null) {
+            if ($this->currentXrefSectionSuppressesTrailerRootReference($pdfBytes, $definitions, $reference)) {
+                return [
+                    'present' => true,
+                    'reference' => null,
+                ];
+            }
+
             return [
                 'present' => true,
                 'reference' => $reference,
@@ -20725,6 +20732,37 @@ final class PdfTextExtractor
             $this->latestDirectObjects($definitions),
             $definitions
         );
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, body: string}>> $definitions
+     * @param array{objectNumber: int, generation: int} $reference
+     */
+    private function currentXrefSectionSuppressesTrailerRootReference(
+        string $pdfBytes,
+        array $definitions,
+        array $reference
+    ): bool {
+        $offset = $this->startxrefOffsetWithClassicRebuild($pdfBytes, $definitions);
+        if ($offset === null) {
+            return false;
+        }
+
+        $section = $this->xrefSectionEntriesAndPreviousOffset(
+            $pdfBytes,
+            $offset,
+            $this->latestDirectObjects($definitions),
+            $definitions,
+            []
+        );
+        if ($section === null) {
+            return false;
+        }
+
+        $entry = $section['entries'][$reference['objectNumber']] ?? null;
+        $type = $entry['type'] ?? null;
+
+        return $type === 0 || (is_int($type) && $type > 2);
     }
 
     /**
