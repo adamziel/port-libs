@@ -1968,6 +1968,65 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
     },
+    'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithSourceMetadataFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Metadata <text:title>Source Packet</text:title> by <text:author-name text:fixed="true">Migration Desk</text:author-name> created <text:creation-date text:date-value="2026-06-05">June 5, 2026</text:creation-date> at <text:creation-time text:time-value="PT09H30M00S">09:30</text:creation-time> revised <text:modification-date text:date-value="2026-06-06">June 6, 2026</text:modification-date> keywords <text:keywords>odt, review</text:keywords>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithSourceMetadataFields));
+        $paragraph = $result['document']->children[0];
+        $title = $paragraph->children[1];
+        $author = $paragraph->children[3];
+        $creationDate = $paragraph->children[5];
+        $creationTime = $paragraph->children[7];
+        $modificationDate = $paragraph->children[9];
+        $keywords = $paragraph->children[11];
+
+        $t->same('Metadata Source Packet by Migration Desk created June 5, 2026 at 09:30 revised June 6, 2026 keywords odt, review.', $paragraph->attr('text'));
+        $t->same('span', $title->type);
+        $t->same(['odf-field', 'odf-field-title'], $title->attr('classes'));
+        $t->same('title', $title->attr('fieldType'));
+        $t->same('title', $title->attr('attributes')['data-odf-field-type']);
+        $t->same('Source Packet', $title->children[0]->attr('text'));
+
+        $t->same('author-name', $author->attr('fieldType'));
+        $t->same(true, $author->attr('fieldMetadata')['fixed']);
+        $t->same('true', $author->attr('attributes')['data-odf-field-fixed']);
+        $t->same('Migration Desk', $author->children[0]->attr('text'));
+
+        $t->same('creation-date', $creationDate->attr('fieldType'));
+        $t->same('2026-06-05', $creationDate->attr('fieldMetadata')['dateValue']);
+        $t->same('2026-06-05', $creationDate->attr('attributes')['data-odf-field-date-value']);
+        $t->same('June 5, 2026', $creationDate->children[0]->attr('text'));
+
+        $t->same('creation-time', $creationTime->attr('fieldType'));
+        $t->same('PT09H30M00S', $creationTime->attr('fieldMetadata')['timeValue']);
+        $t->same('PT09H30M00S', $creationTime->attr('attributes')['data-odf-field-time-value']);
+        $t->same('09:30', $creationTime->children[0]->attr('text'));
+
+        $t->same('modification-date', $modificationDate->attr('fieldType'));
+        $t->same('2026-06-06', $modificationDate->attr('fieldMetadata')['dateValue']);
+        $t->same('keywords', $keywords->attr('fieldType'));
+        $t->same('odt, review', $keywords->children[0]->attr('text'));
+        $t->same(6, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Source Packet]{.odf-field .odf-field-title data-odf-field-type="title"}', $markdown);
+        $t->contains('[June 5, 2026]{.odf-field .odf-field-creation-date data-odf-field-type="creation-date" data-odf-field-date-value="2026-06-05"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-title" data-odf-field-type="title">Source Packet</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
+    },
     'maps ODT placeholders into review spans without dropping source text' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlaceholders = <<<'XML'
 <office:document-content
