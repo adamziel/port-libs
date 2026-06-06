@@ -36921,7 +36921,6 @@ final class PdfTextExtractor
             $previousEnd = $rankedRange['end'];
         }
 
-        $rangeStartKey = str_pad(strtolower(dechex($rangeStart)), $sourceWidth, '0', STR_PAD_LEFT);
         $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
         $offset = 0;
         $started = false;
@@ -36929,11 +36928,17 @@ final class PdfTextExtractor
         foreach ($rankedRanges as $rankedRange) {
             $range = $rankedRange['range'];
             if (!$started) {
-                if (!$this->sourceKeyMatchesCodeSpaceRange($rangeStartKey, $range)) {
+                $effectiveStart = max($rangeStart, $rankedRange['start']);
+                if ($effectiveStart > $rankedRange['end']) {
                     continue;
                 }
 
-                $startRank = $this->codeSpaceRangeSourceRank($rangeStartKey, $range);
+                $effectiveStartKey = str_pad(strtolower(dechex($effectiveStart)), $sourceWidth, '0', STR_PAD_LEFT);
+                if (!$this->sourceKeyMatchesCodeSpaceRange($effectiveStartKey, $range)) {
+                    continue;
+                }
+
+                $startRank = $this->codeSpaceRangeSourceRank($effectiveStartKey, $range);
                 if ($startRank === null) {
                     return null;
                 }
