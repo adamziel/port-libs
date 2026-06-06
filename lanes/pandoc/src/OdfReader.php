@@ -2251,6 +2251,11 @@ final class OdfReader
                     }
                     continue;
                 }
+                $textBoxCaptionImage = $this->frameTextBoxCaptionImageNode($child, $catalog, $package);
+                if ($textBoxCaptionImage instanceof AstNode) {
+                    $nodes[] = $textBoxCaptionImage;
+                    continue;
+                }
                 $image = $this->frameImageNode($child, $package);
                 if ($image instanceof AstNode) {
                     $nodes[] = $image;
@@ -3269,6 +3274,79 @@ final class OdfReader
         }
 
         return new AstNode('image', $attrs, $alt === '' ? [] : [new AstNode('text', ['text' => $alt])]);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function frameTextBoxCaptionImageNode(\DOMElement $frame, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $textBox = self::firstChildElement($frame, 'text-box', self::DRAW_NS);
+        if (!$textBox instanceof \DOMElement) {
+            return null;
+        }
+
+        foreach (self::childElements($textBox, 'p', self::TEXT_NS) as $paragraph) {
+            $nodes = $this->coalesceTextNodes($this->inlineNodes($paragraph, $catalog, $package));
+            foreach ($nodes as $index => $node) {
+                if (!$node instanceof AstNode || $node->type !== 'image') {
+                    continue;
+                }
+
+                $captionNodes = array_slice($nodes, $index + 1);
+                $caption = trim($this->plainInlineText($captionNodes));
+
+                return $this->captionedTextBoxImageNode(
+                    $node,
+                    $frame,
+                    $caption,
+                    $caption === '' ? $node->children : [new AstNode('text', ['text' => $caption])]
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function captionedTextBoxImageNode(AstNode $image, \DOMElement $frame, string $caption, array $children): AstNode
+    {
+        $attrs = $image->attrs;
+        if ($caption !== '') {
+            $attrs['alt'] = $caption;
+        }
+
+        $title = (string) $image->attr('title', '');
+        if ($title !== '' && !str_starts_with($title, 'fig:')) {
+            $attrs['title'] = 'fig:' . $title;
+        } elseif ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $classes = $attrs['classes'] ?? [];
+        if (!is_array($classes)) {
+            $classes = [];
+        }
+        $classes[] = 'odf-text-box-image-caption';
+        $attrs['classes'] = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $class): string => (string) $class, $classes),
+            static fn (string $class): bool => $class !== ''
+        )));
+
+        $attributes = $attrs['attributes'] ?? [];
+        if (!is_array($attributes)) {
+            $attributes = [];
+        }
+        $attributes['data-odf-text-box-caption'] = 'true';
+        $frameName = self::attr($frame, self::DRAW_NS, 'name');
+        if ($frameName !== '') {
+            $attributes['data-odf-text-box-frame-name'] = $frameName;
+        }
+        $attrs['attributes'] = $attributes;
+
+        return new AstNode('image', $attrs, $children);
     }
 
     /**

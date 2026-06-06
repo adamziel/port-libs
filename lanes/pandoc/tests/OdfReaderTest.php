@@ -2519,6 +2519,44 @@ XML;
         $t->contains('<img src="./Pictures/source%20hero.png" alt="Decoded source hero" title="Encoded hero"/>', $blocksHtml);
         $t->contains('<span class="math display"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $blocksHtml);
     },
+    'maps ODT frame text-box image captions into figure image handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTextBoxCaption = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Before <draw:frame draw:name="Captioned hero"><draw:text-box><text:p>skip label <draw:frame draw:name="Nested hero"><draw:image xlink:href="Pictures/hero.png"><svg:title>Original hero title</svg:title><svg:desc>Original hero alt</svg:desc></draw:image></draw:frame>Recovered hero caption.</text:p></draw:text-box></draw:frame> after.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTextBoxCaption));
+        $paragraph = $result['document']->children[0];
+        $image = $paragraph->children[1];
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Before Recovered hero caption. after.', $paragraph->attr('text'));
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png', $image->attr('url'));
+        $t->same('Pictures/hero.png', $image->attr('sourcePart'));
+        $t->same(7, $image->attr('bytes'));
+        $t->same('Recovered hero caption.', $image->attr('alt'));
+        $t->same('fig:Original hero title', $image->attr('title'));
+        $t->same(['odf-text-box-image-caption'], $image->attr('classes'));
+        $t->same('true', $image->attr('attributes')['data-odf-text-box-caption']);
+        $t->same('Captioned hero', $image->attr('attributes')['data-odf-text-box-frame-name']);
+        $t->same('Recovered hero caption.', $image->children[0]->attr('text'));
+
+        $t->contains('![Recovered hero caption.](Pictures/hero.png "fig:Original hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Captioned hero"}', $markdown);
+        $t->contains('<img src="Pictures/hero.png" alt="Recovered hero caption." title="fig:Original hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Captioned hero"/>', $blocksHtml);
+    },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSizedImages = <<<'XML'
 <office:document-content
