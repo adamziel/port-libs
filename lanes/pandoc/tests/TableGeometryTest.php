@@ -1399,6 +1399,48 @@ return [
         $t->contains('<tr><td headers="source-count" style="text-align:right">7</td><td headers="source-state" style="text-align:center">Review</td></tr>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'serializes table header associations for reviewer accessibility audits' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
+        $table = $buildAccessibleHeaderDocument()->children[0];
+        $associations = TableGeometry::headerAssociations($table, 'Migration Grid');
+        $packet = TableGeometry::reviewPacket($table, ['idPrefix' => 'Migration Grid']);
+
+        $t->same(6, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(4, $associations['summary']['dataCellCount'] ?? null);
+        $t->same(4, $associations['summary']['associatedDataCellCount'] ?? null);
+        $t->same(12, $associations['summary']['associationCount'] ?? null);
+        $t->same(['colgroup', 'col', 'rowgroup'], $associations['summary']['headerScopes'] ?? null);
+        $t->same(false, $associations['summary']['hasSourceHeaderOverrides'] ?? null);
+
+        $t->same('head:0:0:0', $associations['headerCells'][0]['key'] ?? null);
+        $t->same('migration-grid-head-r1c1', $associations['headerCells'][0]['id'] ?? null);
+        $t->same('colgroup', $associations['headerCells'][0]['scope'] ?? null);
+        $t->same([0, 1], $associations['headerCells'][0]['columns'] ?? null);
+        $t->same('Document', $associations['headerCells'][0]['text'] ?? null);
+        $t->same(2, $associations['headerCells'][0]['colspan'] ?? null);
+
+        $t->same('body:1:1:1', $associations['dataCells'][0]['key'] ?? null);
+        $t->same('42', $associations['dataCells'][0]['text'] ?? null);
+        $t->same([1], $associations['dataCells'][0]['columns'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $associations['dataCells'][0]['headers'] ?? null);
+        $t->same('body:2:0:0', $associations['dataCells'][2]['key'] ?? null);
+        $t->same(1, $associations['dataCells'][2]['column'] ?? null);
+        $t->same(0, $associations['dataCells'][2]['sourceColumn'] ?? null);
+        $t->same(['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1'], $associations['dataCells'][2]['headers'] ?? null);
+
+        $t->same($associations, $packet['headerAssociations'] ?? null);
+        $t->same(12, $packet['summary']['headerAssociationCount'] ?? null);
+        $t->same(4, $packet['summary']['associatedDataCellCount'] ?? null);
+
+        $sourceTable = $buildSourceScopedHeaderDocument()->children[0];
+        $sourceAssociations = TableGeometry::headerAssociations($sourceTable, 'Source Scope Grid');
+        $t->same(true, $sourceAssociations['summary']['hasSourceHeaderOverrides'] ?? null);
+        $t->same(1, $sourceAssociations['summary']['sourceHeaderOverrideCount'] ?? null);
+        $t->same(['legacy-count', 'source-posts'], $sourceAssociations['dataCells'][0]['headers'] ?? null);
+        $t->same(['legacy-count', 'source-posts'], $sourceAssociations['dataCells'][0]['sourceHeaders'] ?? null);
+        $t->same(['source-document'], $sourceAssociations['headerCells'][2]['headers'] ?? null);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+        json_encode($sourceAssociations, JSON_THROW_ON_ERROR);
+    },
     'attaches serializable review packets to table ast nodes for reader handoff' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument): void {
         $table = $buildAccessibleHeaderDocument()->children[0];
         $withPacket = TableGeometry::withReviewPacket($table, ['idPrefix' => 'Migration Grid']);

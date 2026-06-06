@@ -944,6 +944,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($reviewPacket['accessibility']['body:1:1:1']['headers'] ?? null) !== ['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1']) {
         throw new RuntimeException('Table geometry self-test missing review-packet accessibility relationships');
     }
+    if (($reviewPacket['headerAssociations']['summary']['associationCount'] ?? null) !== 12) {
+        throw new RuntimeException('Table geometry self-test missing review-packet header association count');
+    }
+    if (($reviewPacket['headerAssociations']['summary']['headerScopes'] ?? null) !== ['colgroup', 'col', 'rowgroup']) {
+        throw new RuntimeException('Table geometry self-test missing review-packet header association scopes');
+    }
+    if (($reviewPacket['headerAssociations']['dataCells'][0]['headers'] ?? null) !== ['migration-grid-head-r1c1', 'migration-grid-body-r1c2', 'migration-grid-body-r2c1']) {
+        throw new RuntimeException('Table geometry self-test missing first data-cell header association packet');
+    }
+    if (($reviewPacket['summary']['headerAssociationCount'] ?? null) !== 12 || ($reviewPacket['summary']['associatedDataCellCount'] ?? null) !== 4) {
+        throw new RuntimeException('Table geometry self-test missing review-packet header association summary');
+    }
     json_encode($reviewPacket, JSON_THROW_ON_ERROR);
 
     $sourceAccessibility = TableGeometry::accessibilityAttributes($document->children[6], 'Source Grid');
@@ -980,6 +992,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($sourceAttributePacket['coverage'][0]['sourceAttributes']['id'] ?? null) !== 'docx-source-scope') {
         throw new RuntimeException('Table geometry self-test missing cell source attribute packet');
+    }
+    if (($sourceAttributePacket['headerAssociations']['summary']['sourceHeaderOverrideCount'] ?? null) !== 1) {
+        throw new RuntimeException('Table geometry self-test missing source header override association count');
+    }
+    if (($sourceAttributePacket['headerAssociations']['dataCells'][1]['sourceHeaders'] ?? null) !== ['legacy-status']) {
+        throw new RuntimeException('Table geometry self-test missing source header override association packet');
     }
     json_encode($sourceAttributePacket, JSON_THROW_ON_ERROR);
 

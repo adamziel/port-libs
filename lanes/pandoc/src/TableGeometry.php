@@ -473,6 +473,91 @@ final class TableGeometry
     }
 
     /**
+     * @return array{
+     *     headerCells:list<array<string, mixed>>,
+     *     dataCells:list<array<string, mixed>>,
+     *     summary:array<string, mixed>
+     * }
+     */
+    public static function headerAssociations(AstNode $table, string $idPrefix = 'pandoc-table'): array
+    {
+        $accessibility = self::accessibilityAttributes($table, $idPrefix);
+        $headerCells = [];
+        $dataCells = [];
+        $headerScopes = [];
+        $associationCount = 0;
+        $associatedDataCellCount = 0;
+        $sourceHeaderOverrideCount = 0;
+
+        foreach (self::sectionGrids($table) as $sectionGrid) {
+            $section = (string) $sectionGrid['section'];
+            foreach ($sectionGrid['rows'] as $rowIndex => $slots) {
+                foreach ($slots as $slot) {
+                    if (($slot['kind'] ?? '') !== 'cell') {
+                        continue;
+                    }
+
+                    $key = self::accessibilityKey(
+                        $section,
+                        (int) $rowIndex,
+                        (int) ($slot['sourceCell'] ?? 0),
+                        (int) ($slot['sourceColumn'] ?? 0)
+                    );
+                    $attributes = $accessibility[$key] ?? [];
+                    $record = self::headerAssociationCellRecord($section, (int) $rowIndex, $slot, $key);
+
+                    if (($slot['headerCell'] ?? false) === true) {
+                        $id = trim((string) ($attributes['id'] ?? ''));
+                        if ($id !== '') {
+                            $record['id'] = $id;
+                        }
+
+                        $scope = trim((string) ($attributes['scope'] ?? self::headerScope($slot)));
+                        if ($scope !== '') {
+                            $record['scope'] = $scope;
+                            $headerScopes[] = $scope;
+                        }
+
+                        $record['headers'] = self::stringList($attributes['headers'] ?? []);
+                        $headerCells[] = $record;
+                        continue;
+                    }
+
+                    $headers = self::stringList($attributes['headers'] ?? []);
+                    $record['headers'] = $headers;
+                    if ($headers !== []) {
+                        $associatedDataCellCount++;
+                        $associationCount += count($headers);
+                    }
+
+                    $sourceHeaders = self::cellSourceHtmlHeaders($slot['node'] ?? null);
+                    if ($sourceHeaders !== []) {
+                        $record['sourceHeaders'] = $sourceHeaders;
+                        $sourceHeaderOverrideCount++;
+                    }
+
+                    $dataCells[] = $record;
+                }
+            }
+        }
+
+        return [
+            'headerCells' => $headerCells,
+            'dataCells' => $dataCells,
+            'summary' => [
+                'headerCellCount' => count($headerCells),
+                'dataCellCount' => count($dataCells),
+                'associatedDataCellCount' => $associatedDataCellCount,
+                'unassociatedDataCellCount' => count($dataCells) - $associatedDataCellCount,
+                'associationCount' => $associationCount,
+                'headerScopes' => array_values(array_unique($headerScopes)),
+                'sourceHeaderOverrideCount' => $sourceHeaderOverrideCount,
+                'hasSourceHeaderOverrides' => $sourceHeaderOverrideCount > 0,
+            ],
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function diagnostics(AstNode $table): array
@@ -1121,6 +1206,7 @@ final class TableGeometry
      *     coverage:list<array<string, mixed>>,
      *     diagnostics:list<array<string, mixed>>,
      *     accessibility:array<string, array{id?:string,scope?:string,headers?:list<string>}>,
+     *     headerAssociations:array<string, mixed>,
      *     summary:array<string, mixed>
      * }
      */
@@ -1135,14 +1221,18 @@ final class TableGeometry
         $widthSummary = self::columnWidthSummary($table, $columnCount);
         $columnGroups = self::columnGroups($table, $columnCount);
         $rowGroups = self::rowGroups($table, $columnCount);
+        $includeAccessibility = ($options['accessibility'] ?? true) !== false;
+        $idPrefix = self::reviewPacketIdPrefix($table, $options);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
             $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer, $table);
         }
-        $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $accessibility = $includeAccessibility
-            ? self::accessibilityAttributes($table, self::reviewPacketIdPrefix($table, $options))
+            ? self::accessibilityAttributes($table, $idPrefix)
             : [];
+        $headerAssociations = $includeAccessibility
+            ? self::headerAssociations($table, $idPrefix)
+            : self::emptyHeaderAssociations();
 
         $packet = [
             'caption' => (string) $table->attr('caption', ''),
@@ -1158,6 +1248,7 @@ final class TableGeometry
             'diagnostics' => $diagnostics,
             'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
+            'headerAssociations' => $headerAssociations,
             'summary' => self::reviewPacketSummary(
                 $sections,
                 $coverage,
@@ -1165,7 +1256,8 @@ final class TableGeometry
                 $writerDowngrades,
                 $captions,
                 $columnGroups,
-                $rowGroups
+                $rowGroups,
+                $headerAssociations
             ),
         ];
 
@@ -1285,6 +1377,78 @@ final class TableGeometry
         $prefix = trim((string) $table->attr('id', ''));
 
         return $prefix === '' ? 'pandoc-table' : $prefix;
+    }
+
+    /**
+     * @return array{headerCells:list<array<string, mixed>>,dataCells:list<array<string, mixed>>,summary:array<string, mixed>}
+     */
+    private static function emptyHeaderAssociations(): array
+    {
+        return [
+            'headerCells' => [],
+            'dataCells' => [],
+            'summary' => [
+                'headerCellCount' => 0,
+                'dataCellCount' => 0,
+                'associatedDataCellCount' => 0,
+                'unassociatedDataCellCount' => 0,
+                'associationCount' => 0,
+                'headerScopes' => [],
+                'sourceHeaderOverrideCount' => 0,
+                'hasSourceHeaderOverrides' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return array<string, mixed>
+     */
+    private static function headerAssociationCellRecord(string $section, int $rowIndex, array $slot, string $key): array
+    {
+        $node = $slot['node'] ?? null;
+        $record = [
+            'key' => $key,
+            'section' => $section,
+            'row' => $rowIndex,
+            'rowRole' => (string) ($slot['rowRole'] ?? ''),
+            'headerRow' => (bool) ($slot['headerRow'] ?? false),
+            'rowHeadColumns' => (int) ($slot['rowHeadColumns'] ?? 0),
+            'column' => (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0),
+            'columns' => self::associationColumns($slot),
+            'sourceCell' => (int) ($slot['sourceCell'] ?? 0),
+            'sourceColumn' => (int) ($slot['sourceColumn'] ?? 0),
+            'colspan' => max(1, (int) ($slot['colspan'] ?? 1)),
+            'rowspan' => max(1, (int) ($slot['rowspan'] ?? 1)),
+            'text' => $node instanceof AstNode ? self::plainText($node) : '',
+        ];
+
+        if (($slot['rowspanToEnd'] ?? false) === true) {
+            $record['rowspanToEnd'] = true;
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($node);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $slot
+     * @return list<int>
+     */
+    private static function associationColumns(array $slot): array
+    {
+        $startColumn = (int) ($slot['anchorColumn'] ?? $slot['column'] ?? 0);
+        $colspan = max(1, (int) ($slot['colspan'] ?? 1));
+        $columns = [];
+        for ($column = $startColumn; $column < $startColumn + $colspan; $column++) {
+            $columns[] = $column;
+        }
+
+        return $columns;
     }
 
     private static function cellSourceHtmlId(mixed $node): string
@@ -1899,6 +2063,7 @@ final class TableGeometry
      * @param array{long:array<string, mixed>,short:array<string, mixed>} $captions
      * @param list<array<string, mixed>> $columnGroups
      * @param list<array<string, mixed>> $rowGroups
+     * @param array<string, mixed> $headerAssociations
      * @return array<string, mixed>
      */
     private static function reviewPacketSummary(
@@ -1908,7 +2073,8 @@ final class TableGeometry
         array $writerDowngrades,
         array $captions,
         array $columnGroups,
-        array $rowGroups
+        array $rowGroups,
+        array $headerAssociations
     ): array
     {
         $rowCount = 0;
@@ -2010,6 +2176,13 @@ final class TableGeometry
         sort($writerDowngradeWriters);
 
         $rowGroupSummary = self::rowGroupSummary($rowGroups);
+        $headerAssociationSummary = is_array($headerAssociations['summary'] ?? null)
+            ? $headerAssociations['summary']
+            : [];
+        $headerAssociationScopes = $headerAssociationSummary['headerScopes'] ?? [];
+        if (!is_array($headerAssociationScopes)) {
+            $headerAssociationScopes = [];
+        }
 
         return [
             'sectionCount' => count($sections),
@@ -2068,6 +2241,15 @@ final class TableGeometry
             'bodyHeadRowGroupCount' => $rowGroupSummary['bodyHeadRowGroupCount'],
             'rowHeadGroupCount' => $rowGroupSummary['rowHeadGroupCount'],
             'maxRowHeadColumns' => $rowGroupSummary['maxRowHeadColumns'],
+            'headerAssociationCount' => (int) ($headerAssociationSummary['associationCount'] ?? 0),
+            'associatedDataCellCount' => (int) ($headerAssociationSummary['associatedDataCellCount'] ?? 0),
+            'unassociatedDataCellCount' => (int) ($headerAssociationSummary['unassociatedDataCellCount'] ?? 0),
+            'sourceHeaderOverrideCount' => (int) ($headerAssociationSummary['sourceHeaderOverrideCount'] ?? 0),
+            'hasSourceHeaderOverrides' => (bool) ($headerAssociationSummary['hasSourceHeaderOverrides'] ?? false),
+            'headerAssociationScopes' => array_values(array_map(
+                static fn (mixed $scope): string => (string) $scope,
+                $headerAssociationScopes
+            )),
             'writerDowngradeCount' => $writerDowngradeCount,
             'writerDowngradeCodes' => array_values(array_unique($writerDowngradeCodes)),
             'writerDowngradeWriters' => array_values(array_unique($writerDowngradeWriters)),
@@ -2648,6 +2830,30 @@ final class TableGeometry
         }
 
         return array_values(array_map(static fn (mixed $value): int => (int) $value, $values));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($values as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $value = trim((string) $value);
+            if ($value !== '') {
+                $strings[] = $value;
+            }
+        }
+
+        return array_values(array_unique($strings));
     }
 
     /**
