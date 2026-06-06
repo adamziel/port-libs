@@ -444,6 +444,10 @@ final class Html5DomFragment
             return $label === null ? null : [['type' => 'text', 'text' => $label]];
         }
 
+        if ($mode === 'html' && $name === 'link') {
+            return self::normalizeHtmlLinkElement($node, $diagnostics, $baseUrl);
+        }
+
         if ($mode === 'html' && $name === 'meta') {
             return self::normalizeHtmlMetaElement($node, $diagnostics, $baseUrl);
         }
@@ -828,6 +832,173 @@ final class Html5DomFragment
         $label = str_replace("\0", '', $element->getAttribute('label'));
 
         return trim($label) === '' ? null : $label;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>|null
+     */
+    private static function normalizeHtmlLinkElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
+    {
+        $diagnostics[] = [
+            'code' => 'blocked-tag',
+            'tag' => 'link',
+        ];
+
+        $relations = self::htmlLinkRelationTokens($element);
+        $reviewRelations = self::reviewableHtmlLinkRelations($relations);
+        if ($reviewRelations === [] || self::hasActiveHtmlLinkResourceRelation($relations) || !$element->hasAttribute('href')) {
+            return null;
+        }
+
+        $target = $element->getAttribute('href');
+        $normalizedTarget = self::normalizeUrlAttributeValue($target);
+        if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-url',
+                'tag' => 'link',
+                'attribute' => 'href',
+            ];
+
+            return null;
+        }
+
+        if ($normalizedTarget !== $target) {
+            $diagnostics[] = [
+                'code' => 'normalized-url',
+                'tag' => 'link',
+                'attribute' => 'href',
+            ];
+        }
+
+        $href = $baseUrl !== null
+            ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+            : $normalizedTarget;
+
+        $attrs = [
+            'href' => $href,
+            'data-pandoc-link-rel' => implode(' ', $reviewRelations),
+        ];
+
+        foreach (['hreflang', 'type', 'title'] as $attributeName) {
+            if (!$element->hasAttribute($attributeName)) {
+                continue;
+            }
+
+            $value = self::cleanHtmlMetadataAttribute($element->getAttribute($attributeName));
+            if ($value !== '') {
+                $attrs[$attributeName] = $value;
+            }
+        }
+
+        return [[
+            'type' => 'element',
+            'name' => 'a',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => self::htmlLinkReviewLabel($reviewRelations, $attrs),
+            ]],
+        ]];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlLinkRelationTokens(\DOMElement $element): array
+    {
+        $rel = strtolower(trim($element->getAttribute('rel')));
+        if ($rel === '') {
+            return [];
+        }
+
+        $tokens = preg_split('/[\x00-\x20]+/', $rel);
+        if (!is_array($tokens)) {
+            return [];
+        }
+
+        $relations = [];
+        foreach ($tokens as $token) {
+            $token = trim((string) $token);
+            if ($token === '' || in_array($token, $relations, true)) {
+                continue;
+            }
+
+            $relations[] = $token;
+        }
+
+        return $relations;
+    }
+
+    /**
+     * @param list<string> $relations
+     * @return list<string>
+     */
+    private static function reviewableHtmlLinkRelations(array $relations): array
+    {
+        $reviewable = [];
+        foreach (['canonical', 'alternate', 'shortlink'] as $relation) {
+            if (in_array($relation, $relations, true)) {
+                $reviewable[] = $relation;
+            }
+        }
+
+        return $reviewable;
+    }
+
+    /**
+     * @param list<string> $relations
+     */
+    private static function hasActiveHtmlLinkResourceRelation(array $relations): bool
+    {
+        foreach ($relations as $relation) {
+            if (in_array($relation, [
+                'apple-touch-icon',
+                'apple-touch-startup-image',
+                'dns-prefetch',
+                'icon',
+                'import',
+                'manifest',
+                'mask-icon',
+                'modulepreload',
+                'preconnect',
+                'prefetch',
+                'preload',
+                'prerender',
+                'stylesheet',
+            ], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function cleanHtmlMetadataAttribute(string $value): string
+    {
+        $value = str_replace("\0", '', $value);
+        $value = preg_replace('/[\t\r\n\f ]+/u', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
+    /**
+     * @param list<string> $relations
+     * @param array<string, string> $attrs
+     */
+    private static function htmlLinkReviewLabel(array $relations, array $attrs): string
+    {
+        $title = $attrs['title'] ?? '';
+        if ($title !== '') {
+            return $title;
+        }
+
+        return match ($relations[0] ?? '') {
+            'canonical' => 'Canonical source',
+            'alternate' => 'Alternate source',
+            'shortlink' => 'Shortlink',
+            default => 'Linked source',
+        };
     }
 
     /**

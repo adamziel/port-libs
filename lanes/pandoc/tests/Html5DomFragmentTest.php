@@ -1252,6 +1252,66 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe meta refresh URL to be stripped');
         $t->true(!str_contains($html, 'width=device-width'), 'Expected passive viewport metadata to stay out of review HTML');
     },
+    'converts passive link relations into reviewer links while dropping active resources' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<link rel="canonical" href="../canonical/post.html" title="Canonical source">'
+            . '<link rel="alternate" hreflang="fr" type="text/html" href="./fr/post.html" title="Version francaise">'
+            . '<link rel="shortlink" href="?p=42">'
+            . '<link rel="alternate stylesheet" href="./legacy.css" title="Legacy theme">'
+            . '<link rel="canonical" href="java&#10;script:alert(1)" title="Bad canonical">'
+            . '<link rel="preload" as="image" href="./cover.png">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/link-relation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/canonical/post.html" data-pandoc-link-rel="canonical" title="Canonical source">Canonical source</a>'
+            . '<a href="https://source.example.test/import/posts/fr/post.html" data-pandoc-link-rel="alternate" hreflang="fr" type="text/html" title="Version francaise">Version francaise</a>'
+            . '<a href="https://source.example.test/import/posts/post.html?p=42" data-pandoc-link-rel="shortlink">Shortlink</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Canonical sourceVersion francaiseShortlinkafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'link'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag'], $policyDiagnostics);
+        $t->same('a', $nodes[0]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/canonical/post.html',
+            'data-pandoc-link-rel' => 'canonical',
+            'title' => 'Canonical source',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/fr/post.html',
+            'data-pandoc-link-rel' => 'alternate',
+            'hreflang' => 'fr',
+            'type' => 'text/html',
+            'title' => 'Version francaise',
+        ], $nodes[1]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/post.html?p=42',
+            'data-pandoc-link-rel' => 'shortlink',
+        ], $nodes[2]['attrs']);
+        $t->same('/migration/link-relation-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<link'), 'Expected link elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'legacy.css'), 'Expected alternate stylesheet resource to be dropped');
+        $t->true(!str_contains($html, 'cover.png'), 'Expected preload resource link to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe link relation URL to be stripped');
+    },
     'ignores inactive fallback base elements before resolving reviewer URLs' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base href="https://inactive.example/assets/"><a href="template-note.html">template note</a></template>'

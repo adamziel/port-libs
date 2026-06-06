@@ -17,6 +17,12 @@ $srcdoc = htmlspecialchars(
 $source = <<<HTML
 <template><base href="https://inactive.example/assets/"><a href="template-note.html">Template fallback note</a></template>
 <base href="https://source.example.test/import/posts/post-42.html?draft=1">
+<link rel="canonical" href="../canonical/post-42.html" title="Canonical source">
+<link rel="alternate" hreflang="es" type="text/html" href="./es/post-42.html" title="Spanish source">
+<link rel="shortlink" href="?p=42">
+<link rel="alternate stylesheet" href="./legacy.css" title="Legacy theme">
+<link rel="canonical" href="java&#10;script:alert(1)" title="Bad canonical">
+<link rel="preload" as="image" href="./preload-cover.png">
 <meta http-equiv="refresh" content="5; url=./refresh-target.html">
 <meta http-equiv="refresh" content="0; url=java&#10;script:alert(1)">
 <article id="legacy-post-42" data-source="html-export">
@@ -39,7 +45,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Embedded srcdoc packet', 'frame note', 'Cover image', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -49,6 +55,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<a href="https://source.example.test/import/posts/template-note.html">Template fallback note</a>',
+        '<a href="https://source.example.test/import/canonical/post-42.html" data-pandoc-link-rel="canonical" title="Canonical source">Canonical source</a>',
+        '<a href="https://source.example.test/import/posts/es/post-42.html" data-pandoc-link-rel="alternate" hreflang="es" type="text/html" title="Spanish source">Spanish source</a>',
+        '<a href="https://source.example.test/import/posts/post-42.html?p=42" data-pandoc-link-rel="shortlink">Shortlink</a>',
         '<a href="https://source.example.test/import/posts/refresh-target.html" data-pandoc-meta-refresh="true">Refresh target</a>',
         '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
         '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
@@ -66,7 +75,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'javascript:', 'ja/**/vascript', 'inactive.example', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', 'srcdoc=', '<script', '<input', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }
