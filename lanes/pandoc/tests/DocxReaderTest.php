@@ -1507,6 +1507,20 @@ $breakRunDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$positionalTabDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Leader checkpoint </w:t></w:r>
+      <w:r><w:ptab w:alignment="right" w:relativeTo="margin" w:leader="dot"/></w:r>
+      <w:r><w:t xml:space="preserve"> 7 center </w:t></w:r>
+      <w:r><w:ptab w:alignment="center" w:relativeTo="indent"/></w:r>
+      <w:r><w:t>note</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $renderedPageBreakDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2269,6 +2283,14 @@ $buildBreakRunPackage = static function () use ($contentTypesXml, $packageRelati
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $breakRunDocumentXml],
+    ]);
+};
+
+$buildPositionalTabPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $positionalTabDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $positionalTabDocumentXml],
     ]);
 };
 
@@ -4168,6 +4190,49 @@ return [
         $t->contains('<span class="docx-break docx-page-break docx-break-clear" data-docx-break-type="page" data-docx-break-clear="all">DOCX page break</span>', $blocks);
         $t->contains('<span class="docx-break docx-column-break docx-break-clear" data-docx-break-type="column" data-docx-break-clear="left">DOCX column break</span>', $blocks);
         $t->contains(' after column <br/>after line break.', $blocks);
+    },
+    'preserves DOCX positional tab metadata as reviewer spans' => static function (TestRunner $t) use ($buildPositionalTabPackage): void {
+        $document = (new DocxReader())->readDocument($buildPositionalTabPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(5, count($paragraph->children));
+        $t->same('Leader checkpoint ', $paragraph->children[0]->attr('text'));
+
+        $rightTab = $paragraph->children[1];
+        $t->same('span', $rightTab->type);
+        $t->same([
+            'docx-tab',
+            'docx-positional-tab',
+            'docx-positional-tab-right',
+            'docx-positional-tab-leader',
+            'docx-positional-tab-leader-dot',
+        ], $rightTab->attr('classes'));
+        $t->same('positional', $rightTab->attr('attributes')['data-docx-tab-type']);
+        $t->same('right', $rightTab->attr('attributes')['data-docx-tab-alignment']);
+        $t->same('margin', $rightTab->attr('attributes')['data-docx-tab-relative-to']);
+        $t->same('dot', $rightTab->attr('attributes')['data-docx-tab-leader']);
+        $t->same('DOCX positional tab', $rightTab->children[0]->attr('text'));
+
+        $centerTab = $paragraph->children[3];
+        $t->same('span', $centerTab->type);
+        $t->same([
+            'docx-tab',
+            'docx-positional-tab',
+            'docx-positional-tab-center',
+        ], $centerTab->attr('classes'));
+        $t->same('positional', $centerTab->attr('attributes')['data-docx-tab-type']);
+        $t->same('center', $centerTab->attr('attributes')['data-docx-tab-alignment']);
+        $t->same('indent', $centerTab->attr('attributes')['data-docx-tab-relative-to']);
+        $t->true(!isset($centerTab->attr('attributes')['data-docx-tab-leader']), 'DOCX ptab without leader should not invent leader metadata');
+        $t->same('note', $paragraph->children[4]->attr('text'));
+
+        $t->contains('[DOCX positional tab]{.docx-tab .docx-positional-tab .docx-positional-tab-right .docx-positional-tab-leader .docx-positional-tab-leader-dot data-docx-tab-type="positional" data-docx-tab-alignment="right" data-docx-tab-relative-to="margin" data-docx-tab-leader="dot"}', $markdown);
+        $t->contains('[DOCX positional tab]{.docx-tab .docx-positional-tab .docx-positional-tab-center data-docx-tab-type="positional" data-docx-tab-alignment="center" data-docx-tab-relative-to="indent"}', $markdown);
+        $t->contains('<span class="docx-tab docx-positional-tab docx-positional-tab-right docx-positional-tab-leader docx-positional-tab-leader-dot" data-docx-tab-type="positional" data-docx-tab-alignment="right" data-docx-tab-relative-to="margin" data-docx-tab-leader="dot">DOCX positional tab</span>', $blocks);
+        $t->contains('<span class="docx-tab docx-positional-tab docx-positional-tab-center" data-docx-tab-type="positional" data-docx-tab-alignment="center" data-docx-tab-relative-to="indent">DOCX positional tab</span>', $blocks);
     },
     'preserves DOCX last rendered page break markers as reviewer spans' => static function (TestRunner $t) use ($buildRenderedPageBreakPackage): void {
         $document = (new DocxReader())->readDocument($buildRenderedPageBreakPackage());

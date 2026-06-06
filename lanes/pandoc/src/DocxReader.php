@@ -3008,6 +3008,10 @@ final class DocxReader
             return [new AstNode('text', ['text' => "\t"])];
         }
 
+        if ($this->isWordElement($child, 'ptab')) {
+            return $this->positionalTabNodes($child);
+        }
+
         if ($this->isWordElement($child, 'br')) {
             return $this->breakNodes($child);
         }
@@ -3198,6 +3202,44 @@ final class DocxReader
             'classes' => $classes,
             'attributes' => $attributes,
         ], [new AstNode('text', ['text' => 'DOCX ' . $type . ' break'])])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function positionalTabNodes(\DOMElement $tab): array
+    {
+        $classes = ['docx-tab', 'docx-positional-tab'];
+        $attributes = ['data-docx-tab-type' => 'positional'];
+
+        $alignment = trim((string) ($this->wordAttr($tab, 'alignment') ?? ''));
+        if ($alignment !== '') {
+            $attributes['data-docx-tab-alignment'] = $alignment;
+            $suffix = $this->metadataClassSuffix($alignment);
+            if ($suffix !== null) {
+                $classes[] = 'docx-positional-tab-' . $suffix;
+            }
+        }
+
+        $relativeTo = trim((string) ($this->wordAttr($tab, 'relativeTo') ?? ''));
+        if ($relativeTo !== '') {
+            $attributes['data-docx-tab-relative-to'] = $relativeTo;
+        }
+
+        $leader = trim((string) ($this->wordAttr($tab, 'leader') ?? ''));
+        if ($leader !== '') {
+            $attributes['data-docx-tab-leader'] = $leader;
+            $classes[] = 'docx-positional-tab-leader';
+            $suffix = $this->metadataClassSuffix($leader);
+            if ($suffix !== null) {
+                $classes[] = 'docx-positional-tab-leader-' . $suffix;
+            }
+        }
+
+        return [new AstNode('span', [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ], [new AstNode('text', ['text' => 'DOCX positional tab'])])];
     }
 
     /**
