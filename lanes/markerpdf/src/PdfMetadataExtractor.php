@@ -5977,7 +5977,7 @@ final class PdfMetadataExtractor
         $entries = [];
         foreach ($values as $index => $value) {
             $resolved = $this->resolvePdfValue($value, $objects);
-            $valueForReview = trim($resolved ?? $value);
+            $valueForReview = $this->firstPdfValueToken($resolved ?? $value);
             $operandShape = $this->encryptMetadataOperandShape($valueForReview);
             $booleanValue = match ($valueForReview) {
                 'true' => true,
@@ -7227,7 +7227,7 @@ final class PdfMetadataExtractor
         $entries = [];
         foreach ($values as $index => $value) {
             $resolved = $this->resolvePdfValue($value, $objects);
-            $valueForReview = trim($resolved ?? $value);
+            $valueForReview = $this->firstPdfValueToken($resolved ?? $value);
             $operandShape = $this->standardPermissionWordOperandShape($valueForReview);
             $entry = [
                 'source' => 'standard_permission_word_entry_review',
@@ -8694,7 +8694,7 @@ final class PdfMetadataExtractor
      */
     private function pdfStringBytesFromValue(string $value, array $objects): ?string
     {
-        $trimmed = trim($value);
+        $trimmed = $this->firstPdfValueToken($value);
         if ($trimmed === '') {
             return null;
         }
@@ -16568,11 +16568,16 @@ final class PdfMetadataExtractor
     private function dictionaryIntegerValue(string $dictionary, string $key, ?array $objects = null): ?int
     {
         $value = $this->resolvedDictionaryRawValue($dictionary, $key, $objects);
-        if ($value === null || preg_match('/^[+-]?\d+$/', trim($value)) !== 1) {
+        if ($value === null) {
             return null;
         }
 
-        return (int) trim($value);
+        $value = $this->firstPdfValueToken($value);
+        if (preg_match('/^[+-]?\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /**
@@ -16585,7 +16590,7 @@ final class PdfMetadataExtractor
             return null;
         }
 
-        return match (trim($value)) {
+        return match ($this->firstPdfValueToken($value)) {
             'true' => true,
             'false' => false,
             default => null,
@@ -16797,6 +16802,16 @@ final class PdfMetadataExtractor
     private function trimPdfWhitespaceAndComments(string $value): string
     {
         return trim(substr($value, $this->skipPdfWhitespace($value, 0)));
+    }
+
+    private function firstPdfValueToken(string $value): string
+    {
+        $trimmed = $this->trimPdfWhitespaceAndComments($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        return $this->readPdfValueAt($trimmed, 0) ?? $trimmed;
     }
 
     private function dictionaryStringValue(string $dictionary, string $key): ?string
