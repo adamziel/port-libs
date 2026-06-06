@@ -1879,7 +1879,7 @@ final class MathTexConverter
         $rows = $this->splitAlignmentRows($this->readEnvironmentContent($source, $offset, 'array'), 'array');
         $rowRules = $this->stripArrayRowRules($rows, $columnSpec['columns']);
 
-        return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes']);
+        return $this->environmentTable($rowRules['rows'], $columnAttributes . $rowRules['attributes'], false, 'array', $columnSpec['columns']);
     }
 
     private function parseSmallMatrixEnvironment(string $source, int &$offset): string
@@ -3107,7 +3107,7 @@ final class MathTexConverter
     /**
      * @param list<list<string>> $rows
      */
-    private function environmentTable(array $rows, string $attributes, bool $allowRowMetadata = false, string $environment = ''): string
+    private function environmentTable(array $rows, string $attributes, bool $allowRowMetadata = false, string $environment = '', ?int $arrayColumnCount = null): string
     {
         $table = '<mtable' . $attributes . '>';
         foreach ($rows as $rowIndex => $row) {
@@ -3137,13 +3137,159 @@ final class MathTexConverter
                 $table .= '<mtr' . ($metadata['labelId'] !== null ? ' id="' . $this->esc($metadata['labelId']) . '"' : '') . '>';
             }
 
-            foreach ($row as $cell) {
+            $occupiedColumns = 0;
+            $rowHasArrayMulticolumn = false;
+            foreach ($row as $cellIndex => $cell) {
+                if ($arrayColumnCount !== null) {
+                    $multicolumn = $this->parseArrayMulticolumnCell($cell, $rowIndex, $cellIndex, $arrayColumnCount, $occupiedColumns + 1);
+                    if ($multicolumn !== null) {
+                        $rowHasArrayMulticolumn = true;
+                        $occupiedColumns += $multicolumn['span'];
+                        $table .= '<mtd' . $multicolumn['attributes'] . '>' . $multicolumn['content'] . '</mtd>';
+                        continue;
+                    }
+
+                    if ($rowHasArrayMulticolumn && $occupiedColumns + 1 > $arrayColumnCount) {
+                        throw new \InvalidArgumentException(
+                            'TeX array row exceeds declared columns after multicolumn at row ' . ($rowIndex + 1)
+                                . ', cell ' . ($cellIndex + 1)
+                        );
+                    }
+                }
+
+                $occupiedColumns++;
                 $table .= '<mtd>' . $this->parseEnvironmentCell($cell) . '</mtd>';
             }
             $table .= $metadata['tag'] !== null ? '</mlabeledtr>' : '</mtr>';
         }
 
         return $table . '</mtable>';
+    }
+
+    /**
+     * @return array{attributes:string, content:string, span:int}|null
+     */
+    private function parseArrayMulticolumnCell(string $cell, int $rowIndex, int $cellIndex, int $arrayColumnCount, int $nextColumn): ?array
+    {
+        $source = trim($cell);
+        if ($source === '' || !str_starts_with($source, '\\multicolumn')) {
+            return null;
+        }
+
+        $offset = 1;
+        if ($this->readCommandName($source, $offset) !== 'multicolumn') {
+            return null;
+        }
+
+        $span = $this->normalizeArrayMulticolumnSpan($this->readRequiredGroupText($source, $offset));
+        if ($nextColumn + $span - 1 > $arrayColumnCount) {
+            throw new \InvalidArgumentException(
+                'TeX array multicolumn span exceeds declared columns at row ' . ($rowIndex + 1)
+                    . ', cell ' . ($cellIndex + 1)
+            );
+        }
+
+        $columnSpec = $this->arrayMulticolumnColumnSpec($this->readRequiredGroupText($source, $offset));
+        $contentSource = trim($this->readRequiredGroupText($source, $offset));
+        if ($contentSource === '') {
+            throw new \InvalidArgumentException('Expected TeX array multicolumn content at row ' . ($rowIndex + 1) . ', cell ' . ($cellIndex + 1));
+        }
+
+        $this->skipWhitespace($source, $offset);
+        if ($offset < strlen($source)) {
+            throw new \InvalidArgumentException('Unsupported TeX token after array multicolumn at offset ' . $offset);
+        }
+
+        return [
+            'attributes' => $this->arrayMulticolumnCellAttributes($span, $columnSpec),
+            'content' => $this->parseTexFragment($contentSource, 'array multicolumn content'),
+            'span' => $span,
+        ];
+    }
+
+    private function normalizeArrayMulticolumnSpan(string $span): int
+    {
+        $span = trim($span);
+        if (preg_match('/^[1-9][0-9]*$/', $span) !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX array multicolumn span ' . $span);
+        }
+
+        $value = (int) $span;
+        if ($value > 8) {
+            throw new \InvalidArgumentException('Unsupported TeX array multicolumn span ' . $span);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{spec:array{columnalign:string, columnhooks:list<string>, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int}, lines:list<string>}
+     */
+    private function arrayMulticolumnColumnSpec(string $columnSpec): array
+    {
+        $source = trim($columnSpec);
+        if ($source === '') {
+            throw new \InvalidArgumentException('Expected TeX array multicolumn column specifier');
+        }
+
+        $leftLine = false;
+        while (str_starts_with($source, '|')) {
+            $leftLine = true;
+            $source = ltrim(substr($source, 1));
+        }
+
+        $rightLine = false;
+        while (str_ends_with($source, '|')) {
+            $rightLine = true;
+            $source = rtrim(substr($source, 0, -1));
+        }
+
+        $spec = $this->arrayColumnSpec($source);
+        if ($spec['columns'] !== 1) {
+            throw new \InvalidArgumentException('Unsupported TeX array multicolumn column specifier ' . $columnSpec);
+        }
+
+        $lines = [];
+        if ($leftLine) {
+            $lines[] = 'left';
+        }
+        if ($rightLine) {
+            $lines[] = 'right';
+        }
+
+        return [
+            'spec' => $spec,
+            'lines' => $lines,
+        ];
+    }
+
+    /**
+     * @param array{spec:array{columnalign:string, columnhooks:list<string>, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int}, lines:list<string>} $columnSpec
+     */
+    private function arrayMulticolumnCellAttributes(int $span, array $columnSpec): string
+    {
+        $spec = $columnSpec['spec'];
+        $attributes = ' columnspan="' . $span . '" columnalign="' . $this->esc($spec['columnalign']) . '"';
+
+        $width = $spec['columnwidths'][0] ?? 'auto';
+        if ($width !== 'auto') {
+            $attributes .= ' columnwidth="' . $this->esc($width) . '"';
+        }
+
+        $verticalAlignment = $spec['columnvaligns'][0] ?? 'baseline';
+        if ($verticalAlignment !== 'baseline') {
+            $attributes .= ' data-tex-column-valign="' . $this->esc($verticalAlignment) . '"';
+        }
+
+        if ($spec['columnhooks'] !== []) {
+            $attributes .= ' data-tex-column-hooks="' . $this->esc(implode(' | ', $spec['columnhooks'])) . '"';
+        }
+
+        if ($columnSpec['lines'] !== []) {
+            $attributes .= ' data-tex-column-lines="' . $this->esc(implode(' ', $columnSpec['lines'])) . '"';
+        }
+
+        return $attributes;
     }
 
     /**

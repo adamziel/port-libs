@@ -824,6 +824,25 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\text{src}}}a\\end{array}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sum_{\\begin{subarray}{>{\\text{src}}c}i=1\\end{subarray}}^{n} a_i'));
     },
+    'converts bounded tex array multicolumn cells to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $multicolumnMathml = $converter->texToMathMl('\\begin{array}{lcr}p_i & \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a & b & c\\end{array}', true);
+        $hookedMulticolumnMathml = $converter->texToMathMl('\\begin{array}{lcr}\\multicolumn{1}{>{\\text{src}}p{2cm}}{\\text{review}} & x & y\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $multicolumnMathml);
+        $t->contains('<mtable columnalign="left center right"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd columnspan="2" columnalign="center" data-tex-column-lines="left right"><mrow><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub></mrow></mtd></mtr><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd><mtd><mi>c</mi></mtd></mtr></mtable>', $multicolumnMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{lcr}p_i &amp; \\multicolumn{2}{|c|}{m_i + q_i} \\\\ a &amp; b &amp; c\\end{array}</annotation>', $multicolumnMathml);
+        $t->true(!str_contains($multicolumnMathml, '<mi>\\multicolumn</mi>'), 'Expected TeX \\multicolumn to become array cell span metadata');
+        $t->contains('<mtd columnspan="1" columnalign="left" columnwidth="2cm" data-tex-column-valign="top" data-tex-column-hooks="pre-1:\\text{src}"><mtext>review</mtext></mtd>', $hookedMulticolumnMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{lcr}\\multicolumn{1}{&gt;{\\text{src}}p{2cm}}{\\text{review}} &amp; x &amp; y\\end{array}</annotation>', $hookedMulticolumnMathml);
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}\\multicolumn{0}{c}{x} & y\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}\\multicolumn{3}{c}{x}\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}\\multicolumn{2}{c}{x} & y\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}\\multicolumn{1}{cc}{x} & y\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}\\multicolumn{1}{c}{} & y\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{cc}\\multicolumn{1}{c}{x} + y & z\\end{array}'));
+    },
     'converts bounded tex array rule commands to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $ruleMathml = $converter->texToMathMl('\\begin{array}{l|c|r}\\hline p_i & m_i & 1 \\\\ \\hline q_i & n_i & 2 \\\\ \\hline\\end{array}', true);
