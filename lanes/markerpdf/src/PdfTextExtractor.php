@@ -32455,6 +32455,7 @@ final class PdfTextExtractor
                     if (
                         $compatibilityDepth <= 0
                         && !$this->queueMarkedContentBoundaryOperand($outsideTextOperands, $token)
+                        && !$this->queueGraphicsColorNameOperand($outsideTextOperands, $token)
                     ) {
                         return false;
                     }

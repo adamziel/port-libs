@@ -1636,6 +1636,7 @@ return [
         $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
         $t->true(str_contains($plainText, 'Visible Pattern Tint Sample Floor'));
         $t->true(str_contains($plainText, 'Visible After Pattern Tint Sample Floor'));
+        $t->true(!str_contains($plainText, 'CSPattern'));
         $t->true(!str_contains($plainText, '0.5 0.25 0.75 /P1 scn'));
         $t->true(!str_contains($plainText, "\x80 EI"));
     },
