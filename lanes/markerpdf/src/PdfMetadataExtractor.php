@@ -6982,7 +6982,7 @@ final class PdfMetadataExtractor
         }
 
         if ($pdfName === 'Filter') {
-            return in_array($operandShape, ['name', 'literal_string', 'hex_string'], true)
+            return $operandShape === 'name'
                 ? 'standard_security_handler_parameter_entry_well_formed'
                 : 'standard_security_handler_filter_non_name_operand_review';
         }
