@@ -23,6 +23,8 @@ final class PdfEmbeddedFileExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
+    private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -125,6 +127,9 @@ final class PdfEmbeddedFileExtractor
     ): void
     {
         if ($depth > 20) {
+            return;
+        }
+        if ($this->dictionaryHasDuplicateKeys($nodeBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)) {
             return;
         }
 

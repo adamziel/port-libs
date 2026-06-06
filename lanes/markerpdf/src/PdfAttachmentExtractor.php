@@ -45,6 +45,8 @@ final class PdfAttachmentExtractor
 
     private const EMBEDDED_FILE_REFERENCE_BOUNDARY_KEYS = ['F', 'UF', 'DOS', 'Unix', 'Mac'];
 
+    private const NAME_TREE_NODE_BOUNDARY_KEYS = ['Names', 'Kids', 'Limits'];
+
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
         0x19 => 0x02c7,
@@ -576,6 +578,12 @@ final class PdfAttachmentExtractor
 
         $dict = $this->dict($value);
         if ($dict === null) {
+            return [];
+        }
+        if (
+            $nodeDictionaryBody !== null
+            && $this->dictionaryHasDuplicateKeys($nodeDictionaryBody, self::NAME_TREE_NODE_BOUNDARY_KEYS)
+        ) {
             return [];
         }
 
