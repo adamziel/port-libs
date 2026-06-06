@@ -702,3 +702,24 @@ type ReviewPacket implements Node {
   blocks: [String!]!
 }
 ```
+
+``` {.php #php-attribute-review .numberLines startFrom=530}
+<?php
+#[BlockVariation(name: 'legacy/import', title: 'Legacy Import')]
+final readonly class ImportBlock
+{
+    public function __construct(public string $title = 'Untitled') {}
+    public function status(): ImportStatus
+    {
+        return $this->title === '' ? ImportStatus::Draft : ImportStatus::Ready;
+    }
+}
+
+enum ImportStatus: string
+{
+    case Draft = 'draft';
+    case Ready = 'ready';
+}
+
+$normalize = fn(array $item): string => $item['title'] ?? ImportStatus::Draft->value;
+```

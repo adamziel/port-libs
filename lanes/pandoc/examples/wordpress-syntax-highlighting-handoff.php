@@ -310,6 +310,12 @@ if (!$graphqlCodeBlock instanceof PortLibs\Pandoc\AstNode || $graphqlCodeBlock->
 }
 $graphql = $highlighter->highlightCodeBlock($graphqlCodeBlock, 'kate');
 $graphqlWordpressBlock = $highlighter->wordpressHtmlBlock($graphqlCodeBlock, 'kate');
+$phpAttributeCodeBlock = $document->children[45] ?? null;
+if (!$phpAttributeCodeBlock instanceof PortLibs\Pandoc\AstNode || $phpAttributeCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a PHP attribute code block');
+}
+$phpAttribute = $highlighter->highlightCodeBlock($phpAttributeCodeBlock, 'pygments');
+$phpAttributeWordpressBlock = $highlighter->wordpressHtmlBlock($phpAttributeCodeBlock, 'pygments');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -1307,6 +1313,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($graphqlWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
         throw new RuntimeException('Expected GraphQL WordPress style metadata');
     }
+    if (($phpAttribute['language'] ?? '') !== 'php') {
+        throw new RuntimeException('Expected PHP attribute fixture to normalize to PHP highlighting');
+    }
+    if (($phpAttribute['lineNumbering']['start'] ?? null) !== 530) {
+        throw new RuntimeException('Expected PHP attribute source startFrom line-number handoff');
+    }
+    if (!str_contains($phpAttribute['html'], '<span class="ot">#[BlockVariation(name: &#039;legacy/import&#039;, title: &#039;Legacy Import&#039;)]</span>')) {
+        throw new RuntimeException('Expected PHP attribute token handoff');
+    }
+    if (str_contains($phpAttribute['html'], '<span class="co">#[BlockVariation')) {
+        throw new RuntimeException('Expected PHP attribute not to be classified as a comment');
+    }
+    if (!str_contains($phpAttribute['html'], '<span class="kw">enum</span> <span class="dt">ImportStatus</span><span class="op">:</span> <span class="dt">string</span>')) {
+        throw new RuntimeException('Expected PHP enum and backed type token handoff');
+    }
+    if (!str_contains($phpAttribute['html'], '<span class="kw">fn</span><span class="op">(</span><span class="dt">array</span> <span class="va">$item</span><span class="op">):</span> <span class="dt">string</span>')) {
+        throw new RuntimeException('Expected PHP closure type token handoff');
+    }
+    if (!str_contains($phpAttributeWordpressBlock, '<style data-pandoc-highlight-style="pygments">')) {
+        throw new RuntimeException('Expected PHP attribute WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -1376,6 +1403,7 @@ echo "mermaidHighlightedHtml:\n" . $mermaid['html'] . "\n";
 echo "htmlEmbeddedHighlightedHtml:\n" . $htmlEmbedded['html'] . "\n";
 echo "htmlPhpHighlightedHtml:\n" . $htmlPhp['html'] . "\n";
 echo "graphqlHighlightedHtml:\n" . $graphql['html'] . "\n";
+echo "phpAttributeHighlightedHtml:\n" . $phpAttribute['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -1416,4 +1444,5 @@ echo "mermaidWordpressBlock:\n" . $mermaidWordpressBlock . "\n";
 echo "htmlEmbeddedWordpressBlock:\n" . $htmlEmbeddedWordpressBlock . "\n";
 echo "htmlPhpWordpressBlock:\n" . $htmlPhpWordpressBlock . "\n";
 echo "graphqlWordpressBlock:\n" . $graphqlWordpressBlock . "\n";
+echo "phpAttributeWordpressBlock:\n" . $phpAttributeWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

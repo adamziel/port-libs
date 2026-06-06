@@ -766,16 +766,20 @@ final class SyntaxHighlighter
     {
         return [
             ['preprocessor', '/^<\\?(?:php|=)?|^\\?>/i'],
+            ['attribute', '/^#\\[[^\\]\\n]*(?:\\][ \\t]*#\\[[^\\]\\n]*)*\\]/'],
             ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
             ['comment', '/^(?:\\/\\/|#)[^\\n]*/'],
             ['string', '/^<<<[ \\t]*([\\\'"]?)([A-Za-z_][A-Za-z0-9_]*)\\1[ \\t]*(?:\\r?\\n[\\s\\S]*?\\r?\\n[ \\t]*\\2;?)/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
             ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
-            ['keyword', '/^\\b(?:abstract|array|as|break|case|catch|class|clone|const|continue|declare|default|do|echo|else|elseif|endforeach|endif|extends|final|finally|for|foreach|function|global|if|implements|interface|match|namespace|new|private|protected|public|readonly|return|static|switch|throw|trait|try|use|while|yield)\\b/i'],
+            ['keyword', '/^\\b(?:abstract|as|break|case|catch|class|clone|const|continue|declare|default|do|echo|else|elseif|endforeach|endif|enum|extends|final|finally|fn|for|foreach|function|global|if|implements|interface|match|namespace|new|private|protected|public|readonly|return|static|switch|throw|trait|try|use|while|yield)\\b/i'],
             ['constant', '/^\\b(?:false|null|true)\\b/i'],
+            ['datatype', '/^\\b(?:array|bool|callable|float|int|iterable|mixed|never|object|self|string|void)\\b/i'],
             ['number', '/^\\b(?:0x[0-9A-Fa-f]+|\\d+(?:\\.\\d+)?)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[({:]|::|\\b))/'],
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:=>|->|::|===|!==|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:-])/'],
         ];
     }

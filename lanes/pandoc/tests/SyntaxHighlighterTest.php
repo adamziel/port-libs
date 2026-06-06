@@ -1075,6 +1075,49 @@ return [
         $t->same('graphql-query', $directGraphql['requestedLanguage']);
         $t->contains('<span class="kw">fragment</span> <span class="dt">MediaFields</span> <span class="kw">on</span> <span class="dt">MediaItem</span>', $directGraphql['html']);
     },
+    'highlights php attributes enums and closure types for wordpress plugins' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[45] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a PHP attribute code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'pygments');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'pygments');
+        $directAttribute = $highlighter->highlight(
+            "#[BlockVariation(name: \"legacy/import\")]\nenum ImportStatus: string { case Draft = \"draft\"; }",
+            'php'
+        );
+
+        $t->same('php', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('php', $highlighted['language']);
+        $t->same('php', $highlighted['requestedLanguage']);
+        $t->same('pygments', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(530, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource php numberLines"><code class="sourceCode php" style="counter-reset: source-line 529;">', $highlighted['html']);
+        $t->contains('<span id="php-attribute-review-531"><a href="#php-attribute-review-531"></a><span class="ot">#[BlockVariation(name: &#039;legacy/import&#039;, title: &#039;Legacy Import&#039;)]</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">final</span> <span class="kw">readonly</span> <span class="kw">class</span> <span class="dt">ImportBlock</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span> <span class="kw">function</span> <span class="fu">__construct</span><span class="op">(</span><span class="kw">public</span> <span class="dt">string</span> <span class="va">$title</span> <span class="op">=</span> <span class="st">&#039;Untitled&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">public</span> <span class="kw">function</span> <span class="fu">status</span><span class="op">():</span> <span class="dt">ImportStatus</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="va">$this</span><span class="op">-&gt;</span><span class="va">title</span> <span class="op">===</span> <span class="st">&#039;&#039;</span> <span class="op">?</span> <span class="dt">ImportStatus</span><span class="op">::</span><span class="dt">Draft</span>', $highlighted['html']);
+        $t->contains('<span class="kw">enum</span> <span class="dt">ImportStatus</span><span class="op">:</span> <span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="kw">case</span> <span class="dt">Draft</span> <span class="op">=</span> <span class="st">&#039;draft&#039;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">$normalize</span> <span class="op">=</span> <span class="kw">fn</span><span class="op">(</span><span class="dt">array</span> <span class="va">$item</span><span class="op">):</span> <span class="dt">string</span> <span class="op">=&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">ImportStatus</span><span class="op">::</span><span class="dt">Draft</span><span class="op">-&gt;</span><span class="va">value</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="pygments">', $wordpressBlock);
+        $t->contains('<span class="ot">#[BlockVariation(name: &#039;legacy/import&#039;, title: &#039;Legacy Import&#039;)]</span>', $wordpressBlock);
+        $t->same('php', $directAttribute['language']);
+        $t->contains('<span class="ot">#[BlockVariation(name: &quot;legacy/import&quot;)]</span>', $directAttribute['html']);
+        $t->contains('<span class="kw">enum</span> <span class="dt">ImportStatus</span><span class="op">:</span> <span class="dt">string</span>', $directAttribute['html']);
+        $t->same(false, str_contains($directAttribute['html'], '<span class="co">#[BlockVariation'));
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');
