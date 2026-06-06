@@ -106,7 +106,9 @@ final class PdfMetadataExtractor
     private const NS_PDFA_PROPERTY = 'http://www.aiim.org/pdfa/ns/property#';
     private const NS_PDFA_SCHEMA = 'http://www.aiim.org/pdfa/ns/schema#';
     private const NS_RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+    private const NS_ST_REF = 'http://ns.adobe.com/xap/1.0/sType/ResourceRef#';
     private const NS_XMP = 'http://ns.adobe.com/xap/1.0/';
+    private const NS_XMP_MM = 'http://ns.adobe.com/xap/1.0/mm/';
     private const NS_XML = 'http://www.w3.org/XML/1998/namespace';
     private const PDF_DOC_ENCODING_OVERRIDES = [
         0x18 => 0x02d8,
@@ -180,6 +182,7 @@ final class PdfMetadataExtractor
      *     modified_at_utc?: string,
      *     metadata_date?: string,
      *     metadata_date_utc?: string,
+     *     xmp_media_management?: array<string, mixed>,
      *     language?: string,
      *     mark_info?: array<string, mixed>,
      *     metadata_stream_review?: array<string, mixed>,
@@ -8792,6 +8795,11 @@ final class PdfMetadataExtractor
             $result['pdfa_extension_schemas'] = array_values($pdfaExtensionSchemas);
         }
 
+        $xmpMediaManagement = $xmp['media_management'] ?? null;
+        if (is_array($xmpMediaManagement) && $xmpMediaManagement !== []) {
+            $result['xmp_media_management'] = $xmpMediaManagement;
+        }
+
         foreach (['language', 'mark_info', 'page_layout', 'page_mode', 'viewer_preferences', 'collection', 'associated_files', 'embedded_files', 'document_name_trees', 'structure_tree', 'document_destinations', 'document_outline', 'document_security_store'] as $field) {
             if (array_key_exists($field, $catalog)) {
                 $result[$field] = $catalog[$field];
@@ -9374,7 +9382,86 @@ final class PdfMetadataExtractor
             $metadata['pdfa_extension_schemas'] = $pdfaExtensionSchemas;
         }
 
+        $mediaManagement = $this->xmpMediaManagementMetadata($document);
+        if ($mediaManagement !== []) {
+            $metadata['media_management'] = $mediaManagement;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * XMP Media Management identifiers are useful provenance for import review
+     * and deduplication, but they are metadata fields, not visible content.
+     *
+     * @return array<string, mixed>
+     */
+    private function xmpMediaManagementMetadata(DOMDocument $document): array
+    {
+        $row = [
+            'source' => 'xmp_media_management',
+            'review_only' => true,
+            'payload_included' => false,
+        ];
+
+        foreach ($this->xmpTopLevelDescriptions($document) as $description) {
+            foreach ([
+                'document_id' => 'DocumentID',
+                'instance_id' => 'InstanceID',
+                'original_document_id' => 'OriginalDocumentID',
+            ] as $key => $localName) {
+                if (isset($row[$key])) {
+                    continue;
+                }
+
+                $value = $this->xmpElementValue($description, self::NS_XMP_MM, $localName);
+                if ($value !== null && $value !== '') {
+                    $row[$key] = $value;
+                }
+            }
+
+            if (!isset($row['derived_from'])) {
+                $derivedFrom = $this->xmpMediaManagementDerivedFrom($description);
+                if ($derivedFrom !== []) {
+                    $row['derived_from'] = $derivedFrom;
+                }
+            }
+        }
+
+        return count($row) > 3 ? $row : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpMediaManagementDerivedFrom(DOMElement $description): array
+    {
+        foreach ($this->xmpChildElements($description, self::NS_XMP_MM, 'DerivedFrom') as $derivedFrom) {
+            $seenResourceIds = [];
+            $resource = $this->xmpResourceReferenceTargetElement($derivedFrom, $seenResourceIds) ?? $derivedFrom;
+            $row = [
+                'source' => 'xmpmm_derived_from',
+                'review_only' => true,
+                'payload_included' => false,
+            ];
+
+            foreach ([
+                'document_id' => 'documentID',
+                'instance_id' => 'instanceID',
+                'original_document_id' => 'originalDocumentID',
+            ] as $key => $localName) {
+                $value = $this->xmpElementValue($resource, self::NS_ST_REF, $localName);
+                if ($value !== null && $value !== '') {
+                    $row[$key] = $value;
+                }
+            }
+
+            if (count($row) > 3) {
+                return $row;
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -15418,6 +15505,13 @@ final class PdfMetadataExtractor
             $fieldNames[] = 'pdfa_extension_schemas';
         }
 
+        $mediaManagement = is_array($parsed['media_management'] ?? null)
+            ? $parsed['media_management']
+            : [];
+        if ($mediaManagement !== []) {
+            $fieldNames[] = 'media_management';
+        }
+
         $datesUtc = [];
         foreach (['created_at', 'modified_at', 'metadata_date'] as $field) {
             $value = $parsed[$field] ?? null;
@@ -15469,8 +15563,30 @@ final class PdfMetadataExtractor
             $summary['pdfa_extension_schema_count'] = count($pdfaExtensionSchemas);
             $summary['pdfa_extension_schema_namespaces'] = $this->uniqueStrings($namespaces);
         }
+        if ($mediaManagement !== []) {
+            $summary['media_management_field_names'] = $this->xmpMediaManagementSummaryFieldNames($mediaManagement);
+            if (isset($mediaManagement['derived_from']) && is_array($mediaManagement['derived_from'])) {
+                $summary['has_media_management_derived_from'] = true;
+            }
+        }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $mediaManagement
+     * @return list<string>
+     */
+    private function xmpMediaManagementSummaryFieldNames(array $mediaManagement): array
+    {
+        $fields = [];
+        foreach (['document_id', 'instance_id', 'original_document_id', 'derived_from'] as $field) {
+            if (array_key_exists($field, $mediaManagement)) {
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
     }
 
     /**
