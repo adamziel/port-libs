@@ -1747,6 +1747,14 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($name) === 'style') {
+                $style = self::normalizeHtmlStyleAttribute($value, $tagName, $diagnostics);
+                if ($style !== null) {
+                    $attrs['data-pandoc-style'] = $style;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = [
                     'code' => 'unsafe-attribute',
@@ -1961,6 +1969,174 @@ final class Html5DomFragment
             || $lower === 'target'
             || ($foreignContext === null && ($lower === 'xmlns' || str_starts_with($lower, 'xmlns:')))
             || str_starts_with($lower, 'data-pandoc-');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlStyleAttribute(string $value, string $tagName, array &$diagnostics): ?string
+    {
+        $declarations = [];
+        foreach (self::splitCssDeclarations($value) as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '') {
+                continue;
+            }
+
+            $colon = strpos($declaration, ':');
+            if ($colon === false) {
+                $diagnostics[] = self::unsafeStyleDiagnostic($tagName);
+                continue;
+            }
+
+            $property = strtolower(trim(substr($declaration, 0, $colon)));
+            if (!self::isReviewableHtmlStyleProperty($property)) {
+                $diagnostics[] = self::unsafeStyleDiagnostic($tagName, $property);
+                continue;
+            }
+
+            $propertyValue = self::normalizeReviewableHtmlStyleValue(substr($declaration, $colon + 1));
+            if ($propertyValue === null) {
+                $diagnostics[] = self::unsafeStyleDiagnostic($tagName, $property);
+                continue;
+            }
+
+            $declarations[$property] = $property . ': ' . $propertyValue;
+        }
+
+        if ($declarations === []) {
+            return null;
+        }
+
+        $diagnostics[] = [
+            'code' => 'style-review-metadata',
+            'tag' => $tagName,
+            'attribute' => 'style',
+            'declarations' => count($declarations),
+        ];
+
+        return implode('; ', array_values($declarations));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitCssDeclarations(string $value): array
+    {
+        $parts = [];
+        $start = 0;
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '\\') {
+                $i++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')' && $parenDepth > 0) {
+                $parenDepth--;
+                continue;
+            }
+            if ($char !== ';' || $parenDepth !== 0) {
+                continue;
+            }
+
+            $parts[] = substr($value, $start, $i - $start);
+            $start = $i + 1;
+        }
+
+        $parts[] = substr($value, $start);
+
+        return $parts;
+    }
+
+    private static function isReviewableHtmlStyleProperty(string $property): bool
+    {
+        return in_array($property, [
+            'background-color',
+            'border-color',
+            'border-style',
+            'border-width',
+            'color',
+            'direction',
+            'font-family',
+            'font-size',
+            'font-style',
+            'font-variant',
+            'font-weight',
+            'letter-spacing',
+            'line-height',
+            'margin-left',
+            'margin-right',
+            'text-align',
+            'text-decoration',
+            'text-transform',
+            'vertical-align',
+            'white-space',
+        ], true);
+    }
+
+    private static function normalizeReviewableHtmlStyleValue(string $value): ?string
+    {
+        $value = trim(str_replace("\0", '', $value));
+        if ($value === '' || strlen($value) > 256 || str_contains($value, '/*') || str_contains($value, '*/')) {
+            return null;
+        }
+
+        $decoded = self::decodeCssEscapes($value);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $lowerCompact = strtolower(preg_replace('/[\x00-\x20]+/', '', $decoded) ?? $decoded);
+        foreach (['url(', 'expression(', '@import', 'javascript:', 'vbscript:', 'data:', '-moz-binding'] as $blockedToken) {
+            if (str_contains($lowerCompact, $blockedToken)) {
+                return null;
+            }
+        }
+        if (preg_match('/[<>{}`]/', $decoded) === 1) {
+            return null;
+        }
+
+        $decoded = preg_replace('/[\t\r\n\f ]+/u', ' ', $decoded) ?? $decoded;
+        $decoded = preg_replace('/\s*,\s*/u', ', ', $decoded) ?? $decoded;
+        $decoded = preg_replace('/\(\s+/u', '(', $decoded) ?? $decoded;
+        $decoded = preg_replace('/\s+\)/u', ')', $decoded) ?? $decoded;
+
+        return trim($decoded);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function unsafeStyleDiagnostic(string $tagName, string $property = ''): array
+    {
+        $diagnostic = [
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => 'style',
+        ];
+        if ($property !== '') {
+            $diagnostic['property'] = $property;
+        }
+
+        return $diagnostic;
     }
 
     /**

@@ -46,7 +46,7 @@ $source = <<<HTML
 <article id="legacy-post-42" data-source="html-export" data-pandoc-link-rel="source-spoof" data-pandoc-meta-name="source-spoof" xmlns="http://www.w3.org/1999/xhtml">
   <h1>Imported source packet</h1>
   <!--review--->
-  <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
+  <p style="color: #222; font-weight: 600; background-image:url(javascript:alert(1))">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
   <details><summary>Collapsed migration notes</summary><p>Hidden packet <a href="./details/source.html">details source</a><a href="java&#10;script:alert(1)">bad details</a></p></details>
   <details open><summary>Open import note</summary><p>Visible disclosure text</p></details>
   <iframe srcdoc="$srcdoc"></iframe>
@@ -96,7 +96,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<a href="https://source.example.test/import/posts/post-42.html?help=import" data-pandoc-link-rel="help">Help source</a>',
         '<a href="https://source.example.test/import/posts/post-42.html?draft=1#chapter-1" data-pandoc-link-rel="bookmark" title="Chapter anchor">Chapter anchor</a>',
         '<a href="https://source.example.test/import/posts/refresh-target.html" data-pandoc-meta-refresh="true">Refresh target</a>',
-        '<a href="https://source.example.test/import/media/source.html#note">source note</a>',
+        '<p data-pandoc-style="color: #222; font-weight: 600">AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href="https://source.example.test/import/media/source.html#note">source note</a>.</p>',
         '<details data-pandoc-details-state="closed"><summary data-pandoc-details-summary="true">Collapsed migration notes</summary><p>Hidden packet <a href="https://source.example.test/import/posts/details/source.html">details source</a><a>bad details</a></p></details>',
         '<details open><summary>Open import note</summary><p>Visible disclosure text</p></details>',
         '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
@@ -116,7 +116,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', 'http://www.w3.org/1999/xhtml'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', 'http://www.w3.org/1999/xhtml'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }

@@ -66,18 +66,64 @@ return [
         $summary = $fragment->summary();
         $ast = $fragment->toRawHtmlAst(['source' => 'wordpress-import']);
 
-        $t->same('<p><a data-source="legacy">Bad</a><img src="https://example.test/a.png" alt="A"><span data-review="yes">Safe</span></p>', $fragment->serialize());
+        $t->same('<p><a data-source="legacy">Bad</a><img src="https://example.test/a.png" alt="A"><span data-pandoc-style="color: red" data-review="yes">Safe</span></p>', $fragment->serialize());
         $t->same('BadSafe', $fragment->textContent());
         $t->same(['a', 'img', 'p', 'span'], $summary['elementNames']);
         $t->same(['script'], $summary['blockedTags']);
-        $t->same(['href', 'onclick', 'onmouseover', 'srcset', 'style'], $summary['filteredAttributes']);
+        $t->same(['href', 'onclick', 'onmouseover', 'srcset'], $summary['filteredAttributes']);
         $t->same(6, $summary['diagnostics']);
-        $t->same(['unsafe-attribute', 'unsafe-url', 'unsafe-attribute', 'unsafe-url', 'blocked-tag', 'unsafe-attribute'], $fragment->diagnosticCodes());
+        $t->same(['unsafe-attribute', 'unsafe-url', 'unsafe-attribute', 'unsafe-url', 'blocked-tag', 'style-review-metadata'], $fragment->diagnosticCodes());
         $t->same('raw_html', $ast->type);
         $t->same('html', $ast->attr('format'));
         $t->same('wordpress-import', $ast->attr('source'));
         $t->same($fragment->serialize(), $ast->attr('html'));
         $t->same(6, count($ast->attr('diagnostics')));
+    },
+    'converts bounded html style declarations into inert reviewer metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<div>'
+            . '<p style=" color : #c00 ; font-weight: 700; background-image:url(javascript:alert(1)); position:fixed; text-align: center ; letter-spacing: \30 .5em ;">Styled</p>'
+            . '<span style="background-color: rgb(255,255,255); text-decoration: underline; color: \72 ed;">Safe</span>'
+            . '<em style="background:url(./track.png); font-size: 1.25rem; -moz-binding:url(xss.xml#x)">Mixed</em>'
+            . '</div>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/style-review-fragment.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<div>'
+            . '<p data-pandoc-style="color: #c00; font-weight: 700; text-align: center; letter-spacing: 0.5em">Styled</p>'
+            . '<span data-pandoc-style="background-color: rgb(255, 255, 255); text-decoration: underline; color: red">Safe</span>'
+            . '<em data-pandoc-style="font-size: 1.25rem">Mixed</em>'
+            . '</div>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('StyledSafeMixed', $fragment->textContent());
+        $t->same(['div', 'em', 'p', 'span'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['style'], $summary['filteredAttributes']);
+        $t->same(7, $summary['diagnostics']);
+        $t->same([
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'style-review-metadata',
+            'style-review-metadata',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'style-review-metadata',
+        ], $fragment->diagnosticCodes());
+        $t->same('color: #c00; font-weight: 700; text-align: center; letter-spacing: 0.5em', $nodes[0]['children'][0]['attrs']['data-pandoc-style']);
+        $t->same('background-color: rgb(255, 255, 255); text-decoration: underline; color: red', $nodes[0]['children'][1]['attrs']['data-pandoc-style']);
+        $t->same('font-size: 1.25rem', $nodes[0]['children'][2]['attrs']['data-pandoc-style']);
+        $t->same('/migration/style-review-fragment.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, ' style='), 'Expected active style attributes to be replaced by inert review metadata');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe CSS URLs to be stripped');
+        $t->true(!str_contains($html, 'background-image'), 'Expected unbounded CSS properties to be stripped');
+        $t->true(!str_contains($html, '-moz-binding'), 'Expected legacy binding CSS to be stripped');
     },
     'filters non-fetch media URLs while preserving reviewer mail and phone links' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
