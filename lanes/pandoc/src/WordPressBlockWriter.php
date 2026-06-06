@@ -800,10 +800,10 @@ final class WordPressBlockWriter
 
         $htmlAttributes = $cell->attr('htmlAttributes', []);
         if (!is_array($htmlAttributes)) {
-            return false;
+            $htmlAttributes = [];
         }
 
-        $htmlAttributes = array_change_key_case($htmlAttributes, CASE_LOWER);
+        $htmlAttributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
 
         return isset($htmlAttributes['valign']) && trim((string) $htmlAttributes['valign']) !== '';
     }
@@ -821,7 +821,7 @@ final class WordPressBlockWriter
         if (!is_array($sourceAttrs)) {
             $sourceAttrs = [];
         }
-        $lowerSourceAttrs = array_change_key_case($sourceAttrs, CASE_LOWER);
+        $lowerSourceAttrs = $this->mergedStoredHtmlAttributes($cell, $sourceAttrs);
         $attrs = '';
 
         $id = (string) ($accessibilityAttrs['id'] ?? '');
@@ -845,7 +845,12 @@ final class WordPressBlockWriter
     private function sourceHtmlId(AstNode $node): string
     {
         $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (is_array($htmlAttributes) && isset($htmlAttributes['id'])) {
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        $htmlAttributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
+        if (isset($htmlAttributes['id'])) {
             $id = trim((string) $htmlAttributes['id']);
             if ($id !== '') {
                 return $id;
@@ -864,6 +869,7 @@ final class WordPressBlockWriter
         if (!is_array($htmlAttributes)) {
             $htmlAttributes = [];
         }
+        $htmlAttributes = $this->mergedStoredHtmlAttributes($node, $htmlAttributes);
 
         if ($htmlAttributes === [] && !$includeIdentity) {
             return '';
@@ -903,6 +909,40 @@ final class WordPressBlockWriter
         }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string|int, mixed> $htmlAttributes
+     *
+     * @return array<string, mixed>
+     */
+    private function mergedStoredHtmlAttributes(AstNode $node, array $htmlAttributes): array
+    {
+        $merged = [];
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower(trim((string) $name));
+            if ($name === '' || !is_scalar($value)) {
+                continue;
+            }
+
+            $merged[$name] = $value;
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes)) {
+            return $merged;
+        }
+
+        foreach ($attributes as $name => $value) {
+            $name = strtolower(trim((string) $name));
+            if ($name === '' || !is_scalar($value) || array_key_exists($name, $merged)) {
+                continue;
+            }
+
+            $merged[$name] = $value;
+        }
+
+        return $merged;
     }
 
     private function storedHtmlStyle(AstNode $node): string

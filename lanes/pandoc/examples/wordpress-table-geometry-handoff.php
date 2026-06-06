@@ -370,6 +370,72 @@ $latexFooterTable = new AstNode('table', [
     ]),
 ]);
 
+$astAttributeTable = new AstNode('table', [
+    'caption' => 'Native AST attribute audit',
+    'alignments' => ['left', 'right'],
+    'id' => 'native-ast-attr-grid',
+    'classes' => ['source-table', 'needs-review'],
+    'attributes' => [
+        'data-pandoc-source' => 'native-ast',
+        'aria-label' => 'Native AST source attributes',
+        'onclick' => 'blocked',
+    ],
+], [
+    new AstNode('table_head', [
+        'id' => 'native-ast-head',
+        'attributes' => [
+            'data-section-role' => 'head',
+        ],
+    ], [
+        new AstNode('table_row', [
+            'attributes' => [
+                'data-row-role' => 'head',
+            ],
+        ], [
+            new AstNode('table_cell', [
+                'text' => 'Scope',
+                'attributes' => [
+                    'data-field' => 'scope',
+                    'onmouseover' => 'blocked',
+                ],
+            ], [new AstNode('text', ['text' => 'Scope'])]),
+            new AstNode('table_cell', [
+                'text' => 'State',
+                'attributes' => [
+                    'data-field' => 'state',
+                ],
+            ], [new AstNode('text', ['text' => 'State'])]),
+        ]),
+    ]),
+    new AstNode('table_body', [
+        'id' => 'native-ast-body',
+        'rowHeadColumns' => 1,
+        'attributes' => [
+            'data-section-role' => 'body',
+        ],
+    ], [
+        new AstNode('table_row', [
+            'attributes' => [
+                'data-row-role' => 'body',
+            ],
+        ], [
+            new AstNode('table_cell', [
+                'text' => 'Posts',
+                'attributes' => [
+                    'data-field' => 'posts',
+                ],
+            ], [new AstNode('text', ['text' => 'Posts'])]),
+            new AstNode('table_cell', [
+                'text' => 'Ready',
+                'attributes' => [
+                    'data-field' => 'ready',
+                    'aria-label' => 'Ready state',
+                ],
+            ], [new AstNode('text', ['text' => 'Ready'])]),
+        ]),
+    ]),
+]);
+
 $document = new AstNode('document', [], [
     new AstNode('table', [
         'caption' => 'Migration review grid',
@@ -701,6 +767,7 @@ $document = new AstNode('document', [], [
     $blockContentTable,
     $latexRequirementTable,
     $latexFooterTable,
+    $astAttributeTable,
 ]);
 
 $blocks = (new WordPressBlockWriter())->write($document);
@@ -1000,6 +1067,33 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source header override association packet');
     }
     json_encode($sourceAttributePacket, JSON_THROW_ON_ERROR);
+
+    $astAttributePacket = TableGeometry::reviewPacket($astAttributeTable, ['accessibility' => false]);
+    if (($astAttributePacket['sourceAttributes']['attributes']['data-pandoc-source'] ?? null) !== 'native-ast') {
+        throw new RuntimeException('Table geometry self-test missing native AST table attribute packet');
+    }
+    if (($astAttributePacket['sections'][0]['sourceAttributes']['attributes']['data-section-role'] ?? null) !== 'head') {
+        throw new RuntimeException('Table geometry self-test missing native AST section attribute packet');
+    }
+    if (($astAttributePacket['sections'][1]['rows'][0]['sourceAttributes']['attributes']['data-row-role'] ?? null) !== 'body') {
+        throw new RuntimeException('Table geometry self-test missing native AST row attribute packet');
+    }
+    if (($astAttributePacket['coverage'][2]['sourceAttributes']['attributes']['data-field'] ?? null) !== 'posts') {
+        throw new RuntimeException('Table geometry self-test missing native AST cell attribute packet');
+    }
+    if (!str_contains($blocks, '<table id="native-ast-attr-grid" class="source-table needs-review" data-pandoc-source="native-ast" aria-label="Native AST source attributes">')) {
+        throw new RuntimeException('Table geometry self-test missing native AST table attributes in WordPress output');
+    }
+    if (!str_contains($blocks, '<thead id="native-ast-head" data-section-role="head"><tr data-row-role="head"><th data-field="scope" style="text-align:left">Scope</th><th data-field="state" style="text-align:right">State</th></tr></thead>')) {
+        throw new RuntimeException('Table geometry self-test missing native AST head attributes in WordPress output');
+    }
+    if (!str_contains($blocks, '<tbody id="native-ast-body" data-section-role="body"><tr data-row-role="body"><th data-field="posts" style="text-align:left">Posts</th><td data-field="ready" aria-label="Ready state" style="text-align:right">Ready</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing native AST body attributes in WordPress output');
+    }
+    if (str_contains($blocks, 'onclick=') || str_contains($blocks, 'onmouseover=')) {
+        throw new RuntimeException('Table geometry self-test leaked unsafe native AST event attributes');
+    }
+    json_encode($astAttributePacket, JSON_THROW_ON_ERROR);
 
     $sourceScopeAccessibility = TableGeometry::accessibilityAttributes($document->children[7], 'Source Scope Grid');
     if (($sourceScopeAccessibility['body:0:0:0']['scope'] ?? null) !== 'row') {

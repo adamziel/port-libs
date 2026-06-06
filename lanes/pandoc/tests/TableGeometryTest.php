@@ -611,6 +611,115 @@ $buildSourceAttributedReviewPacketDocument = static function (): AstNode {
     ]);
 };
 
+$buildAstAttributeHandoffDocument = static function (): AstNode {
+    return new AstNode('document', [], [
+        new AstNode('table', [
+            'caption' => 'Native attribute audit',
+            'alignments' => ['left', 'right'],
+            'id' => 'native-attr-table',
+            'classes' => ['source-table', 'needs-review'],
+            'attributes' => [
+                'data-pandoc-source' => 'native-ast',
+                'aria-label' => 'Pandoc section attribute audit',
+                'data-html-overlap' => 'from-attr',
+                'onclick' => 'blocked',
+            ],
+            'htmlAttributes' => [
+                'data-html-overlap' => 'from-html',
+            ],
+        ], [
+            new AstNode('table_head', [
+                'id' => 'native-head',
+                'classes' => ['table-source-head'],
+                'attributes' => [
+                    'data-section-role' => 'head',
+                    'aria-label' => 'Head rows',
+                    'onmouseover' => 'blocked',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'id' => 'native-head-row',
+                    'classes' => ['source-row'],
+                    'attributes' => [
+                        'data-row-role' => 'head',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Scope',
+                        'id' => 'native-scope',
+                        'classes' => ['source-cell'],
+                        'attributes' => [
+                            'data-field' => 'scope',
+                            'aria-sort' => 'ascending',
+                            'onclick' => 'blocked',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'State',
+                        'attributes' => [
+                            'data-field' => 'state',
+                        ],
+                    ], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'id' => 'native-body',
+                'classes' => ['table-source-body'],
+                'rowHeadColumns' => 1,
+                'attributes' => [
+                    'data-section-role' => 'body',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'id' => 'native-body-row',
+                    'attributes' => [
+                        'data-row-role' => 'body',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Posts',
+                        'attributes' => [
+                            'data-field' => 'posts',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Ready',
+                        'attributes' => [
+                            'data-field' => 'ready',
+                            'aria-label' => 'Ready state',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+            new AstNode('table_foot', [
+                'id' => 'native-foot',
+                'attributes' => [
+                    'data-section-role' => 'foot',
+                ],
+            ], [
+                new AstNode('table_row', [
+                    'attributes' => [
+                        'data-row-role' => 'foot',
+                    ],
+                ], [
+                    new AstNode('table_cell', [
+                        'text' => 'Total',
+                        'attributes' => [
+                            'data-field' => 'total',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Total'])]),
+                    new AstNode('table_cell', [
+                        'text' => 'Ready',
+                        'attributes' => [
+                            'data-field' => 'foot-state',
+                        ],
+                    ], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]),
+    ]);
+};
+
 $buildMalformedSpanNormalizationDocument = static function (): AstNode {
     return new AstNode('document', [], [
         new AstNode('table', [
@@ -1681,6 +1790,36 @@ return [
         $t->same('Imported posts', $postsCoverage['htmlAttributes']['title'] ?? null);
         $t->true(!array_key_exists('sourceAttributes', $readyCoverage), 'Cells without source attributes should not add empty packet noise');
         $t->true(!array_key_exists('node', $packet['coverage'][0]), 'Source attribute packets remain serializable and do not leak AstNode references');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'renders pandoc ast table key value attributes on wordpress table sections' => static function (TestRunner $t) use ($buildAstAttributeHandoffDocument): void {
+        $document = $buildAstAttributeHandoffDocument();
+        $table = $document->children[0];
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('native-ast', $packet['sourceAttributes']['attributes']['data-pandoc-source'] ?? null);
+        $t->same('head', $packet['sections'][0]['sourceAttributes']['attributes']['data-section-role'] ?? null);
+        $t->same('body', $packet['sections'][1]['sourceAttributes']['attributes']['data-section-role'] ?? null);
+        $t->same('foot', $packet['sections'][2]['sourceAttributes']['attributes']['data-section-role'] ?? null);
+        $t->same('head', $packet['sections'][0]['rows'][0]['sourceAttributes']['attributes']['data-row-role'] ?? null);
+        $t->same('body', $packet['sections'][1]['rows'][0]['sourceAttributes']['attributes']['data-row-role'] ?? null);
+        $t->same('scope', $packet['coverage'][0]['sourceAttributes']['attributes']['data-field'] ?? null);
+        $t->same('posts', $packet['coverage'][2]['sourceAttributes']['attributes']['data-field'] ?? null);
+
+        $t->contains('<table id="native-attr-table" class="source-table needs-review"', $blocks);
+        $t->contains('data-pandoc-source="native-ast"', $blocks);
+        $t->contains('aria-label="Pandoc section attribute audit"', $blocks);
+        $t->contains('data-html-overlap="from-html"', $blocks);
+        $t->true(!str_contains($blocks, 'data-html-overlap="from-attr"'), 'Parsed HTML attributes should win over Pandoc AST attributes');
+        $t->contains('<thead id="native-head" class="table-source-head" data-section-role="head" aria-label="Head rows">', $blocks);
+        $t->contains('<tr id="native-head-row" class="source-row" data-row-role="head">', $blocks);
+        $t->contains('<th id="native-scope" class="source-cell" data-field="scope" aria-sort="ascending" style="text-align:left">Scope</th>', $blocks);
+        $t->contains('<tbody id="native-body" class="table-source-body" data-section-role="body">', $blocks);
+        $t->contains('<tr id="native-body-row" data-row-role="body"><th data-field="posts" style="text-align:left">Posts</th><td data-field="ready" aria-label="Ready state" style="text-align:right">Ready</td></tr>', $blocks);
+        $t->contains('<tfoot id="native-foot" data-section-role="foot"><tr data-row-role="foot"><td data-field="total" style="text-align:left">Total</td><td data-field="foot-state" style="text-align:right">Ready</td></tr></tfoot>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick='), 'Unsafe event handler attributes must not render');
+        $t->true(!str_contains($blocks, 'onmouseover='), 'Unsafe section event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
     'serializes long and short table caption metadata for importer review packets' => static function (TestRunner $t): void {
