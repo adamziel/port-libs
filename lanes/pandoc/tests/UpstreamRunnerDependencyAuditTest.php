@@ -63,7 +63,18 @@ $pinnedProject = static function (array $overrides = []): string {
     return implode("\n", $lines);
 };
 
-$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010'): string {
+$formatRunnerDependencies = static function (string $target, array $dependencies): array {
+    $constraints = UpstreamRunnerDependencyAudit::expectedRunnerDependencyConstraints()[$target] ?? [];
+    $formatted = [];
+    foreach ($dependencies as $dependency) {
+        $constraint = $constraints[$dependency] ?? '';
+        $formatted[] = $constraint === '' ? $dependency : $dependency . ' ' . $constraint;
+    }
+
+    return $formatted;
+};
+
+$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010') use ($formatRunnerDependencies): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc'],
         $without
@@ -91,20 +102,20 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         '  main-is: ' . ($mainIs ?? 'test-pandoc.hs'),
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'test'),
         '  build-depends:',
-        '    ' . implode(",\n    ", $suiteDependencies),
+        '    ' . implode(",\n    ", $formatRunnerDependencies('test:test-pandoc', $suiteDependencies)),
         '  other-modules:',
         '    ' . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedRunnerOtherModules()['test:test-pandoc']),
     ]);
 
     return implode("\n", array_merge([
         'common common-options',
-        '  build-depends: ' . implode(', ', $commonDependencies),
+        '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
         '',
     ], $commonExecutable, $testSuite));
 };
 
-$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010', array $libraryWithout = []): string {
+$luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010', array $libraryWithout = []) use ($formatRunnerDependencies): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc-lua-engine'],
         $without
@@ -118,7 +129,7 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
 
     $stanzas = [
         'common test-options',
-        '  build-depends: ' . implode(', ', $commonDependencies),
+        '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc-lua-engine', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
         '',
         'library',
@@ -137,7 +148,7 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         '  main-is: ' . ($mainIs ?? 'test-pandoc-lua-engine.hs'),
         '  hs-source-dirs: ' . ($sourceDirectory ?? 'test'),
         '  build-depends:',
-        '    ' . implode(",\n    ", $suiteDependencies),
+        '    ' . implode(",\n    ", $formatRunnerDependencies('test:test-pandoc-lua-engine', $suiteDependencies)),
         '  other-modules:',
         '    ' . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedRunnerOtherModules()['test:test-pandoc-lua-engine']),
     ]));
@@ -323,6 +334,7 @@ return [
         $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
         $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
         $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']);
         $t->same([], $audit['runnerDependencyClosure']['missingExecutableOptions']);
         $t->same([], $audit['runnerDependencyClosure']['mismatchedDefaultLanguages']);
         $t->same([], $audit['runnerDependencyClosure']['missingOtherModules']);
@@ -338,6 +350,11 @@ return [
         $t->same(true, in_array('base', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('zip-archive', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['buildDepends'], true));
         $t->same(true, in_array('tasty-lua', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['buildDepends'], true));
+        $t->same('>= 4.18 && < 5', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['dependencyConstraints']['base']);
+        $t->same('>= 1.23.1 && < 1.24', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['dependencyConstraints']['pandoc-types']);
+        $t->same('>= 0.4.3 && < 0.5', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['dependencyConstraints']['zip-archive']);
+        $t->same('>= 2.5 && < 2.6', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['dependencyConstraints']['hslua']);
+        $t->same('>= 1.1 && < 1.2', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['dependencyConstraints']['tasty-lua']);
         $t->same(true, in_array('Tests.Command', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['otherModules'], true));
         $t->same(true, in_array('Tests.Writers.Native', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['otherModules'], true));
         $t->same(true, in_array('Tests.Lua.Reader', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['otherModules'], true));
@@ -359,7 +376,7 @@ return [
         $t->contains('record cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
         $t->contains('solver constraints and runner executable options', $audit['nonMutatingPlan'][1]);
-        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends, and other-modules closure', $audit['nonMutatingPlan'][2]);
+        $t->contains('test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, and other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-lua-engine library HsLua module dependency closure', $audit['nonMutatingPlan'][2]);
     },
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
@@ -555,6 +572,71 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('mismatched Cabal runner entry points', $blocked);
         $t->contains('missing Cabal runner direct build-depends', $blocked);
+    },
+    'blocks stale runner direct dependency constraints before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            'pandoc-types >= 1.23.1 && < 1.24',
+            'pandoc-types >= 1.22 && < 1.24',
+            $files['pandoc.cabal']
+        );
+        $files['pandoc.cabal'] = str_replace(
+            'zip-archive >= 0.4.3 && < 0.5',
+            'zip-archive',
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            'hslua >= 2.5 && < 2.6',
+            'hslua >= 2.4 && < 2.6',
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            'tasty-lua >= 1.1 && < 1.2',
+            'tasty-lua',
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectSourceRepositoryPins']['missing']);
+        $t->same([], $audit['projectPackageClosure']['missingPackages']);
+        $t->same([], $audit['projectConstraintClosure']['missingConstraints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['runnerDependencyClosure']['missingDependencies']);
+        $t->same([
+            'expected' => '>= 1.23.1 && < 1.24',
+            'actual' => '>= 1.22 && < 1.24',
+        ], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']['test:test-pandoc']['pandoc-types']);
+        $t->same([
+            'expected' => '>= 0.4.3 && < 0.5',
+            'actual' => '',
+        ], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']['test:test-pandoc']['zip-archive']);
+        $t->same([
+            'expected' => '>= 2.5 && < 2.6',
+            'actual' => '>= 2.4 && < 2.6',
+        ], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']['test:test-pandoc-lua-engine']['hslua']);
+        $t->same([
+            'expected' => '>= 1.1 && < 1.2',
+            'actual' => '',
+        ], $audit['runnerDependencyClosure']['mismatchedDependencyConstraints']['test:test-pandoc-lua-engine']['tasty-lua']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal runner direct build-depends constraints', $blocked);
+        $t->contains('test:test-pandoc (pandoc-types expected >= 1.23.1 && < 1.24, found >= 1.22 && < 1.24, zip-archive expected >= 0.4.3 && < 0.5, found none)', $blocked);
+        $t->contains('test:test-pandoc-lua-engine (hslua expected >= 2.5 && < 2.6, found >= 2.4 && < 2.6, tasty-lua expected >= 1.1 && < 1.2, found none)', $blocked);
+        $t->contains('direct runner build-depends', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks stale repo relative lua runner source directory before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {
         $root = $makeTree($requiredFiles(
