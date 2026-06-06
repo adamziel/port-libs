@@ -5730,6 +5730,10 @@ final class PdfMetadataExtractor
                 $keyLengthDefaulted && $version === 2 => 'standard_security_handler_v2_default_40_bit',
                 default => 'encryption_dictionary_length_entry',
             };
+        } elseif ($keyLengthExplicit) {
+            $metadata['key_length_explicit'] = true;
+            $metadata['key_length_defaulted'] = false;
+            $metadata['key_length_source'] = 'encryption_dictionary_length_entry';
         }
 
         $metadata['encrypt_metadata'] = (bool) $encryptMetadataReview['effective_value'];
@@ -5794,7 +5798,7 @@ final class PdfMetadataExtractor
         }
 
         $standardParameterDeclarationReview = ($metadata['filter'] ?? null) === 'Standard'
-            ? $this->standardSecurityHandlerParameterDeclarationReview($dictionary)
+            ? $this->standardSecurityHandlerParameterDeclarationReview($dictionary, $objects)
             : [];
         if ($standardParameterDeclarationReview !== []) {
             $metadata['standard_security_handler_parameter_declaration_review'] = $standardParameterDeclarationReview;
@@ -6735,22 +6739,41 @@ final class PdfMetadataExtractor
             $parameterDeclarationReview['duplicate_parameter_names'] ?? [],
             static fn (mixed $name): bool => is_string($name)
         ));
+        $malformedParameterNames = array_values(array_filter(
+            $parameterDeclarationReview['malformed_parameter_names'] ?? [],
+            static fn (mixed $name): bool => is_string($name)
+        ));
+        $malformedParameterNameSet = array_fill_keys($malformedParameterNames, true);
+        if (isset($malformedParameterNameSet['Length'])) {
+            $keyLength = [
+                'valid' => false,
+                'status' => 'malformed_standard_security_handler_key_length_operand_review',
+                'minimum_key_length_bits' => $keyLength['minimum_key_length_bits'],
+                'maximum_key_length_bits' => $keyLength['maximum_key_length_bits'],
+            ];
+        }
 
         $violations = [];
         if ($version === null) {
-            $violations[] = 'missing_standard_security_handler_version';
+            if (!isset($malformedParameterNameSet['V'])) {
+                $violations[] = 'missing_standard_security_handler_version';
+            }
         } elseif ($versionSupported !== true) {
             $violations[] = 'unsupported_standard_security_handler_version';
         }
         if ($revision === null) {
-            $violations[] = 'missing_standard_security_handler_revision';
+            if (!isset($malformedParameterNameSet['R'])) {
+                $violations[] = 'missing_standard_security_handler_revision';
+            }
         } elseif ($revisionSupported !== true) {
             $violations[] = 'unsupported_standard_security_handler_revision';
         }
         if ($compatible === false) {
             $violations[] = 'standard_security_handler_version_revision_mismatch';
         }
-        if (($keyLength['status'] ?? null) === 'missing_standard_security_handler_key_length_review') {
+        if ($malformedParameterNames !== []) {
+            $violations[] = 'malformed_standard_security_handler_parameter_entries';
+        } elseif (($keyLength['status'] ?? null) === 'missing_standard_security_handler_key_length_review') {
             $violations[] = 'missing_standard_security_handler_key_length';
         } elseif (($keyLength['valid'] ?? null) === false) {
             $violations[] = 'invalid_standard_security_handler_key_length';
@@ -6787,6 +6810,9 @@ final class PdfMetadataExtractor
             'parameter_declaration_review' => $parameterDeclarationReview,
             'duplicate_parameter_names' => $duplicateParameterNames,
             'duplicate_parameter_count' => count($duplicateParameterNames),
+            'malformed_parameter_names' => $malformedParameterNames,
+            'malformed_parameter_count' => count($malformedParameterNames),
+            'parameter_declaration_fail_closed' => (bool) ($parameterDeclarationReview['fail_closed'] ?? false),
             'parameters_well_formed' => $violations === [],
             'status' => $violations === []
                 ? 'standard_security_handler_parameters_well_formed'
@@ -6807,11 +6833,12 @@ final class PdfMetadataExtractor
      *
      * @return array<string, mixed>
      */
-    private function standardSecurityHandlerParameterDeclarationReview(string $dictionary): array
+    private function standardSecurityHandlerParameterDeclarationReview(string $dictionary, array $objects): array
     {
         $rows = [];
         $entryCounts = [];
         $duplicateNames = [];
+        $malformedNames = [];
 
         foreach ([
             'Filter' => 'filter',
@@ -6828,12 +6855,22 @@ final class PdfMetadataExtractor
             $entryCounts[$pdfName] = $entryCount;
             $entries = [];
             foreach ($values as $index => $value) {
+                $resolved = $this->resolvePdfValue($value, $objects);
+                $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+                $operandShape = $this->standardSecurityHandlerParameterOperandShape($valueForReview);
                 $entries[] = [
                     'source' => 'standard_security_handler_parameter_entry_review',
                     'index' => $index,
                     'pdf_name' => $pdfName,
                     'metadata_key' => $metadataKey,
-                    'operand_shape' => $this->standardSecurityHandlerParameterOperandShape($value),
+                    'resolved' => $resolved !== null,
+                    'operand_shape' => $operandShape,
+                    'status' => $this->standardSecurityHandlerParameterEntryStatus(
+                        $pdfName,
+                        $value,
+                        $operandShape,
+                        $resolved !== null
+                    ),
                     'review_only' => true,
                 ];
             }
@@ -6841,6 +6878,13 @@ final class PdfMetadataExtractor
             $duplicate = $entryCount > 1;
             if ($duplicate) {
                 $duplicateNames[] = $pdfName;
+            }
+            $malformedEntries = array_values(array_filter(
+                $entries,
+                static fn (array $entry): bool => ($entry['status'] ?? null) !== 'standard_security_handler_parameter_entry_well_formed'
+            ));
+            if ($malformedEntries !== []) {
+                $malformedNames[] = $pdfName;
             }
 
             $rows[] = [
@@ -6857,6 +6901,15 @@ final class PdfMetadataExtractor
                     ),
                     static fn (mixed $shape): bool => is_string($shape)
                 ))),
+                'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                    array_map(
+                        static fn (array $entry): mixed => $entry['status'] ?? null,
+                        $entries
+                    ),
+                    static fn (mixed $status): bool => is_string($status)
+                ))),
+                'malformed_entries' => $malformedEntries !== [],
+                'malformed_entry_count' => count($malformedEntries),
                 'entries' => $entries,
                 'review_only' => true,
                 'executes_decryption' => false,
@@ -6864,7 +6917,7 @@ final class PdfMetadataExtractor
             ];
         }
 
-        if ($duplicateNames === []) {
+        if ($duplicateNames === [] && $malformedNames === []) {
             return [];
         }
 
@@ -6872,8 +6925,12 @@ final class PdfMetadataExtractor
             'source' => 'standard_security_handler_parameter_declaration_review',
             'duplicate_parameter_names' => $duplicateNames,
             'duplicate_parameter_count' => count($duplicateNames),
+            'malformed_parameter_names' => $malformedNames,
+            'malformed_parameter_count' => count($malformedNames),
             'parameter_entry_counts' => $entryCounts,
-            'status' => 'duplicate_standard_security_handler_parameter_entries_review',
+            'status' => $duplicateNames !== []
+                ? 'duplicate_standard_security_handler_parameter_entries_review'
+                : 'malformed_standard_security_handler_parameter_entries_review',
             'fail_closed' => true,
             'rows' => $rows,
             'review_only' => true,
@@ -6908,6 +6965,31 @@ final class PdfMetadataExtractor
         }
 
         return 'token';
+    }
+
+    private function standardSecurityHandlerParameterEntryStatus(
+        string $pdfName,
+        string $rawValue,
+        string $operandShape,
+        bool $resolved
+    ): string {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'standard_security_handler_parameter_unresolved_reference';
+        }
+
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'standard_security_handler_parameter_composite_operand_review';
+        }
+
+        if ($pdfName === 'Filter') {
+            return in_array($operandShape, ['name', 'literal_string', 'hex_string'], true)
+                ? 'standard_security_handler_parameter_entry_well_formed'
+                : 'standard_security_handler_filter_non_name_operand_review';
+        }
+
+        return $operandShape === 'token'
+            ? 'standard_security_handler_parameter_entry_well_formed'
+            : 'standard_security_handler_parameter_non_integer_operand_review';
     }
 
     private function standardSecurityHandlerVersionRevisionCompatible(int $version, int $revision): bool

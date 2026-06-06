@@ -322,6 +322,11 @@ final class PdfSecurityPreflight
                 ? $standardParameterReview['duplicate_parameter_names']
                 : [],
             'standard_security_handler_duplicate_parameter_count' => (int) ($standardParameterReview['duplicate_parameter_count'] ?? 0),
+            'standard_security_handler_malformed_parameter_names' => is_array($standardParameterReview['malformed_parameter_names'] ?? null)
+                ? $standardParameterReview['malformed_parameter_names']
+                : [],
+            'standard_security_handler_malformed_parameter_count' => (int) ($standardParameterReview['malformed_parameter_count'] ?? 0),
+            'standard_security_handler_parameter_declaration_fail_closed' => (bool) ($standardParameterReview['parameter_declaration_fail_closed'] ?? false),
             'malformed_encrypt_dictionary' => (bool) ($encryption['malformed_encrypt_dictionary'] ?? false),
             'encrypt_dictionary_resolved' => array_key_exists('encrypt_dictionary_resolved', $encryption)
                 ? (bool) $encryption['encrypt_dictionary_resolved']
@@ -1838,6 +1843,11 @@ final class PdfSecurityPreflight
                 ? $standardParameterReview['duplicate_parameter_names']
                 : [],
             'standard_security_handler_duplicate_parameter_count' => (int) ($standardParameterReview['duplicate_parameter_count'] ?? 0),
+            'standard_security_handler_malformed_parameter_names' => is_array($standardParameterReview['malformed_parameter_names'] ?? null)
+                ? $standardParameterReview['malformed_parameter_names']
+                : [],
+            'standard_security_handler_malformed_parameter_count' => (int) ($standardParameterReview['malformed_parameter_count'] ?? 0),
+            'standard_security_handler_parameter_declaration_fail_closed' => (bool) ($standardParameterReview['parameter_declaration_fail_closed'] ?? false),
             'applicable_permission_names' => $permissionBitsTrusted && is_array($permissions['applicable_permission_names'] ?? null)
                 ? $permissions['applicable_permission_names']
                 : [],
@@ -5528,6 +5538,11 @@ final class PdfSecurityPreflight
                 ? $standardParameterReview['duplicate_parameter_names']
                 : [],
             'standard_security_handler_duplicate_parameter_count' => (int) ($standardParameterReview['duplicate_parameter_count'] ?? 0),
+            'standard_security_handler_malformed_parameter_names' => is_array($standardParameterReview['malformed_parameter_names'] ?? null)
+                ? $standardParameterReview['malformed_parameter_names']
+                : [],
+            'standard_security_handler_malformed_parameter_count' => (int) ($standardParameterReview['malformed_parameter_count'] ?? 0),
+            'standard_security_handler_parameter_declaration_fail_closed' => (bool) ($standardParameterReview['parameter_declaration_fail_closed'] ?? false),
             'malformed_encrypt_dictionary' => (bool) ($encryption['malformed_encrypt_dictionary'] ?? false),
             'encrypt_dictionary_resolved' => array_key_exists('encrypt_dictionary_resolved', $encryption)
                 ? (bool) $encryption['encrypt_dictionary_resolved']
@@ -5687,6 +5702,9 @@ final class PdfSecurityPreflight
                         : [];
                     if (in_array('standard_security_handler_version_revision_mismatch', $parameterViolations, true)) {
                         $reasons[] = 'standard_security_handler_version_revision_mismatch';
+                    }
+                    if (in_array('malformed_standard_security_handler_parameter_entries', $parameterViolations, true)) {
+                        $reasons[] = 'standard_security_handler_parameter_operands_malformed';
                     }
                 } elseif (($permissionPreflight['permission_word_duplicate_entries'] ?? false) === true) {
                     $reasons[] = 'permission_word_duplicate_entries';

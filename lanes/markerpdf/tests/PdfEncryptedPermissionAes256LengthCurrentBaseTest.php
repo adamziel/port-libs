@@ -43,7 +43,16 @@ $assertMissingAes256LengthPreflight = static function (
     string $userValidation,
     string $ownerEncryptionKey,
     string $userEncryptionKey,
-    string $permissionDigest
+    string $permissionDigest,
+    array $expectedReviewReasons = [
+        'encrypted_document',
+        'encrypted_text_extraction_blocked',
+        'standard_security_handler_parameters_malformed',
+    ],
+    array $expectedParameterViolations = ['missing_standard_security_handler_key_length'],
+    string $expectedKeyLengthStatus = 'missing_standard_security_handler_key_length_review',
+    bool $expectedKeyLengthPresent = false,
+    array $expectedMalformedParameterNames = []
 ): void {
     $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
     $report = (new PdfSecurityPreflight())->analyze($pdf);
@@ -58,7 +67,7 @@ $assertMissingAes256LengthPreflight = static function (
 
     $t->same('', (new PdfTextExtractor())->extractPlainText($pdf));
     $t->same('block_encrypted_content_review_security_metadata', $report['import_decision']);
-    $t->same(['encrypted_document', 'encrypted_text_extraction_blocked', 'standard_security_handler_parameters_malformed'], $report['review_reasons']);
+    $t->same($expectedReviewReasons, $report['review_reasons']);
 
     $t->same('Standard', $metadataEncryption['filter']);
     $t->same(5, $metadataEncryption['version']);
@@ -66,9 +75,10 @@ $assertMissingAes256LengthPreflight = static function (
     $t->same('standard_handler_revision_6', $metadataEncryption['revision_label']);
     $t->same(false, array_key_exists('key_length_bits', $metadataEncryption));
     $t->same('standard_security_handler_parameter_review', $metadataParameterReview['source']);
-    $t->same('missing_standard_security_handler_key_length_review', $metadataParameterReview['key_length_status']);
+    $t->same($expectedKeyLengthStatus, $metadataParameterReview['key_length_status']);
     $t->same(false, $metadataParameterReview['parameters_well_formed']);
-    $t->same(['missing_standard_security_handler_key_length'], $metadataParameterReview['violations']);
+    $t->same($expectedParameterViolations, $metadataParameterReview['violations']);
+    $t->same($expectedMalformedParameterNames, $metadataParameterReview['malformed_parameter_names']);
     $t->same('FFFFFFD4', $metadataEncryption['standard_permissions']['hex']);
     $t->same(true, in_array('copy_or_extract', $metadataEncryption['standard_permissions']['allowed'], true));
 
@@ -77,7 +87,9 @@ $assertMissingAes256LengthPreflight = static function (
     $t->same('blocked_encrypted_permissions_malformed', $permission['content_extraction_boundary']);
     $t->same(false, $permission['standard_security_handler_parameters_well_formed']);
     $t->same('malformed_standard_security_handler_parameters_review', $permission['standard_security_handler_parameter_status']);
-    $t->same(['missing_standard_security_handler_key_length'], $permission['standard_security_handler_parameter_violations']);
+    $t->same($expectedParameterViolations, $permission['standard_security_handler_parameter_violations']);
+    $t->same($expectedMalformedParameterNames, $permission['standard_security_handler_malformed_parameter_names']);
+    $t->same(count($expectedMalformedParameterNames), $permission['standard_security_handler_malformed_parameter_count']);
     $t->same(false, $permission['permission_bits_reliable']);
     $t->same(false, $permission['permission_word_well_formed']);
     $t->same(null, $permission['copy_or_extract_allowed']);
@@ -91,7 +103,7 @@ $assertMissingAes256LengthPreflight = static function (
     $t->same('standard_security_handler_parameter_review', $parameterReview['source']);
     $t->same(true, $parameterReview['version_present']);
     $t->same(true, $parameterReview['revision_present']);
-    $t->same(false, $parameterReview['key_length_present']);
+    $t->same($expectedKeyLengthPresent, $parameterReview['key_length_present']);
     $t->same(5, $parameterReview['version']);
     $t->same(6, $parameterReview['revision']);
     $t->same(null, $parameterReview['key_length_bits']);
@@ -99,19 +111,23 @@ $assertMissingAes256LengthPreflight = static function (
     $t->same(true, $parameterReview['revision_supported']);
     $t->same(true, $parameterReview['version_revision_compatible']);
     $t->same(false, $parameterReview['key_length_valid']);
-    $t->same('missing_standard_security_handler_key_length_review', $parameterReview['key_length_status']);
+    $t->same($expectedKeyLengthStatus, $parameterReview['key_length_status']);
     $t->same(256, $parameterReview['minimum_key_length_bits']);
     $t->same(256, $parameterReview['maximum_key_length_bits']);
     $t->same(true, $parameterReview['permission_word_present']);
     $t->same(false, $parameterReview['parameters_well_formed']);
-    $t->same(['missing_standard_security_handler_key_length'], $parameterReview['violations']);
+    $t->same($expectedParameterViolations, $parameterReview['violations']);
+    $t->same($expectedMalformedParameterNames, $parameterReview['malformed_parameter_names']);
+    $t->same(count($expectedMalformedParameterNames), $parameterReview['malformed_parameter_count']);
     $t->same(false, $parameterReview['executes_decryption']);
     $t->same(false, $parameterReview['executes_permission_enforcement']);
 
     $t->same('permission_handler_review', $handler['source']);
     $t->same('malformed_standard_security_handler_parameters_review', $handler['status']);
     $t->same(false, $handler['standard_security_handler_parameters_well_formed']);
-    $t->same(['missing_standard_security_handler_key_length'], $handler['standard_security_handler_parameter_violations']);
+    $t->same($expectedParameterViolations, $handler['standard_security_handler_parameter_violations']);
+    $t->same($expectedMalformedParameterNames, $handler['standard_security_handler_malformed_parameter_names']);
+    $t->same(count($expectedMalformedParameterNames), $handler['standard_security_handler_malformed_parameter_count']);
     $t->same(false, $handler['permission_word_well_formed']);
     $t->same(false, $handler['executes_permission_enforcement']);
 
@@ -174,7 +190,17 @@ return [
             $userValidation,
             $ownerEncryptionKey,
             $userEncryptionKey,
-            $permissionDigest
+            $permissionDigest,
+            [
+                'encrypted_document',
+                'encrypted_text_extraction_blocked',
+                'standard_security_handler_parameters_malformed',
+                'standard_security_handler_parameter_operands_malformed',
+            ],
+            ['malformed_standard_security_handler_parameter_entries'],
+            'malformed_standard_security_handler_key_length_operand_review',
+            true,
+            ['Length']
         );
     },
 ];
