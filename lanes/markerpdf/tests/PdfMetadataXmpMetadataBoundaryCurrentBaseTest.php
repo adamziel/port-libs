@@ -228,4 +228,46 @@ return [
         $t->true(is_string($encoded) && !str_contains($encoded, 'duplicate catalog Metadata key'));
         $t->true(!str_contains($plainText, 'Duplicate Catalog Metadata Hidden XMP Title'));
     },
+    'rejects catalog Metadata references followed by extra top-level operands before XMP promotion' => static function (
+        TestRunner $t
+    ) use ($xmpMetadataBoundaryPdf, $xmpMetadataBoundaryPacket): void {
+        $xmp = $xmpMetadataBoundaryPacket(
+            'Extra Operand Metadata Hidden XMP Title',
+            'A catalog Metadata reference followed by an extra operand must not define WordPress metadata',
+            '2026-06-06T02:06:10Z'
+        );
+
+        $metadataObject = "5 0 obj\n"
+            . '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . " >>\n"
+            . "stream\n{$xmp}\nendstream\nendobj\n"
+            . "7 0 obj\n<< /S /JavaScript /JS (app.alert\\('extra metadata operand action tail'\\)) >>\nendobj\n";
+        $pdf = $xmpMetadataBoundaryPdf(
+            '5 0 R 7 0 R',
+            'Extra Operand Metadata Boundary Body',
+            $metadataObject
+        );
+
+        $metadata = (new PdfMetadataExtractor())->extractDocumentMetadata($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
+        $review = $metadata['catalog']['metadata_stream_review'] ?? [];
+
+        $t->same(['info', 'catalog'], $metadata['source']);
+        $t->same([], $metadata['xmp']);
+        $t->same('Metadata Boundary Info Title', $metadata['title']);
+        $t->same(['Metadata Boundary Author'], $metadata['authors']);
+        $t->same('Extra Operand Metadata Boundary Body', $plainText);
+        $t->same('catalog_metadata_stream_boundary', $review['source'] ?? null);
+        $t->same('rejected_malformed_metadata_operand', $review['status'] ?? null);
+        $t->same(1, $review['metadata_entry_count'] ?? null);
+        $t->same(2, $review['metadata_operand_count'] ?? null);
+        $t->same(5, $review['object_number'] ?? null);
+        $t->same([7], $review['trailing_reference_object_numbers'] ?? null);
+        $t->same(false, $review['accepted_as_document_xmp'] ?? null);
+        $t->same(false, $review['payload_included'] ?? null);
+        $t->true(is_string($encoded) && !str_contains($encoded, 'Extra Operand Metadata Hidden XMP Title'));
+        $t->true(is_string($encoded) && !str_contains($encoded, 'extra metadata operand action tail'));
+        $t->true(!str_contains($plainText, 'Extra Operand Metadata Hidden XMP Title'));
+        $t->true(!str_contains($plainText, 'extra metadata operand action tail'));
+    },
 ];

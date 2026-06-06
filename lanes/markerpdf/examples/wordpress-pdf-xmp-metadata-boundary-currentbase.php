@@ -57,6 +57,17 @@ $duplicatePdf = "%PDF-1.7\n"
     . "8 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
     . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
 
+$extraOperandContent = 'BT /F1 12 Tf 72 720 Td (Extra Operand Metadata Boundary Body) Tj ET';
+$extraOperandPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R 9 0 R >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($extraOperandContent) . " >>\nstream\n{$extraOperandContent}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Title (Extra Operand Metadata Info Title) /Author (Extra Operand Metadata Info Author) /Producer (Extra Operand Metadata Info Producer) /CreationDate (D:20260606020610Z) >>\nendobj\n"
+    . "8 0 obj\n<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length " . strlen($compressedXmp) . " >>\nstream\n{$compressedXmp}\nendstream\nendobj\n"
+    . "9 0 obj\n<< /S /JavaScript /JS (app.alert\\('extra metadata operand action tail'\\)) >>\nendobj\n"
+    . "trailer\n<< /Root 1 0 R /Info 6 0 R >>\n%%EOF";
+
 $metadataExtractor = new PdfMetadataExtractor();
 $textExtractor = new PdfTextExtractor();
 
@@ -66,12 +77,16 @@ $nonStreamMetadata = $metadataExtractor->extractDocumentMetadata($nonStreamPdf);
 $nonStreamText = $textExtractor->extractPlainText($nonStreamPdf);
 $duplicateMetadata = $metadataExtractor->extractDocumentMetadata($duplicatePdf);
 $duplicateText = $textExtractor->extractPlainText($duplicatePdf);
+$extraOperandMetadata = $metadataExtractor->extractDocumentMetadata($extraOperandPdf);
+$extraOperandText = $textExtractor->extractPlainText($extraOperandPdf);
 $encoded = json_encode($metadata, JSON_UNESCAPED_SLASHES);
 $review = $metadata['catalog']['metadata_stream_review'] ?? [];
 $nonStreamEncoded = json_encode($nonStreamMetadata, JSON_UNESCAPED_SLASHES);
 $nonStreamReview = $nonStreamMetadata['catalog']['metadata_stream_review'] ?? [];
 $duplicateEncoded = json_encode($duplicateMetadata, JSON_UNESCAPED_SLASHES);
 $duplicateReview = $duplicateMetadata['catalog']['metadata_stream_review'] ?? [];
+$extraOperandEncoded = json_encode($extraOperandMetadata, JSON_UNESCAPED_SLASHES);
+$extraOperandReview = $extraOperandMetadata['catalog']['metadata_stream_review'] ?? [];
 
 if (($metadata['title'] ?? null) !== 'Info Boundary Title') {
     throw new RuntimeException('Expected trailer Info title to win when catalog Metadata points at an EmbeddedFile stream.');
@@ -105,6 +120,24 @@ if (!is_string($duplicateEncoded) || str_contains($duplicateEncoded, 'Hidden Emb
 }
 if (str_contains($duplicateText, 'Hidden Embedded XML XMP Title')) {
     throw new RuntimeException('Duplicate catalog Metadata XMP leaked into visible WordPress text.');
+}
+if (($extraOperandMetadata['title'] ?? null) !== 'Extra Operand Metadata Info Title') {
+    throw new RuntimeException('Expected malformed catalog Metadata operands to fall back to trailer Info metadata.');
+}
+if (($extraOperandReview['status'] ?? null) !== 'rejected_malformed_metadata_operand') {
+    throw new RuntimeException('Expected extra catalog Metadata operand review status.');
+}
+if (!is_string($extraOperandEncoded) || str_contains($extraOperandEncoded, 'Hidden Embedded XML XMP Title')) {
+    throw new RuntimeException('Extra-operand catalog Metadata XMP values leaked into metadata review output.');
+}
+if (is_string($extraOperandEncoded) && str_contains($extraOperandEncoded, 'extra metadata operand action tail')) {
+    throw new RuntimeException('Extra-operand catalog Metadata action tail leaked into metadata review output.');
+}
+if (str_contains($extraOperandText, 'Hidden Embedded XML XMP Title')) {
+    throw new RuntimeException('Extra-operand catalog Metadata XMP leaked into visible WordPress text.');
+}
+if (str_contains($extraOperandText, 'extra metadata operand action tail')) {
+    throw new RuntimeException('Extra-operand catalog Metadata action tail leaked into visible WordPress text.');
 }
 
 $htmlJson = static fn (array $data): string => htmlspecialchars(
@@ -143,6 +176,16 @@ echo '<!-- markerpdf-pdf-xmp-metadata-boundary-currentbase ' . $htmlJson([
     'duplicate_metadata_values_redacted' => is_string($duplicateEncoded)
         && !str_contains($duplicateEncoded, 'Hidden Embedded XML XMP Title'),
     'duplicate_metadata_not_visible_text' => !str_contains($duplicateText, 'Hidden Embedded XML XMP Title'),
+    'extra_operand_metadata_status' => $extraOperandReview['status'] ?? null,
+    'extra_operand_metadata_operand_count' => $extraOperandReview['metadata_operand_count'] ?? null,
+    'extra_operand_metadata_trailing_reference_objects' => $extraOperandReview['trailing_reference_object_numbers'] ?? [],
+    'extra_operand_metadata_info_fallback_title' => $extraOperandMetadata['title'] ?? null,
+    'extra_operand_metadata_values_redacted' => is_string($extraOperandEncoded)
+        && !str_contains($extraOperandEncoded, 'Hidden Embedded XML XMP Title'),
+    'extra_operand_metadata_action_redacted' => is_string($extraOperandEncoded)
+        && !str_contains($extraOperandEncoded, 'extra metadata operand action tail'),
+    'extra_operand_metadata_not_visible_text' => !str_contains($extraOperandText, 'Hidden Embedded XML XMP Title')
+        && !str_contains($extraOperandText, 'extra metadata operand action tail'),
 ],) . " -->\n";
 
 echo "<!-- wp:paragraph -->\n";
@@ -173,6 +216,16 @@ echo '<!-- markerpdf:catalog-duplicate-metadata-review ' . $htmlJson([
     'candidate_object_numbers' => $duplicateReview['candidate_object_numbers'] ?? [],
     'accepted_as_document_xmp' => $duplicateReview['accepted_as_document_xmp'] ?? null,
     'payload_included' => $duplicateReview['payload_included'] ?? null,
+]) . " -->\n\n";
+
+echo '<!-- markerpdf:catalog-extra-operand-metadata-review ' . $htmlJson([
+    'status' => $extraOperandReview['status'] ?? null,
+    'metadata_entry_count' => $extraOperandReview['metadata_entry_count'] ?? null,
+    'metadata_operand_count' => $extraOperandReview['metadata_operand_count'] ?? null,
+    'object_number' => $extraOperandReview['object_number'] ?? null,
+    'trailing_reference_object_numbers' => $extraOperandReview['trailing_reference_object_numbers'] ?? [],
+    'accepted_as_document_xmp' => $extraOperandReview['accepted_as_document_xmp'] ?? null,
+    'payload_included' => $extraOperandReview['payload_included'] ?? null,
 ]) . " -->\n\n";
 
 echo "<!-- wp:paragraph -->\n";

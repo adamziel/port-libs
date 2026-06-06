@@ -681,6 +681,10 @@ final class PdfMetadataExtractor
             return [];
         }
 
+        if ($this->catalogMetadataMalformedOperandReview($catalog) !== []) {
+            return [];
+        }
+
         $value = $metadataValues[0];
         if ($value === null || preg_match('/^(\d+)\s+\d+\s+R\b/s', trim($value), $match) !== 1) {
             return [];
@@ -710,7 +714,7 @@ final class PdfMetadataExtractor
      * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function catalogMetadataStreamBoundaryReview(array $values, array $objects): array
+    private function catalogMetadataStreamBoundaryReview(array $values, string $catalog, array $objects): array
     {
         if ($values === []) {
             return [];
@@ -731,6 +735,11 @@ final class PdfMetadataExtractor
             'payload_included' => false,
             'accepted_as_document_xmp' => false,
         ];
+
+        $malformedOperandReview = $this->catalogMetadataMalformedOperandReview($catalog);
+        if ($malformedOperandReview !== []) {
+            return $base + $malformedOperandReview;
+        }
 
         $objectNumber = $this->objectNumberFromReference($value);
         if ($objectNumber === null) {
@@ -863,6 +872,107 @@ final class PdfMetadataExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * Catalog /Metadata must be one indirect stream reference or null. Extra
+     * top-level operands after that value make the dictionary ambiguous.
+     *
+     * @return array<string, mixed>
+     */
+    private function catalogMetadataMalformedOperandReview(string $catalog): array
+    {
+        $body = $this->normalizedDictionaryBody($catalog);
+        for ($offset = 0, $length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($body[$offset] !== '/') {
+                $offset = $this->skipNonDictionaryKeyToken($body, $offset);
+                continue;
+            }
+
+            $remaining = substr($body, $offset);
+            if (preg_match('/\/([^\s\[\]()<>{}\/%]+)/A', $remaining, $match) !== 1) {
+                $offset++;
+                continue;
+            }
+
+            $valueOffset = $this->skipPdfWhitespace($body, $offset + strlen($match[0]));
+            $value = $this->readPdfValueAt($body, $valueOffset);
+            if ($value === null) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            $afterValue = $valueOffset + strlen($value);
+            if ($this->decodePdfName($match[1]) !== 'Metadata') {
+                $offset = $afterValue;
+                continue;
+            }
+
+            $trailingOperands = $this->topLevelTrailingOperandsBeforeNextDictionaryKey($body, $afterValue);
+            if ($trailingOperands === []) {
+                return [];
+            }
+
+            $review = [
+                'status' => 'rejected_malformed_metadata_operand',
+                'metadata_entry_count' => 1,
+                'metadata_operand_count' => 1 + count($trailingOperands),
+            ];
+
+            $objectNumber = $this->objectNumberFromReference($value);
+            if ($objectNumber !== null) {
+                $review['object_number'] = $objectNumber;
+            }
+
+            $trailingObjectNumbers = [];
+            foreach ($trailingOperands as $operand) {
+                $reference = $this->objectReferenceFromValue($operand);
+                if ($reference !== null) {
+                    $trailingObjectNumbers[] = $reference['objectNumber'];
+                }
+            }
+            if ($trailingObjectNumbers !== []) {
+                $review['trailing_reference_object_numbers'] = $this->uniqueIntegers($trailingObjectNumbers);
+            }
+
+            return $review;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topLevelTrailingOperandsBeforeNextDictionaryKey(string $body, int $offset): array
+    {
+        $operands = [];
+        for ($length = strlen($body); $offset < $length;) {
+            $offset = $this->skipPdfWhitespace($body, $offset);
+            if ($offset >= $length || $body[$offset] === '/') {
+                break;
+            }
+
+            $operand = $this->readPdfValueAt($body, $offset);
+            if ($operand === null) {
+                $operands[] = 'malformed_top_level_token';
+                break;
+            }
+
+            $operands[] = $operand;
+            $next = $offset + strlen($operand);
+            if ($next <= $offset) {
+                break;
+            }
+            $offset = $next;
+        }
+
+        return $operands;
     }
 
     /**
@@ -1527,6 +1637,7 @@ final class PdfMetadataExtractor
 
         $metadataStreamReview = $this->catalogMetadataStreamBoundaryReview(
             $this->dictionaryTopLevelRawValues($catalog, 'Metadata'),
+            $catalog,
             $objects
         );
         if ($metadataStreamReview !== []) {
