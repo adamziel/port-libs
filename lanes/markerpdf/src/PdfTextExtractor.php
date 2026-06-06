@@ -6711,6 +6711,12 @@ final class PdfTextExtractor
         );
         $reviewStream = $this->imageXObjectReviewStreamBytes($stream['dict'], $stream['stream'], $objects, $reviewFilters);
         $dctStreamBoundary = $this->dctPreviewStreamBoundaryReview($resolvedFilters, $stream['stream'], $reviewStream);
+        $ccittNativePrefixBoundary = $this->ccittFaxNativePrefixStreamBoundaryReview(
+            $stream['dict'],
+            $stream['stream'],
+            $objects,
+            $filters
+        );
 
         return [
             'page_index' => $pageIndex,
@@ -6847,6 +6853,7 @@ final class PdfTextExtractor
             'decoded_with_current_filters' => $decoded !== null,
             'decoded_length' => $decoded === null ? null : strlen($decoded),
             'decoded_sha256' => $decoded === null ? null : hash('sha256', $decoded),
+            ...$ccittNativePrefixBoundary,
             'payload_in_visible_text' => false,
             'rgb_preview_boundary' => 'marker.pdf.images.render_image',
             'review_only' => true,
@@ -7529,6 +7536,54 @@ final class PdfTextExtractor
         }
 
         return $this->rawDctPreviewPayloadBytesForReview($filters, $stream) ?? $stream;
+    }
+
+    /**
+     * @param list<string|null>|null $filters
+     * @return array{native_prefix_decoded: true, native_prefix_decoded_length: int, native_prefix_decoded_sha256: string, native_prefix_decoded_preview_hex: string, stopped_before_filter: string}|array{}
+     */
+    private function ccittFaxNativePrefixStreamBoundaryReview(
+        string $dictionary,
+        string $stream,
+        array $objects,
+        ?array $filters
+    ): array {
+        if ($filters === null) {
+            return [];
+        }
+
+        $ccittFilterIndex = null;
+        $ccittFilter = null;
+        foreach ($filters as $index => $filter) {
+            if ($filter === 'CCITTFaxDecode' || $filter === 'CCF') {
+                $ccittFilterIndex = $index;
+                $ccittFilter = $filter;
+                break;
+            }
+        }
+        if (!is_int($ccittFilterIndex) || !is_string($ccittFilter) || $ccittFilterIndex === 0) {
+            return [];
+        }
+
+        $decodedPrefix = $this->decodeStreamBeforeFilter(
+            $dictionary,
+            $stream,
+            $objects,
+            $filters,
+            $ccittFilterIndex,
+            true
+        );
+        if ($decodedPrefix === null) {
+            return [];
+        }
+
+        return [
+            'native_prefix_decoded' => true,
+            'native_prefix_decoded_length' => strlen($decodedPrefix),
+            'native_prefix_decoded_sha256' => hash('sha256', $decodedPrefix),
+            'native_prefix_decoded_preview_hex' => strtoupper(bin2hex(substr($decodedPrefix, 0, 16))),
+            'stopped_before_filter' => $ccittFilter,
+        ];
     }
 
     /**
