@@ -6158,6 +6158,30 @@ final class TableRecognizer
             ]);
         }
 
+        $center = $this->pointCoordinatesFromValue($record['center'] ?? null);
+        if ($center !== null) {
+            $extent = null;
+            if (array_key_exists('width', $record) && array_key_exists('height', $record)) {
+                $extent = $this->rawPointCoordinates([$record['width'], $record['height']]);
+            }
+            if ($extent === null) {
+                foreach (['extent', 'size'] as $key) {
+                    $extent = $this->pointCoordinatesFromValue($record[$key] ?? null);
+                    if ($extent !== null) {
+                        break;
+                    }
+                }
+            }
+            if ($extent !== null) {
+                return $this->canonicalBbox([
+                    $center[0] - ($extent[0] / 2.0),
+                    $center[1] - ($extent[1] / 2.0),
+                    $center[0] + ($extent[0] / 2.0),
+                    $center[1] + ($extent[1] / 2.0),
+                ]);
+            }
+        }
+
         return null;
     }
 
@@ -6274,6 +6298,17 @@ final class TableRecognizer
         foreach ($sets as $source => $keys) {
             if (count(array_intersect($keys, array_keys($record))) === 4) {
                 return $source;
+            }
+        }
+
+        if ($this->pointCoordinatesFromValue($record['center'] ?? null) !== null) {
+            if (array_key_exists('width', $record) && array_key_exists('height', $record)) {
+                return 'bbox_center_width_height_fields';
+            }
+            foreach (['extent', 'size'] as $key) {
+                if ($this->pointCoordinatesFromValue($record[$key] ?? null) !== null) {
+                    return 'bbox_center_' . $key . '_fields';
+                }
             }
         }
 
@@ -6431,7 +6466,77 @@ final class TableRecognizer
             ];
         }
 
+        $center = $this->pointCoordinatesFromValue($record['center'] ?? null);
+        if ($center !== null) {
+            $extent = null;
+            if (array_key_exists('width', $record) && array_key_exists('height', $record)) {
+                $extent = $this->rawPointCoordinates([$record['width'], $record['height']]);
+            }
+            if ($extent === null) {
+                foreach (['extent', 'size'] as $key) {
+                    $extent = $this->pointCoordinatesFromValue($record[$key] ?? null);
+                    if ($extent !== null) {
+                        break;
+                    }
+                }
+            }
+            if ($extent !== null) {
+                return [
+                    $center[0] - ($extent[0] / 2.0),
+                    $center[1] - ($extent[1] / 2.0),
+                    $center[0] + ($extent[0] / 2.0),
+                    $center[1] + ($extent[1] / 2.0),
+                ];
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * @return list<float>|null
+     */
+    private function pointCoordinatesFromValue(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        if (array_key_exists('x', $value) && array_key_exists('y', $value)) {
+            return $this->rawPointCoordinates([$value['x'], $value['y']]);
+        }
+
+        if (array_key_exists('width', $value) && array_key_exists('height', $value)) {
+            return $this->rawPointCoordinates([$value['width'], $value['height']]);
+        }
+
+        if (array_key_exists('w', $value) && array_key_exists('h', $value)) {
+            return $this->rawPointCoordinates([$value['w'], $value['h']]);
+        }
+
+        return $this->rawPointCoordinates(array_values($value));
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return list<float>|null
+     */
+    private function rawPointCoordinates(array $values): ?array
+    {
+        if (count($values) !== 2) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($values as $value) {
+            $number = $this->numericScalar($value);
+            if ($number === null) {
+                return null;
+            }
+            $out[] = $number;
+        }
+
+        return $out;
     }
 
     /**
