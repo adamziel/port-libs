@@ -164,6 +164,77 @@ return [
         $t->true(!str_contains($plainText, 'Nested Form Image Payload Noise'));
         $t->true(!str_contains($plainText, 'Unused Nested Image Noise'));
     },
+    'records Form XObject transparency groups before nested image handoff' => static function (TestRunner $t): void {
+        $pageContent = "BT /F1 12 Tf 72 720 Td (Before grouped form image) Tj ET\n"
+            . "q 20 0 0 10 72 690 cm /Grouped#20Logo Do Q\n"
+            . 'BT /F1 12 Tf 72 660 Td (After grouped form image) Tj ET';
+        $formContent = 'q 12 0 0 6 2 3 cm /Nested#20Group#20Image Do Q';
+        $nestedPayload = 'BT /F1 12 Tf 72 720 Td (Grouped Form Image Payload Noise) Tj ET';
+        $compressedNestedPayload = gzcompress($nestedPayload);
+        if (!is_string($compressedNestedPayload)) {
+            throw new RuntimeException('Unable to compress grouped form image payload.');
+        }
+
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 10 0 R >> /XObject << /Grouped#20Logo 5 0 R >> >> >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($pageContent) . " >>\nstream\n{$pageContent}\nendstream\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Form /BBox [0 0 40 20] /Group << /S /Transparency /CS /DeviceRGB /I true /K false >> /Resources << /XObject << /Nested#20Group#20Image 6 0 R >> /Font << /F1 10 0 R >> >> /Length " . strlen($formContent) . " >>\nstream\n{$formContent}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 12 /Height 6 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " . strlen($compressedNestedPayload) . " >>\nstream\n{$compressedNestedPayload}\nendstream\nendobj\n"
+            . "10 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $review = $extractor->extractImageXObjectBoundaryReview($pdf);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same(1, $review['image_xobject_count']);
+        $t->same(1, $review['invoked_image_xobject_count']);
+        $t->same(0, $review['uninvoked_image_xobject_count']);
+
+        $entry = $review['entries'][0];
+        $t->same('Nested Group Image', $entry['resource_name']);
+        $t->same(['Grouped Logo', 'Nested Group Image'], $entry['resource_path']);
+        $t->same(5, $entry['parent_form_xobject_object']);
+        $t->same(1, $entry['form_xobject_depth']);
+        $t->same([[240.0, 0.0, 0.0, 60.0, 112.0, 720.0]], $entry['invocation_matrices']);
+        $t->same([[112.0, 720.0, 352.0, 780.0]], $entry['invocation_bboxes']);
+        $t->same([112.0, 720.0, 352.0, 780.0], $entry['image_unit_bbox']);
+        $t->same(true, $entry['form_transparency_group_review_only']);
+        $t->same(1, $entry['form_transparency_group_count']);
+        $t->same(['Grouped Logo'], $entry['invocation_form_transparency_groups'][0]['form_resource_names']);
+
+        $group = $entry['invocation_form_transparency_groups'][0]['stack'][0];
+        $t->same('form_xobject_transparency_group', $group['type']);
+        $t->same('Grouped Logo', $group['form_resource_name']);
+        $t->same(['Grouped Logo'], $group['form_resource_path']);
+        $t->same(5, $group['form_object']);
+        $t->same(0, $group['form_generation']);
+        $t->same(null, $group['group_object']);
+        $t->same(null, $group['group_generation']);
+        $t->same(true, $group['present']);
+        $t->same(true, $group['resolved']);
+        $t->same('Transparency', $group['subtype']);
+        $t->same(true, $group['is_transparency_group']);
+        $t->same('DeviceRGB', $group['color_space']);
+        $t->same(null, $group['color_space_resource_name']);
+        $t->same(false, $group['color_space_resolved_from_resources']);
+        $t->same(null, $group['color_space_resource_source']);
+        $t->same(true, $group['isolated']);
+        $t->same(false, $group['knockout']);
+        $t->same(false, $group['payload_in_visible_text']);
+        $t->same(true, $group['review_only']);
+
+        $t->same(true, $entry['decoded_with_current_filters']);
+        $t->same(hash('sha256', $nestedPayload), $entry['decoded_sha256']);
+        $t->same(false, $entry['payload_in_visible_text']);
+        $t->same(['Before grouped form image', 'After grouped form image'], $extractor->extractTextLines($pdf));
+        $t->same("Before grouped form image\nAfter grouped form image", $plainText);
+        $t->true(!str_contains($plainText, 'Grouped Form Image Payload Noise'));
+
+        $encoded = json_encode($review, JSON_UNESCAPED_SLASHES) ?: '';
+        $t->true(!str_contains($encoded, $nestedPayload));
+    },
     'maps image XObjects invoked by resource-less Form XObjects through inherited page resources' => static function (TestRunner $t): void {
         $pageContent = "BT /F1 12 Tf 72 720 Td (Before inherited form image) Tj ET\n"
             . "q 36 0 0 18 72 680 cm /Logo#20Form Do Q\n"

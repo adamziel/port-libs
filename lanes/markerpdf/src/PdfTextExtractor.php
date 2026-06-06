@@ -4712,10 +4712,10 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseStates
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
      * @param array<string, array{actualText: string|null, altText: string|null, mcid: int|null}> $markedContentProperties
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}>>
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}>>
      */
     private function contentXObjectInvocationDetails(
         string $content,
@@ -4887,6 +4887,7 @@ final class PdfTextExtractor
                             'graphics_state' => $graphicsState,
                             'graphics_state_paint_suppression_reason' => $paintSuppressionReason,
                             'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
+                            'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
                         ];
                         $reviewGraphicsState = $this->nonDefaultInvocationGraphicsState($graphicsState);
                         if ($reviewGraphicsState !== null) {
@@ -4994,9 +4995,65 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseStates
+     * @return list<array<string, mixed>>
+     */
+    private function imageInvocationFormTransparencyGroupStack(mixed $stack): array
+    {
+        if (!is_array($stack)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($stack as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $resourcePath = [];
+            if (is_array($entry['form_resource_path'] ?? null)) {
+                foreach ($entry['form_resource_path'] as $resourceName) {
+                    if (is_string($resourceName) && $resourceName !== '') {
+                        $resourcePath[] = $resourceName;
+                    }
+                }
+            }
+
+            $normalized[] = [
+                'type' => 'form_xobject_transparency_group',
+                'form_resource_name' => is_string($entry['form_resource_name'] ?? null)
+                    ? $entry['form_resource_name']
+                    : null,
+                'form_resource_path' => $resourcePath,
+                'form_object' => is_int($entry['form_object'] ?? null) ? $entry['form_object'] : null,
+                'form_generation' => is_int($entry['form_generation'] ?? null) ? $entry['form_generation'] : null,
+                'group_object' => is_int($entry['group_object'] ?? null) ? $entry['group_object'] : null,
+                'group_generation' => is_int($entry['group_generation'] ?? null) ? $entry['group_generation'] : null,
+                'present' => true,
+                'resolved' => ($entry['resolved'] ?? false) === true,
+                'subtype' => is_string($entry['subtype'] ?? null) ? $entry['subtype'] : null,
+                'is_transparency_group' => ($entry['is_transparency_group'] ?? false) === true,
+                'color_space' => is_string($entry['color_space'] ?? null) ? $entry['color_space'] : null,
+                'color_space_resource_name' => is_string($entry['color_space_resource_name'] ?? null)
+                    ? $entry['color_space_resource_name']
+                    : null,
+                'color_space_resolved_from_resources' => ($entry['color_space_resolved_from_resources'] ?? false) === true,
+                'color_space_resource_source' => is_string($entry['color_space_resource_source'] ?? null)
+                    ? $entry['color_space_resource_source']
+                    : null,
+                'isolated' => ($entry['isolated'] ?? false) === true,
+                'knockout' => ($entry['knockout'] ?? false) === true,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
      * @param array<string, array<string, mixed>> $graphicsStateResourceReviews
-     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>}>>
+     * @return array<string, list<array{matrix: list<float>, bbox: list<float>, clip_bbox: list<float>|null, visible_bbox: list<float>|null, clipped: bool, graphics_state?: array<string, mixed>, form_transparency_groups?: list<array<string, mixed>>}>>
      */
     private function contentPatternPaintInvocationDetails(
         string $content,
@@ -5095,6 +5152,7 @@ final class PdfTextExtractor
                                 'clipped' => $clipRectangle !== null
                                     && ($visibleBbox === null || !$this->pdfRectanglesEqual($pathBbox, $visibleBbox)),
                                 'graphics_state' => $graphicsState,
+                                'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
                             ];
                         }
                     }
@@ -5168,8 +5226,8 @@ final class PdfTextExtractor
     }
 
     /**
-     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>}> $baseStates
-     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, path_current_point: array{0: float, 1: float}|null, path_start_point: array{0: float, 1: float}|null, graphics_state: array<string, mixed>, marked_content: list<array<string, mixed>>}>
+     * @param list<list<float>|array{matrix?: list<float>, clip_bbox?: list<float>|null, graphics_state?: array<string, mixed>, marked_content?: list<array<string, mixed>>, form_transparency_groups?: list<array<string, mixed>>}> $baseStates
+     * @return list<array{matrix: list<float>, clip_bbox: list<float>|null, path_bbox: list<float>|null, path_current_point: array{0: float, 1: float}|null, path_start_point: array{0: float, 1: float}|null, graphics_state: array<string, mixed>, marked_content: list<array<string, mixed>>, form_transparency_groups: list<array<string, mixed>>}>
      */
     private function normalizedInvocationBaseStates(array $baseStates): array
     {
@@ -5182,6 +5240,7 @@ final class PdfTextExtractor
                 'path_start_point' => null,
                 'graphics_state' => $this->defaultInvocationGraphicsState(),
                 'marked_content' => [],
+                'form_transparency_groups' => [],
             ]];
         }
 
@@ -5205,6 +5264,7 @@ final class PdfTextExtractor
                 'path_start_point' => null,
                 'graphics_state' => $this->normalizeInvocationGraphicsState($state['graphics_state'] ?? null),
                 'marked_content' => $this->imageInvocationMarkedContentStack($state['marked_content'] ?? []),
+                'form_transparency_groups' => $this->imageInvocationFormTransparencyGroupStack($state['form_transparency_groups'] ?? []),
             ];
         }
 
@@ -5216,6 +5276,7 @@ final class PdfTextExtractor
             'path_start_point' => null,
             'graphics_state' => $this->defaultInvocationGraphicsState(),
             'marked_content' => [],
+            'form_transparency_groups' => [],
         ]] : $normalized;
     }
 
@@ -6415,6 +6476,11 @@ final class PdfTextExtractor
             $formHasOwnResources = $formResourceOwnerBody === $form['body'];
             $formMatrix = $this->pdfMatrixValueAfterName($form['body'], 'Matrix', $objects)
                 ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+            $formTransparencyGroupReview = $this->formXObjectTransparencyGroupReview(
+                $form['body'],
+                $objects,
+                $formResourceOwnerBody
+            );
             $formInvocationStates = [];
             foreach ($localInvocationDetails as $detail) {
                 $matrix = $detail['matrix'] ?? null;
@@ -6430,11 +6496,22 @@ final class PdfTextExtractor
                         $this->pdfRectangleTransform($formBaseMatrix, $formBbox)
                     );
                 }
+                $formTransparencyGroups = $this->imageInvocationFormTransparencyGroupStack($detail['form_transparency_groups'] ?? []);
+                if ($formTransparencyGroupReview !== null) {
+                    $formTransparencyGroups[] = [
+                        ...$formTransparencyGroupReview,
+                        'form_resource_name' => $resourceName,
+                        'form_resource_path' => $entryResourcePath,
+                        'form_object' => $objectNumber,
+                        'form_generation' => $objectGeneration,
+                    ];
+                }
                 $formInvocationStates[] = [
                     'matrix' => $formBaseMatrix,
                     'clip_bbox' => $formClipBbox,
                     'graphics_state' => $detail['graphics_state'] ?? null,
                     'marked_content' => $detail['marked_content'] ?? [],
+                    'form_transparency_groups' => $formTransparencyGroups,
                 ];
             }
             foreach ($this->imageXObjectBoundaryEntriesForResourceOwner(
@@ -6504,6 +6581,7 @@ final class PdfTextExtractor
                     'clip_bbox' => $patternClipBbox,
                     'graphics_state' => $detail['graphics_state'] ?? null,
                     'marked_content' => $detail['marked_content'] ?? [],
+                    'form_transparency_groups' => $detail['form_transparency_groups'] ?? [],
                 ];
                 $patternMatrices[] = $this->normalizedPdfReviewNumbers($patternBaseMatrix);
                 if (isset($detail['bbox']) && is_array($detail['bbox']) && count($detail['bbox']) >= 4) {
@@ -6687,6 +6765,8 @@ final class PdfTextExtractor
         $invocationVisibleBboxes = [];
         $invocationGraphicsStates = [];
         $invocationMarkedContent = [];
+        $invocationFormTransparencyGroups = [];
+        $formTransparencyGroupCount = 0;
         $imageMaskPaintColors = [];
         $clipApplied = false;
         $clipReducesPaintedBbox = false;
@@ -6726,6 +6806,23 @@ final class PdfTextExtractor
             }
             if ($graphicsState !== null) {
                 $invocationGraphicsStates[] = $graphicsState;
+            }
+            $formTransparencyGroupStack = $this->imageInvocationFormTransparencyGroupStack($detail['form_transparency_groups'] ?? []);
+            if ($formTransparencyGroupStack !== []) {
+                $formTransparencyGroupCount += count($formTransparencyGroupStack);
+                $invocationFormTransparencyGroups[] = [
+                    'stack' => $formTransparencyGroupStack,
+                    'form_resource_names' => array_values(array_filter(
+                        array_map(
+                            static fn (array $group): ?string => is_string($group['form_resource_name'] ?? null)
+                                ? $group['form_resource_name']
+                                : null,
+                            $formTransparencyGroupStack
+                        ),
+                        static fn (?string $name): bool => $name !== null
+                    )),
+                    'review_only' => true,
+                ];
             }
             $markedContentStack = $this->imageInvocationMarkedContentStack($detail['marked_content'] ?? []);
             if ($markedContentStack !== []) {
@@ -6876,6 +6973,9 @@ final class PdfTextExtractor
             'graphics_state_paint_suppression_reasons' => array_keys($graphicsStatePaintSuppressionReasons),
             'invocation_marked_content' => $invocationMarkedContent,
             'marked_content_review_only' => $invocationMarkedContent !== [],
+            'invocation_form_transparency_groups' => $invocationFormTransparencyGroups,
+            'form_transparency_group_review_only' => $invocationFormTransparencyGroups !== [],
+            'form_transparency_group_count' => $formTransparencyGroupCount,
             'image_unit_bbox' => $imageUnitBbox,
             'image_visible_bbox' => $imageVisibleBbox,
             'image_display_bbox' => $imageDisplayBbox,
@@ -8862,6 +8962,93 @@ final class PdfTextExtractor
         return [
             'body' => $objectBody,
             'stream' => $decoded,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     * @param array<int, string> $objects
+     */
+    private function formXObjectTransparencyGroupReview(
+        string $formBody,
+        array $objects,
+        ?string $resourceOwnerBody = null
+    ): ?array {
+        $groupValue = $this->topLevelPdfValueAfterName($formBody, 'Group');
+        if ($groupValue === null) {
+            return null;
+        }
+
+        $reference = $this->objectReferencePairs($groupValue)[0] ?? null;
+        $groupDictionary = null;
+        if ($reference !== null) {
+            $groupObjectBody = $this->objectBodyForExactReference(
+                $objects,
+                $reference['objectNumber'],
+                $reference['generation']
+            );
+            $groupDictionary = $groupObjectBody === null ? null : $this->dictionaryObjectBody($groupObjectBody);
+        } else {
+            $groupDictionary = $this->pdfDictionaryFromValue($groupValue, $objects);
+        }
+
+        if ($groupDictionary === null) {
+            return [
+                'type' => 'form_xobject_transparency_group',
+                'group_object' => $reference['objectNumber'] ?? null,
+                'group_generation' => $reference['generation'] ?? null,
+                'present' => true,
+                'resolved' => false,
+                'subtype' => null,
+                'is_transparency_group' => false,
+                'color_space' => null,
+                'color_space_resource_name' => null,
+                'color_space_resolved_from_resources' => false,
+                'color_space_resource_source' => null,
+                'isolated' => false,
+                'knockout' => false,
+                'payload_in_visible_text' => false,
+                'review_only' => true,
+            ];
+        }
+
+        $colorSpaceReview = [
+            'family' => null,
+            'resource_name' => null,
+            'resolved_from_resources' => false,
+            'resource_source' => null,
+        ];
+        $colorSpaceOffset = $this->topLevelNameValueOffset($groupDictionary, 'CS');
+        if ($colorSpaceOffset !== null) {
+            $colorSpaceReview = $this->colorSpaceFamilyReviewAt(
+                $groupDictionary,
+                $colorSpaceOffset,
+                $objects,
+                $resourceOwnerBody,
+                [],
+                [],
+                true
+            );
+        }
+
+        $subtype = $this->pdfNameValueAfterNameResolvingObjects($groupDictionary, 'S', $objects);
+
+        return [
+            'type' => 'form_xobject_transparency_group',
+            'group_object' => $reference['objectNumber'] ?? null,
+            'group_generation' => $reference['generation'] ?? null,
+            'present' => true,
+            'resolved' => true,
+            'subtype' => $subtype,
+            'is_transparency_group' => $subtype === 'Transparency',
+            'color_space' => $colorSpaceReview['family'],
+            'color_space_resource_name' => $colorSpaceReview['resource_name'],
+            'color_space_resolved_from_resources' => $colorSpaceReview['resolved_from_resources'],
+            'color_space_resource_source' => $colorSpaceReview['resource_source'],
+            'isolated' => $this->pdfBooleanValueAfterNameResolvingObjects($groupDictionary, 'I', $objects) === true,
+            'knockout' => $this->pdfBooleanValueAfterNameResolvingObjects($groupDictionary, 'K', $objects) === true,
+            'payload_in_visible_text' => false,
+            'review_only' => true,
         ];
     }
 
