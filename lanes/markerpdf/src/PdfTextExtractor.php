@@ -29812,7 +29812,7 @@ final class PdfTextExtractor
             $last = hexdec($end);
             $cid = (int) $range[3];
             $sourceWidth = strlen($start);
-            if ($cid < 0 || $source < 0 || $last < $source) {
+            if ($cid < 0 || $cid > 0xffff || $source < 0 || $last < $source) {
                 continue;
             }
             $sameWidthCodeSpaceRanges = $this->codeSpaceRangesForHexWidth($codeSpaceRanges, $sourceWidth);
