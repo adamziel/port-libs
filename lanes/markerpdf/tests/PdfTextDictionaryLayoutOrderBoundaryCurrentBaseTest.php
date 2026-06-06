@@ -3093,4 +3093,160 @@ return [
         $t->true(!str_contains($encoded, 'direct dictionary-output order payload'));
         $t->true(!str_contains($encoded, 'direct dictionary-output order envelope payload'));
     },
+    'unwraps typed direct-envelope order payloads before selected pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(5000, [
+                    ['text' => 'Typed direct-envelope cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(5001, [
+                    ['text' => 'Second typed direct-envelope column', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First typed direct-envelope column', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'metadata' => ['document_page' => 5000],
+                    'order_result' => [
+                        'dictionary_output' => [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+                                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                            ],
+                            'raw_payload' => 'typed direct-envelope cover order payload must stay hidden',
+                        ],
+                    ],
+                ],
+                [
+                    'metadata' => ['document_page' => 5001],
+                    'order_result' => [
+                        'dictionary_output' => [
+                            'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                            'bboxes' => [
+                                ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'typed direct-envelope selected order row payload must stay hidden'],
+                            ],
+                            'raw_payload' => 'typed direct-envelope selected order payload must stay hidden',
+                        ],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['metadata' => ['document_page' => 5000], 'image' => 'typed-direct-envelope-cover-order-render'],
+                ['metadata' => ['document_page' => 5001], 'image' => 'typed-direct-envelope-selected-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(5001, $result['pages'][0]['pnum']);
+        $t->same(['First typed direct-envelope column', 'Second typed direct-envelope column'], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First typed direct-envelope column Second typed direct-envelope column', $blocks[0]['text']);
+        $t->same(5001, $order['document_page'] ?? null);
+        $t->same([0.0, 0.0, 612.0, 792.0], $order['image_bbox'] ?? null);
+        $t->same([
+            ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!array_key_exists('order_result', $order));
+        $t->true(!array_key_exists('dictionary_output', $order));
+        $t->true(!str_contains($encoded, 'typed direct-envelope cover order payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope selected order payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope selected order row payload'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'unwraps typed direct-envelope layout and order payloads for WordPress imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-typed-direct-envelope-payload-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% typed direct envelope payload pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [
+                    $pdftextLinesPage(5010, [
+                        ['text' => 'Typed direct-envelope converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                    ]),
+                    $pdftextLinesPage(5011, [
+                        ['text' => 'Second converter typed direct-envelope body.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                        ['text' => 'First converter typed direct-envelope heading.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+                    ]),
+                ],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['metadata' => ['document_page' => 5011], 'image' => 'typed-direct-envelope-layout-render'],
+                    ],
+                    'layout_results' => [[
+                        'metadata' => ['document_page' => 5011],
+                        'layout_result' => [
+                            'pages' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['label' => 'Title', 'bbox' => [60.0, 92.0, 290.0, 150.0], 'raw_payload' => 'typed direct-envelope title layout row payload must stay hidden'],
+                                    ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+                                ],
+                                'raw_payload' => 'typed direct-envelope layout payload must stay hidden',
+                            ],
+                        ],
+                        'raw_payload' => 'typed direct-envelope layout envelope payload must stay hidden',
+                    ]],
+                    'order_images' => [
+                        ['metadata' => ['document_page' => 5011], 'image' => 'typed-direct-envelope-order-render'],
+                    ],
+                    'order_results' => [[
+                        'metadata' => ['document_page' => 5011],
+                        'order_result' => [
+                            'dictionary_output' => [
+                                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                                'bboxes' => [
+                                    ['position' => 1, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                                    ['position' => 2, 'bbox' => [318.0, 96.0, 570.0, 144.0], 'raw_payload' => 'typed direct-envelope order row payload must stay hidden'],
+                                ],
+                                'raw_payload' => 'typed direct-envelope order payload must stay hidden',
+                            ],
+                        ],
+                        'raw_payload' => 'typed direct-envelope order envelope payload must stay hidden',
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->contains('# First Converter Typed Direct-Envelope Heading.', $text);
+        $t->contains('Second converter typed direct-envelope body.', $text);
+        $t->true(strpos($text, '# First Converter Typed Direct-Envelope Heading.') < strpos($text, 'Second converter typed direct-envelope body.'));
+        $t->true(!str_contains($text, 'Typed direct-envelope converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope title layout row payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope layout payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope layout envelope payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope order row payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope order payload'));
+        $t->true(!str_contains($encoded, 'typed direct-envelope order envelope payload'));
+    },
 ];

@@ -242,6 +242,10 @@ final class LayoutOrderer
             if ($this->hasOrderPayload($source)) {
                 return $source;
             }
+            $directEnvelopePayload = $this->directOrderResultPayloadEnvelopeSource($source);
+            if ($directEnvelopePayload !== null) {
+                return $directEnvelopePayload;
+            }
         }
 
         $directEnvelopePayload = $this->directOrderResultPayloadEnvelopeSource($orderResult);

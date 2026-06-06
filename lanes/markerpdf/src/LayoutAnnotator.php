@@ -356,6 +356,10 @@ final class LayoutAnnotator
             if ($this->hasLayoutPayload($source)) {
                 return $source;
             }
+            $directEnvelopePayload = $this->directLayoutResultPayloadEnvelopeSource($source);
+            if ($directEnvelopePayload !== null) {
+                return $directEnvelopePayload;
+            }
         }
 
         $directEnvelopePayload = $this->directLayoutResultPayloadEnvelopeSource($layoutResult);

@@ -474,6 +474,8 @@ The 2026-06-05 named-destination indirect view-operand slice extends that smoke 
 
 `examples/wordpress-pdftext-dictionary-direct-page-currentbase.php` maps direct supplied pdftext page dictionaries with top-level `blocks` into WordPress paragraph output. It wraps the dictionary as one selected `dictionary_output` page, preserves source metadata, safe links, refs, and sanitized char-block review, excludes raw adapter payloads, and avoids Python pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
 
+`examples/wordpress-pdftext-dictionary-layout-order-typed-direct-envelope-currentbase.php` maps selected pdftext dictionary pages through typed supplied `layout_result` and `order_result` wrappers whose geometry is stored under one `pages` or `dictionary_output` envelope. It promotes the selected heading/body order, excludes cover text and raw envelope payloads, and avoids Python pdftext, pypdfium/PDFium execution, Surya/Torch models, OCR, and external PDF tools.
+
 ## Next Task
 
 Choose the next bounded markerPDF/PDF extraction gap on current base, favoring AcroForm value dictionaries, page/action metadata, annotation geometry, object-stream/xref edges, Base14/font flag metrics, parser, object, resource, metadata, and supplied-dictionary edges that can ship with focused and full markerPDF PHP evidence.
