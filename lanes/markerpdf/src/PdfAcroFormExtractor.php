@@ -11298,7 +11298,7 @@ final class PdfAcroFormExtractor
                     }
 
                     $memberBody = trim($memberBody);
-                    if ($memberBody === '' || !str_starts_with($memberBody, '<<') || $this->objectStreamMemberIsTopLevelStreamObject($memberBody)) {
+                    if ($memberBody === '' || !$this->objectStreamMemberIsSupportedTopLevelObject($memberBody)) {
                         continue;
                     }
 
@@ -11362,7 +11362,7 @@ final class PdfAcroFormExtractor
             }
 
             $memberBody = trim(substr($decoded, $first + $memberOffset, $nextOffset - $memberOffset));
-            if ($memberBody === '' || !str_starts_with($memberBody, '<<')) {
+            if ($memberBody === '' || !$this->objectStreamMemberIsSupportedTopLevelObject($memberBody)) {
                 continue;
             }
 
@@ -11511,6 +11511,32 @@ final class PdfAcroFormExtractor
         }
 
         return $offset === $memberOffset && $this->isPdfKeywordBoundary($objectData[$memberOffset - 1]);
+    }
+
+    private function objectStreamMemberIsSupportedTopLevelObject(string $memberBody): bool
+    {
+        $offset = 0;
+        $this->skipWhitespace($memberBody, $offset);
+        if ($offset >= strlen($memberBody)) {
+            return false;
+        }
+
+        if (substr($memberBody, $offset, 2) === '<<') {
+            return !$this->objectStreamMemberIsTopLevelStreamObject($memberBody);
+        }
+
+        if ($memberBody[$offset] !== '[') {
+            return false;
+        }
+
+        $endOffset = null;
+        if ($this->readPdfArrayAt($memberBody, $offset, $endOffset) === null || $endOffset === null) {
+            return false;
+        }
+
+        $this->skipWhitespace($memberBody, $endOffset);
+
+        return $endOffset >= strlen($memberBody);
     }
 
     private function objectStreamMemberIsTopLevelStreamObject(string $memberBody): bool
