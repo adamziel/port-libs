@@ -2245,14 +2245,38 @@ final class OpcRelationshipGraph
         }
 
         $issues = [];
+        $seenIds = [];
         foreach ($root->getElementsByTagNameNS(OpcRelationships::NAMESPACE_URI, 'Relationship') as $relationship) {
-            if (!$relationship instanceof \DOMElement || !$relationship->hasAttribute('TargetMode')) {
+            if (!$relationship instanceof \DOMElement) {
                 continue;
             }
 
-            $targetMode = $relationship->getAttribute('TargetMode');
-            if ($targetMode !== OpcRelationship::TARGET_MODE_INTERNAL && $targetMode !== OpcRelationship::TARGET_MODE_EXTERNAL) {
-                self::appendUniqueString($issues, 'invalid-relationship-target-mode');
+            if (!$relationship->hasAttribute('Id') || $relationship->getAttribute('Id') === '') {
+                self::appendUniqueString($issues, 'missing-relationship-id');
+            } else {
+                $id = $relationship->getAttribute('Id');
+                if (preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $id) !== 1) {
+                    self::appendUniqueString($issues, 'invalid-relationship-id');
+                } elseif (isset($seenIds[$id])) {
+                    self::appendUniqueString($issues, 'duplicate-relationship-id');
+                } else {
+                    $seenIds[$id] = true;
+                }
+            }
+
+            if (!$relationship->hasAttribute('Type') || $relationship->getAttribute('Type') === '') {
+                self::appendUniqueString($issues, 'missing-relationship-type');
+            }
+
+            if (!$relationship->hasAttribute('Target') || $relationship->getAttribute('Target') === '') {
+                self::appendUniqueString($issues, 'missing-relationship-target');
+            }
+
+            if ($relationship->hasAttribute('TargetMode')) {
+                $targetMode = $relationship->getAttribute('TargetMode');
+                if ($targetMode !== OpcRelationship::TARGET_MODE_INTERNAL && $targetMode !== OpcRelationship::TARGET_MODE_EXTERNAL) {
+                    self::appendUniqueString($issues, 'invalid-relationship-target-mode');
+                }
             }
         }
 

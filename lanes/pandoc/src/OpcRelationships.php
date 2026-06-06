@@ -46,6 +46,7 @@ final class OpcRelationships
             }
 
             self::assertRelationshipElementShape($child, $ignorableNamespaces);
+            self::assertRelationshipRequiredAttributes($child);
 
             $relationships->add(new OpcRelationship(
                 $child->getAttribute('Id'),
@@ -378,6 +379,15 @@ final class OpcRelationships
 
             if (($child instanceof \DOMText || $child instanceof \DOMCdataSection) && trim($child->nodeValue ?? '') !== '') {
                 throw new \InvalidArgumentException('OPC Relationship record must be an empty element');
+            }
+        }
+    }
+
+    private static function assertRelationshipRequiredAttributes(\DOMElement $element): void
+    {
+        foreach (['Id', 'Type', 'Target'] as $attributeName) {
+            if (!$element->hasAttribute($attributeName) || $element->getAttribute($attributeName) === '') {
+                throw new \InvalidArgumentException('OPC Relationship record is missing required ' . $attributeName . ' attribute');
             }
         }
     }

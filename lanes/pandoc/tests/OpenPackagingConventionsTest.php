@@ -3947,6 +3947,103 @@ XML;
 
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
     },
+    'classifies malformed OPC relationship records by required attribute and id issues' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMissingId" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/missing-id.xml"/>
+  <Relationship Id="rIdMissingType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/missing-type.xml"/>
+  <Relationship Id="rIdMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/missing-target.xml"/>
+  <Relationship Id="rIdInvalidId" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/invalid-id.xml"/>
+  <Relationship Id="rIdDuplicateId" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/duplicate-id.xml"/>
+</Relationships>
+XML;
+
+        $missingIdRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+</Relationships>
+XML;
+
+        $missingTypeRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Target="media/review.png"/>
+</Relationships>
+XML;
+
+        $missingTargetRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>
+</Relationships>
+XML;
+
+        $invalidIdRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="1bad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+</Relationships>
+XML;
+
+        $duplicateIdRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-a.png"/>
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-b.png"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/missing-id.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/missing-id.xml.rels', 'data' => $missingIdRelationshipsXml],
+            ['name' => 'word/missing-type.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/missing-type.xml.rels', 'data' => $missingTypeRelationshipsXml],
+            ['name' => 'word/missing-target.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/missing-target.xml.rels', 'data' => $missingTargetRelationshipsXml],
+            ['name' => 'word/invalid-id.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/invalid-id.xml.rels', 'data' => $invalidIdRelationshipsXml],
+            ['name' => 'word/duplicate-id.xml', 'data' => '<review/>'],
+            ['name' => 'word/_rels/duplicate-id.xml.rels', 'data' => $duplicateIdRelationshipsXml],
+        ]);
+
+        $loads = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $loads[$part['partName']] = $part;
+        }
+
+        $t->same(true, $loads['/_rels/.rels']['loaded']);
+        $t->same(5, $loads['/_rels/.rels']['relationshipCount']);
+
+        $expected = [
+            '/word/_rels/missing-id.xml.rels' => ['missing-relationship-id', 'missing required Id attribute'],
+            '/word/_rels/missing-type.xml.rels' => ['missing-relationship-type', 'missing required Type attribute'],
+            '/word/_rels/missing-target.xml.rels' => ['missing-relationship-target', 'missing required Target attribute'],
+            '/word/_rels/invalid-id.xml.rels' => ['invalid-relationship-id', 'XML NCName-style identifier'],
+            '/word/_rels/duplicate-id.xml.rels' => ['duplicate-relationship-id', 'Duplicate OPC relationship Id: rIdReviewImage'],
+        ];
+
+        foreach ($expected as $partName => [$specificIssue, $parseErrorNeedle]) {
+            $t->same(true, $loads[$partName]['sourceExists']);
+            $t->same(false, $loads[$partName]['loaded']);
+            $t->same('skipped', $loads[$partName]['loadAction']);
+            $t->same('malformed-relationship-xml', $loads[$partName]['loadReason']);
+            $t->same(null, $loads[$partName]['relationshipCount']);
+            $t->same(false, $loads[$partName]['valid']);
+            $t->same(['malformed-relationship-xml', $specificIssue], $loads[$partName]['issues']);
+            $t->contains($parseErrorNeedle, $loads[$partName]['parseError'] ?? '');
+        }
+
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($missingIdRelationshipsXml, '/word/missing-id.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($missingTypeRelationshipsXml, '/word/missing-type.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($missingTargetRelationshipsXml, '/word/missing-target.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($invalidIdRelationshipsXml, '/word/invalid-id.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml($duplicateIdRelationshipsXml, '/word/duplicate-id.xml'));
+    },
     'walks reachable OPC relationship closure from office document root' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],

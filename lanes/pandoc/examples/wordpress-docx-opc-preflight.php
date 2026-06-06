@@ -366,6 +366,69 @@ $relationshipTargetModePackage = ZipPackage::fromParts([
     ['name' => 'word/_rels/targetmode.xml.rels', 'data' => $targetModeDiagnosticRelationshipsXml],
 ]);
 
+$relationshipRecordShapeContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+$relationshipRecordShapeRootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMissingIdAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/missing-id.xml"/>
+  <Relationship Id="rIdMissingTypeAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/missing-type.xml"/>
+  <Relationship Id="rIdMissingTargetAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/missing-target.xml"/>
+  <Relationship Id="rIdInvalidIdAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/invalid-id.xml"/>
+  <Relationship Id="rIdDuplicateIdAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="word/duplicate-id.xml"/>
+</Relationships>
+XML;
+
+$relationshipRecordMissingIdXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+</Relationships>
+XML;
+
+$relationshipRecordMissingTypeXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Target="media/review.png"/>
+</Relationships>
+XML;
+
+$relationshipRecordMissingTargetXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>
+</Relationships>
+XML;
+
+$relationshipRecordInvalidIdXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="1bad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+</Relationships>
+XML;
+
+$relationshipRecordDuplicateIdXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-a.png"/>
+  <Relationship Id="rIdReviewImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-b.png"/>
+</Relationships>
+XML;
+
+$relationshipRecordShapePackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $relationshipRecordShapeContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $relationshipRecordShapeRootRelationshipsXml],
+    ['name' => 'word/missing-id.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/missing-id.xml.rels', 'data' => $relationshipRecordMissingIdXml],
+    ['name' => 'word/missing-type.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/missing-type.xml.rels', 'data' => $relationshipRecordMissingTypeXml],
+    ['name' => 'word/missing-target.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/missing-target.xml.rels', 'data' => $relationshipRecordMissingTargetXml],
+    ['name' => 'word/invalid-id.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/invalid-id.xml.rels', 'data' => $relationshipRecordInvalidIdXml],
+    ['name' => 'word/duplicate-id.xml', 'data' => '<review/>'],
+    ['name' => 'word/_rels/duplicate-id.xml.rels', 'data' => $relationshipRecordDuplicateIdXml],
+]);
+
 $fixedContentTypesItemContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -748,6 +811,26 @@ foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationship
     }
 
     $relationshipTargetModeGuards[$part['partName']] = [
+        'partName' => $part['partName'],
+        'relationshipSource' => $part['relationshipSource'],
+        'sourceExists' => $part['sourceExists'],
+        'loaded' => $part['loaded'],
+        'loadAction' => $part['loadAction'],
+        'loadReason' => $part['loadReason'],
+        'relationshipCount' => $part['relationshipCount'],
+        'valid' => $part['valid'],
+        'issues' => $part['issues'],
+        'parseError' => $part['parseError'],
+    ];
+}
+
+$relationshipRecordShapeGuards = [];
+foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($relationshipRecordShapePackage) as $part) {
+    if (!str_starts_with($part['partName'], '/word/_rels/')) {
+        continue;
+    }
+
+    $relationshipRecordShapeGuards[$part['partName']] = [
         'partName' => $part['partName'],
         'relationshipSource' => $part['relationshipSource'],
         'sourceExists' => $part['sourceExists'],
@@ -1323,6 +1406,7 @@ $summary = [
     ],
     'relationshipSourceAliasGuards' => $relationshipSourceAliasGuards,
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
+    'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
     'partNameCaseCollisionGuards' => $partNameCaseCollisionGuards,
     'contentTypeInventory' => $contentTypeInventory,
@@ -1614,6 +1698,23 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['relationshipCount'] ?? null) !== null
         || ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'invalid-relationship-target-mode']
         || !str_contains((string) ($summary['relationshipTargetModeGuards']['/word/_rels/targetmode.xml.rels']['parseError'] ?? ''), 'Unsupported OPC relationship TargetMode: external')
+        || array_keys($summary['relationshipRecordShapeGuards'] ?? []) !== [
+            '/word/_rels/missing-id.xml.rels',
+            '/word/_rels/missing-type.xml.rels',
+            '/word/_rels/missing-target.xml.rels',
+            '/word/_rels/invalid-id.xml.rels',
+            '/word/_rels/duplicate-id.xml.rels',
+        ]
+        || ($summary['relationshipRecordShapeGuards']['/word/_rels/missing-id.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'missing-relationship-id']
+        || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/missing-id.xml.rels']['parseError'] ?? ''), 'missing required Id attribute')
+        || ($summary['relationshipRecordShapeGuards']['/word/_rels/missing-type.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'missing-relationship-type']
+        || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/missing-type.xml.rels']['parseError'] ?? ''), 'missing required Type attribute')
+        || ($summary['relationshipRecordShapeGuards']['/word/_rels/missing-target.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'missing-relationship-target']
+        || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/missing-target.xml.rels']['parseError'] ?? ''), 'missing required Target attribute')
+        || ($summary['relationshipRecordShapeGuards']['/word/_rels/invalid-id.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'invalid-relationship-id']
+        || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/invalid-id.xml.rels']['parseError'] ?? ''), 'XML NCName-style identifier')
+        || ($summary['relationshipRecordShapeGuards']['/word/_rels/duplicate-id.xml.rels']['issues'] ?? null) !== ['malformed-relationship-xml', 'duplicate-relationship-id']
+        || !str_contains((string) ($summary['relationshipRecordShapeGuards']['/word/_rels/duplicate-id.xml.rels']['parseError'] ?? ''), 'Duplicate OPC relationship Id: rIdReviewImage')
         || ($summary['fixedContentTypesItemGuard']['overridePart'] ?? null) !== '/[Content_Types].xml'
         || ($summary['fixedContentTypesItemGuard']['overrideExists'] ?? null) !== true
         || ($summary['fixedContentTypesItemGuard']['overrideValid'] ?? null) !== false
