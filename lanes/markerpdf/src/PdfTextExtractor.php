@@ -32737,16 +32737,17 @@ final class PdfTextExtractor
                 return true;
             }
 
-            if (
-                !$this->inlineImageEndMarkerAt($stream, $end)
-                && $this->inlineImageTightEndMarkerAt($stream, $end)
-                && $this->inlineImageTightEndCandidateMatchesBoundary(
-                    $dictionary,
-                    substr($stream, $dataStart, $end - $dataStart)
-                )
-            ) {
-                $index = $end + 2;
-                return true;
+            if (!$this->inlineImageEndMarkerAt($stream, $end) && $this->inlineImageTightEndMarkerAt($stream, $end)) {
+                $tightCandidate = substr($stream, $dataStart, $end - $dataStart);
+                if ($this->inlineImageTightEndCandidateMatchesBoundary($dictionary, $tightCandidate)) {
+                    $index = $end + 2;
+                    return true;
+                }
+
+                if ($this->inlineImageTightEndCandidateCanStartPreviewFallback($dictionary, $tightCandidate)) {
+                    $incompletePreviewFallbackEnd = $end;
+                    $incompletePreviewFallbackCanCloseBeforeNextImage = true;
+                }
             }
 
             if ($this->inlineImageEndMarkerAt($stream, $end)) {
@@ -35063,6 +35064,27 @@ final class PdfTextExtractor
                 $this->inlineImageUsesCcittFaxDecode($filters)
                 && $this->inlineCcittFaxCandidateStateForFilters($dictionary, $filters, $candidate) === 'complete'
             );
+    }
+
+    private function inlineImageTightEndCandidateCanStartPreviewFallback(string $dictionary, string $candidate): bool
+    {
+        $filters = $this->streamFilters($dictionary, []);
+        if ($filters === null || !$this->inlineImageUsesJbig2Decode($filters)) {
+            return false;
+        }
+
+        $expectedLength = $this->inlineImageExpectedDecodedLength($dictionary);
+        if ($expectedLength === null) {
+            return false;
+        }
+
+        $bytes = $this->inlineImageBytesBeforePreviewFilter($dictionary, $filters, $candidate, ['JBIG2Decode']);
+        if ($bytes === null || strlen($bytes) !== $expectedLength) {
+            return false;
+        }
+
+        return $this->inlineImageCandidateIsIncompletePreviewOnly($dictionary, $candidate)
+            && $this->inlineImageIncompletePreviewCandidateReachedSampleFloor($dictionary, $candidate);
     }
 
     private function inlineImageIncompletePreviewCandidateReachedSampleFloor(string $dictionary, string $candidate): bool
