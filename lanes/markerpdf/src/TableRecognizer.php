@@ -1576,6 +1576,7 @@ final class TableRecognizer
             }
 
             $fieldSpace = $spaces[$field];
+            $fieldCoordinateOrder = $this->tableGeometryCoordinateOrder($table, $field);
             $localizedRecords = [];
             $changed = false;
             foreach (array_values($table[$field]) as $record) {
@@ -1583,6 +1584,9 @@ final class TableRecognizer
                     continue;
                 }
 
+                if ($fieldCoordinateOrder !== null && $this->bboxCoordinateOrder($record) === null) {
+                    $record['bbox_order'] = $fieldCoordinateOrder;
+                }
                 $recordSpace = $this->geometryRecordCoordinateSpace($record, $fieldSpace);
                 if ($this->isNormalizedPageImageCoordinateSpace($recordSpace)) {
                     $localizedRecords[] = $this->localizedNormalizedPageImageGeometryRecord(
@@ -2171,18 +2175,17 @@ final class TableRecognizer
             return $imageNested;
         }
 
-        if (isset($table['bbox']) && $this->bboxFromGeometryValue($table['bbox']) !== null) {
-            return [
-                'bbox' => $this->bboxFromGeometryValue($table['bbox']),
-                'source' => is_array($table['bbox'])
-                ? (
-                    $this->bboxNamedFieldSource($table['bbox'])
-                    ?? $this->bboxWrappedFieldSource($table['bbox'])
-                    ?? $this->bboxPolygonValueSource($table['bbox'])
-                    ?? 'bbox_array'
-                )
-                : 'bbox_array',
-            ];
+        if (isset($table['bbox'])) {
+            $tableBbox = $this->bboxFromExplicitCoordinateOrder($table)
+                ?? $this->bboxFromGeometryValue($table['bbox']);
+            if ($tableBbox !== null) {
+                return [
+                    'bbox' => $tableBbox,
+                    'source' => is_array($table['bbox'])
+                        ? $this->bboxCoordinateSourceFromRecord($table)
+                        : 'bbox_array',
+                ];
+            }
         }
 
         $wrappedBbox = $this->bboxFromWrappedValue($table);
@@ -2369,6 +2372,11 @@ final class TableRecognizer
         foreach (['coordinate_space', 'bbox_coordinate_space', 'geometry_coordinate_space', 'geometry_space'] as $key) {
             if (array_key_exists($key, $record)) {
                 $record[$key] = $space;
+            }
+        }
+        foreach (['bbox_order', 'bbox_coordinate_order', 'bbox_coordinate_format', 'bbox_format', 'coordinate_order'] as $key) {
+            if (array_key_exists($key, $record)) {
+                $record[$key] = 'xyxy';
             }
         }
         $record['coordinate_space'] = $space;
@@ -6149,11 +6157,27 @@ final class TableRecognizer
      */
     private function nullableBboxFromRecord(array $record): ?array
     {
-        return $this->bboxFromValue($record['bbox'] ?? null)
+        return $this->bboxFromExplicitCoordinateOrder($record)
+            ?? $this->bboxFromValue($record['bbox'] ?? null)
             ?? $this->bboxFromNamedFields($record)
             ?? $this->bboxFromWrappedValue($record)
             ?? $this->polygonBboxFromRecord($record)
             ?? $this->sourceBboxFromRecord($record);
+    }
+
+    /**
+     * Some tabled/adapter JSON exports preserve four-value rectangles in an
+     * explicit order other than xyxy. Honor only declared order metadata; bare
+     * numeric bboxes keep the existing xyxy interpretation.
+     *
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function bboxFromExplicitCoordinateOrder(array $record): ?array
+    {
+        $raw = $this->rawBboxCoordinatesFromExplicitCoordinateOrder($record);
+
+        return $raw === null ? null : $this->canonicalBbox($raw);
     }
 
     /**
@@ -6395,6 +6419,10 @@ final class TableRecognizer
      */
     private function bboxCoordinateSourceFromRecord(array $record): string
     {
+        if ($this->rawBboxCoordinatesFromExplicitCoordinateOrder($record) !== null) {
+            return 'bbox_array_' . $this->bboxCoordinateOrderSource($record) . '_order';
+        }
+
         $bbox = $record['bbox'] ?? null;
         if (is_array($bbox) && $this->bboxFromValue($bbox) !== null) {
             return $this->bboxNamedFieldSource($bbox)
@@ -6456,7 +6484,8 @@ final class TableRecognizer
      */
     private function bboxEndpointOrderNormalizedFromRecord(array $record): bool
     {
-        $raw = $this->rawBboxCoordinatesFromValue($record['bbox'] ?? null)
+        $raw = $this->rawBboxCoordinatesFromExplicitCoordinateOrder($record)
+            ?? $this->rawBboxCoordinatesFromValue($record['bbox'] ?? null)
             ?? $this->rawBboxCoordinatesFromNamedFields($record)
             ?? $this->rawBboxCoordinatesFromWrappedValue($record)
             ?? $this->rawSourceBboxCoordinatesFromRecord($record);
@@ -6481,6 +6510,191 @@ final class TableRecognizer
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return list<float>|null
+     */
+    private function rawBboxCoordinatesFromExplicitCoordinateOrder(array $record): ?array
+    {
+        $order = $this->bboxCoordinateOrder($record);
+        $bbox = $record['bbox'] ?? null;
+        if ($order === null || !is_array($bbox) || !array_is_list($bbox)) {
+            return null;
+        }
+
+        $raw = $this->rawBboxCoordinates($bbox);
+        if ($raw === null) {
+            return null;
+        }
+
+        return $this->applyBboxCoordinateOrder($raw, $order);
+    }
+
+    /**
+     * @param list<float> $raw
+     * @return list<float>
+     */
+    private function applyBboxCoordinateOrder(array $raw, string $order): array
+    {
+        return match ($order) {
+            'xxyy' => [$raw[0], $raw[2], $raw[1], $raw[3]],
+            'yxyx' => [$raw[1], $raw[0], $raw[3], $raw[2]],
+            'yyxx' => [$raw[2], $raw[0], $raw[3], $raw[1]],
+            default => $raw,
+        };
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function bboxCoordinateOrder(array $record): ?string
+    {
+        $details = $this->bboxCoordinateOrderDetails($record);
+
+        return $details['order'] ?? null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     */
+    private function bboxCoordinateOrderSource(array $record): string
+    {
+        $details = $this->bboxCoordinateOrderDetails($record);
+
+        return $details['source'] ?? 'xyxy';
+    }
+
+    /**
+     * @param array<string|int, mixed> $record
+     * @return array{order: string, source: string}|null
+     */
+    private function bboxCoordinateOrderDetails(array $record): ?array
+    {
+        foreach (['bbox_order', 'bbox_coordinate_order', 'bbox_coordinate_format', 'bbox_format', 'coordinate_order'] as $key) {
+            if (!isset($record[$key]) || !is_scalar($record[$key])) {
+                continue;
+            }
+
+            $source = $this->normalizeBboxCoordinateOrderLabel((string) $record[$key]);
+            $order = $this->canonicalBboxCoordinateOrder($source);
+            if ($order !== null) {
+                return [
+                    'order' => $order,
+                    'source' => $source,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeBboxCoordinateOrderLabel(string $order): string
+    {
+        $normalized = strtolower(trim($order));
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? $normalized;
+
+        return trim($normalized, '_');
+    }
+
+    private function canonicalBboxCoordinateOrder(string $order): ?string
+    {
+        return match ($order) {
+            'xyxy',
+            'x1_y1_x2_y2',
+            'x0_y0_x1_y1',
+            'xmin_ymin_xmax_ymax',
+            'x_min_y_min_x_max_y_max',
+            'left_top_right_bottom' => 'xyxy',
+            'xxyy',
+            'x1_x2_y1_y2',
+            'x0_x1_y0_y1',
+            'xmin_xmax_ymin_ymax',
+            'x_min_x_max_y_min_y_max',
+            'left_right_top_bottom' => 'xxyy',
+            'yxyx',
+            'y1_x1_y2_x2',
+            'y0_x0_y1_x1',
+            'ymin_xmin_ymax_xmax',
+            'y_min_x_min_y_max_x_max',
+            'top_left_bottom_right' => 'yxyx',
+            'yyxx',
+            'y1_y2_x1_x2',
+            'y0_y1_x0_x1',
+            'ymin_ymax_xmin_xmax',
+            'y_min_y_max_x_min_x_max',
+            'top_bottom_left_right' => 'yyxx',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     */
+    private function tableGeometryCoordinateOrder(array $table, string $field): ?string
+    {
+        foreach ($this->tableGeometryCoordinateOrderKeys($field) as $key) {
+            if (!isset($table[$key]) || !is_scalar($table[$key])) {
+                continue;
+            }
+
+            $source = $this->normalizeBboxCoordinateOrderLabel((string) $table[$key]);
+            if ($this->canonicalBboxCoordinateOrder($source) !== null) {
+                return $source;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableGeometryCoordinateOrderKeys(string $field): array
+    {
+        $keys = [
+            $field . '_bbox_order',
+            rtrim($field, 's') . '_bbox_order',
+            $field . '_coordinate_order',
+            rtrim($field, 's') . '_coordinate_order',
+            $field . '_bbox_format',
+            rtrim($field, 's') . '_bbox_format',
+        ];
+
+        if ($field === 'rows') {
+            return [
+                'row_bboxes_order',
+                'row_bbox_order',
+                'row_bboxes_bbox_order',
+                'row_boxes_order',
+                'row_bounds_order',
+                ...$keys,
+            ];
+        }
+        if ($field === 'cols') {
+            return [
+                'columns_order',
+                'column_order',
+                'column_bboxes_order',
+                'col_bboxes_order',
+                'columns_bbox_order',
+                'column_bbox_order',
+                'col_bbox_order',
+                ...$keys,
+            ];
+        }
+        if ($field === 'cells') {
+            return [
+                'cells_order',
+                'cell_order',
+                'cells_bbox_order',
+                'cell_bbox_order',
+                ...$keys,
+            ];
+        }
+
+        return $keys;
     }
 
     /**
