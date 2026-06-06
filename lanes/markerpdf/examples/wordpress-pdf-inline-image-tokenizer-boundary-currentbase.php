@@ -250,6 +250,19 @@ $content = "BT /F1 12 Tf 72 720 Td (Before Tokenizer Boundary) Tj ET\n"
     . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
     . "\x80 EI BX /FutureOperand FutureOp BT /F1 12 Tf 72 590 Td (Visible Same Line Compatibility Before Stray) Tj ET EX EI\n"
     . "BT /F1 12 Tf 72 589 Td (Visible After Same Line Compatibility Stray) Tj ET\n"
+    . "BT /F1 12 Tf 72 588 Td (Before Same Line Graphics Prefix) Tj ET\n"
+    . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x80 EI q BT /F1 12 Tf 72 587 Td (Visible Same Line Q Prefix) Tj ET Q EI\n"
+    . "BT /F1 12 Tf 72 586 Td (Visible After Same Line Q Prefix) Tj ET\n"
+    . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x80 EI 0 0 1 rg BT /F1 12 Tf 72 585 Td (Visible Same Line Color Prefix) Tj ET EI\n"
+    . "BT /F1 12 Tf 72 584 Td (Visible After Same Line Color Prefix) Tj ET\n"
+    . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x80 EI /Decorative Do BT /F1 12 Tf 72 583 Td (Visible Same Line Do Prefix) Tj ET EI\n"
+    . "BT /F1 12 Tf 72 582 Td (Visible After Same Line Do Prefix) Tj ET\n"
+    . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+    . "\x80 EI 60 560 260 90 re W n BT /F1 12 Tf 72 581 Td (Visible Same Line Clip Prefix) Tj ET EI\n"
+    . "BT /F1 12 Tf 72 580 Td (Visible After Same Line Clip Prefix) Tj ET\n"
     . "BT /F1 12 Tf 72 588 Td (Before Outer Marked Inline) Tj ET\n"
     . "/Span BMC\n"
     . "BI /W 128 /H 1 /IM true /F /JBIG2Decode ID\n"
@@ -328,7 +341,7 @@ $multipleCcittPlainText = $extractor->extractPlainText($multipleCcittPdf);
 echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
-    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, and externally closed Q/EMC/EX scope inline image boundaries before Gutenberg paragraphs',
+    'native_boundary' => 'content tokenizer recovers malformed BI preambles, tight ID data separators, immediate PDF comments after ID, PDF NUL whitespace around BI/ID/EI, tight EI sample terminators, tight DCT/JPX preview-filter terminators, nested modifier-dictionary decoys, text-object BI decoys, and slash-delimited, named-color-space, unsupported-filter, visible-literal, TJ-array, marked-content ActualText, named marked-content property ActualText, sample-floor marked-content ActualText, post-terminator comment EI, later stray EI operator, same-line text before stray EI operator, same-line graphics prefixes before stray EI operators, graphics-state wrapped stray EI, clipping-path wrapped stray EI, XObject Do wrapped stray EI, marked-content point MP/DP wrapped stray EI, numeric color graphics-state wrapped stray EI, pattern color graphics-state wrapped stray EI, shading-paint wrapped stray EI, dash-pattern graphics-state wrapped stray EI, text-state operator wrapped stray EI, BX/EX compatibility-section wrapped stray EI, and externally closed Q/EMC/EX scope inline image boundaries before Gutenberg paragraphs',
     'stray_bi_text_preserved' => str_contains($plainText, 'Stray BI Text Survives')
         && str_contains($plainText, 'After Tokenizer Boundary'),
     'real_inline_image_payload_excluded' => !str_contains($plainText, 'Inline Image Payload Noise'),
@@ -489,6 +502,20 @@ echo '<!-- markerpdf-inline-image-tokenizer-boundary-currentbase ' . htmlspecial
         && !str_contains($plainText, '/FutureOperand')
         && !str_contains($plainText, 'FutureOp')
         && !str_contains($plainText, "\x80 EI BX"),
+    'preview_only_same_line_graphics_prefix_stray_ei_text_preserved_after_safe_boundary' => str_contains($plainText, 'Before Same Line Graphics Prefix')
+        && str_contains($plainText, 'Visible Same Line Q Prefix')
+        && str_contains($plainText, 'Visible After Same Line Q Prefix')
+        && str_contains($plainText, 'Visible Same Line Color Prefix')
+        && str_contains($plainText, 'Visible After Same Line Color Prefix')
+        && str_contains($plainText, 'Visible Same Line Do Prefix')
+        && str_contains($plainText, 'Visible After Same Line Do Prefix')
+        && str_contains($plainText, 'Visible Same Line Clip Prefix')
+        && str_contains($plainText, 'Visible After Same Line Clip Prefix')
+        && !str_contains($plainText, "\x80 EI q")
+        && !str_contains($plainText, "\x80 EI 0 0 1 rg")
+        && !str_contains($plainText, "\x80 EI /Decorative Do")
+        && !str_contains($plainText, "\x80 EI 60 560 260 90 re W n")
+        && !str_contains($plainText, 'Decorative'),
     'preview_only_outer_marked_content_close_preserves_following_text' => str_contains($plainText, 'Before Outer Marked Inline')
         && str_contains($plainText, 'Visible After Outer Marked Inline')
         && str_contains($plainText, 'Visible After Outer Marked Stray')

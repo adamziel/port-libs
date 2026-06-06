@@ -32241,10 +32241,6 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if (!$lineSeparated && !in_array($char, ['B', 'E', 'Q'], true)) {
-                return false;
-            }
-
             if ($char === '(') {
                 if (!$insideTextObject) {
                     if ($compatibilityDepth <= 0) {
@@ -32334,7 +32330,13 @@ final class PdfTextExtractor
 
             $token = substr($segment, $start, $index - $start);
             if (!$lineSeparated) {
-                if (
+                if ($token === 'BT') {
+                    if ($insideTextObject || $outsideTextOperands !== []) {
+                        return false;
+                    }
+
+                    $lineSeparated = true;
+                } elseif (
                     (
                         $token === 'BX'
                         || $this->contentSegmentExternalScopeCloseOperator(
@@ -32351,19 +32353,6 @@ final class PdfTextExtractor
                     && $markedContentDepth === 0
                     && $compatibilityDepth === 0
                 ) {
-                    $lineSeparated = true;
-                } elseif (
-                    $token !== 'BT'
-                    || $insideTextObject
-                    || $outsideTextOperands !== []
-                    || $graphicsStateDepth !== 0
-                    || $markedContentDepth !== 0
-                    || $compatibilityDepth !== 0
-                ) {
-                    return false;
-                }
-
-                if ($token === 'BT') {
                     $lineSeparated = true;
                 }
             }

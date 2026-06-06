@@ -763,6 +763,31 @@ $inlineImageTokenizerSameLineCompatibilitySectionStrayEiPdf = static function ()
         . "%%EOF";
 };
 
+$inlineImageTokenizerSameLineGraphicsPrefixStrayEiPdf = static function (): string {
+    $content = "BT /F1 12 Tf 72 720 Td (Before Same Line Graphics Prefix) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI q BT /F1 12 Tf 72 704 Td (Visible Same Line Q Prefix) Tj ET Q EI\n"
+        . "BT /F1 12 Tf 72 688 Td (Visible After Same Line Q Prefix) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI 0 0 1 rg BT /F1 12 Tf 72 672 Td (Visible Same Line Color Prefix) Tj ET EI\n"
+        . "BT /F1 12 Tf 72 656 Td (Visible After Same Line Color Prefix) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI /Decorative Do BT /F1 12 Tf 72 640 Td (Visible Same Line Do Prefix) Tj ET EI\n"
+        . "BT /F1 12 Tf 72 624 Td (Visible After Same Line Do Prefix) Tj ET\n"
+        . "BI /W 8 /H 1 /IM true /F /JBIG2Decode ID\n"
+        . "\x80 EI 60 560 260 90 re W n BT /F1 12 Tf 72 608 Td (Visible Same Line Clip Prefix) Tj ET EI\n"
+        . "BT /F1 12 Tf 72 592 Td (Visible After Same Line Clip Prefix) Tj ET";
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> /XObject << /Decorative 6 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+        . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+        . "6 0 obj\n<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\ny\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $inlineImageTokenizerOuterMarkedContentClosePdf = static function (): string {
     $content = "BT /F1 12 Tf 72 720 Td (Before Outer Marked Inline) Tj ET\n"
         . "/Span BMC\n"
@@ -1681,6 +1706,38 @@ return [
         $t->true(!str_contains($sameLinePlainText, '/FutureOperand'));
         $t->true(!str_contains($sameLinePlainText, 'FutureOp'));
         $t->true(!str_contains($sameLinePlainText, "\x80 EI BX"));
+    },
+    'closes preview-only fallback before same-line graphics prefixes followed by stray EI operators' => static function (TestRunner $t) use ($inlineImageTokenizerSameLineGraphicsPrefixStrayEiPdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $inlineImageTokenizerSameLineGraphicsPrefixStrayEiPdf();
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Same Line Graphics Prefix',
+            'Visible Same Line Q Prefix',
+            'Visible After Same Line Q Prefix',
+            'Visible Same Line Color Prefix',
+            'Visible After Same Line Color Prefix',
+            'Visible Same Line Do Prefix',
+            'Visible After Same Line Do Prefix',
+            'Visible Same Line Clip Prefix',
+            'Visible After Same Line Clip Prefix',
+        ];
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(str_contains($plainText, 'Visible Same Line Q Prefix'));
+        $t->true(str_contains($plainText, 'Visible Same Line Color Prefix'));
+        $t->true(str_contains($plainText, 'Visible Same Line Do Prefix'));
+        $t->true(str_contains($plainText, 'Visible Same Line Clip Prefix'));
+        $t->true(!str_contains($plainText, "\x80 EI q"));
+        $t->true(!str_contains($plainText, "\x80 EI 0 0 1 rg"));
+        $t->true(!str_contains($plainText, "\x80 EI /Decorative Do"));
+        $t->true(!str_contains($plainText, "\x80 EI 60 560 260 90 re W n"));
+        $t->true(!str_contains($plainText, 'Decorative'));
     },
     'closes preview-only fallback before externally closed marked-content text followed by stray EI operator' => static function (TestRunner $t) use ($inlineImageTokenizerOuterMarkedContentClosePdf): void {
         $extractor = new PdfTextExtractor();
