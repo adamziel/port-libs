@@ -2169,7 +2169,7 @@ final class PdfTextExtractor
             }
         }
 
-        $trailers = $this->trailerDictionaryBodies($pdfBytes);
+        $trailers = $this->trailerDictionaryBodies($pdfBytes, $definitions);
         for ($index = count($trailers) - 1; $index >= 0; $index--) {
             $infoValue = $this->topLevelPdfValueAfterName($trailers[$index], 'Info');
             if ($infoValue !== null && trim($infoValue) === 'null') {
@@ -2206,7 +2206,7 @@ final class PdfTextExtractor
             }
         }
 
-        $trailers = $this->trailerDictionaryBodies($pdfBytes);
+        $trailers = $this->trailerDictionaryBodies($pdfBytes, $definitions);
         for ($index = count($trailers) - 1; $index >= 0; $index--) {
             $infoValue = $this->topLevelPdfValueAfterName($trailers[$index], 'Info');
             if ($infoValue === null) {
@@ -23152,7 +23152,7 @@ final class PdfTextExtractor
             ];
         }
 
-        $trailers = $this->trailerDictionaryBodies($pdfBytes);
+        $trailers = $this->trailerDictionaryBodies($pdfBytes, $definitions);
         for ($index = count($trailers) - 1; $index >= 0; $index--) {
             $value = $this->topLevelPdfValueAfterName($trailers[$index], 'Root');
             if ($value === null) {
@@ -23648,7 +23648,7 @@ final class PdfTextExtractor
             return $this->pdfEncryptValueIsEncrypted($currentTrailerEncrypt['value']);
         }
 
-        foreach ($this->trailerDictionaryBodies($pdfBytes) as $trailer) {
+        foreach ($this->trailerDictionaryBodies($pdfBytes, $definitions) as $trailer) {
             $value = $this->topLevelPdfEncryptValueAfterName($trailer);
             if ($this->pdfEncryptValueIsEncrypted($value)) {
                 return true;
@@ -23756,25 +23756,38 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>>|null $definitions
      * @return list<string>
      */
-    private function trailerDictionaryBodies(string $pdfBytes): array
+    private function trailerDictionaryBodies(string $pdfBytes, ?array $definitions = null): array
     {
+        $definitions ??= $this->directObjectDefinitions($pdfBytes);
         $trailers = [];
-        if (!preg_match_all('/(?:^|[\r\n])trailer\s*<</s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE)) {
-            return $trailers;
-        }
 
-        foreach ($matches[0] as $match) {
-            $offset = strpos($pdfBytes, '<<', $match[1]);
-            if ($offset === false) {
+        $offset = 0;
+        while (($position = strpos($pdfBytes, 'trailer', $offset)) !== false) {
+            if (
+                !$this->pdfKeywordAt($pdfBytes, $position, 'trailer')
+                || $this->tokenStartsInPdfCommentLine($pdfBytes, $position)
+                || $this->offsetOwnedByDirectObjectBody($position, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $position, $definitions)
+            ) {
+                $offset = $position + strlen('trailer');
                 continue;
             }
 
-            $dictionary = $this->readPdfDictionaryAt($pdfBytes, $offset);
+            $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $position + strlen('trailer'));
+            if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
+                $offset = $position + strlen('trailer');
+                continue;
+            }
+
+            $dictionary = $this->readPdfDictionaryAt($pdfBytes, $dictionaryOffset);
             if ($dictionary !== null) {
                 $trailers[] = $dictionary;
             }
+
+            $offset = $position + strlen('trailer');
         }
 
         return $trailers;
