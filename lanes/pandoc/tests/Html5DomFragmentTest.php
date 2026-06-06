@@ -786,6 +786,50 @@ return [
         $t->true(!str_contains($html, 'stroke='), 'Expected unsafe stroke resource attribute to be stripped');
         $t->true(!str_contains($html, 'https://source.example.test/import/posts/post.html#clip'), 'Expected local clip-path reference to avoid base URL expansion');
     },
+    'filters css-escaped svg presentation resource URLs before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<figure><svg><g'
+            . ' clip-path="url(\23 clip)"'
+            . ' mask="url(\2e/mask.svg#review-mask)"'
+            . ' filter="url(\00006a\000061vascript:alert(1))"'
+            . ' marker-start="url(ja/**/vascript:alert(1))"'
+            . ' marker-mid="url( \6d ailto:bad@example.test )">'
+            . '<path d="M0 0" fill="url( \0023 paint)" stroke="url(https://cdn.example.test/stroke.svg#stroke)"></path>'
+            . '</g></svg></figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/svg-css-escaped-resource-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $group = $nodes[0]['children'][0]['children'][0];
+        $path = $group['children'][0];
+
+        $expected = '<figure><svg><g clip-path="url(#clip)" mask="url(https://source.example.test/import/posts/mask.svg#review-mask)">'
+            . '<path d="M0 0" fill="url(#paint)" stroke="url(https://cdn.example.test/stroke.svg#stroke)"></path></g></svg></figure>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['filter', 'marker-mid', 'marker-start'], $summary['filteredAttributes']);
+        $t->same(['normalized-url', 'normalized-url', 'unsafe-url', 'unsafe-url', 'unsafe-url', 'normalized-url'], $policyDiagnostics);
+        $t->same('url(#clip)', $group['attrs']['clip-path']);
+        $t->same('url(https://source.example.test/import/posts/mask.svg#review-mask)', $group['attrs']['mask']);
+        $t->same(['d' => 'M0 0', 'fill' => 'url(#paint)', 'stroke' => 'url(https://cdn.example.test/stroke.svg#stroke)'], $path['attrs']);
+        $t->same('/migration/svg-css-escaped-resource-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'javascript:'), 'Expected CSS-escaped javascript scheme to be stripped');
+        $t->true(!str_contains($html, 'ja/**/vascript'), 'Expected CSS comment-obfuscated resource URL to be stripped');
+        $t->true(!str_contains($html, 'mailto:bad@example.test'), 'Expected CSS-escaped mailto resource URL to be stripped');
+        $t->true(!str_contains($html, 'https://source.example.test/import/posts/post.html#clip'), 'Expected CSS-escaped local clip reference to avoid base URL expansion');
+    },
     'keeps html integration point descendants lowercase in sanitized fragments' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><svg><foreignObject><div viewBox="html attr"><linearGradient>HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'

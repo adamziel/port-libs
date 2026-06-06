@@ -1164,7 +1164,7 @@ final class Html5DomFragment
             static function (array $matches) use (&$hasUnsafeUrl, &$matchedUrlFunction, $baseUrl): string {
                 $matchedUrlFunction = true;
                 $url = self::normalizeCssUrlToken((string) $matches[1]);
-                if ($url === '' || !self::isSafeFetchUrl($url)) {
+                if ($url === null || $url === '' || !self::isSafeFetchUrl($url)) {
                     $hasUnsafeUrl = true;
 
                     return '';
@@ -1200,9 +1200,13 @@ final class Html5DomFragment
         return $normalized;
     }
 
-    private static function normalizeCssUrlToken(string $url): string
+    private static function normalizeCssUrlToken(string $url): ?string
     {
         $url = trim($url);
+        if (str_contains($url, '/*') || str_contains($url, '*/')) {
+            return null;
+        }
+
         if (strlen($url) >= 2) {
             $quote = $url[0];
             if ($quote === '"' || $quote === "'") {
@@ -1213,7 +1217,76 @@ final class Html5DomFragment
             }
         }
 
+        $url = self::decodeCssEscapes($url);
+        if ($url === null) {
+            return null;
+        }
+
         return self::normalizeUrlAttributeValue($url);
+    }
+
+    private static function decodeCssEscapes(string $value): ?string
+    {
+        $invalid = false;
+        $decoded = preg_replace_callback(
+            '/\\\\(?:([0-9A-Fa-f]{1,6})(?:\r\n|[ \t\r\n\f])?|(.))/su',
+            static function (array $matches) use (&$invalid): string {
+                if (isset($matches[1]) && $matches[1] !== '') {
+                    $codepoint = hexdec((string) $matches[1]);
+                    if (!is_int($codepoint) || !self::isValidCssUrlCodepoint($codepoint)) {
+                        $invalid = true;
+
+                        return '';
+                    }
+
+                    return self::codepointToUtf8($codepoint);
+                }
+
+                $escaped = (string) ($matches[2] ?? '');
+                if ($escaped === '' || preg_match('/[\r\n\f]/', $escaped) === 1) {
+                    $invalid = true;
+
+                    return '';
+                }
+
+                return $escaped;
+            },
+            $value
+        );
+
+        if (!is_string($decoded) || $invalid) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    private static function isValidCssUrlCodepoint(int $codepoint): bool
+    {
+        return $codepoint > 0
+            && $codepoint <= 0x10FFFF
+            && ($codepoint < 0xD800 || $codepoint > 0xDFFF);
+    }
+
+    private static function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3F))
+            . chr(0x80 | (($codepoint >> 6) & 0x3F))
+            . chr(0x80 | ($codepoint & 0x3F));
     }
 
     private static function isSafeUrlAttributeValue(string $tagName, string $name, string $value, ?string $foreignContext): bool
