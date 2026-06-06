@@ -772,6 +772,7 @@ final class SyntaxHighlighter
         return [
             ['preprocessor', '/^<\\?(?:php|=)?|^\\?>/i'],
             ['attribute', '/^#\\[[^\\]\\n]*(?:\\][ \\t]*#\\[[^\\]\\n]*)*\\]/'],
+            ['phpdoc', '/^\\/\\*\\*[\\s\\S]*?\\*\\//'],
             ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
             ['comment', '/^(?:\\/\\/|#)[^\\n]*/'],
             ['string', '/^<<<[ \\t]*([\\\'"]?)([A-Za-z_][A-Za-z0-9_]*)\\1[ \\t]*(?:\\r?\\n[\\s\\S]*?\\r?\\n[ \\t]*\\2;?)/'],
@@ -786,6 +787,21 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:=>|->|::|===|!==|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:-])/'],
+        ];
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>
+     */
+    private static function phpDocTypePatterns(): array
+    {
+        return [
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['datatype', '/^(?:non-empty-string|non-empty-array|class-string|positive-int|array-key)\\b/i'],
+            ['datatype', '/^\\b(?:array|bool|boolean|callable|false|float|int|integer|iterable|list|mixed|never|null|object|self|static|string|true|void)\\b/i'],
+            ['datatype', '/^\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*/'],
+            ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['operator', '/^(?:\\[\\]|->|::|<=|>=|=>|[{}()[\\]<>,|&?:=])/'],
         ];
     }
 
@@ -845,7 +861,145 @@ final class SyntaxHighlighter
      */
     private function tokenizePhp(string $code): array
     {
-        return $this->scan($code, $this->phpPatterns());
+        return $this->expandPhpDocTokens($this->scan($code, $this->phpPatterns()));
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function expandPhpDocTokens(array $tokens): array
+    {
+        $expanded = [];
+        foreach ($tokens as $token) {
+            if (($token['type'] ?? '') !== 'phpdoc') {
+                $this->appendToken($expanded, (string) ($token['type'] ?? 'text'), (string) ($token['text'] ?? ''));
+                continue;
+            }
+
+            $this->tokenizePhpDocComment((string) ($token['text'] ?? ''), $expanded);
+        }
+
+        return $expanded;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizePhpDocComment(string $comment, array &$tokens): void
+    {
+        $parts = preg_split('/(\n)/', $comment, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if ($parts === false) {
+            $this->appendToken($tokens, 'comment', $comment);
+            return;
+        }
+
+        for ($index = 0; $index < count($parts); $index += 2) {
+            $line = (string) $parts[$index];
+            if ($line !== '') {
+                $this->tokenizePhpDocLine($line, $tokens);
+            }
+
+            if (($parts[$index + 1] ?? '') === "\n") {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizePhpDocLine(string $line, array &$tokens): void
+    {
+        if (str_starts_with($line, '/**') || trim($line) === '*/') {
+            $this->appendToken($tokens, 'comment', $line);
+            return;
+        }
+
+        if (preg_match('/^([ \t]*\\*[ \t]?)(.*)$/', $line, $matches) !== 1) {
+            $this->appendToken($tokens, 'comment', $line);
+            return;
+        }
+
+        $this->appendToken($tokens, 'comment', $matches[1]);
+        $body = (string) $matches[2];
+        if (preg_match('/^(@[A-Za-z_][A-Za-z0-9_-]*)(\\s*)(.*)$/', $body, $annotation) !== 1) {
+            $this->appendToken($tokens, 'comment', $body);
+            return;
+        }
+
+        $tag = strtolower(substr($annotation[1], 1));
+        $this->appendToken($tokens, 'attribute', $annotation[1]);
+        $this->appendToken($tokens, 'text', $annotation[2]);
+        $this->tokenizePhpDocAnnotationTail($tag, (string) $annotation[3], $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizePhpDocAnnotationTail(string $tag, string $tail, array &$tokens): void
+    {
+        if ($tail === '') {
+            return;
+        }
+
+        if (in_array($tag, ['param', 'phpstan-param', 'psalm-param', 'var', 'property', 'property-read', 'property-write'], true)) {
+            if (preg_match('/^(.*?)(\\$[A-Za-z_][A-Za-z0-9_]*)(.*)$/', $tail, $matches) === 1) {
+                $this->tokenizePhpDocTypeSegment($matches[1], $tokens);
+                $this->appendToken($tokens, 'variable', $matches[2]);
+                $this->appendToken($tokens, 'comment', $matches[3]);
+                return;
+            }
+        }
+
+        if (in_array($tag, ['return', 'phpstan-return', 'psalm-return', 'throws', 'throw', 'exception'], true)) {
+            $this->tokenizePhpDocLeadingType($tail, $tokens);
+            return;
+        }
+
+        if (in_array($tag, ['template', 'phpstan-template', 'psalm-template'], true)) {
+            if (preg_match('/^(\\S+)(\\s+)(of)(\\s+)(\\S+)(.*)$/i', $tail, $matches) === 1) {
+                $this->scanInto($matches[1], self::phpDocTypePatterns(), $tokens);
+                $this->appendToken($tokens, 'text', $matches[2]);
+                $this->appendToken($tokens, 'comment', $matches[3]);
+                $this->appendToken($tokens, 'text', $matches[4]);
+                $this->scanInto($matches[5], self::phpDocTypePatterns(), $tokens);
+                $this->appendToken($tokens, 'comment', $matches[6]);
+                return;
+            }
+
+            $this->tokenizePhpDocLeadingType($tail, $tokens);
+            return;
+        }
+
+        $this->appendToken($tokens, 'comment', $tail);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizePhpDocTypeSegment(string $segment, array &$tokens): void
+    {
+        $type = rtrim($segment);
+        if ($type !== '') {
+            $this->scanInto($type, self::phpDocTypePatterns(), $tokens);
+        }
+
+        $this->appendToken($tokens, 'text', substr($segment, strlen($type)));
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizePhpDocLeadingType(string $tail, array &$tokens): void
+    {
+        if (preg_match('/^(\\S+)(.*)$/', $tail, $matches) !== 1) {
+            $this->appendToken($tokens, 'comment', $tail);
+            return;
+        }
+
+        $this->scanInto($matches[1], self::phpDocTypePatterns(), $tokens);
+        $this->appendToken($tokens, 'comment', $matches[2]);
     }
 
     /**

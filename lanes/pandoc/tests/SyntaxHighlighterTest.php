@@ -1167,6 +1167,51 @@ return [
         $t->contains('<span class="fu">link:</span><span class="ot">https://example.test/import</span><span class="op">[</span>review<span class="op">]</span>', $directAdoc['html']);
         $t->contains('<span class="va">{source-id}</span>', $directAdoc['html']);
     },
+    'highlights phpdoc annotations and typed metadata in php review snippets' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[47] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a PHPDoc code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'pygments');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'pygments');
+        $directDocblock = $highlighter->highlight(implode("\n", [
+            '<?php',
+            '/**',
+            ' * @var class-string<WP_Post> $postClass',
+            ' */',
+            '$postClass = WP_Post::class;',
+        ]), 'php', 'pygments', ['tokenTitles' => true]);
+
+        $t->same('php', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('php', $highlighted['language']);
+        $t->same('php', $highlighted['requestedLanguage']);
+        $t->same('pygments', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(true, $highlighted['tokenTitles']);
+        $t->same(570, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource php numberLines tokenTitles"><code class="sourceCode php" style="counter-reset: source-line 569;">', $highlighted['html']);
+        $t->contains('<span id="phpdoc-review-570"><a href="#phpdoc-review-570"></a><span class="pp" title="PreprocessorTok">&lt;?php</span></span>', $highlighted['html']);
+        $t->contains('<span id="phpdoc-review-572"><a href="#phpdoc-review-572"></a><span class="co" title="CommentTok"> * Builds a review title from a migrated block packet.</span></span>', $highlighted['html']);
+        $t->contains('<span class="ot" title="OtherTok">@template</span> <span class="dt" title="DataTypeTok">TPacket</span> <span class="co" title="CommentTok">of</span> <span class="dt" title="DataTypeTok">array</span><span class="op" title="OperatorTok">&lt;</span><span class="dt" title="DataTypeTok">string</span><span class="op" title="OperatorTok">,</span><span class="dt" title="DataTypeTok">mixed</span><span class="op" title="OperatorTok">&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="ot" title="OtherTok">@param</span> <span class="dt" title="DataTypeTok">array</span><span class="op" title="OperatorTok">&lt;</span><span class="dt" title="DataTypeTok">string</span><span class="op" title="OperatorTok">,</span><span class="dt" title="DataTypeTok">mixed</span><span class="op" title="OperatorTok">&gt;</span> <span class="va" title="VariableTok">$item</span>', $highlighted['html']);
+        $t->contains('<span class="ot" title="OtherTok">@param</span> <span class="dt" title="DataTypeTok">list</span><span class="op" title="OperatorTok">&lt;</span><span class="dt" title="DataTypeTok">WP_Post</span><span class="op" title="OperatorTok">&gt;|</span><span class="dt" title="DataTypeTok">null</span> <span class="va" title="VariableTok">$attachments</span>', $highlighted['html']);
+        $t->contains('<span class="ot" title="OtherTok">@return</span> <span class="dt" title="DataTypeTok">non-empty-string</span>', $highlighted['html']);
+        $t->contains('<span class="ot" title="OtherTok">@throws</span> <span class="dt" title="DataTypeTok">ImportReviewException</span>', $highlighted['html']);
+        $t->contains('<span class="kw" title="KeywordTok">function</span> <span class="fu" title="FunctionTok">normalize_review_title</span><span class="op" title="OperatorTok">(</span><span class="dt" title="DataTypeTok">array</span> <span class="va" title="VariableTok">$item</span><span class="op" title="OperatorTok">,</span> <span class="op" title="OperatorTok">?</span><span class="dt" title="DataTypeTok">array</span> <span class="va" title="VariableTok">$attachments</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="pygments">', $wordpressBlock);
+        $t->contains('<span class="ot" title="OtherTok">@return</span> <span class="dt" title="DataTypeTok">non-empty-string</span>', $wordpressBlock);
+        $t->same('php', $directDocblock['language']);
+        $t->contains('<span class="ot" title="OtherTok">@var</span> <span class="dt" title="DataTypeTok">class-string</span><span class="op" title="OperatorTok">&lt;</span><span class="dt" title="DataTypeTok">WP_Post</span><span class="op" title="OperatorTok">&gt;</span> <span class="va" title="VariableTok">$postClass</span>', $directDocblock['html']);
+        $t->contains('<span class="va" title="VariableTok">$postClass</span> <span class="op" title="OperatorTok">=</span> <span class="dt" title="DataTypeTok">WP_Post</span><span class="op" title="OperatorTok">::</span><span class="kw" title="KeywordTok">class</span>', $directDocblock['html']);
+    },
     'highlights html attributes sql keywords and functions for review packets' => static function (TestRunner $t): void {
         $highlighter = new SyntaxHighlighter();
         $html = $highlighter->highlight('<section data-id="42"><code>$post</code></section>', 'html5');

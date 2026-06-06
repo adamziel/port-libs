@@ -742,3 +742,20 @@ echo esc_html($title); // reviewed output <1>
 ----
 <1> Escaped WordPress block title.
 ```
+
+``` {.php #phpdoc-review .numberLines .tokenTitles startFrom=570}
+<?php
+/**
+ * Builds a review title from a migrated block packet.
+ *
+ * @template TPacket of array<string,mixed>
+ * @param array<string,mixed> $item Source block attributes.
+ * @param list<WP_Post>|null $attachments Imported media records.
+ * @return non-empty-string
+ * @throws ImportReviewException when title metadata is unsafe.
+ */
+function normalize_review_title(array $item, ?array $attachments = null): string
+{
+    return trim((string) ($item['title'] ?? 'Untitled'));
+}
+```
