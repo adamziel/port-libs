@@ -143,6 +143,9 @@ final class CompoundFileBinary
         if ($difatSectorCount > 0 && $difatSector !== self::ENDOFCHAIN) {
             throw new \RuntimeException('CFB DIFAT chain is not terminated');
         }
+        if (count($difat) > $fatSectorCount) {
+            throw new \RuntimeException('CFB DIFAT contains FAT sector entries beyond the declared FAT sector count');
+        }
 
         $fatSectorIds = array_slice($difat, 0, $fatSectorCount);
         if (count($fatSectorIds) !== $fatSectorCount) {

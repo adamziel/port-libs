@@ -1638,6 +1638,19 @@ return [
 
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($unterminated));
     },
+    'rejects surplus CFB DIFAT FAT-sector listings beyond the declared count' => static function (TestRunner $t) use ($buildCfb, $moveFatListingToDifatSector, $u32): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+        ]);
+        $surplusHeaderDifatEntry = substr_replace($bytes, $u32(2), 80, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($surplusHeaderDifatEntry));
+
+        $fixture = $moveFatListingToDifatSector($bytes);
+        $surplusOverflowDifatEntry = substr_replace($fixture['bytes'], $u32(1), 512 + ((int) $fixture['difatSector'] * 512) + 4, 4);
+
+        $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($surplusOverflowDifatEntry));
+    },
     'rejects invalid CFB directory object-type fields before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u32, $u64): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',
