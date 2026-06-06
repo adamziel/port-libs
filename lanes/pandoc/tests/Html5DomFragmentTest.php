@@ -1805,6 +1805,54 @@ return [
         $t->true(!str_contains($html, 'mailto:bad@example.test'), 'Expected non-fetch picture source candidate to be stripped');
         $t->true(!str_contains($html, '(max-width: 47em)'), 'Expected empty unsafe source branch to be pruned');
     },
+    'filters reserved pandoc data attributes and html namespace declarations before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article data-source="legacy" data-pandoc-link-rel="canonical" data-pandoc-fragment-root="1" aria-label="Review packet" xmlns="http://www.w3.org/1999/xhtml">'
+            . '<p data-pandoc-meta-name="description" data-review="keep" xmlns:xlink="http://www.w3.org/1999/xlink">source</p>'
+            . '<svg xmlns="http://www.w3.org/2000/svg" data-pandoc-iframe-src="true"><image xlink:href="./cover.png" data-pandoc-image-map-area="true"></image></svg>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/reserved-data-attribute-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article data-source="legacy" aria-label="Review packet"><p data-review="keep">source</p><svg xmlns="http://www.w3.org/2000/svg"><image xlink:href="https://source.example.test/import/posts/cover.png"></image></svg></article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['article', 'image', 'p', 'svg'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([
+            'data-pandoc-fragment-root',
+            'data-pandoc-iframe-src',
+            'data-pandoc-image-map-area',
+            'data-pandoc-link-rel',
+            'data-pandoc-meta-name',
+            'xmlns',
+            'xmlns:xlink',
+        ], $summary['filteredAttributes']);
+        $t->same(['unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same([
+            'data-source' => 'legacy',
+            'aria-label' => 'Review packet',
+        ], $nodes[0]['attrs']);
+        $t->same(['data-review' => 'keep'], $nodes[0]['children'][0]['attrs']);
+        $t->same(['xlink:href' => 'https://source.example.test/import/posts/cover.png'], $nodes[0]['children'][1]['children'][0]['attrs']);
+        $t->same('/migration/reserved-data-attribute-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach (['data-pandoc-', 'http://www.w3.org/1999/xhtml', 'xmlns:xlink'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected source-owned reserved attribute to be stripped: ' . $blocked);
+        }
+    },
     'rejects unsafe fragment declarations before libxml can repair them away' => static function (TestRunner $t): void {
         $safe = Html5DomFragment::fromHtml('<p data-source="review">Safe &amp; bounded</p>');
 

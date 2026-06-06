@@ -35,7 +35,7 @@ $source = <<<HTML
 <link rel="preload" as="image" href="./preload-cover.png">
 <meta http-equiv="refresh" content="5; url=./refresh-target.html">
 <meta http-equiv="refresh" content="0; url=java&#10;script:alert(1)">
-<article id="legacy-post-42" data-source="html-export">
+<article id="legacy-post-42" data-source="html-export" data-pandoc-link-rel="source-spoof" data-pandoc-meta-name="source-spoof" xmlns="http://www.w3.org/1999/xhtml">
   <h1>Imported source packet</h1>
   <!--review--->
   <p>AT&amp;T &lt;review&gt; text<br>keeps its line break with a <a href=" ../media/source.html#note&#10;" target="_blank" rel="opener" download="source.html">source note</a>.</p>
@@ -98,7 +98,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('HTML5 DOM fragment self-test missing expected snippet: ' . $expected);
         }
     }
-    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region'] as $blocked) {
+    foreach (['<base', '<link', '<meta', '<iframe', '<map', '<area', 'srcdoc=', '<script', '<input', 'target=', 'download=', 'rel="opener"', 'javascript:', 'ja/**/vascript', 'inactive.example', 'legacy.css', 'preload-cover.png', 'mailto:bad@example.test', 'social-cover.png', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'Bad frame', 'Bad map region', 'source-spoof', 'http://www.w3.org/1999/xhtml'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }

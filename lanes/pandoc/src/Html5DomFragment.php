@@ -1637,7 +1637,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            if ($mode === 'html' && self::isBlockedAttribute($name)) {
+            if ($mode === 'html' && self::isBlockedAttribute($name, $foreignContext)) {
                 $diagnostics[] = [
                     'code' => 'unsafe-attribute',
                     'tag' => $tagName,
@@ -1839,7 +1839,7 @@ final class Html5DomFragment
             && ($parent->lookupNamespaceURI(null) ?? '') !== '';
     }
 
-    private static function isBlockedAttribute(string $name): bool
+    private static function isBlockedAttribute(string $name, ?string $foreignContext): bool
     {
         $lower = strtolower($name);
 
@@ -1849,7 +1849,8 @@ final class Html5DomFragment
             || $lower === 'style'
             || $lower === 'srcdoc'
             || $lower === 'target'
-            || $lower === 'data-pandoc-fragment-root';
+            || ($foreignContext === null && ($lower === 'xmlns' || str_starts_with($lower, 'xmlns:')))
+            || str_starts_with($lower, 'data-pandoc-');
     }
 
     /**
