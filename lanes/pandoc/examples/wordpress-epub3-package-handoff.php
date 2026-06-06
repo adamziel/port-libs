@@ -387,6 +387,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['package']['prefixBindings'][0]['prefix'] ?? null) !== 'schema') {
         throw new RuntimeException('Expected EPUB import report to expose OPF prefix bindings');
     }
+    if (($result['metadata']['metaProperties']['schema:accessibilitySummary'][0]['propertyVocabulary']['iri'] ?? null) !== 'https://schema.org/accessibilitySummary') {
+        throw new RuntimeException('Expected EPUB metadata properties to resolve package prefix vocabulary IRIs');
+    }
     if ($result['spine'][0]['part'] !== '/EPUB/text/chapter.xhtml') {
         throw new RuntimeException('Expected spine chapter part to resolve relative to the OPF');
     }
@@ -611,11 +614,20 @@ XML;
     if (($result['package']['id'] ?? null) !== 'source-package' || ($result['package']['refinements']['schema:name'][0]['text'] ?? null) !== 'WordPress source package record') {
         throw new RuntimeException('Expected EPUB OPF package-level refinements to remain reviewable');
     }
+    if (($result['package']['refinements']['schema:name'][0]['propertyVocabulary']['iri'] ?? null) !== 'https://schema.org/name') {
+        throw new RuntimeException('Expected EPUB package-level refinements to expose resolved vocabulary IRIs');
+    }
     if (($result['manifest'][1]['refinements']['schema:name'][0]['text'] ?? null) !== 'Source chapter publication resource') {
         throw new RuntimeException('Expected EPUB manifest resource refinements to attach to publication resources');
     }
+    if (($result['manifest'][1]['refinements']['schema:name'][0]['propertyVocabulary']['iri'] ?? null) !== 'https://schema.org/name') {
+        throw new RuntimeException('Expected EPUB manifest refinements to expose resolved vocabulary IRIs');
+    }
     if (($result['spineProperties']['id'] ?? null) !== 'source-spine' || ($result['spineProperties']['refinements']['schema:position'][0]['text'] ?? null) !== 'primary reading order') {
         throw new RuntimeException('Expected EPUB spine-level refinements to remain reviewable');
+    }
+    if (($result['spineProperties']['refinements']['schema:position'][0]['propertyVocabulary']['iri'] ?? null) !== 'https://schema.org/position') {
+        throw new RuntimeException('Expected EPUB spine refinements to expose resolved vocabulary IRIs');
     }
     if (($result['spine'][0]['id'] ?? null) !== 'chapter-spine' || ($result['spine'][0]['refinements']['rendition:viewport'][0]['text'] ?? null) !== 'width=1024,height=768') {
         throw new RuntimeException('Expected EPUB spine itemref refinements to remain attached to the reading-order item');
@@ -899,6 +911,7 @@ echo 'containerRemoteDiagnostics=' . count($result['container']['linkDiagnostics
 echo 'containerCfiPath=' . ($result['container']['links'][2]['epubCfi']['path'] ?? '') . "\n";
 echo 'opfPrefixes=' . implode(',', array_keys($result['package']['prefixes'] ?? [])) . "\n";
 echo 'schemaPrefix=' . ($result['package']['prefixes']['schema'] ?? '') . "\n";
+echo 'metadataVocabularyResolved=' . ($result['metadata']['vocabulary']['resolvedPropertyCount'] ?? 0) . "\n";
 echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'pageProgressionDirection=' . ($result['spineProperties']['pageProgressionDirection'] ?? '') . "\n";
 echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'yes' : 'no') . "\n";

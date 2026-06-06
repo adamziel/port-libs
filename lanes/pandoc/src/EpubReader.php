@@ -24,6 +24,14 @@ final class EpubReader
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
     public const SMIL_MEDIA_TYPE = 'application/smil+xml';
     public const IDPF_FONT_OBFUSCATION_ALGORITHM = 'http://www.idpf.org/2008/embedding';
+    private const RESERVED_PACKAGE_PREFIXES = [
+        'a11y' => 'http://www.idpf.org/epub/vocab/package/a11y/#',
+        'dcterms' => 'http://purl.org/dc/terms/',
+        'media' => 'http://www.idpf.org/epub/vocab/overlays/#',
+        'rendition' => 'http://www.idpf.org/vocab/rendition/#',
+        'schema' => 'http://schema.org/',
+        'xsd' => 'http://www.w3.org/2001/XMLSchema#',
+    ];
 
     /**
      * @return array{
@@ -469,7 +477,7 @@ final class EpubReader
 
         $uniqueIdentifier = trim($root->getAttribute('unique-identifier'));
         $prefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
-        $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier);
+        $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier, true, $prefixReport['bindingsByPrefix']);
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $packageId = self::nullableAttribute($root, 'id');
         $manifestById = $this->readManifest($package, $opfPart, $manifestElement, $refinementsById);
@@ -477,7 +485,7 @@ final class EpubReader
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
         $metadata = $this->resolveMetadataLinks($package, $opfPart, $metadata, $manifestById);
         $guide = $this->readGuide($package, $opfPart, self::firstChildElement($root, 'guide', self::OPF_NS), $manifestById);
-        $collections = $this->readCollections($package, $opfPart, $root, $manifestById);
+        $collections = $this->readCollections($package, $opfPart, $root, $manifestById, $prefixReport['bindingsByPrefix']);
         $bindings = $this->readBindings($package, self::firstChildElement($root, 'bindings', self::OPF_NS), $manifestById);
         $spineProperties = self::readSpineProperties($spineElement, $refinementsById);
         $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById);
@@ -675,7 +683,8 @@ final class EpubReader
         $metadata = [];
 
         if ($metadataElement instanceof \DOMElement) {
-            $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier);
+            $alternatePrefixReport = self::packagePrefixReport(trim($root->getAttribute('prefix')));
+            $metadata = $this->readMetadata($metadataElement, $uniqueIdentifier, true, $alternatePrefixReport['bindingsByPrefix']);
         } else {
             $summary['diagnostics'][] = [
                 'type' => 'missing-alternate-rendition-metadata',
@@ -839,7 +848,8 @@ final class EpubReader
     private function readMetadata(
         \DOMElement $metadataElement,
         string $uniqueIdentifier,
-        bool $requireUniqueIdentifier = true
+        bool $requireUniqueIdentifier = true,
+        array $prefixBindings = []
     ): array
     {
         $dc = [];
@@ -894,6 +904,7 @@ final class EpubReader
             $name = trim($child->getAttribute('name'));
             $entry = [
                 'property' => $property === '' ? null : $property,
+                'propertyVocabulary' => self::metadataPropertyVocabulary($property === '' ? null : $property, $prefixBindings),
                 'name' => $name === '' ? null : $name,
                 'content' => self::nullableAttribute($child, 'content'),
                 'refines' => self::nullableAttribute($child, 'refines'),
@@ -954,6 +965,7 @@ final class EpubReader
             'coverItemId' => $metaNames['cover'][0]['content'] ?? null,
             'dc' => $dc,
             'metaProperties' => $metaProperties,
+            'vocabulary' => self::metadataVocabularyReport($metaProperties, $prefixBindings),
             'metaNames' => $metaNames,
             'refinementsById' => $refinementsById,
             'links' => $links,
@@ -963,6 +975,155 @@ final class EpubReader
         $metadata['accessibility'] = self::accessibilityMetadataReport($metadata);
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, string> $prefixBindings
+     *
+     * @return ?array<string, mixed>
+     */
+    private static function metadataPropertyVocabulary(?string $property, array $prefixBindings): ?array
+    {
+        $prefixBindings = self::metadataVocabularyPrefixBindings($prefixBindings);
+        $raw = is_string($property) ? trim($property) : '';
+        if ($raw === '') {
+            return null;
+        }
+
+        $diagnostics = [];
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):(.+)$/', $raw, $matches) !== 1) {
+            return [
+                'raw' => $raw,
+                'prefixed' => false,
+                'prefix' => null,
+                'name' => $raw,
+                'localName' => $raw,
+                'bindingIri' => null,
+                'iri' => null,
+                'resolved' => false,
+                'diagnostics' => [],
+            ];
+        }
+
+        $prefix = $matches[1];
+        $localName = $matches[2];
+        $bindingIri = isset($prefixBindings[$prefix]) ? (string) $prefixBindings[$prefix] : null;
+        if ($bindingIri === null || $bindingIri === '') {
+            $diagnostics[] = [
+                'type' => 'unknown-package-prefix',
+                'prefix' => $prefix,
+                'property' => $raw,
+                'message' => 'EPUB OPF metadata property uses a prefix that is not declared on the package element',
+            ];
+        }
+
+        return [
+            'raw' => $raw,
+            'prefixed' => true,
+            'prefix' => $prefix,
+            'name' => $localName,
+            'localName' => $localName,
+            'bindingIri' => $bindingIri,
+            'iri' => $bindingIri === null || $bindingIri === '' ? null : $bindingIri . $localName,
+            'resolved' => $bindingIri !== null && $bindingIri !== '',
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $metaProperties
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataVocabularyReport(array $metaProperties, array $prefixBindings): array
+    {
+        $prefixBindings = self::metadataVocabularyPrefixBindings($prefixBindings);
+        $resolved = [];
+        $unresolved = [];
+        $byPrefix = [];
+        $diagnostics = [];
+
+        foreach ($metaProperties as $property => $entries) {
+            foreach ($entries as $index => $entry) {
+                $term = is_array($entry['propertyVocabulary'] ?? null)
+                    ? $entry['propertyVocabulary']
+                    : self::metadataPropertyVocabulary((string) $property, $prefixBindings);
+                if (!is_array($term) || ($term['prefixed'] ?? false) !== true) {
+                    continue;
+                }
+
+                $summary = [
+                    'property' => (string) $property,
+                    'entryIndex' => $index,
+                    'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                    'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+                    'text' => self::metadataEntryValue($entry),
+                    'vocabulary' => $term,
+                ];
+
+                $prefix = is_string($term['prefix'] ?? null) ? $term['prefix'] : '';
+                if ($prefix !== '') {
+                    if (!isset($byPrefix[$prefix])) {
+                        $byPrefix[$prefix] = [
+                            'prefix' => $prefix,
+                            'bindingIri' => is_string($term['bindingIri'] ?? null) ? $term['bindingIri'] : null,
+                            'entryCount' => 0,
+                            'properties' => [],
+                            'resolvedCount' => 0,
+                            'unresolvedCount' => 0,
+                        ];
+                    }
+
+                    ++$byPrefix[$prefix]['entryCount'];
+                    $byPrefix[$prefix]['properties'][] = (string) $property;
+                    if (($term['resolved'] ?? false) === true) {
+                        ++$byPrefix[$prefix]['resolvedCount'];
+                    } else {
+                        ++$byPrefix[$prefix]['unresolvedCount'];
+                    }
+                }
+
+                if (($term['resolved'] ?? false) === true) {
+                    $resolved[] = $summary;
+                } else {
+                    $unresolved[] = $summary;
+                    foreach ($term['diagnostics'] ?? [] as $diagnostic) {
+                        if (is_array($diagnostic)) {
+                            $diagnostics[] = [
+                                'property' => (string) $property,
+                                'entryIndex' => $index,
+                            ] + $diagnostic;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($byPrefix as $prefix => $summary) {
+            $byPrefix[$prefix]['properties'] = array_values(array_unique($summary['properties']));
+        }
+
+        return [
+            'prefixes' => $prefixBindings,
+            'present' => $resolved !== [] || $unresolved !== [],
+            'resolvedPropertyCount' => count($resolved),
+            'unresolvedPropertyCount' => count($unresolved),
+            'resolvedProperties' => $resolved,
+            'unresolvedProperties' => $unresolved,
+            'byPrefix' => $byPrefix,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, string>
+     */
+    private static function metadataVocabularyPrefixBindings(array $prefixBindings): array
+    {
+        return array_replace(self::RESERVED_PACKAGE_PREFIXES, $prefixBindings);
     }
 
     /**
@@ -1094,6 +1255,7 @@ final class EpubReader
 
                 $refinements[$subject][$property][] = [
                     'property' => $property,
+                    'propertyVocabulary' => is_array($entry['propertyVocabulary'] ?? null) ? $entry['propertyVocabulary'] : null,
                     'subjectId' => $subject,
                     'refines' => (string) ($entry['refines'] ?? ''),
                     'text' => (string) ($entry['text'] ?? ''),
@@ -3655,12 +3817,13 @@ final class EpubReader
         ZipPackage $package,
         string $opfPart,
         \DOMElement $packageElement,
-        array $manifestById
+        array $manifestById,
+        array $prefixBindings
     ): array {
         $manifestByPart = self::manifestByPart($manifestById);
         $collections = [];
         foreach (self::childElements($packageElement, 'collection', self::OPF_NS) as $collectionElement) {
-            $collections[] = $this->readCollectionElement($package, $opfPart, $collectionElement, $manifestByPart);
+            $collections[] = $this->readCollectionElement($package, $opfPart, $collectionElement, $manifestByPart, $prefixBindings);
         }
 
         return $collections;
@@ -3675,7 +3838,8 @@ final class EpubReader
         ZipPackage $package,
         string $opfPart,
         \DOMElement $collectionElement,
-        array $manifestByPart
+        array $manifestByPart,
+        array $prefixBindings
     ): array {
         $links = [];
         foreach (self::childElements($collectionElement, 'link', self::OPF_NS) as $linkElement) {
@@ -3684,7 +3848,7 @@ final class EpubReader
 
         $children = [];
         foreach (self::childElements($collectionElement, 'collection', self::OPF_NS) as $childCollection) {
-            $children[] = $this->readCollectionElement($package, $opfPart, $childCollection, $manifestByPart);
+            $children[] = $this->readCollectionElement($package, $opfPart, $childCollection, $manifestByPart, $prefixBindings);
         }
 
         $metadataElement = self::firstChildElement($collectionElement, 'metadata', self::OPF_NS);
@@ -3694,7 +3858,7 @@ final class EpubReader
             'role' => self::nullableAttribute($collectionElement, 'role'),
             'language' => self::xmlLang($collectionElement),
             'dir' => self::nullableAttribute($collectionElement, 'dir'),
-            'metadata' => $metadataElement instanceof \DOMElement ? $this->readMetadata($metadataElement, '', false) : [],
+            'metadata' => $metadataElement instanceof \DOMElement ? $this->readMetadata($metadataElement, '', false, $prefixBindings) : [],
             'links' => $links,
             'children' => $children,
         ];

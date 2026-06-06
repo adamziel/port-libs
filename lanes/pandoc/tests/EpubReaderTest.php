@@ -510,6 +510,50 @@ XML;
         $t->contains('bad-prefix', $package['prefixDiagnostics'][0]['value']);
         $t->same($package, $result['importReport']['package']);
     },
+    'resolves OPF metadata property vocabulary terms from package prefixes' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithVocabulary = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="schema: https://schema.org/ dcterms: http://purl.org/dc/terms/">',
+            $opfXml
+        );
+        $opfWithVocabulary = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta property="schema:accessibilitySummary">Vocabulary review summary</meta>'
+            . '<meta refines="#package-record" property="schema:name">Vocabulary package record</meta>'
+            . '<meta refines="#chapter-1" property="schema:encodingFormat">application/xhtml+xml</meta>'
+            . '<meta refines="#reading-order" property="schema:position">primary sequence</meta>'
+            . '<meta property="unknown:reviewFlag">unresolved prefix remains visible</meta>',
+            $opfWithVocabulary
+        );
+        $opfWithVocabulary = str_replace(
+            '<spine toc="toc">',
+            '<spine id="reading-order" toc="toc">',
+            $opfWithVocabulary
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithVocabulary));
+        $metadata = $result['metadata'];
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $t->same('https://schema.org/accessibilitySummary', $metadata['metaProperties']['schema:accessibilitySummary'][0]['propertyVocabulary']['iri']);
+        $t->same('http://purl.org/dc/terms/modified', $metadata['metaProperties']['dcterms:modified'][0]['propertyVocabulary']['iri']);
+        $t->same('https://schema.org/name', $result['package']['refinements']['schema:name'][0]['propertyVocabulary']['iri']);
+        $t->same('https://schema.org/encodingFormat', $manifestById['chapter-1']['refinements']['schema:encodingFormat'][0]['propertyVocabulary']['iri']);
+        $t->same('https://schema.org/position', $result['spineProperties']['refinements']['schema:position'][0]['propertyVocabulary']['iri']);
+        $t->same(false, $metadata['metaProperties']['unknown:reviewFlag'][0]['propertyVocabulary']['resolved']);
+        $t->same('unknown', $metadata['metaProperties']['unknown:reviewFlag'][0]['propertyVocabulary']['prefix']);
+        $t->same('unknown-package-prefix', $metadata['metaProperties']['unknown:reviewFlag'][0]['propertyVocabulary']['diagnostics'][0]['type']);
+        $t->same(5, $metadata['vocabulary']['resolvedPropertyCount']);
+        $t->same(1, $metadata['vocabulary']['unresolvedPropertyCount']);
+        $t->same(4, $metadata['vocabulary']['byPrefix']['schema']['entryCount']);
+        $t->same(1, $metadata['vocabulary']['byPrefix']['dcterms']['entryCount']);
+        $t->same($metadata['vocabulary'], $result['importReport']['metadata']['vocabulary']);
+        $t->same($metadata['vocabulary'], $result['document']->attr('metadata')['vocabulary']);
+    },
     'reports OPF unique identifier binding and diagnostics for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reader = new EpubReader();
         $result = $reader->readPackage($buildEpubPackage());
