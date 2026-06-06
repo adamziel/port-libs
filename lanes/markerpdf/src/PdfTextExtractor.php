@@ -31910,6 +31910,7 @@ final class PdfTextExtractor
         array $cidRanges = []
     ): void
     {
+        $block = $this->cMapCidOperatorBlockData($block);
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
             return;
         }
@@ -31950,6 +31951,7 @@ final class PdfTextExtractor
         ?array &$cidRanges = null
     ): void
     {
+        $block = $this->cMapCidOperatorBlockData($block);
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*([+-]?\d+)/s', $block, $ranges, PREG_SET_ORDER)) {
             return;
         }
@@ -32220,6 +32222,35 @@ final class PdfTextExtractor
 
                 $clean .= str_repeat(' ', max(1, $end - $index + 1));
                 $index = $end + 1;
+                continue;
+            }
+
+            $clean .= $char;
+            $index++;
+        }
+
+        return $clean;
+    }
+
+    private function cMapCidOperatorBlockData(string $block): string
+    {
+        $block = $this->cMapOperatorBlockData($block);
+        $clean = '';
+        $index = 0;
+        $length = strlen($block);
+
+        while ($index < $length) {
+            $char = $block[$index];
+            if ($char === '[') {
+                $body = $this->readPdfArrayAt($block, $index);
+                if ($body === null) {
+                    $clean .= ' ';
+                    $index++;
+                    continue;
+                }
+
+                $clean .= str_repeat(' ', max(1, strlen($body) + 2));
+                $index += strlen($body) + 2;
                 continue;
             }
 
