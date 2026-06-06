@@ -10098,16 +10098,29 @@ final class PdfMetadataExtractor
                 break;
             }
 
-            $end = $this->xmpPacketInstructionOffset($xml, 'end', $beginEnd);
-            if ($end === null) {
-                break;
+            $endSearchOffset = $beginEnd;
+            while (true) {
+                $end = $this->xmpPacketInstructionOffset($xml, 'end', $endSearchOffset);
+                if ($end === null) {
+                    break 2;
+                }
+
+                if (!$this->xmpPacketInstructionInsideBoundedXmlRoot($xml, $beginEnd, $end)) {
+                    break;
+                }
+
+                $endEnd = $this->xmlProcessingInstructionEndOffset($xml, $end);
+                if ($endEnd === null) {
+                    break 2;
+                }
+                $endSearchOffset = $endEnd;
             }
 
             $nextBegin = $this->xmpPacketInstructionOffset($xml, 'begin', $beginEnd);
             if (
                 $nextBegin !== null
                 && $nextBegin < $end
-                && !$this->xmpPacketInstructionInsideBoundedXmlRoot($xml, $beginEnd, $nextBegin, $end)
+                && !$this->xmpPacketInstructionInsideBoundedXmlRoot($xml, $beginEnd, $nextBegin)
             ) {
                 $offset = $nextBegin;
                 continue;
@@ -10132,13 +10145,12 @@ final class PdfMetadataExtractor
     private function xmpPacketInstructionInsideBoundedXmlRoot(
         string $xml,
         int $packetStart,
-        int $instructionOffset,
-        int $packetEnd
+        int $instructionOffset
     ): bool {
         foreach (['xmpmeta', 'RDF'] as $localName) {
             for ($offset = $packetStart; $offset < $instructionOffset;) {
                 $entry = $this->boundedXmlRootCandidateEntry($xml, $localName, $offset);
-                if ($entry === null || $entry['start_offset'] >= $packetEnd) {
+                if ($entry === null) {
                     break;
                 }
 
@@ -10146,11 +10158,7 @@ final class PdfMetadataExtractor
                     break;
                 }
 
-                if (
-                    $entry['end_offset'] <= $packetEnd
-                    && $instructionOffset > $entry['start_offset']
-                    && $instructionOffset < $entry['end_offset']
-                ) {
+                if ($instructionOffset > $entry['start_offset'] && $instructionOffset < $entry['end_offset']) {
                     return true;
                 }
 
