@@ -629,6 +629,66 @@ XML;
         $t->contains('<h2 id="styled-packet-title">Styled packet title</h2>', $blocksHtml);
         $t->contains('<h3 id="section">!!!</h3>', $blocksHtml);
     },
+    'uses ODT heading bookmarks as explicit source anchors' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithParagraphHeading = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="StyledHeading" style:family="paragraph" style:display-name="Styled Heading" style:default-outline-level="2"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithHeadingBookmarks = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1"><text:bookmark-start text:name="Source Review Anchor"/>Heading from source bookmark<text:bookmark-end text:name="Source Review Anchor"/></text:h>
+      <text:p text:style-name="StyledHeading"><text:bookmark text:name="Styled Source Anchor"/>Styled heading from bookmark</text:p>
+      <text:h text:outline-level="2">Source Review Anchor</text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithHeadingBookmarks, null, $stylesWithParagraphHeading));
+        $headings = $result['document']->children;
+
+        $t->same(3, count($headings));
+        $t->same('heading', $headings[0]->type);
+        $t->same('source-review-anchor', $headings[0]->attr('id'));
+        $t->same('bookmark', $headings[0]->attr('odfHeadingAnchor')['source']);
+        $t->same('Source Review Anchor', $headings[0]->attr('odfHeadingAnchor')['bookmarkName']);
+        $t->same('source-review-anchor', $headings[0]->attr('attributes')['data-odf-heading-anchor-id']);
+        $t->same('Source Review Anchor', $headings[0]->attr('attributes')['data-odf-heading-bookmark-name']);
+        $t->same('Heading from source bookmark', $headings[0]->attr('text'));
+        $t->same(1, count($headings[0]->children));
+        $t->same('text', $headings[0]->children[0]->type);
+        $t->same('Heading from source bookmark', $headings[0]->children[0]->attr('text'));
+
+        $t->same('heading', $headings[1]->type);
+        $t->same(2, $headings[1]->attr('level'));
+        $t->same('styled-source-anchor', $headings[1]->attr('id'));
+        $t->same('Styled Source Anchor', $headings[1]->attr('odfHeadingAnchor')['bookmarkName']);
+        $t->same('StyledHeading', $headings[1]->attr('styleName'));
+        $t->same('Styled heading from bookmark', $headings[1]->attr('text'));
+        $t->same(1, count($headings[1]->children));
+
+        $t->same('source-review-anchor-1', $headings[2]->attr('id'));
+        $t->same('Source Review Anchor', $headings[2]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('# Heading from source bookmark {#source-review-anchor data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Source Review Anchor" data-odf-heading-anchor-id="source-review-anchor"}', $markdown);
+        $t->contains('## Styled heading from bookmark {#styled-source-anchor data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Styled Source Anchor" data-odf-heading-anchor-id="styled-source-anchor"}', $markdown);
+        $t->contains('## Source Review Anchor {#source-review-anchor-1}', $markdown);
+        $t->contains('<h1 id="source-review-anchor">Heading from source bookmark</h1>', $blocksHtml);
+        $t->contains('<h2 id="styled-source-anchor">Styled heading from bookmark</h2>', $blocksHtml);
+        $t->contains('<h2 id="source-review-anchor-1">Source Review Anchor</h2>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'class="anchor odf-bookmark"'), 'Heading bookmarks should become heading ids, not nested empty anchors');
+    },
     'maps ODT table names and protection metadata into review table handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedProtectedTable = <<<'XML'
 <office:document-content

@@ -660,13 +660,20 @@ final class OdfReader
         $level = self::intAttr($heading, self::TEXT_NS, 'outline-level', (int) ($style['headingLevel'] ?? 1));
         $level = max(1, min(6, $level));
         $inlines = $this->coalesceTextNodes($this->inlineNodes($heading, $catalog, $package));
+        $headingAnchor = $this->extractHeadingBookmarkAnchor($inlines);
+        $inlines = $headingAnchor['inlines'];
         $text = $this->plainInlineText($inlines);
         $attrs = [
             'level' => $level,
             'sourceFormat' => 'odt',
             'text' => $text,
-            'id' => $this->uniqueHeadingAnchor($text),
+            'id' => $headingAnchor['anchor'] === null
+                ? $this->uniqueHeadingAnchor($text)
+                : $this->uniqueHeadingAnchorFromBase($headingAnchor['anchor']['id']),
         ];
+        if ($headingAnchor['anchor'] !== null) {
+            $this->addHeadingBookmarkAnchorAttrs($attrs, $headingAnchor['anchor']);
+        }
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
             $attrs['style'] = $style;
@@ -713,7 +720,16 @@ final class OdfReader
         $headingLevel = (int) ($style['headingLevel'] ?? 0);
         if ($headingLevel > 0) {
             $attrs['level'] = max(1, min(6, $headingLevel));
-            $attrs['id'] = $this->uniqueHeadingAnchor($text);
+            $headingAnchor = $this->extractHeadingBookmarkAnchor($inlines);
+            $inlines = $headingAnchor['inlines'];
+            $text = $this->plainInlineText($inlines);
+            $attrs['text'] = $text;
+            $attrs['id'] = $headingAnchor['anchor'] === null
+                ? $this->uniqueHeadingAnchor($text)
+                : $this->uniqueHeadingAnchorFromBase($headingAnchor['anchor']['id']);
+            if ($headingAnchor['anchor'] !== null) {
+                $this->addHeadingBookmarkAnchorAttrs($attrs, $headingAnchor['anchor']);
+            }
 
             return new AstNode('heading', $attrs, $inlines);
         }
@@ -4677,6 +4693,53 @@ final class OdfReader
     }
 
     /**
+     * @param list<AstNode> $inlines
+     * @return array{inlines:list<AstNode>, anchor:?array{id:string, bookmarkName:string}}
+     */
+    private function extractHeadingBookmarkAnchor(array $inlines): array
+    {
+        $filtered = [];
+        $anchor = null;
+        foreach ($inlines as $node) {
+            if ($anchor === null && $this->nodeHasClass($node, 'odf-bookmark')) {
+                $id = (string) $node->attr('id', '');
+                $attributes = $node->attr('attributes', []);
+                $bookmarkName = is_array($attributes) ? (string) ($attributes['data-odf-bookmark-name'] ?? '') : '';
+                if ($id !== '' && $bookmarkName !== '') {
+                    $anchor = [
+                        'id' => $id,
+                        'bookmarkName' => $bookmarkName,
+                    ];
+                    continue;
+                }
+            }
+
+            $filtered[] = $node;
+        }
+
+        return [
+            'inlines' => $filtered,
+            'anchor' => $anchor,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array{id:string, bookmarkName:string} $anchor
+     */
+    private function addHeadingBookmarkAnchorAttrs(array &$attrs, array $anchor): void
+    {
+        $attrs['odfHeadingAnchor'] = [
+            'source' => 'bookmark',
+            'bookmarkName' => $anchor['bookmarkName'],
+            'id' => $attrs['id'],
+        ];
+        $attrs['attributes']['data-odf-heading-anchor-source'] = 'bookmark';
+        $attrs['attributes']['data-odf-heading-bookmark-name'] = $anchor['bookmarkName'];
+        $attrs['attributes']['data-odf-heading-anchor-id'] = $attrs['id'];
+    }
+
+    /**
      * @param list<AstNode> $nodes
      */
     private function plainInlineText(array $nodes): string
@@ -4884,6 +4947,13 @@ final class OdfReader
     private function uniqueHeadingAnchor(string $text): string
     {
         $base = self::headingAnchorBase($text);
+
+        return $this->uniqueHeadingAnchorFromBase($base);
+    }
+
+    private function uniqueHeadingAnchorFromBase(string $base): string
+    {
+        $base = $base === '' ? 'section' : $base;
         $seen = $this->headingAnchorUses[$base] ?? 0;
         $this->headingAnchorUses[$base] = $seen + 1;
 

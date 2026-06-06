@@ -132,7 +132,7 @@ $contentXml = <<<'XML'
         <text:user-field-decl text:name="Reviewer" office:value-type="string" office:string-value="Migration Desk"/>
         <text:user-field-decl text:name="SourcePackage" office:value-type="string" office:string-value="package-42"/>
       </text:user-field-decls>
-      <text:h text:outline-level="1" text:style-name="ImportHeading">ODT source packet</text:h>
+      <text:h text:outline-level="1" text:style-name="ImportHeading"><text:bookmark-start text:name="ODT source packet"/>ODT source packet<text:bookmark-end text:name="ODT source packet"/></text:h>
       <text:table-of-content text:name="Source Navigation" text:style-name="Contents_20_1" text:protected="true" text:protection-key="toc-review-key" text:protection-key-digest-algorithm="urn:odf:sha1">
         <text:table-of-content-source text:outline-level="2" text:relative-tab-stop-position="true" text:use-index-source-styles="true">
           <text:index-source-styles text:outline-level="1">
@@ -292,10 +292,16 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Expected ODT encrypted media to be listed in the import report');
     }
     if (($result['document']->children[0]->attr('id') ?? '') !== 'odt-source-packet') {
-        throw new RuntimeException('Expected ODT heading auto identifier to survive AST handoff');
+        throw new RuntimeException('Expected ODT heading bookmark identifier to survive AST handoff');
+    }
+    if (($result['document']->children[0]->attr('odfHeadingAnchor')['bookmarkName'] ?? '') !== 'ODT source packet') {
+        throw new RuntimeException('Expected ODT heading bookmark metadata to survive AST handoff');
     }
     if (!str_contains($blocks, '<h1 id="odt-source-packet">ODT source packet</h1>')) {
         throw new RuntimeException('Expected ODT heading to render as a WordPress heading block');
+    }
+    if (str_contains($blocks, '<h1 id="odt-source-packet"><span id="odt-source-packet"')) {
+        throw new RuntimeException('Expected ODT heading bookmark to avoid nested empty anchor output');
     }
     if (($result['importReport']['content']['tableOfContentsCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT table of contents to be counted in the import report');
