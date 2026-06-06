@@ -1630,6 +1630,10 @@ final class MarkerAppPreview
             return [];
         }
 
+        if ($this->pageLabelLimitsInvalidRange($value, $objects, $seen)) {
+            return [];
+        }
+
         $sections = [];
         $limits = $inheritedLimits;
         $localLimits = $this->pageLabelLimits($value, $objects, $seen);
@@ -1677,6 +1681,10 @@ final class MarkerAppPreview
             foreach ($this->pageLabelArrayElements($this->resolvePageLabelPdfValue($kids, $objects, $seen)) as $kid) {
                 $directKidBody = $this->pageLabelDictionaryToken($kid);
                 if ($directKidBody !== null) {
+                    if ($this->pageLabelLimitsInvalidRange($directKidBody, $objects, $seen)) {
+                        continue;
+                    }
+
                     $kidLocalLimits = $this->pageLabelLimits($directKidBody, $objects, $seen);
                     if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($directKidBody, $objects, $seen)) {
                         continue;
@@ -1710,6 +1718,10 @@ final class MarkerAppPreview
                 }
 
                 $kidSeen = [...$seen, $this->objectReferenceKey($objectId, $generation)];
+                if ($this->pageLabelLimitsInvalidRange($kidBody, $objects, $kidSeen)) {
+                    continue;
+                }
+
                 $kidLocalLimits = $this->pageLabelLimits($kidBody, $objects, $kidSeen);
                 if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidBody, $objects, $kidSeen)) {
                     continue;
@@ -1949,6 +1961,31 @@ final class MarkerAppPreview
         }
 
         return $lower > $upper;
+    }
+
+    /**
+     * @param array<int, array{generation: int, body: string}> $objects
+     * @param list<int|string> $seen
+     */
+    private function pageLabelLimitsInvalidRange(string $dict, array $objects, array $seen): bool
+    {
+        $limits = $this->valueAfterName($dict, 'Limits');
+        if ($limits === null) {
+            return false;
+        }
+
+        $elements = $this->pageLabelArrayElements($this->resolvePageLabelPdfValue($limits, $objects, $seen));
+        if (count($elements) !== 2) {
+            return false;
+        }
+
+        $lower = $this->pageLabelLimitOperand($elements[0], $objects, $seen);
+        $upper = $this->pageLabelLimitOperand($elements[1], $objects, $seen);
+        if ($lower === null || $upper === null) {
+            return false;
+        }
+
+        return $lower < 0 || $upper < 0 || $lower > $upper;
     }
 
     /**

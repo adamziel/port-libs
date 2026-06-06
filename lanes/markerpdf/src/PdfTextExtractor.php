@@ -11832,6 +11832,10 @@ final class PdfTextExtractor
         ?array $inheritedLimits = null
     ): array
     {
+        if ($this->pageLabelLimitsInvalidRange($dictionary, $objects)) {
+            return [];
+        }
+
         $limits = $inheritedLimits;
         $localLimits = $this->pageLabelLimits($dictionary, $objects);
         if ($localLimits === null && $this->pageLabelLimitsReversed($dictionary, $objects)) {
@@ -11858,6 +11862,10 @@ final class PdfTextExtractor
 
         foreach ($this->pageLabelKidDictionaryNodes($dictionary, $objects, $seen) as $kidDictionaryNode) {
             $kidDictionary = $kidDictionaryNode['dictionary'];
+            if ($this->pageLabelLimitsInvalidRange($kidDictionary, $objects)) {
+                continue;
+            }
+
             $kidLocalLimits = $this->pageLabelLimits($kidDictionary, $objects);
             if ($kidLocalLimits === null && $this->pageLabelLimitsReversed($kidDictionary, $objects)) {
                 continue;
@@ -12153,6 +12161,30 @@ final class PdfTextExtractor
         }
 
         return $lower > $upper;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function pageLabelLimitsInvalidRange(string $dictionary, array $objects): bool
+    {
+        $arrayBody = $this->pageLabelArrayValueAfterNameResolved($dictionary, 'Limits', $objects);
+        if ($arrayBody === null) {
+            return false;
+        }
+
+        $items = $this->pdfArrayItems($arrayBody);
+        if (count($items) !== 2) {
+            return false;
+        }
+
+        $lower = $this->pageLabelLimitOperand($items[0], $objects);
+        $upper = $this->pageLabelLimitOperand($items[1], $objects);
+        if ($lower === null || $upper === null) {
+            return false;
+        }
+
+        return $lower < 0 || $upper < 0 || $lower > $upper;
     }
 
     /**
