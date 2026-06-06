@@ -495,6 +495,14 @@ final class EpubReader
         $manifestById = self::attachMediaOverlayReferencesToManifest($manifestById, $mediaOverlays);
         $spineProperties = self::readSpineProperties($spineElement, $refinementsById, $linkedResourcesById);
         $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById, $linkedResourcesById);
+        $metadata['refinementSubjectSummary'] = self::metadataRefinementSubjectSummary(
+            $metadata,
+            $packageId,
+            $manifestById,
+            $spineProperties,
+            $spine,
+            $collections,
+        );
         $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $manifest = array_values($manifestById);
         $resourceProperties = self::resourcePropertyReport($manifest);
@@ -1287,6 +1295,197 @@ final class EpubReader
         }
 
         return is_array($refinementsById[$id] ?? null) ? $refinementsById[$id] : [];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $spineProperties
+     * @param list<array<string, mixed>> $spine
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataRefinementSubjectSummary(
+        array $metadata,
+        ?string $packageId,
+        array $manifestById,
+        array $spineProperties,
+        array $spine,
+        array $collections
+    ): array
+    {
+        $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
+        $knownSubjects = self::knownOpfSubjectIndex($metadata, $packageId, $manifestById, $spineProperties, $spine, $collections);
+        $subjectsById = [];
+        $subjects = [];
+        $diagnostics = [];
+        $refinementCount = 0;
+        $knownSubjectCount = 0;
+        $unknownSubjectCount = 0;
+
+        foreach ($refinementsById as $subjectId => $properties) {
+            if (!is_string($subjectId) || $subjectId === '' || !is_array($properties)) {
+                continue;
+            }
+
+            $subjectRefinementCount = 0;
+            $propertyNames = [];
+            foreach ($properties as $property => $entries) {
+                if (!is_array($entries)) {
+                    continue;
+                }
+
+                $propertyNames[] = (string) $property;
+                $subjectRefinementCount += count($entries);
+            }
+            $propertyNames = array_values(array_unique($propertyNames));
+            $refinementCount += $subjectRefinementCount;
+            $known = isset($knownSubjects[$subjectId]);
+            $knownSubject = $known ? $knownSubjects[$subjectId] : null;
+            $subjectDiagnostics = [];
+
+            if ($known) {
+                ++$knownSubjectCount;
+            } else {
+                ++$unknownSubjectCount;
+                $subjectDiagnostics[] = [
+                    'type' => 'unknown-metadata-refinement-subject',
+                    'subjectId' => $subjectId,
+                    'properties' => $propertyNames,
+                    'refinementCount' => $subjectRefinementCount,
+                    'message' => 'EPUB OPF metadata refinement references an id that is not present in the package, metadata, manifest, spine, or collection subjects',
+                ];
+            }
+
+            foreach ($subjectDiagnostics as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+
+            $subjects[] = $subjectId;
+            $subjectsById[$subjectId] = [
+                'id' => $subjectId,
+                'known' => $known,
+                'kind' => is_array($knownSubject) ? $knownSubject['kind'] : null,
+                'source' => is_array($knownSubject) ? $knownSubject['source'] : null,
+                'properties' => $propertyNames,
+                'refinementCount' => $subjectRefinementCount,
+                'diagnostics' => $subjectDiagnostics,
+            ];
+        }
+
+        return [
+            'present' => $subjects !== [],
+            'subjectCount' => count($subjects),
+            'refinementCount' => $refinementCount,
+            'knownSubjectCount' => $knownSubjectCount,
+            'unknownSubjectCount' => $unknownSubjectCount,
+            'subjects' => $subjects,
+            'knownSubjects' => array_values(array_filter(
+                $subjects,
+                static fn (string $subjectId): bool => isset($knownSubjects[$subjectId]),
+            )),
+            'unknownSubjects' => array_values(array_filter(
+                $subjects,
+                static fn (string $subjectId): bool => !isset($knownSubjects[$subjectId]),
+            )),
+            'subjectsById' => $subjectsById,
+            'knownSubjectIndex' => $knownSubjects,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $spineProperties
+     * @param list<array<string, mixed>> $spine
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return array<string, array{id:string, kind:string, source:string}>
+     */
+    private static function knownOpfSubjectIndex(
+        array $metadata,
+        ?string $packageId,
+        array $manifestById,
+        array $spineProperties,
+        array $spine,
+        array $collections
+    ): array
+    {
+        $subjects = [];
+        $add = static function (?string $id, string $kind, string $source) use (&$subjects): void {
+            if ($id === null || $id === '') {
+                return;
+            }
+
+            if (!isset($subjects[$id])) {
+                $subjects[$id] = [
+                    'id' => $id,
+                    'kind' => $kind,
+                    'source' => $source,
+                ];
+            }
+        };
+
+        foreach (($metadata['raw'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $id = is_string($entry['id'] ?? null) ? $entry['id'] : null;
+            if ($id === null || $id === '') {
+                continue;
+            }
+
+            $add($id, 'metadata', 'opf-metadata-' . (string) ($entry['type'] ?? 'item'));
+        }
+
+        $add($packageId, 'package', 'opf-package');
+
+        foreach ($manifestById as $id => $_item) {
+            $add((string) $id, 'manifest', 'opf-manifest');
+        }
+
+        $add(is_string($spineProperties['id'] ?? null) ? $spineProperties['id'] : null, 'spine', 'opf-spine');
+
+        foreach ($spine as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $add(is_string($item['id'] ?? null) ? $item['id'] : null, 'spine-item', 'opf-spine-itemref');
+        }
+
+        self::addCollectionSubjectIds($subjects, $collections);
+
+        return $subjects;
+    }
+
+    /**
+     * @param array<string, array{id:string, kind:string, source:string}> $subjects
+     * @param list<array<string, mixed>> $collections
+     */
+    private static function addCollectionSubjectIds(array &$subjects, array $collections): void
+    {
+        foreach ($collections as $collection) {
+            if (!is_array($collection)) {
+                continue;
+            }
+
+            $id = is_string($collection['id'] ?? null) ? $collection['id'] : null;
+            if ($id !== null && $id !== '' && !isset($subjects[$id])) {
+                $subjects[$id] = [
+                    'id' => $id,
+                    'kind' => 'collection',
+                    'source' => 'opf-collection',
+                ];
+            }
+
+            if (is_array($collection['children'] ?? null)) {
+                self::addCollectionSubjectIds($subjects, $collection['children']);
+            }
+        }
     }
 
     private static function metadataRefinementSubject(mixed $refines): ?string

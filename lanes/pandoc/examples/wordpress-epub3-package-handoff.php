@@ -66,6 +66,7 @@ $opfXml = <<<'XML'
     <meta refines="#chapter" property="schema:name">Source chapter publication resource</meta>
     <meta refines="#source-spine" property="schema:position">primary reading order</meta>
     <meta refines="#chapter-spine" property="rendition:viewport">width=1024,height=768</meta>
+    <meta refines="#missing-review-subject" property="schema:reviewStatus">needs source audit</meta>
     <meta name="cover" content="legacy-cover"/>
     <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
@@ -413,6 +414,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['metadata']['metaProperties']['schema:accessibilitySummary'][0]['propertyVocabulary']['iri'] ?? null) !== 'https://schema.org/accessibilitySummary') {
         throw new RuntimeException('Expected EPUB metadata properties to resolve package prefix vocabulary IRIs');
+    }
+    if (($result['metadata']['refinementSubjectSummary']['unknownSubjects'][0] ?? null) !== 'missing-review-subject') {
+        throw new RuntimeException('Expected dangling EPUB OPF metadata refinement subjects to remain visible for review');
+    }
+    if (($result['metadata']['refinementSubjectSummary']['diagnostics'][0]['type'] ?? null) !== 'unknown-metadata-refinement-subject') {
+        throw new RuntimeException('Expected dangling EPUB OPF metadata refinement subjects to produce review diagnostics');
+    }
+    if (($result['importReport']['metadata']['refinementSubjectSummary']['diagnostics'][0]['subjectId'] ?? null) !== 'missing-review-subject') {
+        throw new RuntimeException('Expected EPUB import report to expose dangling metadata refinement diagnostics');
     }
     if ($result['spine'][0]['part'] !== '/EPUB/text/chapter.xhtml') {
         throw new RuntimeException('Expected spine chapter part to resolve relative to the OPF');

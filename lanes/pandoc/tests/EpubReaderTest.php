@@ -1860,6 +1860,70 @@ XML;
         $t->same($refinements, $result['importReport']['metadata']['refinementsById']);
         $t->same($refinements, $result['document']->attr('metadata')['refinementsById']);
     },
+    'reports dangling OPF metadata refinement subjects for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithRefinementSubjects = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="schema: https://schema.org/">',
+            $opfXml
+        );
+        $opfWithRefinementSubjects = str_replace(
+            '<spine toc="toc">',
+            '<spine id="reading-order" toc="toc">',
+            $opfWithRefinementSubjects
+        );
+        $opfWithRefinementSubjects = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="chapter-entry" idref="chapter-1"/>',
+            $opfWithRefinementSubjects
+        );
+        $opfWithRefinementSubjects = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta id="source-rating" property="schema:ratingValue">5</meta>'
+            . '<meta refines="#source-rating" property="schema:ratingScale">stars</meta>'
+            . '<meta refines="#package-record" property="schema:name">Package review record</meta>'
+            . '<meta refines="#chapter-1" property="schema:name">Chapter review record</meta>'
+            . '<meta refines="#reading-order" property="schema:position">primary reading order</meta>'
+            . '<meta refines="#chapter-entry" property="schema:position">first spine entry</meta>'
+            . '<meta refines="#missing-review-subject" property="schema:reviewStatus">needs source audit</meta>',
+            $opfWithRefinementSubjects
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithRefinementSubjects));
+        $metadata = $result['metadata'];
+        $summary = $metadata['refinementSubjectSummary'];
+
+        $t->same(true, $summary['present']);
+        $t->same(6, $summary['subjectCount']);
+        $t->same(6, $summary['refinementCount']);
+        $t->same(5, $summary['knownSubjectCount']);
+        $t->same(1, $summary['unknownSubjectCount']);
+        $t->same(['source-rating', 'package-record', 'chapter-1', 'reading-order', 'chapter-entry', 'missing-review-subject'], $summary['subjects']);
+
+        $t->same(true, $summary['subjectsById']['source-rating']['known']);
+        $t->same('metadata', $summary['subjectsById']['source-rating']['kind']);
+        $t->same(['schema:ratingScale'], $summary['subjectsById']['source-rating']['properties']);
+        $t->same(true, $summary['subjectsById']['package-record']['known']);
+        $t->same('package', $summary['subjectsById']['package-record']['kind']);
+        $t->same(true, $summary['subjectsById']['chapter-1']['known']);
+        $t->same('manifest', $summary['subjectsById']['chapter-1']['kind']);
+        $t->same(true, $summary['subjectsById']['reading-order']['known']);
+        $t->same('spine', $summary['subjectsById']['reading-order']['kind']);
+        $t->same(true, $summary['subjectsById']['chapter-entry']['known']);
+        $t->same('spine-item', $summary['subjectsById']['chapter-entry']['kind']);
+
+        $missing = $summary['subjectsById']['missing-review-subject'];
+        $t->same(false, $missing['known']);
+        $t->same(null, $missing['kind']);
+        $t->same(['schema:reviewStatus'], $missing['properties']);
+        $t->same('unknown-metadata-refinement-subject', $missing['diagnostics'][0]['type']);
+        $t->same('missing-review-subject', $summary['diagnostics'][0]['subjectId']);
+        $t->same('schema:reviewStatus', $summary['diagnostics'][0]['properties'][0]);
+
+        $t->same('needs source audit', $metadata['refinementsById']['missing-review-subject']['schema:reviewStatus'][0]['text']);
+        $t->same($summary, $result['importReport']['metadata']['refinementSubjectSummary']);
+        $t->same($summary, $result['document']->attr('metadata')['refinementSubjectSummary']);
+    },
     'summarizes OPF title-type refinements and direction metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithTitleMetadata = str_replace(
             '<dc:title>WordPress Import EPUB</dc:title>',
