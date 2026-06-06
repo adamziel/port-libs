@@ -10980,14 +10980,7 @@ final class PdfMetadataExtractor
     private function xmpListValues(DOMDocument $document, string $namespace, string $localName): array
     {
         foreach ($this->xmpTopLevelPropertyElements($document, $namespace, $localName) as $element) {
-            $values = [];
-            foreach ($this->xmpRdfCollectionItems($element) as $item) {
-                $value = $this->xmpQualifiedTextValue($item);
-                if ($value !== null) {
-                    $values[] = $value;
-                }
-            }
-
+            $values = $this->xmpRdfCollectionTextValues($element);
             if ($values !== []) {
                 $cleanValues = $this->cleanList($values);
                 if ($cleanValues !== []) {
@@ -11027,6 +11020,83 @@ final class PdfMetadataExtractor
         }
 
         return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpRdfCollectionTextValues(DOMElement $element): array
+    {
+        $values = [];
+        foreach ($this->xmpRdfCollectionItems($element) as $item) {
+            $value = $this->xmpQualifiedTextValue($item);
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+
+        if ($values !== []) {
+            return $values;
+        }
+
+        return $this->xmpRdfAttributeMembershipValues($element);
+    }
+
+    /**
+     * RDF/XML property attributes may carry container membership values on a
+     * referenced blank-node/resource description when no child rdf:li nodes
+     * exist. Resolve only same-packet resource references.
+     *
+     * @param array<string, true> $seenResourceIds
+     * @return list<string>
+     */
+    private function xmpRdfAttributeMembershipValues(DOMElement $element, array $seenResourceIds = []): array
+    {
+        $values = $this->xmpDirectRdfAttributeMembershipValues($element);
+        if ($values !== []) {
+            return $values;
+        }
+
+        $target = $this->xmpResourceReferenceTargetElement($element, $seenResourceIds);
+        if ($target === null) {
+            return [];
+        }
+
+        return $this->xmpRdfAttributeMembershipValues($target, $seenResourceIds);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmpDirectRdfAttributeMembershipValues(DOMElement $element): array
+    {
+        if (!$element->hasAttributes()) {
+            return [];
+        }
+
+        $members = [];
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI !== self::NS_RDF) {
+                continue;
+            }
+
+            if (preg_match('/^_([1-9][0-9]*)$/', $attribute->localName, $match) !== 1) {
+                continue;
+            }
+
+            $value = $this->cleanText($attribute->value);
+            if ($value !== null) {
+                $members[(int) $match[1]] ??= $value;
+            }
+        }
+
+        if ($members === []) {
+            return [];
+        }
+
+        ksort($members, SORT_NUMERIC);
+
+        return array_values($members);
     }
 
     private function normalizedDateTimeUtc(string $value): ?string
