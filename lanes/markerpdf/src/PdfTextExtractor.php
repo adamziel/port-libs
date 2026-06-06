@@ -19115,7 +19115,9 @@ final class PdfTextExtractor
         }
 
         if ($token === 'BDC') {
-            return count($operands) === 2 && str_starts_with($operands[0], '/');
+            return count($operands) === 2
+                && $this->markedContentTagOperand($operands[0])
+                && $this->markedContentPropertyOperand($operands[1]);
         }
 
         if ($token === 'EMC') {
