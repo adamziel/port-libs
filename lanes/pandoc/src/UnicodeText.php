@@ -644,6 +644,56 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const ISO_8859_10_REPLACEMENTS = [
+        0xa1 => 0x0104,
+        0xa2 => 0x0112,
+        0xa3 => 0x0122,
+        0xa4 => 0x012a,
+        0xa5 => 0x0128,
+        0xa6 => 0x0136,
+        0xa8 => 0x013b,
+        0xa9 => 0x0110,
+        0xaa => 0x0160,
+        0xab => 0x0166,
+        0xac => 0x017d,
+        0xae => 0x016a,
+        0xaf => 0x014a,
+        0xb1 => 0x0105,
+        0xb2 => 0x0113,
+        0xb3 => 0x0123,
+        0xb4 => 0x012b,
+        0xb5 => 0x0129,
+        0xb6 => 0x0137,
+        0xb8 => 0x013c,
+        0xb9 => 0x0111,
+        0xba => 0x0161,
+        0xbb => 0x0167,
+        0xbc => 0x017e,
+        0xbd => 0x2015,
+        0xbe => 0x016b,
+        0xbf => 0x014b,
+        0xc0 => 0x0100,
+        0xc7 => 0x012e,
+        0xc8 => 0x010c,
+        0xca => 0x0118,
+        0xcc => 0x0116,
+        0xd1 => 0x0145,
+        0xd2 => 0x014c,
+        0xd7 => 0x0168,
+        0xd9 => 0x0172,
+        0xe0 => 0x0101,
+        0xe7 => 0x012f,
+        0xe8 => 0x010d,
+        0xea => 0x0119,
+        0xec => 0x0117,
+        0xf1 => 0x0146,
+        0xf2 => 0x014d,
+        0xf7 => 0x0169,
+        0xf9 => 0x0173,
+        0xff => 0x0138,
+    ];
+
+    /** @var array<int, int> */
     private const ISO_8859_6_REPLACEMENTS = [
         0xa0 => 0x00a0,
         0xa4 => 0x00a4,
@@ -1252,6 +1302,7 @@ final class UnicodeText
             || $normalized === 'iso-8859-6'
             || $normalized === 'iso-8859-7'
             || $normalized === 'iso-8859-8'
+            || $normalized === 'iso-8859-10'
             || $normalized === 'tis-620'
             || $normalized === 'iso-8859-15'
             || $normalized === 'macintosh'
@@ -1735,6 +1786,7 @@ final class UnicodeText
             'iso88597', 'iso88597:1987', 'latin7greek', 'isoir126', 'greek', 'greek8', 'elot928', 'ecma118', 'csisolatingreek' => 'iso-8859-7',
             'iso88598', 'iso885981999', 'latinhebrew', 'isoir138', 'hebrew', 'csisolatinhebrew',
             'iso88598i', 'iso88598e', 'logical', 'visual' => 'iso-8859-8',
+            'iso885910', 'iso885910:1992', 'latin6', 'latin-6', 'l6', 'isoir157', 'csisolatin6' => 'iso-8859-10',
             'tis620', 'tis6202533', 'cstis620', 'isoir166', 'iso885911', 'iso8859112001', 'thai' => 'tis-620',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
@@ -2146,6 +2198,10 @@ final class UnicodeText
             }
             if ($encoding === 'iso-8859-4' && isset(self::ISO_8859_4_REPLACEMENTS[$byte])) {
                 $out .= self::fromCodepoint(self::ISO_8859_4_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'iso-8859-10' && isset(self::ISO_8859_10_REPLACEMENTS[$byte])) {
+                $out .= self::fromCodepoint(self::ISO_8859_10_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'iso-8859-6' && $byte >= 0xa0) {
