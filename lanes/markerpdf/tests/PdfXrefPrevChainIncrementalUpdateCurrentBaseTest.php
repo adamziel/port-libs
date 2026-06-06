@@ -238,6 +238,24 @@ $xrefPrevChainEmbeddedFilesCurrentBasePdf = static function (): string {
     return $pdf;
 };
 
+$xrefPrevChainPlusSignedPrevEmbeddedFilesPdf = static function () use ($xrefPrevChainEmbeddedFilesCurrentBasePdf): string {
+    $pdf = $xrefPrevChainEmbeddedFilesCurrentBasePdf();
+    $patched = preg_replace('/\/Prev\s+(\d+)\s+\/Index/', '/Prev +$1 /Index', $pdf, 1);
+    if (!is_string($patched)) {
+        throw new RuntimeException('Unable to add plus-signed /Prev operand to embedded-file fixture.');
+    }
+
+    $currentPayload = '<wp-export><post id="current-prev-attachment"/></wp-export>';
+    $currentLength = strlen($currentPayload);
+    $patched = str_replace(
+        '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . $currentLength . " >>\nstream\n{$currentPayload}\nendstream",
+        '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size +' . $currentLength . ' >> /Length ' . $currentLength . " >>\nstream\n{$currentPayload}\nendstream",
+        $patched
+    );
+
+    return $patched;
+};
+
 $xrefPrevChainMalformedIndexSameGenerationPdf = static function () use ($xrefPrevChainIncrementalUpdateCurrentBaseXmp): string {
     $staleContent = 'BT /F1 12 Tf 72 720 Td (Stale malformed index page) Tj ET';
     $currentContent = 'BT /F1 12 Tf 72 720 Td (Current malformed index page) Tj T* (Same generation offset owner) Tj ET';
@@ -2045,6 +2063,36 @@ return [
         $t->same(hash('sha256', '<wp-export><post id="current-prev-attachment"/></wp-export>'), $files[0]['content_sha256']);
         $t->true(is_string($encoded) && !str_contains($encoded, 'stale-source.xml'));
         $t->true(is_string($encoded) && !str_contains($encoded, 'stale-prev-attachment'));
+    },
+    'repairs embedded-file imports when xref-stream Prev uses a plus-signed integer operand' => static function (
+        TestRunner $t
+    ) use ($xrefPrevChainPlusSignedPrevEmbeddedFilesPdf): void {
+        $pdf = $xrefPrevChainPlusSignedPrevEmbeddedFilesPdf();
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $currentPayload = '<wp-export><post id="current-prev-attachment"/></wp-export>';
+
+        $t->same(1, count($files));
+        $t->same('current-source.xml', $files[0]['filename']);
+        $t->same('Current Prev chain attachment', $files[0]['description']);
+        $t->same($currentPayload, $files[0]['content']);
+        $t->same(strlen($currentPayload), $files[0]['size']);
+        $t->same(strlen($currentPayload), $files[0]['declared_size'] ?? null);
+        $t->same(hash('sha256', $currentPayload), $files[0]['content_sha256']);
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['current-source.xml'], $summary['filenames']);
+        $t->same('current-source.xml', $summary['attachments'][0]['filename']);
+        $t->same('Current Prev chain attachment', $summary['attachments'][0]['description']);
+        $t->same(strlen($currentPayload), $summary['attachments'][0]['declared_size'] ?? null);
+        $t->same(true, $summary['attachments'][0]['declared_size_matches'] ?? null);
+        $t->same(strlen($currentPayload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+        $t->true(str_contains($pdf, '/Prev +'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'stale-prev-attachment'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'stale-prev-attachment'));
     },
     'repairs malformed current xref-stream Index rows by direct offsets before same-generation metadata and attachments' => static function (
         TestRunner $t

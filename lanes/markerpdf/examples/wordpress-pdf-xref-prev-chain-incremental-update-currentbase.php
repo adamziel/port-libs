@@ -196,7 +196,7 @@ $attachmentPdf .= "xref\n"
 $addAttachmentObject(1, 1, '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 1 R >> >>');
 $addAttachmentObject(6, 1, '<< /Names [(current-source.xml) 10 1 R] >>');
 $addAttachmentObject(10, 1, '<< /Type /Filespec /F (current-source.xml) /Desc (Current Prev chain attachment) /AFRelationship /Source /EF << /F 11 1 R >> >>');
-$addAttachmentObject(11, 1, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
+$addAttachmentObject(11, 1, '<< /Type /EmbeddedFile /Subtype /text#2Fxml /Params << /Size +' . strlen($currentPayload) . ' >> /Length ' . strlen($currentPayload) . " >>\nstream\n{$currentPayload}\nendstream");
 
 $attachmentRows = ''
     . $xrefStreamRow(1, 0, 1)
@@ -210,7 +210,7 @@ if (!is_string($compressedAttachmentRows)) {
 
 $attachmentCurrentXrefOffset = strlen($attachmentPdf);
 $attachmentPdf .= "20 0 obj\n"
-    . '<< /Type /XRef /Size 21 /Root 1 1 R /Prev ' . $attachmentPreviousXrefOffset . ' /Index [1 1 6 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedAttachmentRows) . " >>\n"
+    . '<< /Type /XRef /Size 21 /Root 1 1 R /Prev +' . $attachmentPreviousXrefOffset . ' /Index [1 1 6 1 10 2] /W [1 4 1] /Filter /FlateDecode /Length ' . strlen($compressedAttachmentRows) . " >>\n"
     . "stream\n{$compressedAttachmentRows}\nendstream\nendobj\n"
     . "startxref\n{$attachmentCurrentXrefOffset}\n%%EOF";
 
@@ -795,8 +795,12 @@ echo '<!-- markerpdf-xref-prev-chain-incremental-update-smoke ' . htmlspecialcha
     'generation_mismatch_text_selected' => str_contains($mismatchPlainText, 'Metadata generation boundary'),
     'embedded_file_current_attachment_selected' => ($attachmentFiles[0]['filename'] ?? null) === 'current-source.xml',
     'embedded_file_current_payload_selected' => ($attachmentFiles[0]['content'] ?? null) === $currentPayload,
+    'embedded_file_plus_signed_declared_size_selected' => ($attachmentFiles[0]['declared_size'] ?? null) === strlen($currentPayload),
     'attachment_preflight_current_summary_selected' => ($attachmentSummary['filenames'] ?? []) === ['current-source.xml'],
     'attachment_preflight_current_bytes_selected' => ($attachmentSummary['total_bytes'] ?? null) === strlen($currentPayload),
+    'attachment_preflight_plus_signed_declared_size_selected' => ($attachmentSummary['attachments'][0]['declared_size'] ?? null) === strlen($currentPayload)
+        && ($attachmentSummary['attachments'][0]['declared_size_matches'] ?? null) === true,
+    'plus_signed_xref_prev_operand_used_for_attachment_import' => str_contains($attachmentPdf, '/Prev +'),
     'attachment_preflight_no_runtime_execution' => ($attachmentSummary['executes_python_or_models'] ?? null) === false
         && ($attachmentSummary['executes_external_pdf_tools'] ?? null) === false,
     'embedded_file_stale_prev_attachment_excluded' => is_string($attachmentEncoded)

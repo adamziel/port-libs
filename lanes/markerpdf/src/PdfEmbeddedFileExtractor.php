@@ -6273,7 +6273,7 @@ final class PdfEmbeddedFileExtractor
         }
 
         $resolved = trim($value);
-        if (preg_match('/^-?\d+$/', $resolved) !== 1) {
+        if (preg_match('/^[+-]?\d+$/', $resolved) !== 1) {
             return null;
         }
 
