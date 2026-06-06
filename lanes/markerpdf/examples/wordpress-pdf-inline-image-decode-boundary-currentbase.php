@@ -239,6 +239,48 @@ $wrappedTerminalFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/AHx /Fl] /D [0 1
 $wrappedTerminalFlatePayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed . $wrappedTerminalFlateDecodedSurplus)) . '>';
 $wrappedTerminalFlateCleanPayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed)) . '>';
 $identityCryptWrappedTerminalFlateDictionary = '/W 1 /H 1 /CS /G /BPC 8 /F [/Crypt /AHx /Fl] /DP [<< /Name /Identity >> null null] /D [0 1]';
+$noFloorNativeInlineCases = [
+    'ascii85' => [
+        'dictionary' => '/W 1 /H 1 /F /A85',
+        'payload_prefix' => $ascii85Encode('X', true),
+        'before' => 'Before A85 No Floor Inline Image',
+        'after' => 'After A85 No Floor Inline Image',
+        'leak' => 'A85 No Floor Inline Noise',
+    ],
+    'asciihex' => [
+        'dictionary' => '/W 1 /H 1 /F /AHx',
+        'payload_prefix' => '58>',
+        'before' => 'Before AHx No Floor Inline Image',
+        'after' => 'After AHx No Floor Inline Image',
+        'leak' => 'AHx No Floor Inline Noise',
+    ],
+    'flate' => [
+        'dictionary' => '/W 1 /H 1 /F /Fl',
+        'payload_prefix' => gzcompress('X', 0),
+        'before' => 'Before Flate No Floor Inline Image',
+        'after' => 'After Flate No Floor Inline Image',
+        'leak' => 'Flate No Floor Inline Noise',
+    ],
+    'lzw' => [
+        'dictionary' => '/W 1 /H 1 /F /LZW',
+        'payload_prefix' => $lzwLiteralEncode('X'),
+        'before' => 'Before LZW No Floor Inline Image',
+        'after' => 'After LZW No Floor Inline Image',
+        'leak' => 'LZW No Floor Inline Noise',
+    ],
+    'runlength' => [
+        'dictionary' => '/W 1 /H 1 /F /RL',
+        'payload_prefix' => $runLengthLiteralEncode('X', true),
+        'before' => 'Before RunLength No Floor Inline Image',
+        'after' => 'After RunLength No Floor Inline Image',
+        'leak' => 'RunLength No Floor Inline Noise',
+    ],
+];
+if (!is_string($noFloorNativeInlineCases['flate']['payload_prefix'])) {
+    throw new RuntimeException('Unable to build no-floor native Flate inline image fixture.');
+}
+$wrappedNoFloorTerminalFlateDecodedSurplus = 'ZZ EI BT /F1 12 Tf 72 488 Td (Wrapped No Floor Flate Inline Noise) Tj ET rawtail';
+$wrappedNoFloorTerminalFlatePayload = strtoupper(bin2hex($wrappedTerminalFlateCompressed . $wrappedNoFloorTerminalFlateDecodedSurplus)) . '>';
 
 $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . 'BI /W ' . strlen($imageRow) . ' /H 1 /CS /G /BPC 8 /F /Fl '
@@ -347,7 +389,18 @@ $content = "BT /F1 12 Tf 72 720 Td (Before DP Inline Image) Tj ET\n"
     . "BT /F1 12 Tf 72 508 Td (Before Identity Crypt Flate Inline) Tj ET\n"
     . "BI {$identityCryptFlateDictionary} ID "
     . $identityCryptFlatePostStreamSurplusPayload . "\nEI\n"
-    . "BT /F1 12 Tf 72 500 Td (After Identity Crypt Flate Inline) Tj ET\n"
+    . "BT /F1 12 Tf 72 500 Td (After Identity Crypt Flate Inline) Tj ET";
+
+foreach ($noFloorNativeInlineCases as $case) {
+    $payload = $case['payload_prefix']
+        . 'ZZ EI BT /F1 12 Tf 72 490 Td (' . $case['leak'] . ') Tj ET rawtail';
+    $content .= "\nBT /F1 12 Tf 72 488 Td (" . $case['before'] . ") Tj ET\n"
+        . 'BI ' . $case['dictionary'] . ' ID ' . $payload . "\nEI\n"
+        . "BT /F1 12 Tf 72 486 Td (" . $case['after'] . ') Tj ET';
+}
+$content .= "\nBT /F1 12 Tf 72 484 Td (Before Wrapped No Floor Flate Inline) Tj ET\n"
+    . "BI /W 1 /H 1 /F [/AHx /Fl] ID {$wrappedNoFloorTerminalFlatePayload}\nEI\n"
+    . "BT /F1 12 Tf 72 482 Td (After Wrapped No Floor Flate Inline) Tj ET\n"
     . "BT /F1 12 Tf 72 496 Td (Before Identity Crypt JPX Inline) Tj ET\n"
     . "BI {$identityCryptJpxDictionary} ID\n"
     . $identityCryptJpxPostEocSurplusPayload . "\nEI\n"
@@ -746,6 +799,29 @@ $identityCryptJpxCleanPreview = $renderer->inlineJpxColorKeyOutputPreviewRows(
     [],
     1
 );
+$noFloorNativeFlatePreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        $noFloorNativeInlineCases['flate']['dictionary'],
+        $noFloorNativeInlineCases['flate']['payload_prefix']
+            . 'ZZ EI BT /F1 12 Tf 72 490 Td (Flate No Floor Inline Noise) Tj ET rawtail',
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $noFloorNativeFlatePreviewRejected = true;
+}
+$wrappedNoFloorTerminalFlatePreviewRejected = false;
+try {
+    $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+        '/W 1 /H 1 /F [/AHx /Fl]',
+        $wrappedNoFloorTerminalFlatePayload,
+        [],
+        1
+    );
+} catch (InvalidArgumentException) {
+    $wrappedNoFloorTerminalFlatePreviewRejected = true;
+}
 $unsupportedCryptFilterPreviewRejected = false;
 try {
     $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
@@ -781,6 +857,17 @@ try {
     $malformedInlineJpxDecodeRejected = true;
 }
 
+$noFloorNativePayloadsExcluded = true;
+$noFloorNativePayloadsHaveFakeEi = true;
+foreach ($noFloorNativeInlineCases as $case) {
+    $payload = $case['payload_prefix']
+        . 'ZZ EI BT /F1 12 Tf 72 490 Td (' . $case['leak'] . ') Tj ET rawtail';
+    $noFloorNativePayloadsHaveFakeEi = $noFloorNativePayloadsHaveFakeEi && str_contains($payload, ' EI ');
+    $noFloorNativePayloadsExcluded = $noFloorNativePayloadsExcluded
+        && in_array($case['after'], $lines, true)
+        && !str_contains($plainText, $case['leak']);
+}
+
 echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialchars(json_encode([
     'executes_python_or_models' => false,
     'executes_external_pdf_tools' => false,
@@ -805,6 +892,10 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'fake_ei_inside_identity_crypt_flate_post_stream_surplus_payload' => str_contains($identityCryptFlatePostStreamSurplusPayload, ' EI '),
     'fake_ei_inside_identity_crypt_jpx_post_eoc_surplus_payload' => str_contains($identityCryptJpxPostEocSurplusPayload, ' EI '),
     'fake_ei_inside_direct_null_filter_samples' => str_contains($directNullFilterSamples, ' EI '),
+    'fake_ei_inside_no_floor_native_filter_payloads' => $noFloorNativePayloadsHaveFakeEi,
+    'fake_ei_inside_wrapped_no_floor_terminal_flate_decoded_surplus_payload' => str_contains($wrappedNoFloorTerminalFlateDecodedSurplus, ' EI '),
+    'wrapped_no_floor_terminal_flate_raw_payload_has_no_fake_ei' => !str_contains($wrappedNoFloorTerminalFlatePayload, ' EI ')
+        && !str_contains($wrappedNoFloorTerminalFlatePayload, 'ZZ EI'),
     'asciihex_surplus_eod_present' => str_contains($asciiHexSurplusPayload, '>'),
     'wrapped_jpx_prefix_surplus_first_eod_present' => str_contains($wrappedJpxPrefixSurplusPayload, '>ZZ EI'),
     'jpx_post_eoc_surplus_has_raw_eoc_before_fake_ei' => str_contains($jpxPostEocSurplusPayload, "\xFF\xD9ZZ EI"),
@@ -870,6 +961,18 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         'After Identity Crypt Inline',
         'Before Identity Crypt Flate Inline',
         'After Identity Crypt Flate Inline',
+        'Before A85 No Floor Inline Image',
+        'After A85 No Floor Inline Image',
+        'Before AHx No Floor Inline Image',
+        'After AHx No Floor Inline Image',
+        'Before Flate No Floor Inline Image',
+        'After Flate No Floor Inline Image',
+        'Before LZW No Floor Inline Image',
+        'After LZW No Floor Inline Image',
+        'Before RunLength No Floor Inline Image',
+        'After RunLength No Floor Inline Image',
+        'Before Wrapped No Floor Flate Inline',
+        'After Wrapped No Floor Flate Inline',
         'Before Identity Crypt JPX Inline',
         'After Identity Crypt JPX Inline',
     ],
@@ -986,6 +1089,14 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
     'flate_wrapped_jpx_no_colorspace_or_bpc_sample_floor' => !str_contains($flateWrappedJpxDictionary, '/CS')
         && !str_contains($flateWrappedJpxDictionary, '/BPC'),
     'flate_wrapped_jpx_decoded_preview_framing_complete' => $flateWrappedJpxBytes === "\xFF\x4F\xFF\xD9",
+    'no_floor_native_filter_payloads_excluded_until_real_ei' => $noFloorNativePayloadsExcluded
+        && !str_contains($plainText, 'ZZ EI')
+        && !str_contains($plainText, 'rawtail'),
+    'no_floor_native_filter_preview_remains_fail_closed' => $noFloorNativeFlatePreviewRejected,
+    'wrapped_no_floor_terminal_flate_payload_excluded_until_real_ei' => in_array('After Wrapped No Floor Flate Inline', $lines, true)
+        && !str_contains($plainText, 'Wrapped No Floor Flate Inline Noise')
+        && !str_contains($plainText, 'rawtail'),
+    'wrapped_no_floor_terminal_flate_preview_remains_fail_closed' => $wrappedNoFloorTerminalFlatePreviewRejected,
     'stacked_native_filter_surplus_payload_excluded_until_real_ei' => in_array('After Stacked Native Inline', $lines, true)
         && !str_contains($plainText, 'Stacked Native Inline Noise')
         && !str_contains($plainText, 'rawtail'),
@@ -1098,6 +1209,12 @@ echo '<!-- markerpdf-inline-image-decode-boundary-currentbase ' . htmlspecialcha
         && !str_contains($plainText, 'Identity Crypt Inline Noise')
         && !str_contains($plainText, 'Identity Crypt Flate Inline Noise')
         && !str_contains($plainText, 'Identity Crypt JPX Inline Noise')
+        && !str_contains($plainText, 'A85 No Floor Inline Noise')
+        && !str_contains($plainText, 'AHx No Floor Inline Noise')
+        && !str_contains($plainText, 'Flate No Floor Inline Noise')
+        && !str_contains($plainText, 'LZW No Floor Inline Noise')
+        && !str_contains($plainText, 'RunLength No Floor Inline Noise')
+        && !str_contains($plainText, 'Wrapped No Floor Flate Inline Noise')
         && !str_contains($plainText, 'rawtail'),
 ], JSON_UNESCAPED_SLASHES), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . " -->\n";
 

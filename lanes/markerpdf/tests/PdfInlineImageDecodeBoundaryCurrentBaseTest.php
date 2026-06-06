@@ -1183,6 +1183,133 @@ return [
         $t->true(!str_contains($plainText, 'ZZ EI'));
         $t->true(!str_contains($plainText, 'rawtail'));
     },
+    'keeps native filtered inline images without sample floors closed until real EI terminators' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf, $ascii85Encode, $lzwLiteralEncode, $runLengthLiteralEncode): void {
+        $extractor = new PdfTextExtractor();
+        $cases = [
+            'ASCII85' => [
+                '/W 1 /H 1 /F /A85',
+                $ascii85Encode('X', true),
+                'Before A85 No Floor Inline Image',
+                'After A85 No Floor Inline Image',
+                'A85 No Floor Inline Noise',
+            ],
+            'ASCIIHex' => [
+                '/W 1 /H 1 /F /AHx',
+                '58>',
+                'Before AHx No Floor Inline Image',
+                'After AHx No Floor Inline Image',
+                'AHx No Floor Inline Noise',
+            ],
+            'Flate' => [
+                '/W 1 /H 1 /F /Fl',
+                (static function (): string {
+                    $compressed = gzcompress('X', 0);
+                    if (!is_string($compressed)) {
+                        throw new RuntimeException('Unable to build no-floor Flate inline image fixture.');
+                    }
+
+                    return $compressed;
+                })(),
+                'Before Flate No Floor Inline Image',
+                'After Flate No Floor Inline Image',
+                'Flate No Floor Inline Noise',
+            ],
+            'LZW' => [
+                '/W 1 /H 1 /F /LZW',
+                $lzwLiteralEncode('X'),
+                'Before LZW No Floor Inline Image',
+                'After LZW No Floor Inline Image',
+                'LZW No Floor Inline Noise',
+            ],
+            'RunLength' => [
+                '/W 1 /H 1 /F /RL',
+                $runLengthLiteralEncode('X', true),
+                'Before RunLength No Floor Inline Image',
+                'After RunLength No Floor Inline Image',
+                'RunLength No Floor Inline Noise',
+            ],
+        ];
+
+        $content = '';
+        $expected = [];
+        foreach ($cases as [$dictionary, $payloadPrefix, $before, $after, $leak]) {
+            $payload = $payloadPrefix . "ZZ EI BT /F1 12 Tf 72 690 Td ({$leak}) Tj ET rawtail";
+            $content .= "BT /F1 12 Tf 72 720 Td ({$before}) Tj ET\n"
+                . "BI {$dictionary} ID {$payload}\nEI\n"
+                . "BT /F1 12 Tf 72 704 Td ({$after}) Tj ET\n";
+            $expected[] = $before;
+            $expected[] = $after;
+            $t->true(str_contains($payload, ' EI '));
+        }
+
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        foreach ($cases as [, , , , $leak]) {
+            $t->true(!str_contains($plainText, $leak));
+        }
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+
+        $renderer = new PdfImageRenderer();
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                '/W 1 /H 1 /F /Fl',
+                $cases['Flate'][1] . 'ZZ EI BT /F1 12 Tf 72 690 Td (Flate No Floor Inline Noise) Tj ET rawtail',
+                [],
+                1
+            )
+        );
+    },
+    'keeps wrapped terminal Flate inline images without sample floors closed until real EI terminators' => static function (TestRunner $t) use ($inlineImageDecodeBoundaryPdf): void {
+        $extractor = new PdfTextExtractor();
+        $compressed = gzcompress('K', 0);
+        if (!is_string($compressed)) {
+            throw new RuntimeException('Unable to build wrapped no-floor Flate inline image fixture.');
+        }
+
+        $decodedSurplus = 'ZZ EI BT /F1 12 Tf 72 690 Td (Wrapped No Floor Flate Inline Noise) Tj ET rawtail';
+        $payload = strtoupper(bin2hex($compressed . $decodedSurplus)) . '>';
+        $content = "BT /F1 12 Tf 72 720 Td (Before Wrapped No Floor Flate Inline) Tj ET\n"
+            . "BI /W 1 /H 1 /F [/AHx /Fl] ID {$payload}\nEI\n"
+            . "BT /F1 12 Tf 72 704 Td (After Wrapped No Floor Flate Inline) Tj ET";
+        $pdf = $inlineImageDecodeBoundaryPdf($content);
+        $plainText = $extractor->extractPlainText($pdf);
+        $expected = [
+            'Before Wrapped No Floor Flate Inline',
+            'After Wrapped No Floor Flate Inline',
+        ];
+
+        $t->true(str_contains($decodedSurplus, ' EI '));
+        $t->true(!str_contains($payload, ' EI '));
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same(implode("\n", $expected), $plainText);
+        $t->same(implode("\n", $expected) . "\n", $extractor->naiveGetText($pdf));
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->true(!str_contains($plainText, 'Wrapped No Floor Flate Inline Noise'));
+        $t->true(!str_contains($plainText, 'ZZ EI'));
+        $t->true(!str_contains($plainText, 'rawtail'));
+
+        $renderer = new PdfImageRenderer();
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $renderer->inlineImageColorSpaceMaskOutputPreviewRows(
+                '/W 1 /H 1 /F [/AHx /Fl]',
+                $payload,
+                [],
+                1
+            )
+        );
+    },
     'fails closed on inline filter EOD surplus before native image previews' => static function (TestRunner $t) use ($lzwLiteralEncode): void {
         $renderer = new PdfImageRenderer();
         $dictionary = '/W 4 /H 1 /CS /G /BPC 8 /D [0 1]';

@@ -32408,6 +32408,25 @@ final class PdfTextExtractor
 
         $decoded = $this->decodeStream($dictionary, $candidate, [], true, false, true);
         if ($decoded === null) {
+            if (
+                $expectedLength === null
+                && (
+                    $this->inlineSingleNativeFilterCandidateCompletesBeforePostFilterSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate
+                    )
+                    || $this->inlineWrappedFlateCandidateReachesSampleFloorBeforeDecodedPostStreamSurplus(
+                        $filters,
+                        $dictionary,
+                        $candidate,
+                        null
+                    )
+                )
+            ) {
+                return true;
+            }
+
             if ($this->inlinePreviewFilterStackCandidateCompletesBeforeFirstFilterSurplus($filters, $dictionary, $candidate)) {
                 return true;
             }
@@ -32464,6 +32483,76 @@ final class PdfTextExtractor
         }
 
         return $expectedLength === null || strlen($decoded) >= $expectedLength;
+    }
+
+    /**
+     * Inline images sometimes omit enough color metadata to derive a decoded
+     * sample floor. A complete native filter member still owns text-like bytes
+     * until the real inline-image EI terminator.
+     *
+     * @param list<string|null> $filters
+     */
+    private function inlineSingleNativeFilterCandidateCompletesBeforePostFilterSurplus(
+        array $filters,
+        string $dictionary,
+        string $candidate
+    ): bool {
+        $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
+        if (count($nonNullFilters) !== 1) {
+            return false;
+        }
+
+        $decodeParms = $this->streamDecodeParms($dictionary, []);
+        if ($decodeParms === null) {
+            return false;
+        }
+
+        $filterIndex = null;
+        $filter = null;
+        foreach ($filters as $index => $candidateFilter) {
+            if (is_string($candidateFilter)) {
+                $filterIndex = $index;
+                $filter = $candidateFilter;
+                break;
+            }
+        }
+        if ($filterIndex === null || $filter === null) {
+            return false;
+        }
+
+        if (!$this->inlineImageFilterHasTokenizerBoundary($filter) || $this->inlineImageUsesUnsupportedFilter($filters, $dictionary)) {
+            return false;
+        }
+
+        $filterDecodeParms = $this->decodeParmsForFilterIndex($filters, $decodeParms, $filterIndex);
+        if (!$this->canApplyDecodeParms($filter, $filterDecodeParms, [])) {
+            return false;
+        }
+
+        $filterEnd = $this->streamFilterInputEndByteOffset($filter, $candidate, $filterDecodeParms, []);
+        if ($filterEnd === null) {
+            return false;
+        }
+
+        $postFilter = substr($candidate, $filterEnd);
+        if (
+            $postFilter === ''
+            || $this->streamHasOnlyWhitespaceAfterOffset($candidate, $filterEnd)
+            || preg_match('/(?:^|[\x00\t\n\f\r ])EI(?:$|[\x00\t\n\f\r \/\[\]\(\)<>{}%])/', $postFilter) !== 1
+        ) {
+            return false;
+        }
+
+        $decoded = $this->decodeStream(
+            $dictionary,
+            substr($candidate, 0, $filterEnd),
+            [],
+            true,
+            false,
+            true
+        );
+
+        return $decoded !== null && $decoded !== '';
     }
 
     /**
@@ -32755,10 +32844,10 @@ final class PdfTextExtractor
         array $filters,
         string $dictionary,
         string $candidate,
-        int $expectedLength
+        ?int $expectedLength
     ): bool {
         $nonNullFilters = array_values(array_filter($filters, static fn (?string $filter): bool => is_string($filter)));
-        if ($expectedLength < 1 || count($nonNullFilters) < 2) {
+        if (($expectedLength !== null && $expectedLength < 1) || count($nonNullFilters) < 2) {
             return false;
         }
 
@@ -32817,12 +32906,18 @@ final class PdfTextExtractor
         $decoded = $this->decodeFlateStream($boundedFlate, $terminalDecodeParms, []);
         if ($decoded !== null) {
             // Boundary ownership only: image preview still rejects short decoded sample data.
-            return strlen($decoded) >= $expectedLength || $decoded !== '';
+            return $expectedLength === null
+                ? $decoded !== ''
+                : strlen($decoded) >= $expectedLength || $decoded !== '';
         }
 
         // Ownership boundary only: RGB preview still rejects malformed predictor rows.
         $inflated = $this->inflateFlateStreamWithoutDecodeParms($boundedFlate);
-        return $inflated !== null && $this->decodeParmsUsesPredictor($terminalDecodeParms) && $inflated !== '';
+        if ($inflated === null || !$this->decodeParmsUsesPredictor($terminalDecodeParms) || $inflated === '') {
+            return false;
+        }
+
+        return $expectedLength === null || strlen($inflated) >= $expectedLength;
     }
 
     private function decodeParmsUsesPredictor(?string $decodeParms): bool
