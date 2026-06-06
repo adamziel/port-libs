@@ -603,6 +603,15 @@ $propertySet = static function (array $values) use ($typedLpstr, $typedPropertyS
 
     return $typedPropertySet($properties);
 };
+$sttbfAssoc = static function (array $values) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(18) . $u16(0);
+    for ($index = 0; $index < 18; $index++) {
+        $encoded = $utf16le((string) ($values[$index] ?? ''));
+        $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+    }
+
+    return $bytes;
+};
 
 $buildSimpleWordDocument = static function (string $text, int $flags = 0, string $encoding = 'Windows-1252//TRANSLIT'): string {
     $textBytes = iconv('UTF-8', $encoding, $text);
@@ -1630,6 +1639,84 @@ return [
         $t->same('Редактор', $metadata['creator']);
         $t->same('Очередь импорта', $metadata['category']);
         $t->same('Импорт отзывов', $result['document']->attr('meta')['title']);
+    },
+    'extracts legacy DOC SttbfAssoc associated strings as fallback review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $sttbfAssoc, $propertySet, $u32): void {
+        $associatedStringsTable = $sttbfAssoc([
+            1 => 'C:\Templates\migration.dot',
+            2 => 'Associated title should not override OLE',
+            3 => 'Associated subject',
+            4 => 'legacy,review,mailmerge',
+            6 => 'Associated author should not override OLE',
+            7 => 'Assoc Editor',
+            8 => 'C:\Data\mailmerge.csv',
+            9 => 'C:\Data\header.doc',
+            17 => 'secret-pass',
+        ]);
+        $wordDocument = $buildSimpleWordDocument("Associated metadata packet\r");
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x019a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
+        $docBytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $associatedStringsTable,
+            "\x05SummaryInformation" => $propertySet([
+                2 => 'OLE title wins',
+                4 => 'OLE Author wins',
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $associatedStrings = $result['associatedStrings'];
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(9, count($associatedStrings));
+        $t->same(9, $metadata['associatedStringCount']);
+        $t->same($associatedStrings, $metadata['associatedStrings']);
+        $t->same($associatedStrings, $result['document']->attr('associatedStrings'));
+        $t->same('OLE title wins', $metadata['title']);
+        $t->same('OLE Author wins', $metadata['creator']);
+        $t->same('Associated subject', $metadata['subject']);
+        $t->same('legacy,review,mailmerge', $metadata['keywords']);
+        $t->same('Assoc Editor', $metadata['lastModifiedBy']);
+        $t->same('C:\Templates\migration.dot', $metadata['associatedTemplatePath']);
+        $t->same('C:\Data\mailmerge.csv', $metadata['mailMergeDataSource']);
+        $t->same('C:\Data\header.doc', $metadata['mailMergeHeaderDocument']);
+        $t->same(true, $metadata['hasWriteReservationPassword']);
+        $t->same(11, $metadata['writeReservationPasswordCharacterCount']);
+        $t->same('associatedTemplatePath', $associatedStrings[0]['role']);
+        $t->same('C:\Templates\migration.dot', $associatedStrings[0]['value']);
+        $t->same('writeReservationPassword', $associatedStrings[8]['role']);
+        $t->same(true, $associatedStrings[8]['redacted']);
+        $t->same(11, $associatedStrings[8]['characterCount']);
+        $t->true(!array_key_exists('value', $associatedStrings[8]));
+        $t->contains('<p>Associated metadata packet</p>', $blocks);
+        $t->true(!str_contains($blocks, 'secret-pass'));
+        $t->true(!str_contains($blocks, 'mailmerge.csv'));
+    },
+    'rejects malformed legacy DOC SttbfAssoc tables before exposing associated metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $sttbfAssoc, $u16, $u32): void {
+        $buildDocBytes = static function (string $associatedStringsTable) use ($buildCfb, $buildSimpleWordDocument, $u32): string {
+            $wordDocument = $buildSimpleWordDocument("Malformed associated metadata packet\r");
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x019a, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $associatedStringsTable,
+            ]);
+        };
+
+        $valid = $sttbfAssoc([
+            2 => 'Associated title',
+            17 => 'review-lock',
+        ]);
+        foreach ([
+            'wrong count' => substr_replace($valid, $u16(17), 2, 2),
+            'extra data' => substr_replace($valid, $u16(2), 4, 2),
+            'long password' => $sttbfAssoc([17 => str_repeat('x', 16)]),
+            'trailing bytes' => $valid . "\0\0",
+        ] as $associatedStringsTable) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($associatedStringsTable)));
+        }
     },
     'extracts legacy DOC DocumentSummaryInformation counters and booleans' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $typedI4, $typedBool): void {
         $docBytes = $buildCfb([

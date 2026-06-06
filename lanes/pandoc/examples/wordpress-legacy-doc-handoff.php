@@ -233,6 +233,15 @@ $propertySet = static function (array $values) use ($typedLpstr, $typedPropertyS
 
     return $typedPropertySet($properties);
 };
+$sttbfAssoc = static function (array $values) use ($u16, $utf16le): string {
+    $bytes = $u16(0xffff) . $u16(18) . $u16(0);
+    for ($index = 0; $index < 18; $index++) {
+        $encoded = $utf16le((string) ($values[$index] ?? ''));
+        $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+    }
+
+    return $bytes;
+};
 $ole10NativeStream = static function (
     string $label,
     string $sourcePath,
@@ -559,7 +568,19 @@ $plfLfo = $u32(2)
     . $u32(2002) . $u32(0) . $u32(0) . chr(0) . chr(0) . chr(0) . "\0"
     . $u32(0) . $u32(7) . $u32(0x10)
     . $u32($firstPieceCharacters);
-$fcSttbfBkmk = strlen($clx);
+$associatedStringsTable = $sttbfAssoc([
+    1 => 'C:\Templates\legacy-import.dot',
+    2 => 'Associated title should not override OLE',
+    3 => 'Legacy source packet',
+    4 => 'legacy,word,review',
+    6 => 'Associated author should not override OLE',
+    7 => 'Review Desk',
+    8 => 'C:\Data\legacy-mailmerge.csv',
+    9 => 'C:\Data\legacy-header.doc',
+    17 => 'review-lock',
+]);
+$fcSttbfAssoc = strlen($clx);
+$fcSttbfBkmk = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcPlcfBkf = $fcSttbfBkmk + strlen($sttbfBkmk);
 $fcPlcfBkl = $fcPlcfBkf + strlen($plcfBkf);
 $fcPlcffndRef = $fcPlcfBkl + strlen($plcfBkl);
@@ -574,7 +595,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
@@ -589,6 +610,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcffndTxt), 0x00b2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcffndTxt)), 0x00b6, 4);
 $wordDocument = substr_replace($wordDocument, $u32(0), 0x01a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($clx)), 0x01a6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcSttbfAssoc), 0x019a, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($associatedStringsTable)), 0x019e, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfBkmk), 0x0142, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($sttbfBkmk)), 0x0146, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfBkf), 0x014a, 4);
@@ -1006,6 +1029,7 @@ $summary = [
     'comments' => $result['comments'],
     'embeddedObjects' => $result['embeddedObjects'],
     'macroProjects' => $result['macroProjects'],
+    'associatedStrings' => $result['associatedStrings'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
     'wordpressBlocks' => $blocks,
@@ -1020,6 +1044,27 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['metadata']['creator'] ?? '') !== 'Migration Desk') {
         throw new RuntimeException('Legacy DOC handoff self-test missing metadata creator');
+    }
+    if (($summary['metadata']['subject'] ?? '') !== 'Legacy source packet') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfAssoc fallback subject');
+    }
+    if (($summary['metadata']['keywords'] ?? '') !== 'legacy,word,review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfAssoc fallback keywords');
+    }
+    if (($summary['metadata']['associatedTemplatePath'] ?? '') !== 'C:\Templates\legacy-import.dot') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing associated template path');
+    }
+    if (($summary['metadata']['mailMergeDataSource'] ?? '') !== 'C:\Data\legacy-mailmerge.csv' || ($summary['metadata']['mailMergeHeaderDocument'] ?? '') !== 'C:\Data\legacy-header.doc') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing mail-merge associated paths');
+    }
+    if (($summary['metadata']['hasWriteReservationPassword'] ?? null) !== true || ($summary['metadata']['writeReservationPasswordCharacterCount'] ?? null) !== 11) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing redacted write-reservation password metadata');
+    }
+    if (($summary['metadata']['associatedStringCount'] ?? null) !== 9 || count($summary['associatedStrings'] ?? []) !== 9) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing associated string inventory');
+    }
+    if (($summary['associatedStrings'][8]['role'] ?? '') !== 'writeReservationPassword' || ($summary['associatedStrings'][8]['redacted'] ?? null) !== true || isset($summary['associatedStrings'][8]['value'])) {
+        throw new RuntimeException('Legacy DOC handoff self-test exposed write-reservation password value');
     }
     if (($summary['metadata']['pageCount'] ?? null) !== 2 || ($summary['metadata']['wordCount'] ?? null) !== 12) {
         throw new RuntimeException('Legacy DOC handoff self-test missing SummaryInformation counts');
@@ -1380,6 +1425,11 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'Document_Open') || str_contains($blocks, 'ImportPacket')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered macro module payload bytes');
+    }
+    foreach (['review-lock', 'legacy-mailmerge.csv', 'legacy-header.doc'] as $hiddenAssociatedString) {
+        if (str_contains($blocks, $hiddenAssociatedString)) {
+            throw new RuntimeException('Legacy DOC handoff self-test rendered associated metadata string: ' . $hiddenAssociatedString);
+        }
     }
     if (($summary['fib']['extendedCharacters'] ?? null) !== true || ($summary['fib']['encrypted'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');

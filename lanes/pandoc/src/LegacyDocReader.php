@@ -31,6 +31,8 @@ final class LegacyDocReader
     private const FIB_LCB_PLCF_BKF = 0x014e;
     private const FIB_FC_PLCF_BKL = 0x0152;
     private const FIB_LCB_PLCF_BKL = 0x0156;
+    private const FIB_FC_STTBF_ASSOC = 0x019a;
+    private const FIB_LCB_STTBF_ASSOC = 0x019e;
     private const FIB_FC_PLCFEND_REF = 0x020a;
     private const FIB_LCB_PLCFEND_REF = 0x020e;
     private const FIB_FC_PLCFEND_TXT = 0x0212;
@@ -60,7 +62,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -68,7 +70,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -103,6 +105,12 @@ final class LegacyDocReader
         $streamDirectory = $this->streamDirectoryReport($compoundFile);
         $directoryEntries = $this->directoryEntryReport($compoundFile);
         $metadata = $this->readMetadata($compoundFile);
+        $associatedStrings = $this->associatedStringReport($wordDocument, $tableStream);
+        if ($associatedStrings !== []) {
+            $metadata = $this->applyAssociatedStringMetadata($metadata, $associatedStrings);
+            $metadata['associatedStringCount'] = count($associatedStrings);
+            $metadata['associatedStrings'] = $associatedStrings;
+        }
         $metadata['fibBase'] = $this->fibBaseReviewMetadata($fib);
         if (isset($fib['fibRgLw97']) && is_array($fib['fibRgLw97'])) {
             $metadata['fibRgLw97'] = $fib['fibRgLw97'];
@@ -226,6 +234,7 @@ final class LegacyDocReader
             'comments' => $comments,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
+            'associatedStrings' => $associatedStrings,
         ];
 
         return [
@@ -251,6 +260,7 @@ final class LegacyDocReader
             'comments' => $comments,
             'embeddedObjects' => $embeddedObjects,
             'macroProjects' => $macroProjects,
+            'associatedStrings' => $associatedStrings,
         ];
     }
 
@@ -1534,6 +1544,157 @@ final class LegacyDocReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function associatedStringReport(string $wordDocument, ?string $tableStream): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_STTBF_ASSOC + 4) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_STTBF_ASSOC);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC associated strings require the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_STTBF_ASSOC);
+        return $this->parseSttbfAssoc($this->tableStreamSlice($tableStream, $offset, $length, 'SttbfAssoc associated string table'));
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseSttbfAssoc(string $bytes): array
+    {
+        if (strlen($bytes) < 6) {
+            throw new \RuntimeException('Legacy DOC associated string table is truncated');
+        }
+        if (self::u16($bytes, 0) !== 0xffff) {
+            throw new \RuntimeException('Legacy DOC associated string table must use extended strings');
+        }
+        if (self::u16($bytes, 2) !== 18) {
+            throw new \RuntimeException('Legacy DOC associated string table must contain 18 strings');
+        }
+        if (self::u16($bytes, 4) !== 0) {
+            throw new \RuntimeException('Legacy DOC associated string table must not contain extra data');
+        }
+
+        $cursor = 6;
+        $records = [];
+        for ($index = 0; $index < 18; $index++) {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC associated string table is truncated');
+            }
+
+            $characters = self::u16($bytes, $cursor);
+            $cursor += 2;
+            if ($characters > 255) {
+                throw new \RuntimeException('Legacy DOC associated string table entry exceeds 255 characters');
+            }
+            if ($index === 0x11 && $characters > 15) {
+                throw new \RuntimeException('Legacy DOC write-reservation password exceeds 15 characters');
+            }
+
+            $byteLength = $characters * 2;
+            if ($cursor + $byteLength > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC associated string table points outside its string data');
+            }
+
+            $value = $characters === 0 ? '' : $this->decodeUtf16Le(substr($bytes, $cursor, $byteLength));
+            $cursor += $byteLength;
+            $role = $this->associationStringRole($index);
+            if ($role === null || $value === '') {
+                continue;
+            }
+
+            if ($role === 'writeReservationPassword') {
+                $records[] = [
+                    'index' => $index,
+                    'role' => $role,
+                    'redacted' => true,
+                    'characterCount' => $this->textCharacterLength($value),
+                ];
+                continue;
+            }
+
+            $records[] = [
+                'index' => $index,
+                'role' => $role,
+                'value' => $value,
+            ];
+        }
+
+        if ($cursor !== strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC associated string table contains trailing bytes');
+        }
+
+        return $records;
+    }
+
+    private function associationStringRole(int $index): ?string
+    {
+        return match ($index) {
+            0x01 => 'associatedTemplatePath',
+            0x02 => 'title',
+            0x03 => 'subject',
+            0x04 => 'keywords',
+            0x06 => 'creator',
+            0x07 => 'lastModifiedBy',
+            0x08 => 'mailMergeDataSource',
+            0x09 => 'mailMergeHeaderDocument',
+            0x11 => 'writeReservationPassword',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $metadata
+     * @param list<array<string,mixed>> $associatedStrings
+     * @return array<string,mixed>
+     */
+    private function applyAssociatedStringMetadata(array $metadata, array $associatedStrings): array
+    {
+        foreach ($associatedStrings as $record) {
+            $role = (string) ($record['role'] ?? '');
+            if ($role === 'writeReservationPassword') {
+                $metadata['hasWriteReservationPassword'] = true;
+                $metadata['writeReservationPasswordCharacterCount'] = (int) ($record['characterCount'] ?? 0);
+                continue;
+            }
+
+            $name = $this->associatedStringMetadataName($role);
+            if ($name === null || !array_key_exists('value', $record)) {
+                continue;
+            }
+            if (isset($metadata[$name]) && $metadata[$name] !== '') {
+                continue;
+            }
+
+            $metadata[$name] = (string) $record['value'];
+        }
+
+        return $metadata;
+    }
+
+    private function associatedStringMetadataName(string $role): ?string
+    {
+        return match ($role) {
+            'associatedTemplatePath' => 'associatedTemplatePath',
+            'title' => 'title',
+            'subject' => 'subject',
+            'keywords' => 'keywords',
+            'creator' => 'creator',
+            'lastModifiedBy' => 'lastModifiedBy',
+            'mailMergeDataSource' => 'mailMergeDataSource',
+            'mailMergeHeaderDocument' => 'mailMergeHeaderDocument',
+            default => null,
+        };
     }
 
     /**
