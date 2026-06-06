@@ -913,8 +913,11 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source-to-visual coverage coordinates');
     }
     $writerDowngrades = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'markdown');
-    if (array_map(static fn (array $diagnostic): string => $diagnostic['code'], $writerDowngrades) !== ['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
+    if (array_map(static fn (array $diagnostic): string => $diagnostic['code'], $writerDowngrades) !== ['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing Markdown writer downgrade diagnostics');
+    }
+    if (($writerDowngrades[1]['reason'] ?? null) !== 'row-headers' || ($writerDowngrades[1]['rowHeaderReferenceCount'] ?? null) !== 2) {
+        throw new RuntimeException('Table geometry self-test missing Markdown row-header writer diagnostics');
     }
     $rstWriterRequirements = TableGeometry::writerDowngradeDiagnostics($document->children[0], 'rst-grid-table');
     if (
@@ -925,10 +928,13 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing RST grid-table writer requirement diagnostics');
     }
     $migrationPacket = TableGeometry::reviewPacket($document->children[0], ['idPrefix' => 'Migration Grid']);
-    if (($migrationPacket['summary']['writerDowngradeCount'] ?? null) !== 3 || ($migrationPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
+    if (($migrationPacket['summary']['writerDowngradeCount'] ?? null) !== 4 || ($migrationPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing review-packet writer downgrade summary');
     }
-    if (($migrationPacket['writerDowngrades']['markdown'][1]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
+    if (($migrationPacket['writerDowngrades']['markdown'][1]['rows'][0]['headerIds'] ?? null) !== ['migration-grid-body-r1c1']) {
+        throw new RuntimeException('Table geometry self-test missing review-packet row-header writer report');
+    }
+    if (($migrationPacket['writerDowngrades']['markdown'][2]['flattenedSlots'] ?? null) !== [['row' => 0, 'column' => 1, 'covering' => 'colspan']]) {
         throw new RuntimeException('Table geometry self-test missing flattened span slot report');
     }
     if (($migrationPacket['sections'][0]['summary']['rowVisualWidths'] ?? null) !== [3] || ($migrationPacket['sections'][0]['summary']['rowSlotCounts'] ?? null) !== [4]) {
@@ -950,8 +956,8 @@ if (($argv[1] ?? '') === '--self-test') {
         'writers' => ['markdown', 'restructuredtext'],
     ]);
     if (
-        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 4
-        || ($multiWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required']
+        ($multiWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 5
+        || ($multiWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-colspan-flattened', 'markdown-rowspan-flattened', 'rst-grid-table-required']
         || ($multiWriterPacket['summary']['writerDowngradeWriters'] ?? null) !== ['markdown', 'rst']
     ) {
         throw new RuntimeException('Table geometry self-test missing multi-writer downgrade summary');
@@ -1035,6 +1041,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($bodyHeadRowHeaderPacket['summary']['hasRowspanRowHeaders'] ?? null) !== true
     ) {
         throw new RuntimeException('Table geometry self-test missing row-header map review metadata');
+    }
+    if (($bodyHeadRowHeaderPacket['writerDowngrades']['markdown'][0]['code'] ?? null) !== 'markdown-row-headers-flattened') {
+        throw new RuntimeException('Table geometry self-test missing body-local row-header writer diagnostics');
     }
     json_encode($bodyHeadRowHeaderPacket, JSON_THROW_ON_ERROR);
     if (!str_contains($blocks, '<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>')) {
@@ -1171,11 +1180,14 @@ if (($argv[1] ?? '') === '--self-test') {
         'writers' => ['pipe-table', 'asciidoctor', 'xelatex'],
     ]);
     if (
-        ($astAttributeWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 3
+        ($astAttributeWriterPacket['summary']['writerDowngradeCount'] ?? null) !== 6
         || ($astAttributeWriterPacket['summary']['writerDowngradeCodes'] ?? null) !== [
             'markdown-table-source-attributes-require-raw-html',
+            'markdown-row-headers-flattened',
             'asciidoc-table-source-attributes-require-raw-html',
+            'asciidoc-row-headers-review-required',
             'latex-table-source-attributes-review-required',
+            'latex-row-headers-review-required',
         ]
         || ($astAttributeWriterPacket['summary']['writerDowngradeWriters'] ?? null) !== ['asciidoc', 'latex', 'markdown']
     ) {
@@ -1189,6 +1201,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($astAttributeWriterPacket['writerDowngrades']['latex'][0]['requiredFeature'] ?? null) !== 'table-attribute-review-comments') {
         throw new RuntimeException('Table geometry self-test missing LaTeX source attribute writer requirement');
+    }
+    if (($astAttributeWriterPacket['writerDowngrades']['markdown'][1]['requiredFeature'] ?? null) !== 'pipe-table-row-header-semantics') {
+        throw new RuntimeException('Table geometry self-test missing native AST row-header writer requirement');
     }
     json_encode($astAttributeWriterPacket, JSON_THROW_ON_ERROR);
 
@@ -1329,7 +1344,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($rowspanZeroPacket['rowGroups'][1]['sourceAttributes']['id'] ?? null) !== 'posts-body' || ($rowspanZeroPacket['rowGroups'][2]['sourceAttributes']['id'] ?? null) !== 'pages-body') {
         throw new RuntimeException('Table geometry self-test missing HTML row-group source attributes');
     }
-    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-rowspan-flattened']) {
+    if (($rowspanZeroPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-rowspan-flattened']) {
         throw new RuntimeException('Table geometry self-test missing HTML rowspan-zero Markdown downgrade packet');
     }
     if (!str_contains($blocks, '<tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody>')) {

@@ -355,7 +355,7 @@ HTML;
         $t->same('Pages', $packet['coverage'][6]['text'] ?? null);
         $t->same('body1', $packet['coverage'][6]['section'] ?? null);
         $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
-        $t->same(['markdown-column-widths-approximated', 'markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['markdown-column-widths-approximated', 'markdown-row-headers-flattened', 'markdown-rowspan-flattened'], $packet['summary']['writerDowngradeCodes'] ?? null);
         $t->contains('<figure class="wp-block-table"><table id="rowspan-zero-grid" data-source="html-reader"><colgroup><col style="width:33.3333%"/><col style="width:33.3333%"/><col style="width:33.3333%"/></colgroup><tbody id="posts-body"><tr data-row="posts-total"><th rowspan="3" style="text-align:left">Posts</th><td style="text-align:right">42</td></tr><tr data-row="posts-media"><td style="text-align:right">7</td><td>Needs media</td></tr><tr data-row="posts-review"><td style="text-align:right">3</td><td>Review</td></tr></tbody><tbody id="pages-body"><tr data-row="pages-total"><th>Pages</th><td style="text-align:right">5</td><td>Ready</td></tr></tbody></table></figure>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },

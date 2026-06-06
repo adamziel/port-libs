@@ -1245,7 +1245,7 @@ final class TableGeometry
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
         $writerDowngrades = [];
         foreach (self::reviewPacketWriters($options['writers'] ?? ['markdown']) as $writer) {
-            $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer, $table);
+            $writerDowngrades[$writer] = self::writerDowngradeDiagnosticsFromCoverage($coverageRecords, $writer, $table, $idPrefix);
         }
         $accessibility = $includeAccessibility
             ? self::accessibilityAttributes($table, $idPrefix)
@@ -2786,7 +2786,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $coverage
      * @return list<array<string, mixed>>
      */
-    private static function writerDowngradeDiagnosticsFromCoverage(array $coverage, string $writer, ?AstNode $table = null): array
+    private static function writerDowngradeDiagnosticsFromCoverage(array $coverage, string $writer, ?AstNode $table = null, ?string $idPrefix = null): array
     {
         $writer = self::normalizeWriterName($writer);
         if ($writer !== 'markdown') {
@@ -2795,6 +2795,7 @@ final class TableGeometry
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::latexLongtableFooterRequirements($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                 }
                 foreach ($coverage as $record) {
                     $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -2858,6 +2859,7 @@ final class TableGeometry
                 if ($table instanceof AstNode) {
                     array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                 }
                 foreach ($coverage as $record) {
                     $node = $record['node'] ?? null;
@@ -2921,6 +2923,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableFootSectionWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::markdownColumnWidthDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+            array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
         }
         foreach ($coverage as $record) {
             $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -2961,6 +2964,50 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function rowHeaderWriterDiagnostics(AstNode $table, string $writer, ?string $idPrefix = null): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-row-headers-flattened', 'pipe-table-row-header-semantics'],
+            'asciidoc' => ['asciidoc-row-headers-review-required', 'row-header-review'],
+            'latex' => ['latex-row-headers-review-required', 'row-header-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $map = self::rowHeaderMap($table, $idPrefix ?? self::reviewPacketIdPrefix($table, []));
+        $summary = is_array($map['summary'] ?? null) ? $map['summary'] : [];
+        if (($summary['hasRowHeaders'] ?? false) !== true) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+        $rows = is_array($map['rows'] ?? null) ? $map['rows'] : [];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'row-headers',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'pandoc-row-head-columns',
+            'caption' => (string) $table->attr('caption', ''),
+            'dataRowCount' => (int) ($summary['dataRowCount'] ?? 0),
+            'labeledDataRowCount' => (int) ($summary['labeledDataRowCount'] ?? 0),
+            'unlabeledDataRowCount' => (int) ($summary['unlabeledDataRowCount'] ?? 0),
+            'rowHeaderCellCount' => (int) ($summary['rowHeaderCellCount'] ?? 0),
+            'rowHeaderReferenceCount' => (int) ($summary['rowHeaderReferenceCount'] ?? 0),
+            'maxRowHeaderCount' => (int) ($summary['maxRowHeaderCount'] ?? 0),
+            'rowHeaderScopes' => self::stringList($summary['rowHeaderScopes'] ?? []),
+            'hasUnlabeledDataRows' => (bool) ($summary['hasUnlabeledDataRows'] ?? false),
+            'hasRowspanRowHeaders' => (bool) ($summary['hasRowspanRowHeaders'] ?? false),
+            'rowspannedRowHeaderReferenceCount' => (int) ($summary['rowspannedRowHeaderReferenceCount'] ?? 0),
+            'rows' => $rows,
+        ]];
     }
 
     /**

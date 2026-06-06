@@ -1730,6 +1730,87 @@ return [
         json_encode($sourceMap, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports row header writer requirements for plain table handoff' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Row header review',
+            'alignments' => ['left', 'right'],
+            'accessibilityHeaders' => true,
+            'accessibilityIdPrefix' => 'Row Header Grid',
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Scope'], [new AstNode('text', ['text' => 'Scope'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                ]),
+            ]),
+            new AstNode('table_body', ['rowHeadColumns' => 1], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                ]),
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Media'], [new AstNode('text', ['text' => 'Media'])]),
+                    new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                ]),
+            ]),
+        ]);
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'idPrefix' => 'Row Header Grid',
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex', 'wordpress'],
+        ]);
+
+        $t->same(['markdown-row-headers-flattened'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('row-headers', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('pipe-table-row-header-semantics', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('pandoc-row-head-columns', $markdownDiagnostics[0]['source'] ?? null);
+        $t->same('Row header review', $markdownDiagnostics[0]['caption'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['dataRowCount'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['labeledDataRowCount'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['unlabeledDataRowCount'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['rowHeaderCellCount'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['rowHeaderReferenceCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['maxRowHeaderCount'] ?? null);
+        $t->same(['row'], $markdownDiagnostics[0]['rowHeaderScopes'] ?? null);
+        $t->same(false, $markdownDiagnostics[0]['hasUnlabeledDataRows'] ?? null);
+        $t->same(false, $markdownDiagnostics[0]['hasRowspanRowHeaders'] ?? null);
+        $t->same(0, $markdownDiagnostics[0]['rowspannedRowHeaderReferenceCount'] ?? null);
+        $t->same(['row-header-grid-body-r1c1'], $markdownDiagnostics[0]['rows'][0]['headerIds'] ?? null);
+        $t->same(['Posts'], $markdownDiagnostics[0]['rows'][0]['headerTexts'] ?? null);
+        $t->same('row', $markdownDiagnostics[0]['rows'][0]['headers'][0]['scope'] ?? null);
+        $t->same([0], $markdownDiagnostics[0]['rows'][0]['headers'][0]['columns'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['rows'][0]['headers'][0]['rowspan'] ?? null);
+        $t->same(['row-header-grid-body-r2c1'], $markdownDiagnostics[0]['rows'][1]['headerIds'] ?? null);
+
+        $t->same(['asciidoc-row-headers-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same('asciidoc', $asciidocDiagnostics[0]['writer'] ?? null);
+        $t->same('row-header-review', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same($markdownDiagnostics[0]['rows'], $asciidocDiagnostics[0]['rows'] ?? null);
+
+        $t->same(['latex-row-headers-review-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same('latex', $latexDiagnostics[0]['writer'] ?? null);
+        $t->same('row-header-review-comments', $latexDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same($markdownDiagnostics[0]['rows'], $latexDiagnostics[0]['rows'] ?? null);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+
+        $t->same(['markdown', 'asciidoc', 'latex', 'wordpress'], array_keys($packet['writerDowngrades']));
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-row-headers-flattened',
+            'asciidoc-row-headers-review-required',
+            'latex-row-headers-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(true, $packet['summary']['hasRowHeaders'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes table header associations for reviewer accessibility audits' => static function (TestRunner $t) use ($buildAccessibleHeaderDocument, $buildSourceScopedHeaderDocument): void {
         $table = $buildAccessibleHeaderDocument()->children[0];
         $associations = TableGeometry::headerAssociations($table, 'Migration Grid');
