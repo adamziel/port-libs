@@ -3530,6 +3530,10 @@ final class PdfAcroFormExtractor
 
         $seen[$objectNumber] = true;
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        if (!$this->isFieldDictionaryCandidate($body)) {
+            return [];
+        }
+
         $effective = $this->mergeFieldAttributes($body, $inherited, $objectNumber);
         $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
         $alternateName = $this->pdfStringValueAfterName($body, 'TU', $objects);
@@ -6329,6 +6333,10 @@ final class PdfAcroFormExtractor
 
         $seen[$objectNumber] = true;
         $body = $this->dictionaryObjectBody($objects[$objectNumber]) ?? trim($objects[$objectNumber]);
+        if (!$this->isFieldDictionaryCandidate($body)) {
+            return;
+        }
+
         $partialName = $this->pdfStringValueAfterName($body, 'T', $objects);
         $currentNameParts = $nameParts;
         if ($partialName !== null && $partialName !== '') {
@@ -9686,11 +9694,29 @@ final class PdfAcroFormExtractor
 
     private function isFieldDictionaryCandidate(string $body): bool
     {
+        if ($this->isNonAcroFormFieldDictionary($body)) {
+            return false;
+        }
+
         return $this->valueAfterName($body, 'T') !== null
             || $this->valueAfterName($body, 'TM') !== null
             || $this->valueAfterName($body, 'FT') !== null
             || $this->valueAfterName($body, 'Kids') !== null
             || $this->isWidget($body);
+    }
+
+    private function isNonAcroFormFieldDictionary(string $body): bool
+    {
+        if ($this->isWidget($body)) {
+            return false;
+        }
+
+        $type = $this->pdfNameValueAfterName($body, 'Type');
+        if ($type === null || $type === '') {
+            return false;
+        }
+
+        return in_array($type, ['Catalog', 'Pages', 'Page', 'Annot'], true);
     }
 
     private function isPureWidget(string $body): bool
