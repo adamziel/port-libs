@@ -2787,8 +2787,28 @@ final class PdfAttachmentExtractor
         }
 
         $dict = $this->dict($streamObject['value']) ?? [];
+        if (!$this->isEmbeddedFileStreamDictionary($dict, $objects)) {
+            return null;
+        }
 
         return $this->decodedStreamBytesForDictionary($streamObject['stream'], $dict, $objects);
+    }
+
+    /**
+     * Embedded file streams commonly omit /Type, but a declared stream type
+     * must be /EmbeddedFile before FileSpec /EF can expose it as attachment
+     * payload metadata.
+     *
+     * @param array<string, mixed> $dict
+     * @param array<int, array{generation: int, body: string, value: mixed, stream: string|null}> $objects
+     */
+    private function isEmbeddedFileStreamDictionary(array $dict, array $objects): bool
+    {
+        if (!array_key_exists('Type', $dict)) {
+            return true;
+        }
+
+        return $this->nameValue($this->resolveValue($dict['Type'], $objects)) === 'EmbeddedFile';
     }
 
     /**

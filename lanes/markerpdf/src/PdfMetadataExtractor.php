@@ -16460,6 +16460,9 @@ final class PdfMetadataExtractor
         if ($stream === null) {
             return null;
         }
+        if (!$this->isEmbeddedFileStreamDictionary($stream['dictionary'], $objects)) {
+            return null;
+        }
 
         $metadata = [
             'embedded_file_object' => $objectNumber,
@@ -16482,6 +16485,20 @@ final class PdfMetadataExtractor
         }
 
         return $metadata;
+    }
+
+    /**
+     * FileSpec /EF must point at an EmbeddedFile stream. The /Type entry is
+     * optional for legacy streams, but typed Metadata/XObject streams remain
+     * review-only elsewhere and are not attachment rows.
+     *
+     * @param array<int, string> $objects
+     */
+    private function isEmbeddedFileStreamDictionary(string $dictionary, array $objects): bool
+    {
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+
+        return $type === null || $type === 'EmbeddedFile';
     }
 
     /**

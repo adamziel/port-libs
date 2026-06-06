@@ -2015,6 +2015,9 @@ final class PdfEmbeddedFileExtractor
         if (preg_match('/<<(.*?)>>\s*stream\b/s', $body, $match) !== 1) {
             return null;
         }
+        if (!$this->isEmbeddedFileStreamDictionary($match[1], $objects)) {
+            return null;
+        }
 
         return [
             'object' => $objectNumber,
@@ -2038,6 +2041,9 @@ final class PdfEmbeddedFileExtractor
         if ($stream === null) {
             return null;
         }
+        if (!$this->isEmbeddedFileStreamDictionary($stream['dictionary'], $objects)) {
+            return null;
+        }
 
         return [
             'object' => $objectNumber,
@@ -2045,6 +2051,19 @@ final class PdfEmbeddedFileExtractor
             'content' => $stream['content'],
             'filters' => $stream['filters'],
         ];
+    }
+
+    /**
+     * Embedded file streams may omit /Type, but typed non-/EmbeddedFile streams
+     * referenced through /EF are not attachment payloads.
+     *
+     * @param array<int, string> $objects
+     */
+    private function isEmbeddedFileStreamDictionary(string $dictionary, array $objects): bool
+    {
+        $type = $this->dictionaryNameValue($dictionary, 'Type', $objects);
+
+        return $type === null || $type === 'EmbeddedFile';
     }
 
     /**
