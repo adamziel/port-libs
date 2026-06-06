@@ -27092,9 +27092,7 @@ final class PdfTextExtractor
             $body = trim($body);
             $review['token_type'] = $this->pdfOperandTokenType($body);
             $review['dictionary_filter_operand'] = $this->filterOperandBodyContainsDictionary($body);
-            $extraFilterOperand = $review['token_type'] === 'name'
-                ? $this->directScalarFilterExtraOperand($body, 0)
-                : null;
+            $extraFilterOperand = $this->indirectFilterHelperExtraOperand($body);
             if ($review['token_type'] === 'name') {
                 $review['escaped_name_operand'] = $this->pdfNameTokenContainsHexEscape($body);
             }
@@ -27118,6 +27116,55 @@ final class PdfTextExtractor
         }
 
         return $review;
+    }
+
+    /**
+     * @return array{type: string, preview: string, name?: string}|null
+     */
+    private function indirectFilterHelperExtraOperand(string $body): ?array
+    {
+        $offset = $this->skipPdfWhitespace($body, 0);
+        if ($offset >= strlen($body)) {
+            return null;
+        }
+
+        $endOffset = null;
+        if ($body[$offset] === '[') {
+            $arrayBody = $this->readPdfArrayAt($body, $offset);
+            $endOffset = $arrayBody === null ? null : $offset + strlen($arrayBody) + 2;
+        } elseif ($body[$offset] === '/') {
+            $endOffset = $this->pdfNameTokenEndOffset($body, $offset);
+        } elseif (preg_match('/\Gnull\b/s', $body, $match, 0, $offset) === 1) {
+            $endOffset = $offset + strlen($match[0]);
+        } else {
+            $reference = $this->pdfIndirectReferenceTokenAt($body, $offset);
+            $endOffset = $reference['endOffset'] ?? null;
+        }
+
+        if ($endOffset === null || $endOffset <= $offset) {
+            return null;
+        }
+
+        $extraOffset = $this->skipPdfWhitespace($body, $endOffset);
+        if ($extraOffset >= strlen($body)) {
+            return null;
+        }
+
+        $token = $this->pdfValueAtOffset($body, $extraOffset);
+        if ($token === null) {
+            return null;
+        }
+
+        $type = $this->pdfOperandTokenType($token);
+        $extra = [
+            'type' => $type,
+            'preview' => $this->xrefStreamOperandValuePreview($token),
+        ];
+        if ($type === 'name') {
+            $extra['name'] = $this->decodePdfName(substr($token, 1));
+        }
+
+        return $extra;
     }
 
     /**
