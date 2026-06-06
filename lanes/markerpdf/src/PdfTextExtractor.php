@@ -11847,7 +11847,13 @@ final class PdfTextExtractor
         $references = [];
         foreach ($objects as $body) {
             $dictionary = $this->dictionaryObjectBody($body);
-            if ($dictionary === null || !$this->dictionaryLooksLikeOutlineItem($dictionary)) {
+            if (
+                $dictionary === null
+                || (
+                    !$this->dictionaryLooksLikeOutlineItem($dictionary)
+                    && !$this->dictionaryLooksLikeOutlineRoot($dictionary, $objects)
+                )
+            ) {
                 continue;
             }
 
@@ -11875,6 +11881,24 @@ final class PdfTextExtractor
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dictionaryLooksLikeOutlineRoot(string $dictionary, array $objects): bool
+    {
+        $type = $this->pdfNameValueAfterNameResolvingObjects($dictionary, 'Type', $objects);
+        if ($type !== null) {
+            return $type === 'Outlines';
+        }
+
+        return $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Title') === null
+            && (
+                $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'First') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Last') !== null
+                || $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, 'Count') !== null
+            );
     }
 
     private function dictionaryLooksLikeOutlineItem(string $dictionary): bool

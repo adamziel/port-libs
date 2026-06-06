@@ -4274,6 +4274,18 @@ final class PdfMetadataExtractor
             'titles' => array_values(array_map(static fn (array $item): string => $item['title'], $items)),
             'items' => $items,
         ];
+
+        $rootMetadataStreamValues = $this->dictionaryTopLevelRawValues($outlineRoot['body'], 'Metadata');
+        $rootMetadataStreamReview = $this->documentOutlineRootMetadataStreamReview(
+            $rootMetadataStreamValues === [] ? null : $rootMetadataStreamValues[array_key_last($rootMetadataStreamValues)],
+            $objects,
+            count($rootMetadataStreamValues),
+            $rootMetadataStreamValues === [] ? null : array_key_last($rootMetadataStreamValues)
+        );
+        if ($rootMetadataStreamReview !== []) {
+            $metadata['metadata_stream_review'] = $rootMetadataStreamReview;
+        }
+
         $declaredItemCount = $declaredCount === null ? null : abs($declaredCount);
         if ($declaredItemCount !== null && $declaredItemCount !== $actualVisibleItemCount) {
             $metadata['declared_count_mismatch_review_only'] = true;
@@ -5102,6 +5114,39 @@ final class PdfMetadataExtractor
         }
 
         return $row;
+    }
+
+    /**
+     * Outline root /Metadata streams are root-local review metadata. Reuse the
+     * item stream trust boundary while exposing root-specific provenance labels.
+     *
+     * @param array<int, string> $objects
+     * @return array<string, mixed>
+     */
+    private function documentOutlineRootMetadataStreamReview(
+        ?string $value,
+        array $objects,
+        int $declaredEntryCount = 0,
+        ?int $selectedEntryIndex = null
+    ): array {
+        $review = $this->documentOutlineItemMetadataStreamReview(
+            $value,
+            $objects,
+            $declaredEntryCount,
+            $selectedEntryIndex
+        );
+        if ($review === []) {
+            return [];
+        }
+
+        if (($review['source'] ?? null) === 'outline_item_metadata_stream') {
+            $review['source'] = 'outline_root_metadata_stream';
+        }
+        if (is_string($review['status'] ?? null)) {
+            $review['status'] = str_replace('outline_item', 'outline_root', $review['status']);
+        }
+
+        return $review;
     }
 
     /**
