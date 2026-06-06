@@ -182,13 +182,21 @@ final class LayoutAnnotator
         $sanitized = [];
         $payload = $this->layoutResultPayloadSource($layoutResult);
 
+        $hasImageBbox = array_key_exists('image_bbox', $payload);
         $imageBbox = $this->bbox($payload['image_bbox'] ?? null);
-        if ($imageBbox !== null && $this->rectWidth($imageBbox) > 0.0 && $this->rectHeight($imageBbox) > 0.0) {
+        $hasUsableImageBbox = $imageBbox !== null && $this->rectWidth($imageBbox) > 0.0 && $this->rectHeight($imageBbox) > 0.0;
+        if ($hasUsableImageBbox) {
             $sanitized['image_bbox'] = $imageBbox;
         }
 
         if (array_key_exists('bboxes', $payload)) {
-            $sanitized['bboxes'] = $this->sanitizeSuppliedLayoutBboxes($payload['bboxes'], $page, $selectedIndex, $sourceIndex);
+            $sanitized['bboxes'] = $this->sanitizeSuppliedLayoutBboxes(
+                $payload['bboxes'],
+                $page,
+                $selectedIndex,
+                $sourceIndex,
+                $hasImageBbox && !$hasUsableImageBbox
+            );
         }
 
         foreach ($this->layoutResultPageMarkerSources($layoutResult) as $source) {
@@ -215,7 +223,8 @@ final class LayoutAnnotator
         mixed $boxes,
         ?array $page = null,
         int $selectedIndex = 0,
-        ?int $sourceIndex = null
+        ?int $sourceIndex = null,
+        bool $rejectNormalizedBboxesWithoutImageExtent = false
     ): array
     {
         if (!is_array($boxes) || !array_is_list($boxes)) {
@@ -236,6 +245,9 @@ final class LayoutAnnotator
                 ? $this->tableRegionBbox($box)
                 : $this->bbox($box);
             if ($bbox === null || $this->rectWidth($bbox) <= 0.0 || $this->rectHeight($bbox) <= 0.0) {
+                continue;
+            }
+            if ($rejectNormalizedBboxesWithoutImageExtent && $this->isNormalizedLayoutBbox($bbox)) {
                 continue;
             }
 

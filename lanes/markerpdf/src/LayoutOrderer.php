@@ -189,13 +189,21 @@ final class LayoutOrderer
         $sanitized = [];
         $payload = $this->orderResultPayloadSource($orderResult);
 
+        $hasImageBbox = array_key_exists('image_bbox', $payload);
         $imageBbox = $this->bboxValue($payload['image_bbox'] ?? null);
-        if ($imageBbox !== null) {
+        $hasUsableImageBbox = $imageBbox !== null && $this->rectWidth($imageBbox) > 0.0 && $this->rectHeight($imageBbox) > 0.0;
+        if ($hasUsableImageBbox) {
             $sanitized['image_bbox'] = $imageBbox;
         }
 
         if (array_key_exists('bboxes', $payload)) {
-            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes($payload['bboxes'], $page, $selectedIndex, $sourceIndex);
+            $sanitized['bboxes'] = $this->sanitizeSuppliedOrderBboxes(
+                $payload['bboxes'],
+                $page,
+                $selectedIndex,
+                $sourceIndex,
+                $hasImageBbox && !$hasUsableImageBbox
+            );
         }
 
         foreach ($this->orderResultPageMarkerSources($orderResult) as $source) {
@@ -316,7 +324,8 @@ final class LayoutOrderer
         mixed $boxes,
         ?array $page = null,
         int $selectedIndex = 0,
-        ?int $sourceIndex = null
+        ?int $sourceIndex = null,
+        bool $rejectNormalizedBboxesWithoutImageExtent = false
     ): array
     {
         if (!is_array($boxes) || !array_is_list($boxes)) {
@@ -334,6 +343,9 @@ final class LayoutOrderer
 
             $bbox = $this->bboxValue($box);
             if ($bbox === null) {
+                continue;
+            }
+            if ($rejectNormalizedBboxesWithoutImageExtent && $this->isNormalizedOrderBbox($bbox)) {
                 continue;
             }
             if ($this->rectWidth($bbox) <= 0.0 || $this->rectHeight($bbox) <= 0.0) {

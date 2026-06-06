@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\MarkerPDF\MarkdownPostProcessor;
 use PortLibs\MarkerPDF\LayoutAnnotator;
+use PortLibs\MarkerPDF\LayoutOrderer;
 use PortLibs\MarkerPDF\MarkerSettings;
 use PortLibs\MarkerPDF\PdfTextDocumentExtractor;
 use PortLibs\MarkerPDF\SuppliedDocumentConverter;
@@ -2725,5 +2726,157 @@ return [
         $t->true(!str_contains($encoded, 'page-result cover order payload'));
         $t->true(!str_contains($encoded, 'page-result selected order payload'));
         $t->true(!str_contains($encoded, 'page-result right order row payload'));
+    },
+    'rejects normalized order rows when supplied image bbox has no area before pdftext layout assignment' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $result = (new PdfTextDocumentExtractor())->getOrderedTextBlocks(
+            [
+                $pdftextLinesPage(4600, [
+                    ['text' => 'Zero image-bbox order cover skipped', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+                ]),
+                $pdftextLinesPage(4601, [
+                    ['text' => 'Second zero image-bbox order column cannot trust normalized row', 'bbox' => [330.0, 112.0, 560.0, 126.0]],
+                    ['text' => 'First zero image-bbox order column uses absolute fallback', 'bbox' => [72.0, 112.0, 280.0, 126.0]],
+                ]),
+            ],
+            [
+                [
+                    'page' => 4601,
+                    'image_bbox' => [0.0, 0.0, 0.0, 792.0],
+                    'bboxes' => [
+                        ['position' => 1, 'bbox' => [0.519, 0.121, 0.932, 0.182], 'raw_payload' => 'normalized order row needs positive image extent'],
+                        ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+                    ],
+                ],
+            ],
+            orderImages: [
+                ['page' => 4601, 'image' => 'zero-image-bbox-order-render'],
+            ],
+            maxPages: 1,
+            startPage: 1
+        );
+
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($result['pages']));
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $order = $result['pages'][0]['order'] ?? [];
+
+        $t->same([1], $result['page_range']);
+        $t->same(4601, $result['pages'][0]['pnum']);
+        $t->same([
+            'First zero image-bbox order column uses absolute fallback',
+            'Second zero image-bbox order column cannot trust normalized row',
+        ], array_map(
+            static fn (array $block): string => $block['lines'][0]['spans'][0]['text'],
+            $result['pages'][0]['blocks']
+        ));
+        $t->same('First zero image-bbox order column uses absolute fallback Second zero image-bbox order column cannot trust normalized row', $blocks[0]['text']);
+        $t->true(!array_key_exists('image_bbox', $order));
+        $t->same([
+            ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->true(!str_contains($encoded, 'normalized order row needs positive image extent'));
+        $t->same(1, $result['metadata']['order_plan']['image_count']);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count']);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages']);
+    },
+    'rejects normalized layout and order rows when image bboxes have no area before WordPress imports' => static function (TestRunner $t) use ($pdftextLinesPage): void {
+        $pdftextPages = [
+            $pdftextLinesPage(4700, [
+                ['text' => 'Zero image-bbox converter cover should stay skipped.', 'bbox' => [72.0, 80.0, 330.0, 94.0]],
+            ]),
+            $pdftextLinesPage(4701, [
+                ['text' => 'Second converter zero image-bbox body.', 'bbox' => [330.0, 112.0, 560.0, 128.0]],
+                ['text' => 'First converter zero image-bbox heading should stay text.', 'bbox' => [72.0, 112.0, 280.0, 128.0]],
+            ]),
+        ];
+        $selectedPage = $pdftextPages[1];
+        $layoutResult = [
+            'page' => 4701,
+            'image_bbox' => [0.0, 0.0, 612.0, 0.0],
+            'bboxes' => [
+                ['label' => 'Title', 'bbox' => [0.098, 0.116, 0.474, 0.189], 'raw_payload' => 'normalized layout row needs positive image extent'],
+                ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+                ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+            ],
+        ];
+        $orderResult = [
+            'page' => 4701,
+            'image_bbox' => [0.0, 0.0, 0.0, 792.0],
+            'bboxes' => [
+                ['position' => 1, 'bbox' => [0.519, 0.121, 0.932, 0.182], 'raw_payload' => 'normalized converter order row needs positive image extent'],
+                ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+            ],
+        ];
+        $layoutPreview = (new LayoutAnnotator())->runWithSuppliedLayouts(
+            [['page' => 4701, 'image' => 'zero-image-bbox-layout-render']],
+            [$selectedPage],
+            [$layoutResult],
+            1.0,
+            [1]
+        );
+        $orderPreview = (new LayoutOrderer())->runWithSuppliedOrder(
+            [['page' => 4701, 'image' => 'zero-image-bbox-order-render']],
+            [$selectedPage],
+            [$orderResult],
+            1.0,
+            [1]
+        );
+        $layout = $layoutPreview['pages'][0]['layout'] ?? [];
+        $order = $orderPreview['pages'][0]['order'] ?? [];
+
+        $path = sys_get_temp_dir() . '/markerpdf-zero-image-bbox-layout-order-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% zero image bbox pdftext layout order boundary\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $pdftextPages,
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'max_pages' => 1,
+                    'start_page' => 1,
+                    'lowres_images' => [
+                        ['page' => 4701, 'image' => 'zero-image-bbox-layout-render'],
+                    ],
+                    'layout_results' => [$layoutResult],
+                    'order_images' => [
+                        ['page' => 4701, 'image' => 'zero-image-bbox-order-render'],
+                    ],
+                    'order_results' => [$orderResult],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+        } finally {
+            unlink($path);
+        }
+
+        $encoded = json_encode($result, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '';
+        $text = $result['text'];
+
+        $t->same([1], $result['metadata']['page_range'] ?? null);
+        $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['layout_result_count'] ?? null);
+        $t->same(1, $result['metadata']['layout_plan']['assigned_pages'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['image_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['order_result_count'] ?? null);
+        $t->same(1, $result['metadata']['order_plan']['assigned_pages'] ?? null);
+        $t->same(1, $layoutPreview['plan']['assigned_pages']);
+        $t->same(1, $orderPreview['plan']['assigned_pages']);
+        $t->true(!array_key_exists('image_bbox', $layout));
+        $t->true(!array_key_exists('image_bbox', $order));
+        $t->same([
+            ['label' => 'Text', 'bbox' => [60.0, 92.0, 290.0, 150.0]],
+            ['label' => 'Text', 'bbox' => [318.0, 92.0, 570.0, 150.0]],
+        ], $layout['bboxes'] ?? []);
+        $t->same([
+            ['position' => 2, 'bbox' => [60.0, 96.0, 290.0, 144.0]],
+        ], $order['bboxes'] ?? []);
+        $t->contains('First converter zero image-bbox heading should stay text.', $text);
+        $t->contains('Second converter zero image-bbox body.', $text);
+        $t->true(strpos($text, 'First converter zero image-bbox heading should stay text.') < strpos($text, 'Second converter zero image-bbox body.'));
+        $t->true(!str_contains($text, '# First Converter Zero Image-Bbox Heading Should Stay Text.'));
+        $t->true(!str_contains($text, 'Zero image-bbox converter cover should stay skipped.'));
+        $t->true(!str_contains($encoded, 'normalized layout row needs positive image extent'));
+        $t->true(!str_contains($encoded, 'normalized converter order row needs positive image extent'));
     },
 ];
