@@ -940,7 +940,7 @@ final class UnicodeText
                 && (
                     $joinNext
                     || $clusterExtender
-                    || ($emojiSkinToneModifier && self::isEmojiModifierClusterBase($clusters[count($clusters) - 1]))
+                    || ($emojiSkinToneModifier && self::canAppendEmojiSkinToneModifier($clusters[count($clusters) - 1]))
                     || ($indicViramaJoinNext && $indicConsonant)
                     || ($regionalIndicator && $regionalIndicatorRun === 1)
                 );
@@ -2764,6 +2764,27 @@ final class UnicodeText
         }
 
         return $hasModifierBase;
+    }
+
+    private static function canAppendEmojiSkinToneModifier(string $cluster): bool
+    {
+        return self::isEmojiModifierClusterBase($cluster)
+            || self::endsWithEmojiModifierBase($cluster);
+    }
+
+    private static function endsWithEmojiModifierBase(string $cluster): bool
+    {
+        $characters = self::characters($cluster);
+        for ($index = count($characters) - 1; $index >= 0; $index--) {
+            $codepoint = self::codepoint($characters[$index]);
+            if (self::isCombiningOrZeroWidth($codepoint)) {
+                continue;
+            }
+
+            return self::isEmojiModifierBase($codepoint);
+        }
+
+        return false;
     }
 
     private static function isEmojiModifierBase(int $codepoint): bool

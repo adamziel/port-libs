@@ -801,6 +801,24 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 9, 'Emoji ZWJ variation wrapped line exceeds requested width');
         }
     },
+    'keeps multi person emoji zwj skin tone sequences as one display cluster' => static function (TestRunner $t): void {
+        $handshake = "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}";
+        $kiss = "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}";
+        $text = $handshake . $kiss . 'X';
+        $wrapped = UnicodeText::wrapByDisplayWidth("Emoji {$handshake} {$kiss} tail", 9, '  ');
+
+        $t->same(2, UnicodeText::displayWidth($handshake));
+        $t->same(2, UnicodeText::displayWidth($kiss));
+        $t->same(5, UnicodeText::displayWidth($text));
+        $t->same([$handshake, $kiss, 'X'], UnicodeText::graphemes($text));
+        $t->same([$handshake, $kiss . 'X'], UnicodeText::splitAtDisplayWidth($text, 1));
+        $t->same([$handshake, $kiss, 'X'], UnicodeText::splitByDisplayBreakpoints($text, [2, 4]));
+        $t->same($kiss . '  ', UnicodeText::padDisplay($kiss, 4));
+        $t->same(['Emoji ' . $handshake, '  ' . $kiss . ' tail'], $wrapped);
+        foreach ($wrapped as $line) {
+            $t->true(UnicodeText::displayWidth($line) <= 9, 'Emoji multi-skin ZWJ wrapped line exceeds requested width');
+        }
+    },
     'measures supplementary east asian wide symbols for display columns' => static function (TestRunner $t): void {
         $ideographicMarks = "\u{16FE0}\u{16FE1}\u{16FE2}\u{16FE3}";
         $kanaLetters = "\u{1B000}\u{1B11F}\u{1B132}\u{1B150}\u{1B155}\u{1B164}";
