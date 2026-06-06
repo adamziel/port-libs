@@ -146,7 +146,9 @@ final class PdfImageRenderer
         $adobeTransform = $this->jpegAdobeApp14Transform($jpegBytes);
         $dctFilter = $this->dctDecodeFilterName($imageDictionary, $objects);
         $decodeParmsTransform = $this->dctDecodeParmsColorTransform($imageDictionary, $objects);
-        $decodeParmsTransformValid = $decodeParmsTransform === null || in_array($decodeParmsTransform, [0, 1, 2], true);
+        $decodeParmsAlignmentInvalid = $this->dctDecodeParmsAlignmentIsInvalid($imageDictionary, $objects);
+        $decodeParmsTransformValid = !$decodeParmsAlignmentInvalid
+            && ($decodeParmsTransform === null || in_array($decodeParmsTransform, [0, 1, 2], true));
         $effectiveDecodeParmsTransform = $decodeParmsTransformValid ? $decodeParmsTransform : null;
         $effectiveTransform = $adobeTransform ?? $effectiveDecodeParmsTransform ?? ($components === 3 ? 1 : 0);
         $needsCmykToRgb = $colorSpace === 'DeviceCMYK' || $components === 4;
@@ -158,7 +160,9 @@ final class PdfImageRenderer
         if ($adobeTransform !== null && $decodeParmsTransform !== null) {
             $notes[] = 'adobe_app14_transform_overrides_decodeparms';
         }
-        if (!$decodeParmsTransformValid) {
+        if ($decodeParmsAlignmentInvalid) {
+            $notes[] = 'unaligned_dctdecode_decodeparms_fail_closed';
+        } elseif (!$decodeParmsTransformValid) {
             $notes[] = 'invalid_dctdecode_color_transform_ignored';
         }
         if ($needsCmykToRgb) {
@@ -4295,6 +4299,7 @@ final class PdfImageRenderer
                 'preview_only' => $this->isPreviewOnlyImageFilter($filter),
                 'decode_parms' => $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms)
                     ?? $this->imageFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                    ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex)
                     ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms, $decodeParmsIndex),
             ];
         }
@@ -4665,6 +4670,47 @@ final class PdfImageRenderer
             'valid_decode_parms' => false,
             'invalid_decode_parms_fields' => ['decode_parms_alignment'],
             'decode_parms_review' => 'unaligned_ccitt_decodeparms_fail_closed',
+            'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
+            'filter_slot_count' => $filterSlots,
+            'decode_parms_slot_count' => $decodeParmsSlots,
+        ];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function dctDecodeUnalignedDecodeParmsReview(
+        string $filter,
+        array $filters,
+        array $decodeParms,
+        ?int $decodeParmsIndex
+    ): ?array {
+        if (($filter !== 'DCTDecode' && $filter !== 'DCT') || $decodeParmsIndex !== null) {
+            return null;
+        }
+
+        $hasDeclaredNonNullDecodeParms = false;
+        foreach ($decodeParms as $value) {
+            if ($value !== null && trim($value) !== '') {
+                $hasDeclaredNonNullDecodeParms = true;
+                break;
+            }
+        }
+        if (!$hasDeclaredNonNullDecodeParms) {
+            return null;
+        }
+
+        $filterSlots = count($filters);
+        $decodeParmsSlots = count($decodeParms);
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => null,
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_dctdecode_decodeparms_fail_closed',
             'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
             'filter_slot_count' => $filterSlots,
             'decode_parms_slot_count' => $decodeParmsSlots,
@@ -5388,6 +5434,39 @@ final class PdfImageRenderer
             $this->extractPdfNameValue($dictionary, 'DecodeParms'),
             $objects
         );
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function dctDecodeParmsAlignmentIsInvalid(string $dictionary, array $objects = []): bool
+    {
+        $filters = $this->imageFilterValues($dictionary, $objects);
+        $decodeParms = $this->imageDecodeParmsValues($dictionary, $objects);
+        if ($decodeParms === []) {
+            return false;
+        }
+
+        $hasDeclaredNonNullDecodeParms = false;
+        foreach ($decodeParms as $value) {
+            if ($value !== null && trim($value) !== '') {
+                $hasDeclaredNonNullDecodeParms = true;
+                break;
+            }
+        }
+        if (!$hasDeclaredNonNullDecodeParms) {
+            return false;
+        }
+
+        foreach ($filters as $index => $filter) {
+            if ($filter !== 'DCTDecode' && $filter !== 'DCT') {
+                continue;
+            }
+
+            return $this->decodeParmsIndexForImageFilterIndex($filters, $decodeParms, $index) === null;
+        }
+
+        return false;
     }
 
     /**

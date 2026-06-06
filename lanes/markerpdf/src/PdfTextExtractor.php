@@ -7678,6 +7678,7 @@ final class PdfTextExtractor
                     : (
                         $this->ccittFaxUnappliedDecodeParmsReview($filter, $filters, $decodeParms ?? [])
                         ?? $this->imageXObjectFilterDecodeParms($filter, $decodeParmsValue, $objects)
+                        ?? $this->dctDecodeUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
                         ?? $this->ccittFaxUnalignedDecodeParmsReview($filter, $filters, $decodeParms ?? [], $decodeParmsIndex)
                     ),
             ];
@@ -7897,6 +7898,47 @@ final class PdfTextExtractor
             'valid_decode_parms' => false,
             'invalid_decode_parms_fields' => ['decode_parms_alignment'],
             'decode_parms_review' => 'unaligned_ccitt_decodeparms_fail_closed',
+            'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
+            'filter_slot_count' => $filterSlots,
+            'decode_parms_slot_count' => $decodeParmsSlots,
+        ];
+    }
+
+    /**
+     * @param list<string|null> $filters
+     * @param list<string|null> $decodeParms
+     * @return array<string, int|bool|string|null|list<string>>|null
+     */
+    private function dctDecodeUnalignedDecodeParmsReview(
+        string $filter,
+        array $filters,
+        array $decodeParms,
+        ?int $decodeParmsIndex
+    ): ?array {
+        if (($filter !== 'DCTDecode' && $filter !== 'DCT') || $decodeParmsIndex !== null) {
+            return null;
+        }
+
+        $hasDeclaredNonNullDecodeParms = false;
+        foreach ($decodeParms as $value) {
+            if ($value !== null && trim($value) !== '') {
+                $hasDeclaredNonNullDecodeParms = true;
+                break;
+            }
+        }
+        if (!$hasDeclaredNonNullDecodeParms) {
+            return null;
+        }
+
+        $filterSlots = count($filters);
+        $decodeParmsSlots = count($decodeParms);
+
+        return [
+            'type' => 'DCTDecode',
+            'color_transform' => null,
+            'valid_color_transform' => false,
+            'invalid_decode_parms_fields' => ['decode_parms_alignment'],
+            'decode_parms_review' => 'unaligned_dctdecode_decodeparms_fail_closed',
             'decode_parms_alignment' => $decodeParmsSlots < $filterSlots ? 'missing_filter_slot' : 'unapplied_filter_slot',
             'filter_slot_count' => $filterSlots,
             'decode_parms_slot_count' => $decodeParmsSlots,
