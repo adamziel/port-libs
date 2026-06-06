@@ -1678,6 +1678,61 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-date" data-odf-field-type="date" data-odf-field-date-value="2026-06-05" data-odf-field-fixed="true">June 5, 2026</span>', $blocksHtml);
     },
+    'maps ODT placeholders into review spans without dropping source text' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPlaceholders = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Required <text:placeholder text:placeholder-type="text" text:description="Enter migration summary" text:style-name="PlaceholderStyle">migration summary</text:placeholder> and empty <text:placeholder text:placeholder-type="date" text:description="Pick import date">review date</text:placeholder>.</text:p>
+      <text:h text:outline-level="2">Heading <text:placeholder text:placeholder-type="text">placeholder</text:placeholder></text:h>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPlaceholders));
+        $blocks = $result['document']->children;
+        $paragraph = $blocks[0];
+        $heading = $blocks[1];
+        $summary = $paragraph->children[1];
+        $date = $paragraph->children[3];
+        $headingPlaceholder = $heading->children[1];
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Required migration summary and empty review date.', $paragraph->attr('text'));
+        $t->same('span', $summary->type);
+        $t->same(['odf-placeholder', 'odf-placeholder-text'], $summary->attr('classes'));
+        $t->same('text', $summary->attr('placeholderType'));
+        $t->same('migration summary', $summary->children[0]->attr('text'));
+        $t->same([
+            'type' => 'text',
+            'description' => 'Enter migration summary',
+            'styleName' => 'PlaceholderStyle',
+        ], $summary->attr('placeholderMetadata'));
+        $t->same([
+            'data-odf-placeholder-type' => 'text',
+            'data-odf-placeholder-description' => 'Enter migration summary',
+            'data-odf-placeholder-style-name' => 'PlaceholderStyle',
+        ], $summary->attr('attributes'));
+
+        $t->same(['odf-placeholder', 'odf-placeholder-date'], $date->attr('classes'));
+        $t->same('date', $date->attr('placeholderType'));
+        $t->same('Pick import date', $date->attr('placeholderMetadata')['description']);
+        $t->same('review date', $date->children[0]->attr('text'));
+
+        $t->same('heading', $heading->type);
+        $t->same('Heading ', $heading->children[0]->attr('text'));
+        $t->same('placeholder', $headingPlaceholder->children[0]->attr('text'));
+        $t->same(['odf-placeholder', 'odf-placeholder-text'], $headingPlaceholder->attr('classes'));
+        $t->same(3, $result['importReport']['content']['placeholderCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[migration summary]{.odf-placeholder .odf-placeholder-text data-odf-placeholder-type="text" data-odf-placeholder-description="Enter migration summary" data-odf-placeholder-style-name="PlaceholderStyle"}', $markdown);
+        $t->contains('<span class="odf-placeholder odf-placeholder-text" data-odf-placeholder-type="text" data-odf-placeholder-description="Enter migration summary" data-odf-placeholder-style-name="PlaceholderStyle">migration summary</span>', $blocksHtml);
+    },
     'maps ODT bibliography marks into citation handoff nodes' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithBibliographyMarks = <<<'XML'
 <office:document-content

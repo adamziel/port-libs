@@ -183,6 +183,7 @@ final class OdfReader
                     'indexMarkCount' => $contentStats['indexMarkCount'],
                     'sequenceCount' => $contentStats['sequenceCount'],
                     'fieldCount' => $contentStats['fieldCount'],
+                    'placeholderCount' => $contentStats['placeholderCount'],
                     'rubyCount' => $contentStats['rubyCount'],
                     'softPageBreakCount' => $contentStats['softPageBreakCount'],
                     'citationCount' => $contentStats['citationCount'],
@@ -2228,6 +2229,13 @@ final class OdfReader
                 }
                 continue;
             }
+            if ($this->isElement($child, self::TEXT_NS, 'placeholder')) {
+                $placeholder = $this->placeholderNode($child, $catalog, $package);
+                if ($placeholder instanceof AstNode) {
+                    $nodes[] = $placeholder;
+                }
+                continue;
+            }
             if ($this->isElement($child, self::TEXT_NS, 'sequence')) {
                 $sequence = $this->sequenceNode($child, $catalog, $package);
                 if ($sequence instanceof AstNode) {
@@ -2614,6 +2622,59 @@ final class OdfReader
             'date',
             'time',
         ], true);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function placeholderNode(\DOMElement $placeholder, array $catalog, ?ZipPackage $package): ?AstNode
+    {
+        $children = $this->coalesceTextNodes($this->inlineNodes($placeholder, $catalog, $package));
+        if ($children === []) {
+            $text = self::normalizedText($placeholder);
+            if ($text === '') {
+                return null;
+            }
+            $children = [new AstNode('text', ['text' => $text])];
+        }
+
+        $metadata = $this->placeholderMetadata($placeholder);
+        $placeholderType = (string) ($metadata['type'] ?? 'unknown');
+        $attributes = [];
+        foreach ($metadata as $name => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $attributes['data-odf-placeholder-' . self::kebabCase((string) $name)] = (string) $value;
+        }
+
+        return new AstNode('span', self::withoutEmpty([
+            'sourceFormat' => 'odt',
+            'placeholderType' => $placeholderType,
+            'placeholderMetadata' => $metadata,
+            'classes' => ['odf-placeholder', 'odf-placeholder-' . self::placeholderClassSuffix($placeholderType)],
+            'attributes' => $attributes,
+        ]), $children);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function placeholderMetadata(\DOMElement $placeholder): array
+    {
+        return self::withoutEmpty([
+            'type' => self::nullable(self::attr($placeholder, self::TEXT_NS, 'placeholder-type')),
+            'description' => self::nullable(self::attr($placeholder, self::TEXT_NS, 'description')),
+            'styleName' => self::nullable(self::attr($placeholder, self::TEXT_NS, 'style-name')),
+        ]);
+    }
+
+    private static function placeholderClassSuffix(string $type): string
+    {
+        $suffix = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', $type) ?? '');
+        $suffix = trim($suffix, '-');
+
+        return $suffix === '' ? 'unknown' : $suffix;
     }
 
     /**
@@ -4402,7 +4463,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, formControlCount:int, missingFormControlCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -4416,6 +4477,7 @@ final class OdfReader
             'indexMarkCount' => 0,
             'sequenceCount' => 0,
             'fieldCount' => 0,
+            'placeholderCount' => 0,
             'rubyCount' => 0,
             'softPageBreakCount' => 0,
             'citationCount' => 0,
@@ -4488,6 +4550,9 @@ final class OdfReader
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-field')) {
                 $stats['fieldCount']++;
+            }
+            if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-placeholder')) {
+                $stats['placeholderCount']++;
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-ruby')) {
                 $stats['rubyCount']++;
