@@ -690,28 +690,80 @@ final class PdfXrefFreeObjectMap
     {
         $reference = self::objectReferenceAfterName($sectionBody, 'Prev');
         if ($reference === null) {
-            return self::integerValueAfterName($sectionBody, 'Prev');
-        }
-
-        $body = self::directObjectBodyForReferenceBeforeOffset(
-            $pdfBytes,
-            $reference['object'],
-            $reference['generation'],
-            $beforeOffset
-        );
-        if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
-            $body = self::compressedObjectStreamBodyForReferenceBeforeOffset(
+            $previousOffset = self::integerValueAfterName($sectionBody, 'Prev');
+        } else {
+            $body = self::directObjectBodyForReferenceBeforeOffset(
                 $pdfBytes,
                 $reference['object'],
                 $reference['generation'],
                 $beforeOffset
             );
             if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
-                return null;
+                $body = self::compressedObjectStreamBodyForReferenceBeforeOffset(
+                    $pdfBytes,
+                    $reference['object'],
+                    $reference['generation'],
+                    $beforeOffset
+                );
+                if ($body === null || preg_match('/^\s*([+-]?\d+)\s*\z/s', $body, $match) !== 1) {
+                    return null;
+                }
+            }
+
+            $previousOffset = (int) $match[1];
+        }
+
+        if ($previousOffset === null || $previousOffset < 0) {
+            return $previousOffset;
+        }
+
+        if ($previousOffset >= $beforeOffset || !self::xrefSectionExistsAtOffset($pdfBytes, $previousOffset)) {
+            return self::latestXrefSectionOffsetBefore($pdfBytes, $beforeOffset);
+        }
+
+        return $previousOffset;
+    }
+
+    private static function xrefSectionExistsAtOffset(string $pdfBytes, int $offset): bool
+    {
+        $offset = self::skipWhitespace($pdfBytes, $offset);
+
+        return self::xrefTableSectionAt($pdfBytes, $offset) !== null
+            || self::xrefStreamSectionAt($pdfBytes, $offset) !== null;
+    }
+
+    private static function latestXrefSectionOffsetBefore(string $pdfBytes, int $beforeOffset): ?int
+    {
+        $offsets = [];
+        if (preg_match_all('/\bxref\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+            foreach ($matches[0] as $match) {
+                $offset = $match[1] ?? null;
+                if (!is_int($offset) || $offset >= $beforeOffset) {
+                    continue;
+                }
+
+                if (self::xrefTableSectionAt($pdfBytes, $offset) !== null) {
+                    $offsets[] = $offset;
+                }
             }
         }
 
-        return (int) $match[1];
+        if (preg_match_all('/\b\d+\s+\d+\s+obj\b/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) >= 1) {
+            foreach ($matches[0] as $match) {
+                $offset = $match[1] ?? null;
+                if (!is_int($offset) || $offset >= $beforeOffset) {
+                    continue;
+                }
+
+                if (self::xrefStreamSectionAt($pdfBytes, $offset) !== null) {
+                    $offsets[] = $offset;
+                }
+            }
+        }
+
+        rsort($offsets, SORT_NUMERIC);
+
+        return $offsets[0] ?? null;
     }
 
     private static function integerValueAfterName(string $dictionary, string $name): ?int
