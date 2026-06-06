@@ -422,13 +422,15 @@ final class Html5DomFragment
                 }
             }
 
-            return self::normalizeChildren(
+            $children = self::normalizeChildren(
                 $node,
                 $mode,
                 $diagnostics,
                 self::childForeignContext($node, $rawName, $elementForeignContext),
                 $baseUrl
             );
+
+            return self::withVisibleFormChoiceLabel($node, $name, $children);
         }
 
         if ($mode === 'html' && $name === 'input') {
@@ -788,6 +790,42 @@ final class Html5DomFragment
         }
 
         $label = str_replace("\0", '', $element->getAttribute($attribute));
+
+        return trim($label) === '' ? null : $label;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return list<array<string, mixed>>
+     */
+    private static function withVisibleFormChoiceLabel(\DOMElement $element, string $name, array $children): array
+    {
+        if ($name !== 'option' && $name !== 'optgroup') {
+            return $children;
+        }
+
+        $label = self::visibleFormChoiceLabel($element);
+        if ($label === null) {
+            return $children;
+        }
+
+        $labelNode = [
+            'type' => 'text',
+            'text' => $label,
+        ];
+
+        return $name === 'option'
+            ? [$labelNode]
+            : [$labelNode, ...$children];
+    }
+
+    private static function visibleFormChoiceLabel(\DOMElement $element): ?string
+    {
+        if (!$element->hasAttribute('label')) {
+            return null;
+        }
+
+        $label = str_replace("\0", '', $element->getAttribute('label'));
 
         return trim($label) === '' ? null : $label;
     }

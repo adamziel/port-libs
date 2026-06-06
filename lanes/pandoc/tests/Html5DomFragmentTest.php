@@ -200,6 +200,43 @@ return [
         $t->true(!str_contains($html, '<textarea'), 'Expected textarea wrapper to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected form-side javascript URLs to be stripped');
     },
+    'preserves option and optgroup labels as visible reviewer text while dropping controls' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<form action="/submit"><p><select name="status">'
+            . '<optgroup label="Publication status"><option label="Draft review"></option><option selected>Final</option></optgroup>'
+            . '<option label="Needs copyedit">Submission value</option><option value="private"></option>'
+            . '</select></p></form><p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/select-label-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>Publication statusDraft reviewFinalNeeds copyedit</p><p>after</p>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Publication statusDraft reviewFinalNeeds copyeditafter', $fragment->textContent());
+        $t->same(['p'], $summary['elementNames']);
+        $t->same(['form', 'optgroup', 'option', 'select'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(7, $summary['diagnostics']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $fragment->diagnosticCodes());
+        $t->same('p', $nodes[0]['name']);
+        $t->same('Publication status', $nodes[0]['children'][0]['text']);
+        $t->same('Draft review', $nodes[0]['children'][1]['text']);
+        $t->same('Final', $nodes[0]['children'][2]['text']);
+        $t->same('Needs copyedit', $nodes[0]['children'][3]['text']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('/migration/select-label-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<select'), 'Expected select wrapper to be stripped');
+        $t->true(!str_contains($html, '<optgroup'), 'Expected optgroup wrapper to be stripped');
+        $t->true(!str_contains($html, '<option'), 'Expected option wrapper to be stripped');
+        $t->true(!str_contains($html, 'Submission value'), 'Expected option label to take precedence over child submission text');
+        $t->true(!str_contains($html, 'private'), 'Expected option value to stay hidden from review text');
+    },
     'preserves explicit input button labels as reviewer text while dropping controls' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<form action="/submit">'
