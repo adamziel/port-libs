@@ -2797,6 +2797,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
                     $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -2862,6 +2863,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
                 foreach ($coverage as $record) {
                     $node = $record['node'] ?? null;
@@ -2927,6 +2929,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableBodyGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
+            array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
         }
         foreach ($coverage as $record) {
             $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
@@ -3462,6 +3465,95 @@ final class TableGeometry
             'bodySections' => $bodySections,
             'bodySectionRowCounts' => $bodySectionRowCounts,
             'sections' => $sectionSummary['sections'],
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableBodyHeadRowWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-body-head-rows-flattened', 'body-local-header-row-boundaries'],
+            'asciidoc' => ['asciidoc-body-head-rows-review-required', 'body-local-header-rows'],
+            'latex' => ['latex-body-head-rows-review-required', 'longtable-body-head-review'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $columnCount = self::columnCount($table);
+        $rowGroups = self::rowGroups($table, $columnCount);
+        $summary = self::rowGroupSummary($rowGroups);
+        if (($summary['hasBodyHeadRows'] ?? false) !== true) {
+            return [];
+        }
+
+        $bodySections = [];
+        $bodyHeadRowCounts = [];
+        $bodySectionRowCounts = [];
+        $sections = [];
+        foreach ($rowGroups as $rowGroup) {
+            $kind = (string) ($rowGroup['kind'] ?? '');
+            $rowCount = max(0, (int) ($rowGroup['rowCount'] ?? 0));
+            if ($rowCount <= 0) {
+                continue;
+            }
+
+            $rowRole = match ($kind) {
+                'table-head' => 'head',
+                'table-body' => 'body',
+                'table-foot' => 'foot',
+                default => '',
+            };
+            if ($rowRole === '') {
+                continue;
+            }
+
+            $section = (string) ($rowGroup['section'] ?? '');
+            $bodyHeadRowCount = max(0, (int) ($rowGroup['bodyHeadRowCount'] ?? 0));
+            $bodyRowCount = max(0, (int) ($rowGroup['bodyRowCount'] ?? 0));
+            $sectionRecord = [
+                'section' => $section,
+                'rowCount' => $rowCount,
+                'rowRole' => $rowRole,
+            ];
+            if ($kind === 'table-body') {
+                $sectionRecord['bodyHeadRowCount'] = $bodyHeadRowCount;
+                $sectionRecord['bodyRowCount'] = $bodyRowCount;
+                $sectionRecord['rowRoles'] = self::stringList($rowGroup['rowRoles'] ?? []);
+                if ($bodyHeadRowCount > 0) {
+                    $bodySections[] = $section;
+                    $bodyHeadRowCounts[] = $bodyHeadRowCount;
+                    $bodySectionRowCounts[] = $bodyRowCount;
+                }
+            }
+            $sections[] = $sectionRecord;
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'body-head-rows',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'pandoc-table-body-head-rows',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => $columnCount,
+            'sectionCount' => count($sections),
+            'rowCount' => $summary['tableHeadRowCount'] + $summary['bodyHeadRowCount'] + $summary['bodyRowCount'] + $summary['tableFootRowCount'],
+            'bodyCount' => $summary['bodyGroupCount'],
+            'tableHeadRowCount' => $summary['tableHeadRowCount'],
+            'bodyHeadRowCount' => $summary['bodyHeadRowCount'],
+            'bodyHeadRowGroupCount' => $summary['bodyHeadRowGroupCount'],
+            'bodyRowCount' => $summary['bodyRowCount'],
+            'footRowCount' => $summary['tableFootRowCount'],
+            'bodySections' => $bodySections,
+            'bodyHeadRowCounts' => $bodyHeadRowCounts,
+            'bodySectionRowCounts' => $bodySectionRowCounts,
+            'sections' => $sections,
         ]];
     }
 

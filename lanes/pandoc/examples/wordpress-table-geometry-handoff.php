@@ -1031,6 +1031,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($bodyHeadPacket['rowGroups'][1]['rowRoles'] ?? null) !== ['body-head', 'body'] || ($bodyHeadPacket['rowGroups'][1]['bodyHeadRowCount'] ?? null) !== 1) {
         throw new RuntimeException('Table geometry self-test missing body-local row-group roles');
     }
+    if (
+        ($bodyHeadPacket['writerDowngrades']['markdown'][1]['code'] ?? null) !== 'markdown-body-head-rows-flattened'
+        || ($bodyHeadPacket['writerDowngrades']['markdown'][1]['requiredFeature'] ?? null) !== 'body-local-header-row-boundaries'
+        || ($bodyHeadPacket['writerDowngrades']['markdown'][1]['bodyHeadRowCount'] ?? null) !== 1
+    ) {
+        throw new RuntimeException('Table geometry self-test missing body-local head row writer diagnostics');
+    }
     $bodyHeadRowHeaderPacket = TableGeometry::reviewPacket($document->children[3], ['idPrefix' => 'Body Head Grid']);
     if (
         ($bodyHeadRowHeaderPacket['rowHeaderMap']['summary']['dataRowCount'] ?? null) !== 2
@@ -1044,6 +1051,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($bodyHeadRowHeaderPacket['writerDowngrades']['markdown'][0]['code'] ?? null) !== 'markdown-row-headers-flattened') {
         throw new RuntimeException('Table geometry self-test missing body-local row-header writer diagnostics');
+    }
+    if (($bodyHeadRowHeaderPacket['writerDowngrades']['markdown'][1]['code'] ?? null) !== 'markdown-body-head-rows-flattened') {
+        throw new RuntimeException('Table geometry self-test missing row-header plus body-head writer diagnostics');
     }
     json_encode($bodyHeadRowHeaderPacket, JSON_THROW_ON_ERROR);
     if (!str_contains($blocks, '<tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><th rowspan="2" style="text-align:left">Posts</th><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr><tr><td style="text-align:right">7</td><td style="text-align:center">Import</td></tr></tbody>')) {

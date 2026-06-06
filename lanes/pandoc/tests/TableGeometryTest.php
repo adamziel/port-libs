@@ -1578,6 +1578,91 @@ return [
         $t->same(1, $packet['summary']['maxRowHeadColumns'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports body-local head row writer handoff diagnostics' => static function (TestRunner $t): void {
+        $table = new AstNode('table', [
+            'caption' => 'Body head writer audit',
+            'alignments' => ['left', 'right', 'center'],
+        ], [
+            new AstNode('table_head', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Document'], [new AstNode('text', ['text' => 'Document'])]),
+                    new AstNode('table_cell', ['text' => 'Items'], [new AstNode('text', ['text' => 'Items'])]),
+                    new AstNode('table_cell', ['text' => 'State'], [new AstNode('text', ['text' => 'State'])]),
+                ]),
+            ]),
+            new AstNode('table_body', [
+                'headRows' => [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Batch'], [new AstNode('text', ['text' => 'Batch'])]),
+                        new AstNode('table_cell', ['text' => 'Queue'], [new AstNode('text', ['text' => 'Queue'])]),
+                        new AstNode('table_cell', ['text' => 'Decision'], [new AstNode('text', ['text' => 'Decision'])]),
+                    ]),
+                ],
+            ], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                    new AstNode('table_cell', ['text' => 'Review'], [new AstNode('text', ['text' => 'Review'])]),
+                ]),
+            ]),
+        ]);
+
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $markdown = (new MarkdownWriter())->write(new AstNode('document', [], [$table]));
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$table]));
+
+        $t->same(['markdown-body-head-rows-flattened'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $markdownDiagnostics));
+        $t->same('markdown', $markdownDiagnostics[0]['writer'] ?? null);
+        $t->same('body-head-rows', $markdownDiagnostics[0]['reason'] ?? null);
+        $t->same('body-local-header-row-boundaries', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same('pandoc-table-body-head-rows', $markdownDiagnostics[0]['source'] ?? null);
+        $t->same('Body head writer audit', $markdownDiagnostics[0]['caption'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['columnCount'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['sectionCount'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['rowCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['bodyCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['tableHeadRowCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['bodyHeadRowCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['bodyHeadRowGroupCount'] ?? null);
+        $t->same(1, $markdownDiagnostics[0]['bodyRowCount'] ?? null);
+        $t->same(['body'], $markdownDiagnostics[0]['bodySections'] ?? null);
+        $t->same([1], $markdownDiagnostics[0]['bodyHeadRowCounts'] ?? null);
+        $t->same([1], $markdownDiagnostics[0]['bodySectionRowCounts'] ?? null);
+        $t->same(['head', 'body'], array_map(static fn (array $section): string => (string) ($section['section'] ?? ''), $markdownDiagnostics[0]['sections'] ?? []));
+
+        $t->same(['asciidoc-body-head-rows-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $asciidocDiagnostics));
+        $t->same('body-local-header-rows', $asciidocDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(['latex-body-head-rows-review-required'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['code'], $latexDiagnostics));
+        $t->same('longtable-body-head-review', $latexDiagnostics[0]['requiredFeature'] ?? null);
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same(3, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-body-head-rows-flattened',
+            'asciidoc-body-head-rows-review-required',
+            'latex-body-head-rows-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        $t->same(true, $packet['summary']['hasBodyHeadRows'] ?? null);
+        $t->same(1, $packet['summary']['bodyHeadRowCount'] ?? null);
+
+        $t->contains('| Document | Items |  State   |', $markdown);
+        $t->contains('| Batch    | Queue | Decision |', $markdown);
+        $t->contains('| Posts    |    42 |  Review  |', $markdown);
+        $t->contains('<thead><tr><th style="text-align:left">Document</th><th style="text-align:right">Items</th><th style="text-align:center">State</th></tr></thead><tbody><tr><th style="text-align:left">Batch</th><th style="text-align:right">Queue</th><th style="text-align:center">Decision</th></tr><tr><td style="text-align:left">Posts</td><td style="text-align:right">42</td><td style="text-align:center">Review</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($asciidocDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($latexDiagnostics, JSON_THROW_ON_ERROR);
+    },
     'reports multiple table body group writer handoff diagnostics' => static function (TestRunner $t): void {
         $table = new AstNode('table', [
             'caption' => 'Multiple body group audit',
