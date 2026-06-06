@@ -296,6 +296,7 @@ final class TableRecognizer
      */
     public function assignRowsColumns(array $detectionResult, array $imageSize, float $heuristicThresh = 0.6): array
     {
+        $detectionResult = $this->canonicalizedRecognizedTableGeometryAliases($detectionResult);
         $rows = $this->normalizeRowsOrCols($detectionResult['rows'] ?? [], 'row_id');
         $cols = $this->normalizeRowsOrCols($detectionResult['cols'] ?? [], 'col_id');
         $cells = $this->normalizeCells($detectionResult['cells'] ?? []);
@@ -1065,6 +1066,7 @@ final class TableRecognizer
                 throw new InvalidArgumentException('Recognized table entries must be arrays.');
             }
 
+            $table = $this->canonicalizedRecognizedTableGeometryAliases($table);
             $recognitionImageSize = $this->tableRecognitionImageSize($imageSizes[$idx], $table);
             $recognitionImageSizes[$idx] = $recognitionImageSize;
             $localized = $this->localizeRecognizedTableGeometry($table, $recognitionImageSize);
@@ -1303,6 +1305,7 @@ final class TableRecognizer
      */
     private function boundedAssignedCellsWithActiveBands(array $cells, array $table, array $imageSize): array
     {
+        $table = $this->canonicalizedRecognizedTableGeometryAliases($table);
         if ($cells === [] || !isset($table['rows'], $table['cols']) || !is_array($table['rows']) || !is_array($table['cols'])) {
             return [
                 'cells' => $cells,
@@ -1427,6 +1430,7 @@ final class TableRecognizer
      */
     private function assignedCellsFromRecognizedTable(array $table): ?array
     {
+        $table = $this->canonicalizedRecognizedTableGeometryAliases($table);
         $cells = $table['cells'] ?? null;
         if (!is_array($cells) || $cells === []) {
             return null;
@@ -1483,6 +1487,7 @@ final class TableRecognizer
      */
     private function localizeRecognizedTableGeometry(array $table, array $imageSize): array
     {
+        $table = $this->canonicalizedRecognizedTableGeometryAliases($table);
         $spaces = [
             'rows' => $this->tableGeometryCoordinateSpace($table, 'rows'),
             'cols' => $this->tableGeometryCoordinateSpace($table, 'cols'),
@@ -1611,6 +1616,7 @@ final class TableRecognizer
                 continue;
             }
             $table[$field] = $localizedRecords;
+            $table = $this->syncRecognizedTableGeometryAlias($table, $field);
             $table = $this->withTableGeometryCoordinateSpace($table, $field, 'table_crop');
         }
 
@@ -1899,8 +1905,119 @@ final class TableRecognizer
                 ...$keys,
             ];
         }
+        if ($field === 'rows') {
+            return [
+                'row_bboxes_coordinate_space',
+                'row_bbox_coordinate_space',
+                'row_boxes_coordinate_space',
+                'row_box_coordinate_space',
+                'row_bounds_coordinate_space',
+                'row_bound_coordinate_space',
+                'row_bboxes_geometry_space',
+                'row_bbox_geometry_space',
+                'row_boxes_geometry_space',
+                'row_box_geometry_space',
+                'row_bounds_geometry_space',
+                'row_bound_geometry_space',
+                ...$keys,
+            ];
+        }
+        if ($field === 'cols') {
+            return [
+                'columns_coordinate_space',
+                'column_coordinate_space',
+                'column_bboxes_coordinate_space',
+                'column_bbox_coordinate_space',
+                'col_bboxes_coordinate_space',
+                'col_bbox_coordinate_space',
+                'column_boxes_coordinate_space',
+                'column_box_coordinate_space',
+                'col_boxes_coordinate_space',
+                'col_box_coordinate_space',
+                'columns_geometry_space',
+                'column_geometry_space',
+                'column_bboxes_geometry_space',
+                'column_bbox_geometry_space',
+                'col_bboxes_geometry_space',
+                'col_bbox_geometry_space',
+                'column_boxes_geometry_space',
+                'column_box_geometry_space',
+                'col_boxes_geometry_space',
+                'col_box_geometry_space',
+                ...$keys,
+            ];
+        }
 
         return $keys;
+    }
+
+    /**
+     * Tabled sidecars commonly serialize flat row/column bands as
+     * row_bboxes/columns. Keep those aliases available while adding canonical
+     * rows/cols keys before assignment and WordPress grid review.
+     *
+     * @param array<string, mixed> $table
+     * @return array<string, mixed>
+     */
+    private function canonicalizedRecognizedTableGeometryAliases(array $table): array
+    {
+        $table = $this->canonicalizedRecognizedTableGeometryAlias(
+            $table,
+            'rows',
+            'rows_source_alias',
+            ['row_bboxes', 'row_boxes', 'row_bounds']
+        );
+
+        return $this->canonicalizedRecognizedTableGeometryAlias(
+            $table,
+            'cols',
+            'cols_source_alias',
+            ['columns', 'column_bboxes', 'col_bboxes', 'column_boxes', 'col_boxes']
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @param list<string> $aliases
+     * @return array<string, mixed>
+     */
+    private function canonicalizedRecognizedTableGeometryAlias(array $table, string $canonicalKey, string $sourceAliasKey, array $aliases): array
+    {
+        if (isset($table[$canonicalKey]) && is_array($table[$canonicalKey])) {
+            return $table;
+        }
+
+        foreach ($aliases as $alias) {
+            if (!isset($table[$alias]) || !is_array($table[$alias])) {
+                continue;
+            }
+
+            $table[$canonicalKey] = $table[$alias];
+            if (!isset($table[$sourceAliasKey])) {
+                $table[$sourceAliasKey] = $alias;
+            }
+
+            return $table;
+        }
+
+        return $table;
+    }
+
+    /**
+     * @param array<string, mixed> $table
+     * @return array<string, mixed>
+     */
+    private function syncRecognizedTableGeometryAlias(array $table, string $field): array
+    {
+        $sourceAliasKey = $field . '_source_alias';
+        $alias = $table[$sourceAliasKey] ?? null;
+        if (!is_string($alias) || !isset($table[$field]) || !is_array($table[$field]) || !array_key_exists($alias, $table)) {
+            return $table;
+        }
+
+        $table[$alias] = $table[$field];
+
+        return $table;
     }
 
     /**
