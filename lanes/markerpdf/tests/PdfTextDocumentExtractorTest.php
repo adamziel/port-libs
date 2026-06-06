@@ -365,12 +365,15 @@ return [
         $t->true(!str_contains(json_encode($result, JSON_UNESCAPED_SLASHES) ?: '', 'Skipped front page'));
         $t->true(!str_contains(json_encode($result, JSON_UNESCAPED_SLASHES) ?: '', 'Skipped appendix'));
     },
-    'rejects out of range page slices before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
+    'rejects invalid page slices and negative worker counts before WordPress import' => static function (TestRunner $t) use ($pdftextPage): void {
         $extractor = new PdfTextDocumentExtractor();
 
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], startPage: 1));
         $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], maxPages: -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], workers: 0));
+        $zeroWorkerDocument = $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], workers: 0);
+        $t->same(0, $zeroWorkerDocument['metadata']['pdftext_options']['workers']);
+        $t->same([0], $zeroWorkerDocument['metadata']['pdftext_options']['page_range']);
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$pdftextPage(0, 'Only page')], workers: -1));
     },
     'feeds selected pdftext pages into Gutenberg-ready paragraph text' => static function (TestRunner $t) use ($pdftextPage): void {
         $result = (new PdfTextDocumentExtractor())->getTextBlocks(

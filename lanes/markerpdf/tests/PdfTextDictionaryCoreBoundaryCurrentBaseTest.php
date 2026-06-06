@@ -1232,4 +1232,24 @@ return [
         $t->same([0], $strictDocument['metadata']['pdftext_options']['page_range']);
         $t->same('Read ', $strictDocument['pages'][0]['char_blocks'][0]['lines'][0]['spans'][0]['text']);
     },
+    'accepts zero pdftext workers as sequential dictionary extraction metadata' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
+        $page = $pdftextLinkedPage();
+        $page['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Zero-worker ';
+        $page['blocks'][0]['lines'][0]['spans'][1]['text'] = 'pdftext dictionary';
+        $page['blocks'][0]['lines'][0]['spans'][2]['text'] = ' stays sequential';
+
+        $document = (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1, workers: 0);
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $spans = $document['pages'][0]['blocks'][0]['lines'][0]['spans'];
+
+        $t->same(0, $document['metadata']['pdftext_options']['workers']);
+        $t->same([0], $document['metadata']['pdftext_options']['page_range']);
+        $t->same(12, $document['pages'][0]['pnum']);
+        $t->same('0_0', $spans[0]['span_id']);
+        $t->same('Zero-worker [pdftext dictionary](https://example.com/import\\)docs) stays sequential', $blocks[0]['text']);
+        $t->same('https://example.com/import)docs', $spans[1]['url']);
+        $t->same('javascript:alert(1)', $document['pages'][0]['char_blocks'][0]['lines'][0]['spans'][2]['url']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new PdfTextDocumentExtractor())->getTextBlocks([$page], maxPages: 1, workers: -1));
+    },
 ];

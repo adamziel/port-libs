@@ -57,8 +57,8 @@ final class PdfTextDocumentExtractor
             throw new InvalidArgumentException('max_pages must be zero or greater.');
         }
 
-        if ($workers !== null && $workers < 1) {
-            throw new InvalidArgumentException('pdftext workers must be at least one when supplied.');
+        if ($workers !== null && $workers < 0) {
+            throw new InvalidArgumentException('pdftext workers must be zero or greater when supplied.');
         }
 
         $pageCount = $totalPages - $startPage;
