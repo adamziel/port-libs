@@ -611,6 +611,15 @@ $plcfandRef = $u32($commentReferenceCp)
 $plcfandTxt = $u32(0)
     . $u32(24)
     . $u32(25);
+$commentAuthorXst = static function (string $value) use ($u16, $utf16le): string {
+    $bytes = $utf16le($value);
+
+    return $u16(intdiv(strlen($bytes), 2)) . $bytes;
+};
+$commentAuthors = $commentAuthorXst('Migration Lead')
+    . $commentAuthorXst('Review Editor')
+    . $commentAuthorXst('Archive Owner')
+    . $commentAuthorXst('Mira Reviewer');
 $plcfSed = $u32(0)
     . $u32($totalPieceCharacters + 1)
     . $u16(0) . $u32($sepxFc) . $u16(0) . $u32(0);
@@ -668,13 +677,14 @@ $fcPlcfendRef = $fcPlcffndTxt + strlen($plcffndTxt);
 $fcPlcfendTxt = $fcPlcfendRef + strlen($plcfendRef);
 $fcPlcfandRef = $fcPlcfendTxt + strlen($plcfendTxt);
 $fcPlcfandTxt = $fcPlcfandRef + strlen($plcfandRef);
-$fcPlcfSed = $fcPlcfandTxt + strlen($plcfandTxt);
+$fcGrpXstAtnOwners = $fcPlcfandTxt + strlen($plcfandTxt);
+$fcPlcfSed = $fcGrpXstAtnOwners + strlen($commentAuthors);
 $fcPlcBtePapx = $fcPlcfSed + strlen($plcfSed);
 $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $plcfldMom . $plcfldHdr . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $plcfldMom . $plcfldHdr . $associatedStringsTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcBteChpx), 0x00fa, 4);
@@ -709,6 +719,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcGrpXstAtnOwners), 0x01ba, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($commentAuthors)), 0x01be, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlfLst), 0x02e2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($plfLst)), 0x02e6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlfLfo), 0x02ea, 4);
@@ -1113,6 +1125,7 @@ $summary = [
     'footnotes' => $result['footnotes'],
     'endnotes' => $result['endnotes'],
     'comments' => $result['comments'],
+    'commentAuthors' => $result['commentAuthors'],
     'fieldCharacters' => $result['fieldCharacters'],
     'fields' => $result['fields'],
     'fieldStories' => $result['fieldStories'],
@@ -1377,11 +1390,20 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['commentReferenceCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing comment reference count');
     }
+    if (($summary['metadata']['commentAuthorCount'] ?? null) !== 4 || count($summary['commentAuthors'] ?? []) !== 4) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing comment author owner table');
+    }
+    if (($summary['commentAuthors'][0]['name'] ?? '') !== 'Migration Lead' || ($summary['commentAuthors'][3]['name'] ?? '') !== 'Mira Reviewer') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing comment author names');
+    }
     if (($summary['comments'][0]['marker'] ?? '') !== 'MR' || ($summary['comments'][0]['authorInitials'] ?? '') !== 'MR') {
         throw new RuntimeException('Legacy DOC handoff self-test missing comment author initials');
     }
     if (($summary['comments'][0]['authorIndex'] ?? null) !== 3 || ($summary['comments'][0]['bookmarkTag'] ?? null) !== 0x2042) {
         throw new RuntimeException('Legacy DOC handoff self-test missing comment descriptor provenance');
+    }
+    if (($summary['comments'][0]['authorName'] ?? '') !== 'Mira Reviewer') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing resolved comment author name');
     }
     $subdocumentsByType = [];
     foreach (($summary['subdocuments'] ?? []) as $subdocument) {
@@ -1540,7 +1562,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Reviewer notes keep hard<br/>breaks for block review with note ',
         '<span class="legacy-doc-note-ref legacy-doc-footnote-ref" data-legacy-doc-note-type="footnote" data-legacy-doc-note-index="1" data-legacy-doc-note-reference-cp="' . (string) ($summary['footnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="35" data-legacy-doc-note-auto-numbered="true" data-legacy-doc-note-has-body="true" data-legacy-doc-note-body-character-count="35"><sup>1</sup></span>',
         '<span class="legacy-doc-note-ref legacy-doc-endnote-ref" data-legacy-doc-note-type="endnote" data-legacy-doc-note-index="0" data-legacy-doc-note-reference-cp="' . (string) ($summary['endnotes'][0]['referenceCp'] ?? '') . '" data-legacy-doc-note-text-start-cp="0" data-legacy-doc-note-text-end-cp="29" data-legacy-doc-note-auto-numbered="false" data-legacy-doc-note-has-body="true" data-legacy-doc-note-body-character-count="29"><sup>#</sup></span>',
-        '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-bookmark-tag="8258" data-legacy-doc-comment-has-body="true" data-legacy-doc-comment-body-character-count="24"><sup>MR</sup></span>',
+        '<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="' . (string) ($summary['comments'][0]['referenceCp'] ?? '') . '" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="24" data-legacy-doc-comment-author-index="3" data-legacy-doc-comment-author-initials="MR" data-legacy-doc-comment-author-name="Mira Reviewer" data-legacy-doc-comment-bookmark-tag="8258" data-legacy-doc-comment-has-body="true" data-legacy-doc-comment-body-character-count="24"><sup>MR</sup></span>',
         '<a href="https://example.test/legacy-doc?source=42" title="Source packet">source dossier</a>',
         '<a href="#legacy_anchor">opening bookmark</a>',
         '<span class="legacy-doc-field legacy-doc-cross-reference legacy-doc-field-ref" data-legacy-doc-field="ref" data-legacy-doc-field-instruction="REF &quot;legacy_anchor&quot; \h" data-legacy-doc-cross-reference-type="bookmark" data-legacy-doc-cross-reference-target="legacy_anchor" data-legacy-doc-cross-reference-switches="h" data-legacy-doc-cross-reference-hyperlink="true">Legacy DOC import</span>',

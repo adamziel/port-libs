@@ -1160,15 +1160,26 @@ $buildCommentTableDocStreams = static function () use ($utf16le, $u16, $u32): ar
     $plcfandTxt = $u32(0)
         . $u32(31)
         . $u32(32);
+    $xst = static function (string $value) use ($utf16le, $u16): string {
+        $bytes = $utf16le($value);
+
+        return $u16(intdiv(strlen($bytes), 2)) . $bytes;
+    };
+    $commentAuthors = $xst('Migration Lead')
+        . $xst('Review Editor')
+        . $xst('Janet Doe');
 
     $fcPlcfandRef = 0;
     $fcPlcfandTxt = strlen($plcfandRef);
-    $tableStream = $plcfandRef . $plcfandTxt;
+    $fcGrpXstAtnOwners = $fcPlcfandTxt + strlen($plcfandTxt);
+    $tableStream = $plcfandRef . $plcfandTxt . $commentAuthors;
 
     $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandRef), 0x00ba, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandRef)), 0x00be, 4);
     $wordDocument = substr_replace($wordDocument, $u32($fcPlcfandTxt), 0x00c2, 4);
     $wordDocument = substr_replace($wordDocument, $u32(strlen($plcfandTxt)), 0x00c6, 4);
+    $wordDocument = substr_replace($wordDocument, $u32($fcGrpXstAtnOwners), 0x01ba, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($commentAuthors)), 0x01be, 4);
 
     return [
         'WordDocument' => $wordDocument,
@@ -2842,6 +2853,7 @@ return [
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildCommentTableDocStreams()));
         $document = $result['document'];
         $comments = $result['comments'];
+        $commentAuthors = $result['commentAuthors'];
         $metadata = $result['metadata'];
         $paragraph = $document->children[0];
         $markdown = (new MarkdownWriter())->write($document);
@@ -2850,12 +2862,20 @@ return [
         $t->same(1, count($comments));
         $t->same($comments, $document->attr('comments'));
         $t->same($comments, $metadata['comments']);
+        $t->same($commentAuthors, $document->attr('commentAuthors'));
+        $t->same($commentAuthors, $metadata['commentAuthors']);
         $t->same(1, $metadata['commentReferenceCount']);
+        $t->same(3, $metadata['commentAuthorCount']);
+        $t->same('Migration Lead', $commentAuthors[0]['name']);
+        $t->same(14, $commentAuthors[0]['characterCount']);
+        $t->same('Review Editor', $commentAuthors[1]['name']);
+        $t->same('Janet Doe', $commentAuthors[2]['name']);
         $t->same('comment', $comments[0]['type']);
         $t->same(1, $comments[0]['index']);
         $t->same(6, $comments[0]['referenceCp']);
         $t->same('JD', $comments[0]['authorInitials']);
         $t->same(2, $comments[0]['authorIndex']);
+        $t->same('Janet Doe', $comments[0]['authorName']);
         $t->same(0x1234, $comments[0]['bookmarkTag']);
         $t->same(false, $comments[0]['lengthZeroRange']);
         $t->same('JD', $comments[0]['marker']);
@@ -2873,13 +2893,14 @@ return [
         $t->same('31', $commentRef->attr('attributes')['data-legacy-doc-comment-text-end-cp']);
         $t->same('2', $commentRef->attr('attributes')['data-legacy-doc-comment-author-index']);
         $t->same('JD', $commentRef->attr('attributes')['data-legacy-doc-comment-author-initials']);
+        $t->same('Janet Doe', $commentRef->attr('attributes')['data-legacy-doc-comment-author-name']);
         $t->same((string) 0x1234, $commentRef->attr('attributes')['data-legacy-doc-comment-bookmark-tag']);
         $t->same('superscript', $commentRef->children[0]->type);
         $t->same('JD', $commentRef->children[0]->children[0]->attr('text'));
         $t->same(' beta', $paragraph->children[2]->attr('text'));
 
         $t->contains('[^JD^]{.legacy-doc-comment-ref data-legacy-doc-comment-index="1"', $markdown);
-        $t->contains('<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="6" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="31" data-legacy-doc-comment-author-index="2" data-legacy-doc-comment-author-initials="JD" data-legacy-doc-comment-bookmark-tag="4660"><sup>JD</sup></span>', $blocks);
+        $t->contains('<span class="legacy-doc-comment-ref" data-legacy-doc-comment-index="1" data-legacy-doc-comment-reference-cp="6" data-legacy-doc-comment-text-start-cp="0" data-legacy-doc-comment-text-end-cp="31" data-legacy-doc-comment-author-index="2" data-legacy-doc-comment-author-initials="JD" data-legacy-doc-comment-author-name="Janet Doe" data-legacy-doc-comment-bookmark-tag="4660"><sup>JD</sup></span>', $blocks);
         $t->true(!str_contains($blocks, "\x05"), 'Legacy DOC special comment reference character should not render directly');
     },
     'extracts legacy DOC section descriptor PLCs as bounded layout review metadata' => static function (TestRunner $t) use ($buildCfb, $buildSectionTableDocStreams): void {
@@ -3141,6 +3162,10 @@ return [
         $badCommentReserved = $buildCommentTableDocStreams();
         $badCommentReserved['0Table'] = substr_replace($badCommentReserved['0Table'], $u16(1), 8 + 22, 2);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($badCommentReserved)));
+
+        $commentAuthorIndexOutOfRange = $buildCommentTableDocStreams();
+        $commentAuthorIndexOutOfRange['WordDocument'] = substr_replace($commentAuthorIndexOutOfRange['WordDocument'], $u32(30), 0x01be, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb($commentAuthorIndexOutOfRange)));
     },
     'preserves legacy DOC non-hyperlink field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
