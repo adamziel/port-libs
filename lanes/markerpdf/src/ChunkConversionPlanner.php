@@ -160,7 +160,7 @@ final class ChunkConversionPlanner
      * Native planning boundary for chunk_convert.py plus chunk_convert.sh.
      *
      * @param array<string, mixed> $environment
-     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
+     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, shell_orchestration: array<string, mixed>, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
      */
     public function planFromEnvironment(?string $inputFolder, ?string $outputFolder, array $environment): array
     {
@@ -180,7 +180,7 @@ final class ChunkConversionPlanner
     }
 
     /**
-     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
+     * @return array{input_folder: string, output_folder: string, num_devices: int, num_workers: int, metadata_file: string|null, min_length: string|null, optional_flags: array<string, mixed>, launch_delay_seconds: int, shell_orchestration: array<string, mixed>, jobs: list<array<string, mixed>>, review_only: true, executes_subprocess: false, executes_python_or_models: false, executes_external_pdf_tools: false}
      */
     public function planDeviceJobs(
         string $inputFolder,
@@ -241,6 +241,14 @@ final class ChunkConversionPlanner
                 'env' => $env,
                 'argv' => $argv,
                 'command' => $this->commandString($env, $argv),
+                'shell_launch' => $this->chunkShellLaunchPlan(
+                    $env,
+                    $argv,
+                    $inputFolder,
+                    $outputFolder,
+                    $metadataFileFlag,
+                    $minLengthFlag
+                ),
                 'chunk_idx' => $device,
                 'num_chunks' => $numDevices,
                 'workers' => $numWorkers,
@@ -270,6 +278,7 @@ final class ChunkConversionPlanner
                 'min_length_integer_validation_deferred_to_marker_argparse' => $minLengthFlag !== null,
             ],
             'launch_delay_seconds' => self::LAUNCH_DELAY_SECONDS,
+            'shell_orchestration' => $this->chunkShellOrchestrationPlan(count($jobs)),
             'jobs' => $jobs,
             'review_only' => true,
             'executes_subprocess' => false,
@@ -512,6 +521,91 @@ final class ChunkConversionPlanner
     private function containsShellMetacharacter(string $value): bool
     {
         return preg_match('/[;&|`$<>()[\]{}*?!#~\\\\\'"]/', $value) === 1;
+    }
+
+    /**
+     * @param array<string, string> $environment
+     * @param list<string> $argv
+     * @return array<string, mixed>
+     */
+    private function chunkShellLaunchPlan(
+        array $environment,
+        array $argv,
+        string $inputFolder,
+        string $outputFolder,
+        ?string $metadataFile,
+        ?string $minLength
+    ): array {
+        $fragments = [$inputFolder, $outputFolder, $metadataFile, $minLength];
+        $containsWhitespace = false;
+        $containsMetacharacter = false;
+        foreach ($fragments as $fragment) {
+            if ($fragment === null) {
+                continue;
+            }
+            $containsWhitespace = $containsWhitespace || $this->containsShellWhitespace($fragment);
+            $containsMetacharacter = $containsMetacharacter || $this->containsShellMetacharacter($fragment);
+        }
+
+        return [
+            'schema' => 'markerpdf.chunk_convert_job_shell_launch.v1',
+            'source' => 'sddai/markerPDF chunk_convert.sh per-device eval/background launch boundary',
+            'device_num' => (int) $environment['DEVICE_NUM'],
+            'echo_line' => 'Running convert.py on GPU ' . $environment['DEVICE_NUM'],
+            'command_assignment_pattern' => 'cmd="CUDA_VISIBLE_DEVICES=$DEVICE_NUM marker $INPUT_FOLDER $OUTPUT_FOLDER --num_chunks $NUM_DEVICES --chunk_idx $DEVICE_NUM --workers $NUM_WORKERS"',
+            'metadata_file_append_pattern' => '[[ -n "$METADATA_FILE" ]] && cmd="$cmd --metadata_file $METADATA_FILE"',
+            'min_length_append_pattern' => '[[ -n "$MIN_LENGTH" ]] && cmd="$cmd --min_length $MIN_LENGTH"',
+            'raw_command' => $this->rawChunkShellCommandString($environment, $argv),
+            'eval_call' => 'eval $cmd &',
+            'eval_used' => true,
+            'backgrounded' => true,
+            'background_operator' => '&',
+            'sleep_after_launch_seconds' => self::LAUNCH_DELAY_SECONDS,
+            'quotes_positionals' => false,
+            'argument_escaping_applied' => false,
+            'positionals_contain_shell_whitespace' => $containsWhitespace,
+            'positionals_contain_shell_metacharacters' => $containsMetacharacter,
+            'raw_shell_command_path_hazard' => $containsWhitespace || $containsMetacharacter,
+            'raw_input_folder_fragment' => $inputFolder,
+            'raw_output_folder_fragment' => $outputFolder,
+            'raw_metadata_file_fragment' => $metadataFile,
+            'raw_min_length_fragment' => $minLength,
+            'native_plan_executes_shell' => false,
+            'executes_python_or_models' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chunkShellOrchestrationPlan(int $launchCount): array
+    {
+        return [
+            'schema' => 'markerpdf.chunk_convert_shell_orchestration.v1',
+            'source' => 'sddai/markerPDF chunk_convert.sh trap/background/wait orchestration boundary',
+            'signal_trap' => 'trap \'pkill -P $$\' SIGINT',
+            'trap_signal' => 'SIGINT',
+            'interrupt_cleanup_command' => 'pkill -P $$',
+            'launch_loop' => 'for (( i=0; i<$NUM_DEVICES; i++ ))',
+            'launch_count' => $launchCount,
+            'jobs_launched_in_background' => true,
+            'eval_used_for_jobs' => true,
+            'sleep_between_launches_seconds' => self::LAUNCH_DELAY_SECONDS,
+            'wait_command' => 'wait',
+            'wait_after_all_launches' => true,
+            'native_plan_executes_shell' => false,
+            'executes_python_or_models' => false,
+            'executes_external_pdf_tools' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $environment
+     * @param list<string> $argv
+     */
+    private function rawChunkShellCommandString(array $environment, array $argv): string
+    {
+        return 'CUDA_VISIBLE_DEVICES=' . $environment['CUDA_VISIBLE_DEVICES'] . ' ' . implode(' ', $argv);
     }
 
     /**
