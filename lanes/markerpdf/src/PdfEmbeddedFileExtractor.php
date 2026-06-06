@@ -2484,9 +2484,23 @@ final class PdfEmbeddedFileExtractor
     {
         $seen = [];
         $seenNamedStreams = [];
+        $seenNameTreeNames = [];
         $deduped = [];
 
         foreach ($files as $file) {
+            $source = $file['source'] ?? null;
+            $nameTreeName = $file['name'] ?? null;
+            if (
+                $source === 'catalog_names_embedded_files'
+                && is_string($nameTreeName)
+                && $nameTreeName !== ''
+            ) {
+                if (isset($seenNameTreeNames[$nameTreeName])) {
+                    continue;
+                }
+                $seenNameTreeNames[$nameTreeName] = true;
+            }
+
             $fileSpecObject = $file['file_spec_object'] ?? null;
             $embeddedFileObject = $file['embedded_file_object'] ?? null;
             $filenameSource = $file['filename_source'] ?? null;
