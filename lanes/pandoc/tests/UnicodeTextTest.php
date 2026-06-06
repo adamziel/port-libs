@@ -151,6 +151,27 @@ return [
         $t->contains("<p>Zażółć gęślą jaźń; Český Štěpán; kůň; őű; “quoted” — €10.</p>", $windowsBlocks);
         $t->contains('<p>Zażółć gęślą jaźń; Český Štěpán; kůň; őű.</p>', $latin2Blocks);
     },
+    'decodes iso 8859 3 latin3 source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Latin3 Import\n\nMalti \xA1\xB1 u \xD5\xF5; Esperanto \xC6\xE6 \xD8\xF8 \xDD\xFD \xDE\xFE; Turk \xA9\xB9; \xAF\xBF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-ir-109');
+        $document = (new MarkdownReader())->readBytes($bytes, 'latin3');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA1\xA2\xA6\xA9\xAA\xAB\xAC\xAF\xB1\xB6\xB9\xBA\xBB\xBC\xBF\xC5\xC6\xD5\xD8\xDD\xDE\xE5\xE6\xF5\xF8\xFD\xFE\xFF", 'iso-8859-3');
+        $undefined = UnicodeText::decodeBytes("A\xA5B\xAEC\xBED\xC3E\xD0F\xE3G\xF0H", 'iso-8859-3');
+
+        $t->same('iso-8859-3', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Latin3 Import\n\nMalti Ħħ u Ġġ; Esperanto Ĉĉ Ĝĝ Ŭŭ Ŝŝ; Turk İı; Żż.", $decoded['text']);
+        $t->same("Ħ˘ĤİŞĞĴŻħĥışğĵżĊĈĠĜŬŜċĉġĝŭŝ˙", $specials['text']);
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E\u{FFFD}F\u{FFFD}G\u{FFFD}H", $undefined['text']);
+        $t->same(7, $undefined['repairs']);
+        $t->same(['encoding' => 'iso-8859-3', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Latin3 Import', $document->children[0]->attr('text'));
+        $t->same('Malti Ħħ u Ġġ; Esperanto Ĉĉ Ĝĝ Ŭŭ Ŝŝ; Turk İı; Żż.', $document->children[1]->attr('text'));
+        $t->same(50, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="latin3-import">Latin3 Import</h1>', $blocks);
+        $t->contains('<p>Malti Ħħ u Ġġ; Esperanto Ĉĉ Ĝĝ Ŭŭ Ŝŝ; Turk İı; Żż.</p>', $blocks);
+    },
     'decodes windows 1251 cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xC8\xEC\xEF\xEE\xF0\xF2\n\n\xD0\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x93\xEF\xF0\xE8\xE2\xE5\xF2\x94 \x97 \x8810; \xA8\xEB\xEA\xE0 \xB9 7.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp1251');
