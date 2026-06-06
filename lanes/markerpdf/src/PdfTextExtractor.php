@@ -34396,6 +34396,10 @@ final class PdfTextExtractor
                             $openScopes !== null
                             && $this->contentSegmentOpenScopesCloseImmediatelyAfterEi($stream, $end + 2, $openScopes)
                         )
+                        || (
+                            $openScopes !== null
+                            && $this->contentSegmentOpenScopesContinueAfterEiAndClose($stream, $end + 2, $openScopes)
+                        )
                         || $this->contentSegmentContainsInlineImagePreamble($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedTextLiteralAfterTextObject($segmentAfterFallback)
                         || $this->contentSegmentContainsUnterminatedMarkedContentReplacementLiteral($segmentAfterFallback)
@@ -34844,6 +34848,130 @@ final class PdfTextExtractor
         }
 
         return true;
+    }
+
+    /**
+     * @param array{graphics_state: int, marked_content: int, compatibility: int} $openScopes
+     */
+    private function contentSegmentOpenScopesContinueAfterEiAndClose(
+        string $stream,
+        int $offset,
+        array $openScopes
+    ): bool {
+        $closureOffset = $this->contentSegmentOpenScopeClosureOffset($stream, $offset, $openScopes);
+        if ($closureOffset === null || $closureOffset <= $offset) {
+            return false;
+        }
+
+        $resolvedOpenScopes = null;
+        return $this->contentSegmentIsLineSeparatedClosedTextObject(
+            substr($stream, $offset, $closureOffset - $offset),
+            $resolvedOpenScopes,
+            $openScopes
+        );
+    }
+
+    /**
+     * @param array{graphics_state: int, marked_content: int, compatibility: int} $openScopes
+     */
+    private function contentSegmentOpenScopeClosureOffset(
+        string $stream,
+        int $offset,
+        array $openScopes
+    ): ?int {
+        $graphicsStateDepth = max(0, $openScopes['graphics_state']);
+        $markedContentDepth = max(0, $openScopes['marked_content']);
+        $compatibilityDepth = max(0, $openScopes['compatibility']);
+        if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
+            return null;
+        }
+
+        $index = $offset;
+        $length = strlen($stream);
+        $insideTextObject = false;
+        while ($index < $length) {
+            $char = $stream[$index];
+            if ($this->isPdfWhitespace($char)) {
+                $index++;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipPdfComment($stream, $index);
+                continue;
+            }
+
+            if ($char === '(') {
+                $this->readLiteralToken($stream, $index);
+                continue;
+            }
+
+            if ($char === '<') {
+                if (($stream[$index + 1] ?? '') === '<') {
+                    $this->readDictionaryToken($stream, $index);
+                    continue;
+                }
+
+                $this->readHexToken($stream, $index);
+                continue;
+            }
+
+            if ($char === '[') {
+                $this->readArrayToken($stream, $index);
+                continue;
+            }
+
+            if ($char === '/') {
+                $this->readNameToken($stream, $index);
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !$this->isBareTokenDelimiter($stream[$index])) {
+                $index++;
+            }
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            $token = substr($stream, $start, $index - $start);
+            if ($insideTextObject) {
+                if ($token === 'ET') {
+                    $insideTextObject = false;
+                }
+
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $insideTextObject = true;
+                continue;
+            }
+
+            if ($token === 'q') {
+                $graphicsStateDepth++;
+                continue;
+            }
+
+            if ($token === 'Q' && $graphicsStateDepth > 0) {
+                $graphicsStateDepth--;
+            } elseif ($token === 'BMC' || $token === 'BDC') {
+                $markedContentDepth++;
+            } elseif ($token === 'EMC' && $markedContentDepth > 0) {
+                $markedContentDepth--;
+            } elseif ($token === 'BX') {
+                $compatibilityDepth++;
+            } elseif ($token === 'EX' && $compatibilityDepth > 0) {
+                $compatibilityDepth--;
+            }
+
+            if ($graphicsStateDepth === 0 && $markedContentDepth === 0 && $compatibilityDepth === 0) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     /**
