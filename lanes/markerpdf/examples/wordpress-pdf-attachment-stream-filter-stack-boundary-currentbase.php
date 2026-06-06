@@ -112,6 +112,31 @@ if ($malformedSummaryJson === false) {
     throw new RuntimeException('Expected malformed attachment summary JSON.');
 }
 
+$allNullPayload = "Title,Status\nAll Null Attachment Smoke,Ready\n";
+$allNullChecksum = md5($allNullPayload);
+$allNullVisible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment All Null Stack Review) Tj ET';
+$allNullPdf = "%PDF-1.7\n"
+    . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+    . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+    . "4 0 obj\n<< /Length " . strlen($allNullVisible) . " >>\nstream\n{$allNullVisible}\nendstream\nendobj\n"
+    . "6 0 obj\n<< /Names [(all-null-attachment.csv) 10 0 R] >>\nendobj\n"
+    . "10 0 obj\n<< /Type /Filespec /F (all-null-attachment.csv) /Desc (All-null attachment filter stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+    . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ null ] /DecodeParms [ 99 0 R 100 0 R ] /Params << /Size " . strlen($allNullPayload) . " /CheckSum <{$allNullChecksum}> >> /Length " . strlen($allNullPayload) . " >>\nstream\n{$allNullPayload}\nendstream\nendobj\n"
+    . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+    . "99 0 obj\n<< /Predictor 12 /Columns 5 >>\nendobj\n"
+    . "100 0 obj\n(All Null Attachment DecodeParms Smoke Leak)\nendobj\n"
+    . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+
+$allNullSummary = (new PdfAttachmentExtractor())->attachmentSummary($allNullPdf);
+$allNullFiles = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($allNullPdf);
+$allNullText = (new PdfTextExtractor())->extractPlainText($allNullPdf);
+$allNullSummaryJson = json_encode($allNullSummary, JSON_UNESCAPED_SLASHES);
+$allNullFilesJson = json_encode($allNullFiles, JSON_UNESCAPED_SLASHES);
+if ($allNullSummaryJson === false || $allNullFilesJson === false) {
+    throw new RuntimeException('Expected all-null attachment summary JSON.');
+}
+
 $lzwPayload = "Title,Status\nLZW Flate Stacked Attachment,Ready\n";
 $lzwCompressed = gzcompress($lzwPayload);
 $lzwSurplusPayload = "Title,Status\nLZW Surplus Stacked Attachment,Blocked\n";
@@ -238,6 +263,17 @@ $metadata = [
     'dictionary_filter_payload_excluded' => !str_contains($malformedSummaryJson, 'Dictionary Filter Attachment Leak')
         && !str_contains(json_encode($malformedFiles, JSON_UNESCAPED_SLASHES) ?: '', 'Dictionary Filter Attachment Leak'),
     'dictionary_filter_visible_text_preserved' => $malformedText === 'Visible Attachment Malformed Filter Review',
+    'all_null_attachment_decoded' => ($allNullSummary['attachment_count'] ?? null) === 1
+        && ($allNullSummary['attachments'][0]['filename'] ?? null) === 'all-null-attachment.csv'
+        && (($allNullSummary['attachments'][0]['filters'] ?? []) === [])
+        && ($allNullSummary['attachments'][0]['checksum_matches'] ?? false) === true
+        && (($allNullFiles[0]['content'] ?? null) === $allNullPayload),
+    'all_null_decodeparms_ignored' => !str_contains($allNullSummaryJson, 'All Null Attachment DecodeParms Smoke Leak')
+        && !str_contains($allNullFilesJson, 'All Null Attachment DecodeParms Smoke Leak'),
+    'all_null_payload_bytes_omitted_from_summary' => !array_key_exists('bytes', $allNullSummary['attachments'][0] ?? []),
+    'all_null_visible_text_preserved' => $allNullText === 'Visible Attachment All Null Stack Review',
+    'all_null_payload_excluded_from_visible_text' => !str_contains($allNullText, 'All Null Attachment Smoke')
+        && !str_contains($allNullText, 'DecodeParms'),
     'lzw_attachment_count' => $lzwSummary['attachment_count'] ?? null,
     'lzw_filter_stack_decoded' => ($lzwSummary['attachment_count'] ?? null) === 1
         && ($lzwSummary['attachments'][0]['filename'] ?? null) === 'lzw-stack.csv'

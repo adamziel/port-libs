@@ -2794,7 +2794,7 @@ final class PdfAttachmentExtractor
         }
 
         $decodeParms = [];
-        if (array_key_exists('DecodeParms', $dict)) {
+        if ($filters !== [] && array_key_exists('DecodeParms', $dict)) {
             $decodeParms = $this->decodeParmsSlots($dict['DecodeParms'], $objects);
             if ($decodeParms === null || !$this->decodeParmsSupportedForFilters($decodeParms, $objects, $filters)) {
                 return null;
@@ -2896,7 +2896,13 @@ final class PdfAttachmentExtractor
             $filters[] = $filter;
         }
 
-        return $filters;
+        foreach ($filters as $filter) {
+            if (is_string($filter)) {
+                return $filters;
+            }
+        }
+
+        return [];
     }
 
     /**

@@ -110,6 +110,28 @@ $attachmentStreamFilterStackBoundaryCurrentBaseDictionaryFilterPdf = static func
         . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseAllNullPdf = static function (): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment All Null Stack Review) Tj ET';
+    $payload = "Title,Status\nAll Null Attachment,Ready\n";
+    $checksum = md5($payload);
+
+    return [
+        'payload' => $payload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(all-null-attachment.csv) 10 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (all-null-attachment.csv) /Desc (All-null attachment filter stack) /AFRelationship /Source /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ null ] /DecodeParms [ 99 0 R 100 0 R ] /Params << /Size " . strlen($payload) . " /CheckSum <{$checksum}> >> /Length " . strlen($payload) . " >>\nstream\n{$payload}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "99 0 obj\n<< /Predictor 12 /Columns 5 >>\nendobj\n"
+            . "100 0 obj\n(All Null Attachment DecodeParms Leak)\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
+};
+
 $attachmentStreamFilterStackBoundaryCurrentBaseLzwPdf = static function () use (
     $attachmentStreamFilterStackBoundaryCurrentBaseLzwLiteral
 ): array {
@@ -296,6 +318,55 @@ return [
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Dictionary Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Dictionary Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Malformed dictionary filter attachment'));
+    },
+    'treats all-null attachment filter arrays as identity stacks before resolving stray DecodeParms' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseAllNullPdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseAllNullPdf();
+        $pdf = $fixture['pdf'];
+        $payload = $fixture['payload'];
+        $checksum = md5($payload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['all-null-attachment.csv'], $summary['filenames']);
+        $t->same(strlen($payload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('all-null-attachment.csv', $attachment['filename'] ?? null);
+        $t->same('All-null attachment filter stack', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same('original_source', $attachment['relationship_role'] ?? null);
+        $t->same([], $attachment['filters'] ?? []);
+        $t->same(strlen($payload), $attachment['declared_size'] ?? null);
+        $t->same(true, $attachment['declared_size_matches'] ?? null);
+        $t->same(strlen($payload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['checksum_hex'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('all-null-attachment.csv', $files[0]['filename'] ?? null);
+        $t->same($payload, $files[0]['content'] ?? null);
+        $t->same([], $files[0]['filters'] ?? []);
+        $t->same(strlen($payload), $files[0]['size'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment All Null Stack Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $payload));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'All Null Attachment DecodeParms Leak'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'All Null Attachment DecodeParms Leak'));
+        $t->true(!str_contains($plainText, 'All Null Attachment'));
+        $t->true(!str_contains($plainText, 'DecodeParms'));
     },
     'decodes LZW attachment filter stacks while rejecting bytes after the LZW EOD code' => static function (
         TestRunner $t
