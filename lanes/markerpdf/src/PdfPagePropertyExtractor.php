@@ -1692,10 +1692,14 @@ final class PdfPagePropertyExtractor
                 break;
             }
 
-            $parentObjectNumber = $parentReference['objectNumber'];
+            $resolvedParent = $this->resolvedPageTreeReference(
+                $objects,
+                $parentReference['objectNumber'],
+                $parentReference['generation']
+            );
             if (
-                !isset($objects[$parentObjectNumber])
-                || ($this->currentObjectGenerations[$parentObjectNumber] ?? null) !== $parentReference['generation']
+                $resolvedParent === null
+                || $this->pdfObjectTypeName($resolvedParent['body'], $objects) !== 'Pages'
             ) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($catalogLineage !== []) {
@@ -1705,8 +1709,9 @@ final class PdfPagePropertyExtractor
                 break;
             }
 
-            $parentDictionary = $this->dictionaryObjectBody($objects[$parentObjectNumber]);
-            if ($parentDictionary === null || $this->pdfObjectTypeName($parentDictionary, $objects) !== 'Pages') {
+            $parentObjectNumber = $resolvedParent['objectNumber'];
+            $parentDictionary = $this->dictionaryObjectBody($resolvedParent['body']);
+            if ($parentDictionary === null) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $catalog, $objects, $lineage);
                 if ($catalogLineage !== []) {
                     return $this->pageObjectLineageCommonPrefix($lineage, $catalogLineage);

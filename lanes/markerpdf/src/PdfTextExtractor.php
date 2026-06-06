@@ -17437,12 +17437,10 @@ final class PdfTextExtractor
 
             $parentObjectNumber = (int) $match[1];
             $parentGeneration = (int) $match[2];
-            $parentBody = $this->objectBodyForExactReference($objects, $parentObjectNumber, $parentGeneration);
+            $resolvedParent = $this->resolvedPageTreeReference($objects, $parentObjectNumber, $parentGeneration);
             if (
-                $parentBody === null
-                || !isset($objects[$parentObjectNumber])
-                || $objects[$parentObjectNumber] !== $parentBody
-                || !$this->isPagesObject($parentBody)
+                $resolvedParent === null
+                || !$this->isPagesObject($resolvedParent['body'])
             ) {
                 $catalogLineage = $this->pageObjectLineageFromCatalogPath($pageObjectNumber, $objects, $lineage);
                 if ($catalogLineage !== []) {
@@ -17453,6 +17451,8 @@ final class PdfTextExtractor
                 break;
             }
 
+            $parentObjectNumber = $resolvedParent['objectNumber'];
+            $parentBody = $resolvedParent['body'];
             $childGeneration = $this->selectedObjectGeneration($objects, $objectNumber);
             if (
                 $childGeneration === null
