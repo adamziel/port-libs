@@ -347,7 +347,7 @@ XML],
       <w:bookmarkStart w:id="15" w:name="_GoBack"/>
       <w:bookmarkEnd w:id="15"/>
       <w:r><w:t xml:space="preserve">Import reviewer keeps </w:t></w:r>
-      <w:hyperlink r:id="rIdSource"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
+      <w:hyperlink r:id="rIdSource" w:tooltip="Source packet tooltip" w:tgtFrame="_blank" w:history="1" w:docLocation="ReviewSection"><w:r><w:t>the source link</w:t></w:r></w:hyperlink>
       <w:r><w:t xml:space="preserve"> visible.</w:t></w:r>
       <w:bookmarkEnd w:id="14"/>
       <w:del w:id="7" w:author="Source Editor" w:date="2026-06-04T17:45:00Z">
@@ -962,7 +962,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Cross paragraph comment <span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">starts here</span></p>',
         '<p><span class="docx-comment-range" data-docx-comment-id="10" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-05T03:20:00Z" data-docx-comment-para-id="00DOCX10" data-docx-comment-parent-para-id="00DOCX09" data-docx-comment-resolved="false">continues here</span> for import review',
         '<span id="source_packet_anchor" class="anchor"></span>Import reviewer keeps',
-        '<a href="https://example.test/source-packet?post=42">the source link</a>',
+        '<a href="https://example.test/source-packet?post=42" title="Source packet tooltip" class="docx-hyperlink" data-docx-tooltip="Source packet tooltip" data-docx-relationship-id="rIdSource" data-docx-doc-location="ReviewSection" data-docx-target-frame="_blank" data-docx-history="true">the source link</a>',
         '<span id="review_column_range" class="anchor docx-bookmark docx-bookmark-column-range" data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"></span>Reviewed table scope',
         '<span class="docx-insertion" data-docx-change="insertion" data-docx-change-id="8" data-docx-author="Migration Editor" data-docx-date="2026-06-04T17:50:00Z"> Approved tracked wording.</span>',
         '<span class="docx-move-to" data-docx-change="move-to" data-docx-change-id="17" data-docx-author="Migration Editor" data-docx-date="2026-06-04T18:07:00Z"> Moved into import checklist.</span>',
@@ -995,7 +995,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-embedded-object docx-embedded-package" data-docx-embedded-kind="package" data-docx-relationship-id="rIdReviewEmbeddedPackage"',
         'data-docx-target-part="/word/embeddings/source-audit.xlsx"',
         'DOCX embedded package: Source audit package</span>',
-        '<table class="docx-table-metadata" aria-description="Reviewer summary table from the source DOCX package.">',
+        '<table class="docx-table-metadata" aria-description="Reviewer summary table from the source DOCX package." data-docx-table-description="Reviewer summary table from the source DOCX package.">',
         '<td colspan="2" rowspan="2"><p>Review scope</p></td><td><p>Status</p></td>',
         '<td><p>Owner</p></td><td colspan="2"><p>Migration desk</p></td>',
         '<figcaption class="wp-element-caption">DOCX review table</figcaption>',

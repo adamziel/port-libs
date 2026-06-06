@@ -1043,6 +1043,36 @@ $fieldHyperlinkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$directHyperlinkRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdExternalReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source-packet?post=42" TargetMode="External"/>
+</Relationships>
+XML;
+
+$directHyperlinkDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Direct review links </w:t></w:r>
+      <w:hyperlink r:id="rIdExternalReview" w:tooltip="Source packet tooltip" w:tgtFrame="_blank" w:history="1" w:docLocation="ReviewSection">
+        <w:r><w:t>source packet</w:t></w:r>
+      </w:hyperlink>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:hyperlink w:anchor="appendix_anchor" w:tooltip="Jump to appendix" w:history="0">
+        <w:r><w:t>appendix</w:t></w:r>
+      </w:hyperlink>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:bookmarkStart w:id="19" w:name="appendix_anchor"/>
+      <w:r><w:t>Appendix anchor target.</w:t></w:r>
+      <w:bookmarkEnd w:id="19"/>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $fieldMetadataDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -2129,6 +2159,15 @@ $buildFieldHyperlinkPackage = static function () use ($contentTypesXml, $package
     ]);
 };
 
+$buildDirectHyperlinkPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $directHyperlinkRelationshipsXml, $directHyperlinkDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $directHyperlinkDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $directHyperlinkRelationshipsXml],
+    ]);
+};
+
 $buildFieldMetadataPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $fieldMetadataDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -3042,7 +3081,7 @@ return [
         $t->same(true, $geometry['summary']['hasCaption'] ?? null);
 
         $t->contains(': DOCX migration status', $markdown);
-        $t->contains('<table class="docx-table-metadata" aria-description="Reviewer summary for imported DOCX table metadata.">', $blocks);
+        $t->contains('<table class="docx-table-metadata" aria-description="Reviewer summary for imported DOCX table metadata." data-docx-table-description="Reviewer summary for imported DOCX table metadata.">', $blocks);
         $t->contains('<figcaption class="wp-element-caption">DOCX migration status</figcaption>', $blocks);
     },
     'maps DOCX endnotes and comments into note AST nodes' => static function (TestRunner $t) use ($buildNotesPackage): void {
@@ -3581,6 +3620,50 @@ return [
 
         $t->contains('[]{#review_column_range .anchor .docx-bookmark .docx-bookmark-column-range data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"}Reviewed table scope', $markdown);
         $t->contains('<span id="review_column_range" class="anchor docx-bookmark docx-bookmark-column-range" data-docx-bookmark-id="21" data-docx-bookmark-name="review_column_range" data-docx-bookmark-col-first="0" data-docx-bookmark-col-last="1"></span>Reviewed table scope', $blocks);
+    },
+    'preserves DOCX direct hyperlink tooltip frame history and location metadata' => static function (TestRunner $t) use ($buildDirectHyperlinkPackage): void {
+        $document = (new DocxReader())->readDocument($buildDirectHyperlinkPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Direct review links ', $paragraph->children[0]->attr('text'));
+
+        $external = $paragraph->children[1];
+        $t->same('link', $external->type);
+        $t->same('https://example.test/source-packet?post=42', $external->attr('url'));
+        $t->same('Source packet tooltip', $external->attr('title'));
+        $t->same(['docx-hyperlink'], $external->attr('classes'));
+        $externalAttrs = $external->attr('attributes');
+        $t->same('Source packet tooltip', $externalAttrs['data-docx-tooltip']);
+        $t->same('rIdExternalReview', $externalAttrs['data-docx-relationship-id']);
+        $t->same('ReviewSection', $externalAttrs['data-docx-doc-location']);
+        $t->same('_blank', $externalAttrs['data-docx-target-frame']);
+        $t->same('true', $externalAttrs['data-docx-history']);
+        $t->same('source packet', $external->children[0]->attr('text'));
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $internal = $paragraph->children[3];
+        $t->same('link', $internal->type);
+        $t->same('#appendix_anchor', $internal->attr('url'));
+        $t->same('Jump to appendix', $internal->attr('title'));
+        $t->same(['docx-hyperlink'], $internal->attr('classes'));
+        $internalAttrs = $internal->attr('attributes');
+        $t->same('appendix_anchor', $internalAttrs['data-docx-anchor']);
+        $t->same('Jump to appendix', $internalAttrs['data-docx-tooltip']);
+        $t->same('false', $internalAttrs['data-docx-history']);
+
+        $target = $document->children[1];
+        $t->same('span', $target->children[0]->type);
+        $t->same('appendix_anchor', $target->children[0]->attr('id'));
+        $t->same('Appendix anchor target.', $target->children[1]->attr('text'));
+
+        $t->contains('[source packet](https://example.test/source-packet?post=42 "Source packet tooltip"){.docx-hyperlink data-docx-tooltip="Source packet tooltip" data-docx-relationship-id="rIdExternalReview" data-docx-doc-location="ReviewSection" data-docx-target-frame="_blank" data-docx-history="true"}', $markdown);
+        $t->contains('[appendix](#appendix_anchor "Jump to appendix"){.docx-hyperlink data-docx-tooltip="Jump to appendix" data-docx-anchor="appendix_anchor" data-docx-history="false"}', $markdown);
+        $t->contains('<a href="https://example.test/source-packet?post=42" title="Source packet tooltip" class="docx-hyperlink" data-docx-tooltip="Source packet tooltip" data-docx-relationship-id="rIdExternalReview" data-docx-doc-location="ReviewSection" data-docx-target-frame="_blank" data-docx-history="true">source packet</a>', $blocks);
+        $t->contains('<a href="#appendix_anchor" title="Jump to appendix" class="docx-hyperlink" data-docx-tooltip="Jump to appendix" data-docx-anchor="appendix_anchor" data-docx-history="false">appendix</a>', $blocks);
+        $t->contains('<span id="appendix_anchor" class="anchor"></span>Appendix anchor target.', $blocks);
     },
     'maps DOCX field-code hyperlinks to normal link AST nodes' => static function (TestRunner $t) use ($buildFieldHyperlinkPackage): void {
         $document = (new DocxReader())->readDocument($buildFieldHyperlinkPackage());

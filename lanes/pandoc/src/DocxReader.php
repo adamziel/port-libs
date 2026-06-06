@@ -4220,7 +4220,55 @@ final class DocxReader
             $url = '#' . $anchor;
         }
 
-        return new AstNode('link', ['url' => $url], $children);
+        return new AstNode('link', $this->directHyperlinkAttrs($hyperlink, $url, $relationshipId, $anchor), $children);
+    }
+
+    /**
+     * @return array{url:string, title?:string, classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function directHyperlinkAttrs(\DOMElement $hyperlink, string $url, ?string $relationshipId, ?string $anchor): array
+    {
+        $attrs = ['url' => $url];
+        $tooltip = $this->wordAttr($hyperlink, 'tooltip');
+        $docLocation = $this->wordAttr($hyperlink, 'docLocation');
+        $targetFrame = $this->wordAttr($hyperlink, 'tgtFrame');
+        $history = $this->wordAttr($hyperlink, 'history');
+        $hasDocxMetadata = ($tooltip !== null && $tooltip !== '')
+            || ($docLocation !== null && $docLocation !== '')
+            || ($targetFrame !== null && $targetFrame !== '')
+            || ($history !== null && $history !== '');
+
+        if ($tooltip !== null && $tooltip !== '') {
+            $attrs['title'] = $tooltip;
+        }
+        if (!$hasDocxMetadata) {
+            return $attrs;
+        }
+
+        $attributes = [];
+        if ($tooltip !== null && $tooltip !== '') {
+            $attributes['data-docx-tooltip'] = $tooltip;
+        }
+
+        foreach ([
+            [$relationshipId, 'data-docx-relationship-id'],
+            [$anchor, 'data-docx-anchor'],
+            [$docLocation, 'data-docx-doc-location'],
+            [$targetFrame, 'data-docx-target-frame'],
+        ] as [$value, $attributeName]) {
+            if (is_string($value) && $value !== '') {
+                $attributes[$attributeName] = $value;
+            }
+        }
+
+        if ($history !== null && $history !== '') {
+            $attributes['data-docx-history'] = $this->onOffWordAttr($hyperlink, 'history', false) ? 'true' : 'false';
+        }
+
+        $attrs['classes'] = ['docx-hyperlink'];
+        $attrs['attributes'] = $attributes;
+
+        return $attrs;
     }
 
     /**
