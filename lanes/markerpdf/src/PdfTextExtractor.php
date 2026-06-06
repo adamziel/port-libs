@@ -18371,6 +18371,10 @@ final class PdfTextExtractor
             return [];
         }
 
+        if ($this->simpleFontWidthArrayHasMalformedDeclaredToken($widthArray, $lastCode === null ? null : ($lastCode - $firstCode + 1))) {
+            return [];
+        }
+
         $widths = [];
         foreach ($this->nullableNumbersFromPdfArrayResolvingObjects($widthArray, $objects) as $offset => $width) {
             $metric = $this->finiteHorizontalFontAdvanceMetric($width);
@@ -18399,6 +18403,33 @@ final class PdfTextExtractor
         }
 
         return $widths;
+    }
+
+    private function simpleFontWidthArrayHasMalformedDeclaredToken(string $arrayBody, ?int $declaredCount): bool
+    {
+        foreach ($this->pdfArrayItems($arrayBody) as $offset => $item) {
+            if ($declaredCount !== null && $offset >= $declaredCount) {
+                return false;
+            }
+
+            $trimmed = trim($item);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $referenceOffset = 0;
+            if ($this->readPdfIndirectReferenceToken($trimmed, $referenceOffset) !== null) {
+                continue;
+            }
+
+            if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/s', $trimmed) === 1) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private function finiteFontAdvanceMetric(?float $value): ?float
