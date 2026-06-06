@@ -27985,7 +27985,8 @@ final class PdfTextExtractor
                     $this->cMapOperatorBlockData($mappingBlock['body']),
                     $cidMap,
                     $mappingBlock['declaredCount'],
-                    $mappingBlock['overwrite']
+                    $mappingBlock['overwrite'],
+                    $cidRanges
                 );
                 continue;
             }
@@ -28548,7 +28549,13 @@ final class PdfTextExtractor
     /**
      * @param array<string, int> $cidMap
      */
-    private function parseCidChars(string $block, array &$cidMap, ?int $declaredCount = null, bool $overwrite = true): void
+    private function parseCidChars(
+        string $block,
+        array &$cidMap,
+        ?int $declaredCount = null,
+        bool $overwrite = true,
+        array $cidRanges = []
+    ): void
     {
         if (!preg_match_all('/<([\da-fA-F\s]+)>\s+([+-]?\d+)/s', $block, $entries, PREG_SET_ORDER)) {
             return;
@@ -28562,7 +28569,13 @@ final class PdfTextExtractor
             $source = $this->normalizeHexKey($entry[1]);
             $cid = (int) $entry[2];
             if ($source !== '' && $cid >= 0 && $cid <= 0xffff) {
-                if (!$overwrite && array_key_exists($source, $cidMap)) {
+                if (
+                    !$overwrite
+                    && (
+                        array_key_exists($source, $cidMap)
+                        || $this->cidFromCidRangesForSourceKey($source, ['cidRanges' => $cidRanges]) !== null
+                    )
+                ) {
                     continue;
                 }
                 $cidMap[$source] = $cid;
