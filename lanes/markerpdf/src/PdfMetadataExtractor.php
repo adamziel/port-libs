@@ -11565,6 +11565,7 @@ final class PdfMetadataExtractor
             $element->hasAttributeNS(self::NS_RDF, 'ID')
             || $element->hasAttributeNS(self::NS_XML, 'id')
             || $element->hasAttributeNS(self::NS_RDF, 'nodeID')
+            || $element->hasAttributeNS(self::NS_RDF, 'resource')
         ) {
             return true;
         }
