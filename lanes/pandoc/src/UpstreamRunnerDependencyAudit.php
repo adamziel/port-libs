@@ -123,6 +123,55 @@ final class UpstreamRunnerDependencyAudit
         'test:test-pandoc-lua-engine' => 'Haskell2010',
     ];
 
+    private const BENCHMARK_ENTRY_POINTS = [
+        'benchmark:benchmark-pandoc' => [
+            'packageFile' => 'pandoc.cabal',
+            'type' => 'exitcode-stdio-1.0',
+            'mainIs' => 'benchmark-pandoc.hs',
+            'sourceDirectory' => 'benchmark',
+        ],
+    ];
+
+    private const BENCHMARK_DIRECT_DEPENDENCIES = [
+        'benchmark:benchmark-pandoc' => [
+            'base',
+            'pandoc',
+            'bytestring',
+            'deepseq',
+            'mtl',
+            'tasty-bench',
+            'text',
+        ],
+    ];
+
+    private const BENCHMARK_DEPENDENCY_CONSTRAINTS = [
+        'benchmark:benchmark-pandoc' => [
+            'base' => '>= 4.18 && < 5',
+            'mtl' => '>= 2.2 && < 2.4',
+            'tasty-bench' => '>= 0.4 && <= 0.5',
+            'text' => '>= 1.1.1.0 && < 2.2',
+        ],
+    ];
+
+    private const BENCHMARK_EXECUTABLE_OPTIONS = [
+        'benchmark:benchmark-pandoc' => [
+            '-rtsopts',
+            '-with-rtsopts=-A8m',
+            '-threaded',
+        ],
+    ];
+
+    private const BENCHMARK_DEFAULT_LANGUAGES = [
+        'benchmark:benchmark-pandoc' => 'Haskell2010',
+    ];
+
+    private const BENCHMARK_ARTIFACTS = [
+        'benchmark/benchmark-pandoc.hs' => 'file',
+        'test/testsuite.txt' => 'file',
+        'test/lalune.jpg' => 'file',
+        'test/movie.jpg' => 'file',
+    ];
+
     private const RUNNER_OTHER_MODULES = [
         'test:test-pandoc' => [
             'Tests.Old',
@@ -350,14 +399,18 @@ final class UpstreamRunnerDependencyAudit
      *   missingTools:list<string>,
      *   runnerTargets:list<string>,
      *   runnerEntryPoints:array<string, array{packageFile:string, type:string, mainIs:string, sourceDirectory:string}>,
+     *   benchmarkTargets:list<string>,
+     *   benchmarkEntryPoints:array<string, array{packageFile:string, type:string, mainIs:string, sourceDirectory:string}>,
      *   projectSourceRepositoryPins:array{expected:array<string, string>, present:array<string, string>, missing:list<string>, mismatched:array<string, array{expected:string, actual:string}>},
      *   projectSourceRepositoryClosure:array{expected:array<string, array{type:string, location:string}>, present:array<string, array{type:string|null, location:string, tag:string|null}>, missing:list<string>, mismatched:array<string, array{expected:array{type:string, location:string}, actual:array{type:string|null, location:string}>>},
      *   projectPackageClosure:array{expectedPackages:list<string>, presentPackages:list<string>, missingPackages:list<string>, expectedFlags:array<string, array<string, bool>>, presentFlags:array<string, array<string, bool>>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>},
      *   projectConstraintClosure:array{expectedConstraints:array<string, string>, presentConstraints:array<string, string>, missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>},
      *   runnerDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, expectedOtherModules:array<string, list<string>>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null, otherModules:list<string>}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, missingOtherModules:array<string, list<string>>},
+     *   benchmarkDependencyClosure:array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>},
      *   luaEngineLibraryClosure:array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, missingDependencies:list<string>},
      *   runnerEntrySourceClosure:array{expected:array<string, array{entryFile:string, requiredSnippets:array<string, string>}>, present:array<string, array{entryFile:string, matchedSnippets:list<string>}>, missingTargets:list<string>, missingSemantics:array<string, list<string>>},
      *   runnerArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>},
+     *   benchmarkArtifactClosure:array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>},
      *   readyForNonMutatingCabalPlan:bool,
      *   blockedReasons:list<string>,
      *   nonMutatingPlan:list<string>,
@@ -390,9 +443,11 @@ final class UpstreamRunnerDependencyAudit
         $projectPackageClosure = self::auditProjectPackageClosure($projectContents);
         $projectConstraintClosure = self::auditProjectConstraintClosure($projectContents);
         $runnerDependencyClosure = self::auditRunnerDependencyClosure($root);
+        $benchmarkDependencyClosure = self::auditBenchmarkDependencyClosure($root);
         $luaEngineLibraryClosure = self::auditLuaEngineLibraryClosure($root);
         $runnerEntrySourceClosure = self::auditRunnerEntrySourceClosure($root);
         $runnerArtifactClosure = self::auditRunnerArtifactClosure($root);
+        $benchmarkArtifactClosure = self::auditBenchmarkArtifactClosure($root);
 
         $blockedReasons = [];
         if ($missingFiles !== []) {
@@ -449,6 +504,24 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerDependencyClosure['missingOtherModules'] !== []) {
             $blockedReasons[] = 'missing Cabal runner other-modules: ' . self::formatTargetFailures($runnerDependencyClosure['missingOtherModules']);
         }
+        if ($benchmarkDependencyClosure['missingTargets'] !== []) {
+            $blockedReasons[] = 'missing Cabal benchmark stanzas: ' . implode(', ', $benchmarkDependencyClosure['missingTargets']);
+        }
+        if ($benchmarkDependencyClosure['mismatchedEntryPoints'] !== []) {
+            $blockedReasons[] = 'mismatched Cabal benchmark entry points: ' . self::formatTargetFailures($benchmarkDependencyClosure['mismatchedEntryPoints']);
+        }
+        if ($benchmarkDependencyClosure['missingDependencies'] !== []) {
+            $blockedReasons[] = 'missing Cabal benchmark direct build-depends: ' . self::formatTargetFailures($benchmarkDependencyClosure['missingDependencies']);
+        }
+        if ($benchmarkDependencyClosure['mismatchedDependencyConstraints'] !== []) {
+            $blockedReasons[] = 'mismatched Cabal benchmark direct build-depends constraints: ' . self::formatTargetConstraintMismatches($benchmarkDependencyClosure['mismatchedDependencyConstraints']);
+        }
+        if ($benchmarkDependencyClosure['missingExecutableOptions'] !== []) {
+            $blockedReasons[] = 'missing Cabal benchmark executable options: ' . self::formatTargetFailures($benchmarkDependencyClosure['missingExecutableOptions']);
+        }
+        if ($benchmarkDependencyClosure['mismatchedDefaultLanguages'] !== []) {
+            $blockedReasons[] = 'mismatched Cabal benchmark default-language: ' . self::formatDefaultLanguageMismatches($benchmarkDependencyClosure['mismatchedDefaultLanguages']);
+        }
         if ($luaEngineLibraryClosure['missingDependencies'] !== []) {
             $blockedReasons[] = 'missing pandoc-lua-engine library build-depends: ' . implode(', ', $luaEngineLibraryClosure['missingDependencies']);
         }
@@ -464,6 +537,12 @@ final class UpstreamRunnerDependencyAudit
         if ($runnerArtifactClosure['wrongType'] !== []) {
             $blockedReasons[] = 'mismatched upstream runner source/golden fixture artifact types: ' . self::formatArtifactTypeMismatches($runnerArtifactClosure['wrongType']);
         }
+        if ($benchmarkArtifactClosure['missing'] !== []) {
+            $blockedReasons[] = 'missing upstream benchmark source/data artifacts: ' . implode(', ', $benchmarkArtifactClosure['missing']);
+        }
+        if ($benchmarkArtifactClosure['wrongType'] !== []) {
+            $blockedReasons[] = 'mismatched upstream benchmark source/data artifact types: ' . self::formatArtifactTypeMismatches($benchmarkArtifactClosure['wrongType']);
+        }
 
         $ready = $blockedReasons === [];
 
@@ -478,24 +557,29 @@ final class UpstreamRunnerDependencyAudit
             'missingTools' => $missingTools,
             'runnerTargets' => array_keys(self::RUNNER_ENTRY_POINTS),
             'runnerEntryPoints' => self::RUNNER_ENTRY_POINTS,
+            'benchmarkTargets' => array_keys(self::BENCHMARK_ENTRY_POINTS),
+            'benchmarkEntryPoints' => self::BENCHMARK_ENTRY_POINTS,
             'projectSourceRepositoryPins' => $projectPins,
             'projectSourceRepositoryClosure' => $projectSourceRepositoryClosure,
             'projectPackageClosure' => $projectPackageClosure,
             'projectConstraintClosure' => $projectConstraintClosure,
             'runnerDependencyClosure' => $runnerDependencyClosure,
+            'benchmarkDependencyClosure' => $benchmarkDependencyClosure,
             'luaEngineLibraryClosure' => $luaEngineLibraryClosure,
             'runnerEntrySourceClosure' => $runnerEntrySourceClosure,
             'runnerArtifactClosure' => $runnerArtifactClosure,
+            'benchmarkArtifactClosure' => $benchmarkArtifactClosure,
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
                 'record cabal.project package/flag closure plus source-repository type/location/tag closure, runner source/golden fixture artifacts, runner entry-point semantics, and package-file hashes before any solver/build command',
                 'record cabal.project solver constraints and runner executable options before any solver/build command',
                 'record test-suite type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, and other-modules closure for test:test-pandoc and test:test-pandoc-lua-engine, plus pandoc-lua-engine library HsLua module dependency closure',
+                'record benchmark:benchmark-pandoc type, buildable state, default-language, entry point, direct build-depends with pinned version constraints, executable options, and source/data artifact closure before any benchmark execution',
                 'prepare a bounded Cabal solver plan for test:test-pandoc and test:test-pandoc-lua-engine',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
-            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $luaEngineLibraryClosure, $runnerEntrySourceClosure, $runnerArtifactClosure),
+            'activationGate' => self::activationGate($missingFiles, $missingTools, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $runnerDependencyClosure, $benchmarkDependencyClosure, $luaEngineLibraryClosure, $runnerEntrySourceClosure, $runnerArtifactClosure, $benchmarkArtifactClosure),
         ];
     }
 
@@ -569,6 +653,46 @@ final class UpstreamRunnerDependencyAudit
     public static function expectedRunnerDefaultLanguages(): array
     {
         return self::RUNNER_DEFAULT_LANGUAGES;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function expectedBenchmarkDependencies(): array
+    {
+        return self::BENCHMARK_DIRECT_DEPENDENCIES;
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    public static function expectedBenchmarkDependencyConstraints(): array
+    {
+        return self::BENCHMARK_DEPENDENCY_CONSTRAINTS;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function expectedBenchmarkExecutableOptions(): array
+    {
+        return self::BENCHMARK_EXECUTABLE_OPTIONS;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function expectedBenchmarkDefaultLanguages(): array
+    {
+        return self::BENCHMARK_DEFAULT_LANGUAGES;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function expectedBenchmarkArtifacts(): array
+    {
+        return self::BENCHMARK_ARTIFACTS;
     }
 
     /**
@@ -885,6 +1009,36 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array<string, array{type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null}>
+     */
+    public static function parseCabalBenchmarks(string $contents): array
+    {
+        $stanzas = self::parseCabalStanzas($contents);
+        $benchmarks = [];
+
+        foreach ($stanzas as $key => $stanza) {
+            if ($stanza['type'] !== 'benchmark') {
+                continue;
+            }
+
+            $fields = self::resolveCabalStanzaFields($key, $stanzas);
+            $benchmarks[$stanza['name']] = [
+                'type' => self::firstFieldValue($fields['type'] ?? null),
+                'buildable' => self::cabalBuildableState($fields['buildable'] ?? null),
+                'mainIs' => self::firstFieldValue($fields['main-is'] ?? null),
+                'sourceDirectories' => self::splitWords($fields['hs-source-dirs'] ?? ''),
+                'buildDepends' => self::extractCabalDependencyNames($fields['build-depends'] ?? ''),
+                'dependencyConstraints' => self::extractCabalDependencyConstraints($fields['build-depends'] ?? ''),
+                'ghcOptions' => self::splitWords($fields['ghc-options'] ?? ''),
+                'defaultLanguage' => self::firstFieldValue($fields['default-language'] ?? null),
+            ];
+        }
+
+        ksort($benchmarks);
+        return $benchmarks;
+    }
+
+    /**
      * @return array<string, array{buildDepends:list<string>}>
      */
     public static function parseCabalLibraries(string $contents): array
@@ -1195,6 +1349,116 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array{expectedDependencies:array<string, list<string>>, expectedDependencyConstraints:array<string, array<string, string>>, expectedExecutableOptions:array<string, list<string>>, expectedDefaultLanguages:array<string, string>, present:array<string, array{packageFile:string, type:string|null, buildable:bool|null, mainIs:string|null, sourceDirectories:list<string>, buildDepends:list<string>, dependencyConstraints:array<string, string>, ghcOptions:list<string>, defaultLanguage:string|null}>, missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>}
+     */
+    private static function auditBenchmarkDependencyClosure(string $root): array
+    {
+        $present = [];
+        foreach (self::BENCHMARK_ENTRY_POINTS as $target => $entryPoint) {
+            $packageFile = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $entryPoint['packageFile']);
+            if (!is_file($packageFile)) {
+                continue;
+            }
+
+            $benchmarkName = substr($target, strlen('benchmark:'));
+            $benchmarks = self::parseCabalBenchmarks((string) file_get_contents($packageFile));
+            if (!array_key_exists($benchmarkName, $benchmarks)) {
+                continue;
+            }
+
+            $present[$target] = [
+                'packageFile' => $entryPoint['packageFile'],
+                'type' => $benchmarks[$benchmarkName]['type'],
+                'buildable' => $benchmarks[$benchmarkName]['buildable'],
+                'mainIs' => $benchmarks[$benchmarkName]['mainIs'],
+                'sourceDirectories' => $benchmarks[$benchmarkName]['sourceDirectories'],
+                'buildDepends' => $benchmarks[$benchmarkName]['buildDepends'],
+                'dependencyConstraints' => $benchmarks[$benchmarkName]['dependencyConstraints'],
+                'ghcOptions' => $benchmarks[$benchmarkName]['ghcOptions'],
+                'defaultLanguage' => $benchmarks[$benchmarkName]['defaultLanguage'],
+            ];
+        }
+
+        $missingTargets = [];
+        $mismatchedEntryPoints = [];
+        $missingDependencies = [];
+        $mismatchedDependencyConstraints = [];
+        $missingExecutableOptions = [];
+        $mismatchedDefaultLanguages = [];
+
+        foreach (self::BENCHMARK_ENTRY_POINTS as $target => $entryPoint) {
+            if (!array_key_exists($target, $present)) {
+                $missingTargets[] = $target;
+                continue;
+            }
+
+            if ($present[$target]['type'] !== $entryPoint['type']) {
+                $mismatchedEntryPoints[$target][] = 'type expected ' . $entryPoint['type'] . ', found ' . ($present[$target]['type'] ?? 'none');
+            }
+
+            if ($present[$target]['buildable'] !== true) {
+                $mismatchedEntryPoints[$target][] = 'buildable expected true, found ' . self::formatCabalBuildableState($present[$target]['buildable']);
+            }
+
+            if ($present[$target]['mainIs'] !== $entryPoint['mainIs']) {
+                $mismatchedEntryPoints[$target][] = 'main-is expected ' . $entryPoint['mainIs'] . ', found ' . ($present[$target]['mainIs'] ?? 'none');
+            }
+
+            if (!in_array($entryPoint['sourceDirectory'], $present[$target]['sourceDirectories'], true)) {
+                $mismatchedEntryPoints[$target][] = 'hs-source-dirs missing ' . $entryPoint['sourceDirectory'];
+            }
+
+            foreach (self::BENCHMARK_DIRECT_DEPENDENCIES[$target] as $dependency) {
+                if (!in_array($dependency, $present[$target]['buildDepends'], true)) {
+                    $missingDependencies[$target][] = $dependency;
+                }
+            }
+
+            foreach (self::BENCHMARK_DEPENDENCY_CONSTRAINTS[$target] ?? [] as $dependency => $expectedConstraint) {
+                if (!in_array($dependency, $present[$target]['buildDepends'], true)) {
+                    continue;
+                }
+
+                $actualConstraint = $present[$target]['dependencyConstraints'][$dependency] ?? '';
+                if ($actualConstraint !== $expectedConstraint) {
+                    $mismatchedDependencyConstraints[$target][$dependency] = [
+                        'expected' => $expectedConstraint,
+                        'actual' => $actualConstraint,
+                    ];
+                }
+            }
+
+            foreach (self::BENCHMARK_EXECUTABLE_OPTIONS[$target] as $option) {
+                if (!in_array($option, $present[$target]['ghcOptions'], true)) {
+                    $missingExecutableOptions[$target][] = $option;
+                }
+            }
+
+            $expectedLanguage = self::BENCHMARK_DEFAULT_LANGUAGES[$target];
+            if ($present[$target]['defaultLanguage'] !== $expectedLanguage) {
+                $mismatchedDefaultLanguages[$target] = [
+                    'expected' => $expectedLanguage,
+                    'actual' => $present[$target]['defaultLanguage'],
+                ];
+            }
+        }
+
+        return [
+            'expectedDependencies' => self::BENCHMARK_DIRECT_DEPENDENCIES,
+            'expectedDependencyConstraints' => self::BENCHMARK_DEPENDENCY_CONSTRAINTS,
+            'expectedExecutableOptions' => self::BENCHMARK_EXECUTABLE_OPTIONS,
+            'expectedDefaultLanguages' => self::BENCHMARK_DEFAULT_LANGUAGES,
+            'present' => $present,
+            'missingTargets' => $missingTargets,
+            'mismatchedEntryPoints' => $mismatchedEntryPoints,
+            'missingDependencies' => $missingDependencies,
+            'mismatchedDependencyConstraints' => $mismatchedDependencyConstraints,
+            'missingExecutableOptions' => $missingExecutableOptions,
+            'mismatchedDefaultLanguages' => $mismatchedDefaultLanguages,
+        ];
+    }
+
+    /**
      * @return array{packageFile:string, expectedDependencies:list<string>, presentDependencies:list<string>, missingDependencies:list<string>}
      */
     private static function auditLuaEngineLibraryClosure(string $root): array
@@ -1307,6 +1571,42 @@ final class UpstreamRunnerDependencyAudit
     }
 
     /**
+     * @return array{expected:array<string, string>, present:list<string>, missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>}
+     */
+    private static function auditBenchmarkArtifactClosure(string $root): array
+    {
+        $present = [];
+        $missing = [];
+        $wrongType = [];
+
+        foreach (self::BENCHMARK_ARTIFACTS as $relativePath => $expectedKind) {
+            $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+            $actualKind = self::filesystemArtifactKind($path);
+            if ($actualKind === null) {
+                $missing[] = $relativePath;
+                continue;
+            }
+
+            if ($actualKind !== $expectedKind) {
+                $wrongType[$relativePath] = [
+                    'expected' => $expectedKind,
+                    'actual' => $actualKind,
+                ];
+                continue;
+            }
+
+            $present[] = $relativePath;
+        }
+
+        return [
+            'expected' => self::BENCHMARK_ARTIFACTS,
+            'present' => $present,
+            'missing' => $missing,
+            'wrongType' => $wrongType,
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function requiredRunnerArtifacts(): array
@@ -1393,7 +1693,7 @@ final class UpstreamRunnerDependencyAudit
 
             if (preg_match('/^([A-Za-z][A-Za-z0-9-]*)\s+([A-Za-z0-9_.-]+)\s*$/', $line, $match) === 1) {
                 $type = strtolower($match[1]);
-                if (in_array($type, ['test-suite', 'common', 'library'], true)) {
+                if (in_array($type, ['test-suite', 'benchmark', 'common', 'library'], true)) {
                     $currentKey = $type . ':' . $match[2];
                     $stanzas[$currentKey] = [
                         'type' => $type,
@@ -1818,11 +2118,13 @@ final class UpstreamRunnerDependencyAudit
      * @param array{missingPackages:list<string>, missingFlags:array<string, list<string>>, mismatchedFlags:array<string, array<string, array{expected:bool, actual:bool|null}>>} $projectPackageClosure
      * @param array{missingConstraints:list<string>, mismatchedConstraints:array<string, array{expected:string, actual:string}>} $projectConstraintClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, missingOtherModules:array<string, list<string>>} $runnerDependencyClosure
+     * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>} $benchmarkDependencyClosure
      * @param array{missingDependencies:list<string>} $luaEngineLibraryClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $runnerEntrySourceClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>} $runnerArtifactClosure
+     * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>} $benchmarkArtifactClosure
      */
-    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $luaEngineLibraryClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure): string
+    private static function activationGate(array $missingFiles, array $missingTools, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $runnerDependencyClosure, array $benchmarkDependencyClosure, array $luaEngineLibraryClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure, array $benchmarkArtifactClosure): string
     {
         if (
             $missingFiles === []
@@ -1843,16 +2145,24 @@ final class UpstreamRunnerDependencyAudit
             && $runnerDependencyClosure['missingExecutableOptions'] === []
             && $runnerDependencyClosure['mismatchedDefaultLanguages'] === []
             && $runnerDependencyClosure['missingOtherModules'] === []
+            && $benchmarkDependencyClosure['missingTargets'] === []
+            && $benchmarkDependencyClosure['mismatchedEntryPoints'] === []
+            && $benchmarkDependencyClosure['missingDependencies'] === []
+            && $benchmarkDependencyClosure['mismatchedDependencyConstraints'] === []
+            && $benchmarkDependencyClosure['missingExecutableOptions'] === []
+            && $benchmarkDependencyClosure['mismatchedDefaultLanguages'] === []
             && $luaEngineLibraryClosure['missingDependencies'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
             && $runnerEntrySourceClosure['missingSemantics'] === []
             && $runnerArtifactClosure['missing'] === []
             && $runnerArtifactClosure['wrongType'] === []
+            && $benchmarkArtifactClosure['missing'] === []
+            && $benchmarkArtifactClosure['wrongType'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, cabal.project package/flag/constraint closure, exact cabal.project source-repository Git types and locations, runner source/golden fixtures, runner entry-point source semantics, buildable runner test-suite stanzas, exitcode-stdio runner types, direct build-depends with pinned version constraints, Haskell2010 default-language closure, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, benchmark component dependency/artifact closure, executable options, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, runner source/golden fixtures, runner entry-point source semantics, buildable exitcode-stdio test-suite types, Haskell2010 default-language closure, test entry points, direct runner build-depends and pinned version constraints, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with cabal.project package entries/flags/constraints, exact cabal.project source-repository Git types and locations, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, runner source/golden fixtures, benchmark source/data artifacts, runner entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, runner other-modules closure, pandoc-lua-engine library HsLua module dependency closure, runner and benchmark executable options, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

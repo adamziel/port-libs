@@ -74,7 +74,46 @@ $formatRunnerDependencies = static function (string $target, array $dependencies
     return $formatted;
 };
 
-$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010') use ($formatRunnerDependencies): string {
+$formatBenchmarkDependencies = static function (string $target, array $dependencies): array {
+    $constraints = UpstreamRunnerDependencyAudit::expectedBenchmarkDependencyConstraints()[$target] ?? [];
+    $formatted = [];
+    foreach ($dependencies as $dependency) {
+        $constraint = $constraints[$dependency] ?? '';
+        $formatted[] = $constraint === '' ? $dependency : $dependency . ' ' . $constraint;
+    }
+
+    return $formatted;
+};
+
+$pandocBenchmark = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = null) use ($formatBenchmarkDependencies): string {
+    $dependencies = array_values(array_diff(
+        UpstreamRunnerDependencyAudit::expectedBenchmarkDependencies()['benchmark:benchmark-pandoc'],
+        $without
+    ));
+
+    $benchmark = [
+        '',
+        'benchmark benchmark-pandoc',
+        '  import: common-executable',
+        '  type: ' . $type,
+    ];
+    if ($buildable !== null) {
+        $benchmark[] = '  buildable: ' . $buildable;
+    }
+    if ($defaultLanguage !== null && $defaultLanguage !== '') {
+        $benchmark[] = '  default-language: ' . $defaultLanguage;
+    }
+
+    return implode("\n", array_merge($benchmark, [
+        '  main-is: ' . ($mainIs ?? 'benchmark-pandoc.hs'),
+        '  hs-source-dirs: ' . ($sourceDirectory ?? 'benchmark'),
+        '  build-depends:',
+        '    ' . implode(",\n    ", $formatBenchmarkDependencies('benchmark:benchmark-pandoc', $dependencies)),
+        '  ghc-options: ' . ($ghcOptions ?? '-rtsopts -with-rtsopts=-A8m -threaded'),
+    ]));
+};
+
+$pandocCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, ?string $ghcOptions = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010', ?string $benchmarkStanza = null) use ($formatRunnerDependencies, $pandocBenchmark): string {
     $dependencies = array_values(array_diff(
         UpstreamRunnerDependencyAudit::expectedRunnerDependencies()['test:test-pandoc'],
         $without
@@ -107,12 +146,14 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         '    ' . implode(",\n    ", UpstreamRunnerDependencyAudit::expectedRunnerOtherModules()['test:test-pandoc']),
     ]);
 
-    return implode("\n", array_merge([
+    $body = implode("\n", array_merge([
         'common common-options',
         '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
         '',
     ], $commonExecutable, $testSuite));
+
+    return $body . "\n" . ($benchmarkStanza ?? $pandocBenchmark());
 };
 
 $luaCabal = static function (array $without = [], ?string $mainIs = null, ?string $sourceDirectory = null, string $type = 'exitcode-stdio-1.0', ?string $buildable = null, ?string $defaultLanguage = 'Haskell2010', array $libraryWithout = []) use ($formatRunnerDependencies): string {
@@ -231,7 +272,20 @@ $runnerArtifacts = static function (): array {
     return $files;
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
+$benchmarkArtifacts = static function (): array {
+    $files = [];
+    foreach (UpstreamRunnerDependencyAudit::expectedBenchmarkArtifacts() as $relativePath => $kind) {
+        if ($kind === 'directory') {
+            $files[$relativePath . '/.audit-keep'] = 'fixture root present';
+        } else {
+            $files[$relativePath] = 'benchmark fixture artifact present';
+        }
+    }
+
+    return $files;
+};
+
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true) use ($pandocCabal, $luaCabal, $runnerArtifacts, $benchmarkArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
     $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
@@ -241,7 +295,7 @@ $requiredFiles = static function (string $project, ?string $pandocPackage = null
     ];
 
     if ($includeRunnerArtifacts) {
-        $files = array_merge($files, $runnerArtifacts());
+        $files = array_merge($files, $runnerArtifacts(), $benchmarkArtifacts());
     }
 
     return $files;
@@ -1172,6 +1226,77 @@ return [
         $t->contains('test:test-pandoc expected Haskell2010, found Haskell98', $blocked);
         $t->contains('test:test-pandoc-lua-engine expected Haskell2010, found none', $blocked);
         $t->contains('Haskell2010 default-language closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks benchmark component dependency and artifact drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $pandocCabal, $pandocBenchmark): void {
+        $benchmark = $pandocBenchmark(
+            ['deepseq', 'tasty-bench'],
+            'wrong-benchmark.hs',
+            'other-benchmark',
+            '-rtsopts',
+            'exitcode-stdio-1.0',
+            null,
+            'Haskell98'
+        );
+        $benchmark = str_replace(
+            'text >= 1.1.1.0 && < 2.2',
+            'text >= 1.0 && < 2.2',
+            $benchmark
+        );
+
+        $files = $requiredFiles(
+            $pinnedProject(),
+            $pandocCabal([], null, null, null, 'exitcode-stdio-1.0', null, 'Haskell2010', $benchmark)
+        );
+        unset($files['benchmark/benchmark-pandoc.hs'], $files['test/lalune.jpg']);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([$target], $audit['benchmarkTargets']);
+        $t->same('pandoc.cabal', $audit['benchmarkEntryPoints'][$target]['packageFile']);
+        $t->same('benchmark-pandoc.hs', $audit['benchmarkEntryPoints'][$target]['mainIs']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['runnerDependencyClosure']['missingTargets']);
+        $t->same([], $audit['runnerDependencyClosure']['mismatchedEntryPoints']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingTargets']);
+        $t->same(['other-benchmark'], $audit['benchmarkDependencyClosure']['present'][$target]['sourceDirectories']);
+        $t->contains('main-is expected benchmark-pandoc.hs, found wrong-benchmark.hs', $audit['benchmarkDependencyClosure']['mismatchedEntryPoints'][$target][0]);
+        $t->contains('hs-source-dirs missing benchmark', $audit['benchmarkDependencyClosure']['mismatchedEntryPoints'][$target][1]);
+        $t->same(['deepseq', 'tasty-bench'], $audit['benchmarkDependencyClosure']['missingDependencies'][$target]);
+        $t->same([
+            'expected' => '>= 1.1.1.0 && < 2.2',
+            'actual' => '>= 1.0 && < 2.2',
+        ], $audit['benchmarkDependencyClosure']['mismatchedDependencyConstraints'][$target]['text']);
+        $t->same([], $audit['benchmarkDependencyClosure']['missingExecutableOptions']);
+        $t->same([
+            'expected' => 'Haskell2010',
+            'actual' => 'Haskell98',
+        ], $audit['benchmarkDependencyClosure']['mismatchedDefaultLanguages'][$target]);
+        $t->same([
+            'benchmark/benchmark-pandoc.hs',
+            'test/lalune.jpg',
+        ], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkArtifactClosure']['wrongType']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched Cabal benchmark entry points', $blocked);
+        $t->contains('missing Cabal benchmark direct build-depends: benchmark:benchmark-pandoc (deepseq, tasty-bench)', $blocked);
+        $t->contains('mismatched Cabal benchmark direct build-depends constraints: benchmark:benchmark-pandoc (text expected >= 1.1.1.0 && < 2.2, found >= 1.0 && < 2.2)', $blocked);
+        $t->contains('mismatched Cabal benchmark default-language: benchmark:benchmark-pandoc expected Haskell2010, found Haskell98', $blocked);
+        $t->contains('missing upstream benchmark source/data artifacts: benchmark/benchmark-pandoc.hs, test/lalune.jpg', $blocked);
+        $t->contains('benchmark source/data artifacts', $audit['activationGate']);
+        $t->contains('benchmark build-depends', $audit['activationGate']);
+        $t->contains('benchmark executable options', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'normalizes cabal line comments before resolving runner fields' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
