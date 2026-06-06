@@ -6448,9 +6448,18 @@ final class PdfEmbeddedFileExtractor
             $body = $stream;
         }
 
-        $hex = preg_replace('/\s+/', '', $body);
-        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
-            return null;
+        $hex = '';
+        for ($index = 0, $length = strlen($body); $index < $length; $index++) {
+            $char = $body[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if (!ctype_xdigit($char)) {
+                return null;
+            }
+
+            $hex .= $char;
         }
 
         if (strlen($hex) % 2 === 1) {
@@ -6487,7 +6496,7 @@ final class PdfEmbeddedFileExtractor
 
     private function decodeAscii85Stream(string $stream): ?string
     {
-        $body = trim($stream);
+        $body = $this->trimPdfFilterWhitespace($stream);
         if (str_starts_with($body, '<~')) {
             $body = substr($body, 2);
         }
@@ -6502,7 +6511,7 @@ final class PdfEmbeddedFileExtractor
         $length = strlen($body);
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $body[$offset];
-            if (ctype_space($char)) {
+            if ($this->isPdfFilterWhitespace($char)) {
                 continue;
             }
 
@@ -6538,6 +6547,30 @@ final class PdfEmbeddedFileExtractor
         }
 
         return $out;
+    }
+
+    private function trimPdfFilterWhitespace(string $value): string
+    {
+        $start = 0;
+        $end = strlen($value);
+        while ($start < $end && $this->isPdfFilterWhitespace($value[$start])) {
+            $start++;
+        }
+        while ($end > $start && $this->isPdfFilterWhitespace($value[$end - 1])) {
+            $end--;
+        }
+
+        return substr($value, $start, $end - $start);
+    }
+
+    private function isPdfFilterWhitespace(string $char): bool
+    {
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     /**
@@ -6819,7 +6852,7 @@ final class PdfEmbeddedFileExtractor
     {
         $length = strlen($stream);
         for ($index = $offset; $index < $length;) {
-            if ($this->isPdfWhitespace($stream[$index])) {
+            if ($this->isPdfFilterWhitespace($stream[$index])) {
                 $index++;
                 continue;
             }

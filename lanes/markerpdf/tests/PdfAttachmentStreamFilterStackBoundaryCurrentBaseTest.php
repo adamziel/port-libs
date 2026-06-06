@@ -68,6 +68,10 @@ $attachmentStreamFilterStackBoundaryCurrentBaseLzwLiteral = static function (str
     return $encoded . $suffix;
 };
 
+$attachmentStreamFilterStackBoundaryCurrentBaseAsciiHex = static function (string $bytes): string {
+    return strtoupper(bin2hex($bytes)) . '>';
+};
+
 $attachmentStreamFilterStackBoundaryCurrentBasePdf = static function () use (
     $attachmentStreamFilterStackBoundaryCurrentBaseAscii85
 ): string {
@@ -91,6 +95,40 @@ $attachmentStreamFilterStackBoundaryCurrentBasePdf = static function () use (
         . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /Crypt /ASCII85Decode /FlateDecode ] /DecodeParms [ << /Name /PrivateCF >> null null ] /Params << /Size " . strlen($privatePayload) . " /CheckSum <{$privateChecksum}> >> /Length " . strlen($privateEncoded) . " >>\nstream\n{$privateEncoded}\nendstream\nendobj\n"
         . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
         . "trailer\n<< /Root 1 0 R >>\n%%EOF\n";
+};
+
+$attachmentStreamFilterStackBoundaryCurrentBaseFilterWhitespacePdf = static function () use (
+    $attachmentStreamFilterStackBoundaryCurrentBaseAsciiHex
+): array {
+    $visible = 'BT /F1 12 Tf 72 720 Td (Visible Attachment Filter Whitespace Review) Tj ET';
+    $badPayload = "Title,Status\nVertical Tab Stack Attachment Leak,Blocked\n";
+    $goodPayload = "Title,Status\nClean Stack Attachment,Ready\n";
+    $badCompressed = gzcompress($badPayload);
+    $goodCompressed = gzcompress($goodPayload);
+    if (!is_string($badCompressed) || !is_string($goodCompressed)) {
+        throw new RuntimeException('Unable to compress focused attachment filter whitespace fixture.');
+    }
+
+    $badEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAsciiHex($badCompressed);
+    $badEncoded = substr($badEncoded, 0, 12) . "\x0b" . substr($badEncoded, 12);
+    $goodEncoded = $attachmentStreamFilterStackBoundaryCurrentBaseAsciiHex($goodCompressed);
+
+    return [
+        'bad_payload' => $badPayload,
+        'good_payload' => $goodPayload,
+        'pdf' => "%PDF-1.7\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+            . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 30 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($visible) . " >>\nstream\n{$visible}\nendstream\nendobj\n"
+            . "6 0 obj\n<< /Names [(bad-whitespace.csv) 10 0 R (clean-stack.csv) 12 0 R] >>\nendobj\n"
+            . "10 0 obj\n<< /Type /Filespec /F (bad-whitespace.csv) /Desc (Invalid filter whitespace attachment stack) /AFRelationship /Data /EF << /F 11 0 R >> >>\nendobj\n"
+            . "11 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($badPayload) . " /CheckSum <" . md5($badPayload) . "> >> /Length " . strlen($badEncoded) . " >>\nstream\n{$badEncoded}\nendstream\nendobj\n"
+            . "12 0 obj\n<< /Type /Filespec /F (clean-stack.csv) /Desc (Clean attachment stack) /AFRelationship /Source /EF << /F 13 0 R >> >>\nendobj\n"
+            . "13 0 obj\n<< /Type /EmbeddedFile /Subtype /text#2Fcsv /Filter [ /ASCIIHexDecode /FlateDecode ] /DecodeParms [ null null ] /Params << /Size " . strlen($goodPayload) . " /CheckSum <" . md5($goodPayload) . "> >> /Length " . strlen($goodEncoded) . " >>\nstream\n{$goodEncoded}\nendstream\nendobj\n"
+            . "30 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "trailer\n<< /Root 1 0 R >>\n%%EOF\n",
+    ];
 };
 
 $attachmentStreamFilterStackBoundaryCurrentBaseDictionaryFilterPdf = static function (): string {
@@ -356,6 +394,53 @@ return [
         $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'Dictionary Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Dictionary Filter Attachment Leak'));
         $t->true(!str_contains($plainText, 'Malformed dictionary filter attachment'));
+    },
+    'rejects non-PDF whitespace inside attachment filter stack data before payload extraction' => static function (
+        TestRunner $t
+    ) use ($attachmentStreamFilterStackBoundaryCurrentBaseFilterWhitespacePdf): void {
+        $fixture = $attachmentStreamFilterStackBoundaryCurrentBaseFilterWhitespacePdf();
+        $pdf = $fixture['pdf'];
+        $badPayload = $fixture['bad_payload'];
+        $goodPayload = $fixture['good_payload'];
+        $checksum = md5($goodPayload);
+
+        $summary = (new PdfAttachmentExtractor())->attachmentSummary($pdf);
+        $files = (new PdfEmbeddedFileExtractor())->extractEmbeddedFiles($pdf);
+        $plainText = (new PdfTextExtractor())->extractPlainText($pdf);
+        $encodedSummary = json_encode($summary, JSON_UNESCAPED_SLASHES);
+        $encodedFiles = json_encode($files, JSON_UNESCAPED_SLASHES);
+
+        $t->same(1, $summary['attachment_count']);
+        $t->same(['clean-stack.csv'], $summary['filenames']);
+        $t->same(strlen($goodPayload), $summary['total_bytes']);
+        $t->same(false, $summary['executes_python_or_models']);
+        $t->same(false, $summary['executes_external_pdf_tools']);
+
+        $attachment = $summary['attachments'][0] ?? [];
+        $t->same('clean-stack.csv', $attachment['filename'] ?? null);
+        $t->same('Clean attachment stack', $attachment['description'] ?? null);
+        $t->same('Source', $attachment['relationship'] ?? null);
+        $t->same('original_source', $attachment['relationship_role'] ?? null);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $attachment['filters'] ?? null);
+        $t->same(strlen($goodPayload), $attachment['byte_length'] ?? null);
+        $t->same($checksum, $attachment['computed_checksum_hex'] ?? null);
+        $t->same(true, $attachment['checksum_matches'] ?? null);
+        $t->same(false, array_key_exists('bytes', $attachment));
+
+        $t->same(1, count($files));
+        $t->same('clean-stack.csv', $files[0]['filename'] ?? null);
+        $t->same($goodPayload, $files[0]['content'] ?? null);
+        $t->same(['ASCIIHexDecode', 'FlateDecode'], $files[0]['filters'] ?? null);
+        $t->same($checksum, $files[0]['computed_checksum'] ?? null);
+        $t->same(true, $files[0]['checksum_matches'] ?? null);
+
+        $t->same('Visible Attachment Filter Whitespace Review', $plainText);
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, 'bad-whitespace.csv'));
+        $t->true(is_string($encodedSummary) && !str_contains($encodedSummary, $badPayload));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, 'bad-whitespace.csv'));
+        $t->true(is_string($encodedFiles) && !str_contains($encodedFiles, $badPayload));
+        $t->true(!str_contains($plainText, 'Vertical Tab Stack Attachment Leak'));
+        $t->true(!str_contains($plainText, 'Clean Stack Attachment'));
     },
     'treats all-null attachment filter arrays as identity stacks before resolving stray DecodeParms' => static function (
         TestRunner $t

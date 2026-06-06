@@ -136,6 +136,23 @@ $parserStreamFilterStackBoundaryCurrentBaseNonPdfWhitespacePdf = static function
         . "%%EOF";
 };
 
+$parserStreamFilterStackBoundaryCurrentBaseLeadingNonPdfWhitespacePdf = static function () use (
+    $parserStreamFilterStackBoundaryCurrentBaseAscii85
+): string {
+    $ascii85Leak = 'BT /F1 12 Tf 72 720 Td (Leading ASCII85 Whitespace Leak) Tj ET';
+    $ascii85Encoded = "\x0b" . $parserStreamFilterStackBoundaryCurrentBaseAscii85($ascii85Leak) . '~>';
+    $visibleAfter = 'BT /F1 12 Tf 72 700 Td (Visible After Leading Filter Whitespace) Tj ET';
+
+    return "%PDF-1.4\n"
+        . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+        . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+        . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 5 0 R >> >> /Contents [4 0 R 6 0 R] >>\nendobj\n"
+        . "4 0 obj\n<< /Filter /ASCII85Decode /Length " . strlen($ascii85Encoded) . " >>\nstream\n{$ascii85Encoded}\nendstream\nendobj\n"
+        . "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n"
+        . "6 0 obj\n<< /Length " . strlen($visibleAfter) . " >>\nstream\n{$visibleAfter}\nendstream\nendobj\n"
+        . "%%EOF";
+};
+
 $parserStreamFilterStackBoundaryCurrentBasePdf = static function () use ($parserStreamFilterStackBoundaryCurrentBaseAscii85): string {
     $before = "BT /F1 12 Tf 72 720 Td (Before ASCII85 Stack Boundary) Tj ET\n";
     while (strlen($before) % 4 !== 0) {
@@ -986,6 +1003,23 @@ return [
         $t->true(!str_contains($text, 'Vertical Tab ASCIIHex Leak'));
         $t->true(!str_contains($text, 'Vertical Tab ASCII85 Leak'));
         $t->true(!str_contains($text, 'ASCIIHexDecode'));
+        $t->true(!str_contains($text, 'ASCII85Decode'));
+        $t->true(!str_contains($text, "\x0b"));
+        $t->true(!str_contains($text, "\0"));
+    },
+    'rejects leading non-PDF whitespace before ASCII85 stream filter data' => static function (TestRunner $t) use ($parserStreamFilterStackBoundaryCurrentBaseLeadingNonPdfWhitespacePdf): void {
+        $extractor = new PdfTextExtractor();
+        $pdf = $parserStreamFilterStackBoundaryCurrentBaseLeadingNonPdfWhitespacePdf();
+        $text = $extractor->extractPlainText($pdf);
+
+        $expected = ['Visible After Leading Filter Whitespace'];
+        $t->same($expected, $extractor->extractTextLines($pdf));
+        $t->same($expected, $extractor->extractTextRuns($pdf));
+        $t->same('Visible After Leading Filter Whitespace', $text);
+        $t->same("Visible After Leading Filter Whitespace\n", $extractor->naiveGetText($pdf));
+        $t->same(1, $extractor->extractOutlineMetadata($pdf)['pages']);
+        $t->same(['1'], $extractor->extractPageLabels($pdf));
+        $t->true(!str_contains($text, 'Leading ASCII85 Whitespace Leak'));
         $t->true(!str_contains($text, 'ASCII85Decode'));
         $t->true(!str_contains($text, "\x0b"));
         $t->true(!str_contains($text, "\0"));

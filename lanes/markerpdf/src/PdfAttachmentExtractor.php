@@ -3486,10 +3486,20 @@ final class PdfAttachmentExtractor
             $body = $bytes;
         }
 
-        $hex = preg_replace('/\s+/', '', $body);
-        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
-            return null;
+        $hex = '';
+        for ($index = 0, $length = strlen($body); $index < $length; $index++) {
+            $char = $body[$index];
+            if ($this->isPdfFilterWhitespace($char)) {
+                continue;
+            }
+
+            if (!ctype_xdigit($char)) {
+                return null;
+            }
+
+            $hex .= $char;
         }
+
         if (strlen($hex) % 2 === 1) {
             $hex .= '0';
         }
@@ -3529,7 +3539,7 @@ final class PdfAttachmentExtractor
 
     private function decodeAscii85Stream(string $bytes): ?string
     {
-        $body = trim($bytes);
+        $body = $this->trimPdfFilterWhitespace($bytes);
         if (str_starts_with($body, '<~')) {
             $body = substr($body, 2);
         }
@@ -3544,7 +3554,7 @@ final class PdfAttachmentExtractor
         $length = strlen($body);
         for ($offset = 0; $offset < $length; $offset++) {
             $char = $body[$offset];
-            if (ctype_space($char)) {
+            if ($this->isPdfFilterWhitespace($char)) {
                 continue;
             }
 
@@ -3580,6 +3590,20 @@ final class PdfAttachmentExtractor
         }
 
         return $out;
+    }
+
+    private function trimPdfFilterWhitespace(string $value): string
+    {
+        $start = 0;
+        $end = strlen($value);
+        while ($start < $end && $this->isPdfFilterWhitespace($value[$start])) {
+            $start++;
+        }
+        while ($end > $start && $this->isPdfFilterWhitespace($value[$end - 1])) {
+            $end--;
+        }
+
+        return substr($value, $start, $end - $start);
     }
 
     /**
@@ -3662,7 +3686,7 @@ final class PdfAttachmentExtractor
     {
         $length = strlen($bytes);
         for ($index = $offset; $index < $length;) {
-            if ($this->isPdfWhitespace($bytes[$index])) {
+            if ($this->isPdfFilterWhitespace($bytes[$index])) {
                 $index++;
                 continue;
             }
@@ -7191,6 +7215,16 @@ final class PdfAttachmentExtractor
     private function isPdfWhitespace(string $char): bool
     {
         return $char === "\0" || ctype_space($char);
+    }
+
+    private function isPdfFilterWhitespace(string $char): bool
+    {
+        return $char === "\0"
+            || $char === "\t"
+            || $char === "\n"
+            || $char === "\f"
+            || $char === "\r"
+            || $char === ' ';
     }
 
     private function isNumericToken(string $token): bool

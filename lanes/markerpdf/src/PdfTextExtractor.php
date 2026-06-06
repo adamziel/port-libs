@@ -17382,7 +17382,7 @@ final class PdfTextExtractor
 
     private function decodeAscii85Stream(string $stream): ?string
     {
-        $body = trim($stream);
+        $body = $this->trimPdfFilterWhitespace($stream);
         if (str_starts_with($body, '<~')) {
             $body = substr($body, 2);
         }
@@ -17433,6 +17433,20 @@ final class PdfTextExtractor
         }
 
         return $out;
+    }
+
+    private function trimPdfFilterWhitespace(string $value): string
+    {
+        $start = 0;
+        $end = strlen($value);
+        while ($start < $end && $this->isPdfFilterWhitespace($value[$start])) {
+            $start++;
+        }
+        while ($end > $start && $this->isPdfFilterWhitespace($value[$end - 1])) {
+            $end--;
+        }
+
+        return substr($value, $start, $end - $start);
     }
 
     /**
