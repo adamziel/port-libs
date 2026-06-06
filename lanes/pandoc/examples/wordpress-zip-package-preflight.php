@@ -1284,6 +1284,55 @@ $buildExtraFieldIdMismatchBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildExtraFieldValueMismatchBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/split-extra-value-review.bin';
+    $data = "Central and local ZIP extra-field values should stay reviewable\n";
+    $crc = $crc32($data);
+    $centralExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+    $localExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($localExtra)
+    );
+    $body .= $name . $localExtra . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($centralExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $centralExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildStoredSizeMismatchBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/stored-review.txt';
     $data = "Stored media bytes must have matching size metadata\n";
@@ -1739,6 +1788,14 @@ try {
     $extraFieldIdMismatchPackage->assertMatchingExtraFieldIds();
 } catch (RuntimeException $exception) {
     $extraFieldIdMismatchRejected = str_contains($exception->getMessage(), 'central/local extra field id mismatches');
+}
+$extraFieldValueMismatchPackage = ZipPackage::fromString($buildExtraFieldValueMismatchBackedPackage());
+$extraFieldValueMismatchPreflight = $extraFieldValueMismatchPackage->extraFieldPreflight();
+$extraFieldValueMismatchRejected = false;
+try {
+    $extraFieldValueMismatchPackage->assertMatchingExtraFieldValues();
+} catch (RuntimeException $exception) {
+    $extraFieldValueMismatchRejected = str_contains($exception->getMessage(), 'central/local extra field value mismatches');
 }
 $pathHierarchyCollisionPackage = ZipPackage::fromParts([
     [
@@ -2705,12 +2762,20 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected generated ZIP package extra-field ids to match between central and local headers');
     }
 
+    if ($package->assertMatchingExtraFieldValues() !== $packageExtraFieldPreflight) {
+        throw new RuntimeException('Expected generated ZIP package extra-field values to match between central and local headers');
+    }
+
     if (($packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] ?? null) !== 0) {
         throw new RuntimeException('Expected generated ZIP package to avoid duplicate extra field ids');
     }
 
     if (($packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 0) {
         throw new RuntimeException('Expected generated ZIP package to avoid central/local extra field id mismatches');
+    }
+
+    if (($packageExtraFieldPreflight['mismatchedExtraFieldValueEntryCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected generated ZIP package to avoid central/local extra field value mismatches');
     }
 
     if ($package->assertNoPathHierarchyCollisions() !== $packagePathHierarchyPreflight) {
@@ -2754,6 +2819,15 @@ if (in_array('--self-test', $argv, true)) {
         || ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['localOnlyExtraFieldIds'][0] ?? null) !== 0xbeef
     ) {
         throw new RuntimeException('Expected central/local ZIP extra field id mismatches to stay blocked for strict media import');
+    }
+
+    if (
+        !$extraFieldValueMismatchRejected
+        || ($extraFieldValueMismatchPreflight['mismatchedExtraFieldValueEntryCount'] ?? null) !== 1
+        || ($extraFieldValueMismatchPreflight['valueMismatchedEntries'][0]['name'] ?? null) !== 'word/media/split-extra-value-review.bin'
+        || ($extraFieldValueMismatchPreflight['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIds'][0] ?? null) !== 0xcafe
+    ) {
+        throw new RuntimeException('Expected central/local ZIP extra field value mismatches to stay blocked for strict media import');
     }
 
     if (
@@ -3510,6 +3584,7 @@ echo 'packageReadIntegrity.failedEntryCount=' . $packageReadIntegrityPreflight['
 echo 'zipTrailingDeflatePolicy=' . ($trailingDeflateRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipTrailingDeflateError=' . ($trailingDeflatePreflight['failedEntries'][0]['error'] ?? 'none') . "\n";
 echo 'packageExtraField.mismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldEntryCount'] . "\n";
+echo 'packageExtraField.valueMismatchedEntryCount=' . $packageExtraFieldPreflight['mismatchedExtraFieldValueEntryCount'] . "\n";
 echo 'packagePermissions.unixModeEntryCount=' . $packagePermissionPreflight['unixModeEntryCount'] . "\n";
 echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['executableFileCount'] . "\n";
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
@@ -3565,6 +3640,8 @@ echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExtraFieldIdMismatchEntry=' . ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipExtraFieldValueMismatchPolicy=' . ($extraFieldValueMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipExtraFieldValueMismatchEntry=' . ($extraFieldValueMismatchPreflight['valueMismatchedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipPathHierarchyCollisionPolicy=' . ($pathHierarchyCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPathHierarchyCollisionEntry=' . ($pathHierarchyCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";

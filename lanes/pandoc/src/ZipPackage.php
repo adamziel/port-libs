@@ -754,11 +754,13 @@ final class ZipPackage
      *     duplicateCentralExtraFieldEntryCount:int,
      *     duplicateLocalExtraFieldEntryCount:int,
      *     mismatchedExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldValueEntryCount:int,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
-     *     duplicateEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>,
-     *     mismatchedEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>,
-     *     entries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     valueMismatchedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function extraFieldPreflight(): array
@@ -770,25 +772,30 @@ final class ZipPackage
         $localOnlyExtraFieldEntryCount = 0;
         $duplicateEntries = [];
         $mismatchedEntries = [];
+        $valueMismatchedEntries = [];
         $entries = [];
 
         foreach ($this->entries as $entry) {
+            $centralExtraFields = $entry->centralExtraFields();
+            $localExtraFields = $this->localExtraFields($entry->name);
             $centralExtraFieldIds = array_map(
                 static fn (array $field): int => $field['id'],
-                $entry->centralExtraFields()
+                $centralExtraFields
             );
             $localExtraFieldIds = array_map(
                 static fn (array $field): int => $field['id'],
-                $this->localExtraFields($entry->name)
+                $localExtraFields
             );
             $duplicateCentralExtraFieldIds = self::duplicateIntegerValues($centralExtraFieldIds);
             $duplicateLocalExtraFieldIds = self::duplicateIntegerValues($localExtraFieldIds);
             $centralOnlyExtraFieldIds = self::integerValuesOnlyIn($centralExtraFieldIds, $localExtraFieldIds);
             $localOnlyExtraFieldIds = self::integerValuesOnlyIn($localExtraFieldIds, $centralExtraFieldIds);
+            $mismatchedExtraFieldValueIds = self::mismatchedExtraFieldValueIds($centralExtraFields, $localExtraFields);
             $hasDuplicateExtraFieldIds = $duplicateCentralExtraFieldIds !== []
                 || $duplicateLocalExtraFieldIds !== [];
             $hasMismatchedExtraFieldIds = $centralOnlyExtraFieldIds !== []
                 || $localOnlyExtraFieldIds !== [];
+            $hasMismatchedExtraFieldValues = $mismatchedExtraFieldValueIds !== [];
 
             if ($centralExtraFieldIds !== [] || $localExtraFieldIds !== []) {
                 $extraFieldEntryCount++;
@@ -818,8 +825,10 @@ final class ZipPackage
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
                 'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+                'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
                 'hasDuplicateExtraFieldIds' => $hasDuplicateExtraFieldIds,
                 'hasMismatchedExtraFieldIds' => $hasMismatchedExtraFieldIds,
+                'hasMismatchedExtraFieldValues' => $hasMismatchedExtraFieldValues,
             ];
             $entries[] = $summary;
             if ($hasDuplicateExtraFieldIds) {
@@ -827,6 +836,9 @@ final class ZipPackage
             }
             if ($hasMismatchedExtraFieldIds) {
                 $mismatchedEntries[] = $summary;
+            }
+            if ($hasMismatchedExtraFieldValues) {
+                $valueMismatchedEntries[] = $summary;
             }
         }
 
@@ -837,10 +849,12 @@ final class ZipPackage
             'duplicateCentralExtraFieldEntryCount' => $duplicateCentralExtraFieldEntryCount,
             'duplicateLocalExtraFieldEntryCount' => $duplicateLocalExtraFieldEntryCount,
             'mismatchedExtraFieldEntryCount' => count($mismatchedEntries),
+            'mismatchedExtraFieldValueEntryCount' => count($valueMismatchedEntries),
             'centralOnlyExtraFieldEntryCount' => $centralOnlyExtraFieldEntryCount,
             'localOnlyExtraFieldEntryCount' => $localOnlyExtraFieldEntryCount,
             'duplicateEntries' => $duplicateEntries,
             'mismatchedEntries' => $mismatchedEntries,
+            'valueMismatchedEntries' => $valueMismatchedEntries,
             'entries' => $entries,
         ];
     }
@@ -853,11 +867,13 @@ final class ZipPackage
      *     duplicateCentralExtraFieldEntryCount:int,
      *     duplicateLocalExtraFieldEntryCount:int,
      *     mismatchedExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldValueEntryCount:int,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
-     *     duplicateEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>,
-     *     mismatchedEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>,
-     *     entries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     valueMismatchedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function assertNoDuplicateExtraFieldIds(): array
@@ -898,11 +914,13 @@ final class ZipPackage
      *     duplicateCentralExtraFieldEntryCount:int,
      *     duplicateLocalExtraFieldEntryCount:int,
      *     mismatchedExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldValueEntryCount:int,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
-     *     duplicateEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>,
-     *     mismatchedEntries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>,
-     *     entries:list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>, duplicateCentralExtraFieldIds:list<int>, duplicateLocalExtraFieldIds:list<int>, centralOnlyExtraFieldIds:list<int>, localOnlyExtraFieldIds:list<int>, hasDuplicateExtraFieldIds:bool, hasMismatchedExtraFieldIds:bool}>
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     valueMismatchedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function assertMatchingExtraFieldIds(): array
@@ -929,6 +947,45 @@ final class ZipPackage
 
             throw new \RuntimeException(
                 'ZIP package contains central/local extra field id mismatches that require explicit import review: ' . $entries
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     extraFieldEntryCount:int,
+     *     duplicateExtraFieldEntryCount:int,
+     *     duplicateCentralExtraFieldEntryCount:int,
+     *     duplicateLocalExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldValueEntryCount:int,
+     *     centralOnlyExtraFieldEntryCount:int,
+     *     localOnlyExtraFieldEntryCount:int,
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     valueMismatchedEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public function assertMatchingExtraFieldValues(): array
+    {
+        $summary = $this->extraFieldPreflight();
+        if ($summary['mismatchedExtraFieldValueEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name']
+                        . ' (ids ' . implode('/', $entry['mismatchedExtraFieldValueIds']) . ')',
+                    $summary['valueMismatchedEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains central/local extra field value mismatches that require explicit import review: '
+                . $entries
             );
         }
 
@@ -2458,6 +2515,55 @@ final class ZipPackage
         }
 
         return $only;
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $centralFields
+     * @param list<array{id:int, data:string}> $localFields
+     *
+     * @return list<int>
+     */
+    private static function mismatchedExtraFieldValueIds(array $centralFields, array $localFields): array
+    {
+        $central = self::uniqueExtraFieldDataById($centralFields);
+        $local = self::uniqueExtraFieldDataById($localFields);
+        $mismatched = [];
+
+        foreach ($central as $id => $centralData) {
+            if (!array_key_exists($id, $local)) {
+                continue;
+            }
+
+            if ($centralData !== $local[$id]) {
+                $mismatched[] = (int) $id;
+            }
+        }
+
+        return $mismatched;
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $fields
+     *
+     * @return array<int, string>
+     */
+    private static function uniqueExtraFieldDataById(array $fields): array
+    {
+        $counts = [];
+        $dataById = [];
+        foreach ($fields as $field) {
+            $id = $field['id'];
+            $counts[$id] = ($counts[$id] ?? 0) + 1;
+            $dataById[$id] = $field['data'];
+        }
+
+        foreach ($counts as $id => $count) {
+            if ($count !== 1) {
+                unset($dataById[$id]);
+            }
+        }
+
+        return $dataById;
     }
 
     private function normalizeLookupPartName(string $partName): string
