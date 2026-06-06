@@ -7614,7 +7614,7 @@ final class PdfAcroFormExtractor
             ];
         }
 
-        $fieldObjects = array_values(array_unique($this->objectReferences($body)));
+        $fieldObjects = array_values(array_unique($this->reviewObjectReferencesWithCurrentGenerationBoundary($body, $objects)));
         $fieldNames = [];
         $unresolved = [];
         foreach ($fieldObjects as $fieldObject) {
@@ -7831,7 +7831,7 @@ final class PdfAcroFormExtractor
             ];
         }
 
-        $fieldObjects = array_values(array_unique($this->objectReferences($arrayBody)));
+        $fieldObjects = array_values(array_unique($this->reviewObjectReferencesWithCurrentGenerationBoundary($arrayBody, $objects)));
         $fieldNames = [];
         $unresolved = [];
         foreach ($fieldObjects as $fieldObject) {
