@@ -17,6 +17,8 @@ $srcdoc = htmlspecialchars(
 $source = <<<HTML
 <template><base href="https://inactive.example/assets/"><a href="template-note.html">Template fallback note</a></template>
 <base href="https://source.example.test/import/posts/post-42.html?draft=1">
+<meta charset="Windows-1252">
+<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
 <meta name="description" content="Legacy import packet for reviewer handoff">
 <meta name="author" content="Migration Desk">
 <meta name="keywords" content="wordpress, html import">
@@ -60,7 +62,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Template fallback note', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
+    foreach (['Template fallback note', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Canonical source', 'Spanish source', 'Shortlink', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Cover image', 'Mapped lead', 'Send review', 'Preview packet', 'Image submit'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -70,6 +72,8 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     foreach ([
         '<a href="https://source.example.test/import/posts/template-note.html">Template fallback note</a>',
+        '<span data-pandoc-meta-charset="windows-1252" data-pandoc-meta-source="charset">Charset: windows-1252</span>',
+        '<span data-pandoc-meta-charset="shift_jis" data-pandoc-meta-source="content-type">Charset: shift_jis</span>',
         '<span data-pandoc-meta-name="description" data-pandoc-meta-content="Legacy import packet for reviewer handoff">Description: Legacy import packet for reviewer handoff</span>',
         '<span data-pandoc-meta-name="author" data-pandoc-meta-content="Migration Desk">Author: Migration Desk</span>',
         '<span data-pandoc-meta-name="keywords" data-pandoc-meta-content="wordpress, html import">Keywords: wordpress, html import</span>',

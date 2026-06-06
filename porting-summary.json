@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-06 22:19:22 UTC",
-    "sourceCommit": "e1f112b8ea648ea7e836cfb9bbd4f19dce3d5584",
-    "sourceCommitShort": "e1f112b8ea64",
+    "generated": "2026-06-06 22:19:29 UTC",
+    "sourceCommit": "a0e988e42c4f325447e171116affcf08d8b0e228",
+    "sourceCommitShort": "a0e988e42c4f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e1f112b8ea648ea7e836cfb9bbd4f19dce3d5584",
-    "dashboardCommitShort": "e1f112b8ea64",
+    "dashboardCommit": "a0e988e42c4f325447e171116affcf08d8b0e228",
+    "dashboardCommitShort": "a0e988e42c4f",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,17 +133,17 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "1819",
-            "coverage": "1,819 / 2,276 (79.9%)",
-            "mapPercent": "79.9%",
-            "unmapped": "457",
-            "php": "1,406 pass / 0 fail",
+            "mapped": "1820",
+            "coverage": "1,820 / 2,276 (80.0%)",
+            "mapPercent": "80.0%",
+            "unmapped": "456",
+            "php": "1,407 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-06 UTC ZIP package current-base general-purpose flag prefligh...",
+            "audit": "2026-06-06 UTC XML/HTML5 DOM current-base charset metadata slice on a...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "Continue ZIP package closure with non-overlapping package sem...",
+            "nextTarget": "Continue XML/HTML5 DOM closure with non-overlapping support s...",
             "remainingGate": "No new support component is needed for this slice: it reuses native P...",
-            "commit": "pending fast ac..."
+            "commit": "pending pandoc-..."
         },
         {
             "lane": "quadrable",

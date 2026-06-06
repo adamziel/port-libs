@@ -1474,6 +1474,24 @@ final class Html5DomFragment
 
         $target = self::htmlMetaRefreshTarget($element);
         if ($target === null) {
+            $charsetMetadata = self::htmlMetaCharsetMetadata($element);
+            if ($charsetMetadata !== null) {
+                [$source, $charset] = $charsetMetadata;
+
+                return [[
+                    'type' => 'element',
+                    'name' => 'span',
+                    'attrs' => [
+                        'data-pandoc-meta-charset' => $charset,
+                        'data-pandoc-meta-source' => $source,
+                    ],
+                    'children' => [[
+                        'type' => 'text',
+                        'text' => 'Charset: ' . $charset,
+                    ]],
+                ]];
+            }
+
             $reviewMetadata = self::htmlMetaReviewMetadata($element);
             if ($reviewMetadata === null) {
                 return null;
@@ -1560,6 +1578,56 @@ final class Html5DomFragment
         }
 
         return $target;
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private static function htmlMetaCharsetMetadata(\DOMElement $element): ?array
+    {
+        if ($element->hasAttribute('charset')) {
+            $charset = self::normalizeHtmlCharsetLabel($element->getAttribute('charset'));
+
+            return $charset === null ? null : ['charset', $charset];
+        }
+
+        if (strcasecmp(self::cleanHtmlMetadataAttribute($element->getAttribute('http-equiv')), 'content-type') !== 0) {
+            return null;
+        }
+        if (!$element->hasAttribute('content')) {
+            return null;
+        }
+
+        $content = $element->getAttribute('content');
+        if (preg_match('/(?:^|;)\s*charset\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^;\s]+))/i', $content, $matches) !== 1) {
+            return null;
+        }
+
+        $label = '';
+        foreach ([1, 2, 3] as $index) {
+            if (($matches[$index] ?? '') === '') {
+                continue;
+            }
+
+            $label = (string) $matches[$index];
+            break;
+        }
+        $charset = self::normalizeHtmlCharsetLabel($label);
+
+        return $charset === null ? null : ['content-type', $charset];
+    }
+
+    private static function normalizeHtmlCharsetLabel(string $value): ?string
+    {
+        $label = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($label === '' || strlen($label) > 64) {
+            return null;
+        }
+        if (preg_match('/^[a-z0-9._:-]+$/', $label) !== 1) {
+            return null;
+        }
+
+        return $label;
     }
 
     /**

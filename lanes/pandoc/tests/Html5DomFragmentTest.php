@@ -1461,6 +1461,57 @@ return [
         $t->true(!str_contains($html, 'Open graph image'), 'Expected unsupported property metadata to remain hidden');
         $t->true(!str_contains($html, '<Legacy CMS>'), 'Expected tag-looking metadata text to remain escaped');
     },
+    'converts html charset metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<meta charset=" Windows-1252 ">'
+            . '<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">'
+            . '<meta http-equiv="content-type" content="text/html; charset=&quot;ISO-8859-1&quot;">'
+            . '<meta charset="bad charset value">'
+            . '<meta http-equiv="content-type" content="text/html">'
+            . '<meta http-equiv="x-content-type-options" content="nosniff">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/meta-charset-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<span data-pandoc-meta-charset="windows-1252" data-pandoc-meta-source="charset">Charset: windows-1252</span>'
+            . '<span data-pandoc-meta-charset="shift_jis" data-pandoc-meta-source="content-type">Charset: shift_jis</span>'
+            . '<span data-pandoc-meta-charset="iso-8859-1" data-pandoc-meta-source="content-type">Charset: iso-8859-1</span>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Charset: windows-1252Charset: shift_jisCharset: iso-8859-1after', $fragment->textContent());
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['base', 'meta'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same([
+            'data-pandoc-meta-charset' => 'windows-1252',
+            'data-pandoc-meta-source' => 'charset',
+        ], $nodes[0]['attrs']);
+        $t->same('Charset: windows-1252', $nodes[0]['children'][0]['text']);
+        $t->same('shift_jis', $nodes[1]['attrs']['data-pandoc-meta-charset']);
+        $t->same('content-type', $nodes[1]['attrs']['data-pandoc-meta-source']);
+        $t->same('iso-8859-1', $nodes[2]['attrs']['data-pandoc-meta-charset']);
+        $t->same('p', $nodes[3]['name']);
+        $t->same('/migration/meta-charset-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<meta'), 'Expected original meta charset elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'bad charset value'), 'Expected invalid charset labels to remain hidden');
+        $t->true(!str_contains($html, 'nosniff'), 'Expected unrelated http-equiv metadata to remain hidden');
+    },
     'converts passive property metadata into reviewer spans before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
