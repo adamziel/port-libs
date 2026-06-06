@@ -1562,6 +1562,23 @@ final class MathTexConverter
             return $this->parseExplicitSpaceCommand($source, $offset, $command);
         }
 
+        if ($command === 'allowbreak') {
+            $placementOffset = $offset;
+            $placement = $this->readScriptPlacementCommand($source, $placementOffset);
+            if ($placement !== null) {
+                throw new \InvalidArgumentException('Unexpected TeX \\' . $placement . ' after \\allowbreak at offset ' . $placementOffset);
+            }
+
+            $scriptOffset = $offset;
+            $this->skipWhitespace($source, $scriptOffset);
+            $marker = $source[$scriptOffset] ?? '';
+            if ($marker === '_' || $marker === '^' || $marker === "'") {
+                throw new \InvalidArgumentException('Unexpected TeX script marker after \\allowbreak at offset ' . $scriptOffset);
+            }
+
+            return '';
+        }
+
         if ($command === 'mod' || $command === 'bmod' || $command === 'pmod' || $command === 'pod') {
             return $this->parseModuloCommand($source, $offset, $command);
         }

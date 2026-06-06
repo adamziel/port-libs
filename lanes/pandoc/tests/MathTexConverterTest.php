@@ -538,6 +538,21 @@ return [
         $t->contains('<mi>x</mi><mspace width="0.2222em"></mspace><mi>y</mi><mspace width="0.2778em"></mspace><mi>z</mi>', $namedSpacingMathml);
         $t->contains('<mi>a</mi><mspace width="0.2222em"></mspace><mi>b</mi><mspace width="0.2222em"></mspace><mi>c</mi><mspace width="0.5em"></mspace><mi>d</mi><mspace width="-0.2222em"></mspace><mi>e</mi><mspace width="-0.2778em"></mspace><mi>f</mi>', $mediumSpacingMathml);
     },
+    'ignores bounded tex allowbreak commands in mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $allowBreakMathml = $converter->texToMathMl('p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('x\\allowbreak+y');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $allowBreakMathml);
+        $t->contains('<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mi>slug</mi>', $allowBreakMathml);
+        $t->contains('<annotation encoding="application/x-tex">p_i\\allowbreak + m_i + \\operatorname{slug}\\allowbreak</annotation>', $allowBreakMathml);
+        $t->contains('alttext="x plus y"', $accessibleMathml);
+        $t->contains('intent="row(x,plus,y)"', $accessibleMathml);
+        $t->true(!str_contains($allowBreakMathml, '<mi>\\allowbreak</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\allowbreak_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\allowbreak^2'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('x \\allowbreak\\limits_1'));
+    },
     'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $explicitMathml = $converter->texToMathMl('p_i\\hspace{1.5em}m_i\\mspace{-2mu}q_i + a\\hspace*{.25in}b', true);
