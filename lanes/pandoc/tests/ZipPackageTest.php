@@ -1312,6 +1312,68 @@ return [
         $t->same('', $directoryPackage->read('/word/media/'));
     },
 
+    'rejects zip unix file type metadata that disagrees with entry names' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-folder',
+                'data' => '',
+                'method' => 0,
+                'externalAttributes' => 0x41ed0000,
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
+            [
+                'name' => 'word/media/reviewer-folder',
+                'data' => '',
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x41ed0000,
+            ],
+        ]));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>unix type metadata</w:p></w:document>',
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x41ed0000,
+            ],
+        ]);
+        $t->same(0x8000, $safePackage->entry('/word/document.xml')->unixFileType());
+        $t->same('regular-file', $safePackage->entry('/word/document.xml')->unixFileTypeName());
+        $t->same(0x4000, $safePackage->entry('/word/media/')->unixFileType());
+        $t->same('directory', $safePackage->entry('/word/media/')->unixFileTypeName());
+        $t->same('<w:document><w:p>unix type metadata</w:p></w:document>', $safePackage->read('/word/document.xml'));
+
+        $fatPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/reviewer-folder',
+                'data' => '',
+                'method' => 0,
+                'versionMadeBy' => 0x0014,
+                'externalAttributes' => 0x41ed0000,
+            ],
+        ]));
+        $t->same(null, $fatPackage->entry('/word/media/reviewer-folder')->unixFileType());
+        $t->same('', $fatPackage->read('/word/media/reviewer-folder'));
+    },
+
     'preflights zip file-directory path collisions before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $collisionPackage = ZipPackage::fromString($buildZipPackage([
             [

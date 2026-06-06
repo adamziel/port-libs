@@ -402,6 +402,7 @@ final class ZipPackage
             if (!is_int($externalAttributes)) {
                 throw new \RuntimeException("ZIP entry {$name} external attributes must be an integer");
             }
+            self::assertUnixFileTypeMatchesEntryName($name, $externalAttributes);
             if (self::isUnixSymlinkExternalAttributes($externalAttributes)) {
                 throw new \RuntimeException("ZIP symlink entries are not supported by the pandoc package writer: {$name}");
             }
@@ -2314,9 +2315,28 @@ final class ZipPackage
 
     private static function assertDirectoryAttributeConsistency(ZipPackageEntry $entry): void
     {
+        $unixFileType = $entry->unixFileType();
+        if ($entry->isDirectory()) {
+            if ($unixFileType !== null && $unixFileType !== self::UNIX_DIRECTORY_TYPE) {
+                throw new \RuntimeException(
+                    "ZIP package directory entry {$entry->name} has Unix "
+                    . ($entry->unixFileTypeName() ?? 'unknown')
+                    . ' external attributes'
+                );
+            }
+
+            return;
+        }
+
         if (!$entry->isDirectory() && $entry->hasDosDirectoryAttribute()) {
             throw new \RuntimeException(
                 "ZIP package entry {$entry->name} has directory external attributes but is not named as a directory"
+            );
+        }
+
+        if ($unixFileType === self::UNIX_DIRECTORY_TYPE) {
+            throw new \RuntimeException(
+                "ZIP package entry {$entry->name} has Unix directory external attributes but is not named as a directory"
             );
         }
     }
@@ -3282,25 +3302,67 @@ final class ZipPackage
 
     private static function isUnixSymlinkExternalAttributes(int $externalAttributes): bool
     {
-        $mode = ($externalAttributes >> 16) & 0xffff;
-
-        return ($mode & self::UNIX_FILE_TYPE_MASK) === self::UNIX_SYMLINK_TYPE;
+        return self::unixFileTypeFromExternalAttributes($externalAttributes) === self::UNIX_SYMLINK_TYPE;
     }
 
     private static function isUnixSpecialFileExternalAttributes(int $externalAttributes): bool
     {
-        $type = (($externalAttributes >> 16) & 0xffff) & self::UNIX_FILE_TYPE_MASK;
+        $type = self::unixFileTypeFromExternalAttributes($externalAttributes);
 
         return $type === self::UNIX_FIFO_TYPE
             || $type === self::UNIX_CHARACTER_DEVICE_TYPE
             || $type === self::UNIX_BLOCK_DEVICE_TYPE
             || $type === self::UNIX_SOCKET_TYPE
             || (
-                $type !== 0
+                $type !== null
                 && $type !== self::UNIX_DIRECTORY_TYPE
                 && $type !== self::UNIX_REGULAR_FILE_TYPE
                 && $type !== self::UNIX_SYMLINK_TYPE
             );
+    }
+
+    private static function assertUnixFileTypeMatchesEntryName(string $name, int $externalAttributes): void
+    {
+        $type = self::unixFileTypeFromExternalAttributes($externalAttributes);
+        if (str_ends_with($name, '/')) {
+            if ($type !== null && $type !== self::UNIX_DIRECTORY_TYPE) {
+                throw new \RuntimeException(
+                    "ZIP package directory entry {$name} has Unix "
+                    . self::unixFileTypeName($type)
+                    . ' external attributes'
+                );
+            }
+
+            return;
+        }
+
+        if ($type === self::UNIX_DIRECTORY_TYPE) {
+            throw new \RuntimeException(
+                "ZIP package entry {$name} has Unix directory external attributes but is not named as a directory"
+            );
+        }
+    }
+
+    private static function unixFileTypeFromExternalAttributes(int $externalAttributes): ?int
+    {
+        $mode = ($externalAttributes >> 16) & 0xffff;
+        $type = $mode & self::UNIX_FILE_TYPE_MASK;
+
+        return $type === 0 ? null : $type;
+    }
+
+    private static function unixFileTypeName(int $type): string
+    {
+        return match ($type) {
+            self::UNIX_FIFO_TYPE => 'fifo',
+            self::UNIX_CHARACTER_DEVICE_TYPE => 'character-device',
+            self::UNIX_DIRECTORY_TYPE => 'directory',
+            self::UNIX_BLOCK_DEVICE_TYPE => 'block-device',
+            self::UNIX_REGULAR_FILE_TYPE => 'regular-file',
+            self::UNIX_SYMLINK_TYPE => 'symlink',
+            self::UNIX_SOCKET_TYPE => 'socket',
+            default => 'unknown',
+        };
     }
 
     private static function readUInt16(string $bytes, int $offset): int

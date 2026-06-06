@@ -1428,6 +1428,52 @@ $buildDosDirectoryAttributeMismatchBackedPackage = static function () use ($crc3
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnixFileTypeNameMismatchBackedPackage = static function (string $name, int $externalAttributes) use ($crc32): string {
+    $data = str_ends_with($name, '/') ? '' : "Unix file type metadata should match entry name shape\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        $externalAttributes,
+        0
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $rewriteZipEndOfCentralDirectory = static function (string $zip, array $fields): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -2379,6 +2425,33 @@ try {
     $dosDirectoryAttributeMismatchRejected = str_contains($exception->getMessage(), 'directory external attributes')
         && str_contains($exception->getMessage(), 'not named as a directory');
 }
+$unixDirectoryRegularTypeRejected = false;
+try {
+    ZipPackage::fromString($buildUnixFileTypeNameMismatchBackedPackage('word/media/', 0x81a40000));
+} catch (RuntimeException $exception) {
+    $unixDirectoryRegularTypeRejected = str_contains($exception->getMessage(), 'Unix regular-file external attributes');
+}
+$unixFileDirectoryTypeRejected = false;
+try {
+    ZipPackage::fromString($buildUnixFileTypeNameMismatchBackedPackage('word/media/reviewer-folder', 0x41ed0000));
+} catch (RuntimeException $exception) {
+    $unixFileDirectoryTypeRejected = str_contains($exception->getMessage(), 'Unix directory external attributes')
+        && str_contains($exception->getMessage(), 'not named as a directory');
+}
+$generatedUnixTypeMismatchRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/',
+            'externalAttributes' => 0x81a40000,
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $generatedUnixTypeMismatchRejected = str_contains($exception->getMessage(), 'Unix regular-file external attributes');
+}
+$unixFileTypeNameMismatchRejected = $unixDirectoryRegularTypeRejected
+    && $unixFileDirectoryTypeRejected
+    && $generatedUnixTypeMismatchRejected;
 $duplicateLocalOffsetRejected = false;
 try {
     ZipPackage::fromString($buildDuplicateLocalOffsetBackedPackage());
@@ -3586,6 +3659,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP non-directory names with directory attributes to be rejected before media import');
     }
 
+    if (!$unixFileTypeNameMismatchRejected) {
+        throw new RuntimeException('Expected ZIP Unix file-type metadata to match entry name shape before media import');
+    }
+
     if (!$localEntryOverlapRejected) {
         throw new RuntimeException('Expected ZIP local entry overlap to be rejected before media import');
     }
@@ -3822,6 +3899,7 @@ echo 'driveLetterPathPolicy=' . ($driveLetterRejected ? 'rejected' : 'not-reject
 echo 'rawUnicodePathPolicy=' . ($rawUnicodeTraversalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'directoryPayloadPolicy=' . ($directoryPayloadRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDosDirectoryAttributePolicy=' . ($dosDirectoryAttributeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnixFileTypeNamePolicy=' . ($unixFileTypeNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntryOverlapPolicy=' . ($localEntryOverlapRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateLocalOffsetPolicy=' . ($duplicateLocalOffsetRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipCentralDirectorySignaturePolicy=' . ($centralDirectorySignatureParsed ? 'inspectable' : 'not-inspectable') . "\n";
