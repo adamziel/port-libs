@@ -153,14 +153,20 @@ final class MathTexConverter
 
     /** @var array<string, string> */
     private const OVER_ACCENT_COMMANDS = [
+        'acute' => '´',
         'bar' => '¯',
+        'breve' => '˘',
+        'check' => 'ˇ',
         'ddot' => '¨',
         'dot' => '˙',
+        'grave' => '`',
         'hat' => '^',
+        'mathring' => '˚',
         'overline' => '‾',
         'tilde' => '~',
         'vec' => '→',
         'widehat' => '^',
+        'widetilde' => '~',
     ];
 
     /** @var array<string, string> */
@@ -427,14 +433,19 @@ final class MathTexConverter
         '‖' => 'double vertical bar',
         '⏞' => 'over brace',
         '⏟' => 'under brace',
+        '´' => 'acute',
         '¯' => 'bar',
         '′' => 'prime',
         '″' => 'double prime',
         '‴' => 'triple prime',
         '‵' => 'back prime',
         '‾' => 'overline',
+        '`' => 'grave',
         '˙' => 'dot',
         '¨' => 'double dot',
+        '˘' => 'breve',
+        'ˇ' => 'check',
+        '˚' => 'ring',
         '~' => 'tilde',
     ];
 

@@ -725,6 +725,19 @@ return [
         $t->contains('<mover accent="true"><mi>x</mi><mo>˙</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>¨</mo></mover><mo>+</mo><mover accent="true"><mi>n</mi><mo>~</mo></mover>', $dotMathml);
         $t->contains('<munder accentunder="true"><mi>draft</mi><mo>_</mo></munder>', $underMathml);
     },
+    'converts bounded tex accent aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $accentAliasMathml = $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\acute{x} + \\grave{y} + \\mathring{A}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $accentAliasMathml);
+        $t->contains('<mover accent="true"><mi>x</mi><mo>´</mo></mover><mo>+</mo><mover accent="true"><mi>y</mi><mo>`</mo></mover>', $accentAliasMathml);
+        $t->contains('<mover accent="true"><mi>z</mi><mo>˘</mo></mover><mo>+</mo><mover accent="true"><mi>a</mi><mo>ˇ</mo></mover>', $accentAliasMathml);
+        $t->contains('<msub><mover accent="true"><mi>A</mi><mo>˚</mo></mover><mn>0</mn></msub><mo>+</mo><mover accent="true"><mrow><mi>m</mi><mi>n</mi></mrow><mo>~</mo></mover>', $accentAliasMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}</annotation>', $accentAliasMathml);
+        $t->contains('alttext="x over acute plus y over grave plus A over ring"', $accessibleMathml);
+        $t->contains('intent="row(over(x,acute),plus,over(y,grave),plus,over(a,ring))"', $accessibleMathml);
+    },
     'converts bounded tex extensible arrows to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $xArrowMathml = $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i', true);
