@@ -1191,12 +1191,12 @@ final class PdfActionReviewExtractor
         $this->objectsByGeneration = [];
 
         $definitions = $this->rawObjectDefinitions($pdfBytes);
-        $selectedDefinitions = $this->selectedObjectDefinitionsFromXrefStream($pdfBytes, $definitions);
-        $usesXrefStreamSelection = $selectedDefinitions !== [];
+        $selectedDefinitions = $this->selectedObjectDefinitionsFromXrefSection($pdfBytes, $definitions);
+        $usesXrefSelection = $selectedDefinitions !== [];
         if ($selectedDefinitions !== []) {
             $definitions = $selectedDefinitions;
         }
-        $freeObjectNumbers = $usesXrefStreamSelection ? [] : PdfXrefFreeObjectMap::freeObjectNumbers($pdfBytes);
+        $freeObjectNumbers = $usesXrefSelection ? [] : PdfXrefFreeObjectMap::freeObjectNumbers($pdfBytes);
 
         foreach ($definitions as $definition) {
             $objectNumber = $definition['object'];
@@ -1245,9 +1245,9 @@ final class PdfActionReviewExtractor
      * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
      * @return list<array{object: int, generation: int, body: string, offset: int}>
      */
-    private function selectedObjectDefinitionsFromXrefStream(string $pdfBytes, array $definitions): array
+    private function selectedObjectDefinitionsFromXrefSection(string $pdfBytes, array $definitions): array
     {
-        $xrefEntries = $this->xrefStreamEntriesFromLatestStartxref($pdfBytes, $definitions);
+        $xrefEntries = $this->xrefEntriesFromLatestStartxref($pdfBytes, $definitions);
         if ($xrefEntries === []) {
             return [];
         }
@@ -1321,14 +1321,14 @@ final class PdfActionReviewExtractor
      * @param list<array{object: int, generation: int, body: string, offset: int}> $definitions
      * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
      */
-    private function xrefStreamEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
+    private function xrefEntriesFromLatestStartxref(string $pdfBytes, array $definitions): array
     {
         $offset = $this->latestStartxrefOffset($pdfBytes);
         if ($offset === null) {
             return [];
         }
 
-        return $this->xrefStreamEntriesFromOffsetChain($offset, $definitions);
+        return $this->xrefEntriesFromOffsetChain($pdfBytes, $offset, $definitions);
     }
 
     /**
@@ -1336,7 +1336,7 @@ final class PdfActionReviewExtractor
      * @param array<int, true> $visited
      * @return array<int, array{type: int, generation?: int, offset?: int, object_stream?: int, index?: int, index_is_explicit?: bool}>
      */
-    private function xrefStreamEntriesFromOffsetChain(int $offset, array $definitions, array $visited = []): array
+    private function xrefEntriesFromOffsetChain(string $pdfBytes, int $offset, array $definitions, array $visited = []): array
     {
         if (isset($visited[$offset])) {
             return [];
@@ -1344,20 +1344,41 @@ final class PdfActionReviewExtractor
         $visited[$offset] = true;
 
         $section = $this->xrefStreamSectionAtOffset($offset, $definitions);
-        if ($section === null) {
+        if ($section !== null) {
+            $previousOffset = $this->previousXrefStreamOffset($section);
+            $entries = $this->repairCurrentUpdateXrefEntries(
+                $this->xrefStreamEntriesFromSection($section),
+                $definitions,
+                $previousOffset,
+                $offset
+            );
+
+            if ($previousOffset !== null && $previousOffset >= 0 && $previousOffset < $offset) {
+                foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $definitions, $visited) as $objectNumber => $entry) {
+                    $entries[$objectNumber] ??= $entry;
+                }
+            }
+
+            ksort($entries, SORT_NUMERIC);
+
+            return $entries;
+        }
+
+        $tableSection = $this->xrefTableSectionAtOffset($pdfBytes, $offset);
+        if ($tableSection === null) {
             return [];
         }
 
-        $previousOffset = $this->previousXrefStreamOffset($section);
+        $previousOffset = $this->previousXrefTableOffset($tableSection);
         $entries = $this->repairCurrentUpdateXrefEntries(
-            $this->xrefStreamEntriesFromSection($section),
+            $tableSection['entries'],
             $definitions,
             $previousOffset,
             $offset
         );
 
         if ($previousOffset !== null && $previousOffset >= 0 && $previousOffset < $offset) {
-            foreach ($this->xrefStreamEntriesFromOffsetChain($previousOffset, $definitions, $visited) as $objectNumber => $entry) {
+            foreach ($this->xrefEntriesFromOffsetChain($pdfBytes, $previousOffset, $definitions, $visited) as $objectNumber => $entry) {
                 $entries[$objectNumber] ??= $entry;
             }
         }
@@ -1375,6 +1396,160 @@ final class PdfActionReviewExtractor
         $offset = $this->directIntegerValue($section['dictionary']['Prev'] ?? null);
 
         return $offset !== null && $offset >= 0 ? $offset : null;
+    }
+
+    /**
+     * @return array{entries: array<int, array{type: int, generation: int, offset: int}>, trailer: array<string, mixed>}|null
+     */
+    private function xrefTableSectionAtOffset(string $pdfBytes, int $offset): ?array
+    {
+        $offset = $this->skipPdfWhitespace($pdfBytes, $offset);
+        if (!$this->pdfKeywordAt($pdfBytes, $offset, 'xref')) {
+            return null;
+        }
+
+        $afterKeywordOffset = $offset + strlen('xref');
+        if ($afterKeywordOffset >= strlen($pdfBytes)) {
+            return null;
+        }
+
+        $afterKeyword = $pdfBytes[$afterKeywordOffset];
+        if ($afterKeyword !== '%' && !ctype_space($afterKeyword)) {
+            return null;
+        }
+
+        $trailerOffset = $this->xrefTableTrailerKeywordOffset($pdfBytes, $afterKeywordOffset);
+        if ($trailerOffset === null) {
+            return null;
+        }
+
+        $dictionaryOffset = $this->skipPdfWhitespace($pdfBytes, $trailerOffset + strlen('trailer'));
+        if (substr($pdfBytes, $dictionaryOffset, 2) !== '<<') {
+            return null;
+        }
+
+        $dictionaryEnd = $this->dictionaryEndOffset($pdfBytes, $dictionaryOffset);
+        if ($dictionaryEnd === null) {
+            return null;
+        }
+
+        $tokens = $this->tokens(substr($pdfBytes, $dictionaryOffset, $dictionaryEnd - $dictionaryOffset));
+        $index = 0;
+        $trailer = $this->dictionaryItems($this->parseValue($tokens, $index));
+        if ($trailer === null) {
+            return null;
+        }
+
+        $entries = $this->xrefTableRows(substr($pdfBytes, $afterKeywordOffset, $trailerOffset - $afterKeywordOffset));
+        if ($entries === null) {
+            return null;
+        }
+
+        return [
+            'entries' => $entries,
+            'trailer' => $trailer,
+        ];
+    }
+
+    /**
+     * @param array{trailer: array<string, mixed>} $section
+     */
+    private function previousXrefTableOffset(array $section): ?int
+    {
+        $offset = $this->directIntegerValue($section['trailer']['Prev'] ?? null);
+
+        return $offset !== null && $offset >= 0 ? $offset : null;
+    }
+
+    /**
+     * @return array<int, array{type: int, generation: int, offset: int}>|null
+     */
+    private function xrefTableRows(string $sectionBody): ?array
+    {
+        $lines = preg_split('/\r\n|\r|\n/', trim(str_replace("\f", ' ', $sectionBody)));
+        if ($lines === false) {
+            return null;
+        }
+
+        $entries = [];
+        $foundSection = false;
+        for ($lineIndex = 0, $lineCount = count($lines); $lineIndex < $lineCount; $lineIndex++) {
+            $line = trim($lines[$lineIndex]);
+            if ($line === '' || str_starts_with($line, '%')) {
+                continue;
+            }
+
+            if (preg_match('/^(\+?\d+)\s+(\+?\d+)(?:\s*(?:%.*)?)$/', $line, $header) !== 1) {
+                if (!$foundSection) {
+                    return null;
+                }
+
+                continue;
+            }
+
+            $foundSection = true;
+            $startObject = (int) $header[1];
+            $count = max(0, (int) $header[2]);
+            for ($entryIndex = 0; $entryIndex < $count;) {
+                if (++$lineIndex >= $lineCount) {
+                    return $entries === [] ? null : $entries;
+                }
+
+                $row = trim($lines[$lineIndex]);
+                if ($row === '' || str_starts_with($row, '%')) {
+                    continue;
+                }
+
+                if (preg_match('/^(\d{10})\s+(\d{5})\s+([nf])(?:\s*(?:%.*)?)$/', $row, $rowMatch) !== 1) {
+                    return $entries === [] ? null : $entries;
+                }
+
+                $entries[$startObject + $entryIndex] = [
+                    'type' => $rowMatch[3] === 'n' ? 1 : 0,
+                    'generation' => (int) $rowMatch[2],
+                    'offset' => (int) $rowMatch[1],
+                ];
+                $entryIndex++;
+            }
+        }
+
+        return $foundSection ? $entries : null;
+    }
+
+    private function xrefTableTrailerKeywordOffset(string $pdfBytes, int $offset): ?int
+    {
+        while (($candidate = strpos($pdfBytes, 'trailer', $offset)) !== false) {
+            if ($this->pdfKeywordAt($pdfBytes, $candidate, 'trailer')) {
+                return $candidate;
+            }
+
+            $offset = $candidate + 1;
+        }
+
+        return null;
+    }
+
+    private function skipPdfWhitespace(string $pdfBytes, int $offset): int
+    {
+        $length = strlen($pdfBytes);
+        while ($offset < $length && ctype_space($pdfBytes[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function pdfKeywordAt(string $pdfBytes, int $offset, string $keyword): bool
+    {
+        if (substr($pdfBytes, $offset, strlen($keyword)) !== $keyword) {
+            return false;
+        }
+
+        $before = $offset === 0 ? '' : $pdfBytes[$offset - 1];
+        $after = $pdfBytes[$offset + strlen($keyword)] ?? '';
+
+        return ($before === '' || $this->isDelimiter($before))
+            && ($after === '' || $this->isDelimiter($after));
     }
 
     /**
