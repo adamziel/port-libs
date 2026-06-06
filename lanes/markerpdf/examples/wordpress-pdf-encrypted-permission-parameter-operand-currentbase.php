@@ -9,7 +9,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $hex = static fn (string $bytes): string => '<' . strtoupper(bin2hex($bytes)) . '>';
 
-$content = 'BT /F1 12 Tf 72 720 Td (WordPress malformed Standard Length operand encrypted leak) Tj ET';
+$content = 'BT /F1 12 Tf 72 720 Td (WordPress malformed Standard Length token encrypted leak) Tj ET';
 $ownerValidation = str_repeat('N', 32);
 $userValidation = str_repeat('Q', 32);
 
@@ -18,7 +18,7 @@ $pdf = "%PDF-1.7\n"
     . "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
     . "3 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>\nendobj\n"
     . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n"
-    . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length (128)"
+    . "5 0 obj\n<< /Filter /Standard /V 4 /R 4 /Length 128.5"
     . " /O " . $hex($ownerValidation)
     . " /U " . $hex($userValidation)
     . " /P -44 /EncryptMetadata true >>\nendobj\n"
@@ -43,7 +43,7 @@ foreach ($declaration['rows'] ?? [] as $row) {
 $encoded = json_encode($report, JSON_UNESCAPED_SLASHES);
 
 if ($plainText !== '') {
-    throw new RuntimeException('Expected malformed Standard Length operand encrypted text to stay blocked.');
+    throw new RuntimeException('Expected malformed Standard Length token encrypted text to stay blocked.');
 }
 
 if (($permission['source'] ?? null) !== 'standard_security_handler_malformed_parameters') {
@@ -77,7 +77,7 @@ if (!is_string($encoded)
 
 echo '<!-- markerpdf-encrypted-permission-parameter-operand-currentbase-smoke ' . htmlspecialchars(json_encode([
     'scenario' => 'wordpress-pdf-encrypted-permission-parameter-operand-currentbase',
-    'native_boundary' => 'explicit malformed Standard /Length operands fail closed before WordPress import permission reliance',
+    'native_boundary' => 'explicit non-integer Standard /Length token operands fail closed before WordPress import permission reliance',
     'encrypted_text_blocked' => $plainText === '',
     'permission_source' => $permission['source'] ?? null,
     'permission_policy' => $permission['policy'] ?? null,

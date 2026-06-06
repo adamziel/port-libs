@@ -47,7 +47,7 @@ $assertMalformedLengthPreflight = static function (
     $parameterReview = $permission['standard_security_handler_parameter_review'];
     $declaration = $parameterReview['parameter_declaration_review'];
     $lengthRow = null;
-    foreach ($declaration['rows'] as $row) {
+    foreach ($declaration['rows'] ?? [] as $row) {
         if (($row['pdf_name'] ?? null) === 'Length') {
             $lengthRow = $row;
             break;
@@ -181,6 +181,22 @@ return [
             $userValidation,
             'array',
             'standard_security_handler_parameter_composite_operand_review',
+            true
+        );
+    },
+    'fails closed when Standard explicit key length is a direct non-integer token operand' => static function (
+        TestRunner $t
+    ) use ($malformedLengthParameterPdf, $assertMalformedLengthPreflight): void {
+        [$pdf, $content, $ownerValidation, $userValidation] = $malformedLengthParameterPdf('128.5', 'TOKEN');
+
+        $assertMalformedLengthPreflight(
+            $t,
+            $pdf,
+            $content,
+            $ownerValidation,
+            $userValidation,
+            'token',
+            'standard_security_handler_parameter_non_integer_operand_review',
             true
         );
     },

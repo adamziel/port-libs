@@ -6966,6 +6966,7 @@ final class PdfMetadataExtractor
                     'status' => $this->standardSecurityHandlerParameterEntryStatus(
                         $pdfName,
                         $value,
+                        $valueForReview,
                         $operandShape,
                         $resolved !== null
                     ),
@@ -7068,6 +7069,7 @@ final class PdfMetadataExtractor
     private function standardSecurityHandlerParameterEntryStatus(
         string $pdfName,
         string $rawValue,
+        string $valueForReview,
         string $operandShape,
         bool $resolved
     ): string {
@@ -7085,7 +7087,11 @@ final class PdfMetadataExtractor
                 : 'standard_security_handler_filter_non_name_operand_review';
         }
 
-        return $operandShape === 'token'
+        if ($operandShape !== 'token') {
+            return 'standard_security_handler_parameter_non_integer_operand_review';
+        }
+
+        return preg_match('/^[+-]?\d+$/', $this->firstPdfValueToken($valueForReview)) === 1
             ? 'standard_security_handler_parameter_entry_well_formed'
             : 'standard_security_handler_parameter_non_integer_operand_review';
     }
