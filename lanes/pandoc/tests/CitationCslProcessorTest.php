@@ -7876,6 +7876,110 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Numbered Source Packet. Journal of Import Articles. 2026. Article number: e2026-42. DOI 10.5555/article-number.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Explicit Article Number Packet. Migration Notes. 2025. Article number: A-77.</dd>', $blocks);
     },
+    'maps bounded biblatex reviewed title references dimensions and scale metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@review{reviewed-work-review,
+  author         = {Roe, Pat},
+  title          = {Review of Imported Block Patterns},
+  reviewtitle    = {Block Patterns in the Wild},
+  reviewsubtitle = {A Migration Source Atlas},
+  references     = {Smith 2024, pp. 12-18},
+  dimensions     = {24 x 32 cm},
+  scale          = {1:50000},
+  date           = {2026},
+  journaltitle   = {Journal of Source Imports},
+  pages          = {70--72}
+}
+
+@misc{direct-review-source,
+  author         = {Ng, Nia},
+  title          = {Direct Review Packet},
+  reviewed-title = {Source Atlas},
+  references     = {Archive ref 42},
+  dimension      = {A4},
+  scale          = {1:2500},
+  date           = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Block Patterns in the Wild: A Migration Source Atlas', $items[0]['reviewed-title'] ?? null);
+        $t->same('Smith 2024, pp. 12-18', $items[0]['references'] ?? null);
+        $t->same('24 x 32 cm', $items[0]['dimensions'] ?? null);
+        $t->same('1:50000', $items[0]['scale'] ?? null);
+        $t->same('Source Atlas', $items[1]['reviewed-title'] ?? null);
+        $t->same('A4', $items[1]['dimensions'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $reviewed = $processor->item('reviewed-work-review');
+        $directSource = $processor->item('direct-review-source');
+        $t->same('Block Patterns in the Wild: A Migration Source Atlas', $reviewed['reviewedTitle'] ?? null);
+        $t->same('Smith 2024, pp. 12-18', $reviewed['references'] ?? null);
+        $t->same('24 x 32 cm', $reviewed['dimensions'] ?? null);
+        $t->same('1:50000', $reviewed['scale'] ?? null);
+        $t->same('Source Atlas', $directSource['reviewedTitle'] ?? null);
+        $t->same('Archive ref 42', $directSource['references'] ?? null);
+        $t->same('A4', $directSource['dimensions'] ?? null);
+        $t->same('1:2500', $directSource['scale'] ?? null);
+        $t->same('(Roe 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('reviewed-work-review', '[@reviewed-work-review]'),
+            $citation('direct-review-source', '[@direct-review-source]'),
+        ]));
+        $t->same('Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.', $processor->renderBibliographyEntry('reviewed-work-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewed-title"/>
+        <text variable="references"/>
+        <text variable="dimensions"/>
+        <text variable="scale"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="references"/>
+      <text variable="dimensions"/>
+      <text variable="scale"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Roe | Block Patterns in the Wild: A Migration Source Atlas | Smith 2024, pp. 12-18 | 24 x 32 cm | 1:50000; Ng | Source Atlas | Archive ref 42 | A4 | 1:2500]', $styled->renderCitationCluster([
+            $citation('reviewed-work-review', '[@reviewed-work-review]'),
+            $citation('direct-review-source', '[@direct-review-source]'),
+        ]));
+        $t->same('Review of Imported Block Patterns :: Block Patterns in the Wild: A Migration Source Atlas :: Smith 2024, pp. 12-18 :: 24 x 32 cm :: 1:50000', $styled->renderBibliographyEntry('reviewed-work-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-reviewed-metadata',
+            'title' => 'Manual Review Metadata',
+            'reviewed-title' => 'Manual Reviewed Work',
+            'references' => 'Manual ref',
+            'dimensions' => '8 x 10 in',
+            'scale' => '1:100',
+        ]]);
+        $directItem = $direct->item('manual-reviewed-metadata');
+        $t->same('Manual Reviewed Work', $directItem['reviewedTitle'] ?? null);
+        $t->same('Manual ref', $directItem['references'] ?? null);
+        $t->same('8 x 10 in', $directItem['dimensions'] ?? null);
+        $t->same('1:100', $directItem['scale'] ?? null);
+        $t->same('Manual Review Metadata. Reviewed title: Manual Reviewed Work. References: Manual ref. Dimensions: 8 x 10 in. Scale: 1:100.', $direct->renderBibliographyEntry('manual-reviewed-metadata'));
+
+        $document = (new MarkdownReader())->read('Reviewed work source @reviewed-work-review and direct packet [@direct-review-source] preserve physical review metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Reviewed work source Roe (2026) and direct packet (Ng 2025) preserve physical review metadata.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Direct Review Packet. 2025. Reviewed title: Source Atlas. References: Archive ref 42. Dimensions: A4. Scale: 1:2500.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

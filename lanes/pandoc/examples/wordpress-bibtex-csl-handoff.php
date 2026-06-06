@@ -85,6 +85,8 @@ PubMed source @pubmed-review preserves imported medical database identifiers for
 
 Container-author chapter @container-author-review preserves source volume authors for review.
 
+Reviewed work source @reviewed-work-review preserves reviewed-title, references, dimensions, and scale metadata for review.
+
 Missing bibliography keys such as [@missing-source] remain visible for follow-up.
 MARKDOWN;
 
@@ -629,6 +631,19 @@ $bibtex = <<<'BIB'
   booktitle     = {Migration Sourcebook},
   date          = {2026},
   pages         = {44--49}
+}
+
+@review{reviewed-work-review,
+  author         = {Roe, Pat},
+  title          = {Review of Imported Block Patterns},
+  reviewtitle    = {Block Patterns in the Wild},
+  reviewsubtitle = {A Migration Source Atlas},
+  references     = {Smith 2024, pp. 12-18},
+  dimensions     = {24 x 32 cm},
+  scale          = {1:50000},
+  date           = {2026},
+  journaltitle   = {Journal of Source Imports},
+  pages          = {70--72}
 }
 BIB;
 
@@ -1254,6 +1269,54 @@ XML);
     if (($containerAuthorReview['containerAuthors'][1]['annotations'][0]['value'] ?? null) !== 'container family verified') {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve container-author name annotation metadata');
     }
+    $reviewedWorkReview = $processor->item('reviewed-work-review');
+    if (($reviewedWorkReview['reviewedTitle'] ?? null) !== 'Block Patterns in the Wild: A Migration Source Atlas') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve reviewed-title metadata');
+    }
+    if (($reviewedWorkReview['references'] ?? null) !== 'Smith 2024, pp. 12-18') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve references metadata');
+    }
+    if (($reviewedWorkReview['dimensions'] ?? null) !== '24 x 32 cm') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve dimensions metadata');
+    }
+    if (($reviewedWorkReview['scale'] ?? null) !== '1:50000') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve scale metadata');
+    }
+    $reviewedMetadataStyled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewed-title"/>
+        <text variable="references"/>
+        <text variable="dimensions"/>
+        <text variable="scale"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="references"/>
+      <text variable="dimensions"/>
+      <text variable="scale"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+    $reviewedMetadataBlocks = (new WordPressBlockWriter())->write($reviewedMetadataStyled->appendBibliography(
+        (new MarkdownReader())->read('Reviewed metadata [@reviewed-work-review] keeps reviewed work fields visible.'),
+        'Reviewed Work Sources'
+    ));
+    if (!str_contains($reviewedMetadataBlocks, '<p>Reviewed metadata Roe | Block Patterns in the Wild: A Migration Source Atlas | Smith 2024, pp. 12-18 | 24 x 32 cm | 1:50000 keeps reviewed work fields visible.</p>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render reviewed-work metadata in custom citations');
+    }
+    if (!str_contains($reviewedMetadataBlocks, '<dt>Roe 2026</dt><dd>Review of Imported Block Patterns | Block Patterns in the Wild: A Migration Source Atlas | Smith 2024, pp. 12-18 | 24 x 32 cm | 1:50000</dd>')) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not render reviewed-work metadata in custom bibliography output');
+    }
 
     foreach ([
         '<p>The source packet cites (see Smith 1899; Doe and Roe 2020, pp. 55-60).</p>',
@@ -1340,6 +1403,8 @@ XML);
         '<dt>Ng 2026</dt><dd>Ng, Nia. PubMed Import Packet. Journal of Source Imports. 2026. DOI 10.5555/pubmed-review. PMID 12345678. PMCID PMC1234567.</dd>',
         '<p>Container-author chapter Ng (2026) preserves source volume authors for review.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>',
+        '<p>Reviewed work source Roe (2026) preserves reviewed-title, references, dimensions, and scale metadata for review.</p>',
+        '<dt>Roe 2026</dt><dd>Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>',
         '<p>Missing bibliography keys such as [@missing-source] remain visible for follow-up.</p>',
     ] as $snippet) {
         if (!str_contains($blocks, $snippet)) {
