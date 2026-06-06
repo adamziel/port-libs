@@ -35682,7 +35682,7 @@ final class PdfTextExtractor
             return null;
         }
 
-        return $this->numericOperand($operands[count($operands) - 1]);
+        return $this->finiteFontAdvanceMetric($this->numericOperand($operands[count($operands) - 1]));
     }
 
     /**
