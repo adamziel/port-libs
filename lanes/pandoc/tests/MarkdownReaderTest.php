@@ -1652,6 +1652,46 @@ return [
         $t->same('alias-path-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="alias-path-body">Alias path body</h1>', $blocks);
     },
+    'records pandoc yaml duplicate key diagnostics without hiding final metadata values' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Duplicate key **Packet**',
+            'review:',
+            '  status: queued',
+            '  status: approved',
+            '  labels: [draft]',
+            '  labels: [final, wordpress]',
+            'flow-review: {owner: Import Desk, owner: QA Desk, status: queued}',
+            'references:',
+            '  - id: duplicate-key-ref',
+            '    metadata: {source: first, source: second, status: kept}',
+            '...',
+            '',
+            '# Duplicate key YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = $document->attr('yamlMetadataDiagnostics', []);
+        $titleInlines = $meta['titleInlines'] ?? [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Duplicate key **Packet**', $meta['title']);
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $titleInlines));
+        $t->same('approved', $meta['review']['status']);
+        $t->same(['final', 'wordpress'], $meta['review']['labels']);
+        $t->same('QA Desk', $meta['flow-review']['owner']);
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same('duplicate-key-ref', $meta['references'][0]['id']);
+        $t->same('second', $meta['references'][0]['metadata']['source']);
+        $t->same('kept', $meta['references'][0]['metadata']['status']);
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same(4, count($diagnostics));
+        $t->same(['duplicate-key', 'duplicate-key', 'duplicate-key', 'duplicate-key'], array_column($diagnostics, 'reason'));
+        $t->same(['status', 'labels', 'owner', 'source'], array_column($diagnostics, 'field'));
+        $t->same(['/review/status', '/review/labels', '/flow-review/owner', '/references/0/metadata/source'], array_column($diagnostics, 'path'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('duplicate-key-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="duplicate-key-yaml-body">Duplicate key YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml merge sequences with earlier map precedence' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

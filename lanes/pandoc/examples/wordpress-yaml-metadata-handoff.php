@@ -375,6 +375,23 @@ MARKDOWN;
 $invalidBlockScalarDocument = (new MarkdownReader())->read($invalidBlockScalarMarkdown);
 $invalidBlockScalarBlocks = (new WordPressBlockWriter())->write($invalidBlockScalarDocument);
 
+$duplicateKeyMarkdown = <<<'MARKDOWN'
+---
+title: Duplicate key packet
+review:
+  status: queued
+  status: approved
+flow-review: {owner: Import Desk, owner: QA Desk}
+...
+
+# Duplicate key body
+MARKDOWN;
+
+$duplicateKeyDocument = (new MarkdownReader())->read($duplicateKeyMarkdown);
+$duplicateKeyMeta = $duplicateKeyDocument->attr('meta', []);
+$duplicateKeyDiagnostics = $duplicateKeyDocument->attr('yamlMetadataDiagnostics', []);
+$duplicateKeyBlocks = (new WordPressBlockWriter())->write($duplicateKeyDocument);
+
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
@@ -942,6 +959,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($invalidBlockScalarBlocks, 'This source line is not indented relative to the block scalar.</p>')) {
         throw new RuntimeException('YAML metadata self-test failed to keep invalid block scalar body source visible');
     }
+    if (($duplicateKeyMeta['review']['status'] ?? '') !== 'approved') {
+        throw new RuntimeException('YAML metadata self-test missing duplicate key final review status');
+    }
+    if (($duplicateKeyMeta['flow-review']['owner'] ?? '') !== 'QA Desk') {
+        throw new RuntimeException('YAML metadata self-test missing duplicate flow key final owner');
+    }
+    if (array_column($duplicateKeyDiagnostics, 'reason') !== ['duplicate-key', 'duplicate-key']) {
+        throw new RuntimeException('YAML metadata self-test missing duplicate key diagnostics');
+    }
+    if (array_column($duplicateKeyDiagnostics, 'path') !== ['/review/status', '/flow-review/owner']) {
+        throw new RuntimeException('YAML metadata self-test missing duplicate key diagnostic paths');
+    }
+    if (!str_contains($duplicateKeyBlocks, '<h1 id="duplicate-key-body">Duplicate key body</h1>')) {
+        throw new RuntimeException('YAML metadata self-test missing duplicate key body heading');
+    }
 
     echo "yaml metadata handoff self-test ok\n";
     return;
@@ -991,3 +1023,6 @@ echo 'Implicit opening title: ' . ($implicitOpeningMeta['title'] ?? '') . "\n";
 echo 'Implicit opening review: ' . ($implicitOpeningMeta['review']['status'] ?? '') . ' / priority ' . ($implicitOpeningMeta['review']['priority'] ?? '') . "\n";
 echo 'Implicit opening reference: ' . ($implicitOpeningMeta['references'][0]['id'] ?? '') . "\n";
 echo $implicitOpeningBlocks . "\n";
+echo 'Duplicate key diagnostics: ' . implode(', ', array_column($duplicateKeyDiagnostics, 'path')) . "\n";
+echo 'Duplicate key final review: ' . ($duplicateKeyMeta['review']['status'] ?? '') . ' / ' . ($duplicateKeyMeta['flow-review']['owner'] ?? '') . "\n";
+echo $duplicateKeyBlocks . "\n";

@@ -579,6 +579,22 @@ final class MarkdownReader
         return $merged;
     }
 
+    private function recordYamlDuplicateKeyDiagnostic(int|string $key): void
+    {
+        $field = (string) $key;
+        $diagnostic = [
+            'type' => 'yaml-duplicate-key',
+            'reason' => 'duplicate-key',
+            'field' => $field,
+        ];
+        $path = $this->yamlMetadataPathWithSegment($field);
+        if ($path !== '') {
+            $diagnostic['path'] = $path;
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic;
+    }
+
     /**
      * @return list<array<string, string>>
      */
@@ -718,6 +734,7 @@ final class MarkdownReader
 
         $metadata = [];
         $fieldQuoteMap = [];
+        $seenKeys = [];
         $count = count($lines);
         for ($index = 0; $index < $count;) {
             $line = $lines[$index];
@@ -742,6 +759,10 @@ final class MarkdownReader
                 if ($key === '<<') {
                     $metadata = $this->mergeYamlMapValue($metadata, $value);
                 } else {
+                    if (array_key_exists($key, $seenKeys)) {
+                        $this->recordYamlDuplicateKeyDiagnostic($key);
+                    }
+                    $seenKeys[$key] = true;
                     $metadata[$key] = $value;
                     if ($topLevel) {
                         $fieldQuoteMap[(string) $key] = $quotedKey;
@@ -767,6 +788,10 @@ final class MarkdownReader
             if ($key === '<<') {
                 $metadata = $this->mergeYamlMapValue($metadata, $value);
             } else {
+                if (array_key_exists($key, $seenKeys)) {
+                    $this->recordYamlDuplicateKeyDiagnostic($key);
+                }
+                $seenKeys[$key] = true;
                 $metadata[$key] = $value;
                 if ($topLevel) {
                     $fieldQuoteMap[(string) $key] = $quotedKey;
@@ -2109,6 +2134,7 @@ final class MarkdownReader
     {
         $map = [];
         $fieldQuoteMap = [];
+        $seenKeys = [];
         foreach ($this->splitYamlFlowItems($source) as $item) {
             $mapping = $this->splitYamlFlowMappingItem($item);
             if ($mapping === null) {
@@ -2116,6 +2142,10 @@ final class MarkdownReader
                 $key = $this->normalizeYamlFlowKeyOnlyItem($item);
                 if ($key !== '') {
                     $this->retargetYamlTagProvenanceFrom($keyTagStart, $key);
+                    if (array_key_exists($key, $seenKeys)) {
+                        $this->recordYamlDuplicateKeyDiagnostic($key);
+                    }
+                    $seenKeys[$key] = true;
                     $map[$key] = null;
                     if ($this->isYamlQuotedFlowKey($item)) {
                         $fieldQuoteMap[(string) $key] = true;
@@ -2139,6 +2169,10 @@ final class MarkdownReader
             if ($key === '<<') {
                 $map = $this->mergeYamlMapValue($map, $value);
             } else {
+                if (array_key_exists($key, $seenKeys)) {
+                    $this->recordYamlDuplicateKeyDiagnostic($key);
+                }
+                $seenKeys[$key] = true;
                 $map[$key] = $value;
                 if ($this->isYamlQuotedFlowKey($sourceKey)) {
                     $fieldQuoteMap[(string) $key] = true;
