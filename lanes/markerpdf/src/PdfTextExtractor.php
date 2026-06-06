@@ -11799,6 +11799,10 @@ final class PdfTextExtractor
     {
         $limits = $inheritedLimits;
         $localLimits = $this->pageLabelLimits($dictionary, $objects);
+        if ($localLimits === null && $this->pageLabelLimitsReversed($dictionary, $objects)) {
+            return [];
+        }
+
         if ($localLimits !== null) {
             if ($limits !== null) {
                 $lower = max($limits[0], $localLimits[0]);

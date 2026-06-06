@@ -1633,6 +1633,10 @@ final class MarkerAppPreview
         $sections = [];
         $limits = $inheritedLimits;
         $localLimits = $this->pageLabelLimits($value, $objects, $seen);
+        if ($localLimits === null && $this->pageLabelLimitsReversed($value, $objects, $seen)) {
+            return [];
+        }
+
         if ($localLimits !== null) {
             if ($limits !== null) {
                 $lower = max($limits[0], $localLimits[0]);
