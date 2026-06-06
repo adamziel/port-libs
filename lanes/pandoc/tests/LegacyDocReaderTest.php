@@ -2037,7 +2037,7 @@ return [
             $nativeData
         );
         $docBytes = $buildCfb([
-            'WordDocument' => $buildSimpleWordDocument("Embedded object review packet\r"),
+            'WordDocument' => $buildSimpleWordDocument("Embedded object \x01 review packet\r"),
             'ObjectPool/_42/' . "\x03" . 'ObjInfo' => $objectInfo(0x0014),
             'ObjectPool/_42/' . "\x01" . 'CompObj' => $compObjStream(
                 'Package',
@@ -2053,7 +2053,9 @@ return [
 
         $result = (new LegacyDocReader())->readBytes($docBytes);
         $objects = $result['embeddedObjects'];
+        $references = $result['embeddedObjectReferences'];
         $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(2, count($objects));
@@ -2099,9 +2101,77 @@ return [
         $t->same('_43', $objects[1]['objectId']);
         $t->same(['code' => 0x000a, 'name' => 'html'], $objects[1]['transmissionFormat']);
         $t->same(['object-info', 'private-data'], array_map(static fn (array $stream): string => $stream['role'], $objects[1]['streams']));
-        $t->contains('<p>Embedded object review packet</p>', $blocks);
+        $t->same(1, count($references));
+        $t->same(1, $result['metadata']['embeddedObjectReferenceCount']);
+        $t->same($references, $result['metadata']['embeddedObjectReferences']);
+        $t->same($references, $document->attr('embeddedObjectReferences'));
+        $t->same('embedded-object', $references[0]['type']);
+        $t->same(16, $references[0]['referenceCp']);
+        $t->same(0x01, $references[0]['characterCode']);
+        $t->same(1, $references[0]['objectIndex']);
+        $t->same('ObjectPool/_42', $references[0]['storagePath']);
+        $t->same('_42', $references[0]['objectId']);
+        $t->same('legacy-sheet.xlsx', $references[0]['label']);
+        $t->same(false, $references[0]['canExposeBytes']);
+        $t->same(true, $references[0]['hasNativeData']);
+        $t->same(true, $references[0]['hasPresentationData']);
+        $t->same(strlen($nativeData), $references[0]['nativeDataBytes']);
+        $objectRef = $document->children[0]->children[1];
+        $t->same('span', $objectRef->type);
+        $t->same(['legacy-doc-object-ref'], $objectRef->attr('classes'));
+        $t->same('1', $objectRef->attr('attributes')['data-legacy-doc-object-ref']);
+        $t->same('16', $objectRef->attr('attributes')['data-legacy-doc-object-reference-cp']);
+        $t->same('ObjectPool/_42', $objectRef->attr('attributes')['data-legacy-doc-object-storage']);
+        $t->same('legacy-sheet.xlsx', $objectRef->attr('attributes')['data-legacy-doc-object-label']);
+        $t->same('embedded object: legacy-sheet.xlsx', $objectRef->children[0]->attr('text'));
+        $t->contains('[embedded object: legacy-sheet.xlsx]{.legacy-doc-object-ref data-legacy-doc-object-ref="1"', $markdown);
+        $t->contains('<p>Embedded object <span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="16"', $blocks);
+        $t->contains('data-legacy-doc-object-label="legacy-sheet.xlsx" data-legacy-doc-object-native-data-bytes="26" data-legacy-doc-object-transmission-format="unicode-text" data-legacy-doc-object-has-native-data="true" data-legacy-doc-object-has-presentation-data="true">embedded object: legacy-sheet.xlsx</span> review packet</p>', $blocks);
+        $t->true(!str_contains($blocks, "\x01"), 'Legacy DOC object placeholder control character should not render to WordPress blocks');
         $t->true(!str_contains($blocks, $nativeData), 'Embedded OLE native bytes should not render to WordPress blocks');
         $t->true(!str_contains($blocks, 'presentation preview bytes'), 'Embedded OLE presentation bytes should not render to WordPress blocks');
+    },
+    'maps legacy DOC embedded object placeholders to ordered ObjectPool review spans' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $objectInfo, $ole10NativeStream): void {
+        $firstNativeData = 'first opaque object bytes';
+        $secondNativeData = 'second opaque object bytes';
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Objects \x01 and \x01 done\r"),
+            'ObjectPool/_10/' . "\x03" . 'ObjInfo' => $objectInfo(0x0014),
+            'ObjectPool/_10/' . "\x01" . 'Ole10Native' => $ole10NativeStream(
+                'first-sheet.xlsx',
+                'C:\legacy\first-sheet.xlsx',
+                'C:\Temp\first-sheet.tmp',
+                $firstNativeData
+            ),
+            'ObjectPool/_11/' . "\x03" . 'ObjInfo' => $objectInfo(0x0014),
+            'ObjectPool/_11/' . "\x01" . 'Ole10Native' => $ole10NativeStream(
+                'second-sheet.xlsx',
+                'C:\legacy\second-sheet.xlsx',
+                'C:\Temp\second-sheet.tmp',
+                $secondNativeData
+            ),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $references = $result['embeddedObjectReferences'];
+        $document = $result['document'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($references));
+        $t->same(2, $result['metadata']['embeddedObjectReferenceCount']);
+        $t->same($references, $document->attr('embeddedObjectReferences'));
+        $t->same([8, 14], array_map(static fn (array $reference): int => (int) $reference['referenceCp'], $references));
+        $t->same([1, 2], array_map(static fn (array $reference): int => (int) $reference['objectIndex'], $references));
+        $t->same(['ObjectPool/_10', 'ObjectPool/_11'], array_map(static fn (array $reference): string => (string) $reference['storagePath'], $references));
+        $t->same(['first-sheet.xlsx', 'second-sheet.xlsx'], array_map(static fn (array $reference): string => (string) $reference['label'], $references));
+        $t->same('embedded object: first-sheet.xlsx', $document->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('embedded object: second-sheet.xlsx', $document->children[0]->children[3]->children[0]->attr('text'));
+        $t->contains('<p>Objects <span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="8"', $blocks);
+        $t->contains('data-legacy-doc-object-label="first-sheet.xlsx"', $blocks);
+        $t->contains('data-legacy-doc-object-label="second-sheet.xlsx"', $blocks);
+        $t->true(!str_contains($blocks, "\x01"), 'Legacy DOC object placeholders should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, $firstNativeData), 'First embedded OLE native bytes should not render to WordPress blocks');
+        $t->true(!str_contains($blocks, $secondNativeData), 'Second embedded OLE native bytes should not render to WordPress blocks');
     },
     'reports malformed legacy DOC CompObj streams without exposing object bytes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $docBytes = $buildCfb([

@@ -411,6 +411,7 @@ $secondPieceText = "\rReviewer notes keep hard\vbreaks for block review with "
     . $fieldBegin . ' FORMTEXT \* MERGEFORMAT ' . $fieldSeparator . 'pending review' . $fieldEnd
     . ' and source symbol '
     . $fieldBegin . ' SYMBOL 183 \f "Symbol" \s 12 \u ' . $fieldSeparator . '·' . $fieldEnd
+    . "\x01"
     . ".\r";
 $firstPieceBytes = $utf16le($firstPieceText);
 $secondPieceBytes = $utf16le($secondPieceText);
@@ -1092,6 +1093,7 @@ $summary = [
     'fieldCharacters' => $result['fieldCharacters'],
     'fields' => $result['fields'],
     'embeddedObjects' => $result['embeddedObjects'],
+    'embeddedObjectReferences' => $result['embeddedObjectReferences'],
     'macroProjects' => $result['macroProjects'],
     'associatedStrings' => $result['associatedStrings'],
     'difatSector' => $difatSector,
@@ -1429,6 +1431,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['embeddedObjects'][0]['canExposeBytes'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed embedded object bytes');
     }
+    if (($summary['metadata']['embeddedObjectReferenceCount'] ?? null) !== 1 || count($summary['embeddedObjectReferences'] ?? []) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing embedded object reference count');
+    }
+    if (($summary['embeddedObjectReferences'][0]['storagePath'] ?? '') !== 'ObjectPool/_42' || ($summary['embeddedObjectReferences'][0]['label'] ?? '') !== 'legacy-data.xlsx') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing embedded object reference metadata');
+    }
+    if (($summary['embeddedObjectReferences'][0]['canExposeBytes'] ?? null) !== false || ($summary['embeddedObjectReferences'][0]['nativeDataBytes'] ?? null) !== strlen($embeddedNativeData)) {
+        throw new RuntimeException('Legacy DOC handoff self-test exposed or lost embedded object reference byte policy');
+    }
     if (($summary['metadata']['containsMacros'] ?? null) !== true || ($summary['metadata']['macroProjectCount'] ?? null) !== 1) {
         throw new RuntimeException('Legacy DOC handoff self-test missing macro project preflight metadata');
     }
@@ -1492,6 +1503,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>',
         '<span class="legacy-doc-field legacy-doc-form-field legacy-doc-field-formtext" data-legacy-doc-field="formtext" data-legacy-doc-field-instruction="FORMTEXT \* MERGEFORMAT" data-legacy-doc-form-field-type="text" data-legacy-doc-field-format="MERGEFORMAT">pending review</span>',
         '<span class="legacy-doc-field legacy-doc-symbol-field legacy-doc-field-symbol" data-legacy-doc-field="symbol" data-legacy-doc-field-instruction="SYMBOL 183 \f &quot;Symbol&quot; \s 12 \u" data-legacy-doc-symbol-code="183" data-legacy-doc-symbol-font="Symbol" data-legacy-doc-symbol-size="12" data-legacy-doc-symbol-switches="u">·</span>',
+        '<span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="' . (string) ($summary['embeddedObjectReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-object-character-code="1" data-legacy-doc-object-can-expose-bytes="false" data-legacy-doc-object-storage="ObjectPool/_42" data-legacy-doc-object-id="_42" data-legacy-doc-object-label="legacy-data.xlsx" data-legacy-doc-object-native-data-bytes="' . strlen($embeddedNativeData) . '" data-legacy-doc-object-transmission-format="unicode-text" data-legacy-doc-object-has-native-data="true" data-legacy-doc-object-has-presentation-data="true">embedded object: legacy-data.xlsx</span>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
@@ -1504,6 +1516,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($blocks, 'HYPERLINK')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instructions');
+    }
+    if (str_contains($blocks, "\x01")) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered embedded object placeholder control character');
     }
     foreach ([$footnoteSubdocumentText, $headerSubdocumentText, $commentSubdocumentText, $endnoteSubdocumentText] as $supplementalSubdocumentText) {
         if (str_contains($blocks, trim($supplementalSubdocumentText))) {

@@ -94,7 +94,7 @@ final class LegacyDocReader
     ];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readBytes(string $bytes): array
     {
@@ -102,7 +102,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -248,6 +248,11 @@ final class LegacyDocReader
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
         }
+        $embeddedObjectReferences = $this->embeddedObjectReferenceReport($textResult['text'], $embeddedObjects);
+        if ($embeddedObjectReferences !== []) {
+            $metadata['embeddedObjectReferenceCount'] = count($embeddedObjectReferences);
+            $metadata['embeddedObjectReferences'] = $embeddedObjectReferences;
+        }
         $macroProjects = $this->macroProjectReport($compoundFile);
         if ($macroProjects !== []) {
             $metadata['containsMacros'] = true;
@@ -276,6 +281,7 @@ final class LegacyDocReader
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'embeddedObjects' => $embeddedObjects,
+            'embeddedObjectReferences' => $embeddedObjectReferences,
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
         ];
@@ -284,7 +290,8 @@ final class LegacyDocReader
             'document' => new AstNode('document', $attrs, $this->paragraphNodes(
                 $textResult['text'],
                 $bookmarks,
-                array_merge($footnotes, $endnotes, $comments)
+                array_merge($footnotes, $endnotes, $comments),
+                $embeddedObjectReferences
             )),
             'metadata' => $metadata,
             'streams' => $compoundFile->streamNames(),
@@ -304,6 +311,7 @@ final class LegacyDocReader
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'embeddedObjects' => $embeddedObjects,
+            'embeddedObjectReferences' => $embeddedObjectReferences,
             'macroProjects' => $macroProjects,
             'associatedStrings' => $associatedStrings,
         ];
@@ -845,9 +853,15 @@ final class LegacyDocReader
     /**
      * @param list<array<string,mixed>> $bookmarks
      * @param list<array<string,mixed>> $noteReferences
+     * @param list<array<string,mixed>> $objectReferences
      * @return list<AstNode>
      */
-    private function paragraphNodes(string $text, array $bookmarks = [], array $noteReferences = []): array
+    private function paragraphNodes(
+        string $text,
+        array $bookmarks = [],
+        array $noteReferences = [],
+        array $objectReferences = []
+    ): array
     {
         $normalized = str_replace(["\r\n", "\n"], "\r", $text);
         $paragraphs = explode("\r", $normalized);
@@ -864,7 +878,8 @@ final class LegacyDocReader
                 $paragraph,
                 $paragraphStartCp,
                 $bookmarks,
-                $noteReferences
+                $noteReferences,
+                $objectReferences
             ));
             $paragraphStartCp += $paragraphLength + 1;
         }
@@ -1348,16 +1363,18 @@ final class LegacyDocReader
     /**
      * @param list<array<string,mixed>> $bookmarks
      * @param list<array<string,mixed>> $noteReferences
+     * @param list<array<string,mixed>> $objectReferences
      * @return list<AstNode>
      */
     private function inlineNodesWithBookmarks(
         string $text,
         int $paragraphStartCp,
         array $bookmarks,
-        array $noteReferences = []
+        array $noteReferences = [],
+        array $objectReferences = []
     ): array {
         if ($bookmarks === []) {
-            return $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences);
+            return $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences, $objectReferences);
         }
 
         $chars = $this->unicodeCharacters($text);
@@ -1378,7 +1395,7 @@ final class LegacyDocReader
             $candidates[] = $bookmark;
         }
         if ($candidates === []) {
-            return $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences);
+            return $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences, $objectReferences);
         }
 
         usort(
@@ -1407,7 +1424,8 @@ final class LegacyDocReader
                     ...$this->inlineNodesWithNoteReferences(
                         $this->charactersToString(array_slice($chars, $cursor, $start - $cursor)),
                         $paragraphStartCp + $cursor,
-                        $noteReferences
+                        $noteReferences,
+                        $objectReferences
                     )
                 );
             }
@@ -1415,7 +1433,7 @@ final class LegacyDocReader
             $bookmarkText = $this->charactersToString(array_slice($chars, $start, $end - $start));
             $bookmarkNodes = $bookmarkText === ''
                 ? []
-                : $this->inlineNodesWithNoteReferences($bookmarkText, $paragraphStartCp + $start, $noteReferences);
+                : $this->inlineNodesWithNoteReferences($bookmarkText, $paragraphStartCp + $start, $noteReferences, $objectReferences);
             $nodes[] = new AstNode('span', $this->bookmarkSpanAttrs($bookmark), $bookmarkNodes);
             $cursor = $end;
         }
@@ -1426,21 +1444,28 @@ final class LegacyDocReader
                 ...$this->inlineNodesWithNoteReferences(
                     $this->charactersToString(array_slice($chars, $cursor)),
                     $paragraphStartCp + $cursor,
-                    $noteReferences
+                    $noteReferences,
+                    $objectReferences
                 )
             );
         }
 
-        return $nodes === [] ? $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences) : $nodes;
+        return $nodes === [] ? $this->inlineNodesWithNoteReferences($text, $paragraphStartCp, $noteReferences, $objectReferences) : $nodes;
     }
 
     /**
      * @param list<array<string,mixed>> $noteReferences
+     * @param list<array<string,mixed>> $objectReferences
      * @return list<AstNode>
      */
-    private function inlineNodesWithNoteReferences(string $text, int $segmentStartCp, array $noteReferences): array
+    private function inlineNodesWithNoteReferences(
+        string $text,
+        int $segmentStartCp,
+        array $noteReferences,
+        array $objectReferences = []
+    ): array
     {
-        if ($noteReferences === []) {
+        if ($noteReferences === [] && $objectReferences === []) {
             return $this->inlineNodes($text);
         }
 
@@ -1458,7 +1483,19 @@ final class LegacyDocReader
                 continue;
             }
 
-            $candidates[] = $noteReference;
+            $candidates[] = ['kind' => 'note', 'reference' => $noteReference, 'referenceCp' => $referenceCp];
+        }
+        foreach ($objectReferences as $objectReference) {
+            if (($objectReference['canAnchor'] ?? false) !== true) {
+                continue;
+            }
+
+            $referenceCp = (int) ($objectReference['referenceCp'] ?? -1);
+            if ($referenceCp < $segmentStartCp || $referenceCp >= $segmentEndCp) {
+                continue;
+            }
+
+            $candidates[] = ['kind' => 'object', 'reference' => $objectReference, 'referenceCp' => $referenceCp];
         }
         if ($candidates === []) {
             return $this->inlineNodes($text);
@@ -1471,8 +1508,8 @@ final class LegacyDocReader
 
         $nodes = [];
         $cursor = 0;
-        foreach ($candidates as $noteReference) {
-            $localCp = (int) $noteReference['referenceCp'] - $segmentStartCp;
+        foreach ($candidates as $candidate) {
+            $localCp = (int) $candidate['referenceCp'] - $segmentStartCp;
             if ($localCp < $cursor || $localCp >= $segmentLength) {
                 continue;
             }
@@ -1484,11 +1521,18 @@ final class LegacyDocReader
                 );
             }
 
-            $nodes[] = new AstNode('span', $this->noteReferenceSpanAttrs($noteReference), [
-                new AstNode('superscript', [], [
-                    new AstNode('text', ['text' => (string) ($noteReference['marker'] ?? '')]),
-                ]),
-            ]);
+            $reference = is_array($candidate['reference'] ?? null) ? $candidate['reference'] : [];
+            if (($candidate['kind'] ?? '') === 'object') {
+                $nodes[] = new AstNode('span', $this->embeddedObjectReferenceSpanAttrs($reference), [
+                    new AstNode('text', ['text' => $this->embeddedObjectReferenceLabel($reference)]),
+                ]);
+            } else {
+                $nodes[] = new AstNode('span', $this->noteReferenceSpanAttrs($reference), [
+                    new AstNode('superscript', [], [
+                        new AstNode('text', ['text' => (string) ($reference['marker'] ?? '')]),
+                    ]),
+                ]);
+            }
             $cursor = $localCp + 1;
         }
 
@@ -1567,6 +1611,163 @@ final class LegacyDocReader
                 'data-legacy-doc-note-body-character-count' => (string) ((int) ($noteReference['bodyCharacterCount'] ?? 0)),
             ] : []),
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $embeddedObjects
+     * @return list<array<string,mixed>>
+     */
+    private function embeddedObjectReferenceReport(string $text, array $embeddedObjects): array
+    {
+        if ($embeddedObjects === [] || !str_contains($text, "\x01")) {
+            return [];
+        }
+
+        $characters = $this->unicodeCharacters($text);
+        $references = [];
+        $objectIndex = 0;
+        foreach ($characters as $cp => $character) {
+            if ($character !== "\x01") {
+                continue;
+            }
+
+            $object = $embeddedObjects[$objectIndex] ?? null;
+            $record = [
+                'type' => 'embedded-object',
+                'referenceCp' => $cp,
+                'characterCode' => 0x01,
+                'objectIndex' => $objectIndex + 1,
+                'canAnchor' => true,
+            ];
+            if (is_array($object)) {
+                $record += $this->embeddedObjectReferenceObjectMetadata($object);
+            } else {
+                $record['unmatchedObjectPoolEntry'] = true;
+            }
+
+            $references[] = $record;
+            $objectIndex++;
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<string,mixed> $object
+     * @return array<string,mixed>
+     */
+    private function embeddedObjectReferenceObjectMetadata(array $object): array
+    {
+        $record = [
+            'storagePath' => (string) ($object['storagePath'] ?? ''),
+            'objectId' => (string) ($object['objectId'] ?? ''),
+            'streamCount' => (int) ($object['streamCount'] ?? 0),
+            'totalBytes' => (int) ($object['totalBytes'] ?? 0),
+            'hasNativeData' => ($object['hasNativeData'] ?? false) === true,
+            'hasPresentationData' => ($object['hasPresentationData'] ?? false) === true,
+            'canExposeBytes' => false,
+        ];
+
+        $label = $this->embeddedObjectDisplayLabel($object);
+        if ($label !== '') {
+            $record['label'] = $label;
+        }
+        foreach ([
+            'nativeLabels',
+            'nativeSourcePaths',
+            'compoundObjectDisplayNames',
+            'compoundObjectClipboardFormats',
+        ] as $field) {
+            if (is_array($object[$field] ?? null) && $object[$field] !== []) {
+                $record[$field] = array_values(array_map(
+                    static fn (mixed $value): string => (string) $value,
+                    $object[$field]
+                ));
+            }
+        }
+        if (is_array($object['transmissionFormat'] ?? null)) {
+            $format = $object['transmissionFormat'];
+            $record['transmissionFormat'] = [
+                'code' => (int) ($format['code'] ?? 0),
+                'name' => (string) ($format['name'] ?? ''),
+            ];
+        }
+        if (isset($object['nativeDataBytes']) && is_int($object['nativeDataBytes'])) {
+            $record['nativeDataBytes'] = $object['nativeDataBytes'];
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string,mixed> $object
+     */
+    private function embeddedObjectDisplayLabel(array $object): string
+    {
+        foreach (['nativeLabels', 'compoundObjectDisplayNames', 'compoundObjectClipboardFormats'] as $field) {
+            if (is_array($object[$field] ?? null) && isset($object[$field][0]) && (string) $object[$field][0] !== '') {
+                return (string) $object[$field][0];
+            }
+        }
+
+        return (string) ($object['objectId'] ?? '');
+    }
+
+    /**
+     * @param array<string,mixed> $reference
+     * @return array{classes:list<string>,attributes:array<string,string>}
+     */
+    private function embeddedObjectReferenceSpanAttrs(array $reference): array
+    {
+        $attributes = [
+            'data-legacy-doc-object-ref' => (string) ((int) ($reference['objectIndex'] ?? 0)),
+            'data-legacy-doc-object-reference-cp' => (string) ((int) ($reference['referenceCp'] ?? 0)),
+            'data-legacy-doc-object-character-code' => (string) ((int) ($reference['characterCode'] ?? 0)),
+            'data-legacy-doc-object-can-expose-bytes' => 'false',
+        ];
+
+        foreach ([
+            'storagePath' => 'data-legacy-doc-object-storage',
+            'objectId' => 'data-legacy-doc-object-id',
+            'label' => 'data-legacy-doc-object-label',
+        ] as $source => $attribute) {
+            if (($reference[$source] ?? '') !== '') {
+                $attributes[$attribute] = (string) $reference[$source];
+            }
+        }
+        if (isset($reference['nativeDataBytes'])) {
+            $attributes['data-legacy-doc-object-native-data-bytes'] = (string) ((int) $reference['nativeDataBytes']);
+        }
+        if (is_array($reference['transmissionFormat'] ?? null) && ($reference['transmissionFormat']['name'] ?? '') !== '') {
+            $attributes['data-legacy-doc-object-transmission-format'] = (string) $reference['transmissionFormat']['name'];
+        }
+        if (($reference['hasNativeData'] ?? false) === true) {
+            $attributes['data-legacy-doc-object-has-native-data'] = 'true';
+        }
+        if (($reference['hasPresentationData'] ?? false) === true) {
+            $attributes['data-legacy-doc-object-has-presentation-data'] = 'true';
+        }
+        if (($reference['unmatchedObjectPoolEntry'] ?? false) === true) {
+            $attributes['data-legacy-doc-object-unmatched'] = 'true';
+        }
+
+        return [
+            'classes' => ['legacy-doc-object-ref'],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $reference
+     */
+    private function embeddedObjectReferenceLabel(array $reference): string
+    {
+        $label = trim((string) ($reference['label'] ?? ''));
+        if ($label === '') {
+            $label = trim((string) ($reference['objectId'] ?? ''));
+        }
+
+        return $label === '' ? 'embedded object' : 'embedded object: ' . $label;
     }
 
     /**
