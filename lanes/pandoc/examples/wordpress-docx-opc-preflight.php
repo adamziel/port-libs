@@ -32,6 +32,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/_xmlsignatures/sig1.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-selector-shape.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-missing-rels.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-fragment.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -131,6 +132,21 @@ $missingRelationshipPartSignatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$fragmentReferenceSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml#fragment">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $draftRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft-hidden.png"/>
@@ -162,6 +178,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/sig1.xml', 'data' => $signatureXml],
     ['name' => '_xmlsignatures/sig-selector-shape.xml', 'data' => $selectorShapeSignatureXml],
     ['name' => '_xmlsignatures/sig-missing-rels.xml', 'data' => $missingRelationshipPartSignatureXml],
+    ['name' => '_xmlsignatures/sig-fragment.xml', 'data' => $fragmentReferenceSignatureXml],
 ]);
 
 $aliasCollisionContentTypesXml = <<<'XML'
@@ -619,6 +636,27 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-m
         'relationshipXml' => $transform['relationshipXml'],
     ];
 }
+$signatureFragmentReferenceGuards = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-fragment.xml') as $transform) {
+    $signatureFragmentReferenceGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'referenceRelationshipPartExists' => $transform['referenceRelationshipPartExists'],
+        'referenceTargetContentType' => $transform['referenceTargetContentType'],
+        'referenceContentType' => $transform['referenceContentType'],
+        'referenceContentTypeMatches' => $transform['referenceContentTypeMatches'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXml' => $transform['relationshipXml'],
+    ];
+}
 
 $reachableTargets = [];
 foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -788,6 +826,7 @@ $summary = [
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
+    'signatureFragmentReferenceGuards' => $signatureFragmentReferenceGuards,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
         'packagePartsValid' => array_reduce(
@@ -1190,6 +1229,19 @@ if (($argv[1] ?? '') === '--self-test') {
         ]
         || !array_key_exists('relationshipXml', $summary['signatureMissingRelationshipPartGuards'][0] ?? [])
         || $summary['signatureMissingRelationshipPartGuards'][0]['relationshipXml'] !== null
+        || count($summary['signatureFragmentReferenceGuards'] ?? []) !== 1
+        || ($summary['signatureFragmentReferenceGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-fragment.xml'
+        || ($summary['signatureFragmentReferenceGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml#fragment'
+        || ($summary['signatureFragmentReferenceGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureFragmentReferenceGuards'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['signatureFragmentReferenceGuards'][0]['referenceContentType'] ?? null) !== 'application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureFragmentReferenceGuards'][0]['relationshipIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureFragmentReferenceGuards'][0]['relationshipCount'] ?? null) !== 1
+        || ($summary['signatureFragmentReferenceGuards'][0]['selectorValid'] ?? null) !== true
+        || ($summary['signatureFragmentReferenceGuards'][0]['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['signatureFragmentReferenceGuards'][0]['valid'] ?? null) !== false
+        || ($summary['signatureFragmentReferenceGuards'][0]['issues'] ?? null) !== ['relationship-transform-reference-has-fragment']
+        || !str_contains((string) ($summary['signatureFragmentReferenceGuards'][0]['relationshipXml'] ?? ''), 'Id="rIdHero"')
         || $summary['integrity']['documentRelationshipsValid'] !== false
         || $summary['integrity']['reachableRelationshipsValid'] !== false
         || ($summary['wordpressImport']['externalTargets'][0]['scheme'] ?? null) !== 'https'

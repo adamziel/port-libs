@@ -1319,6 +1319,10 @@ final class OpcRelationshipGraph
                     $parseError = $referenceContentTypeQuery['parseError'];
                 }
 
+                if ($referenceUri !== '' && str_contains($referenceUri, '#')) {
+                    $issues[] = 'relationship-transform-reference-has-fragment';
+                }
+
                 if ($referenceContentType !== null) {
                     $referenceContentTypeMatches = $referenceTargetContentType === $referenceContentType;
                     if (!$referenceContentTypeMatches) {
