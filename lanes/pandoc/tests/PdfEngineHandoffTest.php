@@ -2601,6 +2601,104 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAnnotations']);
     },
 
+    'fake runner extracts bounded pdf rich media annotation metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/rich-media.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /RichMedia /Rect [72 320 540 560] /Contents (Reviewer walkthrough video) /RichMediaContent 5 0 R /RichMediaSettings 6 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Assets << /Names [(review-video.mp4) 7 0 R (captions.vtt) 8 0 R] >> /Configurations [9 0 R] >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Activation << /Condition /PO /Presentation << /Style /Embedded /Transparent true /Toolbar false /NavigationPane false /PassContextClick true >> >> /Deactivation << /Condition /PC >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Filespec /F (review-video.mp4) >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Filespec /F (captions.vtt) >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Subtype /Video /Name (Review video configuration) /Instances [10 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Subtype /Video /Asset 7 0 R /Params << /Binding /Foreground /FlashVars (autoplay=false) >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/rich-media.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/rich-media.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '4 0 R',
+                'rect' => [72.0, 320.0, 540.0, 560.0],
+                'contents' => 'Reviewer walkthrough video',
+                'contentObject' => '5 0 R',
+                'settingsObject' => '6 0 R',
+                'assetNames' => ['captions.vtt', 'review-video.mp4'],
+                'activationCondition' => 'PO',
+                'deactivationCondition' => 'PC',
+                'presentationStyle' => 'Embedded',
+                'presentationTransparent' => true,
+                'presentationToolbar' => false,
+                'presentationNavigationPane' => false,
+                'presentationPassContextClick' => true,
+                'configurations' => [
+                    [
+                        'object' => '9 0 R',
+                        'subtype' => 'Video',
+                        'name' => 'Review video configuration',
+                        'instanceCount' => 1,
+                        'assetReferences' => ['7 0 R'],
+                        'assetNames' => ['review-video.mp4'],
+                    ],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(['RichMedia' => 1], $result['pdfAnnotationTypes']);
+        $t->same($expected, $result['pdfRichMediaAnnotations'] ?? null);
+        $t->same(['PO' => 1], $result['pdfRichMediaActivationModes'] ?? null);
+        $t->contains('pdf-byte-rich-media-annotations:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-rich-media-assets:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-rich-media-configurations:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-rich-media-activation:PO:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-rich-media-deactivation:PC:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfRichMediaAnnotations'] ?? null);
+        $t->same(['PO' => 1], $sequence['finalPdfRichMediaActivationModes'] ?? null);
+    },
+
     'fake runner extracts bounded pdf embedded file metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/embedded-files.pdf']);

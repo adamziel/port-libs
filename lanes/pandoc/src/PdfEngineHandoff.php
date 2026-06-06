@@ -304,6 +304,8 @@ final class PdfEngineHandoff
      *     pdfSignatureSubFilters: array<string, int>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
+     *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
+     *     pdfRichMediaActivationModes: array<string, int>,
      *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
@@ -717,6 +719,8 @@ final class PdfEngineHandoff
         $pdfSignatureSubFilters = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
+        $pdfRichMediaAnnotations = [];
+        $pdfRichMediaActivationModes = [];
         $pdfAnnotations = [];
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
@@ -788,6 +792,8 @@ final class PdfEngineHandoff
                 $pdfSignatureSubFilters = $pdfInspection['signatureSubFilters'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
+                $pdfRichMediaAnnotations = $pdfInspection['richMediaAnnotations'];
+                $pdfRichMediaActivationModes = $pdfInspection['richMediaActivationModes'];
                 $pdfAnnotations = $pdfInspection['annotations'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
@@ -1356,6 +1362,36 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-active-action-type:' . $actionType . ':' . $actionCount;
                     }
                 }
+                if ($pdfRichMediaAnnotations !== []) {
+                    $diagnostics[] = 'pdf-byte-rich-media-annotations:' . count($pdfRichMediaAnnotations);
+                    $richMediaAssetCount = 0;
+                    $richMediaConfigurationCount = 0;
+                    $richMediaDeactivationModes = [];
+                    foreach ($pdfRichMediaAnnotations as $annotation) {
+                        if (isset($annotation['assetNames']) && is_array($annotation['assetNames'])) {
+                            $richMediaAssetCount += count($annotation['assetNames']);
+                        }
+                        if (isset($annotation['configurations']) && is_array($annotation['configurations'])) {
+                            $richMediaConfigurationCount += count($annotation['configurations']);
+                        }
+                        if (is_string($annotation['deactivationCondition'] ?? null) && $annotation['deactivationCondition'] !== '') {
+                            $richMediaDeactivationModes[$annotation['deactivationCondition']] = ($richMediaDeactivationModes[$annotation['deactivationCondition']] ?? 0) + 1;
+                        }
+                    }
+                    if ($richMediaAssetCount > 0) {
+                        $diagnostics[] = 'pdf-byte-rich-media-assets:' . $richMediaAssetCount;
+                    }
+                    if ($richMediaConfigurationCount > 0) {
+                        $diagnostics[] = 'pdf-byte-rich-media-configurations:' . $richMediaConfigurationCount;
+                    }
+                    foreach ($pdfRichMediaActivationModes as $activationMode => $activationCount) {
+                        $diagnostics[] = 'pdf-byte-rich-media-activation:' . $activationMode . ':' . $activationCount;
+                    }
+                    ksort($richMediaDeactivationModes);
+                    foreach ($richMediaDeactivationModes as $deactivationMode => $deactivationCount) {
+                        $diagnostics[] = 'pdf-byte-rich-media-deactivation:' . $deactivationMode . ':' . $deactivationCount;
+                    }
+                }
                 if ($pdfAnnotations !== []) {
                     $diagnostics[] = 'pdf-byte-annotation-metadata:' . count($pdfAnnotations);
                     $annotationContentCount = 0;
@@ -1616,6 +1652,8 @@ final class PdfEngineHandoff
             'pdfSignatureSubFilters' => $pdfSignatureSubFilters,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
+            'pdfRichMediaAnnotations' => $pdfRichMediaAnnotations,
+            'pdfRichMediaActivationModes' => $pdfRichMediaActivationModes,
             'pdfAnnotations' => $pdfAnnotations,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
@@ -1708,6 +1746,8 @@ final class PdfEngineHandoff
      *     finalPdfSignatureSubFilters: array<string, int>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
+     *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
+     *     finalPdfRichMediaActivationModes: array<string, int>,
      *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
@@ -1914,6 +1954,8 @@ final class PdfEngineHandoff
             'finalPdfSignatureSubFilters' => is_array($finalRun) && is_array($finalRun['pdfSignatureSubFilters'] ?? null) ? $finalRun['pdfSignatureSubFilters'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
+            'finalPdfRichMediaAnnotations' => is_array($finalRun) && is_array($finalRun['pdfRichMediaAnnotations'] ?? null) ? $finalRun['pdfRichMediaAnnotations'] : [],
+            'finalPdfRichMediaActivationModes' => is_array($finalRun) && is_array($finalRun['pdfRichMediaActivationModes'] ?? null) ? $finalRun['pdfRichMediaActivationModes'] : [],
             'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
@@ -3044,6 +3086,7 @@ final class PdfEngineHandoff
         $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
         $signatures = $this->extractPdfSignatures($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
+        $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $embeddedFileNames = $this->extractPdfEmbeddedFileNames($pdfBytes);
         foreach ($embeddedFiles as $embeddedFile) {
@@ -3105,6 +3148,8 @@ final class PdfEngineHandoff
             'signatureSubFilters' => $this->summarizePdfSignatureSubFilters($signatures),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
+            'richMediaAnnotations' => $richMediaAnnotations,
+            'richMediaActivationModes' => $this->summarizePdfRichMediaActivationModes($richMediaAnnotations),
             'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
@@ -5287,6 +5332,432 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>
+     */
+    private function extractPdfRichMediaAnnotations(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $annotations = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfRichMediaAnnotationsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $annotations,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($annotations === []) {
+            foreach ($objects as $reference => $body) {
+                $summary = $this->summarizePdfRichMediaAnnotation($body, $reference . ' R', null, null, $objects);
+                if ($summary !== null) {
+                    $annotations[] = $summary;
+                }
+            }
+        }
+
+        usort(
+            $annotations,
+            fn (array $left, array $right): int => [$left['page'], $this->pdfReferenceSortKey($left['annotationObject'] ?? '')]
+                <=> [$right['page'], $this->pdfReferenceSortKey($right['annotationObject'] ?? '')]
+        );
+
+        return $annotations;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}> $annotations
+     */
+    private function collectPdfRichMediaAnnotationsFromPageTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$annotations,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $this->collectPdfRichMediaAnnotationsFromPage($body, $reference, $pageNumber, $objects, $annotations);
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfRichMediaAnnotationsFromPageTree(
+                $objects,
+                $this->pdfReferenceKey($kidReference),
+                $visited,
+                $annotations,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}> $annotations
+     */
+    private function collectPdfRichMediaAnnotationsFromPage(
+        string $pageDictionary,
+        string $pageReference,
+        int $pageNumber,
+        array $objects,
+        array &$annotations
+    ): void {
+        $array = $this->extractPdfArrayOrReferenceValue($pageDictionary, 'Annots', $objects);
+        if ($array === null) {
+            return;
+        }
+
+        foreach ($this->pdfTopLevelArrayValues($array) as $value) {
+            if (!in_array($value['kind'], ['reference', 'dictionary'], true)) {
+                continue;
+            }
+
+            $summary = $this->summarizePdfRichMediaAnnotationValue(
+                $value,
+                $objects,
+                $pageNumber,
+                $pageReference . ' R'
+            );
+            if ($summary !== null) {
+                $annotations[] = $summary;
+            }
+        }
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}|null
+     */
+    private function summarizePdfRichMediaAnnotationValue(array $value, array $objects, int $pageNumber, string $pageReference): ?array
+    {
+        if ($value['kind'] === 'reference') {
+            $reference = $this->pdfReferenceKey($value['value']);
+            $dictionary = $objects[$reference] ?? null;
+
+            return $dictionary === null
+                ? null
+                : $this->summarizePdfRichMediaAnnotation($dictionary, $reference . ' R', $pageNumber, $pageReference, $objects);
+        }
+
+        if ($value['kind'] === 'dictionary') {
+            return $this->summarizePdfRichMediaAnnotation($value['value'], 'inline', $pageNumber, $pageReference, $objects);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}|null
+     */
+    private function summarizePdfRichMediaAnnotation(
+        string $dictionary,
+        ?string $annotationObject,
+        ?int $pageNumber,
+        ?string $pageReference,
+        array $objects
+    ): ?array {
+        if ($this->extractPdfNameToken($dictionary, 'Subtype') !== 'RichMedia') {
+            return null;
+        }
+
+        $contentValue = $this->extractPdfValueForName($dictionary, 'RichMediaContent');
+        $settingsValue = $this->extractPdfValueForName($dictionary, 'RichMediaSettings');
+        $contentDictionary = $this->pdfDictionaryForValue($contentValue, $objects);
+        $settingsDictionary = $this->pdfDictionaryForValue($settingsValue, $objects);
+        $assets = $contentDictionary === null
+            ? ['names' => [], 'namesByReference' => []]
+            : $this->extractPdfRichMediaAssets($contentDictionary, $objects);
+        $settings = $settingsDictionary === null
+            ? $this->emptyPdfRichMediaSettings()
+            : $this->summarizePdfRichMediaSettings($settingsDictionary, $objects);
+
+        return [
+            'page' => $pageNumber ?? 0,
+            'pageObject' => $pageReference,
+            'annotationObject' => $annotationObject,
+            'rect' => $this->extractPdfNumberArrayToken($dictionary, 'Rect', 4),
+            'contents' => $this->extractPdfStringOrNameValue($dictionary, 'Contents'),
+            'contentObject' => $this->pdfReferenceObjectForValue($contentValue),
+            'settingsObject' => $this->pdfReferenceObjectForValue($settingsValue),
+            'assetNames' => $assets['names'],
+            'activationCondition' => $settings['activationCondition'],
+            'deactivationCondition' => $settings['deactivationCondition'],
+            'presentationStyle' => $settings['presentationStyle'],
+            'presentationTransparent' => $settings['presentationTransparent'],
+            'presentationToolbar' => $settings['presentationToolbar'],
+            'presentationNavigationPane' => $settings['presentationNavigationPane'],
+            'presentationPassContextClick' => $settings['presentationPassContextClick'],
+            'configurations' => $contentDictionary === null
+                ? []
+                : $this->extractPdfRichMediaConfigurations($contentDictionary, $objects, $assets['namesByReference']),
+        ];
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     * @param array<string, string> $objects
+     */
+    private function pdfDictionaryForValue(?array $value, array $objects): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value['kind'] === 'dictionary') {
+            return $value['value'];
+        }
+        if ($value['kind'] === 'reference') {
+            return $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int}|null $value
+     */
+    private function pdfReferenceObjectForValue(?array $value): ?string
+    {
+        return $value !== null && $value['kind'] === 'reference'
+            ? $this->pdfReferenceKey($value['value']) . ' R'
+            : null;
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{names:list<string>, namesByReference:array<string, string>}
+     */
+    private function extractPdfRichMediaAssets(string $contentDictionary, array $objects): array
+    {
+        $assets = $this->extractPdfDictionaryOrReferenceValue($contentDictionary, 'Assets', $objects);
+        if ($assets === null) {
+            return ['names' => [], 'namesByReference' => []];
+        }
+
+        $names = [];
+        $namesByReference = [];
+        $this->collectPdfRichMediaAssetNameTree($assets, $objects, $names, $namesByReference, 0);
+        $names = array_values(array_unique($names));
+        sort($names);
+        ksort($namesByReference);
+
+        return [
+            'names' => $names,
+            'namesByReference' => $namesByReference,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param list<string> $names
+     * @param array<string, string> $namesByReference
+     */
+    private function collectPdfRichMediaAssetNameTree(
+        string $dictionary,
+        array $objects,
+        array &$names,
+        array &$namesByReference,
+        int $depth
+    ): void {
+        if ($depth > 8) {
+            return;
+        }
+
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $values = $this->pdfTopLevelArrayValues($array);
+            $count = count($values);
+            for ($index = 0; $index + 1 < $count; $index += 2) {
+                $name = $values[$index];
+                $asset = $values[$index + 1];
+                if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $nameValue = trim($name['value']);
+                if ($nameValue === '') {
+                    continue;
+                }
+
+                $names[] = $nameValue;
+                if ($asset['kind'] === 'reference') {
+                    $namesByReference[$this->pdfReferenceKey($asset['value']) . ' R'] = $nameValue;
+                }
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            $kidDictionary = $objects[$this->pdfReferenceKey($kidReference)] ?? null;
+            if ($kidDictionary !== null) {
+                $this->collectPdfRichMediaAssetNameTree($kidDictionary, $objects, $names, $namesByReference, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, string> $assetNamesByReference
+     * @return list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>
+     */
+    private function extractPdfRichMediaConfigurations(string $contentDictionary, array $objects, array $assetNamesByReference): array
+    {
+        $array = $this->extractPdfArrayOrReferenceValue($contentDictionary, 'Configurations', $objects);
+        if ($array === null) {
+            return [];
+        }
+
+        $configurations = [];
+        foreach ($this->pdfTopLevelArrayValues($array) as $value) {
+            if (!in_array($value['kind'], ['reference', 'dictionary'], true)) {
+                continue;
+            }
+
+            $summary = $this->summarizePdfRichMediaConfiguration($value, $objects, $assetNamesByReference);
+            if ($summary !== null) {
+                $configurations[] = $summary;
+            }
+        }
+
+        usort($configurations, static fn (array $a, array $b): int => [$a['object'] ?? '', $a['name'] ?? ''] <=> [$b['object'] ?? '', $b['name'] ?? '']);
+
+        return $configurations;
+    }
+
+    /**
+     * @param array{kind:string, value:string, next:int} $value
+     * @param array<string, string> $objects
+     * @param array<string, string> $assetNamesByReference
+     * @return array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}|null
+     */
+    private function summarizePdfRichMediaConfiguration(array $value, array $objects, array $assetNamesByReference): ?array
+    {
+        $dictionary = $this->pdfDictionaryForValue($value, $objects);
+        if ($dictionary === null) {
+            return null;
+        }
+
+        $instances = $this->extractPdfArrayOrReferenceValue($dictionary, 'Instances', $objects);
+        $instanceCount = 0;
+        $assetReferences = [];
+        if ($instances !== null) {
+            foreach ($this->pdfTopLevelArrayValues($instances) as $instanceValue) {
+                if (!in_array($instanceValue['kind'], ['reference', 'dictionary'], true)) {
+                    continue;
+                }
+
+                $instanceDictionary = $this->pdfDictionaryForValue($instanceValue, $objects);
+                if ($instanceDictionary === null) {
+                    continue;
+                }
+
+                $instanceCount++;
+                $assetValue = $this->extractPdfValueForName($instanceDictionary, 'Asset');
+                $assetReference = $this->pdfReferenceObjectForValue($assetValue);
+                if ($assetReference !== null) {
+                    $assetReferences[] = $assetReference;
+                }
+            }
+        }
+
+        $assetReferences = array_values(array_unique($assetReferences));
+        sort($assetReferences);
+        $assetNames = [];
+        foreach ($assetReferences as $assetReference) {
+            if (isset($assetNamesByReference[$assetReference])) {
+                $assetNames[] = $assetNamesByReference[$assetReference];
+            }
+        }
+        $assetNames = array_values(array_unique($assetNames));
+        sort($assetNames);
+
+        return [
+            'object' => $this->pdfReferenceObjectForValue($value),
+            'subtype' => $this->extractPdfNameToken($dictionary, 'Subtype'),
+            'name' => $this->extractPdfStringOrNameValue($dictionary, 'Name'),
+            'instanceCount' => $instanceCount,
+            'assetReferences' => $assetReferences,
+            'assetNames' => $assetNames,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null}
+     */
+    private function summarizePdfRichMediaSettings(string $settingsDictionary, array $objects): array
+    {
+        $activation = $this->extractPdfDictionaryOrReferenceValue($settingsDictionary, 'Activation', $objects);
+        $deactivation = $this->extractPdfDictionaryOrReferenceValue($settingsDictionary, 'Deactivation', $objects);
+        $presentation = $activation === null
+            ? null
+            : $this->extractPdfDictionaryOrReferenceValue($activation, 'Presentation', $objects);
+
+        return [
+            'activationCondition' => $activation === null ? null : $this->extractPdfNameToken($activation, 'Condition'),
+            'deactivationCondition' => $deactivation === null ? null : $this->extractPdfNameToken($deactivation, 'Condition'),
+            'presentationStyle' => $presentation === null ? null : $this->extractPdfNameToken($presentation, 'Style'),
+            'presentationTransparent' => $presentation === null ? null : $this->extractPdfBooleanToken($presentation, 'Transparent'),
+            'presentationToolbar' => $presentation === null ? null : $this->extractPdfBooleanToken($presentation, 'Toolbar'),
+            'presentationNavigationPane' => $presentation === null ? null : $this->extractPdfBooleanToken($presentation, 'NavigationPane'),
+            'presentationPassContextClick' => $presentation === null ? null : $this->extractPdfBooleanToken($presentation, 'PassContextClick'),
+        ];
+    }
+
+    /**
+     * @return array{activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null}
+     */
+    private function emptyPdfRichMediaSettings(): array
+    {
+        return [
+            'activationCondition' => null,
+            'deactivationCondition' => null,
+            'presentationStyle' => null,
+            'presentationTransparent' => null,
+            'presentationToolbar' => null,
+            'presentationNavigationPane' => null,
+            'presentationPassContextClick' => null,
+        ];
+    }
+
+    /**
+     * @param list<array{activationCondition:string|null}> $annotations
+     * @return array<string, int>
+     */
+    private function summarizePdfRichMediaActivationModes(array $annotations): array
+    {
+        $modes = [];
+        foreach ($annotations as $annotation) {
+            if (!is_string($annotation['activationCondition'] ?? null) || $annotation['activationCondition'] === '') {
+                continue;
+            }
+
+            $modes[$annotation['activationCondition']] = ($modes[$annotation['activationCondition']] ?? 0) + 1;
+        }
+        ksort($modes);
+
+        return $modes;
+    }
+
+    /**
      * @return array<string, bool|int|string>
      */
     private function extractPdfViewerPreferences(string $pdfBytes, ?string $catalog): array
@@ -6675,6 +7146,32 @@ final class PdfEngineHandoff
             }
             $cursor = max($cursor + 1, min($length, $value['next']));
         }
+    }
+
+    /**
+     * @return list<array{kind:string, value:string, next:int}>
+     */
+    private function pdfTopLevelArrayValues(string $array): array
+    {
+        $values = [];
+        $cursor = str_starts_with($array, '[') ? 1 : 0;
+        $length = strlen($array);
+        if (str_ends_with($array, ']')) {
+            $length--;
+        }
+
+        while ($cursor < $length && count($values) < 1024) {
+            $value = $this->parsePdfValueAt($array, $cursor);
+            if ($value === null) {
+                $cursor++;
+                continue;
+            }
+
+            $values[] = $value;
+            $cursor = max($cursor + 1, min($length, $value['next']));
+        }
+
+        return $values;
     }
 
     /**
@@ -8963,6 +9460,7 @@ final class PdfEngineHandoff
             'Popup',
             'PrinterMark',
             'Redact',
+            'RichMedia',
             'Screen',
             'Sound',
             'Square',
