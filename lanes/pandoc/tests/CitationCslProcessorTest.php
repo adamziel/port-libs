@@ -713,6 +713,104 @@ XML);
             'relatedItems' => ['source-a'],
         ]]));
     },
+    'preserves bounded biblatex xref metadata without crossref inheritance' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{xref-dossier,
+  options   = {dataonly},
+  editor    = {Curator, Eli},
+  title     = {Migration Source Dossier},
+  date      = {2026},
+  publisher = {Review Press}
+}
+
+@incollection{xref-chapter,
+  author = {Ng, Nia},
+  title  = {Xref Chapter Review},
+  date   = {2025},
+  pages  = {7--9},
+  xref   = {xref-dossier, missing-dossier}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('xref-chapter', $items[0]['id']);
+        $t->same('chapter', $items[0]['type']);
+        $t->same('', $items[0]['container-title']);
+        $t->same('', $items[0]['publisher']);
+        $t->same(['xref-dossier', 'missing-dossier'], $items[0]['xrefKeys']);
+        $t->same('xref-dossier', $items[0]['xrefItems'][0]['id'] ?? null);
+        $t->same('Migration Source Dossier', $items[0]['xrefItems'][0]['title'] ?? null);
+        $t->same(true, $items[0]['xrefItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-dossier'], $items[0]['missingXrefKeys']);
+        $t->same('xref-dossier, missing-dossier', $items[0]['rawBibtex']['fields']['xref'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $chapter = $processor->item('xref-chapter');
+        $t->same(['xref-dossier', 'missing-dossier'], $chapter['xrefKeys'] ?? null);
+        $t->same('Migration Source Dossier', $chapter['xrefItems'][0]['title'] ?? null);
+        $t->same('2026', $chapter['xrefItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(['missing-dossier'], $chapter['missingXrefKeys'] ?? null);
+        $t->same('', $chapter['containerTitle'] ?? null);
+        $t->same('(Ng 2025)', $processor->renderCitationCluster([$citation('xref-chapter', '[@xref-chapter]')]));
+        $t->same(
+            'Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.',
+            $processor->renderBibliographyEntry('xref-chapter')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="xref-keys"/>
+        <text variable="xref-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="xref"/>
+      <text variable="missing-xref-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Xref Chapter Review | xref-dossier, missing-dossier | Xref: Migration Source Dossier (2026); missing: missing-dossier]', $styled->renderCitationCluster([$citation('xref-chapter', '[@xref-chapter]')]));
+        $t->same('Xref Chapter Review :: Migration Source Dossier (2026); missing: missing-dossier :: missing-dossier', $styled->renderBibliographyEntry('xref-chapter'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-xref',
+            'title' => 'Manual Xref Source',
+            'xref-keys' => ['source-a', 'missing-source'],
+            'xrefItems' => [
+                [
+                    'id' => 'source-a',
+                    'title' => 'Source A',
+                    'issued' => ['date-parts' => [[2024]]],
+                ],
+            ],
+            'missingXrefKeys' => ['missing-source'],
+        ]])->item('manual-xref');
+        $t->same(['source-a', 'missing-source'], $direct['xrefKeys'] ?? null);
+        $t->same('Source A', $direct['xrefItems'][0]['title'] ?? null);
+        $t->same('2024', $direct['xrefItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(['missing-source'], $direct['missingXrefKeys'] ?? null);
+
+        $document = (new MarkdownReader())->read('Xref source @xref-chapter keeps see-also parent metadata visible without inheriting it.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Xref source Ng (2025) keeps see-also parent metadata visible without inheriting it.</p>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-xref',
+            'title' => 'Bad Xref',
+            'xrefItems' => ['source-a'],
+        ]]));
+    },
     'labels bounded biblatex license related entries for csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @misc{cc-by-4,

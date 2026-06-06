@@ -25,6 +25,8 @@ A BibLaTeX entry set @migration-review-set keeps data-only member summaries avai
 
 The related manual @related-manual keeps companion entry metadata attached to the source packet.
 
+The xref chapter @xref-chapter keeps see-also parent metadata visible without crossref inheritance.
+
 A review note source @review-note-source keeps import audit notes and publication medium attached.
 
 A translated source @translated-manual preserves original publication metadata for source review.
@@ -205,6 +207,22 @@ $bibtex = <<<'BIB'
   related       = {migration-review-set, missing-related},
   relatedtype   = {companion},
   relatedstring = {Companion review set}
+}
+
+@collection{xref-dossier,
+  options   = {dataonly},
+  editor    = {Curator, Eli},
+  title     = {Migration Source Dossier},
+  date      = {2026},
+  publisher = {Review Press}
+}
+
+@incollection{xref-chapter,
+  author = {Ng, Nia},
+  title  = {Xref Chapter Review},
+  date   = {2025},
+  pages  = {7--9},
+  xref   = {xref-dossier, missing-dossier}
 }
 
 @online{review-note-source,
@@ -730,6 +748,19 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($relatedManual['raw']['missingRelatedKeys'] ?? null) !== ['missing-related']) {
         throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing related keys');
+    }
+    $xrefChapter = $processor->item('xref-chapter');
+    if (($xrefChapter['xrefKeys'] ?? null) !== ['xref-dossier', 'missing-dossier']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not normalize xref chapter keys');
+    }
+    if (($xrefChapter['xrefItems'][0]['title'] ?? null) !== 'Migration Source Dossier') {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not summarize xref parent metadata');
+    }
+    if (($xrefChapter['missingXrefKeys'] ?? null) !== ['missing-dossier']) {
+        throw new RuntimeException('BibTeX CSL handoff self-test did not preserve missing xref keys');
+    }
+    if (($xrefChapter['containerTitle'] ?? null) !== '') {
+        throw new RuntimeException('BibTeX CSL handoff self-test incorrectly inherited xref container metadata');
     }
     $reviewNoteSource = $processor->item('review-note-source');
     if (($reviewNoteSource['medium'] ?? null) !== 'Archived web packet') {
@@ -1420,6 +1451,8 @@ XML);
         '<dt>Ng 2026</dt><dd>Ng, Nia. Import Glossary. Migration Reference. Migration Desk, 2026. https://example.test/glossary.</dd>',
         '<dt>Migration Review Set 2026</dt><dd>Migration Review Set. 2026.</dd>',
         '<dt>Curator 2024</dt><dd>Curator, Eli. Migration Manual. 2024. Companion review set (companion): Migration Review Set (2026-06-05); missing: missing-related.</dd>',
+        '<p>The xref chapter Ng (2025) keeps see-also parent metadata visible without crossref inheritance.</p>',
+        '<dt>Ng 2025</dt><dd>Ng, Nia. Xref Chapter Review. 2025. 7-9. Xref: Migration Source Dossier (2026); missing: missing-dossier.</dd>',
         '<p>A review note source Ng (2026) keeps import audit notes and publication medium attached.</p>',
         '<dt>Ng 2026</dt><dd>Ng, Nia. Review Packet Snapshot. 2026. Medium: Archived web packet. Note: Needs source-check before migration. Addendum: Queue imported by handoff. https://example.test/review-packet.</dd>',
         '<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>',

@@ -435,6 +435,10 @@ final class CitationCslProcessor
             $parts[] = $part;
         }
 
+        foreach ($this->xrefBibliographyParts($item) as $part) {
+            $parts[] = $part;
+        }
+
         foreach ($this->nameMetadataBibliographyParts($item) as $part) {
             $parts[] = $part;
         }
@@ -771,6 +775,9 @@ final class CitationCslProcessor
             'relatedString' => self::firstStringField($item, ['relatedString', 'related-string', 'relatedstring']),
             'relatedItems' => self::relatedItemSummaries($item['relatedItems'] ?? [], $id),
             'missingRelatedKeys' => self::stringListFromFirstField($item, ['missingRelatedKeys', 'missing-related-keys']),
+            'xrefKeys' => self::stringListFromFirstField($item, ['xrefKeys', 'xref-keys', 'xref']),
+            'xrefItems' => self::relatedItemSummaries($item['xrefItems'] ?? [], $id, 'xrefItems'),
+            'missingXrefKeys' => self::stringListFromFirstField($item, ['missingXrefKeys', 'missing-xref-keys']),
             'issuedDate' => $issuedDate,
             'accessedDate' => $accessedDate,
             'originalTitle' => self::stringField($item, 'original-title'),
@@ -1090,29 +1097,29 @@ final class CitationCslProcessor
     /**
      * @return list<array{id:string, type:string, title:string, issuedDate:array{year:?int, parts:list<int>, display:string, literal:string, rangeParts?:list<list<int>>}, display:string}>
      */
-    private static function relatedItemSummaries(mixed $value, string $id): array
+    private static function relatedItemSummaries(mixed $value, string $id, string $field = 'relatedItems'): array
     {
         if ($value === null || $value === []) {
             return [];
         }
 
         if (!is_array($value) || !array_is_list($value)) {
-            throw new \InvalidArgumentException('CSL item ' . $id . ' relatedItems must be a list');
+            throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' must be a list');
         }
 
         $summaries = [];
         foreach ($value as $index => $related) {
             if (!is_array($related)) {
-                throw new \InvalidArgumentException('CSL item ' . $id . ' relatedItems[' . $index . '] must be an object');
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . '[' . $index . '] must be an object');
             }
 
             $relatedId = self::firstStringField($related, ['id', 'citation-key']);
             $title = self::stringField($related, 'title');
             if ($relatedId === '' && $title === '') {
-                throw new \InvalidArgumentException('CSL item ' . $id . ' relatedItems[' . $index . '] must include id or title');
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . '[' . $index . '] must include id or title');
             }
 
-            $issuedDate = self::dateVariable($related['issued'] ?? null, $id, 'relatedItems[' . $index . '].issued');
+            $issuedDate = self::dateVariable($related['issued'] ?? null, $id, $field . '[' . $index . '].issued');
             $summaries[] = [
                 'id' => $relatedId,
                 'type' => self::stringField($related, 'type'),
@@ -4168,6 +4175,17 @@ final class CitationCslProcessor
      * @param array<string, mixed> $item
      * @return list<string>
      */
+    private function xrefBibliographyParts(array $item): array
+    {
+        $summary = $this->xrefSummary($item);
+
+        return $summary === '' ? [] : [$this->withTerminalPunctuation($summary)];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return list<string>
+     */
     private function nameMetadataBibliographyParts(array $item): array
     {
         $parts = [];
@@ -4287,6 +4305,63 @@ final class CitationCslProcessor
             if (is_array($relatedKeys)) {
                 $values = array_values(array_filter(
                     array_map(static fn (mixed $key): string => trim((string) $key), $relatedKeys),
+                    static fn (string $key): bool => $key !== ''
+                ));
+            }
+        }
+
+        if ($values === []) {
+            return '';
+        }
+
+        return implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function xrefSummary(array $item): string
+    {
+        $values = $this->xrefSummaryValues($item);
+
+        return $values === '' ? '' : 'Xref: ' . $values;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function xrefSummaryValues(array $item): string
+    {
+        $values = [];
+        $xrefItems = $item['xrefItems'] ?? [];
+        if (is_array($xrefItems)) {
+            foreach ($xrefItems as $xrefItem) {
+                if (!is_array($xrefItem)) {
+                    continue;
+                }
+
+                $display = trim((string) ($xrefItem['display'] ?? ''));
+                if ($display !== '') {
+                    $values[] = $display;
+                }
+            }
+        }
+
+        $missing = $item['missingXrefKeys'] ?? [];
+        if (is_array($missing)) {
+            foreach ($missing as $key) {
+                $key = trim((string) $key);
+                if ($key !== '') {
+                    $values[] = 'missing: ' . $key;
+                }
+            }
+        }
+
+        if ($values === []) {
+            $xrefKeys = $item['xrefKeys'] ?? [];
+            if (is_array($xrefKeys)) {
+                $values = array_values(array_filter(
+                    array_map(static fn (mixed $key): string => trim((string) $key), $xrefKeys),
                     static fn (string $key): bool => $key !== ''
                 ));
             }
@@ -5536,6 +5611,10 @@ final class CitationCslProcessor
             'related-type', 'relatedtype' => (string) ($item['relatedType'] ?? ''),
             'related-string', 'relatedstring' => (string) ($item['relatedString'] ?? ''),
             'missing-related-keys' => implode(', ', is_array($item['missingRelatedKeys'] ?? null) ? $item['missingRelatedKeys'] : []),
+            'xref' => $this->xrefSummaryValues($item),
+            'xref-summary' => $this->xrefSummary($item),
+            'xref-keys' => implode(', ', is_array($item['xrefKeys'] ?? null) ? $item['xrefKeys'] : []),
+            'missing-xref-keys' => implode(', ', is_array($item['missingXrefKeys'] ?? null) ? $item['missingXrefKeys'] : []),
             'original-publisher-list' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
             'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'keyword' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
