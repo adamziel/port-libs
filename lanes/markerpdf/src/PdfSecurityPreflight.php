@@ -827,6 +827,9 @@ final class PdfSecurityPreflight
             'crypt_filter_parameter_duplicate_role_names' => $this->cryptFilterParameterDuplicateRoleNames($roles),
             'crypt_filter_parameter_duplicate_filter_names' => $this->cryptFilterParameterDuplicateFilterNames($roles),
             'crypt_filter_parameter_duplicate_names' => $this->cryptFilterParameterDuplicateNames($roles),
+            'crypt_filter_parameter_malformed_role_names' => $this->cryptFilterParameterMalformedRoleNames($roles),
+            'crypt_filter_parameter_malformed_filter_names' => $this->cryptFilterParameterMalformedFilterNames($roles),
+            'crypt_filter_parameter_malformed_names' => $this->cryptFilterParameterMalformedNames($roles),
             'text_content_policy' => $this->cryptFilterTextContentPolicy($documentTextRows),
             'embedded_file_payload_policy' => $this->cryptFilterEmbeddedFilePolicy($embeddedFileRows),
             'roles' => $roles,
@@ -873,6 +876,7 @@ final class PdfSecurityPreflight
             'crypt_filter_parameter_declaration_status' => null,
             'crypt_filter_parameter_fail_closed' => false,
             'crypt_filter_parameter_duplicate_names' => [],
+            'crypt_filter_parameter_malformed_names' => [],
             'crypt_filter_parameter_declaration_review' => [],
             'review_only' => true,
             'native_import_allowed_now' => false,
@@ -947,6 +951,10 @@ final class PdfSecurityPreflight
                 ? $filter['duplicate_parameter_names']
                 : [],
             'crypt_filter_parameter_duplicate_count' => (int) ($filter['duplicate_parameter_count'] ?? 0),
+            'crypt_filter_parameter_malformed_names' => is_array($filter['malformed_parameter_names'] ?? null)
+                ? $filter['malformed_parameter_names']
+                : [],
+            'crypt_filter_parameter_malformed_count' => (int) ($filter['malformed_parameter_count'] ?? 0),
         ], $generationReview);
     }
 
@@ -1265,7 +1273,10 @@ final class PdfSecurityPreflight
     {
         $names = [];
         foreach ($roles as $role) {
-            if (($role['crypt_filter_parameter_fail_closed'] ?? false) !== true || !is_string($role['role'] ?? null)) {
+            if (
+                ($role['crypt_filter_parameter_declaration_status'] ?? null) !== 'duplicate_crypt_filter_parameter_entries_review'
+                || !is_string($role['role'] ?? null)
+            ) {
                 continue;
             }
             if (!in_array($role['role'], $names, true)) {
@@ -1284,7 +1295,10 @@ final class PdfSecurityPreflight
     {
         $names = [];
         foreach ($roles as $role) {
-            if (($role['crypt_filter_parameter_fail_closed'] ?? false) !== true || !is_string($role['filter_name'] ?? null)) {
+            if (
+                ($role['crypt_filter_parameter_declaration_status'] ?? null) !== 'duplicate_crypt_filter_parameter_entries_review'
+                || !is_string($role['filter_name'] ?? null)
+            ) {
                 continue;
             }
             if (!in_array($role['filter_name'], $names, true)) {
@@ -1309,6 +1323,71 @@ final class PdfSecurityPreflight
             foreach ($duplicates as $duplicate) {
                 if (is_string($duplicate) && !in_array($duplicate, $names, true)) {
                     $names[] = $duplicate;
+                }
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterParameterMalformedRoleNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['crypt_filter_parameter_declaration_status'] ?? null) !== 'malformed_crypt_filter_parameter_entries_review'
+                || !is_string($role['role'] ?? null)
+            ) {
+                continue;
+            }
+            if (!in_array($role['role'], $names, true)) {
+                $names[] = $role['role'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterParameterMalformedFilterNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            if (
+                ($role['crypt_filter_parameter_declaration_status'] ?? null) !== 'malformed_crypt_filter_parameter_entries_review'
+                || !is_string($role['filter_name'] ?? null)
+            ) {
+                continue;
+            }
+            if (!in_array($role['filter_name'], $names, true)) {
+                $names[] = $role['filter_name'];
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $roles
+     * @return list<string>
+     */
+    private function cryptFilterParameterMalformedNames(array $roles): array
+    {
+        $names = [];
+        foreach ($roles as $role) {
+            $malformed = is_array($role['crypt_filter_parameter_malformed_names'] ?? null)
+                ? $role['crypt_filter_parameter_malformed_names']
+                : [];
+            foreach ($malformed as $name) {
+                if (is_string($name) && !in_array($name, $names, true)) {
+                    $names[] = $name;
                 }
             }
         }

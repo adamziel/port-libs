@@ -7938,7 +7938,7 @@ final class PdfMetadataExtractor
 
             $filterBody = $filterDictionary['body'];
             $metadata = [];
-            $parameterDeclarationReview = $this->cryptFilterParameterDeclarationReview($filterBody, $name);
+            $parameterDeclarationReview = $this->cryptFilterParameterDeclarationReview($filterBody, $name, $objects);
             $methodRawValue = $this->dictionaryTopLevelRawValue($filterBody, 'CFM');
             $method = $methodRawValue === null
                 ? null
@@ -7983,6 +7983,8 @@ final class PdfMetadataExtractor
                 $metadata['parameter_declaration_fail_closed'] = (bool) $parameterDeclarationReview['fail_closed'];
                 $metadata['duplicate_parameter_names'] = $parameterDeclarationReview['duplicate_parameter_names'];
                 $metadata['duplicate_parameter_count'] = $parameterDeclarationReview['duplicate_parameter_count'];
+                $metadata['malformed_parameter_names'] = $parameterDeclarationReview['malformed_parameter_names'];
+                $metadata['malformed_parameter_count'] = $parameterDeclarationReview['malformed_parameter_count'];
             }
 
             if ($metadata !== []) {
@@ -7997,16 +7999,19 @@ final class PdfMetadataExtractor
 
     /**
      * Crypt-filter dictionaries select security-sensitive behavior with
-     * top-level keys. Duplicate declarations are ambiguous even if the final
-     * value is syntactically safe, so preserve that ambiguity for preflight.
+     * top-level keys. Duplicate or malformed declarations are ambiguous even
+     * if the final selected value looks usable, so preserve that ambiguity for
+     * preflight instead of silently normalizing the operand.
      *
+     * @param array<int, string> $objects
      * @return array<string, mixed>
      */
-    private function cryptFilterParameterDeclarationReview(string $filterBody, string $filterName): array
+    private function cryptFilterParameterDeclarationReview(string $filterBody, string $filterName, array $objects): array
     {
         $rows = [];
         $entryCounts = [];
         $duplicateNames = [];
+        $malformedNames = [];
 
         foreach ([
             'CFM' => 'method',
@@ -8022,19 +8027,39 @@ final class PdfMetadataExtractor
             $entryCounts[$pdfName] = $entryCount;
             $entries = [];
             foreach ($values as $index => $value) {
+                $resolved = $this->resolvePdfValue($value, $objects);
+                $valueForReview = $this->trimPdfWhitespaceAndComments($resolved ?? $value);
+                $operandShape = $this->cryptFilterParameterOperandShape($valueForReview);
                 $entries[] = [
                     'source' => 'crypt_filter_parameter_entry_review',
                     'index' => $index,
                     'pdf_name' => $pdfName,
                     'metadata_key' => $metadataKey,
-                    'operand_shape' => $this->cryptFilterParameterOperandShape($value),
+                    'resolved' => $resolved !== null,
+                    'operand_shape' => $operandShape,
+                    'status' => $this->cryptFilterParameterEntryStatus(
+                        $pdfName,
+                        $value,
+                        $valueForReview,
+                        $operandShape,
+                        $resolved !== null
+                    ),
                     'review_only' => true,
+                    'executes_decryption' => false,
+                    'executes_permission_enforcement' => false,
                 ];
             }
 
             $duplicate = $entryCount > 1;
             if ($duplicate) {
                 $duplicateNames[] = $pdfName;
+            }
+            $malformedEntries = array_values(array_filter(
+                $entries,
+                static fn (array $entry): bool => ($entry['status'] ?? null) !== 'crypt_filter_parameter_entry_well_formed'
+            ));
+            if ($malformedEntries !== []) {
+                $malformedNames[] = $pdfName;
             }
 
             $rows[] = [
@@ -8051,6 +8076,15 @@ final class PdfMetadataExtractor
                     ),
                     static fn (mixed $shape): bool => is_string($shape)
                 ))),
+                'entry_statuses' => $this->uniqueStrings(array_values(array_filter(
+                    array_map(
+                        static fn (array $entry): mixed => $entry['status'] ?? null,
+                        $entries
+                    ),
+                    static fn (mixed $status): bool => is_string($status)
+                ))),
+                'malformed_entries' => $malformedEntries !== [],
+                'malformed_entry_count' => count($malformedEntries),
                 'entries' => $entries,
                 'review_only' => true,
                 'executes_decryption' => false,
@@ -8058,7 +8092,7 @@ final class PdfMetadataExtractor
             ];
         }
 
-        if ($duplicateNames === []) {
+        if ($duplicateNames === [] && $malformedNames === []) {
             return [];
         }
 
@@ -8067,8 +8101,12 @@ final class PdfMetadataExtractor
             'filter_name' => $filterName,
             'duplicate_parameter_names' => $duplicateNames,
             'duplicate_parameter_count' => count($duplicateNames),
+            'malformed_parameter_names' => $malformedNames,
+            'malformed_parameter_count' => count($malformedNames),
             'parameter_entry_counts' => $entryCounts,
-            'status' => 'duplicate_crypt_filter_parameter_entries_review',
+            'status' => $duplicateNames !== []
+                ? 'duplicate_crypt_filter_parameter_entries_review'
+                : 'malformed_crypt_filter_parameter_entries_review',
             'fail_closed' => true,
             'rows' => $rows,
             'review_only' => true,
@@ -8103,6 +8141,36 @@ final class PdfMetadataExtractor
         }
 
         return 'token';
+    }
+
+    private function cryptFilterParameterEntryStatus(
+        string $pdfName,
+        string $rawValue,
+        string $valueForReview,
+        string $operandShape,
+        bool $resolved
+    ): string {
+        if (!$resolved && $this->objectReferenceFromValue($rawValue) !== null) {
+            return 'crypt_filter_parameter_unresolved_reference';
+        }
+
+        if (in_array($operandShape, ['array', 'dictionary'], true)) {
+            return 'crypt_filter_parameter_composite_operand_review';
+        }
+
+        if (in_array($pdfName, ['CFM', 'AuthEvent'], true)) {
+            return $operandShape === 'name'
+                ? 'crypt_filter_parameter_entry_well_formed'
+                : 'crypt_filter_parameter_non_name_operand_review';
+        }
+
+        if ($operandShape !== 'token') {
+            return 'crypt_filter_parameter_non_integer_operand_review';
+        }
+
+        return preg_match('/^[+-]?\d+$/', $this->firstPdfValueToken($valueForReview)) === 1
+            ? 'crypt_filter_parameter_entry_well_formed'
+            : 'crypt_filter_parameter_non_integer_operand_review';
     }
 
     /**
