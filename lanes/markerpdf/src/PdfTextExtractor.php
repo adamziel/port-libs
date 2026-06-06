@@ -21414,11 +21414,12 @@ final class PdfTextExtractor
             return null;
         }
 
-        $value = $this->topLevelPdfValueAfterNameInDictionaryBody($dictionary, $category);
-        if ($value === null) {
+        $values = $this->topLevelPdfValuesAfterNameInDictionaryBody($dictionary, $category);
+        if ($values === []) {
             return null;
         }
 
+        $value = $values[count($values) - 1];
         $value = trim($value);
         if (preg_match('/^(\d+)\s+(\d+)\s+R\b/s', $value, $match) === 1) {
             $objectNumber = (int) $match[1];
