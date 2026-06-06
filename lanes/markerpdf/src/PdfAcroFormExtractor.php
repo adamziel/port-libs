@@ -11316,11 +11316,11 @@ final class PdfAcroFormExtractor
         }
 
         $kids = $this->valueAfterName($body, 'Kids');
-        if ($kids === null || !str_starts_with(trim($kids), '[')) {
+        if ($kids === null) {
             return [];
         }
 
-        $arrayBody = $this->arrayBodyFromValue($kids);
+        $arrayBody = $this->arrayBodyFromValueOrReference($kids, $objects);
         if ($arrayBody === null) {
             return [];
         }
