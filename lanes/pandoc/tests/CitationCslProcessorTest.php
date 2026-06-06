@@ -6100,6 +6100,104 @@ XML
 XML
         ));
     },
+    'applies bounded csl disambiguate conditionals for ambiguous author date cites' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith-post',
+                'type' => 'report',
+                'title' => 'Post Import Packet',
+                'short-title' => 'Post',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'smith-media',
+                'type' => 'report',
+                'title' => 'Media Import Packet',
+                'short-title' => 'Media',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'ng-2026',
+                'type' => 'report',
+                'title' => 'Ng Import Packet',
+                'short-title' => 'Ng',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Disambiguate Condition Review</title>
+    <id>https://example.test/styles/bounded-disambiguate-condition-review</id>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <choose>
+          <if disambiguate="true">
+            <text variable="title" form="short" prefix="[" suffix="]"/>
+          </if>
+        </choose>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <date variable="issued"><date-part name="year"/></date>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(true, $summary['citationRendering'][0]['children'][1]['branches'][0]['disambiguate'] ?? null);
+        $t->same('(Smith [Post] 2026; Smith [Media] 2026; Ng 2026)', $processor->renderCitationCluster([
+            $citation('smith-post', '[@smith-post]'),
+            $citation('smith-media', '[@smith-media]'),
+            $citation('ng-2026', '[@ng-2026]'),
+        ]));
+        $t->same('(Ng [Ng] 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'ng-2026', 'text' => '[@ng-2026]', 'cslDisambiguate' => true]),
+        ]));
+        $normalized = $processor->normalizeCitation($citation('smith-post', '[@smith-post]'));
+        $t->same('Smith', $normalized->attr('cslLabel'));
+        $t->same('2026', $normalized->attr('cslYear'));
+
+        $document = (new MarkdownReader())->read('Review cites [@smith-post; @smith-media; @ng-2026] before publishing imported source notes.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Review cites (Smith [Post] 2026; Smith [Media] 2026; Ng 2026) before publishing imported source notes.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, A. 2026. Post Import Packet.</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, A. 2026. Media Import Packet.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, N. 2026. Ng Import Packet.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout>
+      <choose>
+        <if disambiguate="false"><text variable="title"/></if>
+      </choose>
+    </layout>
+  </citation>
+</style>
+XML));
+    },
     'applies bounded csl locator conditionals for page chapter and section locators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

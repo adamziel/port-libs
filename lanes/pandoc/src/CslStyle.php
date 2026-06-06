@@ -1410,7 +1410,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
+     * @return array{type:string, branches:list<array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}>, else:list<array<string, mixed>>}
      */
     private static function chooseRenderingElement(\DOMElement $choose, string $scope): array
     {
@@ -1469,7 +1469,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}
+     * @return array{match:string, variables:list<string>, types:list<string>, locators:list<string>, positions:list<string>, disambiguate:bool, isNumeric:list<string>, isUncertainDate:list<string>, children:list<array<string, mixed>>}
      */
     private static function conditionalRenderingBranch(\DOMElement $branch, string $scope): array
     {
@@ -1488,6 +1488,15 @@ final class CslStyle
             self::spaceSeparatedAttribute($branch, 'locator')
         );
         $positions = self::spaceSeparatedAttribute($branch, 'position');
+        $disambiguate = false;
+        if ($branch->hasAttribute('disambiguate')) {
+            $disambiguateValue = strtolower(trim($branch->getAttribute('disambiguate')));
+            if ($disambiguateValue !== 'true') {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch disambiguate must be true');
+            }
+
+            $disambiguate = true;
+        }
         $isNumeric = self::spaceSeparatedAttribute($branch, 'is-numeric');
         $isUncertainDate = self::spaceSeparatedAttribute($branch, 'is-uncertain-date');
         foreach ($locators as $locator) {
@@ -1501,8 +1510,8 @@ final class CslStyle
             }
         }
 
-        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && $isNumeric === [] && $isUncertainDate === []) {
-            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, is-numeric, or is-uncertain-date');
+        if ($variables === [] && $types === [] && $locators === [] && $positions === [] && !$disambiguate && $isNumeric === [] && $isUncertainDate === []) {
+            throw new \InvalidArgumentException('CSL ' . $scope . ' choose branch must declare variable, type, locator, position, disambiguate, is-numeric, or is-uncertain-date');
         }
 
         return [
@@ -1511,6 +1520,7 @@ final class CslStyle
             'types' => $types,
             'locators' => $locators,
             'positions' => $positions,
+            'disambiguate' => $disambiguate,
             'isNumeric' => $isNumeric,
             'isUncertainDate' => $isUncertainDate,
             'children' => self::renderingElements($branch, $scope),

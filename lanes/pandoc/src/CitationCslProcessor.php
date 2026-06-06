@@ -225,6 +225,7 @@ final class CitationCslProcessor
 
         $citations = $this->ensureClusterCitationPositions($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
+        $citations = $this->annotateCitationDisambiguationForCluster($citations);
         $attrs = [
             ...$group->attrs,
             'rendered' => $this->renderCitationCluster($citations),
@@ -248,6 +249,8 @@ final class CitationCslProcessor
         $numbered = $this->annotateCitationNumbers($positioned, $citationNumbers);
         $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($numbered));
         $annotated = $this->annotateCitationYearSuffixes($numbered, $yearSuffixes);
+        $disambiguatingIds = $this->disambiguatingCitationIdsForIds($this->uniqueKnownCitationIds($numbered));
+        $annotated = $this->annotateCitationDisambiguation($annotated, $disambiguatingIds);
 
         return $this->mapNode($annotated);
     }
@@ -303,6 +306,7 @@ final class CitationCslProcessor
         $citations = $this->sortCitationCluster($citations);
         $citations = $this->annotateCitationNumbersForCluster($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
+        $citations = $this->annotateCitationDisambiguationForCluster($citations);
         $entries = $this->renderCollapsedCitationEntries($citations);
         if ($entries === null) {
             $entries = [];
@@ -1876,6 +1880,57 @@ final class CitationCslProcessor
     }
 
     /**
+     * @param list<AstNode> $citations
+     * @return list<AstNode>
+     */
+    private function annotateCitationDisambiguationForCluster(array $citations): array
+    {
+        if ($citations === []) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return $citations;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            if ($id !== '' && isset($this->itemsById[$id])) {
+                $canonicalId = $this->canonicalCitationId($id);
+                if (!in_array($canonicalId, $ids, true)) {
+                    $ids[] = $canonicalId;
+                }
+            }
+        }
+
+        $disambiguatingIds = $this->disambiguatingCitationIdsForIds($ids);
+        $annotated = [];
+        foreach ($citations as $citation) {
+            if (array_key_exists('cslDisambiguate', $citation->attrs)) {
+                $annotated[] = $citation;
+                continue;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            $canonicalId = $this->canonicalCitationId($id);
+            $needsDisambiguation = ($disambiguatingIds[$canonicalId] ?? false)
+                || trim((string) $citation->attr('cslYearSuffix', '')) !== '';
+            if (!$needsDisambiguation) {
+                $annotated[] = $citation;
+                continue;
+            }
+
+            $annotated[] = new AstNode($citation->type, [
+                ...$citation->attrs,
+                'cslDisambiguate' => true,
+            ], $citation->children);
+        }
+
+        return $annotated;
+    }
+
+    /**
      * @param array<string, string> $yearSuffixes
      */
     private function annotateCitationYearSuffixes(AstNode $node, array $yearSuffixes): AstNode
@@ -1906,6 +1961,49 @@ final class CitationCslProcessor
         $changed = false;
         foreach ($node->children as $child) {
             $annotated = $this->annotateCitationYearSuffixes($child, $yearSuffixes);
+            $children[] = $annotated;
+            $changed = $changed || $annotated !== $child;
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    /**
+     * @param array<string, bool> $disambiguatingIds
+     */
+    private function annotateCitationDisambiguation(AstNode $node, array $disambiguatingIds): AstNode
+    {
+        if ($node->type === 'citation') {
+            if (array_key_exists('cslDisambiguate', $node->attrs)) {
+                return $node;
+            }
+
+            $id = (string) $node->attr('id', '');
+            if ($id === '' || !isset($this->itemsById[$id])) {
+                return $node;
+            }
+
+            $canonicalId = $this->canonicalCitationId($id);
+            $needsDisambiguation = ($disambiguatingIds[$canonicalId] ?? false)
+                || trim((string) $node->attr('cslYearSuffix', '')) !== '';
+            if (!$needsDisambiguation) {
+                return $node;
+            }
+
+            return new AstNode($node->type, [
+                ...$node->attrs,
+                'cslDisambiguate' => true,
+            ], $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $annotated = $this->annotateCitationDisambiguation($child, $disambiguatingIds);
             $children[] = $annotated;
             $changed = $changed || $annotated !== $child;
         }
@@ -2097,6 +2195,37 @@ final class CitationCslProcessor
     private function canonicalCitationId(string $id): string
     {
         return $this->canonicalIdsById[$id] ?? $id;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array<string, bool>
+     */
+    private function disambiguatingCitationIdsForIds(array $ids): array
+    {
+        $groups = [];
+        foreach ($ids as $id) {
+            $canonicalId = $this->canonicalCitationId($id);
+            if (!isset($this->itemsById[$canonicalId])) {
+                continue;
+            }
+
+            $groups[$this->yearSuffixDisambiguationKey($this->itemsById[$canonicalId])][] = $canonicalId;
+        }
+
+        $disambiguating = [];
+        foreach ($groups as $groupIds) {
+            $groupIds = array_values(array_unique($groupIds));
+            if (count($groupIds) < 2) {
+                continue;
+            }
+
+            foreach ($groupIds as $id) {
+                $disambiguating[$id] = true;
+            }
+        }
+
+        return $disambiguating;
     }
 
     /**
@@ -4187,6 +4316,10 @@ final class CitationCslProcessor
             }
         }
 
+        if (($branch['disambiguate'] ?? false) === true) {
+            $conditions[] = $this->citationDisambiguateMatches($item, $scope, $citation);
+        }
+
         $isNumericVariables = $branch['isNumeric'] ?? [];
         if (is_array($isNumericVariables)) {
             foreach ($isNumericVariables as $variable) {
@@ -4261,6 +4394,33 @@ final class CitationCslProcessor
         }
 
         return $actual === $position;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function citationDisambiguateMatches(array $item, string $scope, ?AstNode $citation): bool
+    {
+        if ($scope === 'citation' && $citation instanceof AstNode) {
+            $marker = $citation->attr('cslDisambiguate', null);
+            if (is_bool($marker)) {
+                return $marker;
+            }
+
+            if (is_scalar($marker)) {
+                $normalized = strtolower(trim((string) $marker));
+                if (in_array($normalized, ['1', 'true', 'yes'], true)) {
+                    return true;
+                }
+                if ($normalized === '' || in_array($normalized, ['0', 'false', 'no'], true)) {
+                    return false;
+                }
+            }
+
+            return trim((string) $citation->attr('cslYearSuffix', '')) !== '';
+        }
+
+        return ($item['cslDisambiguate'] ?? false) === true;
     }
 
     /**
