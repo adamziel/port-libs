@@ -6198,6 +6198,160 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl given name disambiguation for ambiguous author date cites' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'homer-2005',
+                'type' => 'report',
+                'title' => 'Homer Source',
+                'author' => [
+                    ['family' => 'Simpson', 'given' => 'Homer'],
+                ],
+                'issued' => ['date-parts' => [[2005]]],
+                'URL' => 'https://example.test/homer',
+            ],
+            [
+                'id' => 'bart-2005',
+                'type' => 'report',
+                'title' => 'Bart Source',
+                'author' => [
+                    ['family' => 'Simpson', 'given' => 'Bart'],
+                ],
+                'issued' => ['date-parts' => [[2005]]],
+                'URL' => 'https://example.test/bart',
+            ],
+            [
+                'id' => 'john-1950',
+                'type' => 'report',
+                'title' => 'John Source',
+                'author' => [
+                    ['family' => 'Doe', 'given' => 'John'],
+                ],
+                'issued' => ['date-parts' => [[1950]]],
+                'URL' => 'https://example.test/john',
+            ],
+            [
+                'id' => 'jane-1950',
+                'type' => 'report',
+                'title' => 'Jane Source',
+                'author' => [
+                    ['family' => 'Doe', 'given' => 'Jane'],
+                ],
+                'issued' => ['date-parts' => [[1950]]],
+                'URL' => 'https://example.test/jane',
+            ],
+            [
+                'id' => 'ada-2026',
+                'type' => 'report',
+                'title' => 'Ada Source',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/ada',
+            ],
+            [
+                'id' => 'nia-2025',
+                'type' => 'report',
+                'title' => 'Nia Source',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'URL' => 'https://example.test/nia',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Given Name Disambiguation Review</title>
+    <id>https://example.test/styles/bounded-given-name-disambiguation-review</id>
+  </info>
+  <citation disambiguate-add-givenname="true" givenname-disambiguation-rule="by-cite">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author">
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author">
+        <name initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <date variable="issued"><date-part name="year"/></date>
+      <text variable="title"/>
+      <text variable="URL"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(true, $summary['citationOptions']['disambiguateAddGivenName'] ?? null);
+        $t->same('by-cite', $summary['citationOptions']['givenNameDisambiguationRule'] ?? null);
+        $t->same('(H. Simpson 2005; B. Simpson 2005; John Doe 1950; Jane Doe 1950; Smith 2026; Smith 2025)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'homer-2005', 'text' => '[@homer-2005]']),
+            new AstNode('citation', ['id' => 'bart-2005', 'text' => '[@bart-2005]']),
+            new AstNode('citation', ['id' => 'john-1950', 'text' => '[@john-1950]']),
+            new AstNode('citation', ['id' => 'jane-1950', 'text' => '[@jane-1950]']),
+            new AstNode('citation', ['id' => 'ada-2026', 'text' => '[@ada-2026]']),
+            new AstNode('citation', ['id' => 'nia-2025', 'text' => '[@nia-2025]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Review cites [@homer-2005; @bart-2005; @john-1950; @jane-1950] before bibliography review.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $citationNodes = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citationNodes): void {
+            if ($node->type === 'citation') {
+                $citationNodes[(string) $node->attr('id', '')] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+        $t->same('initial', $citationNodes['homer-2005']->attr('cslGivenNameDisambiguation'));
+        $t->same('initial', $citationNodes['bart-2005']->attr('cslGivenNameDisambiguation'));
+        $t->same('full', $citationNodes['john-1950']->attr('cslGivenNameDisambiguation'));
+        $t->same('full', $citationNodes['jane-1950']->attr('cslGivenNameDisambiguation'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Review cites (H. Simpson 2005; B. Simpson 2005; John Doe 1950; Jane Doe 1950) before bibliography review.</p>', $blocks);
+        $t->contains('<dt>Simpson 2005</dt><dd>Simpson, H. 2005. Homer Source. https://example.test/homer.</dd>', $blocks);
+        $t->contains('<dt>Doe 1950</dt><dd>Doe, J. 1950. Jane Source. https://example.test/jane.</dd>', $blocks);
+
+        $primaryName = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation disambiguate-add-givenname="true" givenname-disambiguation-rule="primary-name">
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"><name initialize-with=". "/></names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML);
+        $t->same('(A. Smith 2026; N. Smith 2025)', $primaryName->renderCitationCluster([
+            new AstNode('citation', ['id' => 'ada-2026', 'text' => '[@ada-2026]']),
+            new AstNode('citation', ['id' => 'nia-2025', 'text' => '[@nia-2025]']),
+        ]));
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation disambiguate-add-givenname="true" givenname-disambiguation-rule="sideways">
+    <layout><names variable="author"/></layout>
+  </citation>
+</style>
+XML));
+    },
     'applies bounded csl locator conditionals for page chapter and section locators' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

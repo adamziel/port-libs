@@ -127,7 +127,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array{and:string, etAl:string, noDate:string, accessed:string}}
      */
     public function cslStyleSummary(): array
     {
@@ -225,6 +225,7 @@ final class CitationCslProcessor
 
         $citations = $this->ensureClusterCitationPositions($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
+        $citations = $this->annotateCitationGivenNameDisambiguationForCluster($citations);
         $citations = $this->annotateCitationDisambiguationForCluster($citations);
         $attrs = [
             ...$group->attrs,
@@ -249,6 +250,8 @@ final class CitationCslProcessor
         $numbered = $this->annotateCitationNumbers($positioned, $citationNumbers);
         $yearSuffixes = $this->yearSuffixesForIds($this->uniqueKnownCitationIds($numbered));
         $annotated = $this->annotateCitationYearSuffixes($numbered, $yearSuffixes);
+        $givenNameDisambiguationModes = $this->givenNameDisambiguationModesForIds($this->uniqueKnownCitationIds($numbered));
+        $annotated = $this->annotateCitationGivenNameDisambiguation($annotated, $givenNameDisambiguationModes);
         $disambiguatingIds = $this->disambiguatingCitationIdsForIds($this->uniqueKnownCitationIds($numbered));
         $annotated = $this->annotateCitationDisambiguation($annotated, $disambiguatingIds);
 
@@ -306,6 +309,7 @@ final class CitationCslProcessor
         $citations = $this->sortCitationCluster($citations);
         $citations = $this->annotateCitationNumbersForCluster($citations);
         $citations = $this->annotateCitationYearSuffixesForCluster($citations);
+        $citations = $this->annotateCitationGivenNameDisambiguationForCluster($citations);
         $citations = $this->annotateCitationDisambiguationForCluster($citations);
         $entries = $this->renderCollapsedCitationEntries($citations);
         if ($entries === null) {
@@ -1883,6 +1887,101 @@ final class CitationCslProcessor
      * @param list<AstNode> $citations
      * @return list<AstNode>
      */
+    private function annotateCitationGivenNameDisambiguationForCluster(array $citations): array
+    {
+        if (!$this->style->citationOptions()['disambiguateAddGivenName']) {
+            return $citations;
+        }
+
+        $ids = [];
+        foreach ($citations as $citation) {
+            if (!$citation instanceof AstNode || $citation->type !== 'citation') {
+                return $citations;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            if ($id !== '' && isset($this->itemsById[$id])) {
+                $canonicalId = $this->canonicalCitationId($id);
+                if (!in_array($canonicalId, $ids, true)) {
+                    $ids[] = $canonicalId;
+                }
+            }
+        }
+
+        $modes = $this->givenNameDisambiguationModesForIds($ids);
+        if ($modes === []) {
+            return $citations;
+        }
+
+        $annotated = [];
+        foreach ($citations as $citation) {
+            if (array_key_exists('cslGivenNameDisambiguation', $citation->attrs)) {
+                $annotated[] = $citation;
+                continue;
+            }
+
+            $id = (string) $citation->attr('id', '');
+            $canonicalId = $this->canonicalCitationId($id);
+            $mode = $modes[$canonicalId] ?? '';
+            if ($mode === '') {
+                $annotated[] = $citation;
+                continue;
+            }
+
+            $annotated[] = new AstNode($citation->type, [
+                ...$citation->attrs,
+                'cslGivenNameDisambiguation' => $mode,
+            ], $citation->children);
+        }
+
+        return $annotated;
+    }
+
+    /**
+     * @param array<string, string> $modes
+     */
+    private function annotateCitationGivenNameDisambiguation(AstNode $node, array $modes): AstNode
+    {
+        if ($node->type === 'citation') {
+            if (array_key_exists('cslGivenNameDisambiguation', $node->attrs)) {
+                return $node;
+            }
+
+            $id = (string) $node->attr('id', '');
+            if ($id === '' || !isset($this->itemsById[$id])) {
+                return $node;
+            }
+
+            $mode = $modes[$this->canonicalCitationId($id)] ?? '';
+            if ($mode === '') {
+                return $node;
+            }
+
+            return new AstNode($node->type, [
+                ...$node->attrs,
+                'cslGivenNameDisambiguation' => $mode,
+            ], $node->children);
+        }
+
+        if ($node->children === []) {
+            return $node;
+        }
+
+        $children = [];
+        $changed = false;
+        foreach ($node->children as $child) {
+            $annotated = $this->annotateCitationGivenNameDisambiguation($child, $modes);
+            $children[] = $annotated;
+            $changed = $changed || $annotated !== $child;
+        }
+
+        return $changed ? new AstNode($node->type, $node->attrs, $children) : $node;
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<AstNode>
+     */
     private function annotateCitationDisambiguationForCluster(array $citations): array
     {
         if ($citations === []) {
@@ -2195,6 +2294,88 @@ final class CitationCslProcessor
     private function canonicalCitationId(string $id): string
     {
         return $this->canonicalIdsById[$id] ?? $id;
+    }
+
+    /**
+     * @param list<string> $ids
+     * @return array<string, string>
+     */
+    private function givenNameDisambiguationModesForIds(array $ids): array
+    {
+        $options = $this->style->citationOptions();
+        if (($options['disambiguateAddGivenName'] ?? false) !== true) {
+            return [];
+        }
+
+        $rule = (string) ($options['givenNameDisambiguationRule'] ?? 'by-cite');
+        $groups = [];
+        foreach ($ids as $id) {
+            $canonicalId = $this->canonicalCitationId($id);
+            if (!isset($this->itemsById[$canonicalId])) {
+                continue;
+            }
+
+            $item = $this->itemsById[$canonicalId];
+            $key = $rule === 'by-cite'
+                ? $this->yearSuffixDisambiguationKey($item)
+                : $this->citationAuthorLabel($item);
+            $groups[$key][] = $canonicalId;
+        }
+
+        $modes = [];
+        foreach ($groups as $groupIds) {
+            $groupIds = array_values(array_unique($groupIds));
+            if (count($groupIds) < 2) {
+                continue;
+            }
+
+            $candidateModes = str_ends_with($rule, '-with-initials')
+                ? ['initial']
+                : ['initial', 'full'];
+            foreach ($candidateModes as $mode) {
+                $labels = [];
+                foreach ($groupIds as $id) {
+                    $labels[$id] = $this->citationAuthorLabelWithGivenNameDisambiguation($this->itemsById[$id], $mode);
+                }
+
+                if (!$this->renderedLabelsAreUnique($labels)) {
+                    continue;
+                }
+
+                foreach ($groupIds as $id) {
+                    if ($labels[$id] !== $this->citationAuthorLabel($this->itemsById[$id])) {
+                        $modes[$id] = $mode;
+                    }
+                }
+                break;
+            }
+        }
+
+        return $modes;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function citationAuthorLabelWithGivenNameDisambiguation(array $item, string $mode): string
+    {
+        return $this->citationAuthorLabel(
+            $item,
+            new AstNode('citation', ['cslGivenNameDisambiguation' => $mode])
+        );
+    }
+
+    /**
+     * @param array<string, string> $labels
+     */
+    private function renderedLabelsAreUnique(array $labels): bool
+    {
+        $normalized = array_map(
+            fn (string $label): string => $this->normalizedRenderedNameKey($label),
+            array_values($labels)
+        );
+
+        return count(array_unique($normalized)) === count($normalized);
     }
 
     /**
@@ -5705,6 +5886,10 @@ final class CitationCslProcessor
      */
     private function renderNameList(array $names, array $options, bool $bibliography, ?AstNode $citation = null, ?array &$bibliographyState = null): string
     {
+        if (!$bibliography) {
+            $options = $this->citationNameRenderingOptionsWithGivenNameDisambiguation($options, $citation);
+        }
+
         $forceEtAl = false;
         $renderableNames = [];
         foreach ($names as $name) {
@@ -5745,7 +5930,7 @@ final class CitationCslProcessor
         foreach ($visible as $index => $name) {
             $rendered[] = $bibliography
                 ? $this->renderBibliographyName($name, $options, $index)
-                : $this->renderCitationName($name, $options);
+                : $this->renderCitationName($name, $this->citationNameRenderingOptionsForVisibleName($options, $index));
         }
 
         if ($useEtAl) {
@@ -5753,7 +5938,7 @@ final class CitationCslProcessor
                 $lastName = $renderableNames[$count - 1];
                 $lastRendered = $bibliography
                     ? $this->renderBibliographyName($lastName, $options, $count - 1)
-                    : $this->renderCitationName($lastName, $options);
+                    : $this->renderCitationName($lastName, $this->citationNameRenderingOptionsForVisibleName($options, $count - 1));
 
                 if ($bibliography && is_array($bibliographyState)) {
                     $substitution = $this->bibliographySubsequentAuthorSubstitutionPlan(
@@ -5821,6 +6006,54 @@ final class CitationCslProcessor
         return $bibliography
             ? $this->joinNamesWithLastDelimiter($rendered, $options, true)
             : $this->joinNamesWithLastDelimiter($rendered, $options, false);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function citationNameRenderingOptionsWithGivenNameDisambiguation(array $options, ?AstNode $citation): array
+    {
+        if (!$citation instanceof AstNode) {
+            return $options;
+        }
+
+        $mode = strtolower(trim((string) $citation->attr('cslGivenNameDisambiguation', '')));
+        if (!in_array($mode, ['initial', 'full'], true)) {
+            return $options;
+        }
+
+        return [
+            ...$options,
+            'givenNameDisambiguationMode' => $mode,
+            'givenNameDisambiguationScope' => $this->givenNameDisambiguationScope(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function citationNameRenderingOptionsForVisibleName(array $options, int $index): array
+    {
+        if (!isset($options['givenNameDisambiguationMode'])) {
+            return $options;
+        }
+
+        if (($options['givenNameDisambiguationScope'] ?? 'primary') === 'all' || $index === 0) {
+            return $options;
+        }
+
+        unset($options['givenNameDisambiguationMode'], $options['givenNameDisambiguationScope']);
+
+        return $options;
+    }
+
+    private function givenNameDisambiguationScope(): string
+    {
+        return str_starts_with((string) ($this->style->citationOptions()['givenNameDisambiguationRule'] ?? 'by-cite'), 'all-names')
+            ? 'all'
+            : 'primary';
     }
 
     private function citationUsesSubsequentNameOptions(?AstNode $citation): bool
@@ -5951,12 +6184,36 @@ final class CitationCslProcessor
             return $this->renderInstitutionName($name, $options);
         }
 
+        $givenDisambiguationMode = (string) ($options['givenNameDisambiguationMode'] ?? '');
+        if (in_array($givenDisambiguationMode, ['initial', 'full'], true) && trim((string) $name['given']) !== '') {
+            return $this->renderGivenNameDisambiguatedCitationName($name, $options, $givenDisambiguationMode);
+        }
+
         $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
         if ($family !== '') {
             return $this->formatNamePart('family', $family, $options);
         }
 
         return $this->formatNamePart('given', $this->renderGivenName((string) $name['given'], $options), $options);
+    }
+
+    /**
+     * @param array{family:string, given:string, literal:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     * @param array<string, mixed> $options
+     */
+    private function renderGivenNameDisambiguatedCitationName(array $name, array $options, string $mode): string
+    {
+        $family = trim((string) $name['nonDroppingParticle'] . ' ' . (string) $name['family']);
+        $family = $this->formatNamePart('family', $family, $options);
+        $given = $mode === 'full'
+            ? trim((string) $name['given'])
+            : $this->renderGivenName((string) $name['given'], $options);
+        $given = $this->formatNamePart('given', $given, $options);
+
+        return trim(implode(' ', array_values(array_filter(
+            [$given, $family],
+            static fn (string $part): bool => $part !== ''
+        ))));
     }
 
     /**

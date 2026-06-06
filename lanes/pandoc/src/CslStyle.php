@@ -161,7 +161,7 @@ final class CslStyle
      * @param array{prefix:string, suffix:string, delimiter:string} $citationLayout
      * @param array{prefix:string, suffix:string, delimiter:string} $bibliographyLayout
      * @param array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string} $bibliographyOptions
-     * @param array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int} $citationOptions
+     * @param array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int} $citationOptions
      * @param list<array{sort:string, variable?:string, macro?:string}> $citationSortKeys
      * @param list<array{sort:string, variable?:string, macro?:string}> $bibliographySortKeys
      * @param list<array<string, mixed>> $citationRenderingElements
@@ -195,7 +195,7 @@ final class CslStyle
             ['prefix' => '(', 'suffix' => ')', 'delimiter' => '; '],
             ['prefix' => '', 'suffix' => '', 'delimiter' => ' '],
             ['hangingIndent' => false, 'entrySpacing' => null, 'lineSpacing' => null, 'secondFieldAlign' => '', 'subsequentAuthorSubstitute' => '', 'subsequentAuthorSubstituteRule' => 'complete-all'],
-            ['disambiguateAddYearSuffix' => false, 'collapse' => '', 'nearNoteDistance' => 5],
+            ['disambiguateAddYearSuffix' => false, 'disambiguateAddGivenName' => false, 'givenNameDisambiguationRule' => 'by-cite', 'collapse' => '', 'nearNoteDistance' => 5],
             [],
             [],
             [],
@@ -354,7 +354,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}
+     * @return array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}
      */
     public function citationOptions(): array
     {
@@ -458,7 +458,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
+     * @return array{title:string, id:string, class:string, defaultLocale:string, citationLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyLayout:array{prefix:string, suffix:string, delimiter:string}, bibliographyOptions:array{hangingIndent:bool, entrySpacing:int|null, lineSpacing:int|null, secondFieldAlign:string, subsequentAuthorSubstitute:string, subsequentAuthorSubstituteRule:string}, citationOptions:array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}, citationSort:list<array{sort:string, variable?:string, macro?:string}>, bibliographySort:list<array{sort:string, variable?:string, macro?:string}>, citationRendering:list<array<string, mixed>>, bibliographyRendering:list<array<string, mixed>>, macros:array<string, list<array<string, mixed>>>, nameRendering:array{citation:array<string, mixed>, bibliography:array<string, mixed>}, localeOptions:array{punctuationInQuote:bool, limitDayOrdinalsToDay1:bool}, terms:array<string, string>}
      */
     public function summary(): array
     {
@@ -609,13 +609,21 @@ final class CslStyle
     }
 
     /**
-     * @return array{disambiguateAddYearSuffix:bool, collapse:string, nearNoteDistance:int}
+     * @return array{disambiguateAddYearSuffix:bool, disambiguateAddGivenName:bool, givenNameDisambiguationRule:string, collapse:string, nearNoteDistance:int}
      */
     private static function parseCitationOptions(\DOMElement $citation): array
     {
         $collapse = trim($citation->getAttribute('collapse'));
         if ($collapse !== '' && !in_array($collapse, ['citation-number', 'year', 'year-suffix', 'year-suffix-ranged'], true)) {
             throw new \InvalidArgumentException('CSL citation attribute collapse must be citation-number, year, year-suffix, or year-suffix-ranged');
+        }
+
+        $givenNameDisambiguationRule = trim($citation->getAttribute('givenname-disambiguation-rule'));
+        if ($givenNameDisambiguationRule === '') {
+            $givenNameDisambiguationRule = 'by-cite';
+        }
+        if (!in_array($givenNameDisambiguationRule, ['all-names', 'all-names-with-initials', 'primary-name', 'primary-name-with-initials', 'by-cite'], true)) {
+            throw new \InvalidArgumentException('CSL citation attribute givenname-disambiguation-rule must be all-names, all-names-with-initials, primary-name, primary-name-with-initials, or by-cite');
         }
 
         $nearNoteDistance = 5;
@@ -629,6 +637,8 @@ final class CslStyle
 
         return [
             'disambiguateAddYearSuffix' => self::booleanAttribute($citation, 'disambiguate-add-year-suffix', false, 'citation'),
+            'disambiguateAddGivenName' => self::booleanAttribute($citation, 'disambiguate-add-givenname', false, 'citation'),
+            'givenNameDisambiguationRule' => $givenNameDisambiguationRule,
             'collapse' => $collapse,
             'nearNoteDistance' => $nearNoteDistance,
         ];
