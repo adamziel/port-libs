@@ -1486,6 +1486,7 @@ $packagePermissionPreflight = $package->permissionPreflight();
 $packageCreatorHostPreflight = $package->creatorHostSystemPreflight();
 $packageCommentPreflight = $package->commentPreflight();
 $packageExtraFieldPreflight = $package->extraFieldPreflight();
+$packagePathHierarchyPreflight = $package->pathHierarchyPreflight();
 $packageReadIntegrityPreflight = $package->readIntegrityPreflight(4096);
 $odtMimetype = 'application/vnd.oasis.opendocument.text';
 $odtMimetypePackage = ZipPackage::fromParts([
@@ -1590,6 +1591,32 @@ try {
     $extraFieldIdMismatchPackage->assertMatchingExtraFieldIds();
 } catch (RuntimeException $exception) {
     $extraFieldIdMismatchRejected = str_contains($exception->getMessage(), 'central/local extra field id mismatches');
+}
+$pathHierarchyCollisionPackage = ZipPackage::fromParts([
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Path hierarchy collision review</w:p></w:body></w:document>',
+    ],
+    [
+        'name' => 'word/media',
+        'data' => "File entry shadowing a media directory path\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/',
+    ],
+    [
+        'name' => 'word/media/review.png',
+        'data' => "PNG reviewer attachment placeholder\n",
+        'compressionMethod' => 0,
+    ],
+]);
+$pathHierarchyCollisionPreflight = $pathHierarchyCollisionPackage->pathHierarchyPreflight();
+$pathHierarchyCollisionRejected = false;
+try {
+    $pathHierarchyCollisionPackage->assertNoPathHierarchyCollisions();
+} catch (RuntimeException $exception) {
+    $pathHierarchyCollisionRejected = str_contains($exception->getMessage(), 'file/directory path hierarchy collisions');
 }
 $deflateOptionFlagsRejected = false;
 try {
@@ -2507,6 +2534,14 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected generated ZIP package to avoid central/local extra field id mismatches');
     }
 
+    if ($package->assertNoPathHierarchyCollisions() !== $packagePathHierarchyPreflight) {
+        throw new RuntimeException('Expected generated ZIP package path hierarchy preflight to return the accepted summary');
+    }
+
+    if (($packagePathHierarchyPreflight['collisionEntryCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected generated ZIP package to avoid file/directory path hierarchy collisions');
+    }
+
     if (
         !$unknownCreatorHostRejected
         || ($unknownCreatorHostPreflight['unknownHostSystemEntryCount'] ?? null) !== 1
@@ -2540,6 +2575,17 @@ if (in_array('--self-test', $argv, true)) {
         || ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['localOnlyExtraFieldIds'][0] ?? null) !== 0xbeef
     ) {
         throw new RuntimeException('Expected central/local ZIP extra field id mismatches to stay blocked for strict media import');
+    }
+
+    if (
+        !$pathHierarchyCollisionRejected
+        || ($pathHierarchyCollisionPreflight['collisionEntryCount'] ?? null) !== 3
+        || ($pathHierarchyCollisionPreflight['collisionEntries'][0]['name'] ?? null) !== 'word/media'
+        || ($pathHierarchyCollisionPreflight['collisionEntries'][0]['samePathDirectoryName'] ?? null) !== 'word/media/'
+        || ($pathHierarchyCollisionPreflight['collisionEntries'][1]['name'] ?? null) !== 'word/media/'
+        || ($pathHierarchyCollisionPreflight['collisionEntries'][2]['ancestorFileNames'][0] ?? null) !== 'word/media'
+    ) {
+        throw new RuntimeException('Expected ZIP file/directory path hierarchy collisions to stay blocked for strict media import');
     }
 
     if (!$packageSizeRejected) {
@@ -3264,6 +3310,7 @@ echo 'packagePermissions.executableFileCount=' . $packagePermissionPreflight['ex
 echo 'packageCreatorHosts=' . implode(',', array_map(static fn (array $host): string => $host['name'], $packageCreatorHostPreflight['hostSystems'])) . "\n";
 echo 'packageCreatorUnknownEntries=' . $packageCreatorHostPreflight['unknownHostSystemEntryCount'] . "\n";
 echo 'packageExtraFields.duplicateEntryCount=' . $packageExtraFieldPreflight['duplicateExtraFieldEntryCount'] . "\n";
+echo 'packagePathHierarchy.collisionEntryCount=' . $packagePathHierarchyPreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";
 echo 'packageArchive.centralDirectorySize=' . $packageArchivePreflight['centralDirectorySize'] . "\n";
@@ -3311,6 +3358,8 @@ echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExtraFieldIdMismatchEntry=' . ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipPathHierarchyCollisionPolicy=' . ($pathHierarchyCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipPathHierarchyCollisionEntry=' . ($pathHierarchyCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipStoredSizeMismatchPolicy=' . ($storedSizeMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPayloadIntegrityPolicy=' . ($corruptPayloadRejected ? 'rejected' : 'not-rejected') . "\n";

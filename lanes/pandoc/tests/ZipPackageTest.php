@@ -1177,6 +1177,85 @@ return [
         $t->same('', $directoryPackage->read('/word/media/'));
     },
 
+    'preflights zip file-directory path collisions before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $collisionPackage = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>path hierarchy preflight</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media',
+                'data' => 'file bytes shadowing a media directory path',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/thumbnails/thumb.png',
+                'data' => "thumbnail reviewer attachment placeholder\n",
+                'method' => 0,
+            ],
+        ]));
+        $summary = $collisionPackage->pathHierarchyPreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(4, $summary['collisionEntryCount']);
+        $t->same('word/document.xml', $summary['entries'][0]['name']);
+        $t->same(false, $summary['entries'][0]['hasPathHierarchyCollision']);
+        $t->same([], $summary['entries'][0]['issues']);
+        $t->same('word/media', $summary['entries'][1]['name']);
+        $t->same('word/media', $summary['entries'][1]['path']);
+        $t->same('word/media/', $summary['entries'][1]['samePathDirectoryName']);
+        $t->same([
+            'word/media/review.png',
+            'word/media/thumbnails/thumb.png',
+        ], $summary['entries'][1]['descendantEntryNames']);
+        $t->same(['file-directory-same-path', 'file-used-as-directory'], $summary['entries'][1]['issues']);
+        $t->same('word/media/', $summary['entries'][2]['name']);
+        $t->same('word/media', $summary['entries'][2]['samePathFileName']);
+        $t->same(['file-directory-same-path'], $summary['entries'][2]['issues']);
+        $t->same(['word/media'], $summary['entries'][3]['ancestorFileNames']);
+        $t->same(['ancestor-file-entry'], $summary['entries'][3]['issues']);
+        $t->same(['word/media'], $summary['entries'][4]['ancestorFileNames']);
+        $t->same(['ancestor-file-entry'], $summary['entries'][4]['issues']);
+        $t->same('word/media', $summary['collisionEntries'][0]['name']);
+        $t->same('word/media/', $summary['collisionEntries'][1]['name']);
+        $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertNoPathHierarchyCollisions());
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>safe hierarchy</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/',
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoPathHierarchyCollisions();
+
+        $t->same(3, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['collisionEntryCount']);
+        $t->same([], $safeSummary['collisionEntries']);
+        $t->same('word/media/review.png', $safeSummary['entries'][2]['name']);
+        $t->same([], $safeSummary['entries'][2]['ancestorFileNames']);
+        $t->same(false, $safeSummary['entries'][2]['hasPathHierarchyCollision']);
+        $t->same("PNG reviewer attachment placeholder\n", $safePackage->read('/word/media/review.png'));
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([

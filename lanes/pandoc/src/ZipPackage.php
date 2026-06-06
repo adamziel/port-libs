@@ -935,6 +935,127 @@ final class ZipPackage
         return $summary;
     }
 
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     collisionEntryCount:int,
+     *     collisionEntries:list<array{name:string, path:string, isDirectory:bool, samePathFileName:?string, samePathDirectoryName:?string, ancestorFileNames:list<string>, descendantEntryNames:list<string>, hasPathHierarchyCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, path:string, isDirectory:bool, samePathFileName:?string, samePathDirectoryName:?string, ancestorFileNames:list<string>, descendantEntryNames:list<string>, hasPathHierarchyCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function pathHierarchyPreflight(): array
+    {
+        $fileNamesByPath = [];
+        $directoryNamesByPath = [];
+        $pathsByName = [];
+
+        foreach ($this->entries as $entry) {
+            $path = rtrim($entry->name, '/');
+            $pathsByName[$entry->name] = $path;
+            if ($entry->isDirectory()) {
+                $directoryNamesByPath[$path] = $entry->name;
+            } else {
+                $fileNamesByPath[$path] = $entry->name;
+            }
+        }
+
+        $ancestorFileNamesByEntryName = [];
+        $descendantEntryNamesByFileName = [];
+        foreach ($fileNamesByPath as $fileName) {
+            $descendantEntryNamesByFileName[$fileName] = [];
+        }
+
+        foreach ($this->entries as $entry) {
+            $path = $pathsByName[$entry->name];
+            $segments = explode('/', $path);
+            for ($depth = 1, $segmentCount = count($segments); $depth < $segmentCount; $depth++) {
+                $ancestorPath = implode('/', array_slice($segments, 0, $depth));
+                if (!isset($fileNamesByPath[$ancestorPath])) {
+                    continue;
+                }
+
+                $ancestorFileName = $fileNamesByPath[$ancestorPath];
+                $ancestorFileNamesByEntryName[$entry->name][] = $ancestorFileName;
+                $descendantEntryNamesByFileName[$ancestorFileName][] = $entry->name;
+            }
+        }
+
+        $entries = [];
+        $collisionEntries = [];
+        foreach ($this->entries as $entry) {
+            $path = $pathsByName[$entry->name];
+            $samePathFileName = $entry->isDirectory() ? ($fileNamesByPath[$path] ?? null) : null;
+            $samePathDirectoryName = $entry->isDirectory() ? null : ($directoryNamesByPath[$path] ?? null);
+            $ancestorFileNames = $ancestorFileNamesByEntryName[$entry->name] ?? [];
+            $descendantEntryNames = $entry->isDirectory() ? [] : ($descendantEntryNamesByFileName[$entry->name] ?? []);
+            $issues = [];
+
+            if ($samePathFileName !== null || $samePathDirectoryName !== null) {
+                $issues[] = 'file-directory-same-path';
+            }
+
+            if ($ancestorFileNames !== []) {
+                $issues[] = 'ancestor-file-entry';
+            }
+
+            if ($descendantEntryNames !== []) {
+                $issues[] = 'file-used-as-directory';
+            }
+
+            $summary = [
+                'name' => $entry->name,
+                'path' => $path,
+                'isDirectory' => $entry->isDirectory(),
+                'samePathFileName' => $samePathFileName,
+                'samePathDirectoryName' => $samePathDirectoryName,
+                'ancestorFileNames' => $ancestorFileNames,
+                'descendantEntryNames' => $descendantEntryNames,
+                'hasPathHierarchyCollision' => $issues !== [],
+                'issues' => $issues,
+            ];
+            $entries[] = $summary;
+            if ($issues !== []) {
+                $collisionEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($this->entries),
+            'collisionEntryCount' => count($collisionEntries),
+            'collisionEntries' => $collisionEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     collisionEntryCount:int,
+     *     collisionEntries:list<array{name:string, path:string, isDirectory:bool, samePathFileName:?string, samePathDirectoryName:?string, ancestorFileNames:list<string>, descendantEntryNames:list<string>, hasPathHierarchyCollision:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, path:string, isDirectory:bool, samePathFileName:?string, samePathDirectoryName:?string, ancestorFileNames:list<string>, descendantEntryNames:list<string>, hasPathHierarchyCollision:bool, issues:list<string>}>
+     * }
+     */
+    public function assertNoPathHierarchyCollisions(): array
+    {
+        $summary = $this->pathHierarchyPreflight();
+        if ($summary['collisionEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name'] . ' (' . implode('/', $entry['issues']) . ')',
+                    $summary['collisionEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains file/directory path hierarchy collisions that require explicit import review: '
+                . $entries
+            );
+        }
+
+        return $summary;
+    }
+
     public function has(string $partName): bool
     {
         return isset($this->entriesByName[$this->normalizeLookupPartName($partName)]);
