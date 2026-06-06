@@ -25341,11 +25341,45 @@ final class PdfTextExtractor
     {
         $boundary = $entry['tokenOffset'] ?? null;
         $ignoredBoundary = $this->latestIgnoredStartxrefRebuildBoundaryOffset($pdfBytes, $definitions);
+        if ($boundary === null) {
+            $eofBoundary = $this->latestTopLevelEofOffset($pdfBytes, $definitions);
+
+            return $ignoredBoundary !== null
+                && ($eofBoundary === null || $ignoredBoundary < $eofBoundary)
+                ? $ignoredBoundary
+                : $eofBoundary;
+        }
+
         if ($ignoredBoundary !== null && ($boundary === null || $ignoredBoundary > $boundary)) {
             return $ignoredBoundary;
         }
 
         return $boundary;
+    }
+
+    /**
+     * @param array<int, list<array{generation: int, offset: int, bodyStart: int, bodyEnd: int, body: string}>> $definitions
+     */
+    private function latestTopLevelEofOffset(string $pdfBytes, array $definitions): ?int
+    {
+        if (preg_match_all('/%%EOF/s', $pdfBytes, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return null;
+        }
+
+        for ($index = count($matches[0]) - 1; $index >= 0; $index--) {
+            $tokenOffset = $matches[0][$index][1] ?? null;
+            if (
+                !is_int($tokenOffset)
+                || $this->offsetOwnedByDirectObjectBody($tokenOffset, $definitions)
+                || $this->tokenStartsInsidePdfCompositeToken($pdfBytes, $tokenOffset, $definitions)
+            ) {
+                continue;
+            }
+
+            return $tokenOffset;
+        }
+
+        return null;
     }
 
     /**

@@ -6434,11 +6434,33 @@ final class PdfAttachmentExtractor
             return $pdfBytes;
         }
 
-        if ($ignoredBoundary !== null && $ignoredBoundary > $eof) {
+        if (
+            $ignoredBoundary !== null
+            && $ignoredBoundary > $eof
+            && $this->hasClassicXrefTableBetweenOffsets($pdfBytes, $definitions, $eof, $ignoredBoundary)
+        ) {
             return $pdfBytes;
         }
 
         return substr($pdfBytes, 0, $eof + strlen('%%EOF'));
+    }
+
+    /**
+     * @param array<int, list<array{bodyStart?: int, bodyEnd?: int}>> $definitions
+     */
+    private function hasClassicXrefTableBetweenOffsets(string $pdfBytes, array $definitions, int $afterOffset, int $beforeOffset): bool
+    {
+        foreach ($this->xrefTableKeywordOffsets($pdfBytes, $definitions) as $xrefOffset) {
+            if ($xrefOffset <= $afterOffset || $xrefOffset >= $beforeOffset) {
+                continue;
+            }
+
+            if ($this->xrefTableSectionAt($pdfBytes, $xrefOffset, $definitions) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function streamBytesFromBody(string $body, int $index, mixed $value): ?string
