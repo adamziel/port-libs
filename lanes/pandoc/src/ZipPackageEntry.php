@@ -448,6 +448,13 @@ final class ZipPackageEntry
         }
 
         $flags = ord($data[0]);
+        $unknownFlags = $flags & ~0x07;
+        if ($unknownFlags !== 0) {
+            throw new \RuntimeException(
+                sprintf('ZIP extended timestamp extra field for %s uses unsupported flag bits 0x%02x', $label, $unknownFlags)
+            );
+        }
+
         $cursor = 1;
         $timestamps = [];
         $fields = [
@@ -472,6 +479,10 @@ final class ZipPackageEntry
 
             $timestamps[$name] = (int) $values['timestamp'];
             $cursor += 4;
+        }
+
+        if ($cursor !== strlen($data)) {
+            throw new \RuntimeException("ZIP extended timestamp extra field for {$label} contains trailing bytes");
         }
 
         return $timestamps === [] ? null : $timestamps;

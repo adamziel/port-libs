@@ -2229,6 +2229,19 @@ try {
 } catch (RuntimeException $exception) {
     $duplicateUnicodeExtraRejected = str_contains($exception->getMessage(), 'appears more than once');
 }
+$malformedExtendedTimestampRejected = false;
+try {
+    ZipPackage::fromParts([
+        [
+            'name' => 'word/media/review-timestamp.txt',
+            'data' => "Malformed extended timestamp extras should stay blocked\n",
+            'compressionMethod' => 0,
+            'extraFieldData' => pack('vvCV', 0x5455, 5, 0x09, $documentModifiedAt),
+        ],
+    ]);
+} catch (RuntimeException $exception) {
+    $malformedExtendedTimestampRejected = str_contains($exception->getMessage(), 'unsupported flag bits');
+}
 $oversizedMediaPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -4174,6 +4187,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected duplicate ZIP Unicode path metadata to be rejected before media import');
     }
 
+    if (!$malformedExtendedTimestampRejected) {
+        throw new RuntimeException('Expected malformed ZIP extended timestamp metadata to be rejected before media import');
+    }
+
     echo "zip package writer preflight self-test passed\n";
     exit(0);
 }
@@ -4320,6 +4337,7 @@ echo 'zipUnsupportedVersionNeededPolicy=' . ($unsupportedVersionNeededRejected ?
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateUnicodeExtraPolicy=' . ($duplicateUnicodeExtraRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipMalformedExtendedTimestampPolicy=' . ($malformedExtendedTimestampRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExecutablePermissionPolicy=' . ($executablePermissionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'boundedReadPolicy=' . ($oversizedMediaRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'tarEndMarkerPolicy=' . ($missingTarEndMarkerRejected ? 'rejected' : 'not-rejected') . "\n";

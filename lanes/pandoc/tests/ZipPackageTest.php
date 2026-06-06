@@ -2808,6 +2808,31 @@ return [
                 'localExtra' => pack('vvCVV', 0x5455, 9, 0x07, 1780479017, 1780479022),
             ],
         ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/unknown-extended-timestamp-flag.txt',
+                'data' => 'unknown extended timestamp flags should stay blocked',
+                'method' => 0,
+                'centralExtra' => pack('vvCV', 0x5455, 5, 0x09, 1780479017),
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/trailing-extended-timestamp.txt',
+                'data' => 'trailing extended timestamp bytes should stay blocked',
+                'method' => 0,
+                'centralExtra' => pack('vvCVV', 0x5455, 9, 0x01, 1780479017, 0),
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/media/local-trailing-extended-timestamp.txt',
+                'data' => 'local trailing extended timestamp bytes should stay blocked',
+                'method' => 0,
+                'centralExtra' => '',
+                'localExtra' => pack('vvCVV', 0x5455, 9, 0x02, 1780479022, 0),
+            ],
+        ])));
     },
 
     'rejects invalid generated zip package parts before writing' => static function (TestRunner $t): void {
