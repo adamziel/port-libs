@@ -151,6 +151,29 @@ final class MathTexConverter
         'thinspace' => '0.1667em',
     ];
 
+    /** @var array<string, true> */
+    private const ARRAY_HOOK_COMMANDS = [
+        ' ' => true,
+        '!' => true,
+        ',' => true,
+        ':' => true,
+        ';' => true,
+        '>' => true,
+        'enspace' => true,
+        'hspace' => true,
+        'mbox' => true,
+        'medspace' => true,
+        'mspace' => true,
+        'negmedspace' => true,
+        'negthickspace' => true,
+        'negthinspace' => true,
+        'quad' => true,
+        'qquad' => true,
+        'text' => true,
+        'thickspace' => true,
+        'thinspace' => true,
+    ];
+
     /** @var array<string, string> */
     private const OVER_ACCENT_COMMANDS = [
         'acute' => '´',
@@ -2562,7 +2585,7 @@ final class MathTexConverter
     }
 
     /**
-     * @param array{columnalign:string, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int} $spec
+     * @param array{columnalign:string, columnhooks:list<string>, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int} $spec
      */
     private function arrayColumnAttributesFromSpec(array $spec): string
     {
@@ -2575,6 +2598,9 @@ final class MathTexConverter
         }
         if ($spec['columnlines'] !== []) {
             $attributes .= ' columnlines="' . $this->esc(implode(' ', $spec['columnlines'])) . '"';
+        }
+        if ($spec['columnhooks'] !== []) {
+            $attributes .= ' data-tex-column-hooks="' . $this->esc(implode(' | ', $spec['columnhooks'])) . '"';
         }
 
         return $attributes;
@@ -2648,15 +2674,17 @@ final class MathTexConverter
     }
 
     /**
-     * @return array{columnalign:string, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int}
+     * @return array{columnalign:string, columnhooks:list<string>, columnlines:list<string>, columnwidths:list<string>, columnvaligns:list<string>, columns:int}
      */
     private function arrayColumnSpec(string $columnSpec, bool $allowWidthColumns = true): array
     {
         $columnSpec = $this->expandArrayColumnRepeats($columnSpec);
         $alignments = [];
+        $columnHooks = [];
         $columnLines = [];
         $columnWidths = [];
         $columnVerticalAlignments = [];
+        $pendingColumnHooks = [];
         $lineBeforeNextColumn = false;
         $length = strlen($columnSpec);
         for ($offset = 0; $offset < $length; $offset++) {
@@ -2672,20 +2700,47 @@ final class MathTexConverter
                 continue;
             }
 
+            if ($char === '>' || $char === '<' || $char === '@') {
+                if (!$allowWidthColumns) {
+                    throw new \InvalidArgumentException('Unsupported TeX array column specifier ' . $char . ' at offset ' . $offset);
+                }
+
+                $hook = $this->readArrayPreambleHook($columnSpec, $offset, $char);
+                if ($char === '>') {
+                    $pendingColumnHooks[] = $hook['source'];
+                } elseif ($char === '<') {
+                    if ($alignments === []) {
+                        throw new \InvalidArgumentException('Expected TeX array column before post-column hook at offset ' . $offset);
+                    }
+
+                    $columnHooks[] = 'post-' . count($alignments) . ':' . $hook['source'];
+                } elseif ($alignments === []) {
+                    $columnHooks[] = 'gap-before-1:' . $hook['source'];
+                } else {
+                    $columnHooks[] = 'gap-after-' . count($alignments) . ':' . $hook['source'];
+                }
+
+                $offset = $hook['next'] - 1;
+                continue;
+            }
+
             if ($char === 'l') {
                 $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'left', 'auto', 'baseline');
+                $this->flushPendingArrayColumnHooks($columnHooks, $pendingColumnHooks, count($alignments));
                 $lineBeforeNextColumn = false;
                 continue;
             }
 
             if ($char === 'c') {
                 $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'center', 'auto', 'baseline');
+                $this->flushPendingArrayColumnHooks($columnHooks, $pendingColumnHooks, count($alignments));
                 $lineBeforeNextColumn = false;
                 continue;
             }
 
             if ($char === 'r') {
                 $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'right', 'auto', 'baseline');
+                $this->flushPendingArrayColumnHooks($columnHooks, $pendingColumnHooks, count($alignments));
                 $lineBeforeNextColumn = false;
                 continue;
             }
@@ -2709,6 +2764,7 @@ final class MathTexConverter
                     'b' => 'bottom',
                 };
                 $this->appendArrayColumnSpec($alignments, $columnLines, $columnWidths, $columnVerticalAlignments, $lineBeforeNextColumn, 'left', $width, $verticalAlignment);
+                $this->flushPendingArrayColumnHooks($columnHooks, $pendingColumnHooks, count($alignments));
                 $lineBeforeNextColumn = false;
                 $offset = $argument['next'] - 1;
                 continue;
@@ -2721,17 +2777,118 @@ final class MathTexConverter
             throw new \InvalidArgumentException('Expected TeX array column specifier');
         }
 
+        if ($pendingColumnHooks !== []) {
+            throw new \InvalidArgumentException('Expected TeX array column after pre-column hook');
+        }
+
         if (!in_array('solid', $columnLines, true)) {
             $columnLines = [];
         }
 
         return [
             'columnalign' => implode(' ', $alignments),
+            'columnhooks' => $columnHooks,
             'columnlines' => $columnLines,
             'columnwidths' => $columnWidths,
             'columnvaligns' => $columnVerticalAlignments,
             'columns' => count($alignments),
         ];
+    }
+
+    /**
+     * @return array{source:string, next:int}
+     */
+    private function readArrayPreambleHook(string $columnSpec, int $offset, string $specifier): array
+    {
+        $argumentOffset = $offset + 1;
+        $this->skipWhitespace($columnSpec, $argumentOffset);
+        $argument = $this->readTexBraceArgument($columnSpec, $argumentOffset);
+        if ($argument === null) {
+            throw new \InvalidArgumentException('Expected TeX array ' . $specifier . '-hook group at offset ' . ($offset + 1));
+        }
+
+        return [
+            'source' => $this->normalizeArrayHookSource($argument['value'], $specifier),
+            'next' => $argument['next'],
+        ];
+    }
+
+    private function normalizeArrayHookSource(string $source, string $specifier): string
+    {
+        $source = trim($source);
+        if ($source === '') {
+            throw new \InvalidArgumentException('Expected TeX array ' . $specifier . '-hook content');
+        }
+
+        if (strlen($source) > 96) {
+            throw new \InvalidArgumentException('Unsupported TeX array ' . $specifier . '-hook length');
+        }
+
+        if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $source) === 1) {
+            throw new \InvalidArgumentException('Unsupported TeX array ' . $specifier . '-hook control character');
+        }
+
+        $offset = 0;
+        $length = strlen($source);
+        while ($offset < $length) {
+            $char = $source[$offset];
+            if ($char === '&') {
+                throw new \InvalidArgumentException('Unsupported TeX array ' . $specifier . '-hook alignment separator');
+            }
+
+            if ($char === '{' || $char === '}') {
+                throw new \InvalidArgumentException('Unsupported TeX array ' . $specifier . '-hook group');
+            }
+
+            if ($char !== '\\') {
+                $offset++;
+                continue;
+            }
+
+            if (($source[$offset + 1] ?? '') === '\\') {
+                throw new \InvalidArgumentException('Unsupported TeX array ' . $specifier . '-hook row separator');
+            }
+
+            $commandOffset = $offset + 1;
+            $command = $this->readCommandName($source, $commandOffset);
+            if (!isset(self::ARRAY_HOOK_COMMANDS[$command])) {
+                throw new \InvalidArgumentException('Unsupported TeX array hook command \\' . $command);
+            }
+
+            $offset = $commandOffset;
+            if ($command === 'hspace' || $command === 'mspace') {
+                $dimension = $this->readRequiredGroupText($source, $offset);
+                $this->normalizeMathSpaceDimension($dimension, $command);
+                continue;
+            }
+
+            if ($command === 'mbox' || $command === 'text') {
+                $text = $this->readRequiredGroupText($source, $offset);
+                if (trim($text) === '') {
+                    throw new \InvalidArgumentException('Expected TeX array hook text content');
+                }
+                if (str_contains($text, '&') || str_contains($text, '\\\\')) {
+                    throw new \InvalidArgumentException('Unsupported TeX array hook text content');
+                }
+            }
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', $source);
+
+        return is_string($normalized) ? $normalized : $source;
+    }
+
+    /**
+     * @param list<string> $columnHooks
+     * @param list<string> $pendingColumnHooks
+     */
+    private function flushPendingArrayColumnHooks(array &$columnHooks, array &$pendingColumnHooks, int $columnIndex): void
+    {
+        foreach ($pendingColumnHooks as $hook) {
+            $columnHooks[] = 'pre-' . $columnIndex . ':' . $hook;
+        }
+
+        $pendingColumnHooks = [];
     }
 
     /**

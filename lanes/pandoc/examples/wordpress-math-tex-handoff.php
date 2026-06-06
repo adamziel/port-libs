@@ -31,6 +31,8 @@ Repeated array preamble audit $\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\ p_2 & m_
 
 Width array audit $\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i & \text{middle review} & 1 \\ q_i & n_i & 2\end{array}$ stays semantic.
 
+Array hook audit $\begin{array}{>{\text{src}}l<{\hspace{.25em}}@{\,}c}p_i & m_i \\ q_i & n_i\end{array}$ keeps preamble metadata.
+
 Negated relation audit $p_i \not\in P + a \not= b + x \not\leq y + A \not\subseteq B + \not\alpha_i$ stays semantic.
 
 Prime audit $f'(x) + g''_i + h_i''' + \partial^\prime f + y^\backprime$ stays semantic.
@@ -151,6 +153,7 @@ $summary = [
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
     'arrayRepeatedPreambleMathml' => $converter->texToMathMl('\\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\\\ p_2 & m_2 & 2\\end{array}'),
     'arrayWidthColumnMathml' => $converter->texToMathMl('\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i & \\text{middle review} & 1 \\\\ q_i & n_i & 2\\end{array}'),
+    'arrayHookMathml' => $converter->texToMathMl('\\begin{array}{>{\\text{src}}l<{\\hspace{.25em}}@{\\,}c}p_i & m_i \\\\ q_i & n_i\\end{array}'),
     'notRelationMathml' => $converter->texToMathMl('p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i'),
     'primeMathml' => $converter->texToMathMl("f'(x) + g''_i + h_i''' + \\partial^\\prime f + y^\\backprime"),
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
@@ -223,6 +226,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\begin{array}{l|c|r}p_i &amp; m_i &amp; 1 \\\\ \\cline{2-3} q_i &amp; n_i &amp; 2 \\\\ \\cline{1-1}\\cline{3-3} r_i &amp; s_i &amp; 3\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{*{2}{c|}r}p_1 &amp; m_1 &amp; 1 \\\\ p_2 &amp; m_2 &amp; 2\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i &amp; \\text{middle review} &amp; 1 \\\\ q_i &amp; n_i &amp; 2\\end{array}\\)</span>',
+        '<span class="math inline">\\(\\begin{array}{&gt;{\\text{src}}l&lt;{\\hspace{.25em}}@{\\,}c}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{array}\\)</span>',
         '<span class="math inline">\\(p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i\\)</span>',
         '<span class="math inline">\\(f&#039;(x) + g&#039;&#039;_i + h_i&#039;&#039;&#039; + \\partial^\\prime f + y^\\backprime\\)</span>',
         '<span class="math inline">\\(\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}\\)</span>',
@@ -276,6 +280,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\begin{array}{*{2}{c|}r}p_1 &amp; m_1 &amp; 1 \\\\ p_2 &amp; m_2 &amp; 2\\end{array}</annotation>',
         '<mtable columnalign="left left left" columnwidth="2cm 1.5em 8pt" data-tex-column-valign="top middle bottom" columnlines="solid solid"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mtext>middle review</mtext></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd><mtd><mn>2</mn></mtd></mtr></mtable>',
         '<annotation encoding="application/x-tex">\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i &amp; \\text{middle review} &amp; 1 \\\\ q_i &amp; n_i &amp; 2\\end{array}</annotation>',
+        '<mtable columnalign="left center" data-tex-column-hooks="pre-1:\\text{src} | post-1:\\hspace{.25em} | gap-after-1:\\,"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable>',
+        '<annotation encoding="application/x-tex">\\begin{array}{&gt;{\\text{src}}l&lt;{\\hspace{.25em}}@{\\,}c}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{array}</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mo>∉</mo><mi>P</mi><mo>+</mo><mi>a</mi><mo>≠</mo><mi>b</mi><mo>+</mo><mi>x</mi><mo>≰</mo><mi>y</mi><mo>+</mo><mi>A</mi><mo>⊈</mo><mi>B</mi><mo>+</mo><msub><menclose notation="updiagonalstrike"><mi>α</mi></menclose><mi>i</mi></msub>',
         '<annotation encoding="application/x-tex">p_i \\not\\in P + a \\not= b + x \\not\\leq y + A \\not\\subseteq B + \\not\\alpha_i</annotation>',
         '<msup><mi>f</mi><mo>′</mo></msup><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><msubsup><mi>g</mi><mi>i</mi><mo>″</mo></msubsup>',

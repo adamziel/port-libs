@@ -807,6 +807,23 @@ return [
         $t->contains('<mtable columnalign="left left left right" columnwidth="auto 2cm 2cm auto" data-tex-column-valign="baseline top top baseline" columnlines="solid solid solid"><mtr><mtd><mi>a</mi></mtd><mtd><mtext>draft</mtext></mtd><mtd><mtext>final</mtext></mtd><mtd><mi>b</mi></mtd></mtr></mtable>', $widthRepeatMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{array}{l|*{2}{p{2cm}|}r}a &amp; \\text{draft} &amp; \\text{final} &amp; b\\end{array}</annotation>', $widthRepeatMathml);
     },
+    'converts bounded tex array preamble hooks to mathml metadata' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $hookMathml = $converter->texToMathMl('\\begin{array}{>{\\text{src}}l<{\\hspace{.25em}}@{\\,}c}p_i & m_i \\\\ q_i & n_i\\end{array}', true);
+        $leadingHookMathml = $converter->texToMathMl('\\begin{array}{@{\\quad}r>{\\mbox{review}}l}a & b\\end{array}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $hookMathml);
+        $t->contains('<mtable columnalign="left center" data-tex-column-hooks="pre-1:\\text{src} | post-1:\\hspace{.25em} | gap-after-1:\\,"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable>', $hookMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\begin{array}{&gt;{\\text{src}}l&lt;{\\hspace{.25em}}@{\\,}c}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{array}</annotation>', $hookMathml);
+        $t->contains('<mtable columnalign="right left" data-tex-column-hooks="gap-before-1:\\quad | pre-2:\\mbox{review}"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr></mtable>', $leadingHookMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\bfseries}l}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{@{\\input{secret}}l}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{l<{}c}a & b\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\hspace{bad}}l}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\text{}}l}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\begin{array}{>{\\text{src}}}a\\end{array}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sum_{\\begin{subarray}{>{\\text{src}}c}i=1\\end{subarray}}^{n} a_i'));
+    },
     'converts bounded tex array rule commands to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $ruleMathml = $converter->texToMathMl('\\begin{array}{l|c|r}\\hline p_i & m_i & 1 \\\\ \\hline q_i & n_i & 2 \\\\ \\hline\\end{array}', true);
