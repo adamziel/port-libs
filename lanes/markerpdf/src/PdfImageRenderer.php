@@ -5579,7 +5579,7 @@ final class PdfImageRenderer
             return $this->buildImageDecodeDetails([], $expectedComponents, 'invalid');
         }
 
-        return $this->buildImageDecodeDetails($this->numericArrayValue($resolved), $expectedComponents, 'explicit');
+        return $this->buildImageDecodeDetails($this->numericArrayValue($resolved, $objects), $expectedComponents, 'explicit');
     }
 
     /**
@@ -7934,15 +7934,21 @@ final class PdfImageRenderer
     }
 
     /**
+     * @param array<int, string> $objects
+     * @param array<int, true> $seenObjects
      * @return list<float>
      */
-    private function numericArrayValue(?string $value): array
+    private function numericArrayValue(?string $value, array $objects = [], array $seenObjects = []): array
     {
         if ($value === null) {
             return [];
         }
 
         $trimmed = trim($value);
+        if ($objects !== []) {
+            $trimmed = trim($this->resolvePdfValue($trimmed, $objects, $seenObjects));
+        }
+
         if (!str_starts_with($trimmed, '[')) {
             if (preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/', $trimmed, $matches) === 0) {
                 return [];
@@ -7953,7 +7959,7 @@ final class PdfImageRenderer
 
         $numbers = [];
         foreach ($this->pdfArrayValues($trimmed) as $entry) {
-            $entry = trim($entry);
+            $entry = trim($this->resolvePdfValue(trim($entry), $objects, $seenObjects));
             if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $entry) !== 1) {
                 return [];
             }
@@ -7976,7 +7982,7 @@ final class PdfImageRenderer
             return [];
         }
 
-        return $this->numericArrayValue($this->resolvePdfValue($value, $objects, $seenObjects));
+        return $this->numericArrayValue($value, $objects, $seenObjects);
     }
 
     /**
