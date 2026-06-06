@@ -6066,6 +6066,7 @@ final class PdfMetadataExtractor
         }
 
         $kidNodes = [];
+        $boundedNodes = [];
         foreach ($kids as $order => $kid) {
             if ($this->validObjectNumberFromReference($kid, $objects) === null) {
                 return $kids;
@@ -6078,26 +6079,43 @@ final class PdfMetadataExtractor
 
             $localLimits = $this->nameTreeNodeLimits($child, $objects);
             $limits = $this->nameTreeEffectiveLimits($child, $objects, $inheritedLimits);
-            if ($localLimits === null || $limits === null) {
-                return $kids;
-            }
-
-            $kidNodes[] = [
+            $node = [
                 'kid' => $kid,
                 'limits' => $limits,
                 'order' => $order,
+                'bounded' => $localLimits !== null && $limits !== null,
             ];
+            $kidNodes[] = $node;
+            if ($node['bounded']) {
+                $boundedNodes[] = $node;
+            }
+        }
+
+        if (count($boundedNodes) < 2) {
+            return $kids;
         }
 
         usort(
-            $kidNodes,
+            $boundedNodes,
             static function (array $left, array $right): int {
                 return strcmp($left['limits']['lower_bytes'], $right['limits']['lower_bytes'])
                     ?: $left['order'] <=> $right['order'];
             }
         );
 
-        return array_values(array_map(static fn (array $node): string => $node['kid'], $kidNodes));
+        $sortedKids = [];
+        $boundedOffset = 0;
+        foreach ($kidNodes as $node) {
+            if (!$node['bounded']) {
+                $sortedKids[] = $node['kid'];
+                continue;
+            }
+
+            $sortedKids[] = $boundedNodes[$boundedOffset]['kid'];
+            ++$boundedOffset;
+        }
+
+        return $sortedKids;
     }
 
     /**
