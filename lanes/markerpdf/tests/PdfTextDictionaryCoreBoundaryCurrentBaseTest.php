@@ -920,6 +920,22 @@ return [
         $t->true(str_contains($charSpans[0]['text'], $mojibakeEAcute), 'char_blocks preserve the pdftext dictionary source text for review.');
         $t->true(!str_contains($encoded, 'hidden mojibake payload must not cross dictionary_output'));
     },
+    'rejects invalid utf8 pdftext text bytes before WordPress rendering' => static function (TestRunner $t) use ($pdftextLinkedPage, $pdftextCharsPage, $pdftextMojibakePage): void {
+        $invalidSpanText = $pdftextLinkedPage();
+        $invalidSpanText['blocks'][0]['lines'][0]['spans'][0]['text'] = 'Invalid ' . chr(0xC3) . chr(0x28) . " span\n";
+
+        $invalidCharText = $pdftextCharsPage();
+        $invalidCharText['blocks'][0]['lines'][0]['spans'][0]['chars'][0]['char'] = chr(0xC3) . chr(0x28);
+
+        $extractor = new PdfTextDocumentExtractor();
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidSpanText], maxPages: 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $extractor->getTextBlocks([$invalidCharText], maxPages: 1, keepChars: true));
+
+        $document = $extractor->getTextBlocks([$pdftextMojibakePage()], maxPages: 1);
+        $blocks = (new MarkdownPostProcessor())->mergeBlocks((new MarkdownPostProcessor())->mergeSpans($document['pages']));
+        $t->contains('Plugin café d’import', $blocks[0]['text']);
+        $t->contains('São Paulo résumé', $blocks[0]['text']);
+    },
     'records pdftext quote loosebox option at the dictionary core boundary' => static function (TestRunner $t) use ($pdftextLinkedPage): void {
         $defaultDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1);
         $strictDocument = (new PdfTextDocumentExtractor())->getTextBlocks([$pdftextLinkedPage()], maxPages: 1, quoteLoosebox: false);

@@ -494,6 +494,7 @@ final class PdfTextDocumentExtractor
         if (!is_string($char['char'])) {
             throw new InvalidArgumentException("pdftext char {$index}.char must be a string when keep_chars=true.");
         }
+        $this->assertUtf8String($char['char'], "char {$index}.char");
 
         $bbox = $this->unnormalizeDictionaryOutputBbox($char['bbox'], $bboxScale);
         $char['bbox'] = $this->dictionaryOutputRequiredBbox($bbox, "char {$index}.bbox");
@@ -807,6 +808,8 @@ final class PdfTextDocumentExtractor
      */
     private function normalizeDictionaryOutputText(string $text): string
     {
+        $this->assertUtf8String($text, 'span.text');
+
         $text = str_replace("\r\n", "\n", $text);
         $text = str_replace(["\u{FFFE}", "\u{FEFF}", "\u{00A0}"], ' ', $text);
         $text = str_replace(["\r", "\n"], "\n", $text);
@@ -827,6 +830,13 @@ final class PdfTextDocumentExtractor
         }
 
         return str_replace("\x02", "-\n", $text);
+    }
+
+    private function assertUtf8String(string $text, string $field): void
+    {
+        if (preg_match('//u', $text) !== 1) {
+            throw new InvalidArgumentException("pdftext {$field} must be valid UTF-8.");
+        }
     }
 
     private function removeUnsafeControlCharacters(string $text): string
