@@ -38727,14 +38727,18 @@ final class PdfTextExtractor
                 }
 
                 $exact = substr($normalized, $offset, $keyLength);
-                if ($this->sourceKeyIsMappedForZeroPaddedWidth($exact, $widthMap, $mappings)) {
+                $exactIsZeroPadding = preg_match('/^(?:00)+$/', $exact) === 1;
+                if (
+                    $this->sourceKeyIsMappedForZeroPaddedWidth($exact, $widthMap, $mappings)
+                    && (!$exactIsZeroPadding || $this->toUnicodeSourceKeyIsMapped($exact, $toUnicodeMap))
+                ) {
                     $keys[] = $exact;
                     $offset += $keyLength;
                     $matched = true;
                     break;
                 }
 
-                if (preg_match('/^(?:00)+$/', $exact) !== 1) {
+                if (!$exactIsZeroPadding) {
                     continue;
                 }
 
@@ -38750,12 +38754,20 @@ final class PdfTextExtractor
 
                     $combined = substr($normalized, $offset, $suffixOffset + $keyLength - $offset);
                     $cidMap = $toUnicodeMap['cidMap'] ?? [];
+                    $suffixCid = null;
+                    if (is_array($cidMap) && array_key_exists($suffix, $cidMap) && is_int($cidMap[$suffix])) {
+                        $suffixCid = $cidMap[$suffix];
+                    } else {
+                        $suffixCid = $this->cidFromCidRangesForSourceKey($suffix, $toUnicodeMap);
+                    }
+                    $combinedHasCidMapping = is_array($cidMap) && array_key_exists($combined, $cidMap);
+                    if (!$combinedHasCidMapping) {
+                        $combinedHasCidMapping = $this->cidFromCidRangesForSourceKey($combined, $toUnicodeMap) !== null;
+                    }
                     if (
-                        is_array($cidMap)
-                        && array_key_exists($suffix, $cidMap)
-                        && is_int($cidMap[$suffix])
-                        && !array_key_exists($combined, $cidMap)
-                        && $this->fontWidthMapContainsCid($cidMap[$suffix], $toUnicodeMap)
+                        $suffixCid !== null
+                        && !$combinedHasCidMapping
+                        && $this->fontWidthMapContainsCid($suffixCid, $toUnicodeMap)
                     ) {
                         $keys[] = $suffix;
                         $offset += strlen($combined);
@@ -38794,7 +38806,8 @@ final class PdfTextExtractor
     private function sourceKeyIsMappedForZeroPaddedWidth(string $sourceKey, array $widthMap, array $mappings): bool
     {
         return array_key_exists($sourceKey, $mappings)
-            || $this->toUnicodeRangeTextForSourceKey($sourceKey, $widthMap) !== null;
+            || $this->toUnicodeRangeTextForSourceKey($sourceKey, $widthMap) !== null
+            || $this->cidFromCidRangesForSourceKey($sourceKey, $widthMap) !== null;
     }
 
     private function fontWidthMapContainsCid(int $cid, array $toUnicodeMap): bool
